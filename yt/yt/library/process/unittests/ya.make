@@ -3,7 +3,6 @@ GTEST(unittester-library-process)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    pipes_ut.cpp
     process_ut.cpp
     subprocess_ut.cpp
 )
@@ -14,9 +13,7 @@ PEERDIR(
     yt/yt/build
     yt/yt/core
     yt/yt/core/test_framework
-    yt/yt/library/backtrace_introspector
     yt/yt/library/process
-    yt/yt/library/signals
 )
 
 SIZE(MEDIUM)

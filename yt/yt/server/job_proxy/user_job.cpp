@@ -132,7 +132,7 @@ using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NChunkClient::NProto;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NCoreDump;
@@ -1380,12 +1380,12 @@ private:
     void PrepareEnvironment()
     {
         TPatternFormatter formatter;
-        formatter.AddProperty(
+        formatter.SetProperty(
             "SandboxPath",
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
         if (Config_->TestRootFS && Config_->RootPath) {
-            formatter.AddProperty("RootFS", *Config_->RootPath);
+            formatter.SetProperty("RootFS", *Config_->RootPath);
             SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
         }
 

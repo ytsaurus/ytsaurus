@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NPipeIO {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, PipesLogger, "Pipes");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, PtyLogger, "Pty");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPipeIO

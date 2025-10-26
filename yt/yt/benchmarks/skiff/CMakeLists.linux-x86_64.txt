@@ -31,7 +31,7 @@ target_link_libraries(skiff PUBLIC
   yutil
   build-cow-on
   library-cpp-cpuid_check
-  yt-library-process
+  yt-library-pipe_io
   yt-library-skiff_ext
   yt-yt-client
   yt-library-formats

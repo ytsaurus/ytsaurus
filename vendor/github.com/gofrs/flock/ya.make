@@ -33,6 +33,12 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        flock_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

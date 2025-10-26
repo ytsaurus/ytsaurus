@@ -38,6 +38,13 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        glog_file_linux.go
+        glog_file_nonwindows.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

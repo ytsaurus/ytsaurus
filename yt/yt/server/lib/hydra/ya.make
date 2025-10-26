@@ -51,7 +51,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/library/process
+    yt/yt/library/pipe_io
     yt/yt/ytlib
     yt/yt/server/lib/misc
     yt/yt/server/lib/election

@@ -24,4 +24,11 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        nodata_linux.go
+        xattr.go
+    )
+ENDIF()
+
 END()

@@ -93,7 +93,7 @@ TSecondaryQueryReadTaskIterator::TSecondaryQueryReadTaskIterator(
         TSecondaryQueryReadTask readTask;
         for (int operandIndex = 0; operandIndex < operandCount; ++operandIndex) {
             auto& operandReadTask = readTask.OperandInputs.emplace_back();
-            FillDataSliceDescriptors(operandReadTask, miscExtMap, subquery.StripeList->Stripes[operandIndex]);
+            FillDataSliceDescriptors(operandReadTask, miscExtMap, subquery.StripeList->Stripes()[operandIndex]);
         }
 
         auto protoReadTask = NYT::ToProto<NProto::TSecondaryQueryReadTask>(readTask);

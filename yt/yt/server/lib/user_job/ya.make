@@ -11,6 +11,7 @@ SRCS(
 
 PEERDIR(
     yt/yt_proto/yt/core
+    yt/yt/library/pipe_io
 )
 
 END()

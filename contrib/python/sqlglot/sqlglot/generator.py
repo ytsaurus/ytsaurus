@@ -1332,7 +1332,10 @@ class Generator(metaclass=_Generator):
         elif materialized:
             materialized = "MATERIALIZED "
 
-        return f"{alias_sql} AS {materialized or ''}{self.wrap(expression)}"
+        key_expressions = self.expressions(expression, key="key_expressions", flat=True)
+        key_expressions = f" USING KEY ({key_expressions})" if key_expressions else ""
+
+        return f"{alias_sql}{key_expressions} AS {materialized or ''}{self.wrap(expression)}"
 
     def tablealias_sql(self, expression: exp.TableAlias) -> str:
         alias = self.sql(expression, "this")
@@ -1478,7 +1481,7 @@ class Generator(metaclass=_Generator):
     def delete_sql(self, expression: exp.Delete) -> str:
         this = self.sql(expression, "this")
         this = f" FROM {this}" if this else ""
-        using = self.sql(expression, "using")
+        using = self.expressions(expression, key="using")
         using = f" USING {using}" if using else ""
         cluster = self.sql(expression, "cluster")
         cluster = f" {cluster}" if cluster else ""
@@ -1952,10 +1955,11 @@ class Generator(metaclass=_Generator):
         on_conflict = self.sql(expression, "conflict")
         on_conflict = f" {on_conflict}" if on_conflict else ""
         by_name = " BY NAME" if expression.args.get("by_name") else ""
+        default_values = "DEFAULT VALUES" if expression.args.get("default") else ""
         returning = self.sql(expression, "returning")
 
         if self.RETURNING_END:
-            expression_sql = f"{expression_sql}{on_conflict}{returning}"
+            expression_sql = f"{expression_sql}{on_conflict}{default_values}{returning}"
         else:
             expression_sql = f"{returning}{expression_sql}{on_conflict}"
 

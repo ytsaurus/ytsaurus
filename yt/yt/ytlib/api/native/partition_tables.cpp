@@ -282,7 +282,7 @@ std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertCh
 
     std::vector<std::vector<TDataSliceDescriptor>> slicesByTable(DataSourceDirectory_->DataSources().size());
 
-    for (auto chunkStripe : chunkStripeList->Stripes) {
+    for (auto chunkStripe : chunkStripeList->Stripes()) {
         for (auto dataSlice : chunkStripe->DataSlices) {
             auto tableIndex = dataSlice->GetInputStreamIndex();
             const auto& comparator = GetComparator(tableIndex);

@@ -20,6 +20,14 @@ IF (OS_DARWIN)
     GO_TEST_SRCS(syslog_test.go)
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        syslog.go
+    )
+
+    GO_TEST_SRCS(syslog_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

@@ -53,4 +53,18 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        chtimes_nowindows.go
+        filesys_unix.go
+        lstat_unix.go
+        mknod.go
+        mknod_unix.go
+        stat_linux.go
+        stat_unix.go
+        utimes_unix.go
+        xattrs_linux.go
+    )
+ENDIF()
+
 END()

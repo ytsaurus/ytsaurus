@@ -33,9 +33,7 @@ target_link_libraries(unittester-library-process PUBLIC
   yt-yt-build
   yt-yt-core
   yt-core-test_framework
-  yt-library-backtrace_introspector
   yt-library-process
-  yt-library-signals
 )
 
 target_allocator(unittester-library-process
@@ -51,7 +49,6 @@ target_link_options(unittester-library-process PRIVATE
 )
 
 target_sources(unittester-library-process PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/pipes_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/process_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
 )

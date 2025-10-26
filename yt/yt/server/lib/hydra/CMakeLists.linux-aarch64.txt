@@ -51,7 +51,7 @@ target_link_libraries(server-lib-hydra PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-library-process
+  yt-library-pipe_io
   yt-yt-ytlib
   server-lib-misc
   server-lib-election

@@ -29,6 +29,13 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        retry_linux.go
+        syscheck_linux.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

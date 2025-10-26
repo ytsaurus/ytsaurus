@@ -423,6 +423,8 @@ public:
 
         LeasesRevocationQueue_.Add(transaction, GetDynamicConfig()->Retries);
         RevokeLeasesForExpiredTransaction(transaction);
+
+        YT_LOG_DEBUG("Lease revocation for expired transaction scheduled (TransactionId: %v)", transaction->GetId());
     }
 
     TFuture<void> EndRequestAndGetFailedCommitCompletionFuture(

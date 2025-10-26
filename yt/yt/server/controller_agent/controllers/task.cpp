@@ -1720,7 +1720,7 @@ void TTask::AddSequentialInputSpec(
         TaskHost_->GetOperationType());
     auto* inputSpec = jobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
-    for (const auto& stripe : list->Stripes) {
+    for (const auto& stripe : list->Stripes()) {
         AddChunksToInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
@@ -1746,7 +1746,7 @@ void TTask::AddParallelInputSpec(
         TaskHost_->GetInputManager(),
         TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
-    for (const auto& stripe : list->Stripes) {
+    for (const auto& stripe : list->Stripes()) {
         auto* inputSpec = stripe->Foreign
             ? jobSpecExt->add_foreign_input_table_specs()
             : jobSpecExt->add_input_table_specs();

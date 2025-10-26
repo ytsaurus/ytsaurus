@@ -42,6 +42,14 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        fs_default.go
+    )
+
+    GO_TEST_SRCS(examples_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

@@ -48,6 +48,7 @@ target_link_libraries(server-lib-user_job PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt_proto-yt-core
+  yt-library-pipe_io
   contrib-libs-protobuf
 )
 

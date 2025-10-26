@@ -37,6 +37,15 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        sockets_unix.go
+        unix_socket.go
+    )
+
+    GO_TEST_SRCS(unix_socket_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

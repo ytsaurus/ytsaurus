@@ -42,6 +42,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   yt-library-containers
   library-containers-cri
   yt-library-orchid
+  yt-library-pipe_io
   library-profiling-solomon
   library-query-row_comparer
   yt-library-server_program

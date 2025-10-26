@@ -25,6 +25,12 @@ type Config struct {
 
 	RPCProxyRole     string `yaml:"rpc_proxy_role"`
 	CompressionCodec string `yaml:"compression_codec"`
+
+	// BytesPerRowsBatch specifies the minimum total size in bytes of compressed rows to batch before pushing to YT queue.
+	// If 0, each row is pushed immediately.
+	//
+	// Default value is 0.
+	BytesPerRowsBatch int `yaml:"bytes_per_rows_batch"`
 }
 
 type OutputConfig struct {
@@ -41,7 +47,12 @@ type OutputConfig struct {
 
 	Logger *slog.Logger
 
-	BatchSize int
+	// BytesPerRow specifies the maximum size in bytes of a row to compress.
+	BytesPerRow int
+
+	// BytesPerRowsBatch specifies the minimum total size in bytes of compressed rows to batch before pushing to YT queue.
+	// If 0, each row is pushed immediately.
+	BytesPerRowsBatch int
 
 	OnSent func(meta pipelines.RowMeta)
 }
@@ -78,7 +89,7 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 
 	var compressor *compressor
 	if config.CompressionCodec != "" {
-		compressor, err = newCompressor(config.BatchSize, config.CompressionCodec)
+		compressor, err = newCompressor(config.BytesPerRow, config.CompressionCodec)
 		if err != nil {
 			err = fmt.Errorf("failed to create compressor: %w", err)
 			return
@@ -93,6 +104,8 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		epoch:        createSessionResult.Epoch,
 
 		compressor: compressor,
+
+		bytesPerRowsBatch: config.BytesPerRowsBatch,
 
 		logger: config.Logger,
 		onSent: config.OnSent,
@@ -125,10 +138,11 @@ type output struct {
 
 	logger *slog.Logger
 
-	toCompress     chan sendItem
-	toSend         chan sendItem
-	compressorDone chan struct{}
-	senderDone     chan struct{}
+	bytesPerRowsBatch int
+	toCompress        chan sendItem
+	toSend            chan sendItem
+	compressorDone    chan struct{}
+	senderDone        chan struct{}
 
 	onSent func(meta pipelines.RowMeta)
 }
@@ -165,21 +179,49 @@ func (o *output) compressorLoop() {
 }
 
 func (o *output) senderLoop() {
+	var batch []sendItem
+	var totalRowsBytes int
+
 	for item := range o.toSend {
-		startedAt := time.Now()
-		retry(
-			func() error {
-				_, err := o.yc.PushQueueProducer(item.ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{item.row}, nil)
-				return err
-			},
-			func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
-		)
-		o.logger.Debug("Row pushed to YT Queue", "seq_no", item.row.SequenceNumber, "duration_ms", time.Since(startedAt).Milliseconds())
-		if o.onSent != nil {
-			o.onSent(item.meta)
+		batch = append(batch, item)
+		totalRowsBytes += len(item.row.Value)
+		if totalRowsBytes >= o.bytesPerRowsBatch {
+			o.flushBatch(batch)
+			batch = batch[:0]
+			totalRowsBytes = 0
 		}
 	}
+
+	o.flushBatch(batch)
 	close(o.senderDone)
+}
+
+func (o *output) flushBatch(batch []sendItem) {
+	if len(batch) == 0 {
+		return
+	}
+
+	rows := make([]any, len(batch))
+	batchSize := 0
+	for i := range batch {
+		rows[i] = batch[i].row
+		batchSize += len(batch[i].row.Value)
+	}
+
+	startedAt := time.Now()
+	retry(
+		func() error {
+			_, err := o.yc.PushQueueProducer(batch[len(batch)-1].ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, rows, nil)
+			return err
+		},
+		func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
+	)
+
+	o.logger.Debug("Rows pushed to YT Queue", "rows_count", len(batch), "batch_size_bytes", batchSize, "first_seq_no", batch[0].row.SequenceNumber, "last_seq_no", batch[len(batch)-1].row.SequenceNumber, "duration_ms", time.Since(startedAt).Milliseconds())
+
+	if o.onSent != nil {
+		o.onSent(batch[len(batch)-1].meta)
+	}
 }
 
 func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.Row) {

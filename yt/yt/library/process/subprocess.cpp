@@ -16,7 +16,7 @@
 namespace NYT {
 
 using namespace NConcurrency;
-using namespace NPipes;
+using namespace NPipeIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 

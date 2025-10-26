@@ -58,12 +58,8 @@ void TLegacyJobStub::AddPreliminaryForeignDataSlice(const TLegacyDataSlicePtr& d
 
 void TLegacyJobStub::Finalize(bool sortByPosition)
 {
+    std::vector<TChunkStripePtr> stripes;
     for (const auto& [_, stripe] : StripeMap_) {
-        const auto& statistics = stripe->GetStatistics();
-        StripeList_->TotalDataWeight += statistics.DataWeight;
-        StripeList_->TotalRowCount += statistics.RowCount;
-        StripeList_->TotalChunkCount += statistics.ChunkCount;
-        StripeList_->TotalCompressedDataSize += statistics.CompressedDataSize;
         if (sortByPosition) {
             // This is done to ensure that all the data slices inside a stripe
             // are not only sorted by key, but additionally by their position
@@ -136,12 +132,12 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
                     dataSliceComparator);
             }
         }
-        StripeList_->Stripes.emplace_back(std::move(stripe));
+        stripes.emplace_back(std::move(stripe));
     }
     StripeMap_.clear();
 
     // This order is crucial for ordered map.
-    std::sort(StripeList_->Stripes.begin(), StripeList_->Stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
+    std::sort(stripes.begin(), stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
         auto& lhsSlice = lhs->DataSlices.front();
         auto& rhsSlice = rhs->DataSlices.front();
 
@@ -151,6 +147,10 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
 
         return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
     });
+
+    for (auto& stripe : stripes) {
+        StripeList_->AddStripe(std::move(stripe));
+    }
 }
 
 i64 TLegacyJobStub::GetDataWeight() const
@@ -188,7 +188,7 @@ TString TLegacyJobStub::GetDebugString() const
     TStringBuilder builder;
     builder.AppendString("{");
     bool isFirst = true;
-    for (const auto& stripe : StripeList_->Stripes) {
+    for (const auto& stripe : StripeList_->Stripes()) {
         for (const auto& dataSlice : stripe->DataSlices) {
             if (isFirst) {
                 isFirst = false;
@@ -566,7 +566,7 @@ std::vector<TLegacyDataSlicePtr> TLegacyJobManager::ReleaseForeignSlices(IChunkP
 {
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
-    for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
+    for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
         if (stripe->Foreign) {
             std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
             stripe->DataSlices.clear();
@@ -637,13 +637,13 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
         const auto& job = Jobs_[jobIndex];
         i64 primaryDataWeight = currentJobStub->GetPrimaryDataWeight();
         i64 foreignDataWeight = currentJobStub->GetForeignDataWeight();
-        for (const auto& stripe : job.StripeList()->Stripes) {
+        for (const auto& stripe : job.StripeList()->Stripes()) {
             for (const auto& dataSlice : stripe->DataSlices) {
                 (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
             }
         }
         if ((primaryDataWeight <= primaryDataWeightPerJob && foreignDataWeight + primaryDataWeight <= dataWeightPerJob) || force) {
-            for (const auto& stripe : job.StripeList()->Stripes) {
+            for (const auto& stripe : job.StripeList()->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->Foreign);
                 }

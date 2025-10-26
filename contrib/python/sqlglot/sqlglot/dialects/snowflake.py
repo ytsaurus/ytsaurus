@@ -571,7 +571,15 @@ class Snowflake(Dialect):
             exp.Degrees,
             exp.Exp,
             exp.Sin,
+            exp.Sinh,
             exp.Tan,
+            exp.Tanh,
+            exp.Asin,
+            exp.Asinh,
+            exp.Atan,
+            exp.Atan2,
+            exp.Atanh,
+            exp.Cbrt,
         },
         exp.DataType.Type.INT: {
             *Dialect.TYPE_TO_EXPRESSIONS[exp.DataType.Type.INT],
@@ -629,6 +637,7 @@ class Snowflake(Dialect):
         },
         exp.DataType.Type.BIGINT: {
             *Dialect.TYPE_TO_EXPRESSIONS[exp.DataType.Type.BIGINT],
+            exp.Factorial,
             exp.MD5NumberLower64,
             exp.MD5NumberUpper64,
         },
@@ -660,12 +669,14 @@ class Snowflake(Dialect):
         **{
             expr_type: lambda self, e: self._annotate_by_args(e, "this")
             for expr_type in (
+                exp.Floor,
                 exp.Left,
                 exp.Pad,
                 exp.Right,
                 exp.Stuff,
                 exp.Substring,
                 exp.Round,
+                exp.Ceil,
             )
         },
         **{
