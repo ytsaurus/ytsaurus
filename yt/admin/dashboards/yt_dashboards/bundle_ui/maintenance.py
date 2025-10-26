@@ -57,9 +57,9 @@ def build_bundle_controller():
                         .top_max(10)
                         .alias("porto oom kills {{container}}"),
                     (MonitoringExpr(TabNodeYtcfgen("yt.error_watcher.ooms"))
-                        + PlainMonitoringExpr("constant_line(0)"))
                         .diff()
                         .drop_below(0)
+                        + PlainMonitoringExpr("constant_line(0)"))
                         .top_max(10)
                         .alias("memory limit kills {{container}}")
                 ))
