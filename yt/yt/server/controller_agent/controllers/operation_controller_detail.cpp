@@ -10327,11 +10327,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->NetworkProject) {
         auto networkProject = GetNetworkProject(Host_->GetClient(), AuthenticatedUser_, *jobSpecConfig->NetworkProject);
         ToProto(jobSpec->mutable_network_project(), networkProject);
-
-        // COMPAT(ignat)
-        jobSpec->set_network_project_id(networkProject.Id);
-        jobSpec->set_enable_nat64(networkProject.EnableNat64);
-        jobSpec->set_disable_network(networkProject.DisableNetwork);
     }
 
     jobSpec->set_enable_porto(ToProto(jobSpecConfig->EnablePorto.value_or(Config_->DefaultEnablePorto)));
