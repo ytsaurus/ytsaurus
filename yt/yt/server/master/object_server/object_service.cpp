@@ -1189,6 +1189,7 @@ private:
             CreateErrorResponseMessage(TError(
                 NObjectClient::EErrorCode::RequestInvolvesSequoia,
                 "Request resolved in Sequoia")
+                << TErrorAttribute("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
                 << TErrorAttribute("rootstock_node_id", resolveResult.RootstockNodeId)
                 << TErrorAttribute("rootstock_path", resolveResult.RootstockPath)));
         YT_LOG_DEBUG(
