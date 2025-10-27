@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/client/queue_client/public.h>
@@ -34,4 +36,17 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TTable>
+TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
+    const TWeakPtr<NApi::NNative::IConnection>& connection,
+    const std::optional<std::string>& cluster,
+    const NYPath::TYPath& path,
+    const std::string& user);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueClient
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

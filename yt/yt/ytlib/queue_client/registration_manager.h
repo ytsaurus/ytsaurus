@@ -13,6 +13,15 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueConsumerRegistrationManagerProfilingCounters
+{
+    explicit TQueueConsumerRegistrationManagerProfilingCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter ListAllRegistrationsRequestCount;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IQueueConsumerRegistrationManager
     : public TRefCounted
 {
