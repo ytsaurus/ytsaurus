@@ -25,10 +25,10 @@ public:
         bool reportHeartbeatsToAllSecondaryMasters,
         NLogging::TLogger logger);
 
-    virtual void Initialize();
-    virtual void StartNodeHeartbeats();
-    virtual void StartNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
-    virtual void Reconfigure(const NConcurrency::TRetryingPeriodicExecutorOptions& options);
+    void Initialize();
+    void StartNodeHeartbeats();
+    void ScheduleOutOfBandMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    void Reconfigure(const NConcurrency::TRetryingPeriodicExecutorOptions& options);
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -52,6 +52,7 @@ protected:
     virtual void ResetStates(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
 
 private:
+    void StartNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
     void DoStopNodeHeartbeatsToCells(
         const THashSet<NObjectClient::TCellTag>& masterCellTags);
     void DoStartNodeHeartbeatsToCells(
