@@ -160,7 +160,7 @@ message TJobProfilerSpec
 
 message TNetworkProject
 {
-    required int32 id = 1;
+    required uint32 id = 1;
     required bool enable_nat64 = 2;
     required bool disable_network = 3;
 }
