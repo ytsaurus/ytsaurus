@@ -12,6 +12,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 #include <yt/yt/core/net/socket.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -261,6 +262,11 @@ protected:
 
             InitClientSocket(clientSocket);
 
+            auto identity = Config_->Identity;
+            if (!identity && Config_->Port) {
+                identity = BuildServiceAddress(GetLocalHostName(), *Config_->Port);
+            }
+
             auto address = ToString(clientAddress);
             auto endpointDescription = address;
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -281,6 +287,7 @@ protected:
                 clientAddress,
                 address,
                 std::nullopt,
+                identity,
                 Handler_,
                 std::move(poller),
                 PacketTranscoderFactory_,

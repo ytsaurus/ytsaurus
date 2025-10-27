@@ -10,8 +10,6 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/client/node_tracker_client/public.h>
-
 #include <yt/yt/library/server_program/config.h>
 
 namespace NYT::NCellBalancer {
@@ -107,7 +105,6 @@ struct TCellBalancerBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
-    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     bool EnableCellBalancer;
     TCellBalancerConfigPtr CellBalancer;

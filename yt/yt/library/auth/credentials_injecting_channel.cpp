@@ -260,9 +260,10 @@ public:
         , ServiceTicketAuth_(std::move(serviceTicketAuth))
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto channel = UnderlyingFactory_->CreateChannel(address);
+        auto channel = UnderlyingFactory_->CreateChannel(address, endpointIdentity);
         if (!ServiceTicketAuth_) {
             return channel;
         }

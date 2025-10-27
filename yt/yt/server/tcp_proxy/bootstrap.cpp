@@ -187,7 +187,7 @@ private:
                     ToYPathLiteral(NNet::BuildServiceAddress(
                         NNet::GetLocalHostName(),
                         Config_->RpcPort))),
-                .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
+                .OrchidRemoteAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort),
                 .ExpireSelf = true,
             };
             CypressRegistrar_ = CreateCypressRegistrar(

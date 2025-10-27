@@ -244,7 +244,7 @@ private:
 
         auto& address = *optionalAddress;
         const auto& channelFactory = Client_->GetChannelFactory();
-        auto channel = channelFactory->CreateChannel(address);
+        auto channel = channelFactory->CreateChannel(address, descriptor->GetDefaultAddress());
 
         return New<TPeerInfo>(TPeerInfo{
             .NodeId = nodeId,
