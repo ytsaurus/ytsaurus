@@ -188,6 +188,7 @@ private:
                 TReplicatedTableMappingTableRow::FromAttributeDictionary(TCrossClusterReference{cluster, object.Path}, attributes);
             const auto& type = tableRow.ObjectType;
             if (IsReplicatedTableObjectType(type)) {
+                tableRow.Validate();
                 ReplicatedTableMappingRows.push_back(std::move(tableRow));
             }
         }
@@ -279,12 +280,26 @@ private:
         void AppendReplicatedObjectWithError(
             const std::string& cluster,
             const TObject& object,
+            const IAttributeDictionaryPtr& attributes,
             const TError& error,
-            std::optional<NHydra::TRevision> revision = std::nullopt)
+            const NLogging::TLogger& logger)
         {
+            const auto& Logger = logger;
+
+            std::optional<EObjectType> objectType;
+            try {
+                objectType = attributes->Get<EObjectType>("type");
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Error parsing attribute \"type\"");
+            }
+
+            if (!IsReplicatedTableObjectType(objectType)) {
+                return;
+            }
+
             ReplicatedTableMappingRows.push_back({
                 .Ref = TCrossClusterReference{cluster, object.Path},
-                .Revision = revision,
+                .ObjectType = objectType,
                 .SynchronizationError = error,
             });
         }
@@ -860,6 +875,7 @@ private:
                 // These tables contain different kinds of information.
                 // NB: We only export synchronization errors for object that have a replicated table type, so there will
                 // be no entries for deleted objects, or objects for which the type attribute value is unavailable.
+                // TODO(apachee): Simplify this logic in the future.
                 try {
                     RowsToWrite_.AppendPotentiallyReplicatedObject(cluster, object, attributes);
                 } catch (const std::exception& ex) {
@@ -868,7 +884,7 @@ private:
                         "Error parsing replicated object attributes (Cluster: %v, Path: %v)",
                         cluster,
                         object.Path);
-                    RowsWithErrors_.AppendReplicatedObjectWithError(cluster, object, ex);
+                    RowsWithErrors_.AppendReplicatedObjectWithError(cluster, object, attributes, ex, Logger);
                 }
             }
         }
