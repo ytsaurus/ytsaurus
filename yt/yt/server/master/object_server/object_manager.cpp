@@ -811,6 +811,7 @@ private:
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
                     "Request involves Sequoia shard")
                     << TErrorAttribute("path", targetPath)
+                    << TErrorAttribute("unresolved_suffix", resolvePath.UnresolvedPathSuffix)
                     << TErrorAttribute("rootstock_node_id", payload.RootstockNodeId)
                     << TErrorAttribute("rootstock_path", payload.RootstockPath);
             });

@@ -87,6 +87,7 @@ public:
     {
         TNodeId RootstockNodeId;
         NYPath::TYPath RootstockPath;
+        NYPath::TYPath UnresolvedPathSuffix;
     };
 
     using TResolveResult = std::variant<TRemoteResolveResult, TSequoiaResolveResult>;

@@ -718,6 +718,19 @@ class TestSequoiaInternals(YTEnvSetup):
         # TODO(grphil): Implement attributes in get for non map node
         # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
 
+    @authors("danilalexeev")
+    def test_resolve_rootstock_from_object(self):
+        if (
+            self.DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG
+            .get("object_service", {})
+            .get("allow_bypass_master_resolve", False)
+        ):
+            pytest.skip()
+
+        node_id = get("//@id")
+        # Should not throw.
+        get(f"#{node_id}/tmp")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):

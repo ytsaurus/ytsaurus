@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSecurityTagsMessingWithChunkListStructure_25_4)            (3115))  // h0pless
     ((FixMaintenanceRequestInconsistencyOnMasterCellAddition)       (3116))  // kvk1920
     ((FixAccountsInSequoiaCopy)                                     (3117))  // babenko
+    ((UnresolvedSuffixOnRequestInvolvesSequoia)                     (3118))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
