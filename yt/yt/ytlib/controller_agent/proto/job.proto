@@ -278,8 +278,7 @@ message TUserJobSpec
 
     optional string cuda_toolkit_version = 46;
 
-    // COMPAT(ignat)
-    optional uint32 network_project_id = 47;
+    reserved 47;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
 
@@ -310,14 +309,7 @@ message TUserJobSpec
     map<string, string> gpu_check_environment = 79;
     optional TNetworkProject gpu_check_network_project = 81;
 
-    // COMPAT(ignat)
-    // The following options must be used only with network projects.
-    // Enables NAT64 - YT-15665.
-    optional bool enable_nat64 = 64;
-
-    // COMPAT(ignat)
-    // Disables networking inside the job.
-    optional bool disable_network = 67;
+    reserved 64, 67;
 
     // 65 is free
 

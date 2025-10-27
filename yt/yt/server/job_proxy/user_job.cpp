@@ -1406,7 +1406,7 @@ private:
             }
         }
 
-        if (UserJobSpec_.has_network_project_id()) {
+        if (UserJobSpec_.has_network_project()) {
             SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project().id()));
         }
 
