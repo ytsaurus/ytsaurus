@@ -1391,7 +1391,7 @@ private:
         }
 
         if (UserJobSpec_.has_network_project_id()) {
-            SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
+            SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project().id()));
         }
 
         if (UserJobSpec_.enable_rpc_proxy_in_job_proxy()) {
