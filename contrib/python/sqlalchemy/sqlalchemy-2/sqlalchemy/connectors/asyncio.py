@@ -19,11 +19,15 @@ from typing import Iterator
 from typing import NoReturn
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
+from typing import Type
 from typing import TYPE_CHECKING
 
 from ..engine import AdaptedConnection
+from ..util import EMPTY_DICT
 from ..util.concurrency import await_fallback
 from ..util.concurrency import await_only
+from ..util.concurrency import in_greenlet
 from ..util.typing import Protocol
 
 if TYPE_CHECKING:
@@ -129,7 +133,10 @@ class AsyncAdapt_dbapi_cursor:
         "await_",
         "_cursor",
         "_rows",
+        "_soft_closed_memoized",
     )
+
+    _awaitable_cursor_close: bool = True
 
     _cursor: AsyncIODBAPICursor
     _adapt_connection: AsyncAdapt_dbapi_connection
@@ -144,7 +151,7 @@ class AsyncAdapt_dbapi_cursor:
 
         cursor = self._make_new_cursor(self._connection)
         self._cursor = self._aenter_cursor(cursor)
-
+        self._soft_closed_memoized = EMPTY_DICT
         if not self.server_side:
             self._rows = collections.deque()
 
@@ -158,6 +165,8 @@ class AsyncAdapt_dbapi_cursor:
 
     @property
     def description(self) -> Optional[_DBAPICursorDescription]:
+        if "description" in self._soft_closed_memoized:
+            return self._soft_closed_memoized["description"]  # type: ignore[no-any-return]  # noqa: E501
         return self._cursor.description
 
     @property
@@ -176,10 +185,39 @@ class AsyncAdapt_dbapi_cursor:
     def lastrowid(self) -> int:
         return self._cursor.lastrowid
 
+    async def _async_soft_close(self) -> None:
+        """close the cursor but keep the results pending, and memoize the
+        description.
+
+        .. versionadded:: 2.0.44
+
+        """
+
+        if not self._awaitable_cursor_close or self.server_side:
+            return
+
+        self._soft_closed_memoized = self._soft_closed_memoized.union(
+            {
+                "description": self._cursor.description,
+            }
+        )
+        await self._cursor.close()
+
     def close(self) -> None:
-        # note we aren't actually closing the cursor here,
-        # we are just letting GC do it.  see notes in aiomysql dialect
         self._rows.clear()
+
+        # updated as of 2.0.44
+        # try to "close" the cursor based on what we know about the driver
+        # and if we are able to.  otherwise, hope that the asyncio
+        # extension called _async_soft_close() if the cursor is going into
+        # a sync context
+        if self._cursor is None or bool(self._soft_closed_memoized):
+            return
+
+        if not self._awaitable_cursor_close:
+            self._cursor.close()  # type: ignore[unused-coroutine]
+        elif in_greenlet():
+            self.await_(self._cursor.close())
 
     def execute(
         self,
@@ -349,3 +387,43 @@ class AsyncAdaptFallback_dbapi_connection(AsyncAdapt_dbapi_connection):
     __slots__ = ()
 
     await_ = staticmethod(await_fallback)
+
+
+class AsyncAdapt_terminate:
+    """Mixin for a AsyncAdapt_dbapi_connection to add terminate support."""
+
+    __slots__ = ()
+
+    def terminate(self) -> None:
+        if in_greenlet():
+            # in a greenlet; this is the connection was invalidated case.
+            try:
+                # try to gracefully close; see #10717
+                self.await_(asyncio.shield(self._terminate_graceful_close()))  # type: ignore[attr-defined] # noqa: E501
+            except self._terminate_handled_exceptions() as e:
+                # in the case where we are recycling an old connection
+                # that may have already been disconnected, close() will
+                # fail.  In this case, terminate
+                # the connection without any further waiting.
+                # see issue #8419
+                self._terminate_force_close()
+                if isinstance(e, asyncio.CancelledError):
+                    # re-raise CancelledError if we were cancelled
+                    raise
+        else:
+            # not in a greenlet; this is the gc cleanup case
+            self._terminate_force_close()
+
+    def _terminate_handled_exceptions(self) -> Tuple[Type[BaseException], ...]:
+        """Returns the exceptions that should be handled when
+        calling _graceful_close.
+        """
+        return (asyncio.TimeoutError, asyncio.CancelledError, OSError)
+
+    async def _terminate_graceful_close(self) -> None:
+        """Try to close connection gracefully"""
+        raise NotImplementedError
+
+    def _terminate_force_close(self) -> None:
+        """Terminate the connection"""
+        raise NotImplementedError

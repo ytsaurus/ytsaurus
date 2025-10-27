@@ -3503,6 +3503,9 @@ join sys.schemas as sch on
 where
     tab.name = :tabname
     and sch.name = :schname
+order by
+    ind_col.index_id,
+    ind_col.key_ordinal
             """
             )
             .bindparams(
@@ -3998,6 +4001,8 @@ index_info AS (
             index_info.index_schema = fk_info.unique_constraint_schema
             AND index_info.index_name = fk_info.unique_constraint_name
             AND index_info.ordinal_position = fk_info.ordinal_position
+            AND NOT (index_info.table_schema = fk_info.table_schema
+                     AND index_info.table_name = fk_info.table_name)
 
     ORDER BY fk_info.constraint_schema, fk_info.constraint_name,
         fk_info.ordinal_position

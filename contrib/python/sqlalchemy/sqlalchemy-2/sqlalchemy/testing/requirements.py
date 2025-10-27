@@ -797,6 +797,11 @@ class SuiteRequirements(Requirements):
         return exclusions.closed()
 
     @property
+    def indexes_check_column_order(self):
+        """target database supports CREATE INDEX with column order check."""
+        return exclusions.closed()
+
+    @property
     def indexes_with_expressions(self):
         """target database supports CREATE INDEX against SQL expressions."""
         return exclusions.closed()
@@ -1647,6 +1652,12 @@ class SuiteRequirements(Requirements):
         )
 
     @property
+    def gil_enabled(self):
+        return exclusions.only_if(
+            lambda: not util.freethreading, "GIL-enabled build needed"
+        )
+
+    @property
     def is64bit(self):
         return exclusions.only_if(lambda: util.is64bit, "64bit required")
 
@@ -1668,7 +1679,7 @@ class SuiteRequirements(Requirements):
         gc.collect() is called, as well as clean out unreferenced subclasses.
 
         """
-        return self.cpython
+        return self.cpython + self.gil_enabled
 
     @property
     def no_coverage(self):
