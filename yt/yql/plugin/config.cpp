@@ -93,7 +93,7 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
     {"MaxTasksPerStage", "30"},
     {"AnalyzeQuery", "true"},
     {"EnableFullResultWrite", "true"},
-    {"_FallbackOnRuntimeErrors", "DQ computation exceeds the memory limit,requirement data.GetRaw().size(),_Unwind_Resume,Cannot load time zone"},
+    {"_FallbackOnRuntimeErrors", "DQ computation exceeds the memory limit,requirement data.GetRaw().size(),_Unwind_Resume,Cannot load time zone,Memory limit exceeded in MKQL runtime"},
     {"MemoryLimit", "3G"},
     {"_EnablePrecompute", "1"},
     {"UseAggPhases", "true"},
