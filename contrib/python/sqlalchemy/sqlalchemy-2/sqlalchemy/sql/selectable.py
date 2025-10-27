@@ -907,25 +907,28 @@ class FromClause(roles.AnonymizedFromClauseRole, Selectable):
         return self._columns.as_readonly()
 
     def _setup_collections(self) -> None:
-        assert "_columns" not in self.__dict__
-        assert "primary_key" not in self.__dict__
-        assert "foreign_keys" not in self.__dict__
+        with util.mini_gil:
+            # detect another thread that raced ahead
+            if "_columns" in self.__dict__:
+                assert "primary_key" in self.__dict__
+                assert "foreign_keys" in self.__dict__
+                return
 
-        _columns: ColumnCollection[Any, Any] = ColumnCollection()
-        primary_key = ColumnSet()
-        foreign_keys: Set[KeyedColumnElement[Any]] = set()
+            _columns: ColumnCollection[Any, Any] = ColumnCollection()
+            primary_key = ColumnSet()
+            foreign_keys: Set[KeyedColumnElement[Any]] = set()
 
-        self._populate_column_collection(
-            columns=_columns,
-            primary_key=primary_key,
-            foreign_keys=foreign_keys,
-        )
+            self._populate_column_collection(
+                columns=_columns,
+                primary_key=primary_key,
+                foreign_keys=foreign_keys,
+            )
 
-        # assigning these three collections separately is not itself atomic,
-        # but greatly reduces the surface for problems
-        self._columns = _columns
-        self.primary_key = primary_key  # type: ignore
-        self.foreign_keys = foreign_keys  # type: ignore
+            # assigning these three collections separately is not itself
+            # atomic, but greatly reduces the surface for problems
+            self._columns = _columns
+            self.primary_key = primary_key  # type: ignore
+            self.foreign_keys = foreign_keys  # type: ignore
 
     @util.ro_non_memoized_property
     def entity_namespace(self) -> _EntityNamespace:
@@ -2353,10 +2356,11 @@ class SelectsRows(ReturnsRows):
         cols: Optional[_SelectIterable] = None,
     ) -> List[_ColumnsPlusNames]:
         """Generate column names as rendered in a SELECT statement by
-        the compiler.
+        the compiler, as well as tokens used to populate the .c. collection
+        on a :class:`.FromClause`.
 
         This is distinct from the _column_naming_convention generator that's
-        intended for population of .c collections and similar, which has
+        intended for population of the Select.selected_columns collection,
         different rules.   the collection returned here calls upon the
         _column_naming_convention as well.
 
@@ -4391,8 +4395,13 @@ class GenerativeSelect(DialectKWArgs, SelectBase, Generative):
             stmt = stmt.order_by(None).order_by(new_col)
 
         :param \*clauses: a series of :class:`_expression.ColumnElement`
-         constructs
-         which will be used to generate an ORDER BY clause.
+         constructs which will be used to generate an ORDER BY clause.
+
+         Alternatively, an individual entry may also be the string name of a
+         label located elsewhere in the columns clause of the statement which
+         will be matched and rendered in a backend-specific way based on
+         context; see :ref:`tutorial_order_by_label` for background on string
+         label matching in ORDER BY and GROUP BY expressions.
 
         .. seealso::
 
@@ -4432,8 +4441,13 @@ class GenerativeSelect(DialectKWArgs, SelectBase, Generative):
             stmt = select(table.c.name, func.max(table.c.stat)).group_by(table.c.name)
 
         :param \*clauses: a series of :class:`_expression.ColumnElement`
-         constructs
-         which will be used to generate an GROUP BY clause.
+         constructs which will be used to generate an GROUP BY clause.
+
+         Alternatively, an individual entry may also be the string name of a
+         label located elsewhere in the columns clause of the statement which
+         will be matched and rendered in a backend-specific way based on
+         context; see :ref:`tutorial_order_by_label` for background on string
+         label matching in ORDER BY and GROUP BY expressions.
 
         .. seealso::
 
@@ -4520,6 +4534,7 @@ class CompoundSelect(HasCompileState, GenerativeSelect, TypedReturnsRows[_TP]):
         + SupportsCloneAnnotations._clone_annotations_traverse_internals
         + HasCTE._has_ctes_traverse_internals
         + DialectKWArgs._dialect_kwargs_traverse_internals
+        + Executable._executable_traverse_internals
     )
 
     selects: List[SelectBase]
@@ -7067,6 +7082,7 @@ class TextualSelect(SelectBase, ExecutableReturnsRows, Generative):
         ]
         + SupportsCloneAnnotations._clone_annotations_traverse_internals
         + HasCTE._has_ctes_traverse_internals
+        + Executable._executable_traverse_internals
     )
 
     _is_textual = True
