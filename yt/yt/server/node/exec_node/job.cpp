@@ -2469,9 +2469,12 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             DockerImageId_ = result.DockerImageId;
             SetupCommandCount_ = result.SetupCommandCount;
 
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                result.LastBuildError,
-                "Job preparation failed");
+            if (!result.LastBuildError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Job preparation failed")
+                    << TErrorAttribute("job_id", GetId())
+                    << TErrorAttribute("operation_id", GetOperationId())
+                    << result.LastBuildError;
+            }
 
             RunJobProxy();
         });
