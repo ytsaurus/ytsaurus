@@ -2235,6 +2235,8 @@ message TReqPartitionTables
     // COMPAT(apollo1321): Remove in 25.2 release.
     optional bool use_new_slicing_implementation_in_unordered_pool = 12 [default=true];
 
+    optional bool omit_inaccessible_rows = 13;
+
     optional TTransactionalOptions transactional_options = 100;
 }
 

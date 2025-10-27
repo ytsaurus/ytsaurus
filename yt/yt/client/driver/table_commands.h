@@ -165,6 +165,8 @@ private:
     //! COMPAT(apollo1321): remove in 25.2 release.
     bool UseNewSlicingImplementationInUnorderedPool;
 
+    bool OmitInaccessibleRows;
+
     void DoExecute(ICommandContextPtr context) override;
 };
 

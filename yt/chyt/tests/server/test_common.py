@@ -367,6 +367,42 @@ class TestClickHouseCommon(ClickHouseTestBase):
             wait(lambda: object_attribute_cache_hit_counter.get_delta() > 0)
             wait(lambda: permission_cache_hit_counter.get_delta() > 0)
 
+    @authors("coteeq")
+    def test_permission_cache_caches(self):
+        create_user("u")
+
+        patch = get_object_attribute_cache_config(100500, 100500, None, None)
+
+        with Clique(1, config_patch=patch) as clique:
+            permission_cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/permission_cache/hit")
+
+            def create_and_fill_table(path):
+                create(
+                    "table",
+                    path,
+                    attributes={"schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]},
+                    recursive=True,
+                )
+                write_table(path, [{"a": "value1", "b": "value2"}])
+
+            create_and_fill_table("//tmp/t")
+            set(
+                "//tmp/t/@acl",
+                [
+                    make_ace("allow", "u", "read"),
+                ],
+            )
+
+            before = permission_cache_hit_counter.get_delta()
+            assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
+            wait(lambda: permission_cache_hit_counter.get_delta() == before)
+
+            assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 1)
+
+            assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 2)
+
     @authors("evgenstf")
     def test_orchid_error_handle(self):
         if not exists("//sys/clickhouse/orchids"):
@@ -2099,7 +2135,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     ]
                 },
             )
-            write_table("//tmp/t", [{"key": 15, "value": "value2"}])
+            write_table("//tmp/t", [{"key": 15, "value": "value2"}, {"key": 16, "value": "value3"}])
 
             acl = [
                 make_ace("allow", "u", "read"),
@@ -2108,11 +2144,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
-            with raises_yt_error("row-level ACL is present, but is not supported"):
-                clique.make_query('select * from "//tmp/t"', user="u")
+            clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
 
-            with raises_yt_error("row-level ACL is present, but is not supported"):
-                clique.make_query('select key from "//tmp/t"', user="u")
+            clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
+
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+            # Check again for sanity to account for various miscachings.
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

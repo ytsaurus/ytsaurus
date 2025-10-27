@@ -520,6 +520,8 @@ void TPartitionTablesCommand::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("use_new_slicing_implementation_in_unordered_pool", &TThis::UseNewSlicingImplementationInUnorderedPool)
         .Default(true);
+    registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
+        .Default(false);
 }
 
 void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
@@ -536,6 +538,7 @@ void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
     Options.EnableCookies = EnableCookies;
     Options.UseNewSlicingImplementationInOrderedPool = UseNewSlicingImplementationInOrderedPool;
     Options.UseNewSlicingImplementationInUnorderedPool = UseNewSlicingImplementationInUnorderedPool;
+    Options.OmitInaccessibleRows = OmitInaccessibleRows;
 
     auto partitions = WaitFor(context->GetClient()->PartitionTables(Paths, Options))
         .ValueOrThrow();
