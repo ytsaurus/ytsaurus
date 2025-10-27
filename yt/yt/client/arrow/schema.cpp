@@ -49,10 +49,10 @@ NTableClient::TLogicalTypePtr GetLogicalTypeFromArrowType(const std::shared_ptr<
         case arrow::Type::DOUBLE:
             return SimpleLogicalType(ESimpleLogicalValueType::Double);
         case arrow::Type::STRING:
-            return SimpleLogicalType(ESimpleLogicalValueType::String);
+            return SimpleLogicalType(ESimpleLogicalValueType::Utf8);
         case arrow::Type::BINARY:
         case arrow::Type::FIXED_SIZE_BINARY:
-            return SimpleLogicalType(ESimpleLogicalValueType::Any);
+            return SimpleLogicalType(ESimpleLogicalValueType::String);
         case arrow::Type::LIST:
             return ListLogicalType(
                 GetLogicalTypeFromArrowType(std::reinterpret_pointer_cast<arrow::ListType>(arrowType)->value_field()));

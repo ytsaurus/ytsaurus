@@ -1185,6 +1185,52 @@ class TestAttachTable(TestAttachTableBase):
         assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
 
     @authors("faucct")
+    def test_attach_strings_without_schema_and_read(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([
+                {"string": "a", "binary": b"b"},
+                {"string": "c", "binary": b"d"},
+            ]))
+        ))
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+
+        assert_items_equal(read_table("//tmp/imported"), [
+            {"string": "a", "binary": "b"},
+            {"string": "c", "binary": "d"},
+        ])
+
+    @authors("faucct")
+    def test_attach_strings_with_schema_and_read(self):
+        schema = [
+            make_column("string", optional_type("utf8"), type="utf8", required=False),
+            make_column("binary", optional_type("string"), type="string", required=False),
+        ]
+        create("table", "//tmp/imported", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": schema,
+        })
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([
+                {"string": "a", "binary": b"b"},
+                {"string": "c", "binary": b"d"},
+            ]))
+        ))
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+
+        assert_items_equal(read_table("//tmp/imported"), [
+            {"string": "a", "binary": "b"},
+            {"string": "c", "binary": "d"},
+        ])
+        assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
+
+    @authors("faucct")
     def test_attach_extra_with_strict_schema(self):
         create("table", "//tmp/imported", attributes={
             "primary_medium": self.get_s3_medium_name(),
