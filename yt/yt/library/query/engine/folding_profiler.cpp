@@ -169,7 +169,7 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
     for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui8>(column.GetWireType()));
-        Fold(column.Name().c_str());
+
         int aux = (column.Expression() ? 1 : 0) | ((column.Aggregate() ? 1 : 0) << 1);
         Fold(aux);
         if (column.Expression()) {
@@ -1392,7 +1392,6 @@ size_t TExpressionProfiler::Profile(
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
-            Fold(aggregateItem.Name.c_str());
 
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
 
@@ -1927,7 +1926,6 @@ void TQueryProfiler::Profile(
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
-            Fold(aggregateItem.Name.c_str());
 
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
 
