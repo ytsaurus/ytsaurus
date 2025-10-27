@@ -56,6 +56,7 @@ class TestDirtableCommands(object):
             client=None,
         )
 
+        # test without @part_size, full download
         part_size = yt.get(yt_table + "/@part_size")
         yt.remove(yt_table + "/@part_size")
 
@@ -76,20 +77,21 @@ class TestDirtableCommands(object):
         assert tmpdir.join("dir2").join("subdir").join("file2").read_binary() == content2
         assert tmpdir.join("dir2").join("file3").read_binary() == content3
 
+        # test without @part_size, exact download
         dir3 = tmpdir.mkdir("dir3")
-        with pytest.raises(yt.YtError):
-            dirtable_commands.download_directory_from_yt(
-                directory=dir3,
-                yt_table=yt_table,
-                process_count=4,
-                # exact_filenames="file3,file1",
-                exact_filenames=None,
-                filter_by_regexp=re.compile("file1|file3"),
-                exclude_by_regexp=None,
-                client=None,
-                process_pool_class=multiprocessing.pool.ThreadPool,
-            )
+        dirtable_commands.download_directory_from_yt(
+            directory=dir3,
+            yt_table=yt_table,
+            process_count=4,
+            # exact_filenames="file3,file1",
+            exact_filenames=None,
+            filter_by_regexp=re.compile("file1|file3"),
+            exclude_by_regexp=None,
+            client=None,
+            process_pool_class=multiprocessing.pool.ThreadPool,
+        )
 
+        # test with @part_size, exact download
         part_size = yt.set(yt_table + "/@part_size", part_size)
 
         dirtable_commands.download_directory_from_yt(

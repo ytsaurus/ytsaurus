@@ -319,7 +319,10 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                 logger.debug(f"Total tables: {len(tables)} - split by process count")
             else:
                 all_files_rows = {}
-                part_size = get_attribute(yt_table, "part_size", client=client)
+                part_size = get_attribute(yt_table, "part_size", default=None, client=client)
+                if part_size is None:
+                    part_size = PART_SIZE_DEFAULT
+                    logger.warning(f"Table \"{yt_table}\" missing attrubute \"@part_size\". Using default \"{PART_SIZE_DEFAULT:_d}\"")
                 cur_row = 0
                 for name in sorted(all_files_sizes.keys()):
                     file_rows = math.ceil(all_files_sizes[name] / part_size)
