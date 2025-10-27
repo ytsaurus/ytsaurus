@@ -338,6 +338,13 @@ private:
                         .EndMap();
                 };
 
+                i64 totalUnrecognizedMemoryUsed = 0;
+                for (const auto& category : clusterNodeStatistics.memory().categories()) {
+                    if (FromProto<EMemoryCategory>(category.type()) == EMemoryCategory::Unrecognized) {
+                        totalUnrecognizedMemoryUsed += category.used();
+                    }
+                }
+
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("total_available_space").Value(dataNodeStatistics.total_available_space())
@@ -374,7 +381,12 @@ private:
                                 .Item("limit").Value(clusterNodeStatistics.memory().total_limit())
                             .EndMap()
                             .DoFor(clusterNodeStatistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
-                                fluent.Item(FormatEnum(FromProto<EMemoryCategory>(category.type())))
+                                auto type = FromProto<EMemoryCategory>(category.type());
+                                if (type == EMemoryCategory::Unrecognized) {
+                                    return;
+                                }
+
+                                fluent.Item(FormatEnum(type))
                                     .BeginMap()
                                         .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
                                             fluent.Item("limit").Value(category.limit());
@@ -382,6 +394,9 @@ private:
                                         .Item("used").Value(category.used())
                                     .EndMap();
                             })
+                            .Item(FormatEnum(EMemoryCategory::Unrecognized)).BeginMap()
+                                .Item("used").Value(totalUnrecognizedMemoryUsed)
+                            .EndMap()
                         .EndMap()
                         .Item("network").BeginMap()
                             .DoFor(clusterNodeStatistics.network(), [] (TFluentMap fluent, const TNetworkStatistics& statistics) {
