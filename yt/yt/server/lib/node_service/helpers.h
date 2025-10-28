@@ -13,6 +13,12 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TError> ProcessGetColumnarStatisticsRequest(
+    const NChunkClient::NProto::TReqGetColumnarStatistics& request,
+    NRpc::TTypedServiceResponse<NChunkClient::NProto::TRspGetColumnarStatistics>& response,
+    int requestCount,
+    const std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>& chunkMetas);
+
 std::vector<TError> ProcessGetChunkSlicesRequest(
     const NChunkClient::NProto::TReqGetChunkSlices& request,
     NRpc::TTypedServiceResponse<NChunkClient::NProto::TRspGetChunkSlices>& response,

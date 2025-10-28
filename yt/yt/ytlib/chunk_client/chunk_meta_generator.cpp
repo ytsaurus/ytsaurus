@@ -1,11 +1,13 @@
 #include "chunk_meta_generator.h"
 
 #include <parquet/arrow/reader.h>
+#include <yt/yt/client/arrow/columnar_statistics.h>
 #include <yt/yt/client/arrow/schema.h>
 #include <yt/yt/library/erasure/public.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -105,6 +107,12 @@ public:
             TExtensionGuard<NTableClient::NProto::TTableSchemaExt> schemaExt(chunkMeta);
             FillSchemaExt(*schemaExt);
         }
+        if (auto columnar = GetColumnarChunkMeta()) {
+            SetProtoExtension(
+                chunkMeta->mutable_extensions(),
+                ::NYT::ToProto<NTableClient::NProto::TColumnarStatisticsExt>(*columnar)
+            );
+        }
 
         FillAdditionalExtensions(chunkMeta);
 
@@ -139,8 +147,8 @@ protected:
 
     virtual void FillGeneralChunkMeta(TRefCountedChunkMetaPtr& chunkMeta)
     {
-        chunkMeta->set_type(ToProto<int>(EChunkType::Table));
-        chunkMeta->set_format(ToProto<int>(GetChunkFormat()));
+        chunkMeta->set_type(::NYT::ToProto<int>(EChunkType::Table));
+        chunkMeta->set_format(::NYT::ToProto<int>(GetChunkFormat()));
     }
 
     virtual void FillBlocksExt(NProto::TBlocksExt& ext) = 0;
@@ -167,15 +175,20 @@ protected:
         ext.set_data_weight(GetDataWeight());
         ext.set_meta_size(metaSize);
         ext.set_row_count(GetRowCount());
-        ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
+        ext.set_compression_codec(::NYT::ToProto<int>(NCompression::ECodec::None));
         ext.set_sorted(false);
         // TODO(achulkov2): Set value_count.
         ext.set_max_data_block_size(GetMaxDataBlockSize());
         ext.set_sealed(false);
-        ext.set_erasure_codec(ToProto<int>(NErasure::ECodec::None));
+        ext.set_erasure_codec(::NYT::ToProto<int>(NErasure::ECodec::None));
         ext.set_system_block_count(0);
         ext.set_striped_erasure(false);
         // We are not setting block_format_version, since we are not dealing with versioned chunks.
+    }
+
+    virtual std::optional<TColumnarStatistics> GetColumnarChunkMeta()
+    {
+        return {};
     }
 };
 
@@ -495,6 +508,11 @@ private:
         TExtensionGuard<NTableClient::NProto::TParquetFormatMetaExt> parquetFormatExt(chunkMeta);
         parquetFormatExt->set_footer(ArrowParquetFileReader_->parquet_reader()->metadata()->SerializeToString());
         parquetFormatExt->set_file_size(GetUnderlyingFileSize());
+    }
+
+    std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
+    {
+        return NArrow::ExtractColumnarStatistics(*ParquetFileMeta_);
     }
 };
 

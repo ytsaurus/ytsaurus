@@ -53,6 +53,7 @@ public:
         // TODO(pavel-bash): when we need more methods (like GetBlockSet or GetChunkMeta), we can
         // retrieve their implementation from the commit 506d15f.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices));
     }
 
@@ -153,6 +154,41 @@ private:
                     results);
                 for (const auto& error: errors) {
                     YT_LOG_WARNING(error, "Error building table samples");
+                }
+
+                context->Reply();
+            }).Via(StorageInvoker_));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
+    {
+        auto requestCount = request->subrequests_size();
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        context->SetRequestInfo(
+            "RequestCount: %v, Workload: %v",
+            requestCount,
+            workloadDescriptor);
+        auto s3Readers = CreateS3ReadersForRequests(
+            request->subrequests(),
+            New<TS3ReaderConfig>());
+        GetChunkMetasForRequests(request->subrequests(), s3Readers)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& results = resultsError.Value();
+                YT_VERIFY(std::ssize(results) == requestCount);
+
+                auto errors = ProcessGetColumnarStatisticsRequest(*request, *response, requestCount, results);
+                for (const auto& error: errors) {
+                    YT_LOG_WARNING(error, "Error building columnar statistics");
                 }
 
                 context->Reply();

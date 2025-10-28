@@ -2,6 +2,7 @@
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -80,14 +81,17 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
+    TOffshoreNodeServiceProxy offshoreProxy(GetNodeChannel(nodeId));
+    offshoreProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+
     // Use name table to replace all column names with their ids across the whole rpc request message.
     TNameTablePtr nameTable = New<TNameTable>();
 
-    auto req = proxy.GetColumnarStatistics();
+    auto req = nodeId == OffshoreNodeId ? offshoreProxy.GetColumnarStatistics() : proxy.GetColumnarStatistics();
     SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     req->set_enable_early_finish(Options_.EnableEarlyFinish);
 
-    for (const auto& [chunkIndex, _] : chunks) {
+    for (const auto& [chunkIndex, replica] : chunks) {
         auto* subrequest = req->add_subrequests();
         for (const auto& columnName : GetColumnStableNames(chunkIndex)) {
             auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
@@ -96,6 +100,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
 
         auto chunkId = EncodeChunkId(Chunks_[chunkIndex], nodeId);
         ToProto(subrequest->mutable_chunk_id(), chunkId);
+        ToProto(subrequest->mutable_replica_spec(), replica);
     }
 
     ToProto(req->mutable_name_table(), nameTable);

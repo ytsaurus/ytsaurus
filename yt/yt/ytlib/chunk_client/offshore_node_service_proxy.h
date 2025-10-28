@@ -30,6 +30,7 @@ public:
         .SetFeaturesType<EChunkClientFeature>());
 
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetColumnarStatistics);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkSlices);
 };
 

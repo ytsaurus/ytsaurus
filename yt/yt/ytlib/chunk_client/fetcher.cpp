@@ -478,7 +478,8 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         nodeIts.begin(),
         nodeIts.end(),
         [=] (const TNodeIdToChunks::iterator& lhs, const TNodeIdToChunks::iterator& rhs) {
-            return lhs->second.size() > rhs->second.size();
+            // Regular nodes should be prioritized over offshore storage.
+            return std::make_pair(lhs->first == OffshoreNodeId, rhs->second.size()) < std::make_pair(rhs->first == OffshoreNodeId, lhs->second.size());
         });
 
     // Pick nodes greedily.
@@ -486,8 +487,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
         for (const auto& [chunkIndex, replica] : it->second) {
-            if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
-                YT_VERIFY(requestedChunkIndexes.insert(chunkIndex).second);
+            if (requestedChunkIndexes.insert(chunkIndex).second) {
                 NodeToChunksToFetch_[it->first][chunkIndex] = replica;
             }
         }

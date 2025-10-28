@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     arrow_row_stream_encoder.cpp
     arrow_row_stream_decoder.cpp
+    columnar_statistics.cpp
     public.cpp
     schema.cpp
 )

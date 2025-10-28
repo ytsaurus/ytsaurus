@@ -4,8 +4,11 @@
 
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/key_set.h>
 
+#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -21,6 +24,48 @@ using namespace NRpc;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TError> ProcessGetColumnarStatisticsRequest(
+    const NChunkClient::NProto::TReqGetColumnarStatistics& request,
+    NRpc::TTypedServiceResponse<NChunkClient::NProto::TRspGetColumnarStatistics>& response,
+    int requestCount,
+    const std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>& chunkMetas)
+{
+    auto nameTable = FromProto<TNameTablePtr>(request.name_table());
+    std::vector<TError> errors;
+    for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+        auto subresponse = response.add_subresponses();
+        try {
+            auto& metaOrError = chunkMetas[requestIndex];
+            auto& subrequest = request.subrequests(requestIndex);
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                FromProto<TChunkId>(subrequest.chunk_id()));
+
+            TColumnarStatistics statistics;
+            auto columnarChunkMeta = New<TColumnarChunkMeta>(*metaOrError.Value());
+            if (columnarChunkMeta->ColumnarStatisticsExt()) {
+                FromProto(
+                    &statistics,
+                    *columnarChunkMeta->ColumnarStatisticsExt(),
+                    columnarChunkMeta->LargeColumnarStatisticsExt() ? &*columnarChunkMeta->LargeColumnarStatisticsExt() : nullptr,
+                    columnarChunkMeta->Misc().row_count());
+            }
+            std::vector<TColumnStableName> columnStableNames;
+            columnStableNames.reserve(subrequest.column_ids_size());
+            for (auto id : subrequest.column_ids()) {
+                columnStableNames.emplace_back(TString(nameTable->GetNameOrThrow(id)));
+            }
+            statistics = statistics.SelectByColumnNames(columnarChunkMeta->ChunkNameTable(), columnStableNames);
+            ToProto(subresponse->mutable_columnar_statistics(), statistics);
+            ToProto(subresponse->mutable_large_columnar_statistics(), statistics.LargeStatistics);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            ToProto(subresponse->mutable_error(), error);
+            errors.push_back(error);
+        }
+    }
+    return errors;
+}
 
 TError ProcessSliceChunk(
     const TSliceRequest& sliceRequest,

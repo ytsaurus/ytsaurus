@@ -1,8 +1,12 @@
 #include "schema.h"
 
+#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/parquet/metadata.h>
 
 namespace NYT::NArrow {
 

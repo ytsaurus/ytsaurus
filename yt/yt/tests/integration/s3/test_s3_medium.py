@@ -9,7 +9,7 @@ from yt.yson import YsonList, YsonEntity
 from yt_commands import (
     authors, sync_create_cells, create_user, add_member, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
-    copy, move, get_singular_chunk_id, wait, get, concatenate,
+    copy, move, get_singular_chunk_id, wait, get, concatenate, get_table_columnar_statistics,
     get_account_disk_space_limit, set_account_disk_space_limit,
     write_table, read_table, sync_mount_table, insert_rows, sync_flush_table, attach_table,
     map, merge, select_rows, lookup_rows, print_debug, write_file, read_file,
@@ -32,6 +32,7 @@ import random
 import builtins
 import string
 
+import yt.yson as yson
 import boto3
 from botocore.exceptions import ClientError
 import pandas
@@ -1229,6 +1230,88 @@ class TestAttachTable(TestAttachTableBase):
             {"string": "c", "binary": "d"},
         ])
         assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
+
+    @authors("faucct")
+    def test_attach_columnar_statistics(self):
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
+            pytest.skip("This operation times out if no offshore node proxies are available")
+
+        schema = [
+            make_column("int64", optional_type("int64"), type="int64", required=False),
+            make_column("string", optional_type("string"), type="string", required=False),
+            make_column("ints", optional_type(list_type(optional_type("int64"))), type="any", required=False),
+            make_column("struct", optional_type(struct_type([("field", optional_type("string"))])), type="any", required=False),
+            make_column("structs", optional_type(list_type(optional_type(list_type(optional_type(
+                struct_type([("bar", optional_type("int64")), ("foo", optional_type("int64"))]),
+            ))))), type="any", required=False),
+        ]
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name(), "schema": schema})
+        bucket = self.get_s3_medium_bucket()
+        records = [
+            {"int64": 1, "string": "a", "ints": [1], "struct": {"field": "foo"}, "structs": [[{"foo": 1, "bar": 4}, {"foo": 3, "bar": 6}]]},
+            {"int64": 2, "string": "z", "ints": [2, 3], "struct": {"field": "bar"}, "structs": [[{"foo": 1, "bar": 5}], []]},
+        ]
+
+        def assert_int64_statistics(columnar_statistics):
+            assert columnar_statistics["column_data_weights"]["int64"] > 0
+            assert columnar_statistics["column_min_values"]["int64"] == 1
+            assert columnar_statistics["column_max_values"]["int64"] == 2
+
+        def assert_string_statistics(columnar_statistics):
+            assert columnar_statistics["column_data_weights"]["string"] > 0
+            assert columnar_statistics["column_min_values"]["string"] == "a"
+            assert columnar_statistics["column_max_values"]["string"] == "z"
+
+        def assert_ints_statistics(columnar_statistics):
+            assert columnar_statistics["column_data_weights"]["ints"] > 0
+            assert columnar_statistics["column_min_values"]["ints"] == yson.YsonEntity()
+            assert columnar_statistics["column_max_values"]["ints"] == yson.YsonEntity()
+
+        def assert_struct_statistics(columnar_statistics):
+            assert columnar_statistics["column_data_weights"]["struct"] > 0
+            assert columnar_statistics["column_min_values"]["struct"] == yson.YsonEntity()
+            assert columnar_statistics["column_max_values"]["struct"] == yson.YsonEntity()
+
+        def assert_structs_statistics(columnar_statistics):
+            assert columnar_statistics["column_data_weights"]["structs"] > 0
+            assert columnar_statistics["column_min_values"]["structs"] == yson.YsonEntity()
+            assert columnar_statistics["column_max_values"]["structs"] == yson.YsonEntity()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+
+        assert read_table("//tmp/imported") == records
+        assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{int64,string,ints,struct,structs}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_int64_statistics(columnar_statistics)
+        assert_string_statistics(columnar_statistics)
+        assert_ints_statistics(columnar_statistics)
+        assert_struct_statistics(columnar_statistics)
+        assert_structs_statistics(columnar_statistics)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{int64}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_int64_statistics(columnar_statistics)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{string}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_string_statistics(columnar_statistics)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{ints}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_ints_statistics(columnar_statistics)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{struct}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_struct_statistics(columnar_statistics)
+
+        columnar_statistics, = get_table_columnar_statistics('["//tmp/imported{structs}";]')
+        assert columnar_statistics["chunk_row_count"] == 2
+        assert_structs_statistics(columnar_statistics)
 
     @authors("faucct")
     def test_attach_extra_with_strict_schema(self):

@@ -549,6 +549,7 @@ message TReqGetColumnarStatistics
     {
         required NYT.NProto.TGuid chunk_id = 1;
         repeated int32 column_ids = 2;
+        optional TChunkReplicaSpec replica_spec = 3;
     }
 
     repeated TSubrequest subrequests = 2;

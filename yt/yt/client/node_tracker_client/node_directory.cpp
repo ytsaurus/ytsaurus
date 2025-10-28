@@ -615,6 +615,7 @@ TFuture<const TNodeDescriptor*> TNodeDirectory::GetAsyncDescriptor(TNodeId id)
     if (auto* descriptor = FindDescriptor(id)) {
         return MakeFuture(descriptor);
     }
+    YT_VERIFY(id != OffshoreNodeId);
 
     TPromise<const TNodeDescriptor*> promise;
     {
