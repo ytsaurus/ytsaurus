@@ -82,13 +82,13 @@ public:
         Reconfigure(GetDynamicConfig()->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }
 
-    void ScheduleHeartbeat(TCellTag cellTag) override
+    void ScheduleMasterHeartbeats(const THashSet<TCellTag>& masterCellTags) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetControlInvoker()->Invoke(
-            BIND([this, this_ = MakeStrong(this), cellTag] {
-                StartNodeHeartbeatsToCells({cellTag});
+            BIND([this, this_ = MakeStrong(this), masterCellTags] {
+                ScheduleOutOfBandMasterHeartbeats(masterCellTags);
             }));
     }
 

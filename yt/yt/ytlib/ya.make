@@ -376,6 +376,7 @@ SRCS(
     queue_client/helpers.cpp
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
+    queue_client/registration_manager_base.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 

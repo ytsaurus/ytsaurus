@@ -685,9 +685,45 @@ private:
         }
 
         auto error = FromProto<TError>(header.error());
-        return error
-            .FindMatching(NObjectClient::EErrorCode::RequestInvolvesSequoia)
-            .has_value();
+        auto involvesSequoiaError = error
+            .FindMatching(NObjectClient::EErrorCode::RequestInvolvesSequoia);
+
+        if (involvesSequoiaError.has_value()) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            RewriteSequoiaRequestTargetPath(&subrequest, *involvesSequoiaError);
+        }
+
+        return involvesSequoiaError.has_value();
+    }
+
+    void RewriteSequoiaRequestTargetPath(
+        TSubrequest* subrequest,
+        const TError& error)
+    {
+        const auto& attributes = error.Attributes();
+
+        auto rootstockPath = attributes.Find<TString>("rootstock_path");
+        if (!rootstockPath.has_value()) {
+            return;
+        }
+
+        auto unresolvedSuffix = attributes.Find<TString>("unresolved_suffix");
+        if (!unresolvedSuffix.has_value()) {
+            return;
+        }
+
+        auto& header = *subrequest->RequestHeader;
+        auto targetPath = *rootstockPath + *unresolvedSuffix;
+
+        if (targetPath == GetRequestTargetYPath(header)) {
+            return;
+        }
+
+        RewriteRequestTargetYPath(&header, targetPath);
+
+        subrequest->RequestMessage = SetRequestHeader(
+            subrequest->RequestMessage,
+            header);
     }
 
     // If resolve error occurred, patched response message and original resolve
@@ -784,15 +820,7 @@ private:
 
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
-
-        auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (newPath != ypathExt->target_path()) {
-            if (!ypathExt->has_original_target_path()) {
-                ypathExt->set_original_target_path(ypathExt->target_path());
-            }
-
-            ypathExt->set_target_path(ToProto<TProtobufString>(newPath));
-        }
+        RewriteRequestTargetYPath(&header, newPath);
 
         // Otherwise there either were no prerequisite revisions,
         // or they were not parsed (because request will be forwarded to master).

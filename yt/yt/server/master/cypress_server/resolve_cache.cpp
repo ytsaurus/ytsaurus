@@ -179,6 +179,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
             return TSequoiaResolveResult{
                 rootstockPayload->ScionNodeId,
                 rootstockPayload->RootstockPath,
+                TYPath(unresolvedPathSuffix),
             };
         } else {
             return std::nullopt;

@@ -231,9 +231,7 @@ public:
         }
 
         const auto& clusterNodeMasterConnector = GetClusterNodeBootstrap()->GetMasterConnector();
-        for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            MasterConnector_->ScheduleHeartbeat(masterCellTag);
-        }
+        MasterConnector_->ScheduleMasterHeartbeats(clusterNodeMasterConnector->GetMasterCellTags());
     }
 
     void LoadSnapshot(

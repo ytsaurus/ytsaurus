@@ -61,6 +61,35 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeats()
     StartNodeHeartbeatsToCells(MasterCellTags_);
 }
 
+void TMasterHeartbeatReporterBase::ScheduleOutOfBandMasterHeartbeats(const THashSet<NObjectClient::TCellTag>& masterCellTags)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    for (auto cellTag : masterCellTags) {
+        if (!MasterCellTags_.contains(cellTag)) {
+            YT_LOG_ALERT(
+                "Attempted to initiate heartbeat report to unknown master (CellTag: %v)",
+                cellTag);
+            continue;
+        }
+
+        if (auto executor = FindExecutor(cellTag)) {
+            executor->ScheduleOutOfBand();
+        } else {
+            executor = New<TRetryingPeriodicExecutor>(
+                Bootstrap_->GetMasterConnectionInvoker(),
+                BIND([this, weakThis = MakeWeak(this), cellTag] {
+                    auto this_ = weakThis.Lock();
+                    return this_ ? ReportHeartbeat(cellTag) : TError("Master heartbeat reporter is destroyed");
+                }),
+                Options_);
+
+            executor->Start();
+            Executors_[cellTag] = std::move(executor);
+        }
+    }
+}
+
 void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -178,7 +207,7 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
     // Technically, we could support "UpdateInvoker" method,
     // but there is no reason to preserve HeartbeatExecutor's state.
     for (auto cellTag : masterCellTags) {
-        Executors_[cellTag] = New<TRetryingPeriodicExecutor>(
+        auto executor = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
             BIND([this, weakThis = MakeWeak(this), cellTag] {
                 auto this_ = weakThis.Lock();
@@ -189,7 +218,8 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
         YT_LOG_INFO(
             "Starting node heartbeat reports to master (CellTag: %v)",
             cellTag);
-        Executors_[cellTag]->Start();
+        executor->Start();
+        Executors_[cellTag] = std::move(executor);
     }
 }
 

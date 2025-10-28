@@ -441,13 +441,6 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
                 if (UserJobSpec_->has_network_project()) {
                     NetworkProject_ = FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->network_project());
-                // COMPAT(ignat)
-                } else if (UserJobSpec_->has_network_project_id()) {
-                    NetworkProject_ = NControllerAgent::TNetworkProject{
-                        .Id = UserJobSpec_->network_project_id(),
-                        .EnableNat64 = UserJobSpec_->enable_nat64(),
-                        .DisableNetwork = UserJobSpec_->disable_network(),
-                    };
                 }
 
                 if (NetworkProject_) {
@@ -528,11 +521,7 @@ void TJob::Start() noexcept
 
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
-    if (UserJobSpec_ && (
-            UserJobSpec_->has_network_project() ||
-            UserJobSpec_->has_network_project_id() ||
-            UserJobSpec_->has_gpu_check_network_project()))
-    {
+    if (UserJobSpec_ && (UserJobSpec_->has_network_project() || UserJobSpec_->has_gpu_check_network_project())) {
         std::vector<TFuture<TNameWithAddress>> nodeAddressFutures;
 
         auto addresses = Bootstrap_->GetConfig()->Addresses;
@@ -2469,9 +2458,12 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             DockerImageId_ = result.DockerImageId;
             SetupCommandCount_ = result.SetupCommandCount;
 
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                result.LastBuildError,
-                "Job preparation failed");
+            if (!result.LastBuildError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Job preparation failed")
+                    << TErrorAttribute("job_id", GetId())
+                    << TErrorAttribute("operation_id", GetOperationId())
+                    << result.LastBuildError;
+            }
 
             RunJobProxy();
         });

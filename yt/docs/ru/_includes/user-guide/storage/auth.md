@@ -6,18 +6,23 @@
 
 ```bash
 $ yt create user --attr '{name=oleg}'
-$ yt set-user-password oleg --new-password cone
+$ yt set-user-password oleg
+New password: <interactive typing>
+Retype new password: <interactive typing>
 ```
 
-Администратор создаёт пользователя `oleg` и устанавливает ему пароль `cone`.
+Администратор создаёт пользователя `oleg` и устанавливает ему пароль `cone`. Пароль запрашивается интерактивно и вводится безопасно (без отображения в терминале), и должен быть введён повторно для подтверждения.
 
 При помощи команды `set-user-password` пользователь может сменить пароль на `cube`.
 
 ```bash
-$ yt set-user-password oleg --current-password cone --new-password cube
+$ yt set-user-password oleg
+Current password for oleg: <interactive typing>
+New password: <interactive typing>
+Retype new password: <interactive typing>
 ```
 
-Важно, что в отличие от администратора пользователю требуется ввести свой текущий пароль для изменения пароля. Администратору же не требуется вводить пароль ни при первой установке пароля, ни при последующих его изменениях.
+Важно, что в отличие от администратора пользователю требуется ввести свой текущий пароль для изменения пароля. Администратору же не требуется вводить текущий пароль ни при первой установке пароля, ни при последующих его изменениях. Все пароли запрашиваются интерактивно для обеспечения безопасности.
 
 ## Управление токенами
 
@@ -26,28 +31,34 @@ $ yt set-user-password oleg --current-password cone --new-password cube
 Команда `issue-token` выпускает новый токен для пользователя. В отличие от пароля, у пользователя может быть несколько активных токенов для плавного процесса замены одного на другой.
 
 ```bash
-$ yt issue-token oleg --password cone
-"2c5956daecdff8dd45d2561a8679acf5"
+$ yt issue-token oleg
+Current password for oleg: <interactive typing>
+ytct-2c59-56daecdff8dd45d2561a8679acf5
 ```
 
-Пользователю `oleg` был выпущен токен `2c5956daecdff8dd45d2561a8679acf5`. Как и в случае команды `set-user-password` пользователю обязательно указывать пароль, администратор же пароль пользователя указывать не должен.
+Пользователю `oleg` был выпущен токен `ytct-2c59-56daecdff8dd45d2561a8679acf5`. Как и в случае команды `set-user-password` пользователю необходимо ввести пароль (запрашивается интерактивно), администратор же пароль пользователя вводить не должен.
 
 При помощи команды `list-user-tokens` можно посмотреть информацию об активных токенах пользователя. {{product-name}} не сохраняет токены пользователей, и команда `list-user-tokens` возвращает не токены, а их sha256-хеши. Например:
 
 ```bash
-$ yt list-user-tokens oleg --password cone
+$ yt list-user-tokens oleg
+Current password for oleg: <interactive typing>
 ["87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574"]
 
-$ echo -n '2c5956daecdff8dd45d2561a8679acf5' | sha256sum
+$ echo -n 'ytct-2c59-56daecdff8dd45d2561a8679acf5' | sha256sum
 87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574  -
 ```
 
-Команда `revoke-token` позволяет отозвать токен пользователя. Для отзыва токена можно указать как токен, так и его sha256-хеш, последнее позволяет отозвать все токены пользователя, используя результат `list-user-tokens`.
+Команда `revoke-token` позволяет отозвать токен пользователя. Для отзыва токена можно указать его sha256-хеш при помощи флага `--token-sha256`, или, если флаг не указан, значение токена будет запрошено интерактивно. Пароль всегда запрашивается интерактивно. Использование `--token-sha256` позволяет использовать результат команды `list-user-tokens` для отзыва конкретных токенов.
 
 ```bash
-$ yt revoke-token oleg --token-sha256 87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574  --password cube
-$ yt revoke-token oleg --token 2c5956daecdff8dd45d2561a8679acf5  --password cube
-$ yt list-user-tokens oleg --password cube
+$ yt revoke-token oleg --token-sha256 87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574
+Current password for oleg: <interactive typing>
+$ yt revoke-token oleg
+Current password for oleg: <interactive typing>
+Token to revoke: <interactive typing>
+$ yt list-user-tokens oleg
+Current password for oleg: <interactive typing>
 []
 ```
 

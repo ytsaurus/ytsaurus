@@ -145,11 +145,6 @@ void TMtnJobExperiment::PatchUserJobSpec(
         NetworkProject_.DisableNetwork);
 
     ToProto(jobSpec->mutable_network_project(), NetworkProject_);
-
-    // COMPAT(ignat)
-    jobSpec->set_network_project_id(NetworkProject_.Id);
-    jobSpec->set_enable_nat64(NetworkProject_.EnableNat64);
-    jobSpec->set_disable_network(NetworkProject_.DisableNetwork);
 }
 
 EOperationAlertType TMtnJobExperiment::GetAlertType() const

@@ -146,6 +146,10 @@ private:
     {
         YT_LOG_DEBUG("Building queue snapshot (PassIndex: %v)", QueueSnapshot_->PassIndex);
 
+        if (ReplicatedTableMappingRow_) {
+            ReplicatedTableMappingRow_->Validate();
+        }
+
         auto queueRef = QueueSnapshot_->Row.Ref;
 
         // TODO(achulkov2): Check partition count of control queue for replicated tables.
