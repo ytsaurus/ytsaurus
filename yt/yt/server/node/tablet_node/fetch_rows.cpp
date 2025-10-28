@@ -3,6 +3,8 @@
 #include "tablet.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -138,22 +140,22 @@ public:
         i64 maxRowCount,
         i64 maxDataWeight,
         i64 maxPullQueueResponseDataWeight,
-        const TClientChunkReadOptions& chunkReadOptions,
+        TClientChunkReadOptions chunkReadOptions,
         IInvokerPtr invoker)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , RowIndex_(rowIndex)
         , MaxPullQueueResponseDataWeight_(maxPullQueueResponseDataWeight)
         , Invoker_(std::move(invoker))
         , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
-        , Writer_(TabletSnapshot_, chunkReadOptions)
+        , ChunkReadOptions_(std::move(chunkReadOptions))
+        , Writer_(TabletSnapshot_, ChunkReadOptions_)
         , LeftRowCount_(maxRowCount)
         , LeftDataWeight_(maxDataWeight)
     { }
 
     TFuture<TFetchRowsFromOrderedStoreResult> Run(
         const IOrderedStorePtr& store,
-        int tabletIndex,
-        const TClientChunkReadOptions& chunkReadOptions)
+        int tabletIndex)
     {
         YT_LOG_DEBUG("Fetching rows from ordered store (TabletId: %v, Store: %v, StartingRowIndex: %v, RowIndex: %v, "
             "MaxRowCount: %v, MaxDataWeight: %v, MaxResponseDataWeight: %v, HasHunkColumns: %v)",
@@ -166,6 +168,10 @@ public:
             MaxPullQueueResponseDataWeight_,
             TabletSnapshot_->PhysicalSchema->HasHunkColumns());
 
+        ChunkReadOptions_.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            TabletSnapshot_->Settings.MountConfig->EnableHunkColumnarProfiling,
+            TabletSnapshot_->PhysicalSchema);
+
         Reader_ = store->CreateReader(
             TabletSnapshot_,
             tabletIndex,
@@ -173,8 +179,8 @@ public:
             /*upperRowIndex*/ std::numeric_limits<i64>::max(),
             AsyncLastCommittedTimestamp,
             TColumnFilter::MakeUniversal(),
-            chunkReadOptions,
-            chunkReadOptions.WorkloadDescriptor.Category);
+            ChunkReadOptions_,
+            ChunkReadOptions_.WorkloadDescriptor.Category);
 
         UpdateReadOptions();
 
@@ -192,6 +198,8 @@ private:
     const TPromise<TFetchRowsFromOrderedStoreResult> ResultPromise_ = NewPromise<TFetchRowsFromOrderedStoreResult>();
 
     const NLogging::TLogger Logger;
+
+    TClientChunkReadOptions ChunkReadOptions_;
 
     TWriter Writer_;
 
@@ -274,9 +282,20 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        auto counters = TabletSnapshot_->TableProfiler->GetFetchTableRowsCounters(
+            GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()));
+
         if (!resultOrError.IsOK()) {
             YT_LOG_DEBUG(resultOrError, "Failed to finalize fetching rows from ordered store (TabletId: %v)",
                 TabletSnapshot_->TabletId);
+
+            counters->ChunkReaderStatisticsCounters.Increment(
+                ChunkReadOptions_.ChunkReaderStatistics,
+                /*failed*/ true);
+            counters->HunkChunkReaderCounters.Increment(
+                ChunkReadOptions_.HunkChunkReaderStatistics,
+                /*failed*/ true);
+
             ResultPromise_.TrySet(resultOrError);
             return;
         }
@@ -287,10 +306,15 @@ private:
             ReadRowCount_,
             ReadDataWeight_);
 
-        auto counters = TabletSnapshot_->TableProfiler->GetFetchTableRowsCounters(
-            GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()));
         counters->RowCount.Increment(ReadRowCount_);
         counters->DataWeight.Increment(ReadDataWeight_);
+
+        counters->ChunkReaderStatisticsCounters.Increment(
+            ChunkReadOptions_.ChunkReaderStatistics,
+            /*failed*/ false);
+        counters->HunkChunkReaderCounters.Increment(
+            ChunkReadOptions_.HunkChunkReaderStatistics,
+            /*failed*/ false);
 
         ResultPromise_.TrySet(TFetchRowsFromOrderedStoreResult{
             .Rowsets = std::move(resultOrError.Value()),
@@ -310,7 +334,7 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
     i64 maxRowCount,
     i64 maxDataWeight,
     i64 maxPullQueueResponseDataWeight,
-    const TClientChunkReadOptions& chunkReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     IInvokerPtr invoker)
 {
     if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
@@ -320,9 +344,9 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
             maxRowCount,
             maxDataWeight,
             maxPullQueueResponseDataWeight,
-            chunkReadOptions,
+            std::move(chunkReadOptions),
             std::move(invoker));
-        return session->Run(store, tabletIndex, chunkReadOptions);
+        return session->Run(store, tabletIndex);
     } else {
         auto session = New<TFetchRowsSession<TSimpleFetchRowsResultWriter>>(
             std::move(tabletSnapshot),
@@ -330,9 +354,9 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
             maxRowCount,
             maxDataWeight,
             maxPullQueueResponseDataWeight,
-            chunkReadOptions,
+            std::move(chunkReadOptions),
             std::move(invoker));
-        return session->Run(store, tabletIndex, chunkReadOptions);
+        return session->Run(store, tabletIndex);
     }
 }
 

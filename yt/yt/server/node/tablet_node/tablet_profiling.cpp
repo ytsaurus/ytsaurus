@@ -135,9 +135,17 @@ TPullRowsCounters::TPullRowsCounters(const NProfiling::TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFetchTableRowsCounters::TFetchTableRowsCounters(const NProfiling::TProfiler& profiler)
+TFetchTableRowsCounters::TFetchTableRowsCounters(
+    const NProfiling::TProfiler& profiler,
+    const NProfiling::TProfiler& mediumProfiler,
+    const NProfiling::TProfiler& mediumHistogramProfiler,
+    const NTableClient::TTableSchemaPtr& schema)
     : DataWeight(profiler.Counter("/fetch_table_rows/data_weight"))
     , RowCount(profiler.Counter("/fetch_table_rows/row_count"))
+    , ChunkReaderStatisticsCounters(
+        mediumProfiler.WithPrefix("/fetch_table_rows/chunk_reader_statistics"),
+        mediumHistogramProfiler.WithPrefix("/fetch_table_rows/medium_statistics"))
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/fetch_table_rows/hunks"), schema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,6 +251,7 @@ TQueryServiceCounters::TQueryServiceCounters(const TProfiler& profiler)
     : Execute(profiler.WithPrefix("/execute"))
     , Multiread(profiler.WithPrefix("/multiread"))
     , PullRows(profiler.WithPrefix("/pull_rows"))
+    , FetchTableRows(profiler.WithPrefix("/fetch_table_rows"))
 { }
 
 TTabletServiceCounters::TTabletServiceCounters(const TProfiler& profiler)
@@ -833,7 +842,7 @@ TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<std::
 
 TFetchTableRowsCounters* TTableProfiler::GetFetchTableRowsCounters(const std::optional<std::string>& userTag)
 {
-    return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_);
+    return FetchTableRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, MediumHistogramProfiler_, Schema_);
 }
 
 TReplicaCounters TTableProfiler::GetReplicaCounters(const std::string& cluster)

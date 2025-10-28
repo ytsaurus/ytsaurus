@@ -141,10 +141,17 @@ struct TFetchTableRowsCounters
 {
     TFetchTableRowsCounters() = default;
 
-    explicit TFetchTableRowsCounters(const NProfiling::TProfiler& profiler);
+    TFetchTableRowsCounters(
+        const NProfiling::TProfiler& profiler,
+        const NProfiling::TProfiler& mediumProfiler,
+        const NProfiling::TProfiler& mediumHistogramProfiler,
+        const NTableClient::TTableSchemaPtr& schema);
 
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter RowCount;
+
+    NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
+    NTableClient::THunkChunkReaderCounters HunkChunkReaderCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,6 +318,7 @@ struct TQueryServiceCounters
     NServer::TMethodCounters Execute;
     NServer::TMethodCounters Multiread;
     NServer::TMethodCounters PullRows;
+    NServer::TMethodCounters FetchTableRows;
 };
 
 struct TTabletServiceCounters
