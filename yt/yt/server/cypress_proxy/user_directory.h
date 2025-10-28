@@ -27,6 +27,8 @@ struct TSubjectDescriptor
     bool operator==(const TSubjectDescriptor& other) const = default;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserDescriptor
     : public TSubjectDescriptor
 {
@@ -38,6 +40,8 @@ struct TUserDescriptor
 
     bool operator==(const TUserDescriptor& other) const = default;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 void FromProto(TSubjectDescriptor* subjectDescriptor, const NObjectClient::NProto::TSubjectDescriptor& proto);
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto);

@@ -15,7 +15,7 @@ class TAcdFetcher
     : public TRefCounted
 {
 public:
-    TAcdFetcher(NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction);
+    explicit TAcdFetcher(NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction);
 
     std::vector<const TAccessControlDescriptor*> Fetch(
         TRange<TRange<TCypressNodeDescriptor>> joinedDescriptors);

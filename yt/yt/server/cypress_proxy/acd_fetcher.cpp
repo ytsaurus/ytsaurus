@@ -27,8 +27,8 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
         | std::views::join
         | std::views::transform(
             [] (const TCypressNodeDescriptor& descriptor) -> TNodeId {
-            return descriptor.Id;
-        });
+                return descriptor.Id;
+            });
 
     std::vector<TNodeId> missingAcds;
     int nodeCount = 0;
@@ -44,7 +44,7 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
         for (auto&& [nodeId, acd] : Zip(missingAcds, fetchedAcds)) {
             if (!acd.has_value()) {
                 YT_LOG_DEBUG(
-                    "Failed to fetch ACD entry from Sequoia tables for node: entry not found (NodeId: %v)",
+                    "Unable to fetch ACD entry from Sequoia tables for node: entry not found (NodeId: %v)",
                     nodeId);
                 // NB: Stale read of an object ACD is fine. Default descriptor
                 // acts as no permission rights were configured.

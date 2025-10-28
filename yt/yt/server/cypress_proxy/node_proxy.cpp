@@ -103,7 +103,7 @@ const TSerializableAccessControlList UnreachableNodeAcl = {
             ESecurityAction::Allow,
             /*subjects*/ {EveryoneGroupName},
             EPermission::Read)
-    }
+    },
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2021,7 +2021,7 @@ private:
                 TYPathBuf("/@"),
                 subrequests,
                 /*force*/ false,
-                /*effectiveAcl*/ std::nullopt,
+                /*effectiveAcl*/ {},
                 AccessTrackingOptions_);
         }
 
