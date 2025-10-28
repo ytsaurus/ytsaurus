@@ -479,10 +479,10 @@ void ExpectBodyEnd(THttpInput* in)
 
 TEST(THttpInputTest, Simple)
 {
-    using TTestCase = std::tuple<EMessageType, TString, std::function<void(THttpInput*)>>;
+    using TTestCase = std::tuple<std::optional<EMethod>, TString, std::function<void(THttpInput*)>>;
     std::vector<TTestCase> table = {
         TTestCase{
-            EMessageType::Response,
+            EMethod::Get,
             "HTTP/1.1 200 OK\r\n"
             "\r\n",
             [] (THttpInput* in) {
@@ -491,7 +491,7 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Response,
+            EMethod::Get,
             "HTTP/1.1 500 Internal Server Error\r\n"
             "\r\n",
             [] (THttpInput* in) {
@@ -500,7 +500,29 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Request,
+            EMethod::Get,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 6\r\n"
+            "\r\n"
+            "foobar",
+            [] (THttpInput* in) {
+                EXPECT_EQ(in->GetStatusCode(), EStatusCode::OK);
+                ASSERT_EQ("foobar", in->ReadAll().ToStringBuf());
+            }
+        },
+        TTestCase{
+            EMethod::Head,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 6\r\n"
+            "\r\n"
+            "foobar",
+            [] (THttpInput* in) {
+                EXPECT_EQ(in->GetStatusCode(), EStatusCode::OK);
+                ASSERT_EQ("", in->ReadAll().ToStringBuf());
+            }
+        },
+        TTestCase{
+            std::nullopt,
             "GET / HTTP/1.1\r\n"
             "\r\n",
             [] (THttpInput* in) {
@@ -510,7 +532,7 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Request,
+            std::nullopt,
             "GET / HTTP/1.1\r\n"
             "X-Foo: test\r\n"
             "X-Foo0: test-test-test\r\n"
@@ -528,7 +550,7 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Request,
+            std::nullopt,
             "POST / HTTP/1.1\r\n"
             "Content-Length: 6\r\n"
             "\r\n"
@@ -540,7 +562,7 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Request,
+            std::nullopt,
             "POST /chunked_w_trailing_headers HTTP/1.1\r\n"
             "Transfer-Encoding: chunked\r\n"
             "X-Foo: test\r\n"
@@ -572,7 +594,7 @@ TEST(THttpInputTest, Simple)
             }
         },
         TTestCase{
-            EMessageType::Request,
+            std::nullopt,
             "GET http://yt/foo HTTP/1.1\r\n"
             "\r\n",
             [] (THttpInput* in) {
@@ -1161,7 +1183,7 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
             connection,
             connection->GetRemoteAddress(),
             Poller->GetInvoker(),
-            EMessageType::Response,
+            EMethod::Post,
             New<THttpIOConfig>());
 
         for (int i = 0; i < 10; ++i) {
@@ -1195,7 +1217,7 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
             connection,
             connection->GetRemoteAddress(),
             Poller->GetInvoker(),
-            EMessageType::Response,
+            EMethod::Post,
             New<THttpIOConfig>());
 
         for (int i = 0; i < 10; ++i) {
