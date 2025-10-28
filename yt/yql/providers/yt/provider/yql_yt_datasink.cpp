@@ -239,6 +239,7 @@ public:
     void FillModifyCallables(THashSet<TStringBuf>& callables) override {
         callables.insert(TYtWriteTable::CallableName());
         callables.insert(TYtDropTable::CallableName());
+        callables.insert(TYtDropView::CallableName());
         callables.insert(TYtConfigure::CallableName());
         callables.insert(TYtCreateTable::CallableName());
         callables.insert(TYtCreateView::CallableName());
@@ -264,6 +265,16 @@ public:
             TExprNode::TListType children = node->ChildrenList();
             children.resize(3);
             return ctx.NewCallable(node->Pos(), TYtDropTable::CallableName(), std::move(children));
+        } else if (mode && *mode == EYtWriteMode::DropObject) {
+            if (!node->Child(3)->IsCallable("Void")) {
+                ctx.AddError(TIssue(ctx.GetPosition(node->Child(3)->Pos()), TStringBuilder()
+                    << "Expected Void, but got: " << node->Child(3)->Content()));
+                return {};
+            }
+
+            auto children = node->ChildrenList();
+            children.resize(3);
+            return ctx.NewCallable(node->Pos(), TYtDropView::CallableName(), std::move(children));
         } else if (mode && *mode == EYtWriteMode::Create) {
             if (!node->Child(3U)->IsCallable("Void")) {
                 ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()

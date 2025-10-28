@@ -37,6 +37,7 @@ public:
         AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
+        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleCommit));
         AddHandler({TYtPublish::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandlePublish));
         AddHandler({TYtEquiJoin::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleEquiJoin));

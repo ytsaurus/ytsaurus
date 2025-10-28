@@ -31,9 +31,10 @@ public:
         // Handle callables for already parsed/optimized AST
         AddHandler({TYtReadTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleReadTable));
         AddHandler({TYtReadTableScheme::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleReadTableScheme));
-        AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateTable));
-        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleDropTable));
-        AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateView));
+        AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<true, false>));
+        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<false, false>));
+        AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<true, true>));
+        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<false, true>));
         AddHandler({TYtPublish::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandlePublish));
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
@@ -102,6 +103,9 @@ public:
                 switch (FromString<EYtWriteMode>(mode->Child(1)->Content())) {
                 case EYtWriteMode::Drop:
                     tableDesc.Intents |= TYtTableIntent::Drop;
+                    break;
+                case EYtWriteMode::DropObject:
+                    tableDesc.Intents |= TYtTableIntent::Drop | TYtTableIntent::View;
                     break;
                 case EYtWriteMode::Append:
                     tableDesc.Intents |= TYtTableIntent::Append;
@@ -206,61 +210,24 @@ public:
         return TStatus::Ok;
     }
 
-    TStatus HandleCreateTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        const TYtCreateTable create(input);
-        const TYtTableInfo tableInfo(create.Table(), false);
-        const auto& cluster = create.DataSink().Cluster().StringValue();
+    template<bool CreateOrDrop, bool ViewOrTable>
+    TStatus HandleCreateDrop(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+        const std::conditional_t<CreateOrDrop,
+            std::conditional_t<ViewOrTable, TYtCreateView, TYtCreateTable>,
+            std::conditional_t<ViewOrTable, TYtDropView, TYtDropTable>
+        > node(input);
+        const TYtTableInfo tableInfo(node.Table(), false);
+        const auto& cluster = node.DataSink().Cluster().StringValue();
         auto& tableDesc = State_->TablesData->GetOrAddTable(cluster, tableInfo.Name, tableInfo.Epoch);
 
         if (NYql::HasSetting(tableInfo.Settings.Cast().Ref(), EYtSettingType::Anonymous)) {
             tableDesc.IsAnonymous = true;
             RegisterAnonymouseTable(cluster, tableInfo.Name);
         }
-        tableDesc.Intents |= TYtTableIntent::Create;
-
-        UpdateDescriptorMeta(tableDesc, tableInfo);
-
-        output = ResetTablesMeta(input, ctx, State_->Types->UseTableMetaFromGraph, State_->Types->EvaluationInProgress > 0);
-        return !output ? TStatus::Error : TStatus::Ok;
-    }
-
-    TStatus HandleDropTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        auto drop = TYtDropTable(input);
-
-        auto cluster = TString{drop.DataSink().Cluster().Value()};
-        TYtTableInfo tableInfo(drop.Table(), false);
-
-        TYtTableDescription& tableDesc = State_->TablesData->GetOrAddTable(
-            cluster,
-            tableInfo.Name,
-            tableInfo.Epoch
-        );
-        if (NYql::HasSetting(tableInfo.Settings.Cast().Ref(), EYtSettingType::Anonymous)) {
-            tableDesc.IsAnonymous = true;
-            RegisterAnonymouseTable(cluster, tableInfo.Name);
+        tableDesc.Intents |= CreateOrDrop ? TYtTableIntent::Create : TYtTableIntent::Drop;
+        if constexpr (ViewOrTable) {
+            tableDesc.Intents |= TYtTableIntent::View;
         }
-        tableDesc.Intents |= TYtTableIntent::Drop;
-
-        UpdateDescriptorMeta(tableDesc, tableInfo);
-
-        output = ResetTablesMeta(input, ctx, State_->Types->UseTableMetaFromGraph, State_->Types->EvaluationInProgress > 0);
-        if (!output) {
-            return TStatus::Error;
-        }
-        return TStatus::Ok;
-    }
-
-    TStatus HandleCreateView(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        const TYtCreateView create(input);
-        const TYtTableInfo tableInfo(create.Table(), false);
-        const auto& cluster = create.DataSink().Cluster().StringValue();
-        auto& tableDesc = State_->TablesData->GetOrAddTable(cluster, tableInfo.Name, tableInfo.Epoch);
-
-        if (NYql::HasSetting(tableInfo.Settings.Cast().Ref(), EYtSettingType::Anonymous)) {
-            tableDesc.IsAnonymous = true;
-            RegisterAnonymouseTable(cluster, tableInfo.Name);
-        }
-        tableDesc.Intents |= TYtTableIntent::Create | TYtTableIntent::View;
 
         UpdateDescriptorMeta(tableDesc, tableInfo);
 

@@ -398,6 +398,11 @@
             "Match": {"Type": "Callable", "Name": "YtDropTable!"}
         },
         {
+            "Name": "TYtDropView",
+            "Base": "TYtIsolatedOpBase",
+            "Match": {"Type": "Callable", "Name": "YtDropView!"}
+        },
+        {
             "Name": "TYtCreateTable",
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtCreateTable!"},
