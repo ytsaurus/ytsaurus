@@ -634,10 +634,10 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     i64 totalDataWeight = 0;
     i64 totalChunkCount = 0;
     for (const auto& subquery : threadSubqueries) {
-        const auto& stripeList = subquery.StripeList;
-        totalRowCount += stripeList->TotalRowCount;
-        totalDataWeight += stripeList->TotalDataWeight;
-        totalChunkCount += stripeList->TotalChunkCount;
+        const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
+        totalRowCount += stripeListStatistics.RowCount;
+        totalDataWeight += stripeListStatistics.DataWeight;
+        totalChunkCount += stripeListStatistics.ChunkCount;
     }
 
     YT_LOG_DEBUG(

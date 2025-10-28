@@ -314,7 +314,7 @@ public:
 
                 jobStub->Finalize();
 
-                if (jobStub->GetStripeList()->TotalChunkCount == 1) {
+                if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
                     YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
                     auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices.back();
                     if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
@@ -379,7 +379,7 @@ public:
 
     int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
     {
-        return JobManager_->GetStripeList(cookie)->TotalChunkCount;
+        return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
     }
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override

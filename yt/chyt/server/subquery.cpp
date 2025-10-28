@@ -325,16 +325,16 @@ private:
             ResultStripeList_->AddStripe(std::move(stripe));
         }
 
+        const auto& stripeListStatistics = ResultStripeList_->GetAggregateStatistics();
+
         YT_LOG_INFO(
-            "Input fetched (TotalChunkCount: %v, TotalDataWeight: %v, TotalRowCount: %v)",
-            ResultStripeList_->TotalChunkCount,
-            ResultStripeList_->TotalDataWeight,
-            ResultStripeList_->TotalRowCount);
+            "Input fetched (StripeListStatistics: %v)",
+            stripeListStatistics);
 
         if (totalFilteredRowCount > 0) {
             IndexStats_.push_back(CreateKeyConditionIndexStat(
-                ResultStripeList_->TotalRowCount,
-                ResultStripeList_->TotalDataWeight,
+                stripeListStatistics.RowCount,
+                stripeListStatistics.DataWeight,
                 totalFilteredRowCount,
                 totalFilteredDataWeight
             ));
@@ -944,14 +944,14 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
     }
 
     for (const auto& subquery : subqueries) {
-        const auto& stripeList = subquery.StripeList;
-        totalChunkCount += stripeList->TotalChunkCount;
-        totalDataWeight += stripeList->TotalDataWeight;
-        totalRowCount += stripeList->TotalRowCount;
-        maxDataWeight = std::max(maxDataWeight, stripeList->TotalDataWeight);
-        minDataWeight = std::min(minDataWeight, stripeList->TotalDataWeight);
-        maxChunkCount = std::max(maxChunkCount, stripeList->TotalChunkCount);
-        minChunkCount = std::min(minChunkCount, stripeList->TotalChunkCount);
+        const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
+        totalChunkCount += stripeListStatistics.ChunkCount;
+        totalDataWeight += stripeListStatistics.DataWeight;
+        totalRowCount += stripeListStatistics.RowCount;
+        maxDataWeight = std::max(maxDataWeight, stripeListStatistics.DataWeight);
+        minDataWeight = std::min(minDataWeight, stripeListStatistics.DataWeight);
+        maxChunkCount = std::max(maxChunkCount, stripeListStatistics.ChunkCount);
+        minChunkCount = std::min(minChunkCount, stripeListStatistics.ChunkCount);
     }
 
     YT_LOG_INFO(
@@ -979,7 +979,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
     const TStorageContext* storageContext,
     const TSubqueryConfigPtr& config)
 {
-    const auto& inputStripeList = queryInput.StripeList;
+    const auto& inputStripeListStatistics = queryInput.StripeList->GetAggregateStatistics();
 
     auto* queryContext = storageContext->QueryContext;
     const auto& Logger = storageContext->Logger;
@@ -987,9 +987,9 @@ std::vector<TSubquery> BuildThreadSubqueries(
     YT_LOG_INFO(
         "Building subqueries (TotalDataWeight: %v, TotalChunkCount: %v, TotalRowCount: %v, "
         "JobCount: %v, PoolKind: %v, ReadInOrderMode: %v, SamplingRate: %v, KeyColumnCount: %v)",
-        inputStripeList->TotalDataWeight,
-        inputStripeList->TotalChunkCount,
-        inputStripeList->TotalRowCount,
+        inputStripeListStatistics.DataWeight,
+        inputStripeListStatistics.ChunkCount,
+        inputStripeListStatistics.RowCount,
         jobCount,
         queryAnalysisResult.PoolKind,
         queryAnalysisResult.ReadInOrderMode,
@@ -998,7 +998,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     std::vector<TSubquery> subqueries;
 
-    if (inputStripeList->TotalRowCount * samplingRate.value_or(1.0) < 1.0) {
+    if (inputStripeListStatistics.RowCount * samplingRate.value_or(1.0) < 1.0) {
         YT_LOG_INFO("Total row count times sampling rate is less than 1, returning empty subqueries");
         return subqueries;
     }
@@ -1006,8 +1006,8 @@ std::vector<TSubquery> BuildThreadSubqueries(
     auto jobSizeSpec = CreateClickHouseJobSizeSpec(
         queryContext->Settings->Execution,
         config,
-        inputStripeList->TotalDataWeight,
-        inputStripeList->TotalRowCount,
+        inputStripeListStatistics.DataWeight,
+        inputStripeListStatistics.RowCount,
         jobCount,
         samplingRate,
         queryAnalysisResult.ReadInOrderMode,
@@ -1092,7 +1092,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     TReadRangeRegistry inputReadRangeRegistry;
 
-    for (const auto& chunkStripe : inputStripeList->Stripes()) {
+    for (const auto& chunkStripe : queryInput.StripeList->Stripes()) {
         for (const auto& dataSlice : chunkStripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
             if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
@@ -1201,7 +1201,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         for (size_t leftIndex = 0, rightIndex = 0; leftIndex < subqueries.size(); leftIndex = rightIndex) {
             i64 dataWeight = 0;
             while (rightIndex < subqueries.size()) {
-                dataWeight += subqueries[rightIndex].StripeList->TotalDataWeight;
+                dataWeight += subqueries[rightIndex].StripeList->GetAggregateStatistics().DataWeight;
                 rightIndex++;
                 if (dataWeight >= config->MinDataWeightPerThread) {
                     break;

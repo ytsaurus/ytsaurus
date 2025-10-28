@@ -12,22 +12,34 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
 namespace NYT::NControllerAgent::NControllers {
 namespace {
 
 using namespace ::testing;
-using namespace NLogging;
+
+using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NCypressClient;
+using namespace NLogging;
+using namespace NObjectClient;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobSplitterTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeListPtr CreateTwoRowStripeList()
+TChunkStripeListPtr CreateTwoRowStripeList(i64 dataWeight = 200)
 {
-    TChunkStripeListPtr stripeList = New<TChunkStripeList>();
-    stripeList->TotalRowCount = 2;
-    stripeList->TotalDataWeight = 200;
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetChunkId(MakeRandomId(EObjectType::Chunk, TCellTag(0x42)));
+    inputChunk->SetTotalRowCount(2);
+    inputChunk->SetTotalDataWeight(dataWeight);
+
+    auto stripeList = New<TChunkStripeList>();
+    stripeList->AddStripe(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(inputChunk))));
     return stripeList;
 }
 
@@ -149,8 +161,7 @@ TEST(TJobSplitterTest, SpeculateLongAmongRunningInterruptibleJobWithTooSmallTota
     auto jobSplitter = CreateJobSplitter(CreateSplitterConfig(), jobSplittingHost.Get(), Logger());
 
     TJobId slowJobId = MakeJobId(0, 0);
-    auto smallStripeList = CreateTwoRowStripeList();
-    smallStripeList->TotalDataWeight = 10;
+    auto smallStripeList = CreateTwoRowStripeList(/*dataWeight*/ 10);
     OnJobStarted(jobSplitter, slowJobId, smallStripeList, true);
     jobSplitter->OnJobRunning(CreateOneRowProgressJobSummary(slowJobId, /*isSlow*/ true));
 

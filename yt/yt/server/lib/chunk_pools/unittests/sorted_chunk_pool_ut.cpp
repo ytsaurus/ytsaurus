@@ -2466,9 +2466,10 @@ TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1u, stripeLists.size());
 
-    EXPECT_GT(stripeLists[0]->TotalChunkCount, 0);
-    EXPECT_GT(stripeLists[0]->TotalRowCount, 0);
-    EXPECT_GT(stripeLists[0]->TotalDataWeight, 0);
+    const auto& statistics = stripeLists[0]->GetAggregateStatistics();
+    EXPECT_GT(statistics.ChunkCount, 0);
+    EXPECT_GT(statistics.RowCount, 0);
+    EXPECT_GT(statistics.DataWeight, 0);
 }
 
 TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
@@ -2681,7 +2682,7 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
     EXPECT_EQ(stripeLists.size(), 3u);
     std::vector<i64> stripeListDataSizes;
     for (auto cookie : ExtractedCookies_) {
-        stripeListDataSizes.emplace_back(ChunkPool_->GetStripeList(cookie)->TotalDataWeight);
+        stripeListDataSizes.emplace_back(ChunkPool_->GetStripeList(cookie)->GetAggregateStatistics().DataWeight);
     }
     EXPECT_GT(stripeListDataSizes[0], stripeListDataSizes[1]);
     EXPECT_GT(stripeListDataSizes[1], stripeListDataSizes[2]);
@@ -3181,7 +3182,7 @@ TEST_P(TSortedChunkPoolTestRandomized, JobDataWeightDistribution)
 
     Cdebug << "Job data weights: [";
     for (const auto& stripeList : stripeLists) {
-        Cdebug << stripeList->TotalDataWeight << ", ";
+        Cdebug << stripeList->GetAggregateStatistics().DataWeight << ", ";
     }
     Cdebug << "]" << Endl;
 }

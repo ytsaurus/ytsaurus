@@ -61,9 +61,9 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     }
 
     competition->ProgressCounterGuard.SetCategory(EProgressCategory::Pending);
-    competition->PendingDataWeight = joblet->InputStripeList->TotalDataWeight;
+    competition->PendingDataWeight = joblet->InputStripeList->GetAggregateStatistics().DataWeight;
     InsertOrCrash(CompetitionCandidates_, joblet->OutputCookie);
-    PendingDataWeight_ += joblet->InputStripeList->TotalDataWeight;
+    PendingDataWeight_ += joblet->InputStripeList->GetAggregateStatistics().DataWeight;
     YT_LOG_DEBUG("Competition request is registered");
 
     return true;

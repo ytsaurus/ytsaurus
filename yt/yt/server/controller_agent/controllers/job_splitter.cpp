@@ -353,8 +353,8 @@ private:
             TOutputCookie cookie,
             TJobSplitter* owner,
             bool isInterruptible)
-            : TotalRowCount_(inputStripeList->TotalRowCount)
-            , TotalDataWeight_(inputStripeList->TotalDataWeight)
+            : TotalRowCount_(inputStripeList->GetAggregateStatistics().RowCount)
+            , TotalDataWeight_(inputStripeList->GetAggregateStatistics().DataWeight)
             , IsInterruptible_(isInterruptible)
             , Owner_(owner)
             , Cookie_(cookie)

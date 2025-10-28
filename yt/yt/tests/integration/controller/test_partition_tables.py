@@ -113,7 +113,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     ):
         aggregate_statistics = defaultdict(int)
         for partition in partitions:
-            assert partition["aggregate_statistics"].keys() == set(["chunk_count", "data_weight", "row_count", "compressed_data_size", "value_count"])
+            assert partition["aggregate_statistics"].keys() == {"chunk_count", "data_weight", "row_count", "compressed_data_size", "value_count", "max_block_size"}
             for statistics, value in partition["aggregate_statistics"].items():
                 aggregate_statistics[statistics] += value
                 assert value > 0
@@ -129,7 +129,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             "data_weight": data_weight,
             "row_count": row_count,
             "compressed_data_size": compressed_data_size,
-            "value_count": value_count
+            "value_count": value_count,
+            "max_block_size": aggregate_statistics["max_block_size"],
         }
         assert aggregate_statistics == pytest.approx(expected_aggregate_statistics, abs=allowed_absolute_difference)
 

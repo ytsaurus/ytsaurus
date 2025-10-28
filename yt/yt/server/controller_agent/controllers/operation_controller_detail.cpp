@@ -3124,14 +3124,14 @@ void TOperationControllerBase::InitializeHistograms()
 void TOperationControllerBase::AddValueToEstimatedHistogram(const TJobletPtr& joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
-        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->TotalDataWeight);
+        EstimatedInputDataSizeHistogram_->AddValue(joblet->InputStripeList->GetAggregateStatistics().DataWeight);
     }
 }
 
 void TOperationControllerBase::RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet)
 {
     if (EstimatedInputDataSizeHistogram_) {
-        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
+        EstimatedInputDataSizeHistogram_->RemoveValue(joblet->InputStripeList->GetAggregateStatistics().DataWeight);
     }
 }
 
@@ -8953,7 +8953,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunks = GetStripeListChunks(stripeList);
             AddChunksToUnstageList(chunks);
-            OnChunksReleased(stripeList->TotalChunkCount);
+            OnChunksReleased(stripeList->GetAggregateStatistics().ChunkCount);
         }
     }
 
@@ -11195,7 +11195,7 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
             auto chunks = GetStripeListChunks(stripeList);
             AddChunksToUnstageList(chunks);
-            OnChunksReleased(stripeList->TotalChunkCount);
+            OnChunksReleased(stripeList->GetAggregateStatistics().ChunkCount);
             break;
         }
         case EIntermediateChunkUnstageMode::OnSnapshotCompleted: {

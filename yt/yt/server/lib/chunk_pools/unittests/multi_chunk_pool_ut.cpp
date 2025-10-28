@@ -399,9 +399,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
     EXPECT_EQ(Pool_->GetStripeList(1), stripeList00);
     EXPECT_EQ(Pool_->GetStripeList(2), stripeList01);
 
-    EXPECT_EQ(stripeList00->PartitionTag, 0);
-    EXPECT_EQ(stripeList01->PartitionTag, 0);
-    EXPECT_EQ(stripeList10->PartitionTag, 1);
+    EXPECT_EQ(stripeList00->GetPartitionTag(), 0);
+    EXPECT_EQ(stripeList01->GetPartitionTag(), 0);
+    EXPECT_EQ(stripeList10->GetPartitionTag(), 1);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)

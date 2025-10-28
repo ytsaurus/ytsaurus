@@ -98,7 +98,7 @@ public:
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedOperationResources(
-                joblet->InputStripeList->GetStatistics());
+                joblet->InputStripeList->GetPerStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -478,7 +478,7 @@ protected:
         auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
             Spec_->JobIO,
             /*useEstimatedBufferSize*/ false,
-            AggregateStatistics(statistics));
+            AggregateStatistics(statistics)); // TODO(apollo1321): Remove second pass.
 
         result.SetJobProxyMemory(jobProxyMemory);
         result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
@@ -760,7 +760,7 @@ private:
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
-        StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
+        StartRowIndex_ += joblet->InputStripeList->GetAggregateStatistics().RowCount;
     }
 
     i64 GetMinTeleportChunkSize() const override

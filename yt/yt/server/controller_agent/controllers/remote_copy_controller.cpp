@@ -197,7 +197,7 @@ protected:
 
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            return GetMergeResources(joblet->InputStripeList->GetStatistics());
+            return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
 
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)

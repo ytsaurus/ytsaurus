@@ -955,21 +955,18 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     YT_LOG_DEBUG(
-        "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v, "
-        "Approximate: %v, DataWeight: %v, CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
-        "EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, "
-        "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
+        "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
+        "Approximate: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, "
+        "RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
         joblet->JobIndex,
         joblet->OutputCookie,
-        joblet->InputStripeList->TotalChunkCount,
-        joblet->InputStripeList->IsApproximate,
-        joblet->InputStripeList->TotalDataWeight,
-        joblet->InputStripeList->TotalCompressedDataSize,
-        joblet->InputStripeList->TotalRowCount,
-        joblet->InputStripeList->PartitionTag,
+        joblet->InputStripeList->GetAggregateStatistics(),
+        joblet->InputStripeList->IsApproximate(),
+        joblet->InputStripeList->GetPartitionTag(),
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
@@ -1012,7 +1009,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     if (!joblet->CompetitionType) {
         TaskHost_->AddValueToEstimatedHistogram(joblet);
         if (EstimatedInputDataWeightHistogram_) {
-            EstimatedInputDataWeightHistogram_->AddValue(joblet->InputStripeList->TotalDataWeight);
+            EstimatedInputDataWeightHistogram_->AddValue(joblet->InputStripeList->GetAggregateStatistics().DataWeight);
         }
     }
 
@@ -1488,7 +1485,7 @@ void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
     if (!joblet->CompetitionType) {
         TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
         if (EstimatedInputDataWeightHistogram_) {
-            EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
+            EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->GetAggregateStatistics().DataWeight);
         }
     }
     TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /*recursive*/ true, waitForSnapshot);
@@ -1822,10 +1819,10 @@ void TTask::UpdateInputSpecTotals(
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
     jobSpecExt->set_input_data_weight(
         jobSpecExt->input_data_weight() +
-        list->TotalDataWeight);
+        list->GetAggregateStatistics().DataWeight);
     jobSpecExt->set_input_row_count(
         jobSpecExt->input_row_count() +
-        list->TotalRowCount);
+        list->GetAggregateStatistics().RowCount);
 }
 
 TString TTask::GetOrCacheSerializedSchema(const TTableSchemaPtr& schema)
@@ -2142,7 +2139,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     }
 
     // Adjust sizes if approximation flag is set.
-    if (joblet->InputStripeList->IsApproximate) {
+    if (joblet->InputStripeList->IsApproximate()) {
         jobSpecExt->set_input_data_weight(static_cast<i64>(
             jobSpecExt->input_data_weight() *
             ApproximateSizesBoostFactor));
@@ -2364,7 +2361,7 @@ void TTask::RegisterStripe(
         completedJob->JobId = joblet->JobId;
         completedJob->SourceTask = this;
         completedJob->OutputCookie = joblet->OutputCookie;
-        completedJob->DataWeight = joblet->InputStripeList->TotalDataWeight;
+        completedJob->DataWeight = joblet->InputStripeList->GetAggregateStatistics().DataWeight;
         completedJob->DestinationPool = destinationPool;
         completedJob->InputCookie = inputCookie;
         completedJob->Restartable = CanLoseJobs();
@@ -2506,7 +2503,7 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
     // We don't estimate unread row count based on unread slices,
     // because foreign slices are not passed back to scheduler.
     // Instead, we take the difference between estimated row count and actual read row count.
-    i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
+    i64 unreadRowCount = joblet->InputStripeList->GetAggregateStatistics().RowCount - inputDataStatistics.row_count();
 
     if (unreadRowCount <= 0) {
         // This is almost impossible, still we don't want to fail operation in this case.
@@ -2773,19 +2770,20 @@ void TTask::ValidateJobSizeConstraints(const TJobletPtr& joblet) const
 
     const auto& spec = TaskHost_->GetSpec();
 
-    if (joblet->InputStripeList->TotalDataWeight > spec->MaxDataWeightPerJob) {
+    const auto& stripeListStatistics = joblet->InputStripeList->GetAggregateStatistics();
+    if (stripeListStatistics.DataWeight > spec->MaxDataWeightPerJob) {
         failOperation(TError(
             NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
             "Maximum allowed data weight per job exceeds the limit: %v > %v",
-            joblet->InputStripeList->TotalDataWeight,
+            stripeListStatistics.DataWeight,
             TaskHost_->GetSpec()->MaxDataWeightPerJob));
     }
 
-    if (joblet->InputStripeList->TotalCompressedDataSize > spec->MaxCompressedDataSizePerJob) {
+    if (stripeListStatistics.CompressedDataSize > spec->MaxCompressedDataSizePerJob) {
         failOperation(TError(
             NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded,
             "Maximum allowed compressed data size per job exceeds the limit: %v > %v",
-            joblet->InputStripeList->TotalCompressedDataSize,
+            stripeListStatistics.CompressedDataSize,
             TaskHost_->GetSpec()->MaxCompressedDataSizePerJob));
     }
 
@@ -2795,12 +2793,12 @@ void TTask::ValidateJobSizeConstraints(const TJobletPtr& joblet) const
             simpleSpec->MaxDataSlicesPerJob.value_or(options->MaxDataSlicesPerJob),
             options->MaxDataSlicesPerJobLimit);
 
-        if (joblet->InputStripeList->TotalSliceCount > maxDataSlicesPerJob) {
+        if (joblet->InputStripeList->GetSliceCount() > maxDataSlicesPerJob) {
             TaskHost_->SetOperationAlert(EOperationAlertType::TooManySlicesInJobs,
                 TError("Some jobs have too many data slices in their input; consider decreasing the job count")
                     << TErrorAttribute("job_id", joblet->JobId)
                     << TErrorAttribute("task_name", GetVertexDescriptor())
-                    << TErrorAttribute("job_slice_count", joblet->InputStripeList->TotalSliceCount)
+                    << TErrorAttribute("job_slice_count", joblet->InputStripeList->GetSliceCount())
                     << TErrorAttribute("max_data_slices_per_job", maxDataSlicesPerJob));
         }
     }
