@@ -314,7 +314,6 @@ private:
             const auto& run = Runs_[cookie];
 
             auto list = New<TChunkStripeList>();
-            list->PartitionTag = PartitionIndex_;
             list->Reserve(run.ElementaryIndexEnd - run.ElementaryIndexBegin);
 
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
@@ -326,8 +325,7 @@ private:
 
             // NB(apollo1321): Actually, this data weight is uncompressed data size here.
             // This behaviour is incorrect and should be fixed in YT-26516.
-            list->TotalDataWeight = run.DataWeight;
-            list->TotalRowCount = run.RowCount;
+            list->SetPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
 
             for (const auto& stripe : list->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices) {

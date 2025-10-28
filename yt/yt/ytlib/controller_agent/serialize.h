@@ -84,6 +84,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DistributedJobManagers)                (302104))
     ((PerTableInputQuery)                    (302105))
     ((RemoveUnusedLocalityStatistics)        (302106))
+    ((RefactorChunkStripeList)               (302107))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

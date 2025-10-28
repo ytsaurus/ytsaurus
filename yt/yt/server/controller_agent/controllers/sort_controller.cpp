@@ -572,7 +572,7 @@ protected:
 
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetStatistics(), IsRoot());
+            auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetPerStripeStatistics(), IsRoot());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -684,7 +684,7 @@ protected:
             if (IsRoot()) {
                 return 0;
             } else {
-                return *chunkStripeList->PartitionTag;
+                return *chunkStripeList->GetPartitionTag();
             }
         }
 
@@ -751,7 +751,7 @@ protected:
 
         void OnJobStarted(TJobletPtr joblet) override
         {
-            auto dataWeight = joblet->InputStripeList->TotalDataWeight;
+            auto dataWeight = joblet->InputStripeList->GetAggregateStatistics().DataWeight;
             if (DataBalancer_) {
                 DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, +dataWeight);
             }
@@ -829,7 +829,7 @@ protected:
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
             if (DataBalancer_) {
-                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->GetAggregateStatistics().DataWeight);
             }
 
             return result;
@@ -840,7 +840,7 @@ protected:
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
             if (DataBalancer_) {
-                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataWeight);
+                DataBalancer_->UpdateNodeDataWeight(joblet->NodeDescriptor, -joblet->InputStripeList->GetAggregateStatistics().DataWeight);
             }
 
             return result;
@@ -968,8 +968,18 @@ protected:
 
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            auto result = GetNeededResourcesForChunkStripe(
-                joblet->InputStripeList->GetAggregateStatistics());
+            const auto& stripeList = joblet->InputStripeList;
+            auto statistics = stripeList->GetAggregateStatistics();
+
+            // TODO(apollo1321): Do we really need this logic? There are no tests for this scenario.
+            if (stripeList->IsApproximate()) {
+                statistics.RowCount *= ApproximateSizesBoostFactor;
+                statistics.ValueCount *= ApproximateSizesBoostFactor;
+                statistics.DataWeight *= ApproximateSizesBoostFactor;
+                statistics.CompressedDataSize *= ApproximateSizesBoostFactor;
+            }
+
+            auto result = GetNeededResourcesForChunkStripe(statistics);
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -1057,11 +1067,11 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
+            jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
 
             AddSequentialInputSpec(jobSpec, joblet);
 
-            auto partitionIndex = joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = joblet->InputStripeList->GetPartitionTag();
             if (partitionIndex) {
                 auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
                 jobSpecExt->set_partition_tag(partitionTag);
@@ -1101,7 +1111,7 @@ protected:
                 if (Controller_->SimpleSort_) {
                     stripe->PartitionTag = 0;
                 } else {
-                    stripe->PartitionTag = joblet->InputStripeList->PartitionTag;
+                    stripe->PartitionTag = joblet->InputStripeList->GetPartitionTag();
                 }
 
                 std::optional<TMD5Hash> outputDigest;
@@ -1274,12 +1284,12 @@ protected:
         {
             auto nodeId = joblet->NodeDescriptor.Id;
 
-            auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
             const auto& partition = Controller_->GetFinalPartition(partitionIndex);
 
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            partition->AddLocality(nodeId, joblet->InputStripeList->TotalDataWeight);
+            partition->AddLocality(nodeId, joblet->InputStripeList->GetAggregateStatistics().DataWeight);
 
             // Don't rely on static assignment anymore.
             partition->SetAssignedNodeId(InvalidNodeId);
@@ -1318,7 +1328,7 @@ protected:
             }
 
             if (!IsFinalSort_) {
-                auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+                auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 if (partition->ChunkPoolOutput->IsCompleted()) {
                     auto error = Controller_->SortedMergeTask_->OnIntermediateSortCompleted(partitionIndex);
@@ -1505,7 +1515,7 @@ protected:
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto resources = Controller_->GetSortedMergeResources(
-                joblet->InputStripeList->GetStatistics());
+                joblet->InputStripeList->GetPerStripeStatistics());
             AddFootprintAndUserJobResources(resources);
             return resources;
         }
@@ -1685,7 +1695,7 @@ protected:
         {
             TTask::OnJobStarted(joblet);
 
-            auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
             InsertOrCrash(ActiveJoblets_[partitionIndex], std::move(joblet));
         }
 
@@ -1693,7 +1703,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
             if (!InvalidatedJoblets_[partitionIndex].contains(joblet)) {
                 JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
@@ -1706,7 +1716,7 @@ protected:
         {
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
@@ -1716,7 +1726,7 @@ protected:
         {
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
@@ -1766,7 +1776,7 @@ protected:
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedMergeResources(
-                joblet->InputStripeList->GetStatistics());
+                joblet->InputStripeList->GetPerStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -1837,7 +1847,7 @@ protected:
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
 
-            auto partitionIndex = joblet->InputStripeList->PartitionTag;
+            auto partitionIndex = joblet->InputStripeList->GetPartitionTag();
             if (partitionIndex) {
                 auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
                 auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
@@ -4544,13 +4554,13 @@ private:
         switch (joblet->JobType) {
             case EJobType::PartitionMap:
                 joblet->StartRowIndex = MapStartRowIndex_;
-                MapStartRowIndex_ += joblet->InputStripeList->TotalRowCount;
+                MapStartRowIndex_ += joblet->InputStripeList->GetAggregateStatistics().RowCount;
                 break;
 
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce:
                 joblet->StartRowIndex = ReduceStartRowIndex_;
-                ReduceStartRowIndex_ += joblet->InputStripeList->TotalRowCount;
+                ReduceStartRowIndex_ += joblet->InputStripeList->GetAggregateStatistics().RowCount;
                 break;
 
             default:

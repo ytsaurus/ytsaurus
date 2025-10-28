@@ -286,7 +286,7 @@ public:
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto stripeList = Pool(poolIndex)->GetStripeList(cookie);
-        stripeList->PartitionTag = poolIndex;
+        stripeList->SetPartitionTag(poolIndex);
 
         return stripeList;
     }

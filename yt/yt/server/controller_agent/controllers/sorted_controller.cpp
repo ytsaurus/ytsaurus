@@ -147,7 +147,7 @@ protected:
 
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            return GetMergeResources(joblet->InputStripeList->GetStatistics());
+            return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
@@ -1125,7 +1125,7 @@ public:
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
-        StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
+        StartRowIndex_ += joblet->InputStripeList->GetAggregateStatistics().RowCount;
     }
 
     std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override

@@ -136,7 +136,7 @@ TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeLi
 template <class TJobManager>
 int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
 {
-    return JobManager_->GetStripeList(cookie)->TotalChunkCount;
+    return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
 }
 
 template <class TJobManager>
