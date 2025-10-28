@@ -2033,6 +2033,7 @@ private:
                     next.Meta = MakeIntrusive<TYtTableMetaInfo>();
                     next.Meta->DoesExist = true;
                     next.Meta->SqlView = create.Original().StringValue();
+                    next.Meta->CanWrite = false;
                 }
            }
         }

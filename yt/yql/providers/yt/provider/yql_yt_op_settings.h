@@ -26,10 +26,10 @@ enum class EYtWriteMode: ui32 {
     Create                  /* "create" */,
     CreateIfNotExists       /* "create_if_not_exists" */,
     Alter                   /* "alter" */,
-    CreateObject            /* "createObject" */,
-    CreateObjectIfNotExists /* "createObjectIfNotExists" */,
-    DropObject              /* "dropObject" */,
-    DropObjectIfExists      /* "dropObjectIfExists" */,
+    CreateObject            /* "createObject" "create_object" */,
+    CreateObjectIfNotExists /* "createObjectIfNotExists" "create_object_if_not_exists" */,
+    DropObject              /* "dropObject" "drop_object" */,
+    DropObjectIfExists      /* "dropObjectIfExists" "drop_object_if_exists" */,
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
