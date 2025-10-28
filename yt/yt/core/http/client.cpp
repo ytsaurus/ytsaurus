@@ -137,7 +137,7 @@ private:
         return TNetworkAddress(address, parsedUrl.Port.value_or(GetDefaultPort(parsedUrl)));
     }
 
-    std::pair<THttpOutputPtr, THttpInputPtr> Connect(const TUrlRef& urlRef)
+    std::pair<THttpOutputPtr, THttpInputPtr> Connect(EMethod method, const TUrlRef& urlRef)
     {
         auto context = New<TDialerContext>();
         context->Host = urlRef.Host;
@@ -153,7 +153,7 @@ private:
                 connection,
                 address,
                 Invoker_,
-                EMessageType::Response,
+                method,
                 Config_);
 
             auto output = New<THttpOutput>(
@@ -172,7 +172,7 @@ private:
                 connection,
                 address,
                 Invoker_,
-                EMessageType::Response,
+                method,
                 Config_);
             input->SetReusableState(reusableState);
 
@@ -257,7 +257,7 @@ private:
 
         auto urlRef = ParseUrl(url);
 
-        std::tie(request, response) = Connect(urlRef);
+        std::tie(request, response) = Connect(method, urlRef);
 
         request->SetHost(urlRef.Host, urlRef.PortStr);
         if (headers) {
