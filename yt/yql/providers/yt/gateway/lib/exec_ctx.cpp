@@ -197,13 +197,22 @@ void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::
         }
         TString outTablePath = GetTransformedPath(outTableName, Cluster_, true, settings);
         auto attrSpec = tableInfo.GetAttrSpecNode(nativeYtTypeCompatibility, rowSpecCompactForm);
+
+        TString view;
+        if (tableInfo.Settings) {
+            if (const auto label = NYql::GetSetting(tableInfo.Settings.Cast().Ref(), EYtSettingType::View)) {
+                view = label->Tail().Content();
+            }
+        }
+
         OutTables_.emplace_back(
             outTableName,
             outTablePath,
             tableInfo.GetCodecSpecNode(),
             attrSpec,
             ToYTSortColumns(tableInfo.RowSpec->GetForeignSort()),
-            optimizeForScan ? tableInfo.GetColumnGroups() : NYT::TNode{}
+            optimizeForScan ? tableInfo.GetColumnGroups() : NYT::TNode{},
+            std::move(view)
         );
         outTablePaths.push_back(outTablePath);
         outTableSpecs.push_back(std::move(attrSpec));
@@ -233,13 +242,21 @@ void TExecContextBaseSimple::SetSingleOutput(const TYtOutTableInfo& outTable, co
     const bool rowSpecCompactForm = settings->UseYqlRowSpecCompactForm.Get().GetOrElse(DEFAULT_ROW_SPEC_COMPACT_FORM);
     const bool optimizeForScan = settings->OptimizeFor.Get(Cluster_).GetOrElse(NYT::EOptimizeForAttr::OF_LOOKUP_ATTR) != NYT::EOptimizeForAttr::OF_LOOKUP_ATTR;
 
+    TString view;
+    if (outTable.Settings) {
+        if (const auto label = NYql::GetSetting(outTable.Settings.Cast().Ref(), EYtSettingType::View)) {
+            view = label->Tail().Content();
+        }
+    }
+
     OutTables_.emplace_back(
         outTableName,
         outTablePath,
         outTable.GetCodecSpecNode(),
         outTable.GetAttrSpecNode(nativeYtTypeCompatibility, rowSpecCompactForm),
         ToYTSortColumns(outTable.RowSpec->GetForeignSort()),
-        optimizeForScan ? outTable.GetColumnGroups() : NYT::TNode{}
+        optimizeForScan ? outTable.GetColumnGroups() : NYT::TNode{},
+        std::move(view)
     );
 
     YQL_CLOG(INFO, ProviderYt) << "Output: " << Cluster_ << '.' << outTableName;

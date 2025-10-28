@@ -241,6 +241,7 @@ public:
         callables.insert(TYtDropTable::CallableName());
         callables.insert(TYtConfigure::CallableName());
         callables.insert(TYtCreateTable::CallableName());
+        callables.insert(TYtCreateView::CallableName());
     }
 
     bool IsWrite(const TExprNode& node) override {
@@ -289,21 +290,28 @@ public:
             auto children = node->ChildrenList();
             children.resize(6U);
 
-            const auto& features = NYql::GetSetting(*node->Child(4U), EYtSettingType::Features)->Tail();
-            for (auto i = 0U; i < features.ChildrenSize(); ++i) {
-                if (const auto feature = features.Child(i); feature->IsList()) {
-                    if (feature->Head().IsAtom("query_text"))
-                        children[3U] = feature->TailPtr();
-                    else if (feature->Head().IsAtom("query_ast"))
-                        children[4U] = feature->TailPtr();
-                    else if (!feature->Head().IsAtom("initial")){
-                        ctx.AddError(TIssue(ctx.GetPosition(feature->Pos()), "Unexpected feature."));
-                        return {};
+            const auto settings = node->Child(4U);
+            if (const auto features = NYql::GetSetting(*settings, EYtSettingType::Features)) {
+                for (auto i = 0U; i < features->Tail().ChildrenSize(); ++i) {
+                    if (const auto feature = features->Tail().Child(i); feature->IsList()) {
+                        if (feature->Head().IsAtom("__query_text"))
+                            children[3U] = feature->TailPtr();
+                        else if (feature->Head().IsAtom("__query_ast"))
+                            children[4U] = feature->TailPtr();
+                        else {
+                            ctx.AddError(TIssue(ctx.GetPosition(feature->Pos()), "Unexpected feature."));
+                            return {};
+                        }
                     }
                 }
             }
-            const auto settings = node->Child(4U);
-            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Mode, ctx);
+
+            if (!(children[3U] && children[4U])) {
+                ctx.AddError(TIssue(ctx.GetPosition(settings->Pos()),  "The view does not contain a query."));
+                return {};
+            }
+
+            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Mode | EYtSettingType::Features, ctx);
             return ctx.NewCallable(node->Pos(), TYtCreateView::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());

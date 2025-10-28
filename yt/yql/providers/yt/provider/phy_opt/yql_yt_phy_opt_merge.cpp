@@ -248,6 +248,9 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::BypassMergeBeforePublis
     auto commitEpoch = TEpochInfo::Parse(publish.Publish().CommitEpoch().Ref()).GetOrElse(0);
 
     auto dstRowSpec = State_->TablesData->GetTable(cluster, path, commitEpoch).RowSpec;
+    if (!dstRowSpec) {
+        return node;
+    }
 
     auto maxTables = dstRowSpec->IsSorted() ? State_->Configuration->MaxInputTablesForSortedMerge.Get() : State_->Configuration->MaxInputTables.Get();
     bool hasUpdates = false;

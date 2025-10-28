@@ -34,16 +34,16 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::Create(TExprBase node, 
 TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::CreateView(TExprBase node, TExprContext& ctx) const {
     const auto& create = node.Cast<TYtCreateView>();
     const TYtTableInfo tableInfo(create.Table());
-    const auto& descr = State_->TablesData->GetTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, tableInfo.CommitEpoch);
 
     const auto& settings = Build<TCoNameValueTupleList>(ctx, create.Pos())
         .Add()
-            .Name().Value("view", TNodeFlags::Default).Build()
+            .Name().Value(ToString(EYtSettingType::View), TNodeFlags::Default).Build()
             .Value(create.Original())
             .Build()
         .Done();
 
-    const TYtOutTableInfo outTable(descr.RowType->Cast<TStructExprType>(), State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE, {}/*, descr.Meta->SqlView, settings*/);
+    const auto& descr = State_->TablesData->GetTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, tableInfo.CommitEpoch);
+    const TYtOutTableInfo outTable(descr.RowType->Cast<TStructExprType>(), NTCF_ALL, {}, descr.Meta->SqlView, settings);
 
     return Build<TYtPublish>(ctx, create.Pos())
         .World(create.World())
@@ -66,4 +66,3 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::CreateView(TExprBase no
 }
 
 }  // namespace NYql
-

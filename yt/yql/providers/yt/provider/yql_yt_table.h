@@ -157,7 +157,7 @@ struct TYtOutTableInfo: public TYtTableBaseInfo {
     TYtOutTableInfo() {
         IsTemp = true;
     }
-    TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder = {});
+    TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder = {}, TString sqlView = {}, const NNodes::TMaybeNode<NNodes::TExprBase>& settings = {});
     TYtOutTableInfo(const TYqlRowSpecInfo::TPtr& rowSpec);
     TYtOutTableInfo(NNodes::TExprBase node) {
         Parse(node);

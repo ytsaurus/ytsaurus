@@ -531,6 +531,7 @@ void PrepareInputQueryForMap(NYT::TNode& spec, T& specWithPaths, const TString& 
 struct TSrcTable {
     TString Name;
     TString Cluster;
+    bool IsView = false;
 };
 
 } // unnamed
@@ -1159,7 +1160,8 @@ public:
             for (auto out: publish.Input()) {
                 auto outTableWithCluster = GetOutTableWithCluster(out);
                 auto outTable = outTableWithCluster.first.Cast<TYtOutTable>();
-                src.emplace_back(outTable.Name().StringValue(), outTableWithCluster.second);
+                const bool view = NYql::HasSetting(outTable.Settings().Ref(), EYtSettingType::View);
+                src.emplace_back(outTable.Name().StringValue(), outTableWithCluster.second, view);
                 if (first) {
                     itemType = GetSeqItemType(*outTable.Ref().GetTypeAnn()).Cast<TStructExprType>();
                     if (auto columnGroupSetting = NYql::GetSetting(outTable.Settings().Ref(), EYtSettingType::ColumnGroups)) {
@@ -1183,9 +1185,12 @@ public:
                         srcColumnGroupAlts.clear();
                     }
                 }
-                auto stat = TYtTableStatInfo(outTable.Stat());
-                chunksCount += stat.ChunkCount;
-                dataSize += stat.DataSize;
+
+                if (const auto maybeStat = outTable.Stat().Maybe<TYtStat>()) {
+                    const TYtTableStatInfo stat(maybeStat.Cast());
+                    chunksCount += stat.ChunkCount;
+                    dataSize += stat.DataSize;
+                }
                 if (src.size() <= 10) {
                     YQL_CLOG(INFO, ProviderYt) << "Input: " << src.back().Cluster << '.' << src.back().Name;
                 }
@@ -2588,6 +2593,7 @@ private:
             p.Name = NYql::TransformPath(GetTablesTmpFolder(*execCtx->Options_.Config(), p.Cluster), p.Name, true, execCtx->Session_->UserName_);
         }
 
+        const bool isView = 1U == src.size() && src.front().IsView;
         auto cluster = execCtx->Cluster_;
         auto entry = execCtx->GetEntry();
         TString tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), cluster);
@@ -2677,10 +2683,12 @@ private:
             dstAttrs.AsMap().erase("enable_dynamic_store_read");
             NYT::MergeNodes(yqlAttrs, dstAttrs);
         }
-        NYT::TNode& rowSpecNode = yqlAttrs[YqlRowSpecAttribute];
+
         const auto nativeYtTypeCompatibility = execCtx->Options_.Config()->NativeYtTypeCompatibility.Get(cluster).GetOrElse(NTCF_LEGACY);
-        const bool rowSpecCompactForm = execCtx->Options_.Config()->UseYqlRowSpecCompactForm.Get().GetOrElse(DEFAULT_ROW_SPEC_COMPACT_FORM);
-        rowSpec->FillAttrNode(rowSpecNode, nativeYtTypeCompatibility, rowSpecCompactForm);
+        if (!isView) {
+            const bool rowSpecCompactForm = execCtx->Options_.Config()->UseYqlRowSpecCompactForm.Get().GetOrElse(DEFAULT_ROW_SPEC_COMPACT_FORM);
+            rowSpec->FillAttrNode(yqlAttrs[YqlRowSpecAttribute], nativeYtTypeCompatibility, rowSpecCompactForm);
+        }
 
         const auto multiSet = execCtx->Options_.Config()->_UseMultisetAttributes.Get().GetOrElse(DEFAULT_USE_MULTISET_ATTRS);
 
@@ -2777,7 +2785,7 @@ private:
 
         TFuture<void> res;
         forceMerge = forceMerge || AnyOf(src, [&](const auto& entry) { return entry.Cluster != execCtx->Cluster_; });
-        if (EYtWriteMode::Flush == mode || EYtWriteMode::Append == mode || src.size() > 1 || forceMerge) {
+        if (!isView && (EYtWriteMode::Flush == mode || EYtWriteMode::Append == mode || src.size() > 1 || forceMerge)) {
             TFuture<bool> cacheCheck = MakeFuture<bool>(false);
             if (EYtWriteMode::Flush != mode && isAnonymous) {
                 execCtx->SetCacheItem({dstPath}, {NYT::TNode::CreateMap()}, tmpFolder);
@@ -5432,6 +5440,9 @@ private:
                         << " has unexpected \"sorted_by\" value. Expected: " << expectedSortedBy
                         << ", actual: " << realSortedBy);
 
+                    if (out.View)
+                        return TYtTableStatInfo::TPtr();
+
                     auto statInfo = MakeIntrusive<TYtTableStatInfo>();
                     statInfo->Id = attrs["id"].AsString();
                     statInfo->RecordsCount = GetTableRowCount(attrs);
@@ -5807,6 +5818,41 @@ private:
     }
 
     template <class TExecParamsPtr>
+    static bool PrepareAttributes(
+        NYT::TNode& attrs,
+        const TOutputInfo& out,
+        const TExecParamsPtr& execCtx,
+        const TString& cluster,
+        bool createTable,
+        const TSet<TString>& securityTags = {})
+    {
+        const auto isTable = out.View.empty();
+
+        if (isTable) {
+            PrepareCommonAttributes<TExecParamsPtr>(attrs, execCtx, cluster, createTable);
+
+            NYT::MergeNodes(attrs, out.AttrSpec);
+
+            if (createTable) {
+                const auto nativeTypeCompat = execCtx->Options_.Config()->NativeYtTypeCompatibility.Get(cluster).GetOrElse(NTCF_LEGACY);
+                attrs["schema"] = RowSpecToYTSchema(out.Spec[YqlRowSpecAttribute], nativeTypeCompat, out.ColumnGroups).ToNode();
+            }
+        } else {
+            NYT::MergeNodes(attrs, out.AttrSpec);
+            attrs["value"] = out.View;
+        }
+
+        if (!securityTags.empty()) {
+            auto tagsAttrNode = NYT::TNode::CreateList();
+            for (const auto& tag : securityTags) {
+                tagsAttrNode.Add(tag);
+            }
+            attrs[SecurityTagsName] = std::move(tagsAttrNode);
+        }
+        return isTable;
+    }
+
+    template <class TExecParamsPtr>
     static TVector<TRichYPath> PrepareDestinations(
         const TVector<TOutputInfo>& outTables,
         const TExecParamsPtr& execCtx,
@@ -5830,12 +5876,12 @@ private:
             for (auto& out: outTables) {
                 NYT::TNode attrs = NYT::TNode::CreateMap();
 
-                PrepareAttributes(attrs, out, execCtx, cluster, true, securityTags);
+                const bool isTable = PrepareAttributes(attrs, out, execCtx, cluster, true, securityTags);
 
                 YQL_CLOG(INFO, ProviderYt) << "Create tmp table " << out.Path << ", attrs: " << NYT::NodeToYsonString(attrs);
 
                 // Force table recreation, because some tables may exist after query cache lookup
-                batchCreateRes.push_back(batchCreate->Create(out.Path, NT_TABLE, TCreateOptions().Force(true).Attributes(attrs)));
+                batchCreateRes.push_back(batchCreate->Create(out.Path, isTable ? NT_TABLE : NT_DOCUMENT, TCreateOptions().Force(true).Attributes(attrs)));
                 outPaths.push_back(out.Path);
             }
             entry->CreateDefaultTmpFolder();

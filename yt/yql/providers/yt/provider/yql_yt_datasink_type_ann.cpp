@@ -671,8 +671,7 @@ private:
                 return TStatus::Error;
             }
 
-            YQL_ENSURE(nextDescription.RowSpec);
-            if (contentRowSpecs) {
+            if (contentRowSpecs && nextDescription.RowSpec) {
                 size_t from = 0;
                 if (initialWrite) {
                     const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
@@ -1796,7 +1795,7 @@ private:
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist || !initial) {
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
-                    "Table " << tableInfo.Name << " already exists."));
+                    (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name << " already exists."));
                 return TStatus::Error;
             }
 
@@ -1947,7 +1946,7 @@ private:
     }
 
     TStatus HandleCreateView(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 5U, ctx)) {
+        if (!EnsureArgsCount(*input, 6U, ctx)) {
             return TStatus::Error;
         }
 
@@ -1964,7 +1963,7 @@ private:
                 << " callable, but got " << table->Content()));
             return TStatus::Error;
         }
-        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtWriteTable::idx_DataSink)), TYtTable(table), ctx)) {
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtCreateView::idx_DataSink)), TYtTable(table), ctx)) {
             return TStatus::Error;
         }
         if (!EnsureAtom(*input->Child(TYtCreateView::idx_Original), ctx)) {
@@ -1974,7 +1973,29 @@ private:
             return TStatus::Error;
         }
 
+        const auto settings = input->Child(TYtCreateView::idx_Settings);
+        if (!EnsureTuple(*settings, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateSettings(*settings, EYtSettingType::Initial
+            | EYtSettingType::UserAttrs
+            | EYtSettingType::Expiration
+            , ctx))
+        {
+            return TStatus::Error;
+        }
+
         const TYtCreateView create(input);
+        if (!EnsureListType(create.Compiled().Ref(), ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto rowType = create.Compiled().Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
+        if (!(EnsurePersistableType(create.Compiled().Pos(), *rowType, ctx) && EnsureStructType(create.Compiled().Pos(), *rowType, ctx))) {
+            return TStatus::Error;
+        }
+
         if (!TYtTableInfo::HasSubstAnonymousLabel(create.Table())) {
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
 
@@ -1990,12 +2011,15 @@ private:
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist) {
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
-                    "Table " << tableInfo.Name << " is already exists."));
+                    (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name << " already exists."));
                 return TStatus::Error;
             }
 
            if (const auto commitEpoch = tableInfo.CommitEpoch) {
                 auto& next = State_->TablesData->GetOrAddTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+
+                next.RowType = rowType;
+                next.IsReplaced = true;
 
                 if (!next.Meta) {
                     next.Meta = MakeIntrusive<TYtTableMetaInfo>();
