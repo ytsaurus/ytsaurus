@@ -107,6 +107,7 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
+            "disable_maintenance_flag_replication": True,
         },
 
         "object_manager": {
