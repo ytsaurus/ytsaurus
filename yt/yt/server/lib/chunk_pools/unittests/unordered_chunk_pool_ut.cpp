@@ -552,10 +552,11 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
     CheckEverything(stripeLists);
 
     for (int index : xrange(std::ssize(stripeLists) - 1)) {
-        EXPECT_GE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_);
-        EXPECT_LE(stripeLists[index]->TotalDataWeight, DataWeightPerJob_ + InputSliceDataWeight_);
+        i64 dataWeight = stripeLists[index]->GetAggregateStatistics().DataWeight;
+        EXPECT_GE(dataWeight, DataWeightPerJob_);
+        EXPECT_LE(dataWeight, DataWeightPerJob_ + InputSliceDataWeight_);
     }
-    EXPECT_LE(stripeLists.back()->TotalDataWeight, DataWeightPerJob_);
+    EXPECT_LE(stripeLists.back()->GetAggregateStatistics().DataWeight, DataWeightPerJob_);
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
@@ -719,11 +720,13 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSize)
     CheckEverything(stripeLists);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 0.9);
-        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+        const auto& statistics = stripeList->GetAggregateStatistics();
 
-        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(1_MB) * 0.9);
-        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(1_MB) * 1.1);
+        EXPECT_GE(statistics.CompressedDataSize, static_cast<i64>(100_MB) * 0.9);
+        EXPECT_LE(statistics.CompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+
+        EXPECT_GE(statistics.DataWeight, static_cast<i64>(1_MB) * 0.9);
+        EXPECT_LE(statistics.DataWeight, static_cast<i64>(1_MB) * 1.1);
     }
 }
 
@@ -763,11 +766,13 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeWithChunkSl
     CheckEverything(stripeLists, /*chunksRestored*/ true);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(125_MB) * 0.9);
-        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(125_MB) * 1.1);
+        const auto& statistics = stripeList->GetAggregateStatistics();
 
-        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(1_MB + 256_KB) * 0.9);
-        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(1_MB + 256_KB) * 1.1);
+        EXPECT_GE(statistics.CompressedDataSize, static_cast<i64>(125_MB) * 0.9);
+        EXPECT_LE(statistics.CompressedDataSize, static_cast<i64>(125_MB) * 1.1);
+
+        EXPECT_GE(statistics.DataWeight, static_cast<i64>(1_MB + 256_KB) * 0.9);
+        EXPECT_LE(statistics.DataWeight, static_cast<i64>(1_MB + 256_KB) * 1.1);
     }
 }
 
@@ -808,8 +813,10 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeAndByDataWe
     CheckEverything(stripeLists);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(105_MB));
-        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(10_MB) * 1.1);
+        const auto& statistics = stripeList->GetAggregateStatistics();
+
+        EXPECT_LE(statistics.CompressedDataSize, static_cast<i64>(105_MB));
+        EXPECT_LE(statistics.DataWeight, static_cast<i64>(10_MB) * 1.1);
     }
 }
 
@@ -848,11 +855,13 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByMaxCompressedDataSizeWhenDataWei
     CheckEverything(stripeLists, /*chunksRestored*/ true);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_GE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 0.9);
-        EXPECT_LE(stripeList->TotalCompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+        const auto& statistics = stripeList->GetAggregateStatistics();
 
-        EXPECT_GE(stripeList->TotalDataWeight, static_cast<i64>(200_MB) * 0.9);
-        EXPECT_LE(stripeList->TotalDataWeight, static_cast<i64>(200_MB) * 1.1);
+        EXPECT_GE(statistics.CompressedDataSize, static_cast<i64>(100_MB) * 0.9);
+        EXPECT_LE(statistics.CompressedDataSize, static_cast<i64>(100_MB) * 1.1);
+
+        EXPECT_GE(statistics.DataWeight, static_cast<i64>(200_MB) * 0.9);
+        EXPECT_LE(statistics.DataWeight, static_cast<i64>(200_MB) * 1.1);
     }
 }
 
@@ -902,7 +911,7 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByCompressedDataSize)
     CheckEverything(stripeLists, /*chunksRestored*/ true);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_EQ(stripeList->TotalCompressedDataSize, 102_MBs);
+        EXPECT_EQ(stripeList->GetAggregateStatistics().CompressedDataSize, 102_MBs);
     }
 }
 

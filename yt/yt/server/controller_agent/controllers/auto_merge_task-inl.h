@@ -55,7 +55,7 @@ public:
         // This job is going to be scheduled, we do not have any better estimate any more.
         LastChunkCount_ = 1;
 
-        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobStarted(joblet->InputStripeList->TotalChunkCount);
+        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobStarted(joblet->InputStripeList->GetAggregateStatistics().ChunkCount);
     }
 
     bool ValidateChunkCount(int chunkCount) override
@@ -69,7 +69,7 @@ public:
     {
         auto result = TUnderlyingTask::OnJobAborted(joblet, jobSummary);
 
-        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
+        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->GetAggregateStatistics().ChunkCount);
 
         return result;
     }
@@ -78,7 +78,7 @@ public:
     {
         auto result = TUnderlyingTask::OnJobFailed(joblet, jobSummary);
 
-        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
+        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->GetAggregateStatistics().ChunkCount);
 
         return result;
     }
@@ -87,7 +87,7 @@ public:
     {
         auto result = TUnderlyingTask::OnJobCompleted(joblet, jobSummary);
 
-        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->TotalChunkCount);
+        this->TaskHost_->GetAutoMergeDirector()->OnTaskJobFinished(joblet->InputStripeList->GetAggregateStatistics().ChunkCount);
 
         return result;
     }

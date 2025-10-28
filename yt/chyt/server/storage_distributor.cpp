@@ -604,7 +604,7 @@ private:
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
-                rate /= QueryInput_.StripeList->TotalRowCount;
+                rate /= QueryInput_.StripeList->GetAggregateStatistics().RowCount;
             }
             rate = std::clamp(rate, 0.0, 1.0);
             SamplingRate_ = rate;
@@ -659,7 +659,7 @@ private:
         // When reading in order we produce intentionally small thread subqueries which
         // will not be combined, so there is no point in reducing the number of nodes.
         if (!ReadInOrder() && settings->MinDataWeightPerSecondaryQuery > 0) {
-            i64 nodeLimit = DivCeil(QueryInput_.StripeList->TotalDataWeight, settings->MinDataWeightPerSecondaryQuery);
+            i64 nodeLimit = DivCeil(QueryInput_.StripeList->GetAggregateStatistics().DataWeight, settings->MinDataWeightPerSecondaryQuery);
             nodeLimit = std::clamp<i64>(nodeLimit, 1, nodes.size());
             nodes.resize(nodeLimit);
         }
@@ -726,18 +726,20 @@ private:
         size_t totalChunkCount = 0;
 
         for (const auto& subquery : ThreadSubqueries_) {
-            totalInputDataWeight += subquery.StripeList->TotalDataWeight;
-            totalChunkCount += subquery.StripeList->TotalChunkCount;
+            const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
+            totalInputDataWeight += stripeListStatistics.DataWeight;
+            totalChunkCount += stripeListStatistics.ChunkCount;
         }
 
         i64 maxDataWeightPerSubquery = QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery;
         if (maxDataWeightPerSubquery > 0) {
             for (const auto& subquery : ThreadSubqueries_) {
-                if (subquery.StripeList->TotalDataWeight > maxDataWeightPerSubquery) {
+                const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
+                if (stripeListStatistics.DataWeight > maxDataWeightPerSubquery) {
                     THROW_ERROR_EXCEPTION(
                         NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
                         "Subquery exceeds data weight limit: %v > %v",
-                        subquery.StripeList->TotalDataWeight,
+                        stripeListStatistics.DataWeight,
                         maxDataWeightPerSubquery)
                         << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
                 }
@@ -760,13 +762,11 @@ private:
                 index,
                 secondaryQueryCount);
             for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, StripeListStatistics: %v)",
                     threadSubquery.Cookie,
                     threadSubquery.Bounds.first,
                     threadSubquery.Bounds.second,
-                    threadSubquery.StripeList->TotalDataWeight,
-                    threadSubquery.StripeList->TotalRowCount,
-                    threadSubquery.StripeList->TotalChunkCount);
+                    threadSubquery.StripeList->GetAggregateStatistics());
             }
 
             YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());

@@ -786,7 +786,7 @@ TChunkStripeStatisticsVector TNewJobManager::GetApproximateStripeStatistics() co
     }
     auto cookie = *(CookiePool_->begin());
     const auto& job = Jobs_[cookie];
-    return job.StripeList()->GetStatistics();
+    return job.StripeList()->GetPerStripeStatistics();
 }
 
 const TChunkStripeListPtr& TNewJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie) const

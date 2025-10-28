@@ -278,7 +278,7 @@ TVertexDescriptorList TAutoMergeTask::GetAllVertexDescriptors() const
 
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
 {
-    auto result = TaskHost_->GetAutoMergeResources(joblet->InputStripeList->GetStatistics());
+    auto result = TaskHost_->GetAutoMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
     AddFootprintAndUserJobResources(result);
     return result;
 }
@@ -304,8 +304,9 @@ void TAutoMergeTask::AddJobTypeToJoblet(const TJobletPtr& joblet) const
 
     if (enableShallowMerge) {
         YT_VERIFY(joblet->InputStripeList);
-        i64 dataWeight = joblet->InputStripeList->TotalDataWeight;
-        i64 chunkCount = joblet->InputStripeList->TotalChunkCount;
+        const auto& statistics = joblet->InputStripeList->GetAggregateStatistics();
+        i64 dataWeight = statistics.DataWeight;
+        i64 chunkCount = statistics.ChunkCount;
         i64 dataWeightPerChunk = dataWeight / std::max<i64>(chunkCount, 1);
         i64 minDataWeightPerChunk = TaskHost_->GetSpec()->AutoMerge->ShallowMergeMinDataWeightPerChunk;
         if (dataWeightPerChunk <= minDataWeightPerChunk) {
@@ -336,7 +337,7 @@ void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto poolIndex = *joblet->InputStripeList->PartitionTag;
+    auto poolIndex = *joblet->InputStripeList->GetPartitionTag();
     jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), GetMergeTypeFromJobType(joblet->JobType)));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
@@ -369,8 +370,8 @@ void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
 {
     TTask::OnJobStarted(joblet);
 
-    int poolIndex = *joblet->InputStripeList->PartitionTag;
-    CurrentChunkCounts_[poolIndex] -= joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->GetPartitionTag();
+    CurrentChunkCounts_[poolIndex] -= joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobStarted();
 }
@@ -379,8 +380,8 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
 {
     auto result = TTask::OnJobAborted(joblet, jobSummary);
 
-    int poolIndex = *joblet->InputStripeList->PartitionTag;
-    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->GetPartitionTag();
+    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     if (jobSummary.AbortReason == EAbortReason::ShallowMergeFailed) {
         if (EnableShallowMerge_.exchange(false)) {
@@ -412,8 +413,8 @@ TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJ
 {
     auto result = TTask::OnJobFailed(joblet, jobSummary);
 
-    int poolIndex = *joblet->InputStripeList->PartitionTag;
-    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
+    int poolIndex = *joblet->InputStripeList->GetPartitionTag();
+    CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->GetAggregateStatistics().ChunkCount;
 
     TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(/*unregisteredIntermediateChunkCount*/ 0);
 
@@ -460,7 +461,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
 
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    auto poolIndex = *joblet->InputStripeList->PartitionTag;
+    auto poolIndex = *joblet->InputStripeList->GetPartitionTag();
     joblet->OutputStreamDescriptors = {OutputStreamDescriptors_[poolIndex]};
     joblet->InputStreamDescriptors = InputStreamDescriptors_;
 }

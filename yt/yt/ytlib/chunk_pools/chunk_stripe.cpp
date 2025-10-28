@@ -91,82 +91,6 @@ PHOENIX_DEFINE_TYPE(TChunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
-{
-    TChunkStripeStatisticsVector result;
-    result.reserve(Stripes_.size());
-    for (const auto& stripe : Stripes_) {
-        result.push_back(stripe->GetStatistics());
-    }
-    return result;
-}
-
-TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
-{
-    TChunkStripeStatistics result;
-    result.ChunkCount = TotalChunkCount;
-    if (IsApproximate) {
-        result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
-        result.ValueCount = TotalValueCount * ApproximateSizesBoostFactor;
-        result.DataWeight = TotalDataWeight * ApproximateSizesBoostFactor;
-        result.CompressedDataSize = TotalCompressedDataSize * ApproximateSizesBoostFactor;
-    } else {
-        result.RowCount = TotalRowCount;
-        result.ValueCount = TotalValueCount;
-        result.DataWeight = TotalDataWeight;
-        result.CompressedDataSize = TotalCompressedDataSize;
-    }
-    return result;
-}
-
-void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
-{
-    auto statistics = stripe->GetStatistics();
-    TotalChunkCount += statistics.ChunkCount;
-    TotalDataWeight += statistics.DataWeight;
-    TotalRowCount += statistics.RowCount;
-    TotalValueCount += statistics.ValueCount;
-    TotalCompressedDataSize += statistics.CompressedDataSize;
-    TotalSliceCount += std::ssize(stripe->DataSlices);
-    Stripes_.push_back(std::move(stripe));
-}
-
-void TChunkStripeList::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, Stripes_);
-    PHOENIX_REGISTER_FIELD(2, PartitionTag);
-    PHOENIX_REGISTER_FIELD(3, IsApproximate);
-    PHOENIX_REGISTER_FIELD(4, TotalDataWeight);
-    PHOENIX_REGISTER_DELETED_FIELD(5, i64, LocalDataWeight, ESnapshotVersion::RemoveUnusedLocalityStatistics);
-    PHOENIX_REGISTER_FIELD(6, TotalRowCount);
-    PHOENIX_REGISTER_FIELD(7, TotalValueCount);
-    PHOENIX_REGISTER_FIELD(8, TotalChunkCount);
-    PHOENIX_REGISTER_DELETED_FIELD(9, int, LocalChunkCount, ESnapshotVersion::RemoveUnusedLocalityStatistics);
-    PHOENIX_REGISTER_FIELD(10, TotalCompressedDataSize,
-        .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            for (const auto& stripe : this_->Stripes_) {
-                this_->TotalCompressedDataSize += stripe->GetStatistics().CompressedDataSize;
-            }
-        }));
-    PHOENIX_REGISTER_FIELD(11, TotalSliceCount,
-        .SinceVersion(ESnapshotVersion::AddSliceCountStatistics)
-        .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            for (const auto& stripe : this_->Stripes_) {
-                this_->TotalSliceCount += std::ssize(stripe->DataSlices);
-            }
-        }));
-}
-
-void TChunkStripeList::Reserve(i64 size)
-{
-    Stripes_.reserve(size);
-}
-
-const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
-
-PHOENIX_DEFINE_TYPE(TChunkStripeList);
-
 void TPersistentChunkStripeStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -179,6 +103,78 @@ void TPersistentChunkStripeStatistics::Persist(const TPersistenceContext& contex
         Persist(context, CompressedDataSize);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkStripeStatisticsVector TChunkStripeList::GetPerStripeStatistics() const
+{
+    TChunkStripeStatisticsVector result;
+    result.reserve(Stripes_.size());
+    for (const auto& stripe : Stripes_) {
+        result.push_back(stripe->GetStatistics());
+    }
+    return result;
+}
+
+TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
+{
+    TChunkStripeStatistics result = Statistics_;
+    if (OverriddenRowCount_) {
+        result.RowCount = *OverriddenRowCount_;
+        result.DataWeight = *OverriddenDataWeight_;
+    }
+
+    return result;
+}
+
+void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
+{
+    Statistics_ += stripe->GetStatistics();
+    SliceCount_ += std::ssize(stripe->DataSlices);
+    Stripes_.push_back(std::move(stripe));
+}
+
+void TChunkStripeList::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Stripes_);
+    PHOENIX_REGISTER_FIELD(2, PartitionTag_);
+    PHOENIX_REGISTER_FIELD(3, Approximate_);
+    PHOENIX_REGISTER_FIELD(4, SliceCount_);
+    PHOENIX_REGISTER_FIELD(5, Statistics_);
+    PHOENIX_REGISTER_FIELD(6, OverriddenDataWeight_);
+    PHOENIX_REGISTER_FIELD(7, OverriddenRowCount_);
+}
+
+void TChunkStripeList::Reserve(i64 size)
+{
+    Stripes_.reserve(size);
+}
+
+void TChunkStripeList::SetPartitionTag(int partitionTag)
+{
+    PartitionTag_ = partitionTag;
+    OverriddenDataWeight_.reset();
+    OverriddenRowCount_.reset();
+}
+
+void TChunkStripeList::SetPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
+{
+    YT_VERIFY(dataWeight >= 0);
+    YT_VERIFY(rowCount >= 0);
+
+    PartitionTag_ = partitionTag;
+    OverriddenDataWeight_ = dataWeight;
+    OverriddenRowCount_ = rowCount;
+}
+
+std::optional<int> TChunkStripeList::GetPartitionTag() const
+{
+    return PartitionTag_;
+}
+
+PHOENIX_DEFINE_TYPE(TChunkStripeList);
+
+const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
 
 ////////////////////////////////////////////////////////////////////////////////
 

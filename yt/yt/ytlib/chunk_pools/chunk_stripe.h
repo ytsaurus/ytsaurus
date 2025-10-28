@@ -44,34 +44,44 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(apollo1321): Change to class.
-struct TChunkStripeList
+struct TPersistentChunkStripeStatistics
+    : public NTableClient::TChunkStripeStatistics
+{
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkStripeList
     : public TRefCounted
 {
+public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkStripePtr>, Stripes);
+    DEFINE_BYVAL_RO_PROPERTY(i64, SliceCount);
+
+    //! If True then DataWeight and RowCount are approximate (and are hopefully upper bounds).
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Approximate);
 
     void Reserve(i64 size);
 
-    NTableClient::TChunkStripeStatisticsVector GetStatistics() const;
-    NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;
+    void SetPartitionTag(int partitionTag);
+
+    // Set partition tag and override data size.
+    void SetPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount);
 
     void AddStripe(TChunkStripePtr stripe);
 
-    std::optional<int> PartitionTag;
+    std::optional<int> GetPartitionTag() const;
 
-    //! If True then TotalDataWeight and TotalRowCount are approximate (and are hopefully upper bounds).
-    bool IsApproximate = false;
+    NTableClient::TChunkStripeStatisticsVector GetPerStripeStatistics() const;
+    NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;
 
-    i64 TotalDataWeight = 0;
+private:
+    std::optional<int> PartitionTag_;
+    std::optional<i64> OverriddenDataWeight_;
+    std::optional<i64> OverriddenRowCount_;
 
-    i64 TotalRowCount = 0;
-    i64 TotalValueCount = 0;
-
-    i64 TotalCompressedDataSize = 0;
-
-    int TotalChunkCount = 0;
-
-    i64 TotalSliceCount = 0;
+    TPersistentChunkStripeStatistics Statistics_;
 
     PHOENIX_DECLARE_TYPE(TChunkStripeList, 0x85f55d0b);
 };
@@ -79,12 +89,6 @@ struct TChunkStripeList
 DEFINE_REFCOUNTED_TYPE(TChunkStripeList)
 
 extern const TChunkStripeListPtr NullStripeList;
-
-struct TPersistentChunkStripeStatistics
-    : public NTableClient::TChunkStripeStatistics
-{
-    void Persist(const TPersistenceContext& context);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

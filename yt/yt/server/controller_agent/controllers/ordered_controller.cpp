@@ -186,7 +186,7 @@ protected:
 
         TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            return GetMergeResources(joblet->InputStripeList->GetStatistics());
+            return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
 
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
@@ -810,7 +810,7 @@ private:
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
-        StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
+        StartRowIndex_ += joblet->InputStripeList->GetAggregateStatistics().RowCount;
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override

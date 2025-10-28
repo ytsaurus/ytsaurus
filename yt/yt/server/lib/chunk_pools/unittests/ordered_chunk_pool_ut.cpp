@@ -309,8 +309,9 @@ protected:
         EXPECT_FALSE(TeleportChunks_.contains(cookie));
 
         auto stripeList = ChunkPool_->GetStripeList(cookie);
-        EXPECT_TRUE(stripeList->TotalRowCount % *BatchRowCount_ == 0);
-        EXPECT_LE(std::abs(stripeList->TotalDataWeight - DataWeightPerJob_), *BatchRowCount_ * MaxChunkRowDataWeight_);
+        const auto& statistics = stripeList->GetAggregateStatistics();
+        EXPECT_TRUE(statistics.RowCount % *BatchRowCount_ == 0);
+        EXPECT_LE(std::abs(statistics.DataWeight - DataWeightPerJob_), *BatchRowCount_ * MaxChunkRowDataWeight_);
     }
 
     void CheckBatchRowCount()
@@ -330,7 +331,7 @@ protected:
             if (TeleportChunks_.contains(cookie)) {
                 EXPECT_EQ(TeleportChunks_[cookie]->GetRowCount(), rowCount);
             } else {
-                EXPECT_EQ(ChunkPool_->GetStripeList(cookie)->TotalRowCount, rowCount);
+                EXPECT_EQ(ChunkPool_->GetStripeList(cookie)->GetAggregateStatistics().RowCount, rowCount);
             }
         }
     }
@@ -1554,7 +1555,7 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
                 }
 
                 EXPECT_LT(
-                    stripeList->TotalDataWeight,
+                    stripeList->GetAggregateStatistics().DataWeight,
                     DataWeightPerJob_ + maxDataWeightSlice);
             }
         } else if (tableCount == 1 && sliceCount < MaxDataSlicesPerJob_ && !useJobSizeAdjuster) {
@@ -1579,7 +1580,7 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
                 --stripeIndex;
             }
 
-            EXPECT_LE(stripeList->TotalDataWeight, DataWeightPerJob_ + lastRowBatchDataWeight);
+            EXPECT_LE(stripeList->GetAggregateStatistics().DataWeight, DataWeightPerJob_ + lastRowBatchDataWeight);
         }
     }
 }
