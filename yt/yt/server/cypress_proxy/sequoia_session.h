@@ -163,7 +163,7 @@ public:
         NYPath::TYPathBuf path,
         const NYson::TYsonString& value,
         bool force,
-        NYson::TYsonString effectiveAcl,
+        const NYson::TYsonString& effectiveAcl,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Behaves like the "multiset_attributes" verb in Cypress. Acquires a
@@ -173,7 +173,7 @@ public:
         NYPath::TYPathBuf path,
         const std::vector<TMultisetAttributesSubrequest>& subrequests,
         bool force,
-        std::optional<NYson::TYsonString> effectiveAcl,
+        const NYson::TYsonString& effectiveAcl,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Removes node attribute at a given path. Acquires a shared S-lock on row
@@ -182,7 +182,7 @@ public:
         NCypressClient::TNodeId nodeId,
         NYPath::TYPathBuf path,
         bool force,
-        NYson::TYsonString effectiveAcl);
+        const NYson::TYsonString& effectiveAcl);
 
     //! Removes single node. If it's map-node it has to be empty.
     //! If node is not a scion it will be detached from its parent and parent
@@ -382,7 +382,7 @@ private:
         NYPath::TYPathBuf path,
         const NYson::TYsonString& value,
         bool force,
-        std::optional<NYson::TYsonString> effectiveAcl,
+        const NYson::TYsonString& effectiveAcl,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     //! Some actions have to be done in late prepare on a certain cell. This

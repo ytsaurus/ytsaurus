@@ -2140,7 +2140,7 @@ public:
         int depth = 0;
         while (object) {
             const auto& handler = objectManager->GetHandler(object);
-            const auto acd = handler->FindAcd(object);
+            auto acd = handler->FindAcd(object);
             if (acd) {
                 for (auto entry : acd->Acl().Entries) {
                     auto inheritedMode = GetInheritedInheritanceMode(entry.InheritanceMode, depth);
@@ -2319,7 +2319,7 @@ public:
             return *ownerOverride;
         }
 
-        const auto acd = FindAcd(object);
+        auto acd = FindAcd(object);
         return acd ? acd->GetOwner() : nullptr;
     }
 
@@ -4525,7 +4525,8 @@ private:
             if (auto error = NSecurityClient::CheckAceCorrect(ace); !error.IsOK()) {
                 YT_LOG_ALERT(
                     error,
-                    "Got invalid ACE; skipping (Ace: %v)", ConvertToYsonString(ace, EYsonFormat::Text));
+                    "Got invalid ACE; skipping (Ace: %v)",
+                    ConvertToYsonString(ace, EYsonFormat::Text));
                 return;
             }
 

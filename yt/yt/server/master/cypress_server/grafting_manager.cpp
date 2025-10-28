@@ -77,11 +77,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateScion, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraSynchronizeScions, Unretained(this)));
 
-        SynchronizeScionsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::GraftingManager),
-            BIND(&TGraftingManager::OnSynchronizeScions, MakeWeak(this)));
-        SynchronizeScionsExecutor_->Start();
-
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TGraftingManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -92,6 +87,11 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqCreateRootstock>({
             .Prepare = BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateRootstock, Unretained(this)),
         });
+
+        SynchronizeScionsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::GraftingManager),
+            BIND(&TGraftingManager::OnSynchronizeScions, MakeWeak(this)));
+        SynchronizeScionsExecutor_->Start();
     }
 
     void OnRootstockCreated(
@@ -232,16 +232,16 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-        THashMap<TCellTag, std::vector<TRootstockNode*>> rootstocksByCellTag;
+        THashMap<TCellTag, std::vector<TRootstockNode*>> scionsByCellTag;
 
         for (auto [nodeId, node] : RootstockNodes_) {
-            rootstocksByCellTag[CellTagFromId(node->GetScionId())].push_back(node);
+            scionsByCellTag[CellTagFromId(node->GetScionId())].push_back(node);
         }
 
-        for (auto [scionCellTag, rootstocks] : rootstocksByCellTag) {
+        for (auto [scionCellTag, scion] : scionsByCellTag) {
             NProto::TReqSynchronizeScions request;
 
-            for (auto* node : rootstocks) {
+            for (auto* node : scion) {
                 YT_VERIFY(node->IsTrunk());
                 YT_VERIFY(CellTagFromId(node->GetScionId()) == scionCellTag);
 
@@ -294,7 +294,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        int synchronizedScionsCount = 0;
+        int synchronizedScionCount = 0;
 
         for (const auto& scionInfo : request->scion_infos()) {
             auto nodeId = FromProto<TObjectId>(scionInfo.node_id());
@@ -353,7 +353,7 @@ private:
                     scionNode->EffectiveAnnotationPath().reset();
                 }
 
-                ++synchronizedScionsCount;
+                ++synchronizedScionCount;
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Scion synchronization failed (ScionId: %v)",
                     nodeId);
@@ -362,8 +362,8 @@ private:
         }
 
         YT_LOG_DEBUG("Scions were synchronized (SuccessCount: %v, FailureCount: %v)",
-            synchronizedScionsCount,
-            request->scion_infos().size() - synchronizedScionsCount);;
+            synchronizedScionCount,
+            request->scion_infos().size() - synchronizedScionCount);;
     }
 
     void HydraCreateRootstock(

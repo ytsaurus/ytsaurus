@@ -1,4 +1,5 @@
 #include "actions.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -184,7 +185,7 @@ void SetNode(
     TYPathBuf path,
     const TYsonString& value,
     bool force,
-    std::optional<TYsonString> effectiveAcl,
+    const TYsonString& effectiveAcl,
     const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -194,8 +195,8 @@ void SetNode(
     reqSetNode.set_value(ToProto(value));
     reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
-    if (effectiveAcl.has_value()) {
-        reqSetNode.set_effective_acl(effectiveAcl->ToString());
+    if (effectiveAcl) {
+        reqSetNode.set_effective_acl(ToProto(effectiveAcl));
     }
     ToProto(reqSetNode.mutable_access_tracking_options(), options);
     sequoiaTransaction->AddTransactionAction(
@@ -208,7 +209,7 @@ void MultisetNodeAttributes(
     TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
-    std::optional<TYsonString> effectiveAcl,
+    const TYsonString& effectiveAcl,
     const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -218,8 +219,8 @@ void MultisetNodeAttributes(
     ToProto(reqMultisetAttributes.mutable_subrequests(), subrequests);
     reqMultisetAttributes.set_force(force);
     ToProto(reqMultisetAttributes.mutable_transaction_id(), nodeId.TransactionId);
-    if (effectiveAcl.has_value()) {
-        reqMultisetAttributes.set_effective_acl(effectiveAcl->ToString());
+    if (effectiveAcl) {
+        reqMultisetAttributes.set_effective_acl(ToProto(effectiveAcl));
     }
     ToProto(reqMultisetAttributes.mutable_access_tracking_options(), options);
     sequoiaTransaction->AddTransactionAction(
@@ -403,7 +404,7 @@ void RemoveNodeAttribute(
     TVersionedNodeId nodeId,
     TYPathBuf attributePath,
     bool force,
-    TYsonString effectiveAcl,
+    const TYsonString& effectiveAcl,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqRemoveNodeAttribute reqRemoveNodeAttribute;

@@ -3327,7 +3327,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNodeHolder->IsTrunk());
 
-        const auto nodeId = trunkNodeHolder->GetId();
+        auto nodeId = trunkNodeHolder->GetId();
         auto* node = NodeMap_.Insert(TVersionedNodeId(nodeId), std::move(trunkNodeHolder));
 
         const auto* hydraContext = GetCurrentHydraContext();
@@ -4487,7 +4487,7 @@ private:
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto clonedAcd = securityManager->GetAcd(clonedTrunkNode).AsMutable();
             if (factory->ShouldPreserveOwner()) {
-                const auto sourceAcd = securityManager->GetAcd(sourceTrunkNode);
+                auto sourceAcd = securityManager->GetAcd(sourceTrunkNode);
                 clonedAcd->SetOwner(sourceAcd->GetOwner());
             } else {
                 auto* user = securityManager->GetAuthenticatedUser();

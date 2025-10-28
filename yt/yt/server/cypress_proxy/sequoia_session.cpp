@@ -859,7 +859,7 @@ void TSequoiaSession::SetNode(
         /*path*/ "",
         value,
         /*force*/ false,
-        /*effectiveAcl*/ std::nullopt,
+        /*effectiveAcl*/ {},
         options);
 }
 
@@ -868,11 +868,11 @@ void TSequoiaSession::SetNodeAttribute(
     TYPathBuf path,
     const TYsonString& value,
     bool force,
-    TYsonString effectiveAcl,
+    const TYsonString& effectiveAcl,
     const TSuppressableAccessTrackingOptions& options)
 {
     YT_VERIFY(path.StartsWith("/@"));
-    DoSetNode(nodeId, path, value, force, std::move(effectiveAcl), options);
+    DoSetNode(nodeId, path, value, force, effectiveAcl, options);
 }
 
 void TSequoiaSession::MultisetNodeAttributes(
@@ -880,7 +880,7 @@ void TSequoiaSession::MultisetNodeAttributes(
     TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
-    std::optional<TYsonString> effectiveAcl,
+    const TYsonString& effectiveAcl,
     const NApi::TSuppressableAccessTrackingOptions& options)
 {
     AcquireCypressLockInSequoia(nodeId, ELockMode::Shared);
@@ -890,7 +890,7 @@ void TSequoiaSession::MultisetNodeAttributes(
         path,
         subrequests,
         force,
-        std::move(effectiveAcl),
+        effectiveAcl,
         options,
         SequoiaTransaction_);
 }
@@ -899,7 +899,7 @@ void TSequoiaSession::RemoveNodeAttribute(
     TNodeId nodeId,
     TYPathBuf path,
     bool force,
-    TYsonString effectiveAcl)
+    const TYsonString& effectiveAcl)
 {
     AcquireCypressLockInSequoia(nodeId, ELockMode::Shared);
 
@@ -907,7 +907,7 @@ void TSequoiaSession::RemoveNodeAttribute(
         {nodeId, GetCurrentCypressTransactionId()},
         path,
         force,
-        std::move(effectiveAcl),
+        effectiveAcl,
         SequoiaTransaction_);
 }
 
@@ -1460,7 +1460,7 @@ void TSequoiaSession::DoSetNode(
     TYPathBuf path,
     const TYsonString& value,
     bool force,
-    std::optional<TYsonString> effectiveAcl,
+    const TYsonString& effectiveAcl,
     const TSuppressableAccessTrackingOptions& options)
 {
     // "set" verb can touch not more than one previously existed node. To make
@@ -1476,7 +1476,7 @@ void TSequoiaSession::DoSetNode(
         path,
         value,
         force,
-        std::move(effectiveAcl),
+        effectiveAcl,
         options,
         SequoiaTransaction_);
 }
