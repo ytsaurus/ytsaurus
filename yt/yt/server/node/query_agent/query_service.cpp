@@ -1575,7 +1575,7 @@ private:
         chunkReadOptions.ReadSessionId = TReadSessionId::Create();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_
             ->GetNodeMemoryUsageTracker()
-            ->WithCategory(EMemoryCategory::FetchTableRows);
+            ->WithCategory(EMemoryCategory::Query);
 
         auto resultFuture = FetchRowsFromOrderedStore(
             std::move(tabletSnapshot),
