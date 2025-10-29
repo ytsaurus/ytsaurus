@@ -71,21 +71,23 @@ public:
             storeCompactorConfig->UseRowDigests));
     }
 
-    void ReconfigureTablet(TTablet* tablet, const TTableSettings& settings) override
+    void ReconfigureTablet(TTablet* tablet, const TTableSettings& oldSettings) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& oldSettings = tablet->GetSettings();
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        const auto& oldMountConfig = oldSettings.MountConfig;
 
-        if (auto rowMergerType = settings.MountConfig->RowMergerType; rowMergerType == ERowMergerType::Watermark) {
-            if (rowMergerType != oldSettings.MountConfig->RowMergerType) {
-                ResetCompactionHints(tablet);
-            }
-
+        if (mountConfig->RowMergerType == ERowMergerType::Watermark && mountConfig->RowMergerType != oldMountConfig->RowMergerType) {
+            ResetCompactionHints(tablet);
             return;
         }
-
-        if (*settings.MountConfig->RowDigestCompaction != *oldSettings.MountConfig->RowDigestCompaction) {
+        if (mountConfig->MinDataTtl != oldMountConfig->MinDataTtl ||
+            mountConfig->MaxDataTtl != oldMountConfig->MaxDataTtl ||
+            mountConfig->MinDataVersions != oldMountConfig->MinDataVersions ||
+            mountConfig->MaxDataVersions != oldMountConfig->MaxDataVersions ||
+            *mountConfig->RowDigestCompaction != *oldMountConfig->RowDigestCompaction)
+        {
             ResetCompactionHints(tablet);
             FetchStoreInfos(tablet);
         }
@@ -125,11 +127,12 @@ private:
 
     bool IsFetchableTablet(const TTablet& tablet) const override
     {
+        auto tableSchema = tablet.GetTableSchema();
         return UseRowDigests_ &&
             tablet.IsPhysicallySorted() &&
             tablet.GetSettings().MountConfig->RowMergerType != ERowMergerType::Watermark &&
-        // TODO(dave11ar): Remove when correct considering of aggregate columns will be implemented.
-            !tablet.GetTableSchema()->HasAggregateColumns();
+            !tableSchema->HasAggregateColumns() &&
+            !tableSchema->HasTtlColumn();
     }
 
     TCompactionHintFetchStatus& GetFetchStatus(const IStorePtr& store) const override

@@ -1597,9 +1597,7 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
-        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
-            compactionHintFetcher->ReconfigureTablet(tablet, settings);
-        }
+        auto oldSettings = tablet->GetSettings();
 
         tablet->LookupHeavyHitters().RowCount->Reconfigure(settings.MountConfig->LookupHeavyHitters);
         tablet->LookupHeavyHitters().DataWeight->Reconfigure(settings.MountConfig->LookupHeavyHitters);
@@ -1613,6 +1611,10 @@ private:
 
         tablet->Reconfigure(Slot_);
         UpdateTabletSnapshot(tablet);
+
+        for (const auto& compactionHintFetcher : CompactionHintFetchers_) {
+            compactionHintFetcher->ReconfigureTablet(tablet, oldSettings);
+        }
 
         if (!IsRecovery()) {
             for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {

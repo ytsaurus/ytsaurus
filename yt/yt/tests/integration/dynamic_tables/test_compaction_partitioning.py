@@ -925,6 +925,54 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         _check_not_watermark("legacy")
         _check_not_watermark("new")
 
+    @authors("dave11ar")
+    def test_timestamp_digest_with_ttl_column(self):
+        sync_create_cells(1)
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "row_digest_fetch_period": 1,
+                    "use_row_digests": True,
+                },
+            },
+        })
+
+        table_path = "//tmp/t"
+        chunk_ids_path = f"{table_path}/@chunk_ids"
+
+        self._create_sorted_table(
+            table_path,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"},
+                {"name": "$ttl", "type": "uint64"},
+            ],
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                },
+            },
+            min_data_ttl=1e9,
+            max_data_ttl=1e9,
+            dynamic_store_auto_flush_period=yson.YsonEntity())
+
+        sync_mount_table(table_path)
+        for _ in range(10):
+            insert_rows(table_path, [{"key": 42, "value": 42, "$ttl": 3600000}])
+        sync_flush_table(table_path)
+
+        wait(lambda: get(chunk_ids_path))
+        chunk_ids = get(chunk_ids_path)
+        assert len(chunk_ids) == 1
+
+        set(f"{table_path}/@min_data_ttl", 1)
+        set(f"{table_path}/@max_data_ttl", 1)
+        remount_table(table_path)
+
+        sleep(30)
+
+        assert get(chunk_ids_path) == chunk_ids
+
     @authors("ifsmirnov")
     def test_compaction_does_not_leak_memory(self):
         sync_create_cells(1)
