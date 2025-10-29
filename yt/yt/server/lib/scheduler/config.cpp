@@ -634,7 +634,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_detailed_logs_for_single_allocation_vanilla_operations", &TThis::EnableDetailedLogsForSingleAllocationVanillaOperations)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
