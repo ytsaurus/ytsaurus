@@ -291,3 +291,83 @@ class TestSequoiaSyncMode(YTEnvSetup):
         assert get("//tmp/m", authenticated_user="u") == {"s": "u", "b": "tree"}
 
         remove("//tmp/m1", authenticated_user="u")
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("make_link", [False, True])
+    def test_prerequisite_revisions_restriction(self, make_link):
+        create("map_node", "//cypress/test_node", recursive=True, force=True)
+        revision_node_id = None
+        if make_link:
+            create("table", "//cypress/original_revision_node", recursive=True, force=True)
+            revision_node_id = link("//cypress/original_revision_node", "//cypress/revision_node", force=True)
+        else:
+            revision_node_id = create("table", "//cypress/revision_node", recursive=True, force=True)
+        home_id = get("//cypress/@id")
+        revision = get("//cypress/revision_node/@revision")
+
+        forbidden_paths = [
+            "//cypress/revision_node",
+            f"#{revision_node_id}",
+            f"#{home_id}/revision_node",
+        ]
+
+        for prerequitise_path in forbidden_paths:
+            with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
+                set(
+                    "//tmp/test_node",
+                    "test",
+                    prerequisite_revisions=[
+                        {
+                            "path": prerequitise_path,
+                            "revision": revision,
+                        }
+                    ],
+                )
+        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
+            copy(
+                "//cypress/test_node",
+                "//cypress/test_node2",
+                prerequisite_revisions=[
+                    {
+                        "path": "//cypress/revision_node",
+                        "revision": revision,
+                    }
+                ],
+            )
+
+        fine_paths = [
+            "//cypress/revision_node", "//cypress/revision_node&",
+        ]
+
+        for path in fine_paths:
+            revision = get(f"{path}/@revision")
+            prerequisite_revisions = [
+                {
+                    "path": path,
+                    "revision": revision,
+                },
+            ]
+            # Shouldn't throw.
+            get(path, prerequisite_revisions=prerequisite_revisions)
+
+        if not self.USE_SEQUOIA and get("//cypress/revision_node/@native_cell_tag") == get("//tmp/@native_cell_tag"):
+            copy(
+                "//cypress/revision_node",
+                "//tmp/revision_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//cypress/revision_node",
+                        "revision": revision,
+                    }
+                ])
+        else:
+            with raises_yt_error("Cross-cell \"copy\"/\"move\" command does not support prerequisite revisions"):
+                copy(
+                    "//cypress/revision_node",
+                    "//tmp/revision_node",
+                    prerequisite_revisions=[
+                        {
+                            "path": "//cypress/revision_node",
+                            "revision": revision,
+                        }
+                    ])

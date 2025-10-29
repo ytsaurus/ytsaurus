@@ -1166,7 +1166,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     if (Path_ == sourceRootPath) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
     }
-    if (Path_.Underlying().StartsWith(sourceRootPath.Underlying())) {
+    if (IsAncestorPath(sourceRootPath, Path_)) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 

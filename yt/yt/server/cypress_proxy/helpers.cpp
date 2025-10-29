@@ -644,6 +644,13 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAncestorPath(const TAbsolutePath& ancestor, const TAbsolutePath& descendant)
+{
+    return descendant.Underlying().StartsWith(ancestor.Underlying() + TAbsolutePath::Separator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const IConstAttributeDictionaryPtr& TInheritedAttributesCalculator::GetCurrentInheritedAttributes() const
 {
     YT_VERIFY(!Ancestry_.empty());
