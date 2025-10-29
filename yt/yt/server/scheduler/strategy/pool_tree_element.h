@@ -676,7 +676,6 @@ public:
     const TIntegralResourcesState& IntegralResourcesState() const override;
     TIntegralResourcesState& IntegralResourcesState() override;
 
-    bool IsFairShareTruncationInFifoPoolEnabled() const override;
     bool IsStepFunctionForGangOperationsEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
@@ -1033,8 +1032,6 @@ public:
     //! Fair share update methods that implements NVectorHdrf::TRootElement interface.
     double GetSpecifiedBurstRatio() const override;
     double GetSpecifiedResourceFlowRatio() const override;
-
-    bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 

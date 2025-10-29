@@ -302,11 +302,6 @@ void TElement::ValidatePoolConfigs(TFairShareUpdateContext* /*context*/)
 void TElement::DistributeFreeVolume()
 { }
 
-TResourceVector TElement::GetTotalTruncatedFairShare(EFairShareType type) const
-{
-    return TotalTruncatedFairShare_[type];
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeElement::DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context)
@@ -1150,65 +1145,6 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     CheckFairShareFeasibility(fairShareType);
 }
 
-void TCompositeElement::TruncateFairShareInFifoPools(EFairShareType fairShareType)
-{
-    if (GetMode() == ESchedulingMode::Fifo) {
-        DoTruncateFairShareInFifoPool(fairShareType);
-    } else {
-        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-            auto* child = GetChild(childIndex);
-            child->TruncateFairShareInFifoPools(fairShareType);
-            TotalTruncatedFairShare_[fairShareType] += child->GetTotalTruncatedFairShare(fairShareType);
-        }
-    }
-
-    // TODO(eshcherbin): Should we use epsilon here?
-    if (TotalTruncatedFairShare_[fairShareType] != TResourceVector::Zero()) {
-        auto fairShare = TResourceVector::Max(
-            Attributes().GetFairShare(fairShareType).Total - TotalTruncatedFairShare_[fairShareType],
-            TResourceVector::Zero());
-        Attributes().SetDetailedFairShare(fairShare, fairShareType);
-    }
-}
-
-void TCompositeElement::DoTruncateFairShareInFifoPool(EFairShareType fairShareType)
-{
-    YT_VERIFY(GetMode() == ESchedulingMode::Fifo);
-
-    if (!IsFairShareTruncationInFifoPoolEnabled()) {
-        return;
-    }
-
-    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        auto* childOperation = SortedChildren_[childIndex]->AsOperation();
-
-        YT_VERIFY(childOperation);
-
-        const auto& childAttributes = childOperation->Attributes();
-        auto childFairShare = childAttributes.GetFairShare(fairShareType).Total;
-        if (childFairShare == TResourceVector::Zero()) {
-            continue;
-        }
-
-        // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
-        // which fair share is less than demand.
-        bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::LargeEpsilon(), childAttributes.DemandShare);
-        bool shouldTruncate = !isChildFullySatisfied && childOperation->IsGangLike();
-        if (shouldTruncate) {
-            const auto& Logger = GetLogger();
-
-            TotalTruncatedFairShare_[fairShareType] += childFairShare;
-            childOperation->Attributes().SetDetailedFairShare(TResourceVector::Zero(), fairShareType);
-
-            YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, FairShareType: %v, TruncatedFairShare: %v, DemandShare: %v)",
-                childOperation->GetId(),
-                fairShareType,
-                childFairShare,
-                childAttributes.DemandShare);
-        }
-    }
-}
-
 void TCompositeElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context)
 {
     if (ShouldComputePromisedGuaranteeFairShare()) {
@@ -1217,8 +1153,6 @@ void TCompositeElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContex
         } else {
             ComputeAndSetFairShare(/*suggestion*/ 0.0, EFairShareType::PromisedGuarantee, context);
         }
-
-        TruncateFairShareInFifoPools(EFairShareType::PromisedGuarantee);
 
         return;
     }
@@ -1479,20 +1413,6 @@ void TRootElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
     }
 }
 
-void TRootElement::TruncateFairShareInFifoPools(EFairShareType fairShareType)
-{
-    const auto& Logger = GetLogger();
-
-    TCompositeElement::TruncateFairShareInFifoPools(fairShareType);
-
-    const auto& totalTruncatedFairShare = TotalTruncatedFairShare_[fairShareType];
-    YT_LOG_DEBUG_UNLESS(totalTruncatedFairShare == TResourceVector::Zero(),
-        "Truncated fair share in FIFO pools (FairShareType: %v, NewFairShare: %v, TotalTruncatedFairShare: %v)",
-        fairShareType,
-        Attributes().GetFairShare(fairShareType).Total,
-        totalTruncatedFairShare);
-}
-
 void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
 {
     TCompositeElement::ValidatePoolConfigs(context);
@@ -1687,9 +1607,6 @@ void TOperationElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     }
 }
 
-void TOperationElement::TruncateFairShareInFifoPools(EFairShareType /*fairShareType*/)
-{ }
-
 void TOperationElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* /*context*/)
 { }
 
@@ -1781,7 +1698,6 @@ void TFairShareUpdateExecutor::Run()
         }
         Context_->ComputeAndSetFairShareTotalTime = timer.GetElapsedCpuTime();
     }
-    RootElement_->TruncateFairShareInFifoPools(EFairShareType::Regular);
 
     RootElement_->ComputePromisedGuaranteeFairShare(Context_);
 

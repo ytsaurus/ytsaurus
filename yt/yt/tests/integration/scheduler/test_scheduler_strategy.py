@@ -21,8 +21,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
-    scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
-    scheduler_orchid_path, scheduler_orchid_pool_tree_config_path,
+    scheduler_orchid_operation_path, scheduler_orchid_path, scheduler_orchid_pool_tree_config_path,
     scheduler_new_orchid_pool_tree_path)
 
 from yt_helpers import profiler_factory
@@ -4570,55 +4569,6 @@ class TestFifoPools(YTEnvSetup):
     def setup_method(self, method):
         super(TestFifoPools, self).setup_method(method)
         update_pool_tree_config("default", {"preemptive_scheduling_backoff": 0})
-
-    @authors("eshcherbin")
-    @pytest.mark.parametrize("gang", [False, True])
-    @pytest.mark.parametrize("allocation_count", [1, 2])
-    def test_truncate_unsatisfied_child_fair_share_in_fifo_pools(self, gang, allocation_count):
-        create_pool("fifo", attributes={"mode": "fifo"})
-        create_pool("normal")
-
-        # COMPAT: Intentilonally test old logic for gang operations.
-        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
-        update_pool_tree_config_option("default", "consider_single_allocation_vanilla_operations_as_gang", True)
-
-        blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
-        blocking_op1.wait_for_state("running")
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))
-
-        blocking_op2 = run_sleeping_vanilla(
-            job_count=allocation_count,
-            task_patch={"cpu_limit": 3.0 / allocation_count},
-            spec={
-                "pool": "fifo",
-                "is_gang": gang,
-            })
-        blocking_op2.wait_for_state("running")
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.3))
-
-        op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "normal"})
-        op.wait_for_state("running")
-
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu"), 0.5))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op1.id) + "/detailed_fair_share/total/cpu"), 0.3))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/starvation_status") != "non_starving")
-
-        set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", True)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
-
-        should_truncate = gang or allocation_count == 1
-        if should_truncate:
-            wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.0))
-            wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu"), 0.5))
-        else:
-            time.sleep(1.0)
-            wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
-            wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu"), 0.0))
-
-        set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", False)
-        wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
 
     @authors("eshcherbin")
     def test_disable_step_function_for_gang_operations_in_pool(self):
