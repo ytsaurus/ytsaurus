@@ -125,7 +125,12 @@ bool TYtKey::Parse(const TExprNode& key, TExprContext& ctx, bool isOutput) {
             Type = EType::Table;
         }
     } else if (tag.IsAtom("objectId")) {
-        Type = EType::View;
+        if (const auto& type = key.Tail(); type.Head().IsAtom("typeId") && type.Tail().IsCallable("String") && type.Tail().Tail().IsAtom("VIEW")) {
+            Type = EType::View;
+        } else {
+            ctx.AddError(TIssue(ctx.GetPosition(type.Pos()), TString("Unexpected ") + type.Head().Content()));
+            return false;
+        }
     } else  {
         ctx.AddError(TIssue(ctx.GetPosition(key.Child(0)->Pos()), TString("Unexpected tag: ") + tag.Content()));
         return false;
