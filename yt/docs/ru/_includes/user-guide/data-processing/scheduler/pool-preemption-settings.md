@@ -1,0 +1,2 @@
+- `enable_aggressive_starvation` (false) — включает [агрессивное вытеснение](../../../../user-guide/data-processing/scheduler/preemption.md#aggressive-preemption) для операций в данном пуле и всех его потомках;  
+- `allow_aggressive_preemption` (true) — разрешает [агрессивное вытеснение](../../../../user-guide/data-processing/scheduler/preemption.md#aggressive-preemption) аллокаций у всех операций данного пула и его потомков;
