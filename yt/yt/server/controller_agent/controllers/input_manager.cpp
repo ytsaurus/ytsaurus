@@ -1153,6 +1153,11 @@ void TInputManager::OnInputChunkBatchLocated(
 
     for (const auto& [_, cluster] : Clusters_) {
         cluster->ReportIfHasUnavailableChunks();
+        // NB(apollo1321): It is safe to stop chunk scrapers only after processing all scraped chunks.
+        // Otherwise we can stop chunk scraper prematurely and operation will hang forever.
+        if (cluster->UnavailableInputChunkIds().empty()) {
+            cluster->ChunkScraper()->Stop();
+        }
     }
 }
 
@@ -1168,11 +1173,6 @@ void TInputManager::OnInputChunkAvailable(
     }
 
     UnregisterUnavailableInputChunk(chunkId);
-
-    auto& cluster = GetClusterOrCrash(*descriptor);
-    if (cluster->UnavailableInputChunkIds().empty()) {
-        cluster->ChunkScraper()->Stop();
-    }
 
     // Update replicas in place for all input chunks with current chunkId.
     for (const auto& chunkSpec : descriptor->InputChunks) {
