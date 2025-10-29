@@ -187,6 +187,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/another_old_list")
 
     @authors("kvk1920")
+    # TODO(danilalexeev): YT-26540.
     @not_implemented_in_sequoia
     def test_non_recursive_attribute_set(self):
         create_user("u")
@@ -1847,7 +1848,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
-    @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_success(self, expiration):
         create_user("u")
         create(
@@ -1886,7 +1886,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t/@expiration_time")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
         create(
@@ -2088,10 +2087,9 @@ class TestCypress(YTEnvSetup):
 
     @authors("h0pless")
     @with_additional_threads
-    @not_implemented_in_sequoia
     def test_expiration_time_lag_profiling(self):
         # Portals and scions make this test uselessly complicated.
-        if get("//tmp/@native_cell_tag") != 10:
+        if self.ENABLE_TMP_PORTAL or self.ENABLE_TMP_ROOTSTOCK:
             pytest.skip()
 
         set("//sys/@config/cypress_manager/max_expired_nodes_removals_per_commit", 1)
@@ -2216,6 +2214,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
     @authors("babenko")
+    # TODO(kvk1920): YT-26440.
     @not_implemented_in_sequoia
     def test_expire_orphaned_node_yt_8064(self):
         tx1 = start_transaction()
@@ -2419,6 +2418,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("danilalexeev")
+    # TODO(danilalexeev): YT-26539.
     @not_implemented_in_sequoia
     def test_effective_expiration_time_and_timeout(self):
         assert get("//tmp/@effective_expiration") == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
@@ -2637,86 +2637,6 @@ class TestCypress(YTEnvSetup):
                     }
                 ],
             )
-
-    @authors("cherepashka")
-    @pytest.mark.parametrize("make_link", [False, True])
-    def test_prerequisite_revisions_restriction(self, make_link):
-        create("map_node", "//home/test_node", recursive=True, force=True)
-        revision_node_id = None
-        if make_link:
-            create("table", "//home/original_revision_node", recursive=True, force=True)
-            revision_node_id = link("//home/original_revision_node", "//home/revision_node", force=True)
-        else:
-            revision_node_id = create("table", "//home/revision_node", recursive=True, force=True)
-        home_id = get("//home/@id")
-        revision = get("//home/revision_node/@revision")
-
-        forbidden_paths = [
-            "//home/revision_node",
-            f"#{revision_node_id}",
-            f"#{home_id}/revision_node",
-        ]
-
-        for prerequitise_path in forbidden_paths:
-            with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
-                set(
-                    "//tmp/test_node",
-                    "test",
-                    prerequisite_revisions=[
-                        {
-                            "path": prerequitise_path,
-                            "revision": revision,
-                        }
-                    ],
-                )
-        with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
-            copy(
-                "//home/test_node",
-                "//home/test_node2",
-                prerequisite_revisions=[
-                    {
-                        "path": "//home/revision_node",
-                        "revision": revision,
-                    }
-                ],
-            )
-
-        fine_paths = [
-            "//home/revision_node", "//home/revision_node&",
-        ]
-
-        for path in fine_paths:
-            revision = get(f"{path}/@revision")
-            prerequisite_revisions = [
-                {
-                    "path": path,
-                    "revision": revision,
-                },
-            ]
-            # Shouldn't throw.
-            get(path, prerequisite_revisions=prerequisite_revisions)
-
-        if not self.USE_SEQUOIA and get("//home/revision_node/@native_cell_tag") == get("//tmp/@native_cell_tag"):
-            copy(
-                "//home/revision_node",
-                "//tmp/revision_node",
-                prerequisite_revisions=[
-                    {
-                        "path": "//home/revision_node",
-                        "revision": revision,
-                    }
-                ])
-        else:
-            with raises_yt_error("Cross-cell \"copy\"/\"move\" command does not support prerequisite revisions"):
-                copy(
-                    "//home/revision_node",
-                    "//tmp/revision_node",
-                    prerequisite_revisions=[
-                        {
-                            "path": "//home/revision_node",
-                            "revision": revision,
-                        }
-                    ])
 
     @authors("cherepashka")
     def test_prerequisite_revision_validation_on_removal(self):
@@ -3583,7 +3503,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/copy0/child", tx=tx1)
 
     @authors("aleksandra-zh", "h0pless")
-    @not_implemented_in_sequoia
     def test_preserve_owner_under_tx_yt_15292(self):
         create_user("oliver")
         create_user("pavel")
@@ -3721,7 +3640,6 @@ class TestCypress(YTEnvSetup):
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_recursive_copy_sets_parent_on_branched_node(self):
         create_user("u")
 
@@ -3741,7 +3659,6 @@ class TestCypress(YTEnvSetup):
         lock("//tmp/d1/d2/dst/t", tx=tx2, mode="snapshot", authenticated_user="u")
 
     @authors("avmatrosov")
-    @not_implemented_in_sequoia
     def test_preserve_owner(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -3755,7 +3672,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/x/3/@owner") == "u1"
 
     @authors("avmatrosov")
-    @not_implemented_in_sequoia
     def test_preserve_owner_transaction(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -3769,6 +3685,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/x/2/@owner") == "u1"
 
     @authors("avmatrosov")
+    # TODO(danilalexeev): YT-26541.
     @not_implemented_in_sequoia
     def test_preserve_acl(self):
         create("table", "//tmp/t1")
@@ -3785,6 +3702,7 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t3/@acl"), acl)
 
     @authors("avmatrosov")
+    # TODO(danilalexeev): YT-26541.
     @not_implemented_in_sequoia
     def test_preserve_acl_without_rights(self):
         create_user("u")
@@ -3831,7 +3749,6 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/x", lock_existing=True)
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_lock_existing_move_errors(self):
         create("table", "//tmp/x")
         create("table", "//tmp/x1")
@@ -3839,6 +3756,7 @@ class TestCypress(YTEnvSetup):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
     @authors("babenko")
+    # TODO(danilalexeev): YT-26540.
     @not_implemented_in_sequoia
     def test_malformed_clone_src(self):
         create("map_node", "//tmp/m")
@@ -3926,8 +3844,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/@", {"a": 5})
         assert get("//tmp/@a") == 4 or get("//tmp/@a") == 5
 
-    @authors("gritukan")
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_multiset_attributes_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -5162,6 +5079,12 @@ class TestCypressSequoia(TestCypressMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
     }
 
     DELTA_CYPRESS_PROXY_CONFIG = {

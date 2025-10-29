@@ -143,6 +143,12 @@ std::string BuildMultipleTransactionSelectCondition(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAncestorPath(
+    const NSequoiaClient::TAbsolutePath& ancestor,
+    const NSequoiaClient::TAbsolutePath& descendant);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInheritedAttributesCalculator
 {
 public:
