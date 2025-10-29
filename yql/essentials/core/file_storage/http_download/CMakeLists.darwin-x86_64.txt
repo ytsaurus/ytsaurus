@@ -12,8 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(proto)
-
 add_library(core-file_storage-http_download)
 
 
@@ -23,7 +21,6 @@ target_link_libraries(core-file_storage-http_download PUBLIC
   core-file_storage-defs
   core-file_storage-download
   core-file_storage-proto
-  file_storage-http_download-proto
   essentials-utils-fetch
   essentials-utils-log
   yql-essentials-utils
