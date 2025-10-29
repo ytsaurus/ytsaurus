@@ -148,8 +148,9 @@ public:
     operator bool() const;
 
 private:
-    TAccessControlDescriptor* Underlying_;
-    ISecurityManager* SecurityManager_;
+    TAccessControlDescriptor* const Underlying_;
+    ISecurityManager* const SecurityManager_;
+
     bool Modified_ = false;
 };
 

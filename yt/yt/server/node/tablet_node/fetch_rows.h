@@ -22,7 +22,7 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
     i64 maxRowCount,
     i64 maxDataWeight,
     i64 maxPullQueueResponseDataWeight,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

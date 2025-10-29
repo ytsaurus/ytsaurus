@@ -14,9 +14,8 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TNode>
-class INodeVisitor
+struct INodeVisitor
 {
-public:
     virtual ~INodeVisitor() = default;
 
     virtual void OnNodeEntered(const TNode& /*node*/) = 0;

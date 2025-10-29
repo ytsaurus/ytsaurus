@@ -28,31 +28,31 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_library(file_storage-http_download-proto)
+add_library(utils-fetch-proto)
 
 
-target_link_libraries(file_storage-http_download-proto PUBLIC
+target_link_libraries(utils-fetch-proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 
-target_proto_messages(file_storage-http_download-proto PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/http_download/proto/http_download.proto
+target_proto_messages(utils-fetch-proto PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fetch/proto/fetch_config.proto
 )
 
-target_sources(file_storage-http_download-proto PRIVATE
-  ${PROJECT_BINARY_DIR}/yql/essentials/core/file_storage/http_download/proto/http_download.pb.h
+target_sources(utils-fetch-proto PRIVATE
+  ${PROJECT_BINARY_DIR}/yql/essentials/utils/fetch/proto/fetch_config.pb.h
 )
 
 
-target_proto_outs(file_storage-http_download-proto
+target_proto_outs(utils-fetch-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
-target_proto_addincls(file_storage-http_download-proto
+target_proto_addincls(utils-fetch-proto
   ./
   ${PROJECT_SOURCE_DIR}/
   ${PROJECT_BINARY_DIR}

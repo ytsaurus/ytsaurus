@@ -86,11 +86,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraRemovePortalExit, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraSynchronizePortalExit, Unretained(this)));
 
-        SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
-            BIND(&TPortalManager::OnSynchronizePortalExits, MakeWeak(this)));
-        SynchronizePortalExitsExecutor_->Start();
-
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TPortalManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -102,6 +97,11 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqCopySynchronizablePortalAttributes>({
             .Prepare = BIND_NO_PROPAGATE(&TPortalManager::HydraCopySynchronizablePortalAttributes, Unretained(this)),
         });
+
+        SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
+            BIND(&TPortalManager::OnSynchronizePortalExits, MakeWeak(this)));
+        SynchronizePortalExitsExecutor_->Start();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
@@ -386,7 +386,7 @@ private:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto sourceAcd = securityManager->GetAcd(sourceNode);
+        auto sourceAcd = securityManager->GetAcd(sourceNode);
         {
             auto destinationAcd = securityManager->GetAcd(destinationNode).AsMutable();
             destinationAcd->SetEntries(sourceAcd->Acl());

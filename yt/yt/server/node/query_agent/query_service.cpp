@@ -1541,6 +1541,12 @@ private:
             orderedStores.size(),
             rowIndex);
 
+        TServiceProfilerGuard profilerGuard;
+
+        auto currentProfilingUser = GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());
+        auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+        profilerGuard.Start(counters->FetchTableRows);
+
         if (!orderedStores.empty()) {
             // We want to find the first store containing rows with row indices >= rowIndex.
             // Ex:
@@ -1593,7 +1599,7 @@ private:
             request->max_row_count(),
             request->max_data_weight(),
             MaxPullQueueResponseDataWeight_.load(std::memory_order::relaxed),
-            chunkReadOptions,
+            std::move(chunkReadOptions),
             GetCurrentInvoker());
 
         if (auto maybeResult = resultFuture.TryGetUnique()) {

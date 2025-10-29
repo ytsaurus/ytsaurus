@@ -36,9 +36,9 @@ TRelativePath TRelativePath::MakeCanonicalPathOrThrow(TStringBuf path)
 
     try {
         AppendAsCanonicalRelativePathOrThrow(&builder, path);
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
-            "Could not canonicalize relative path %v. The path is malformed or invalid.",
+            "Could not canonicalize relative path %v; the path is malformed or invalid",
             path)
             << ex;
     }
@@ -68,9 +68,9 @@ TAbsolutePath TAbsolutePath::MakeCanonicalPathOrThrow(TStringBuf path)
         tokenizer.Expect(ETokenType::Slash);
         builder.AppendString(tokenizer.GetToken());
         AppendAsCanonicalRelativePathOrThrow(&builder, tokenizer.GetSuffix());
-    } catch (const TErrorException& ex) {
+    } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
-            "Could not canonicalize absolute path %v. The path is malformed or invalid.",
+            "Could not canonicalize absolute path %v; the path is malformed or invalid",
             path)
             << ex;
     }

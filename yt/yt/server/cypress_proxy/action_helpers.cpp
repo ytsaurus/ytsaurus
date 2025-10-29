@@ -2,6 +2,7 @@
 
 #include "actions.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

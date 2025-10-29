@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(proto)
+
 add_library(essentials-utils-fetch)
 
 
@@ -25,6 +27,7 @@ target_link_libraries(essentials-utils-fetch PUBLIC
   library-cpp-uri
   library-cpp-retry
   essentials-utils-log
+  utils-fetch-proto
 )
 
 target_sources(essentials-utils-fetch PRIVATE

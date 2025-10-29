@@ -516,7 +516,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-    const auto acd = securityManager->FindAcd(Object_);
+    auto acd = securityManager->FindAcd(Object_);
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
@@ -572,7 +572,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     bool isForeign = Object_->IsForeign();
-    const auto acd = securityManager->FindAcd(Object_);
+    auto acd = securityManager->FindAcd(Object_);
 
     switch (key) {
         case EInternedAttributeKey::Id:
