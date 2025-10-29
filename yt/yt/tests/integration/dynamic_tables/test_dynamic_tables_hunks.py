@@ -2093,7 +2093,16 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table(enable_dynamic_store_read=True, optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
 
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        if hunk_erasure_codec != "none":
+            hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+                "read_quorum": 4,
+                "write_quorum": 5,
+                "erasure_codec": "reed_solomon_3_3",
+                "replication_factor": 1,
+            })
+        else:
+            hunk_storage_id = create("hunk_storage", "//tmp/h")
+
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
