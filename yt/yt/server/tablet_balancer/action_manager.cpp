@@ -9,10 +9,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NTabletBalancer {
@@ -220,9 +216,6 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
     YT_LOG_DEBUG("Creating pending actions (Bundle: %v, ActionCountLimit: %v)",
         bundleName,
         actionCountLimit);
-
-    auto proxy = CreateObjectServiceWriteProxy(Client_);
-    auto batchReq = proxy.ExecuteBatch();
 
     auto& descriptors = PendingActionDescriptors_[bundleName];
     actionCountLimit = std::min<int>(actionCountLimit, std::ssize(descriptors));
