@@ -72,11 +72,11 @@ func (c *Counter) getType() metricType {
 	return c.metricType
 }
 
-func (c *Counter) getLabels() map[string]string {
+func (c *Counter) Labels() map[string]string {
 	return c.tags
 }
 
-func (c *Counter) getValue() interface{} {
+func (c *Counter) Value() interface{} {
 	return c.value.Load()
 }
 

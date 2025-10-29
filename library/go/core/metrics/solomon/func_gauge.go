@@ -57,11 +57,11 @@ func (g *FuncGauge) getType() metricType {
 	return g.metricType
 }
 
-func (g *FuncGauge) getLabels() map[string]string {
+func (g *FuncGauge) Labels() map[string]string {
 	return g.tags
 }
 
-func (g *FuncGauge) getValue() interface{} {
+func (g *FuncGauge) Value() interface{} {
 	return g.function()
 }
 

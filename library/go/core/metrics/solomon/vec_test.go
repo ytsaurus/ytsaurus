@@ -293,7 +293,7 @@ func TestMetricsVectorWith(t *testing.T) {
 			return rg.WithTags(tags).Counter(name).(*Counter)
 		},
 		removeMetric: func(m Metric) {
-			rg.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+			rg.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 		},
 	}
 

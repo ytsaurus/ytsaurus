@@ -183,22 +183,22 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion) error {
 
 	switch s.metric.getType() {
 	case typeGauge:
-		err = binary.Write(w, binary.LittleEndian, s.metric.getValue().(float64))
+		err = binary.Write(w, binary.LittleEndian, s.metric.Value().(float64))
 		if err != nil {
 			return xerrors.Errorf("binary.Write gauge value failed: %w", err)
 		}
 	case typeIGauge:
-		err = binary.Write(w, binary.LittleEndian, s.metric.getValue().(int64))
+		err = binary.Write(w, binary.LittleEndian, s.metric.Value().(int64))
 		if err != nil {
 			return xerrors.Errorf("binary.Write igauge value failed: %w", err)
 		}
 	case typeCounter, typeRated:
-		err = binary.Write(w, binary.LittleEndian, uint64(s.metric.getValue().(int64)))
+		err = binary.Write(w, binary.LittleEndian, uint64(s.metric.Value().(int64)))
 		if err != nil {
 			return xerrors.Errorf("binary.Write counter value failed: %w", err)
 		}
 	case typeHistogram, typeRatedHistogram:
-		h := s.metric.getValue().(histogram)
+		h := s.metric.Value().(histogram)
 		err = h.writeHistogram(w)
 		if err != nil {
 			return xerrors.Errorf("writeHistogram failed: %w", err)
@@ -220,7 +220,7 @@ func (s *spackMetric) calculateMetricFlags() uint8 {
 func (s *spackMetric) getMetricNameValue(name string) string {
 	value := s.metric.Name()
 
-	if lvalue, ok := s.metric.getLabels()[name]; ok {
+	if lvalue, ok := s.metric.Labels()[name]; ok {
 		value = lvalue
 	}
 
@@ -320,7 +320,7 @@ func (se *spackEncoder) processMetric(metric Metric) (*spackMetric, error) {
 		return nil, err
 	}
 
-	for name, value := range metric.getLabels() {
+	for name, value := range metric.Labels() {
 		if name == metric.getNameTag() {
 			continue
 		}

@@ -40,11 +40,11 @@ func (c *FuncCounter) getType() metricType {
 	return c.metricType
 }
 
-func (c *FuncCounter) getLabels() map[string]string {
+func (c *FuncCounter) Labels() map[string]string {
 	return c.tags
 }
 
-func (c *FuncCounter) getValue() interface{} {
+func (c *FuncCounter) Value() interface{} {
 	return c.function()
 }
 
