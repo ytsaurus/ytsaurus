@@ -1,7 +1,17 @@
 #pragma once
-#include "manager.h"
 
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
+
+#include <contrib/ydb/library/accessor/accessor.h>
+#include <contrib/ydb/library/conclusion/result.h>
+#include <contrib/ydb/services/bg_tasks/abstract/interface.h>
+
+#include <library/cpp/json/writer/json_value.h>
+#include <library/cpp/object_factory/object_factory.h>
+
+namespace NKikimr::NOlap::NDataAccessorControl {
+class IMetadataMemoryManager;
+}
 
 namespace NKikimr::NOlap::NDataAccessorControl {
 
