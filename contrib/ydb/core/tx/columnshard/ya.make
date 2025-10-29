@@ -51,14 +51,15 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/data_accessor/in_mem
     contrib/ydb/core/tx/columnshard/data_locks
     contrib/ydb/core/tx/columnshard/data_sharing
+    contrib/ydb/core/tx/columnshard/diagnostics
     contrib/ydb/core/tx/columnshard/engines
     contrib/ydb/core/tx/columnshard/engines/reader/abstract
     contrib/ydb/core/tx/columnshard/engines/writer
     contrib/ydb/core/tx/columnshard/export
     contrib/ydb/core/tx/columnshard/loading
     contrib/ydb/core/tx/columnshard/normalizer
-    contrib/ydb/core/tx/columnshard/overload_manager
     contrib/ydb/core/tx/columnshard/operations
+    contrib/ydb/core/tx/columnshard/overload_manager
     contrib/ydb/core/tx/columnshard/resource_subscriber
     contrib/ydb/core/tx/columnshard/splitter
     contrib/ydb/core/tx/columnshard/subscriber
