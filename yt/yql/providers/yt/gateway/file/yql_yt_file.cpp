@@ -829,6 +829,7 @@ public:
             TMkqlBuildContext ctx(*MkqlCompiler_, pgmBuilder, exprCtx);
 
             auto dstRowSpec = options.DestinationRowSpec();
+            YQL_ENSURE(dstRowSpec, "TODO: Have to support of CREATE VIEW in the file gateway.");
             NYT::TNode spec;
             dstRowSpec->FillCodecNode(spec[YqlRowSpecAttribute]);
 
