@@ -2738,7 +2738,7 @@ private:
         }
         if (dataHeartbeatAlert.AlertedNodeCount > 0) {
             YT_LOG_ALERT(
-                "Node(s) had no data heartbeat for too long "
+                "Nodes had no data heartbeat for too long "
                 "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestDataHeartbeat: %v)",
                 dataHeartbeatAlert.AlertedNodeCount,
                 dataHeartbeatAlert.OldestNodeAddress,
@@ -2750,7 +2750,7 @@ private:
         }
         if (jobHeartbeatAlert.AlertedNodeCount > 0) {
             YT_LOG_ALERT(
-                "Node(s) had no job heartbeat for too long "
+                "Nodes had no job heartbeat for too long "
                 "(NodeCount: %v, OldestNoHeartbeatNodeAddress: %v, TimeSinceOldestJobHeartbeat: %v)",
                 jobHeartbeatAlert.AlertedNodeCount,
                 jobHeartbeatAlert.OldestNodeAddress,
@@ -2763,7 +2763,7 @@ private:
 
         for (const auto& [state, alert] : noStateChangeAlert) {
             YT_LOG_ALERT(
-                "Node(s) had no state change for too long "
+                "Nodes had no state change for too long "
                 "(CurrentState: %v, NodeCount: %v, OldestNoStateChangeNodeAddress: %v, TimeSinceOldestStateChange: %v)",
                 state,
                 alert.AlertedNodeCount,
