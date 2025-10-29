@@ -66,11 +66,11 @@ func (g *IntGauge) getType() metricType {
 	return g.metricType
 }
 
-func (g *IntGauge) getLabels() map[string]string {
+func (g *IntGauge) Labels() map[string]string {
 	return g.tags
 }
 
-func (g *IntGauge) getValue() interface{} {
+func (g *IntGauge) Value() interface{} {
 	return g.value.Load()
 }
 

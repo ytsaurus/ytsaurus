@@ -45,11 +45,11 @@ func (t *Timer) getType() metricType {
 	return t.metricType
 }
 
-func (t *Timer) getLabels() map[string]string {
+func (t *Timer) Labels() map[string]string {
 	return t.tags
 }
 
-func (t *Timer) getValue() interface{} {
+func (t *Timer) Value() interface{} {
 	return t.value.Load().Seconds()
 }
 

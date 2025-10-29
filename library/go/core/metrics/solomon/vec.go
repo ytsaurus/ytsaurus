@@ -79,7 +79,7 @@ func (r *Registry) CounterVec(name string, labels []string) metrics.CounterVec {
 				Counter(name).(*Counter)
 		},
 		removeMetric: func(m Metric) {
-			r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+			r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 		},
 	}
 	return &CounterVec{vec: vec}
@@ -119,7 +119,7 @@ func (r *Registry) GaugeVec(name string, labels []string) metrics.GaugeVec {
 				return r.WithTags(tags).Gauge(name).(*Gauge)
 			},
 			removeMetric: func(m Metric) {
-				r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+				r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 			},
 		},
 	}
@@ -159,7 +159,7 @@ func (r *Registry) IntGaugeVec(name string, labels []string) metrics.IntGaugeVec
 				return r.WithTags(tags).IntGauge(name).(*IntGauge)
 			},
 			removeMetric: func(m Metric) {
-				r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+				r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 			},
 		},
 	}
@@ -199,7 +199,7 @@ func (r *Registry) TimerVec(name string, labels []string) metrics.TimerVec {
 				return r.WithTags(tags).Timer(name).(*Timer)
 			},
 			removeMetric: func(m Metric) {
-				r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+				r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 			},
 		},
 	}
@@ -242,7 +242,7 @@ func (r *Registry) HistogramVec(name string, buckets metrics.Buckets, labels []s
 				Histogram(name, buckets).(*Histogram)
 		},
 		removeMetric: func(m Metric) {
-			r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+			r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 		},
 	}
 	return &HistogramVec{vec: vec}
@@ -285,7 +285,7 @@ func (r *Registry) DurationHistogramVec(name string, buckets metrics.DurationBuc
 				DurationHistogram(name, buckets).(*Histogram)
 		},
 		removeMetric: func(m Metric) {
-			r.WithTags(m.getLabels()).(*Registry).unregisterMetric(m)
+			r.WithTags(m.Labels()).(*Registry).unregisterMetric(m)
 		},
 	}
 	return &DurationHistogramVec{vec: vec}

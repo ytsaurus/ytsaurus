@@ -114,11 +114,11 @@ func (h *Histogram) getType() metricType {
 	return h.metricType
 }
 
-func (h *Histogram) getLabels() map[string]string {
+func (h *Histogram) Labels() map[string]string {
 	return h.tags
 }
 
-func (h *Histogram) getValue() interface{} {
+func (h *Histogram) Value() interface{} {
 	return histogram{
 		Bounds:  h.bucketBounds,
 		Buckets: h.bucketValues,
