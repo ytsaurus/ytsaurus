@@ -75,13 +75,11 @@ public:
         RequestThrottler_->Reconfigure(storeCompactorConfig->ChunkViewSizeRequestThrottler);
     }
 
-    void ReconfigureTablet(TTablet* tablet, const TTableSettings& settings) override
+    void ReconfigureTablet(TTablet* tablet, const TTableSettings& oldSettings) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& oldSettings = tablet->GetSettings();
-
-        if (settings.MountConfig->MaxChunkViewSizeRatio != oldSettings.MountConfig->MaxChunkViewSizeRatio) {
+        if (tablet->GetSettings().MountConfig->MaxChunkViewSizeRatio != oldSettings.MountConfig->MaxChunkViewSizeRatio) {
             ResetCompactionHints(tablet);
             FetchStoreInfos(tablet);
         }
