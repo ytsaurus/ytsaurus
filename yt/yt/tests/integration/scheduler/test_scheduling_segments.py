@@ -1808,11 +1808,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalance_oversatisfied_segment(self):
-        update_pool_tree_config_option("default", "enable_fair_share_truncation_in_fifo_pool", True)
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", True)
+        update_pool_tree_config_option("default", "enable_improved_fair_share_by_fit_factor_computation", True)
         update_pool_tree_config_option("default", "scheduling_segments/force_incompatible_segment_preemption", True)
-
-        # COMPAT: Intentilonally test old logic for gang operations.
-        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
 
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
@@ -1820,49 +1818,56 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_path("large_gpu") + "/mode", default=None) == "fifo")
 
         large_op1 = run_sleeping_vanilla(
-            job_count=5,
+            job_count=1,
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
         large_op2 = run_sleeping_vanilla(
             job_count=5,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        large_op3 = run_sleeping_vanilla(
+            job_count=4,
             spec={"pool": "large_gpu", "is_gang": True},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op1.id), 0.5))
-        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op1.id), 0.1))
         wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.5))
         wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op2.id), 0.5))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(large_op3.id), 0.4))
 
         op = run_sleeping_vanilla(
-            job_count=6,
+            job_count=8,
             spec={
                 "pool": "small_gpu",
             },
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
 
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.0))
 
         time.sleep(5.0)
 
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
-
-        update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 24.0)
-
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.2))
         wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.2))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.0))
 
-        update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 16.0)
+        update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 8.0)
 
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.2))
         wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.3))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.1))
-        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op2.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.0))
+
+        update_pool_tree_config_option("default", "scheduling_segments/module_oversatisfaction_threshold", 0.0)
+
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(op.id), 0.2))
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.4))
+        wait(lambda: are_almost_equal(self._get_dominant_fair_share(large_op3.id), 0.0))
 
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):

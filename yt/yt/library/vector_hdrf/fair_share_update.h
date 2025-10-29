@@ -153,8 +153,6 @@ private:
     std::optional<TVectorPiecewiseLinearFunction> FairShareBySuggestion_;
     std::optional<TScalarPiecewiseLinearFunction> MaxFitFactorBySuggestion_;
 
-    TEnumIndexedArray<EFairShareType, TResourceVector> TotalTruncatedFairShare_;
-
     virtual void PrepareFairShareFunctions(TFairShareUpdateContext* context);
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;
     void PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context);
@@ -163,7 +161,6 @@ private:
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context);
 
     virtual void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
-    virtual void TruncateFairShareInFifoPools(EFairShareType fairShareType) = 0;
 
     virtual void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) = 0;
 
@@ -184,8 +181,6 @@ private:
 
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context);
     virtual void DistributeFreeVolume();
-
-    TResourceVector GetTotalTruncatedFairShare(EFairShareType type) const;
 
     friend class TCompositeElement;
     friend class TPool;
@@ -213,7 +208,6 @@ public:
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
-    virtual bool IsFairShareTruncationInFifoPoolEnabled() const = 0;
     virtual bool IsStepFunctionForGangOperationsEnabled() const = 0;
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
@@ -253,9 +247,6 @@ private:
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
     void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
-
-    void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
-    void DoTruncateFairShareInFifoPool(EFairShareType fairShareType);
 
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 
@@ -325,7 +316,6 @@ public:
 private:
     void DetermineInferredStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
-    void TruncateFairShareInFifoPools(EFairShareType type) override;
 
     void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
@@ -358,7 +348,6 @@ private:
 
     void ComputeAndSetFairShare(double suggestion, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
     void ComputeAndSetFairShare(TResourceVector suggestedFairShare, EFairShareType fairShareType, TFairShareUpdateContext* context) override;
-    void TruncateFairShareInFifoPools(EFairShareType fairShareType) override;
 
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 

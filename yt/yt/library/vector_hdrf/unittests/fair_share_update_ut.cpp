@@ -238,11 +238,6 @@ public:
         return GetMaxResourceRatio(ToJobResources(*IntegralGuaranteesConfig_->ResourceFlow, {}), TotalResourceLimits_);
     }
 
-    bool IsFairShareTruncationInFifoPoolEnabled() const override
-    {
-        return FairShareTruncationInFifoPoolEnabled_;
-    }
-
     bool IsStepFunctionForGangOperationsEnabled() const override
     {
         return true;
@@ -298,11 +293,6 @@ public:
         Mode_ = mode;
     }
 
-    void SetFairShareTruncationInFifoPoolEnabled(bool enabled)
-    {
-        FairShareTruncationInFifoPoolEnabled_ = enabled;
-    }
-
     void SetPromisedGuaranteeFairShareComputationEnabled(bool enabled)
     {
         PromisedGuaranteeFairShareComputationEnabled_ = enabled;
@@ -312,7 +302,6 @@ private:
     std::vector<TElementMockPtr> Children_;
 
     ESchedulingMode Mode_ = ESchedulingMode::FairShare;
-    bool FairShareTruncationInFifoPoolEnabled_ = false;
     bool PromisedGuaranteeFairShareComputationEnabled_ = false;
 };
 
@@ -1136,52 +1125,6 @@ TEST_P(TFairShareUpdateParametrizedTest, TestImpreciseComposition)
     DoFairShareUpdate(totalResourceLimits, rootElement);
 
     EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->Attributes().FairShare.Total));
-}
-
-TEST_P(TFairShareUpdateParametrizedTest, TestTruncateUnsatisfiedChildFairShareInFifoPools)
-{
-    auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
-
-    auto rootElement = CreateRootElement();
-    auto poolA = CreateSimplePool("poolA");
-    auto poolB = CreateSimplePool("poolB");
-    poolA->AttachParent(rootElement.Get());
-    poolB->AttachParent(rootElement.Get());
-
-    poolA->SetMode(ESchedulingMode::Fifo);
-    poolA->SetFairShareTruncationInFifoPoolEnabled(true);
-    poolB->SetMode(ESchedulingMode::Fifo);
-    poolB->SetFairShareTruncationInFifoPoolEnabled(true);
-
-    TJobResources resourceDemand;
-    resourceDemand.SetUserSlots(30);
-    resourceDemand.SetCpu(30);
-    resourceDemand.SetMemory(300_MB);
-
-    auto operationAFirst = CreateOperation(poolA.Get(), resourceDemand);
-
-    auto operationASecond = CreateOperation(poolA.Get(), resourceDemand);
-    operationASecond->SetGangFlag(true);
-
-    auto operationBFirst = CreateOperation(poolB.Get(), resourceDemand);
-
-    auto operationBSecond = CreateOperation(poolB.Get(), resourceDemand);
-
-    DoFairShareUpdate(totalResourceLimits, rootElement);
-
-    const TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationAFirst->Attributes().DemandShare);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationASecond->Attributes().DemandShare);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationBFirst->Attributes().DemandShare);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationBSecond->Attributes().DemandShare);
-
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationAFirst->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.0), operationASecond->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), operationBFirst->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.2), operationBSecond->Attributes().FairShare.Total);
-
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.3), poolA->Attributes().FairShare.Total);
-    EXPECT_RV_NEAR(TResourceVector(unit * 0.5), poolB->Attributes().FairShare.Total);
 }
 
 TEST_P(TFairShareUpdateParametrizedTest, TestPromisedGuaranteeFairShare)
