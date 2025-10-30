@@ -1,0 +1,8 @@
+formatter:
+  array_indent: 2
+  indent: 4
+  # retain_line_breaks: True
+  # retain_line_breaks_single: True
+  max_line_length: 124
+  pad_line_comments: 2
+  eof_newline: True
