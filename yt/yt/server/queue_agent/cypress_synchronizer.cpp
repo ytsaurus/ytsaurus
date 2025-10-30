@@ -506,13 +506,10 @@ private:
     {
         // First, we collect all queue agent objects from the corresponding master watchlist in each watched cluster.
 
-        std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
+        std::vector<TFuture<TYsonString>> asyncResults;
         for (const auto& cluster : DynamicConfigSnapshot_->Clusters) {
-            auto proxy = CreateObjectServiceReadProxy(
-                GetNativeClientOrThrow(cluster),
-                EMasterChannelKind::Follower);
-            asyncResults.push_back(proxy.Execute(
-                TYPathProxy::Get("//sys/@queue_agent_object_revisions")));
+            auto client = GetNativeClientOrThrow(cluster);
+            asyncResults.push_back(client->GetNode("//sys/@queue_agent_object_revisions"));
         }
 
         auto combinedResults = WaitFor(AllSet(asyncResults))
@@ -531,7 +528,7 @@ private:
                 continue;
             }
 
-            auto cypressWatchlist = ConvertTo<TCypressWatchlist>(TYsonString(rspOrError.Value()->value()));
+            auto cypressWatchlist = ConvertTo<TCypressWatchlist>(rspOrError.Value());
 
             InferChangesFromClusterWatchlist(cluster, std::move(cypressWatchlist));
         }
