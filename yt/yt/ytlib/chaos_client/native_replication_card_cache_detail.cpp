@@ -138,8 +138,6 @@ protected:
 
     void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
 
-    IChannelPtr GetChaosCacheChannel();
-
 private:
     std::atomic<bool> EnableWatching_ = false;
 
