@@ -50,14 +50,14 @@ struct TInputInfo {
 struct TOutputInfo {
     TOutputInfo() = default;
     TOutputInfo(const TString& name, const TString& path, const NYT::TNode& codecSpec, const NYT::TNode& attrSpec,
-        const NYT::TSortColumns& sortedBy, NYT::TNode columnGroups, TString&& view)
+        const NYT::TSortColumns& sortedBy, NYT::TNode columnGroups, const TString& view)
         : Name(name)
         , Path(path)
         , Spec(codecSpec)
         , AttrSpec(attrSpec)
         , SortedBy(sortedBy)
         , ColumnGroups(std::move(columnGroups))
-        , View(std::move(view))
+        , View(view)
     {
     }
     TString Name;

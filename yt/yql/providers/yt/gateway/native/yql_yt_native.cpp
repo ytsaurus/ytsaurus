@@ -1162,8 +1162,7 @@ public:
             for (auto out: publish.Input()) {
                 auto outTableWithCluster = GetOutTableWithCluster(out);
                 auto outTable = outTableWithCluster.first.Cast<TYtOutTable>();
-                const bool view = NYql::HasSetting(outTable.Settings().Ref(), EYtSettingType::View);
-                src.emplace_back(outTable.Name().StringValue(), outTableWithCluster.second, view);
+                src.emplace_back(outTable.Name().StringValue(), outTableWithCluster.second, !TYtOutTableInfo(outTable).Meta->SqlView.empty());
                 if (first) {
                     itemType = GetSeqItemType(*outTable.Ref().GetTypeAnn()).Cast<TStructExprType>();
                     if (auto columnGroupSetting = NYql::GetSetting(outTable.Settings().Ref(), EYtSettingType::ColumnGroups)) {

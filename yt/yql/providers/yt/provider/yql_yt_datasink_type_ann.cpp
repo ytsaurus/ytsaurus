@@ -2025,6 +2025,10 @@ private:
 
            if (const auto commitEpoch = tableInfo.CommitEpoch) {
                 auto& next = State_->TablesData->GetOrAddTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+                next.View.ConstructInPlace();
+                next.View->Sql = create.Original().StringValue();
+                TNodeOnNodeOwnedMap map;
+                next.View->CompiledSql = ctx.DeepCopy(create.Compiled().Ref(), ctx, map, false, false);
 
                 next.RowType = rowType;
                 next.IsReplaced = true;

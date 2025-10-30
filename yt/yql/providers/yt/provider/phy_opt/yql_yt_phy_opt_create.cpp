@@ -35,15 +35,8 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::CreateView(TExprBase no
     const auto& create = node.Cast<TYtCreateView>();
     const TYtTableInfo tableInfo(create.Table());
 
-    const auto& settings = Build<TCoNameValueTupleList>(ctx, create.Pos())
-        .Add()
-            .Name().Value(ToString(EYtSettingType::View), TNodeFlags::Default).Build()
-            .Value(create.Original())
-            .Build()
-        .Done();
-
     const auto& descr = State_->TablesData->GetTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, tableInfo.CommitEpoch);
-    const TYtOutTableInfo outTable(descr.RowType->Cast<TStructExprType>(), NTCF_ALL, {}, descr.Meta->SqlView, settings);
+    const TYtOutTableInfo outTable(descr.RowType->Cast<TStructExprType>(), NTCF_ALL, {}, descr.Meta->SqlView);
 
     return Build<TYtPublish>(ctx, create.Pos())
         .World(create.World())
