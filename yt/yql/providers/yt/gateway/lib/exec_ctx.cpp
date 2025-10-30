@@ -205,6 +205,11 @@ void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::
             }
         }
 
+        if (view.empty()) {
+            outTablePaths.push_back(outTablePath);
+            outTableSpecs.push_back(std::move(attrSpec));
+        }
+
         OutTables_.emplace_back(
             outTableName,
             outTablePath,
@@ -214,8 +219,6 @@ void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::
             optimizeForScan ? tableInfo.GetColumnGroups() : NYT::TNode{},
             std::move(view)
         );
-        outTablePaths.push_back(outTablePath);
-        outTableSpecs.push_back(std::move(attrSpec));
         if (loggedTable++ < 10) {
             YQL_CLOG(INFO, ProviderYt) << "Output: " << Cluster_ << '.' << outTableName;
         }
