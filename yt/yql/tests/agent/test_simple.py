@@ -1850,6 +1850,17 @@ class TestsDDL(TestQueriesYqlSimpleBase):
 }"""
                }])
 
+    def test_simple_create_view(self, query_tracker, yql_agent):
+        self._test_simple_query("create table `//tmp/t` (xyz Text not null);", None)
+        self._test_simple_query("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", None)
+        self._test_simple_query("$p = process `//tmp/v`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'num':Float?>"}])
+        self._test_simple_query_error("create view `//tmp/v` as do begin select cast(xyz as Float) as num from `//tmp/t` end do;", "already exists.")
+
+    def test_drop_view(self, query_tracker, yql_agent):
+        self._test_simple_query("create view `//tmp/v0` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None)
+        self._test_simple_query("drop view `//tmp/v0`;", None)
+        self._test_simple_query_error("drop view `//tmp/v0`;", "is not exists.")
+
 
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
