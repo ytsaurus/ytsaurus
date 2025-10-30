@@ -1280,7 +1280,7 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         assert read_table("//tmp/imported") == records
         assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
@@ -2054,7 +2054,7 @@ class TestAttachTable(TestAttachTableBase):
             ],
             columns=[
                 make_column("x", optional_type("int64"), type="int64", required=False),
-                make_column("y", optional_type("string"), type="string", required=False),
+                make_column("y", optional_type("utf8"), type="utf8", required=False),
             ],
         ),
         InferenceTestData(
@@ -2109,7 +2109,7 @@ class TestAttachTable(TestAttachTableBase):
 
         assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
             make_column("x", optional_type("int64")),
-            make_column("y", optional_type("string")),
+            make_column("y", optional_type("utf8")),
             make_column("z", optional_type(struct_type([
                 ("a", optional_type("int64")),
                 ("b", optional_type("int64")),
@@ -2152,7 +2152,7 @@ class TestAttachTable(TestAttachTableBase):
         ])
 
         assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
-            make_column("x", optional_type("string")),
+            make_column("x", optional_type("utf8")),
             make_column("y", optional_type("int64")),
             make_column("z.a", optional_type("double")),
             make_column("z.b", optional_type("int64")),
