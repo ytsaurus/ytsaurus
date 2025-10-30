@@ -334,16 +334,16 @@ typedef uint64_t uintmax_t;
 /* #undef ARCHIVE_XATTR_LINUX */
 
 /* Version number of bsdcpio */
-#define BSDCPIO_VERSION_STRING "3.8.1"
+#define BSDCPIO_VERSION_STRING "3.8.2"
 
 /* Version number of bsdtar */
-#define BSDTAR_VERSION_STRING "3.8.1"
+#define BSDTAR_VERSION_STRING "3.8.2"
 
 /* Version number of bsdcat */
-#define BSDCAT_VERSION_STRING "3.8.1"
+#define BSDCAT_VERSION_STRING "3.8.2"
 
 /* Version number of bsdunzip */
-#define BSDUNZIP_VERSION_STRING "3.8.1"
+#define BSDUNZIP_VERSION_STRING "3.8.2"
 
 /* Define to 1 if you have the `acl_create_entry' function. */
 /* #undef HAVE_ACL_CREATE_ENTRY */
@@ -404,6 +404,12 @@ typedef uint64_t uintmax_t;
 
 /* Define to 1 if you have the `chroot' function. */
 #define HAVE_CHROOT 1
+
+/* Define to 1 if you have the `closefrom' function. */
+/* #undef HAVE_CLOSEFROM */
+
+/* Define to 1 if you have the `close_range' function. */
+/* #undef HAVE_CLOSE_RANGE */
 
 /* Define to 1 if you have the <copyfile.h> header file. */
 /* #undef HAVE_COPYFILE_H */
@@ -970,9 +976,6 @@ typedef uint64_t uintmax_t;
 /* Define to 1 if you have the <pwd.h> header file. */
 #define HAVE_PWD_H 1
 
-/* Define to 1 if you have the `readdir_r' function. */
-#define HAVE_READDIR_R 1
-
 /* Define to 1 if you have the `readlink' function. */
 #define HAVE_READLINK 1
 
@@ -1313,10 +1316,10 @@ typedef uint64_t uintmax_t;
 #define ICONV_CONST 
 
 /* Version number of libarchive as a single integer */
-#define LIBARCHIVE_VERSION_NUMBER "3008001"
+#define LIBARCHIVE_VERSION_NUMBER "3008002"
 
 /* Version number of libarchive */
-#define LIBARCHIVE_VERSION_STRING "3.8.1"
+#define LIBARCHIVE_VERSION_STRING "3.8.2"
 
 /* Define to 1 if `lstat' dereferences a symlink specified with a trailing
    slash. */
@@ -1379,7 +1382,7 @@ typedef uint64_t uintmax_t;
 #endif /* SAFE_TO_DEFINE_EXTENSIONS */
 
 /* Version number of package */
-#define VERSION "3.8.1"
+#define VERSION "3.8.2"
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 /* #undef _FILE_OFFSET_BITS */
