@@ -1,0 +1,15 @@
+service: automation_group_backend_mlu
+title: Yamlfmt default config for yaml
+
+arcanum:
+    review:
+        disabling_policy: denied
+        groups:
+          - name: developers
+            roles:
+              - automation_group_backend_mlu:developer
+        rules:
+          - reviewers:
+              - name: developers
+                assign: 1
+                ship: 1
