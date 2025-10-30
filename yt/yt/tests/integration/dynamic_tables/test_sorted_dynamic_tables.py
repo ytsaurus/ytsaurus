@@ -54,6 +54,9 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             "timestamp_provider": {
                 "update_period": 100
             }
+        },
+        "solomon_exporter": {
+            "update_sensor_service_tree_period": 1000,
         }
     }
 
@@ -1886,6 +1889,53 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
+
+    @authors("lukyan")
+    def test_filter_ranges_by_chunk_boundaries(self):
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string", "group": "b"}]
+            })
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": 'V'} for i in range(5, 10)]
+        insert_rows("//tmp/t", rows)
+
+        # flush table
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        res = select_rows("* from [//tmp/t]")
+        print_debug(res)
+        assert_items_equal(res, rows)
+
+        # wait more than update_sensor_service_tree_period
+        time.sleep(3)
+
+        profiler = profiler_factory().at_tablet_node("//tmp/t", fixed_tags={
+            "table_path": "//tmp/t",
+            "medium": "default",
+        })
+
+        data_bytes_counter = profiler.counter("select/chunk_reader_statistics/data_bytes_read_from_cache")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        wait(lambda: data_bytes_counter.get_delta() > 0)
+        saved_size = data_bytes_counter.get_delta()
+
+        data_bytes_counter2 = profiler.counter("select/chunk_reader_statistics/data_bytes_read_from_cache")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t] where key between 1 and 3"), [])
+        wait(lambda: data_bytes_counter2.get_delta() > 0)
+
+        assert saved_size == data_bytes_counter2.get_delta()
 
 
 @pytest.mark.enabled_multidaemon
