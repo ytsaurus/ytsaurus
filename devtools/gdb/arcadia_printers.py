@@ -499,6 +499,61 @@ class TActorIdPrinter:
         return 'TActorId'
 
 
+class TCompactVectorPrinter:
+    'Print NYT::TCompactVector'
+
+    class _iter(Iterator):
+        def __init__(self, start, size):
+            start = start.cast(start.type.target().pointer())
+
+            self.item = start
+            self.finish = self.item + size
+            self.idx = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            if self.item == self.finish:
+                raise StopIteration
+
+            idx = self.idx
+            el = self.item.dereference()
+
+            self.idx = self.idx + 1
+            self.item = self.item + 1
+
+            return ('[%d]' % idx, el)
+
+    def __init__(self, typename, val):
+        self.typename = typename
+        self.val = val
+
+    def children(self):
+        start = None
+
+        if int(self.val['InlineMeta_']['SizePlusOne']) != 0:
+            start = self.val['InlineElements_']
+        else:
+            start = self.val['OnHeapMeta_']['Storage'].dereference()['Elements']
+
+        return self._iter(start, self._get_size())
+
+    def to_string(self):
+        size = self._get_size()
+        return ('%s of length %d' % (self.typename, self._get_size()))
+
+    def _get_size(self):
+        if int(self.val['InlineMeta_']['SizePlusOne']) != 0:
+            return int(self.val['InlineMeta_']['SizePlusOne']) - 1
+        else:
+            storage = self.val['OnHeapMeta_']['Storage'].dereference()
+            return int(storage['End'] - storage['Elements'].cast(storage['Elements'].type.target().pointer()))
+
+    def display_hint(self):
+        return 'array'
+
+
 def build_printer():
     printer = Printer('util')
     printer.add('TString', TStringPrinter)  # <r5448720
@@ -537,6 +592,7 @@ def build_printer():
     printer.add('TSimpleSharedPtr', PtrPrinter)
     printer.add('TMaybe', TMaybePrinter)
     printer.add('NActors::TActorId', TActorIdPrinter)
+    printer.add('NYT::TCompactVector', TCompactVectorPrinter)
     return printer
 
 
