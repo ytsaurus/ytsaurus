@@ -207,7 +207,7 @@ void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::
 
         if (view.empty()) {
             outTablePaths.push_back(outTablePath);
-            outTableSpecs.push_back(std::move(attrSpec));
+            outTableSpecs.push_back(attrSpec);
         }
 
         OutTables_.emplace_back(
