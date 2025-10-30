@@ -125,3 +125,30 @@ message TEmbedding
 {
     required TEmbedded embedded = 1 [(NYT.flags) = EMBEDDED];
 }
+
+message TStringVariant
+{
+    required string column = 1;
+}
+
+message TIntVariant
+{
+    required int32 column = 1;
+}
+
+message TWithOneOf
+{
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    oneof variant1_column {
+        string variant1 = 1;
+        int32 variant2 = 2;
+    }
+
+    oneof variant2_column {
+        option (NYT.variant_field_name) = "variant_with_attribute";
+
+        string variant3 = 3;
+        int32 variant4 = 4;
+    }
+}

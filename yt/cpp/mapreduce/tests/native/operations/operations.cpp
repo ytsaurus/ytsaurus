@@ -3855,3 +3855,48 @@ TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53390)
 
     ASSERT_EQ(input, output);
 }
+
+TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53786)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    const auto inputPath = workingDir + "/input";
+    const auto outputPath = workingDir + "/output";
+
+    std::vector<TWithOneOf> input;
+    input.resize(2);
+    input[0].set_variant1("value1");
+    input[0].set_variant3("value3");
+    input[1].set_variant2(2);
+    input[1].set_variant4(4);
+
+    {
+        auto writer = client->CreateTableWriter<TWithOneOf>(TRichYPath(inputPath).Schema(CreateTableSchema<TWithOneOf>()));
+        for (const auto& row : input) {
+            writer->AddRow(row);
+        }
+        writer->Finish();
+    }
+
+    client->Map(
+        TMapOperationSpec()
+            .AddInput<TWithOneOf>(inputPath)
+            .AddOutput<TWithOneOf>(outputPath),
+        ::MakeIntrusive<TIdProtoMapper<TWithOneOf>>(),
+        TOperationOptions().InferOutputSchema(true)
+    );
+
+    auto output = ReadTable(client, outputPath);
+
+    ASSERT_EQ(std::vector<TNode>({
+        TNode::CreateMap({
+            {"variant1_column", TNode::CreateList({"variant1", "value1"}),},
+            {"variant_with_attribute", TNode::CreateList({"variant3", "value3"}),},
+        }),
+        TNode::CreateMap({
+            {"variant1_column", TNode::CreateList({"variant2", 2}),},
+            {"variant_with_attribute", TNode::CreateList({"variant4", 4}),},
+        }),
+    }), output);
+}

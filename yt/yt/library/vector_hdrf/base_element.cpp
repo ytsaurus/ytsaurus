@@ -29,11 +29,6 @@ double TBaseCompositeElement::GetSpecifiedResourceFlowRatio() const
     return 0.0;
 }
 
-bool TBaseCompositeElement::IsFairShareTruncationInFifoPoolEnabled() const
-{
-    return false;
-}
-
 bool TBaseCompositeElement::IsStepFunctionForGangOperationsEnabled() const
 {
     return false;

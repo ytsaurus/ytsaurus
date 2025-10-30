@@ -40,11 +40,11 @@ func (g *FuncIntGauge) getType() metricType {
 	return g.metricType
 }
 
-func (g *FuncIntGauge) getLabels() map[string]string {
+func (g *FuncIntGauge) Labels() map[string]string {
 	return g.tags
 }
 
-func (g *FuncIntGauge) getValue() interface{} {
+func (g *FuncIntGauge) Value() interface{} {
 	return g.function()
 }
 

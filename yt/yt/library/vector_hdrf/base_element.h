@@ -29,8 +29,6 @@ public:
 
     double GetSpecifiedResourceFlowRatio() const override;
 
-    bool IsFairShareTruncationInFifoPoolEnabled() const override;
-
     bool IsStepFunctionForGangOperationsEnabled() const override;
 
     bool CanAcceptFreeVolume() const override;

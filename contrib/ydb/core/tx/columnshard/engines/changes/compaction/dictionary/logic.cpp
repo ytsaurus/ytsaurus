@@ -1,5 +1,6 @@
 #include "logic.h"
 
+#include <contrib/ydb/core/formats/arrow/accessor/composite/accessor.h>
 #include <contrib/ydb/core/formats/arrow/accessor/dictionary/constructor.h>
 #include <contrib/ydb/core/formats/arrow/accessor/plain/accessor.h>
 #include <contrib/ydb/core/formats/arrow/arrow_filter.h>

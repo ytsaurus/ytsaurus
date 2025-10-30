@@ -7,6 +7,7 @@ SRCS(
 PEERDIR(
     library/cpp/protobuf/json
     contrib/ydb/core/base
+    contrib/ydb/core/fq/libs/checkpointing/events
     contrib/ydb/core/kqp/common/events
     contrib/ydb/core/kqp/executer_actor
     contrib/ydb/core/kqp/proxy_service/proto

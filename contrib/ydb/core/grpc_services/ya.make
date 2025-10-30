@@ -28,6 +28,7 @@ SRCS(
     rpc_cms.cpp
     rpc_commit_transaction.cpp
     rpc_config.cpp
+    rpc_cluster_state.cpp
     rpc_copy_table.cpp
     rpc_copy_tables.cpp
     rpc_create_coordination_node.cpp
@@ -118,6 +119,7 @@ PEERDIR(
     contrib/ydb/core/backup/common
     contrib/ydb/core/base
     contrib/ydb/core/control/lib
+    contrib/ydb/core/counters_info
     contrib/ydb/core/discovery
     contrib/ydb/core/engine
     contrib/ydb/core/formats

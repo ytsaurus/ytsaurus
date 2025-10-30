@@ -1506,12 +1506,6 @@ THashSet<TString> TPoolTreePoolElement::GetAllowedProfilingTags() const
     return Config_->AllowedProfilingTags;
 }
 
-bool TPoolTreePoolElement::IsFairShareTruncationInFifoPoolEnabled() const
-{
-    return Config_->EnableFairShareTruncationInFifoPool.value_or(
-        TreeConfig_->EnableFairShareTruncationInFifoPool);
-}
-
 bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
 {
     return Config_->EnableStepFunctionForGangOperations;
@@ -2718,11 +2712,6 @@ bool TPoolTreeRootElement::IsEphemeralHub() const
 THashSet<TString> TPoolTreeRootElement::GetAllowedProfilingTags() const
 {
     return {};
-}
-
-bool TPoolTreeRootElement::IsFairShareTruncationInFifoPoolEnabled() const
-{
-    return TreeConfig_->EnableFairShareTruncationInFifoPool;
 }
 
 bool TPoolTreeRootElement::ShouldComputePromisedGuaranteeFairShare() const

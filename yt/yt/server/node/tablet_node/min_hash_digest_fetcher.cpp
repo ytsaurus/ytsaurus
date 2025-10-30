@@ -55,16 +55,18 @@ public:
         RequestThrottler_->Reconfigure(fetchConfig->RequestThrottler);
     }
 
-    void ReconfigureTablet(TTablet* tablet, const TTableSettings& settings) override
+    void ReconfigureTablet(TTablet* tablet, const TTableSettings& oldSettings) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& oldSettings = tablet->GetSettings();
+        bool oldEnable = oldSettings.MountConfig->MinHashDigestCompaction->Enable;
+        bool newEnable = tablet->GetSettings().MountConfig->MinHashDigestCompaction->Enable;
 
-        if (*settings.MountConfig->MinHashDigestCompaction != *oldSettings.MountConfig->MinHashDigestCompaction) {
-            // TODO(dave11ar): Just for proof of work.
-            ResetCompactionHints(tablet);
+        if (newEnable && !oldEnable) {
             FetchStoreInfos(tablet);
+        }
+        if (!newEnable && oldEnable) {
+            ResetCompactionHints(tablet);
         }
     }
 

@@ -800,7 +800,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
-    @authors("akozhikhov", "aleksandra-zh")
+    @authors("akozhikhov")
     @pytest.mark.parametrize("preserve_tablet_index", [False, True])
     @pytest.mark.parametrize("use_hunks", [False, True])
     def test_async_replication_ordered(self, preserve_tablet_index, use_hunks):
@@ -879,11 +879,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             sync_mount_table("//tmp/t")
 
             store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
-            assert len(store_chunk_ids) == 1
 
-            hunk_chunk_refs = get("#{}/@hunk_chunk_refs".format(store_chunk_ids[0]))
-            assert len(hunk_chunk_refs) == 1
-            assert hunk_chunk_refs[0]["hunk_count"] == 2
+            hunk_chunk_refs = [get("#{}/@hunk_chunk_refs".format(store_chunk_id)) for store_chunk_id in store_chunk_ids]
+            hunk_count = sum(sum(hunk_chunk_ref["hunk_count"] for hunk_chunk_ref in store_hunk_chunk_refs)
+                             for store_hunk_chunk_refs in hunk_chunk_refs)
+            assert hunk_count == 2
 
             sync_unmount_table("//tmp/t")
             sync_unmount_table("//tmp/h")

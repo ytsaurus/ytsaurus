@@ -29,7 +29,7 @@ SIZE(MEDIUM)
 
 FORK_TESTS()
 FORK_SUBTESTS()
-SPLIT_FACTOR(5)
+SPLIT_FACTOR(2)
 
 SET(YT_CONFIG_PATCH {rpc_proxy_count=1;})
 INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)

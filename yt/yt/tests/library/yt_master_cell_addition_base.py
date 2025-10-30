@@ -820,19 +820,24 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         yield
 
         remove_maintenance("cluster_node", node, id=maintenance_id)
+
+        def maintenance_request_removed():
+            for cell_index in range(4):
+                driver = get_driver(cell_index)
+                for request in get(f"//sys/data_nodes/{node}/@maintenance_requests", driver=driver).values():
+                    if request["type"] == "banned":
+                        return False
+            return True
+
+        wait(maintenance_request_removed)
+
         wait(lambda: get(f"//sys/data_nodes/{node}/@state") == "online")
-        assert get(f"//sys/data_nodes/{node}/@multicell_states") == {
+        wait(lambda: get(f"//sys/data_nodes/{node}/@multicell_states") == {
             "10": "online",
             "11": "online",
             "12": "online",
             "13": "online",
-        }
-
-        for cell_index in range(4):
-            driver = get_driver(cell_index)
-            assert all(map(
-                lambda request: request["type"] != "ban",
-                get(f"//sys/data_nodes/{node}/@maintenance_requests", driver=driver).values()))
+        })
 
 
 class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):

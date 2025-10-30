@@ -90,16 +90,25 @@ func (k metricType) String() string {
 type Metric interface {
 	json.Marshaler
 
+	// Returns the metric name.
 	Name() string
+
+	// Returns metric labels.
+	// The returned value is for reading only. Do not try to modify it.
+	Labels() map[string]string
+
+	// Returns the metric value.
+	// The returned value is for reading only. Do not try to modify it.
+	Value() any
+
+	// Snapshot returns independent copy on metric.
+	Snapshot() Metric
+
 	getType() metricType
-	getLabels() map[string]string
-	getValue() interface{}
 	getNameTag() string
 	getTimestamp() *time.Time
 	isMemOnly() bool
-
 	getID() string
-	Snapshot() Metric
 }
 
 // Rated marks given Solomon metric or vector as rated.
