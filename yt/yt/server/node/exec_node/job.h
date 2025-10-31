@@ -38,6 +38,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <library/cpp/int128/int128.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -455,6 +457,20 @@ private:
 
     bool HasJobTrace_ = false;
 
+    // Consumption tracking for Running phase. Values are correct for the last update.
+    // Thread affinity: JobThread.
+    NClusterNode::TJobResources RunningPhaseResourceUsage_{};
+    // Consumption in unit-microseconds. Cpu and VCpu are in millicores, UserMemory is in bytes, Gpu is just count.
+    // Thread affinity: JobThread.
+    i128 RunningPhaseCpuConsumption_ = 0;
+    i128 RunningPhaseVCpuConsumption_ = 0;
+    i128 RunningPhaseUserMemoryConsumption_ = 0;
+    i128 RunningPhaseGpuConsumption_ = 0;
+    // Thread affinity: JobThread.
+    TInstant RunningPhaseStartTime_ = TInstant::Zero();
+    TInstant RunningPhaseStopTime_ = TInstant::Zero();
+    TDuration RunningPhaseDurationAtLastUpdate_ = TDuration::Zero();
+
     NYTree::IYPathServicePtr CreateStaticOrchidService();
     NYTree::IYPathServicePtr CreateJobProxyOrchidService();
     NYTree::IYPathServicePtr CreateDynamicOrchidService();
@@ -587,6 +603,7 @@ private:
     void EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
+    void EnrichStatisticsWithConsumptionInfo(TStatistics* statistics);
 
     void UpdateIOStatistics(const TStatistics& statistics);
 
@@ -635,6 +652,9 @@ private:
     void OnJobFinalized();
 
     void DeduceAndSetFinishedJobState();
+
+    TDuration GetRunningPhaseDuration() const;
+    TDuration UpdateConsumptionTracking(std::optional<NClusterNode::TJobResources> newUsage = std::nullopt);
 
     static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);

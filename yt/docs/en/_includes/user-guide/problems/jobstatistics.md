@@ -101,6 +101,15 @@ For a better understanding of job stats, you should be familiar with the notions
 | `chunk_reader_statistics/wait_time` | Time spent waiting for data during chunk reads. Milliseconds. |
 | `chunk_reader_statistics/read_time` | Time spent actively reading chunks, such as parsing strings from read blocks. Milliseconds. |
 | `chunk_reader_statistics/idle_time` | Time during which chunk reads were aborted for the processing of previously read data. Milliseconds. |
+| `resource_usage/consumption_running/cpu` | CPU consumption during Running phase. Tracks allocated CPU resources multiplied by time. Calculated as allocated CPU (in millicores) \* duration (in milliseconds). For example, 1000 millicores (1 core) for 1 second = 1,000,000. Millicore-milliseconds. |
+| `resource_usage/consumption_running/vcpu` | vCPU consumption during Running phase. Same units and calculation method as `resource_usage/consumption_running/cpu`. Millicore-milliseconds. |
+| `resource_usage/consumption_running/user_memory` | User memory consumption during Running phase. Tracks allocated memory resources multiplied by time. Calculated as allocated memory (in MiB) \* duration (in seconds). For example, 256 MiB for 10 seconds = 2560. Mebibyte-seconds. |
+| `resource_usage/consumption_running/gpu` | GPU consumption during Running phase. Tracks allocated GPU resources multiplied by time. Calculated as allocated GPUs \* duration (in milliseconds). For example, 2 GPUs for 1 second = 2 GPUs \* 1000 ms = 2,000. GPU-milliseconds. |
+| `resource_usage/consumption_running/time` | Total duration of the Running phase (time between entering and exiting Running phase). Milliseconds. |
+| `resource_usage/initial/cpu` | CPU usage snapshot taken from the job's initial resource demand. Millicores. |
+| `resource_usage/initial/vcpu` | vCPU usage snapshot taken from the job's initial resource demand. Millicores. |
+| `resource_usage/initial/user_memory` | User memory usage snapshot taken from the job's initial resource demand. Bytes. |
+| `resource_usage/initial/gpu` | GPU usage snapshot taken from the job's initial resource demand. Pieces. |
 
 ### Python API
 

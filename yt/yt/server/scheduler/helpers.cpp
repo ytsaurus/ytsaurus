@@ -339,6 +339,16 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
 
+        {"resource_usage/consumption_running/cpu", "CPU consumption during Running phase, tracks allocated CPU resources over time", "millicore*ms"},
+        {"resource_usage/consumption_running/vcpu", "vCPU consumption during Running phase, tracks allocated vCPU resources over time", "millicore*ms"},
+        {"resource_usage/consumption_running/user_memory", "User memory consumption during Running phase, tracks allocated memory resources over time", "MB*sec"},
+        {"resource_usage/consumption_running/gpu", "GPU consumption during Running phase, tracks allocated GPU resources over time", "pieces*ms"},
+        {"resource_usage/consumption_running/time", "Total duration of the Running phase", "ms"},
+        {"resource_usage/initial/cpu", "CPU usage snapshot from the job's initial demand", "millicore"},
+        {"resource_usage/initial/vcpu", "vCPU usage snapshot from the job's initial demand", "millicore"},
+        {"resource_usage/initial/user_memory", "User memory usage snapshot from the job's initial demand", "bytes"},
+        {"resource_usage/initial/gpu", "GPU usage snapshot from the job's initial demand", "pieces"},
+
         {"codec/cpu/decode/*", "Time spent on decompressing data", "ms"},
         {"codec/cpu/encode/*/*", "Time spent on compressing data", "ms"},
 
