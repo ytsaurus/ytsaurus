@@ -23,6 +23,7 @@ PY_SRCS(
     logger.py
     lookup.py
     mapreduce.py
+    reporter.py
     parser.py
     parser_impl.py
     process_runner.py
