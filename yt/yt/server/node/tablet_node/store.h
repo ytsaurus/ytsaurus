@@ -212,6 +212,8 @@ struct IChunkStore
     virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const = 0;
 
     virtual i64 GetMemoryUsage() const = 0;
+
+    virtual TInMemoryChunkDataPtr GetInMemoryChunkData() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)

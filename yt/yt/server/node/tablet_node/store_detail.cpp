@@ -827,6 +827,11 @@ public:
         return {};
     }
 
+    TInMemoryChunkDataPtr GetInMemoryChunkData()
+    {
+        return ChunkData_;
+    }
+
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;
@@ -1306,6 +1311,12 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 
     auto guard = ReaderGuard(SpinLock_);
     return DoGetBlockCache();
+}
+
+TInMemoryChunkDataPtr TChunkStoreBase::GetInMemoryChunkData()
+{
+    auto guard = ReaderGuard(SpinLock_);
+    return PreloadedBlockCache_ ? PreloadedBlockCache_->GetInMemoryChunkData() : nullptr;
 }
 
 TMinHashDigestBlockIndex TChunkStoreBase::GetMinHashDigestBlockIndex() const

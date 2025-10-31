@@ -329,7 +329,7 @@ public:
             }
         };
 
-        validateProto(NProto::TReqMountTablet::GetDescriptor(),            30, 5);
+        validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
         validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);

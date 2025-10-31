@@ -44,7 +44,8 @@ struct ITabletActionManagerHost
     virtual void UnmountTablet(
         TTabletBase* tablet,
         bool force,
-        bool onDestroy) = 0;
+        bool onDestroy,
+        bool retainPreloadedChunks = false) = 0;
 
     virtual void DoFreezeTablet(TTabletBase* tablet) = 0;
     virtual void DoUnfreezeTablet(TTabletBase* tablet) = 0;
@@ -54,6 +55,7 @@ struct ITabletActionManagerHost
         const TSerializedTabletOwnerSettings& serializedTableSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
+        bool useRetainedPreloadedChunks = false,
         NTransactionClient::TTimestamp mountTimestamp = NTransactionClient::NullTimestamp) = 0;
 
     virtual void MountTablet(

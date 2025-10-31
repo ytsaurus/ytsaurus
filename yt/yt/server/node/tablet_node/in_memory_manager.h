@@ -74,6 +74,8 @@ struct IInMemoryManager
 {
     virtual TInMemoryChunkDataPtr EvictInterceptedChunkData(NChunkClient::TChunkId chunkId) = 0;
 
+    virtual TInMemoryChunkDataPtr GetInterceptedChunkData(NChunkClient::TChunkId chunkId) = 0;
+
     virtual void FinalizeChunk(NChunkClient::TChunkId chunkId, TInMemoryChunkDataPtr chunkData) = 0;
 
     virtual TInMemoryManagerConfigPtr GetConfig() const = 0;

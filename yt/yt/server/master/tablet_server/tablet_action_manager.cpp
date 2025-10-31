@@ -868,9 +868,17 @@ private:
             }
 
             case ETabletActionState::Frozen: {
+                auto* table = action->Tablets().front()->GetOwner();
+                bool retainPreloadedChunks = table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None &&
+                    action->GetKind() == ETabletActionKind::Reshard &&
+                    action->IsInplaceReshard();
                 for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
-                    Host_->UnmountTablet(tablet, /*force*/ false, /*onDestroy*/ false);
+                    Host_->UnmountTablet(
+                        tablet,
+                        /*force*/ false,
+                        /*onDestroy*/ false,
+                        retainPreloadedChunks);
                 }
 
                 ChangeTabletActionState(action, ETabletActionState::Unmounting);
@@ -1006,7 +1014,16 @@ private:
                     }
                 }
 
-                Host_->DoMountTablets(table, serializedTableSettings, assignment, action->GetFreeze());
+                bool useRetainedPreloadedChunks = table->GetInMemoryMode() != NTabletClient::EInMemoryMode::None &&
+                    action->GetKind() == ETabletActionKind::Reshard &&
+                    action->IsInplaceReshard();
+
+                Host_->DoMountTablets(
+                    table,
+                    serializedTableSettings,
+                    assignment,
+                    /*freeze*/ action->GetFreeze(),
+                    useRetainedPreloadedChunks);
 
                 ChangeTabletActionState(action, ETabletActionState::Mounting);
                 break;
