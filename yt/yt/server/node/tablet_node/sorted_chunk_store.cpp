@@ -353,6 +353,8 @@ void TSortedChunkStore::Initialize()
     } else {
         UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
     }
+
+    ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -423,23 +425,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto tabletBounds = MakeSingletonRowRange(tabletSnapshot->PivotKey, tabletSnapshot->NextPivotKey);
-
-    // Chunk view support.
-    TUnversionedRow lowerClipBound = tabletBounds.Front().first;
-    if (ReadRange_.Front().first) {
-        lowerClipBound = ReadRange_.Front().first;
-    }
-
-    TUnversionedRow upperClipBound = tabletBounds.Front().second;
-    if (ReadRange_.Front().second) {
-        upperClipBound = ReadRange_.Front().second;
-    }
+    auto lowerClipBound = std::max(tabletBounds.Front().first, ClippingRange_.Front().first);
+    auto upperClipBound = std::min(tabletBounds.Front().second, ClippingRange_.Front().second);
 
     ranges = NColumnarChunkFormat::ClipRanges(
         ranges,
         lowerClipBound,
         upperClipBound,
-        MakeSharedRangeHolder(ReadRange_.GetHolder(), tabletBounds.GetHolder()));
+        MakeSharedRangeHolder(ClippingRange_.GetHolder(), tabletBounds.GetHolder()));
 
     // Fast lane:
     // - ranges do not intersect with chunk view;

@@ -19,6 +19,7 @@ TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Do
     return TStartOperationRequest{
         .TaskType = taskType,
         .OperationParams = operationParams,
+        .SessionId = "test-session-id",
         .IdempotencyKey = "IdempotencyKey",
         .ClusterConnections = {
             {TFmrTableId("Cluster", "Path"), TClusterConnection{.TransactionId = "transaction_id", .YtServerName = "fake.yt.yandex.net", .Token = "token"}}
@@ -38,6 +39,7 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
         TFmrCoordinatorClientSettings coordinatorClientSettings{.Port = port};
         auto coordinatorClient = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
+        coordinator->OpenSession({.SessionId = "test-session-id"}).GetValueSync();
         auto startOperationRequest = CreateOperationRequest();
         auto startOperationResponse = coordinatorClient->StartOperation(startOperationRequest).GetValueSync();
         UNIT_ASSERT_VALUES_EQUAL(startOperationResponse.Status, EOperationStatus::Accepted);
@@ -53,6 +55,7 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
 
         TFmrCoordinatorClientSettings coordinatorClientSettings{.Port = port};
         auto coordinatorClient = MakeFmrCoordinatorClient(coordinatorClientSettings);
+        coordinator->OpenSession({.SessionId = "test-session-id"}).GetValueSync();
         auto startOperationResponse = coordinatorClient->StartOperation(CreateOperationRequest()).GetValueSync();
         TString operationId = startOperationResponse.OperationId;
         auto getOperationResponse = coordinatorClient->GetOperation({operationId}).GetValueSync();
@@ -71,6 +74,7 @@ Y_UNIT_TEST_SUITE(CoordinatorServerTests) {
         TFmrCoordinatorClientSettings coordinatorClientSettings{.Port = port};
         auto coordinatorClient = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
+        coordinator->OpenSession({.SessionId = "test-session-id"}).GetValueSync();
         auto startOperationResponse = coordinatorClient->StartOperation(CreateOperationRequest()).GetValueSync();
         TString operationId = startOperationResponse.OperationId;
         auto deleteOperationResponse = coordinatorClient->DeleteOperation({operationId}).GetValueSync();

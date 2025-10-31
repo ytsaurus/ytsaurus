@@ -23,7 +23,10 @@ enum class EOperationHandler {
     GetFmrTableInfo,
     ClearSession,
     DropTables,
-    Ping
+    Ping,
+    OpenSession,
+    PingSession,
+    ListSessions
 };
 
 class TReplier: public TRequestReplier {
@@ -86,6 +89,15 @@ private:
             return EOperationHandler::DropTables;
         } else if (queryPath == "ping") {
             return EOperationHandler::Ping;
+        } else if (queryPath == "open_session") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::OpenSession;
+        } else if (queryPath == "ping_session") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::PingSession;
+        } else if (queryPath == "list_sessions") {
+            YQL_ENSURE(httpRequest.Method == "GET");
+            return EOperationHandler::ListSessions;
         }
         return Nothing();
     }
@@ -108,7 +120,9 @@ public:
         THandler clearSessionHandler = std::bind(&TFmrCoordinatorServer::ClearSessionHandler, this, std::placeholders::_1);
         THandler dropTablesHandler = std::bind(&TFmrCoordinatorServer::DropTablesHandler, this, std::placeholders::_1);
         THandler pingHandler = std::bind(&TFmrCoordinatorServer::PingHandler, this, std::placeholders::_1);
-
+        THandler openSessionHandler = std::bind(&TFmrCoordinatorServer::OpenSessionHandler, this, std::placeholders::_1);
+        THandler pingSessionHandler = std::bind(&TFmrCoordinatorServer::PingSessionHandler, this, std::placeholders::_1);
+        THandler listSessionsHandler = std::bind(&TFmrCoordinatorServer::ListSessionsHandler, this, std::placeholders::_1);
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
             {EOperationHandler::StartOperation, startOperationHandler},
@@ -118,7 +132,10 @@ public:
             {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler},
             {EOperationHandler::ClearSession, clearSessionHandler},
             {EOperationHandler::DropTables, dropTablesHandler},
-            {EOperationHandler::Ping, pingHandler}
+            {EOperationHandler::Ping, pingHandler},
+            {EOperationHandler::OpenSession, openSessionHandler},
+            {EOperationHandler::PingSession, pingSessionHandler},
+            {EOperationHandler::ListSessions, listSessionsHandler}
         };
     }
 
@@ -248,6 +265,48 @@ private:
 
     THttpResponse PingHandler(THttpInput& /*input*/) {
         THttpResponse httpResponse(HTTP_OK);
+        return httpResponse;
+    }
+
+    THttpResponse OpenSessionHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TOpenSessionRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->OpenSession(OpenSessionRequestFromProto(protoRequest)).GetValueSync();
+        auto protoResponse = OpenSessionResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse PingSessionHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TPingSessionRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->PingSession(PingSessionRequestFromProto(protoRequest)).GetValueSync();
+        auto protoResponse = PingSessionResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse ListSessionsHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+        NProto::TListSessionsRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->ListSessions(ListSessionsRequestFromProto(protoRequest)).GetValueSync();
+        auto protoResponse = ListSessionsResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
         return httpResponse;
     }
 };

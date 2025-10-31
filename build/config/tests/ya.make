@@ -8,4 +8,5 @@ RECURSE(
     py_style
     ruff
     json_style
+    yaml_style
 )
