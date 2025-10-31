@@ -54,7 +54,7 @@ public:
     void UnscheduleRotation() override;
     void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore) override;
 
-    void AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint) override;
+    void AddStore(IStorePtr store, TAddStoreOptions options) override;
     void BulkAddStores(TRange<IStorePtr> stores) override;
     void CreateActiveStore(TDynamicStoreId hintId = {}) override;
 
@@ -91,8 +91,7 @@ public:
     void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-        bool createDynamicStore,
-        const NTabletNode::NProto::TMountHint& mountHint) override;
+        TMountOptions options) override;
     void Remount(const TTableSettings& settings) override;
 
     void PopulateReplicateTabletContentRequest(

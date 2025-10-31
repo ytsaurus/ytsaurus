@@ -262,6 +262,25 @@ public:
         return chunkData;
     }
 
+    TInMemoryChunkDataPtr GetInterceptedChunkData(TChunkId chunkId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(InterceptedDataSpinLock_);
+
+        auto chunkData = GetOrDefault(ChunkIdToData_, chunkId);
+
+        guard.Release();
+
+        if (chunkData) {
+            YT_LOG_INFO("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
+                chunkId,
+                chunkData->InMemoryMode);
+        }
+
+        return chunkData;
+    }
+
     void FinalizeChunk(TChunkId chunkId, TInMemoryChunkDataPtr chunkData) override
     {
         {

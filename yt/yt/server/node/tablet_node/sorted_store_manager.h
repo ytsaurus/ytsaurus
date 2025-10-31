@@ -86,8 +86,7 @@ public:
     void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-        bool createDynamicStore,
-        const NTabletNode::NProto::TMountHint& mountHint) override;
+        TMountOptions options) override;
     void Remount(const TTableSettings& settings) override;
 
     void PopulateReplicateTabletContentRequest(
@@ -95,9 +94,7 @@ public:
 
     void AddStore(
         IStorePtr store,
-        bool useInterceptedChunkData,
-        bool onFlush,
-        TPartitionId partitionIdHint = {}) override;
+        TAddStoreOptions options) override;
     void BulkAddStores(TRange<IStorePtr> stores) override;
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;

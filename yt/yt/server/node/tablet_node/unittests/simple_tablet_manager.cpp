@@ -106,7 +106,13 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         InitializeStoreManager(sorted);
 
         StoreManager_->StartEpoch(nullptr);
-        StoreManager_->Mount({}, {}, true, NProto::TMountHint{});
+        StoreManager_->Mount(
+            /*storeDescriptors*/ {},
+            /*hunkChunkDescriptors*/ {},
+            TMountOptions{
+                .CreateDynamicStore = true,
+            });
+
     })
         .AsyncVia(AutomatonInvoker_)
         .Run())

@@ -410,8 +410,10 @@ protected:
         storeManager->Mount(
             addStoreDescriptors,
             /*hunkChunkDescriptors*/ {},
-            /*createDynamicStore*/ true,
-            mountHint);
+            TMountOptions{
+                .CreateDynamicStore = true,
+                .MountHint = &mountHint,
+            });
 
         IsMounted_ = true;
     }

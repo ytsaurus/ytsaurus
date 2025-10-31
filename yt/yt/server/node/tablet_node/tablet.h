@@ -670,6 +670,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, OutOfBandRotationRequested);
 
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PreloadedChunkRetentionRequired);
+
     DEFINE_BYREF_RW_PROPERTY(ITabletHedgingManagerRegistryPtr, HedgingManagerRegistry);
 
     DEFINE_BYREF_RW_PROPERTY(TRawTableSettings, RawSettings);

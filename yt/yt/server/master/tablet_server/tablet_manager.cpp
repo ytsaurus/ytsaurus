@@ -1021,6 +1021,7 @@ public:
             serializedTableSettings,
             assignment,
             freeze,
+            /*useRetainedPreloadedChunks*/ false,
             mountTimestamp);
 
         UpdateTabletState(table);
@@ -3048,6 +3049,7 @@ private:
         const TSerializedTabletOwnerSettings& serializedTableSettings,
         const std::vector<std::pair<TTabletBase*, TTabletCell*>>& assignment,
         bool freeze,
+        bool useRetainedPreloadedChunks = false,
         TTimestamp mountTimestamp = NullTimestamp) override
     {
         if (IsTableType(table->GetType())) {
@@ -3111,6 +3113,7 @@ private:
                         std::get<TSerializedTableSettings>(serializedTableSettings),
                         cell,
                         freeze,
+                        useRetainedPreloadedChunks,
                         mountTimestamp);
                     break;
 
@@ -3212,6 +3215,7 @@ private:
         const TSerializedTableSettings& serializedTableSettings,
         TTabletCell* cell,
         bool freeze,
+        bool useRetainedPreloadedChunks,
         TTimestamp mountTimestamp)
     {
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -3240,6 +3244,7 @@ private:
 
             req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
             req.set_freeze(freeze);
+            req.set_use_retained_preloaded_chunks(useRetainedPreloadedChunks);
 
             if (table->IsReplicated()) {
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
@@ -6484,7 +6489,8 @@ private:
     void DoUnmountTablet(
         TTablet* tablet,
         bool force,
-        bool onDestroy)
+        bool onDestroy,
+        bool retainPreloadedChunks)
     {
         if (tablet->GetState() == ETabletState::Unmounted) {
             return;
@@ -6515,6 +6521,7 @@ private:
         TReqUnmountTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_force(force);
+        request.set_retain_preloaded_chunks(retainPreloadedChunks);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(force
@@ -6586,11 +6593,16 @@ private:
     void UnmountTablet(
         TTabletBase* tablet,
         bool force,
-        bool onDestroy) override
+        bool onDestroy,
+        bool retainPreloadedChunks = false) override
     {
         switch (tablet->GetType()) {
             case EObjectType::Tablet:
-                DoUnmountTablet(tablet->As<TTablet>(), force, onDestroy);
+                DoUnmountTablet(
+                    tablet->As<TTablet>(),
+                    force,
+                    onDestroy,
+                    retainPreloadedChunks);
                 break;
             case EObjectType::HunkTablet:
                 DoUnmountHunkTablet(tablet->As<THunkTablet>(), force);

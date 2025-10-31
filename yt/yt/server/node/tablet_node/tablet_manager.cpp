@@ -8,6 +8,7 @@
 #include "config.h"
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
+#include "in_memory_manager.h"
 #include "min_hash_digest_fetcher.h"
 #include "ordered_chunk_store.h"
 #include "ordered_dynamic_store.h"
@@ -1230,6 +1231,7 @@ private:
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMovementTarget = request->has_movement_source_cell_id();
+        auto useRetainedPreloadedChunks = request->use_retained_preloaded_chunks();
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
@@ -1305,8 +1307,11 @@ private:
         storeManager->Mount(
             TRange(GET_FROM_REPLICATABLE(stores)),
             TRange(GET_FROM_REPLICATABLE(hunk_chunks)),
-            /*createDynamicStore*/ !freeze && !isSmoothMovementTarget,
-            mountHint);
+            TMountOptions{
+                .CreateDynamicStore = !freeze && !isSmoothMovementTarget,
+                .UseRetainedPreloadedChunks = useRetainedPreloadedChunks,
+                .MountHint = &mountHint,
+            });
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
         tablet->SetLastStableState(tablet->GetState());
@@ -1537,6 +1542,8 @@ private:
         if (!tablet) {
             return;
         }
+
+        tablet->SetPreloadedChunkRetentionRequired(request->retain_preloaded_chunks());
 
         if (request->force()) {
             YT_LOG_INFO("Tablet is forcefully unmounted (%v)",
@@ -2038,6 +2045,26 @@ private:
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
                 PostMasterMessage(tablet, response);
+
+                if (tablet->IsPreloadedChunkRetentionRequired() &&
+                    tablet->GetSettings().MountConfig->InMemoryMode != EInMemoryMode::None)
+                {
+                    YT_LOG_INFO("Tablet is retaining chunks (%v)",
+                        tablet->GetLoggingTag());
+                    const auto& inMemoryManager = Bootstrap_->GetInMemoryManager();
+                    for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+                        if (!store->IsChunk() || store->IsEmpty()) {
+                            continue;
+                        }
+
+                        auto chunkStore = store->AsChunk();
+                        if (auto chunkData = chunkStore->GetInMemoryChunkData()) {
+                            inMemoryManager->FinalizeChunk(
+                                chunkStore->GetChunkId(),
+                                chunkData);
+                        }
+                    }
+                }
 
                 TabletMap_.Remove(tablet->GetId());
 
@@ -2938,8 +2965,10 @@ private:
             store->Initialize();
             storeManager->AddStore(
                 store,
-                /*useInterceptedChunkData*/ true,
-                /*onFlush*/ updateReason == ETabletStoresUpdateReason::Flush);
+                TAddStoreOptions{
+                    .UseInterceptedChunkData = true,
+                    .OnFlush = updateReason == ETabletStoresUpdateReason::Flush,
+                });
             addedStores.push_back(store);
 
             TStoreId backingStoreId;

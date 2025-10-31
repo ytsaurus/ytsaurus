@@ -139,6 +139,7 @@ message TReqMountTablet
     optional NYT.NProto.TGuid movement_source_cell_id = 33;
     optional uint64 movement_source_mount_revision = 34;
     optional NYT.NProto.TGuid movement_source_avenue_endpoint_id = 35;
+    optional bool use_retained_preloaded_chunks = 37;
     required int32 serialization_type = 36 [default = 0]; // ETabletTransactionSerializationType [default = Coarse]
 
     required TEssentialTabletContent essential_content = 31;
@@ -209,6 +210,7 @@ message TReqUnmountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required bool force = 2;
+    optional bool retain_preloaded_chunks = 3;
 }
 
 message TReqRemountTablet
