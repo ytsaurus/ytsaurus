@@ -113,6 +113,12 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         TTimestamp timestamp) override
     {
+        tabletSnapshot->ValidateServantIsActive(
+            Bootstrap_
+                ->GetClient()
+                ->GetNativeConnection()
+                ->GetCellDirectory());
+
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
             if (!hydraManager->IsActiveLeader()) {
@@ -129,12 +135,6 @@ public:
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
             }
         }
-
-        tabletSnapshot->ValidateServantIsActive(
-            Bootstrap_
-                ->GetClient()
-                ->GetNativeConnection()
-                ->GetCellDirectory());
     }
 
     void ValidateBundleNotBanned(
@@ -217,14 +217,20 @@ public:
 
                 snapshot->Unregistered.store(true);
 
-                YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled (TabletId: %v, CellId: %v)",
-                    tablet->GetId(),
-                    slot->GetCellId());
+                auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
+                    Config_->TabletSnapshotEvictionTimeout);
+
+                YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
+                    "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
+                    snapshot->LoggingTag,
+                    snapshot->MountRevision,
+                    slot->GetCellId(),
+                    evictionTimeout);
 
                 TDelayedExecutor::Submit(
                     BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
                         .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
-                    Config_->TabletSnapshotEvictionTimeout);
+                    evictionTimeout);
 
                 break;
             }

@@ -607,6 +607,8 @@ struct TSmoothMovementTrackerDynamicConfig
 
     TDuration PreloadWaitTimeout;
 
+    TDuration SourceTabletSnapshotEvictionTimeout;
+
     REGISTER_YSON_STRUCT(TSmoothMovementTrackerDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -686,6 +686,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TLookupHeavyHitters, LookupHeavyHitters);
 
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, SnapshotEvictionTimeout);
+
 public:
     TTablet(
         TTabletId tabletId,
