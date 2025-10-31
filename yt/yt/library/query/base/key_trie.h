@@ -40,10 +40,10 @@ struct TKeyTrie
 {
     size_t Offset = 0;
 
-    std::vector<std::pair<TValue, TKeyTriePtr>> Next; // TODO: rename to Following
+    std::vector<std::pair<TValue, TKeyTriePtr>> Next;
     std::vector<TBound> Bounds;
 
-    TKeyTrie(size_t offset)
+    explicit TKeyTrie(size_t offset)
         : Offset(offset)
     { }
 

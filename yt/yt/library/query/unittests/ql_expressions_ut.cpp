@@ -226,7 +226,6 @@ class TExtractSubexpressionPredicateTest
 protected:
     void SetUp() override
     { }
-
 };
 
 TEST_P(TExtractSubexpressionPredicateTest, Simple)
@@ -2441,7 +2440,6 @@ TEST_F(TArithmeticExpressionTest, Test)
 
                         for (auto lhsValue : GetValuesForType(lhsType)) {
                             for (auto rhsValue : GetValuesForType(rhsType)) {
-
                                 if (IsExceptionCase(op, castedType, lhsValue, rhsValue)) {
                                     continue;
                                 }
@@ -2539,7 +2537,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
             New<TLiteralExpression>(EValueType::Boolean, rhs));
 
         Evaluate(firstExpression, New<TTableSchema>(), buffer, row, [&] (const TUnversionedValue& result) {
-            EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+            EXPECT_EQ(CompareRowValues(result, expected), 0);
         });
     }
 
@@ -2549,7 +2547,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
             New<TLiteralExpression>(EValueType::Boolean, lhs));
 
         Evaluate(secondExpression, New<TTableSchema>(), buffer, row, [&] (const TUnversionedValue& result) {
-            EXPECT_TRUE(CompareRowValues(result, expected) == 0);
+            EXPECT_EQ(CompareRowValues(result, expected), 0);
         });
     }
 }

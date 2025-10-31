@@ -317,7 +317,6 @@ std::string TRandomExpressionGenerator::GenerateExpression2()
         result += Rng.Uniform(4) == 0 ? " OR " : " AND ";
         result += Rng.Uniform(4) == 0 ? " NOT " : "";
         result += GenerateRelation(1);
-
     }
     return result;
 }

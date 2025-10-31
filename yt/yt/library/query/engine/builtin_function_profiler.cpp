@@ -104,7 +104,6 @@ public:
         YT_VERIFY(nullableArgs.size() == 3);
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
-
 };
 
 TStringBuf GetUpperBound(TStringBuf source, TChunkedMemoryPool* memoryPool)
@@ -716,7 +715,6 @@ private:
 
         return functionProfilers;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1307,7 +1305,7 @@ public:
             Value* aggregateLength = unpacked[1].GetLength();
 
             Value* compareResult;
-            if (Function_ == "argmin"){
+            if (Function_ == "argmin") {
                 compareResult = CodegenCompare(
                     builder,
                     argumentTypes[1],

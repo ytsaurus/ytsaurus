@@ -243,7 +243,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashInt64ScalarBB = nullptr;
     {
@@ -270,7 +270,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashStringBB = nullptr;
     {
@@ -300,7 +300,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashAnyBB = nullptr;
     {
@@ -330,7 +330,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     builder->SetInsertPoint(gotoHashBB);
 
@@ -1320,7 +1320,6 @@ TCodegenExpression MakeCodegenLiteralExpr(
                 type,
                 "literal." + Twine(index))
                 .Steal();
-
         };
 }
 
@@ -2626,7 +2625,6 @@ TLlvmClosure MakeConsumerWithPIConversion(
     size_t consumerSlot,
     const std::vector<int>& stringLikeColumnIndices)
 {
-
     return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name, [
             consumerSlot,
             stringLikeColumnIndices = std::move(stringLikeColumnIndices)
@@ -2712,7 +2710,6 @@ size_t MakeCodegenNestedGroupOp(
         stateTypes = std::move(stateTypes),
         comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
-
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "NestedGroupCollect", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
@@ -3538,7 +3535,6 @@ size_t MakeCodegenOnceOp(
         =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-
         using TBool = NCodegen::TTypes::i<1>;
         auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
@@ -4150,7 +4146,6 @@ size_t MakeCodegenOffsetLimiterOp(
         =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-
         // index = 0
         Value* indexPtr = builder->CreateAlloca(builder->getInt64Ty(), nullptr, "indexPtr");
         builder->CreateStore(builder->getInt64(0), indexPtr);

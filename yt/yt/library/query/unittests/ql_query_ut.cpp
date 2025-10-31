@@ -82,7 +82,6 @@ protected:
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
-
 };
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -1494,7 +1493,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls3)
         split,
         source,
         ResultMatcher(result),
-        {.UseCanonicalNullRelations=true});
+        {.UseCanonicalNullRelations = true});
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
@@ -1747,7 +1746,7 @@ TEST_F(TQueryEvaluateTest, BigIn)
     TStringBuilder inBuilder;
     inBuilder.AppendString("a in (");
 
-    for (int i = 0; i < 50; ++ i) {
+    for (int i = 0; i < 50; ++i) {
         if (i != 0) {
             inBuilder.AppendString(", ");
         }
@@ -1832,7 +1831,7 @@ TEST_F(TQueryEvaluateTest, BigTransform)
     TStringBuilder transformBuilder;
     transformBuilder.AppendString("transform(a, (");
 
-    for (int i = -50; i < 50; ++ i) {
+    for (int i = -50; i < 50; ++i) {
         if (i != -50) {
             transformBuilder.AppendString(", ");
         }
@@ -1841,7 +1840,7 @@ TEST_F(TQueryEvaluateTest, BigTransform)
 
     transformBuilder.AppendString("), (");
 
-    for (int i = -50; i < 50; ++ i) {
+    for (int i = -50; i < 50; ++i) {
         if (i != -50) {
             transformBuilder.AppendString(", ");
         }
@@ -4382,7 +4381,7 @@ TEST_F(TQueryEvaluateTest, InputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit=3});
+    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit = 3});
 
     SUCCEED();
 }
@@ -4412,7 +4411,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit)
         "a=4;b=40"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit=3});
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit = 3});
 
     SUCCEED();
 }
@@ -4433,7 +4432,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(YsonToRow(std::string() + "x=" + std::to_string(10000), resultSplit, false));
 
-    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit=100});
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit = 100});
 
     SUCCEED();
 }
@@ -4458,7 +4457,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit3)
         result.push_back(YsonToRow(Format("a=%v", i), resultSplit, false));
     }
 
-    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), {.OutputRowLimit=10});
+    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), {.OutputRowLimit = 10});
 
     SUCCEED();
 }
@@ -4604,7 +4603,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         {{"//t", split}},
         {source},
         ResultMatcher(resultWithSplit),
-        {.ExecutionBackend=EExecutionBackend::Native});
+        {.ExecutionBackend = EExecutionBackend::Native});
 
     SUCCEED();
 }
@@ -5041,7 +5040,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
         "x=4",
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=4});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit = 4});
 
     SUCCEED();
 }
@@ -5084,7 +5083,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
         "x=1"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=5});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit = 5});
 
     SUCCEED();
 }
@@ -5130,7 +5129,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "x=3"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit=4});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit = 4});
 
     result = YsonToRows({
         "x=1",
@@ -5196,7 +5195,6 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
         "\"a.ut\"=4;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
         "\"a.ut\"=5;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
         "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
-
     }, resultSplit);
 
     for (size_t limit = 1; limit <= 6; ++limit) {
@@ -5562,7 +5560,6 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
         "d=3;e=4;f=10",
         "d=4;e=7;f=14",
         "d=4;e=8;f=13",
-
     });
 
     auto resultSplit = MakeSplit({
@@ -8321,7 +8318,6 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
         split,
         source,
         ResultMatcher(result));
-
 }
 
 TEST_F(TQueryEvaluateTest, Casts)
@@ -9137,7 +9133,7 @@ TEST_P(TQueryEvaluatePlaceholdersTest, Simple)
     const auto& placeholders = TYsonStringBuf(std::get<1>(args));
     const auto& result = std::get<2>(args);
 
-    Evaluate(query, split, source, ResultMatcher(result), {.PlaceholderValues=placeholders});
+    Evaluate(query, split, source, ResultMatcher(result), {.PlaceholderValues = placeholders});
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -9176,7 +9172,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
         auto source = TSource{ R"(a="1";b="2")", };
         auto result = std::vector<TOwningRow>{};
         Evaluate("b from [//t] where a = {a}", split, source, ResultMatcher(result), {
-            .PlaceholderValues=TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
+            .PlaceholderValues = TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
         });
     }
 
@@ -9191,7 +9187,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
 
         EXPECT_THROW_THAT(
             Evaluate("b from [//t] where a = {a}", split, source, AnyMatcher, {
-                .PlaceholderValues=TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv},
+                .PlaceholderValues = TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv},
             }),
             HasSubstr("Type mismatch in expression"));
     }
@@ -9956,7 +9952,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
     Evaluate("greatest(d) as r1, greatest(%false, d) as r2 FROM [//t]", split, source, resultMatcherBool);
     Evaluate("greatest(e) as r1, greatest('ada', e) as r2 FROM [//t]", split, source, resultMatcherString);
 
-   SUCCEED();
+    SUCCEED();
 }
 
 
@@ -11088,8 +11084,7 @@ INSTANTIATE_TEST_SUITE_P(
             "Reference expression index is out of bounds"),
         std::make_tuple(
             "avg(a % 2) from `//t` group by 1",
-            "Misuse of aggregate function \"avg\"")
-   ));
+            "Misuse of aggregate function \"avg\"")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

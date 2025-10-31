@@ -21,7 +21,7 @@ TShuffleNavigator ConstructNavigatorFromPivots(std::vector<TOwningRow> pivots, i
         "The first pivot must be an empty row");
 
     TShuffleNavigator navigator{
-        .PrefixHint=prefixHint,
+        .PrefixHint = prefixHint,
     };
     navigator.DestinationMap.reserve(pivots.size());
     for (int index = 0; index < std::ssize(pivots); ++index) {
@@ -135,7 +135,7 @@ TEST(TShuffleTest, MultirangeDestination)
 {
     auto rowBuffer = New<TRowBuffer>();
     TShuffleNavigator navigator = {
-        .DestinationMap={
+        .DestinationMap = {
             {"node-0", MakeSharedRange(std::vector<TKeyRange>{
                 {MakeUnversionedOwningRow(), MakeUnversionedOwningRow(1, 100)},
                 {MakeUnversionedOwningRow(2, 200), MakeUnversionedOwningRow(3, 300)},
@@ -145,7 +145,7 @@ TEST(TShuffleTest, MultirangeDestination)
                 {MakeUnversionedOwningRow(1, 100), MakeUnversionedOwningRow(2, 200)},
             })},
         },
-        .PrefixHint=2,
+        .PrefixHint = 2,
     };
 
     std::vector<TOwningRow> owningRows;

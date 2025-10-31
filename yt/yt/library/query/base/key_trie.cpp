@@ -378,10 +378,10 @@ void GetRangesFromTrieWithinRangeImpl(
         if (trieOffset > offset) {
             if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
                 prefix.emplace_back(keyRange.first[offset]);
-                states.push_back(TState{.Trie=trie, .Prefix=std::move(prefix), .RefineLower=true, .RefineUpper=true});
+                states.push_back(TState{.Trie = trie, .Prefix = std::move(prefix), .RefineLower = true, .RefineUpper = true});
             } else if (trie && insertUndefined) {
                 prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::TheBottom));
-                states.push_back(TState{.Trie=trie, .Prefix=std::move(prefix), .RefineLower=false, .RefineUpper=false});
+                states.push_back(TState{.Trie = trie, .Prefix = std::move(prefix), .RefineLower = false, .RefineUpper = false});
             } else {
                 TMutableRowRange range;
                 for (size_t i = 0; i < offset; ++i) {

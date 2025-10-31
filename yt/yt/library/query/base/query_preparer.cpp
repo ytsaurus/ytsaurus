@@ -642,7 +642,7 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
             functions);
 
         if (alias) {
-            TAddAliasRewriter addAliasRewriter{.Alias=alias};
+            TAddAliasRewriter addAliasRewriter{.Alias = alias};
             evaluatedColumnExpression = addAliasRewriter.Visit(evaluatedColumnExpression);
         }
 
@@ -727,16 +727,16 @@ TJoinClausePtr BuildJoinClause(
         }
 
         selfEquations.push_back({
-            .Expression=New<TReferenceExpression>(selfColumnType, columnName),
-            .Evaluated=false,
+            .Expression = New<TReferenceExpression>(selfColumnType, columnName),
+            .Evaluated = false,
         });
         foreignEquations.push_back(New<TReferenceExpression>(foreignColumnType, columnName));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
         selfEquations.push_back({
-            .Expression=ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)),
-            .Evaluated=false,
+            .Expression = ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)),
+            .Evaluated = false,
         });
     }
     for (const auto& argument : tableJoin.Rhs) {
@@ -791,12 +791,12 @@ TJoinClausePtr BuildJoinClause(
                 functions);
 
             if (auto& alias = tableJoin.Table.Alias) {
-                TAddAliasRewriter addAliasRewriter{.Alias=*alias};
+                TAddAliasRewriter addAliasRewriter{.Alias = *alias};
                 evaluatedColumnExpression = addAliasRewriter.Visit(evaluatedColumnExpression);
             }
             TSelfifyRewriter selfifyRewriter{
-                .SelfEquations=selfEquations,
-                .ForeignReferenceToIndexMap=foreignReferenceToIndexMap,
+                .SelfEquations = selfEquations,
+                .ForeignReferenceToIndexMap = foreignReferenceToIndexMap,
             };
 
             auto matchingSelfExpression = selfifyRewriter.Visit(evaluatedColumnExpression);
@@ -827,8 +827,8 @@ TJoinClausePtr BuildJoinClause(
             foreignBuilder->ResolveColumn(foreignKeyColumnReference);
 
             keySelfEquations.push_back({
-                .Expression=std::move(matchingSelfExpression),
-                .Evaluated=false,
+                .Expression = std::move(matchingSelfExpression),
+                .Evaluated = false,
             });
             keyForeignEquations.push_back(New<TReferenceExpression>(
                 foreignKeyColumn.LogicalType(),

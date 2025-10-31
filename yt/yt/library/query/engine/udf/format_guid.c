@@ -44,30 +44,30 @@ const ui16 HexDigits2[256] = {
         WRITE_HEX2((x >> 24) & 0xff); \
         WRITE_HEX2((x >> 16) & 0xff); \
         WRITE_HEX2((x >>  8) & 0xff); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x1000000) { \
-        WRITE_HEX1( x >> 24); \
+        WRITE_HEX1((x >> 24)); \
         WRITE_HEX2((x >> 16) & 0xff); \
         WRITE_HEX2((x >>  8) & 0xff); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x100000) { \
         WRITE_HEX2((x >> 16) & 0xff); \
         WRITE_HEX2((x >>  8) & 0xff); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x10000) { \
-        WRITE_HEX1( x >> 16); \
+        WRITE_HEX1((x >> 16)); \
         WRITE_HEX2((x >>  8) & 0xff); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x1000) { \
-        WRITE_HEX2( x >> 8); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX2((x) >> 8); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x100) { \
-        WRITE_HEX1( x >> 8); \
-        WRITE_HEX2( x        & 0xff); \
+        WRITE_HEX1((x >> 8)); \
+        WRITE_HEX2((x)       & 0xff); \
     } else if (x >= 0x10) { \
-        WRITE_HEX2( x); \
+        WRITE_HEX2((x)); \
     } else { \
-        WRITE_HEX1( x); \
+        WRITE_HEX1((x)); \
     } \
 
 void format_guid(

@@ -670,7 +670,6 @@ public:
 
         return *cachedEvaluator;
     }
-
 };
 
 IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config)

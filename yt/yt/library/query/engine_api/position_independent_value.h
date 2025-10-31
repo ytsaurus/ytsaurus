@@ -139,6 +139,6 @@ T FromPositionIndependentValue(const TPIValue& positionIndependentValue);
 
 } // namespace NYT::NQueryClient
 
-#define POSITION_INDEPENDENT_VALUE_INL_H
+#define POSITION_INDEPENDENT_VALUE_INL_H_
 #include "position_independent_value-inl.h"
-#undef POSITION_INDEPENDENT_VALUE_INL_H
+#undef POSITION_INDEPENDENT_VALUE_INL_H_

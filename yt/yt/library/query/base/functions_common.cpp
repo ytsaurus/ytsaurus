@@ -53,7 +53,6 @@ void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBu
                 isFirst = false;
             }
             builder->AppendFormat("%lv", type);
-
         });
         builder->AppendString("}");
     }

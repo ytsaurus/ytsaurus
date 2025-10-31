@@ -109,7 +109,7 @@ struct TLikeExpressionContext
 {
     const std::unique_ptr<re2::RE2> PrecompiledRegex;
 
-    TLikeExpressionContext(std::unique_ptr<re2::RE2> precompiledRegex)
+    explicit TLikeExpressionContext(std::unique_ptr<re2::RE2> precompiledRegex)
         : PrecompiledRegex(std::move(precompiledRegex))
     { }
 };

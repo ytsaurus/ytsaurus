@@ -765,8 +765,6 @@ bool Compare(
     TConstExpressionPtr rhs,
     std::function<bool(const std::string&, const std::string&)> referenceComparer)
 {
-
-
     CHECK(*lhs->LogicalType == *rhs->LogicalType);
 
     if (auto literalLhs = lhs->As<TLiteralExpression>()) {
@@ -998,7 +996,7 @@ void SerializeLogicalType(auto proto, auto wireProto, auto logicalProto, TLogica
 
     (proto->*wireProto)(ToProto(wireType));
 
-    //ToQLType: uint8 -> uint64
+    // ToQLType: uint8 -> uint64
 
     if (!IsV1Type(logicalType) ||
         *logicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))

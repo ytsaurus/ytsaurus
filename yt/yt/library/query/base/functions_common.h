@@ -41,7 +41,7 @@ public:
         : Value_(value)
     { }
 
-    TTypeSet(TRange<EValueType> values)
+    explicit TTypeSet(TRange<EValueType> values)
         : Value_(0)
     {
         Assign(values.begin(), values.end());
@@ -104,7 +104,6 @@ public:
 
 private:
     ui64 Value_ = 0;
-
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBuf spec);

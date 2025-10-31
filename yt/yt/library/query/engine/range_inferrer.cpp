@@ -109,7 +109,7 @@ public:
         while (!CurrentQueue_.empty() && CurrentQueue_.top().first == Delta_) {
             auto top = CurrentQueue_.top();
             CurrentQueue_.pop();
-            if (top.second + Delta_ >= Delta_ ) {
+            if (top.second + Delta_ >= Delta_) {
                 CurrentQueue_.emplace(top.second + Delta_, top.second);
             }
         }
@@ -829,7 +829,6 @@ TSharedRange<TRowRange> CreateRangeInferrer(
             keyColumns,
             rangeExtractors,
             options);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
