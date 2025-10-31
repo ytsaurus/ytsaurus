@@ -107,13 +107,22 @@ func (t *textFollower) lineEndPosition() FilePosition {
 	remainingBytes := int64(t.end - t.scanEnd)
 	if (t.file.FilePosition().BlockPhysicalOffset > 0 || t.file.FilePosition().InsideBlockOffset > 0) &&
 		t.file.FilePosition().InsideBlockOffset < remainingBytes {
-		panic("textFollower: InsideBlockOffset < remainingBytes for compressed file")
+		panic(fmt.Sprintf("textFollower: InsideBlockOffset (%d) < remainingBytes (%d) for compressed file", t.file.FilePosition().InsideBlockOffset, remainingBytes))
 	}
 
 	return FilePosition{
 		LogicalOffset:       t.file.FilePosition().LogicalOffset - remainingBytes,
 		BlockPhysicalOffset: t.file.FilePosition().BlockPhysicalOffset,
 		InsideBlockOffset:   max(0, t.file.FilePosition().InsideBlockOffset-remainingBytes), // 0 for uncompressed file
+	}
+}
+
+func (t *textFollower) emitAllLines(ctx context.Context, emit EmitFunc[TextLine]) {
+	for t.searchLineEnd() {
+		t.emitLine(ctx, emit)
+	}
+	if t.scanEnd != t.end {
+		panic(fmt.Sprintf("internal error end != scanEnd: %v != %v", t.end, t.scanEnd))
 	}
 }
 
@@ -171,13 +180,7 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 			break
 		}
 
-		for t.searchLineEnd() {
-			t.emitLine(ctx, emit)
-		}
-
-		if t.scanEnd != t.end {
-			panic(fmt.Sprintf("internal error end != scanEnd: %v != %v", t.end, t.scanEnd))
-		}
+		t.emitAllLines(ctx, emit)
 
 		if t.end-t.begin > t.lineLimit {
 			t.emitLine(ctx, emit)
@@ -185,6 +188,8 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 			if err != nil {
 				break
 			}
+			// After skipBrokenLine, emit all remaining lines in buffer.
+			t.emitAllLines(ctx, emit)
 		}
 	}
 
