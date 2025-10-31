@@ -330,8 +330,6 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
-    registrar.Parameter("ui_origin", &TThis::UIOrigin)
-        .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
     registrar.Parameter("additional_system_libs", &TThis::AdditionalSystemLibs)
