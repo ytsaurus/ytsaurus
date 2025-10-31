@@ -4,6 +4,8 @@ import warnings
 
 import lib.spec
 import lib.runner
+from lib.reporter import create_test_run_reporter_config
+
 import yt.yt.experiments.public.new_stress_test.check_runner as check_runner
 
 import yt.wrapper as yt
@@ -51,7 +53,9 @@ def main():
         config["timeout"],
         config.get("transaction_title"),
         config.get("failure_expiration_timeout"),
-        config.get("success_expiration_timeout", config.get("expiration_timeout")))
+        config.get("success_expiration_timeout", config.get("expiration_timeout")),
+        test_run_reporter_config=create_test_run_reporter_config(iterative_config=config, iterative_spec=spec),
+    ),
 
 
 if __name__ == "__main__":
