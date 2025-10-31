@@ -221,7 +221,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        auto statistics = nodeTracker->GetAggregatedNodeStatistics();
+        auto statistics = Flavor_.has_value()
+            ? nodeTracker->GetFlavoredNodeStatistics(*Flavor_)
+            : nodeTracker->GetAggregatedNodeStatistics();
 
         switch (key) {
             case EInternedAttributeKey::Offline:
@@ -258,9 +260,10 @@ private:
                         YT_ABORT();
                 }
                 BuildYsonFluently(consumer)
-                    .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {
+                    .DoListFor(nodeTracker->Nodes(), [=, this] (TFluentList fluent, const std::pair<TObjectId, TNode*>& pair) {
                         auto* node = pair.second;
-                        if (IsObjectAlive(node) && node->GetAggregatedState() == state) {
+                        if (IsObjectAlive(node) && node->GetAggregatedState() == state &&
+                            (!Flavor_ || (Flavor_.has_value() && node->Flavors().contains(*Flavor_)))) {
                             fluent.Item().Value(node->GetDefaultAddress());
                         }
                     });
