@@ -216,7 +216,7 @@ void TCGExpressionInstance::Run(
 
 TCGExpressionInstance::operator bool() const
 {
-    return bool(Callback_);
+    return static_cast<bool>(Callback_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,7 +237,7 @@ TCGExpressionInstance TCGExpressionImage::Instantiate() const
 
 TCGExpressionImage::operator bool() const
 {
-    return bool(Callback_);
+    return static_cast<bool>(Callback_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

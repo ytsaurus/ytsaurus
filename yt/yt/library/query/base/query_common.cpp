@@ -166,7 +166,7 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
     if (value.Type == EValueType::Int64) {
         if (targetType == EValueType::Double) {
             auto int64Value = value.Data.Int64;
-            if (i64(double(int64Value)) != int64Value) {
+            if (static_cast<i64>(static_cast<double>(int64Value)) != int64Value) {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
             }
             value.Data.Double = int64Value;
@@ -181,7 +181,7 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
             }
         } else if (targetType == EValueType::Double) {
             auto uint64Value = value.Data.Uint64;
-            if (ui64(double(uint64Value)) != uint64Value) {
+            if (static_cast<ui64>(static_cast<double>(uint64Value)) != uint64Value) {
                 THROW_ERROR_EXCEPTION("Failed to cast %vu to double: inaccurate conversion", uint64Value);
             }
             value.Data.Double = uint64Value;
@@ -191,12 +191,12 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
     } else if (value.Type == EValueType::Double) {
         auto doubleValue = value.Data.Double;
         if (targetType == EValueType::Uint64) {
-            if (double(ui64(doubleValue)) != doubleValue) {
+            if (static_cast<double>(static_cast<ui64>(doubleValue)) != doubleValue) {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: inaccurate conversion", doubleValue);
             }
             value.Data.Uint64 = doubleValue;
         } else if (targetType == EValueType::Int64) {
-            if (double(i64(doubleValue)) != doubleValue) {
+            if (static_cast<double>(static_cast<i64>(doubleValue)) != doubleValue) {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to int64: inaccurate conversion", doubleValue);
             }
             value.Data.Int64 = doubleValue;

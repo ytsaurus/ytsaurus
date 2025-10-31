@@ -38,7 +38,7 @@ struct TMakeIntrinsic<TResult(TArgs...)>
     static WAVM::Intrinsics::Function IntrinsicFunction##intrinsic( \
         NWebAssembly::getIntrinsicModule_standard(), \
         #intrinsic, \
-        (void*)Intrinsic##intrinsic, \
+        reinterpret_cast<void*>(Intrinsic##intrinsic), \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
             std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(intrinsic) >::Get()) \
         }));

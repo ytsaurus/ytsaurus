@@ -59,6 +59,6 @@ private:
 
 } // namespace NYT::NQueryClient
 
-#define TOP_COLLECTOR_INL_H
+#define TOP_COLLECTOR_INL_H_
 #include "top_collector-inl.h"
-#undef TOP_COLLECTOR_INL_H
+#undef TOP_COLLECTOR_INL_H_

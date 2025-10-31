@@ -73,7 +73,7 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
-    TUnversionedValueCallingConvention(int repeatedArgIndex);
+    explicit TUnversionedValueCallingConvention(int repeatedArgIndex);
 
     TCGValue MakeCodegenFunctionCall(
         TCGBaseContext& baseBuilder,

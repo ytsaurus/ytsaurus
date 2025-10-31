@@ -1,5 +1,5 @@
-#ifndef POSITION_INDEPENDENT_VALUE_INL_H
-#error "Direct inclusion of this file is not allowed, position_independent_value.h"
+#ifndef POSITION_INDEPENDENT_VALUE_INL_H_
+#error "Direct inclusion of this file is not allowed, include position_independent_value.h"
 // For the sake of sane code completion.
 #include "position_independent_value.h"
 #endif

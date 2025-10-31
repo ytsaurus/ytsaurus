@@ -221,7 +221,10 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
-        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend(
+            "select t.k % 2 as a, "
+            "(select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested "
+            "from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),

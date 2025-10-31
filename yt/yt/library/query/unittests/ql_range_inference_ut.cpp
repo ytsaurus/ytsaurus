@@ -1116,7 +1116,7 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
     EXPECT_EQ(YsonToKey("2;40;" _MAX_), result[1].second);
 
     EXPECT_EQ(YsonToKey("3;50"), result[2].first);
-    EXPECT_EQ(YsonToKey("3;" _MAX_ ), result[2].second);
+    EXPECT_EQ(YsonToKey("3;" _MAX_), result[2].second);
 
     EXPECT_EQ(YsonToKey("4"), result[3].first);
     EXPECT_EQ(YsonToKey("5;" _MAX_), result[3].second);
@@ -1439,7 +1439,7 @@ TEST_F(TRefineKeyRangeTest, BadSchema)
                 rowBuffer,
                 columnEvaluatorCache,
                 GetBuiltinRangeExtractors(),
-                TQueryOptions{.RangeExpansionLimit=1000},
+                TQueryOptions{.RangeExpansionLimit = 1000},
                 GetDefaultMemoryChunkProvider(),
                 /*forceLightRangeInference*/ false), "Division by zero");
         }

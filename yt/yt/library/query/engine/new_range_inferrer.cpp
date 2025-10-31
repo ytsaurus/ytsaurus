@@ -469,7 +469,7 @@ public:
             {
                 int keyPartIndex = ColumnNameToKeyPartIndex(KeyColumns_, referenceExpr->ColumnName);
 
-                if (keyPartIndex >= 0){
+                if (keyPartIndex >= 0) {
                     if (binaryOp->Opcode == EBinaryOp::Divide) {
                         const TUnversionedValue& value = literalExpr->Value;
                         ui64 divisor = binaryOp->GetWireType() == EValueType::Int64

@@ -81,7 +81,7 @@ class TSchemaProfiler
     : private TNonCopyable
 {
 public:
-    TSchemaProfiler(llvm::FoldingSetNodeID* id)
+    explicit TSchemaProfiler(llvm::FoldingSetNodeID* id)
         : Id_(id)
     { }
 
@@ -258,7 +258,6 @@ struct TDebugInfo
         , ExtraArg(extraArg)
         , ExtraArg2(extraArg2)
     { }
-
 };
 
 struct TExpressionFragmentPrinter
@@ -497,7 +496,6 @@ struct TExpressionFragments
             Cerr << Format("arg%v := %v\n", index, builder.Flush());
         }
     }
-
 };
 
 struct TReferenceProvider
@@ -2246,7 +2244,7 @@ void TQueryProfiler::Profile(
     size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, aggregatedSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
-    //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
+    // resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
     Fold(EFoldingObjectType::WriteOp);
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);

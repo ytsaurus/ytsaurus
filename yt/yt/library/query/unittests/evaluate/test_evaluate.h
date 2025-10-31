@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ql_helpers.h"
 
 #include <yt/yt/library/query/engine_api/config.h>

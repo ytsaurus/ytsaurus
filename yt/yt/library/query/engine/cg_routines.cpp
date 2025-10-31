@@ -930,7 +930,7 @@ void MultiJoinOpHelper(
                 finished = true;
                 break;
             }
-        };
+        }
 
         if (!finished) {
             finished = consumeJoinedRows();
@@ -4316,8 +4316,7 @@ void SubqueryGroupOpHelper(
     TNestedGroupByClosure closure(
         /*default capacity*/ 10,
         groupHasher,
-        groupComparer
-    );
+        groupComparer);
 
     closure.set_empty_key(
         NQueryClient::NDetail::TRowComparer::MakeSentinel(NQueryClient::NDetail::TRowComparer::ESentinelType::Empty));
@@ -4450,7 +4449,7 @@ struct TMakeWebAssemblyIntrinsic<TResult(TArgs...)>
     static WAVM::Intrinsics::Function IntrinsicFunction##intrinsic( \
         NWebAssembly::getIntrinsicModule_standard(), \
         #intrinsic, \
-        (void*)Intrinsic##intrinsic, \
+        reinterpret_cast<void*>(Intrinsic##intrinsic), \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
             std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
         }));

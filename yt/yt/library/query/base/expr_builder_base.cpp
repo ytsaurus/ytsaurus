@@ -280,8 +280,8 @@ struct TExpressionSimplifier
                             "if_null",
                             std::vector<TConstExpressionPtr>{
                                 functionCondition->Arguments[0],
-                                functionExpr->Arguments[1]});
-
+                                functionExpr->Arguments[1],
+                            });
                     }
                 }
             }

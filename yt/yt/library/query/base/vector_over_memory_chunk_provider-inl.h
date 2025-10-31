@@ -1,5 +1,5 @@
-#ifndef VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H
-#error "Direct inclusion of this file is not allowed, vector_over_memory_chunk_provider.h"
+#ifndef VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H_
+#error "Direct inclusion of this file is not allowed, include vector_over_memory_chunk_provider.h"
 // For the sake of sane code completion.
 #include "vector_over_memory_chunk_provider.h"
 #endif

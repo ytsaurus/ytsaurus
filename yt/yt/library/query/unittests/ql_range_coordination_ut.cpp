@@ -33,7 +33,7 @@ struct TMyTablet
 template <class TIter>
 void FillRandomUniqueSequence(TFastRng64& rng, TIter begin, TIter end, size_t min, size_t max)
 {
-    // TODO: Use linear congruential generator without materialization of sequence.
+    // TODO(lukyan): Use linear congruential generator without materialization of sequence.
 
     YT_VERIFY(end - begin <= static_cast<ssize_t>(max - min));
 
@@ -302,7 +302,6 @@ TEST(TestHelpers, TestSplitTablet)
             makeRow(0),
             makeRow(1000),
             [&] (auto shardIt, auto rangesIt, auto rangesItEnd) {
-
                 const auto& tablet = *(shardIt - 1);
 
                 std::vector<TRowRange> rangesSlice(rangesIt, rangesItEnd);
@@ -365,7 +364,6 @@ TEST(TestHelpers, SplitByPivots)
         {
             return *shardIt <= itemIt->first;
         }
-
     };
 
     TFastRng64 rng(42);
