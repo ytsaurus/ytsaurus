@@ -104,6 +104,9 @@ def make_request(command_name,
             params,
             data,
             return_content=return_content,
+            allow_retries=allow_retries,
+            retry_config=retry_config,
+            mutation_id=mutation_id,
             client=client)
     elif backend == "http":
         result = http_driver.make_request(

@@ -11,7 +11,7 @@ from .helpers import (TEST_DIR, wait, get_default_resource_limits,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
-from yt.wrapper.errors import YtRetriableError, YtConfigError
+from yt.wrapper.errors import YtRetriableError, YtConfigError, YtResponseError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.spec_builders import MapSpecBuilder, MapperSpecBuilder
@@ -257,6 +257,55 @@ class TestDriverLogging(object):
         assert len(driver_log_warning) == 0
         assert b"\tD\tRpcClient\tRequest sent " not in driver_log_debug_with_path
         assert "\tD\tRpcClient\tRequest sent " in open(driver_log_path).read()
+
+    @authors("denvr")
+    def test_rpc_top_level_retry(self, yt_env_with_rpc):
+        if yt.config["backend"] != "rpc":
+            pytest.skip()
+
+        client = yt.YtClient(config=yt.config)
+        client.list("/")
+
+        client.config["proxy"]["retries"]["enable"] = True
+        client.config["proxy"]["retries"]["count"] = 3
+        client.config["proxy"]["retries"]["backoff"]["policy"] = "constant_time"
+        client.config["proxy"]["retries"]["backoff"]["constant_time"] = 0
+
+        mocked_response = mock.Mock()
+        mocked_response.is_ok.return_value = False
+        mocked_response.is_set.return_value = True
+        mocked_response.error.return_value = {
+            "code": 9999,
+            "message": "Some error message",
+        }
+        mocked_driver = mock.Mock()
+        mocked_driver.execute.return_value = mocked_response
+        mocked_command_descriptor = mock.Mock()
+        mocked_command_descriptor.is_volatile.return_value = False
+        mocked_command_descriptor.is_heavy.return_value = False
+        mocked_driver.get_command_descriptors.return_value = {"list": mocked_command_descriptor}
+
+        with pytest.raises(YtResponseError):
+            with mock.patch.object(client, "_driver", mocked_driver):
+                client.list("//1")
+        assert mocked_driver.execute.call_count == 1, "No retries, wrong code"
+
+        mocked_driver.execute.reset_mock()
+        mocked_response.error.return_value = {
+            "code": 100,
+            "message": "Connect error",
+        }
+        with pytest.raises(YtResponseError):
+            with mock.patch.object(client, "_driver", mocked_driver):
+                client.list("//2")
+        assert mocked_driver.execute.call_count == 3, "Retries"
+
+        client.config["proxy"]["retries"]["enable"] = False
+        mocked_driver.execute.reset_mock()
+        with pytest.raises(YtResponseError):
+            with mock.patch.object(client, "_driver", mocked_driver):
+                client.list("//3")
+        assert mocked_driver.execute.call_count == 1, "No retries, disabled"
 
     @authors("denvr")
     def test_yp_discovery_enabled(self, yt_env_with_rpc):
