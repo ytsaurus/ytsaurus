@@ -3,8 +3,8 @@ from .common import require, get_value, total_seconds, generate_uuid, generate_t
 from .constants import OAUTH_URL, FEEDBACK_URL
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
-                     YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction,
+                     YtRequestQueueSizeLimitExceeded, YtRpcUnavailable, YtConcurrentOperationsLimitExceeded,
+                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, YtProxyBanned,
                      create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
@@ -65,6 +65,15 @@ TVM_ONLY_HTTPS_PROXY_PORT = 9443
 _FAILED_TO_RECEIVE_TOKEN_WARNED = False
 
 
+def dump_params(obj, header_format):
+    if header_format == "json":
+        return JsonFormat().dumps_node(obj)
+    elif header_format == "yson":
+        return yson.dumps(obj, yson_format="text")
+    else:
+        assert False, "Invalid header format"
+
+
 def format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in params.items()])
 
@@ -98,7 +107,7 @@ def get_retriable_errors():
     from yt.packages.urllib3.exceptions import ConnectTimeoutError, ReadTimeoutError  # YTADMINREQ-22305 , YTADMINREQ-30006
     return (HTTPError, ConnectTimeoutError, ConnectionError, ReadTimeout, Timeout, IncompleteRead, BadStatusLine,
             SocketError, ChunkedEncodingError, ReadTimeoutError,
-            YtIncorrectResponse, YtProxyUnavailable,
+            YtIncorrectResponse, YtProxyUnavailable, YtProxyBanned,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError, YtTransportError)
 
@@ -325,7 +334,7 @@ def _raise_for_status(response, request_info):
         raise error_exc
 
 
-class RequestRetrier(Retrier):
+class HTTPRequestRetrier(Retrier):
     def __init__(self, method, url=None, make_retries=True, response_format=None, error_format=None,
                  params=None, timeout=None, retry_action=None, data_log="", is_ping=False,
                  proxy_provider=None, retry_config=None, client=None, **kwargs):
@@ -372,11 +381,13 @@ class RequestRetrier(Retrier):
         self.headers = headers
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)
-        super(RequestRetrier, self).__init__(exceptions=tuple(retriable_errors),
-                                             ignore_exceptions=tuple(non_retriable_errors),
-                                             timeout=retries_timeout,
-                                             retry_config=retry_config,
-                                             chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
+        super(HTTPRequestRetrier, self).__init__(
+            exceptions=tuple(retriable_errors),
+            ignore_exceptions=tuple(non_retriable_errors),
+            timeout=retries_timeout,
+            retry_config=retry_config,
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable),
+        )
 
     def action(self):
         url = self.url
@@ -486,7 +497,7 @@ def make_request_with_retries(method, url=None, **kwargs):
 
     This function is for backward compatibility and convenience of use.
     """
-    return RequestRetrier(method=method, url=url, **kwargs).run()
+    return HTTPRequestRetrier(method=method, url=url, **kwargs).run()
 
 
 def _get_proxy_url_parts(required=True, client=None, replace_host_proxy: str = None) -> typing.Tuple[typing.Literal["http", "https"], str]:
@@ -783,3 +794,126 @@ def get_cluster_name(client=None):
     if proxy_url is not None and default_suffix and proxy_url.endswith(default_suffix.lower()):
         return proxy_url[:-len(default_suffix)]
     return None
+
+
+class _MakeRequestParams:
+    def __init__(
+        self,
+        command_name: str,
+        allow_retries: bool,
+        mutation_id: str,
+        commands: typing.Dict[str, typing.Any],  # driver_rpc_lib.CommandDescriptor | yt.wrapper.command.Command
+        client: typing.Any,
+    ):
+        self._command_name = command_name
+        self._allow_retries = allow_retries
+        self._mutation_id = mutation_id
+        self._command = commands.get(command_name)
+        self._client = client
+
+    def update_request_params_mutation_id(self, params):
+        if self.is_volatile_command and self.allow_retries:
+            if "mutation_id" not in params:
+                params["mutation_id"] = self.get_or_generate_mutation_id()
+            if self.mutation_id is not None:
+                params["retry"] = True
+            else:
+                if "retry" not in params:
+                    params["retry"] = False
+
+    def get_retry_action_http(self, params, http_header_format):
+        if self.is_volatile_command and self.allow_retries:
+            def set_retry(error, params, make_request_kwargs):
+                if self.is_volatile_command:
+                    if isinstance(error, YtConcurrentOperationsLimitExceeded):
+                        # NB: initially specified mutation id is ignored.
+                        # Without new mutation id, scheduler always reply with this error.
+                        params["retry"] = False
+                        params["mutation_id"] = self.get_or_generate_mutation_id()
+                    else:
+                        params["retry"] = True
+
+                    if self.command_input_type is None:
+                        make_request_kwargs["data"] = dump_params(params, http_header_format)
+                    else:
+                        make_request_kwargs["headers"].update({"X-YT-Parameters": dump_params(params, http_header_format)})
+            copy_params = deepcopy(params)
+            retry_action = lambda error, make_request_kwargs: set_retry(error, copy_params, make_request_kwargs)  # noqa
+        else:
+            retry_action = None
+
+        return retry_action
+
+    def get_retry_action_rpc(self):
+        if self.is_volatile_command and self.allow_retries:
+            def set_retry(error, params, input_stream):
+                if self.is_volatile_command:
+                    if isinstance(error, YtConcurrentOperationsLimitExceeded):
+                        # NB: initially specified mutation id is ignored.
+                        # Without new mutation id, scheduler always reply with this error.
+                        params["retry"] = False
+                        params["mutation_id"] = self.get_or_generate_mutation_id()
+                    else:
+                        params["retry"] = True
+                    if input_stream and hasattr(input_stream, "seek"):
+                        input_stream.seek(0)
+            retry_action = lambda error, request: set_retry(error, request.parameters, request.input_stream)  # noqa
+        else:
+            retry_action = None
+
+        return retry_action
+
+    def get_or_generate_mutation_id(self):
+        if self._mutation_id is not None:
+            return self._mutation_id
+        else:
+            client_generator = get_option("_generate_mutation_id", self._client)
+            if client_generator:
+                return client_generator(self._command)
+            else:
+                random_generator = get_option("_random_generator", self._client)
+                return generate_uuid(random_generator)
+
+    @property
+    def command(self):
+        return self._command
+
+    @property
+    def is_heavy_command(self):
+        data = self._command.is_heavy
+        if isinstance(data, typing.Callable):
+            return data()
+        else:
+            return data
+
+    @property
+    def command_input_type(self):
+        data = self._command.input_type
+        if isinstance(data, typing.Callable):
+            return None if data() == b"Null" else data()
+        else:
+            return data
+
+    @property
+    def is_volatile_command(self):
+        data = self._command.is_volatile
+        if isinstance(data, typing.Callable):
+            return data()
+        else:
+            return data
+
+    @property
+    def allow_retries(self):
+        allow_retries = self._allow_retries
+        if allow_retries is None:
+            allow_retries = not self.is_heavy_command and \
+                self._command_name not in ["concatenate"]
+        return allow_retries
+
+    @property
+    def mutation_id(self):
+        return self._mutation_id
+
+    @property
+    def request_id(self):
+        return generate_uuid(get_option("_random_generator", self._client))

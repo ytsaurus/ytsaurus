@@ -17,12 +17,14 @@ from yt.wrapper.file_commands import upload_file_to_cache
 
 import yt.type_info as ti
 
+from contextlib import contextmanager
 from flaky import flaky
 
 import copy
 import os
 import sys
 import time
+import threading
 import pytest
 import datetime
 
@@ -844,8 +846,8 @@ class TestCypressCommands(object):
 @pytest.mark.usefixtures("test_environment_multicell")
 class TestCypressCommandsMulticell(object):
 
-    PORTAL1_ENTRANCE = '//tmp/some_portal'
-    TMP_DIR = '//tmp/tmp_dir'
+    PORTAL1_ENTRANCE = "//tmp/some_portal"
+    TMP_DIR = "//tmp/tmp_dir"
     PORTAL1_CELL_ID = 2
 
     def setup(self):
@@ -1032,3 +1034,85 @@ class TestCypressCommandsWithReplication(object):
                 f.flush()
                 path = upload_file_to_cache(filepath, client=yt.YtClient(config=config))
                 assert yt.get(f"{path}/@replication_factor") == 3
+
+    @authors("denvr")
+    def test_rpc_retries(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        @contextmanager
+        def ban_proxy_for(interval_sec, client_orig):
+            local_config = copy.deepcopy(client_orig.config)
+            if client_orig.config["backend"] == "rpc":
+                proxies_path = "//sys/rpc_proxies"
+                local_config["backend"] = "http"
+            elif client_orig.config["backend"] == "http":
+                proxies_path = "//sys/http_proxies"
+                local_config["backend"] = "rpc"
+            else:
+                proxies_path = None
+            local_client = yt.YtClient(config=local_config)
+            local_client.list("/")
+
+            proxies_list = list(local_client.list(proxies_path))
+            for proxy in proxies_list:
+                local_client.set(f"{proxies_path}/{proxy}/@banned", True)
+            try:
+                for i in range(100):
+                    client_orig.get(f"{proxies_path}/{proxy}/@banned")
+                    time.sleep(1)
+                raise Exception("Can't ban proxy")
+            except yt.YtError:
+                pass
+
+            def _unban_proxy(interval_sec, proxies_list, local_client):
+                time.sleep(interval_sec)
+                for proxy in proxies_list:
+                    local_client.set(f"{proxies_path}/{proxy}/@banned", False)
+                for i in range(100):
+                    try:
+                        client_orig.get(f"{proxies_path}/{proxy}/@banned")
+                        break
+                    except yt.YtError:
+                        time.sleep(1)
+                        continue
+                if i == 100 - 1:
+                    raise Exception("Can't unban proxy")
+
+            unban_thread = threading.Thread(target=_unban_proxy, args=(interval_sec, proxies_list, local_client))
+            unban_thread.start()
+
+            try:
+                yield
+            finally:
+                unban_thread.join()
+
+        path = TEST_DIR + "/document_with_set"
+        client = yt.YtClient(config=yt.config.config)
+        client.config["proxy"]["retries"] = {
+            "count": 10000,
+            "enable": True,
+            "backoff": {
+                "policy": "constant_time",
+                "exponential_policy": {},
+                "constant_time": 1000 * 2,
+            },
+            "total_timeout": 1000 * 30,
+            "additional_retriable_error_codes": [],
+        }
+        client.create("document", path)
+        client.set(f"{path}/@list", [])
+
+        client.set(f"{path}/@list/end", 0)
+        assert client.get(f"{path}/@list") == [0]
+
+        client._telemetry.clear_all()
+        assert client._telemetry.transport.retries_count == 0
+        with ban_proxy_for(2, client):
+            client.set(f"{path}/@list/end", 1)
+        assert client.get(f"{path}/@list") == [0, 1]
+        if yt.config["backend"] == "rpc":
+            assert client._telemetry.transport.retries_count > 3
+
+        client.set(f"{path}/@list/end", 2)
+        assert client.get(f"{path}/@list") == [0, 1, 2]

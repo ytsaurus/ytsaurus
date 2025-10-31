@@ -1,13 +1,11 @@
-from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
 from .common import (require, get_user_agent, total_seconds, forbidden_inside_job, get_started_by_short,
-                     generate_uuid, hide_secure_vault, hide_auth_headers)
-from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
-                     create_http_response_error)
-from .format import JsonFormat
+                     hide_secure_vault, hide_auth_headers)
+from .errors import YtError, YtProxyUnavailable, YtRequestTimedOut, create_http_response_error
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
-                           get_proxy_address_url, get_error_from_headers, get_header_format, ProxyProvider)
+                           get_proxy_address_url, get_error_from_headers, get_header_format, ProxyProvider,
+                           dump_params, _MakeRequestParams)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -18,17 +16,7 @@ from yt.packages.requests.auth import AuthBase
 import collections
 import importlib
 import random
-from copy import deepcopy
 from datetime import datetime
-
-
-def dump_params(obj, header_format):
-    if header_format == "json":
-        return JsonFormat().dumps_node(obj)
-    elif header_format == "yson":
-        return yson.dumps(obj, yson_format="text")
-    else:
-        assert False, "Invalid header format"
 
 
 class PatientLogger:
@@ -209,15 +197,13 @@ def make_request(command_name,
     commands = get_http_api_commands(client)
     api_path = "api/" + get_http_api_version(client)
 
-    # Get command description
-    require(command_name in commands,
-            lambda: YtError("Command {0} is not supported by {1}".format(command_name, api_path)))
-    command = commands[command_name]
+    request_params = _MakeRequestParams(command_name, allow_retries, mutation_id, commands, client)
 
-    # Determine make retries or not and set mutation if needed
-    if allow_retries is None:
-        allow_retries = not command.is_heavy and \
-            command_name not in ["concatenate"]
+    command = request_params.command
+    require(command,
+            lambda: YtError("Command {0} is not supported by {1}".format(command_name, api_path)))
+
+    request_params.update_request_params_mutation_id(params)
 
     if timeout is None:
         if command.is_heavy:
@@ -227,42 +213,6 @@ def make_request(command_name,
         connect_timeout = get_config(client)["proxy"]["connect_timeout"]
 
         timeout = (connect_timeout, request_timeout)
-
-    if mutation_id is None:
-        generate_mutation_id = get_option("_generate_mutation_id", client)
-        if generate_mutation_id is None:
-            random_generator = get_option("_random_generator", client)
-            generate_mutation_id = lambda command_descriptor: generate_uuid(random_generator)  # noqa
-    else:
-        generate_mutation_id = lambda command_descriptor: mutation_id  # noqa
-
-    if command.is_volatile and allow_retries:
-        if "mutation_id" not in params:
-            params["mutation_id"] = generate_mutation_id(command)
-        if mutation_id is not None:
-            params["retry"] = True
-        else:
-            if "retry" not in params:
-                params["retry"] = False
-
-    if command.is_volatile and allow_retries:
-        def set_retry(error, command, params, arguments):
-            if command.is_volatile:
-                if isinstance(error, YtConcurrentOperationsLimitExceeded):
-                    # NB: initially specified mutation id is ignored.
-                    # Without new mutation id, scheduler always reply with this error.
-                    params["retry"] = False
-                    params["mutation_id"] = generate_mutation_id(command)
-                else:
-                    params["retry"] = True
-                if command.input_type is None:
-                    arguments["data"] = dump_params(params, header_format)
-                else:
-                    arguments["headers"].update({"X-YT-Parameters": dump_params(params, header_format)})
-        copy_params = deepcopy(params)
-        retry_action = lambda error, arguments: set_retry(error, command, copy_params, arguments)  # noqa
-    else:
-        retry_action = None
 
     # prepare url.
     url_pattern = "{proxy}/{api}/{command}"
@@ -375,8 +325,8 @@ def make_request(command_name,
     response = make_request_with_retries(
         command.http_method(),
         url,
-        make_retries=allow_retries,
-        retry_action=retry_action,
+        make_retries=request_params.allow_retries,
+        retry_action=request_params.get_retry_action_http(params, header_format),
         data_log=data_log,
         headers=headers,
         data=data,

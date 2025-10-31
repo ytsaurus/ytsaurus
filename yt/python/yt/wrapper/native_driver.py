@@ -1,10 +1,15 @@
 from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, generate_uuid, update, get_value
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
+from .default_config import DefaultConfigRetriesType
 from .errors import create_response_error, YtError
+from .retries import Retrier
 from .string_iter_io import StringIterIO
+from .telemetry import _telemetry
 from .response_stream import ResponseStream
-from .http_helpers import get_proxy_address_url, get_cluster_name, get_token
+from .http_helpers import get_proxy_address_url, get_cluster_name, get_token, get_retriable_errors, format_logging_params, _MakeRequestParams
+
+from yt.common import _pretty_format_for_logging
 
 import yt.logger as logger
 import yt.logger_config as logger_config
@@ -13,16 +18,22 @@ import yt.yson as yson
 import inspect
 import os
 import re
+import typing
 
+from copy import deepcopy
 from io import BytesIO
 
 
-driver_bindings_type = None
+if typing.TYPE_CHECKING:
+    import yt_driver_rpc_bindings  # noqa
+
+
 driver_bindings = None
+driver_bindings_type = None
+driver_bindings_imported_with_pid = None
 logging_configured = False
 address_resolver_configured = False
 yp_service_discovery_configured = False
-driver_bindings_imported_with_pid = None
 
 
 class NullStream(object):
@@ -51,7 +62,7 @@ def lazy_import_driver_bindings():
         pass
 
     try:
-        import yt_driver_rpc_bindings
+        import yt_driver_rpc_bindings  # noqa
         driver_bindings = yt_driver_rpc_bindings
         driver_bindings_type = "rpc"
         driver_bindings_imported_with_pid = os.getpid()
@@ -330,26 +341,114 @@ def chunk_iter(stream, response, size):
         yield stream.read(size)
 
 
-def make_request(command_name, params,
-                 data=None,
-                 return_content=True,
-                 client=None):
+class RpcRequestRetrier(Retrier):
+    def __init__(
+        self,
+        driver,  # type: yt_driver_rpc_bindings.Driver
+        request,  # type: yt_driver_rpc_bindings.Request
+        return_content: bool,
+        make_retries: typing.Optional[bool],
+        retry_action,  # type: typing.Callable[[YtError, yt_driver_rpc_bindings.Request], None]
+        retry_config: typing.Optional[DefaultConfigRetriesType],
+        client,
+    ):
+        self.driver = driver
+        self.request = request
+        self.return_content = return_content
+        self.make_retries = True if make_retries is None else make_retries
+        self.retry_action = retry_action
+        self.telemetry = client._telemetry if client else _telemetry
+
+        retriable_errors = get_retriable_errors()
+        non_retriable_errors = tuple()
+        if not retry_config:
+            retry_config = deepcopy(get_config(client)["proxy"]["retries"])
+
+        self.telemetry.transport.call_count += 1
+
+        super(RpcRequestRetrier, self).__init__(
+            exceptions=retriable_errors,
+            ignore_exceptions=non_retriable_errors,
+            retry_config=retry_config,
+        )
+
+    def action(self):
+        self.telemetry.transport.requests_count += 1
+
+        response = self.driver.execute(self.request)
+
+        if self.return_content:
+            response.wait()
+
+            if not response.is_ok():
+                error = create_response_error(response.error())
+                error.message = "Received driver response with error"
+                raise error
+        else:
+            if response.is_set() and not response.is_ok():
+                raise create_response_error(response.error())
+
+        return response
+
+    def except_action(self, error, attempt):
+        logging_params = {
+            "rpc_request_id": self.request.id,
+        }
+        if isinstance(error, YtError):
+            try:
+                logging_params["full_error"] = _pretty_format_for_logging(error)
+            except Exception:
+                logger.exception("Failed to format error")
+
+        logger.warning(
+            "RPC method \"%s\" failed with error \"%s\" (%s)",
+            self.request.command_name,
+            repr(error),
+            format_logging_params(logging_params),
+        )
+
+        if self.make_retries:
+            self.telemetry.transport.retries_count += 1
+
+            if self.retry_action is not None:
+                self.retry_action(error, self.request)
+        else:
+            self.telemetry.transport.fail_count += 1
+
+            raise error
+
+
+def make_request(
+    command_name,
+    params,
+    data=None,
+    return_content=True,
+    allow_retries=None,
+    retry_config=None,
+    mutation_id=None,
+    client=None
+):
     driver = get_driver_instance(client)
 
     cell_id = params.get("master_cell_id")
     if cell_id is not None:
         driver = create_driver_for_cell(driver, cell_id)
 
-    require(command_name in driver.get_command_descriptors(),
+    commands = driver.get_command_descriptors()
+
+    request_params = _MakeRequestParams(command_name, allow_retries, mutation_id, commands, client)
+
+    command = request_params.command
+    require(command,
             lambda: YtError("Command {0} is not supported".format(command_name)))
 
-    description = driver.get_command_descriptor(command_name)
+    request_params.update_request_params_mutation_id(params)
 
     input_stream = convert_to_stream(data)
 
     output_stream = None
-    if description.output_type() != b"Null":
-        if "output_format" not in params and description.output_type() != b"Binary":
+    if command.output_type() != b"Null":
+        if "output_format" not in params and command.output_type() != b"Binary":
             output_stream = NullStream()
             params["output_format"] = "yson"
             # TODO(ignat): return this error after full migration to v4.
@@ -404,17 +503,19 @@ def make_request(command_name, params,
             user=driver_user_name)
 
     if get_config(client)["enable_passing_request_id_to_driver"]:
-        request.id = request_id
+        request.id = request_params.request_id
 
-    response = driver.execute(request)
+    response = RpcRequestRetrier(
+        driver=driver,
+        request=request,
+        return_content=return_content,
+        make_retries=request_params.allow_retries,
+        retry_action=request_params.get_retry_action_rpc(),
+        retry_config=retry_config,
+        client=client,
+    ).run()
 
     if return_content:
-        response.wait()
-        if not response.is_ok():
-            error = create_response_error(response.error())
-            error.message = "Received driver response with error"
-            raise error
-
         if output_stream is not None and not isinstance(output_stream, NullStream):
             value = output_stream.getvalue()
             return value
@@ -422,9 +523,6 @@ def make_request(command_name, params,
         def process_error(request):
             if response.is_set() and not response.is_ok():
                 raise create_response_error(response.error())
-
-        if response.is_set() and not response.is_ok():
-            raise create_response_error(response.error())
 
         return ResponseStream(
             lambda: response,
