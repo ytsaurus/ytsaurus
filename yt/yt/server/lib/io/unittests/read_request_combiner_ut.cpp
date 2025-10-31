@@ -202,11 +202,11 @@ TEST_F(TReadRequestCombinerTest, CombineEOFOneHandle)
         { .Handle = TestHandlesDirect[0], .Offset = 12000, .Size = 512 },
     });
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK());
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK());
 
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK());
 }
 
 TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
@@ -218,12 +218,12 @@ TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
         { .Handle = TestHandlesDirect[1], .Offset = 12000, .Size = 512 },
     });
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK());
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,11 +271,11 @@ TEST_F(TDummyReadRequestCombinerTest, CombineEOFOneHandle)
         { .Handle = TestHandlesDirect[0], .Offset = 12000, .Size = 512 },
     });
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK());
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK());
 
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK());
 }
 
 TEST_F(TDummyReadRequestCombinerTest, CombineMultiHandlesDirect)
@@ -304,12 +304,12 @@ TEST_F(TDummyReadRequestCombinerTest, CombineEOFMultiHandles)
         { .Handle = TestHandlesDirect[1], .Offset = 12000, .Size = 512 },
     });
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK());
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK() );
+    EXPECT_TRUE(combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK());
+    EXPECT_FALSE(combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

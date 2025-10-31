@@ -977,7 +977,6 @@ private:
                 idealDataWeightPerJob,
                 idealCompressedDataSizePerJob);
         }
-
     }
 
     void CheckCompleted()

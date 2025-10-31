@@ -88,7 +88,6 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
                     return (getAbsoluteRank(allButLastDigest, time - minDataTtl) +
                         getAbsoluteRank(lastDigest, time - minDataTtl) -
                         getAbsoluteRank(firstDigest, time - minDataTtl)) / totalCount;
-
                 };
 
                 computeResult(right, getCurrentRatio);

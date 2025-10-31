@@ -175,7 +175,7 @@ class TAlertCollector
     : public IAlertCollector
 {
 public:
-    TAlertCollector(const IAlertManagerPtr& alertManager)
+    explicit TAlertCollector(const IAlertManagerPtr& alertManager)
         : AlertManager_(alertManager)
         , AlertProfiler_(alertManager->GetAlertProfiler())
         , Logger(alertManager->GetLogger())

@@ -61,4 +61,4 @@ IShellManagerPtr CreateShellManager(TShellManagerConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NShell

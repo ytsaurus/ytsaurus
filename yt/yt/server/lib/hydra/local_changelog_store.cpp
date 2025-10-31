@@ -14,7 +14,7 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/core//concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <util/string/strip.h>
 
@@ -360,7 +360,7 @@ public:
 
     using TAsyncSlruCacheBase::Reconfigure;
 
-    virtual void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& /*config*/) override
+    void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& /*config*/) override
     { }
 
 private:
@@ -417,7 +417,7 @@ private:
         return MakeEpochBoundLocalChangelog(epoch, cookie.GetValue());
     }
 
-    TFuture<IChangelogPtr> DoOpenChangelog( int id, const TChangelogOptions& /*options*/, ui64 epoch)
+    TFuture<IChangelogPtr> DoOpenChangelog(int id, const TChangelogOptions& /*options*/, ui64 epoch)
     {
         Lock_->ValidateAcquire(epoch);
 

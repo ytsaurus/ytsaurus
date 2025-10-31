@@ -44,7 +44,7 @@ public:
     //! Used only for persistence.
     TMockChunkSliceFetcherFactory() = default;
 
-    TMockChunkSliceFetcherFactory(std::vector<NTableClient::TStrictMockChunkSliceFetcherPtr>* fetchers);
+    explicit TMockChunkSliceFetcherFactory(std::vector<NTableClient::TStrictMockChunkSliceFetcherPtr>* fetchers);
 
     NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() override;
 

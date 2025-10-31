@@ -118,8 +118,7 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<double>{0, 0.25, 0.5, 0.75, 1}),
         std::tuple(
             std::vector<i64>{40},
-            std::vector<double>{0, 1}
-        )));
+            std::vector<double>{0, 1})));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,11 +226,10 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<i64>{15, 10, 35},
             std::vector<double>{65, 105}),
             std::tuple(
-            std::vector<double>{0},
-            std::vector<i64>{40},
-            std::vector<i64>{0},
-            std::vector<double>{0}
-        )));
+                std::vector<double>{0},
+                std::vector<i64>{40},
+                std::vector<i64>{0},
+                std::vector<double>{0})));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,8 +310,7 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<i64>{20, 10, 30, 20, 50},
             std::vector<int>{1, 3, 5, 7, 9, 10},
             std::vector<int>{1, 4, 6, 8, 10},
-            std::vector<double>{1600, 160, 760, 680, 160, 2100}
-        )));
+            std::vector<double>{1600, 160, 760, 680, 160, 2100})));
 
 ////////////////////////////////////////////////////////////////////////////////
 

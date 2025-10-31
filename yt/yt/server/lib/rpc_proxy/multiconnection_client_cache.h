@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include <yt/yt/core/misc/sync_cache.h>

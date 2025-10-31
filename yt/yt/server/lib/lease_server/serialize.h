@@ -21,4 +21,4 @@ static_assert(TEnumTraits<ELeaseManagerReign>::IsMonotonic, "Lease manager reign
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NLeaseServer

@@ -30,7 +30,7 @@ private:
     using IPermissionValidator = NObjectServer::IPermissionValidator<TObjectBase>;
 
 public:
-    THierarchicPermissionValidator(std::unique_ptr<IPermissionValidator> validator);
+    explicit THierarchicPermissionValidator(std::unique_ptr<IPermissionValidator> validator);
 
 protected:
     void ValidatePermission(

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include <yt/yt/server/lib/scheduler/public.h>

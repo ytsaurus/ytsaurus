@@ -26,7 +26,6 @@ public:
 
     MOCK_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
     MOCK_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

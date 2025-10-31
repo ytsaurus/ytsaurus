@@ -116,7 +116,6 @@ public:
     void Persist(const NPhoenix::TPersistenceContext& context);
 
 private:
-
     friend TJobMetrics& operator+=(TJobMetrics& lhs, const TJobMetrics& rhs);
     friend TJobMetrics& operator-=(TJobMetrics& lhs, const TJobMetrics& rhs);
     friend TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs);

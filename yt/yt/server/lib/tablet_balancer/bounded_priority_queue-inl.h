@@ -1,4 +1,4 @@
-#ifndef BOUNDED_PRIORITY_QUEUE_H
+#ifndef BOUNDED_PRIORITY_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include bounded_priority_queue.h"
 // For the sake of sane code completion.
 #include "bounded_priority_queue.h"

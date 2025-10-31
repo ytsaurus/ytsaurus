@@ -30,7 +30,7 @@ class TCompositeAutomatonPart
     : public virtual TRefCounted
 {
 public:
-    TCompositeAutomatonPart(TTestingTag);
+    explicit TCompositeAutomatonPart(TTestingTag);
 
     TCompositeAutomatonPart(
         ISimpleHydraManagerPtr hydraManager,
@@ -153,7 +153,7 @@ public:
 
     int GetRegisteredMethodCount() const;
 
-    virtual TFuture<void> GetReadyToEnterReadOnlyMode() override;
+    TFuture<void> GetReadyToEnterReadOnlyMode() override;
 
     DECLARE_SIGNAL(IInvoker::TWaitTimeObserver::TSignature, WaitTimeObserved);
 

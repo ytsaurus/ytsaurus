@@ -89,7 +89,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                                 substituteChunk->GetChunkId());
                             mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
                                 dataSlice->Type,
-                                TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
+                                TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)}));
                             mappedStripe->DataSlices.back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
                         }
                     }

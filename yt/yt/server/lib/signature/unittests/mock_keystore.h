@@ -1,3 +1,5 @@
+#pragma once
+
 // mock IKeyStoreReader, IKeyStoreWriter
 
 #include <yt/yt/core/test_framework/framework.h>

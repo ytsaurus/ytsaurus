@@ -86,7 +86,7 @@ protected:
 
     struct TMockChunkSliceFetcherBuilder
     {
-        TMockChunkSliceFetcherBuilder(TSortedChunkPoolTest* owner)
+        explicit TMockChunkSliceFetcherBuilder(TSortedChunkPoolTest* owner)
             : Owner(owner)
         { }
 

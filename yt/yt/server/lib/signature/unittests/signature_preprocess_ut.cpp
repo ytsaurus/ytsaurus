@@ -23,12 +23,12 @@ TEST(SignaturePreprocessTest, Basic)
 
     auto headerString = ConvertToYsonString(TSignatureHeader(
         TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer="test",
-            .KeypairId=TGuid(),
-            .SignatureId=TGuid(),
-            .IssuedAt=Now(),
-            .ValidAfter=Now(),
-            .ExpiresAt=Now(),
+            .Issuer = "test",
+            .KeypairId = TGuid(),
+            .SignatureId = TGuid(),
+            .IssuedAt = Now(),
+            .ValidAfter = Now(),
+            .ExpiresAt = Now(),
         }));
 
     auto toSign = PreprocessSignature(

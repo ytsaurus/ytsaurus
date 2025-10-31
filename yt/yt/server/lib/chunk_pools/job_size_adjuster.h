@@ -53,4 +53,4 @@ std::unique_ptr<IDiscreteJobSizeAdjuster> CreateDiscreteJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NControllerAgent
+} // namespace NYT::NChunkPools

@@ -440,7 +440,7 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
     }
 
     EXPECT_FALSE(cellSizes.empty());
-    EXPECT_TRUE(totalSize % cellSizes.size() == 0);
+    EXPECT_EQ(totalSize % cellSizes.size(), 0u);
     i64 expectedSize = totalSize / cellSizes.size();
     for (const auto& [cellId, memorySize] : cellSizes) {
         EXPECT_EQ(memorySize, expectedSize)
@@ -511,7 +511,7 @@ TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
     }
 
     EXPECT_FALSE(cellSizes.empty());
-    EXPECT_TRUE(totalSize % cellSizes.size() == 0);
+    EXPECT_EQ(totalSize % cellSizes.size(), 0u);
     i64 expectedSize = totalSize / cellSizes.size();
     for (const auto& [cellId, memorySize] : cellSizes) {
         EXPECT_EQ(memorySize, expectedSize)
