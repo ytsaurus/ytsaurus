@@ -27,7 +27,7 @@ struct TBundleProfilingCounters
     NProfiling::TCounter ActualTableSettingsRequestCount;
     NProfiling::TCounter TableStatisticsRequestCount;
 
-    TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
+    explicit TBundleProfilingCounters(const NProfiling::TProfiler& profiler);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)

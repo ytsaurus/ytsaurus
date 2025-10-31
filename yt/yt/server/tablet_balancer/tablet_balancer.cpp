@@ -435,7 +435,6 @@ void TTabletBalancer::BalancerIteration()
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
             continue;
-
         }
 
         YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);

@@ -180,8 +180,8 @@ void TClusterStateProvider::FetchState()
         ConvertToYsonString(config, NYson::EYsonFormat::Text),
         LastBundlesSuccessfulFetchTime_,
         LastNodesSuccessfulFetchTime_,
-        bool(BundlesFuture_),
-        bool(NodesFuture_));
+        static_cast<bool>(BundlesFuture_),
+        static_cast<bool>(NodesFuture_));
 
     if (LastBundlesSuccessfulFetchTime_ + config->BundlesFetchPeriod < now && !BundlesFuture_) {
         BundlesFuture_ = BIND(&TClusterStateProvider::FetchBundles, MakeStrong(this))
