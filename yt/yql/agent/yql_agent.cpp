@@ -445,6 +445,7 @@ public:
         auto supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
                 .Item("declare_params").Value(true)
+                .Item("yql_runner").Value(true)
             .EndMap();
         response.set_supported_features(supportedFeatures.ToString());
 

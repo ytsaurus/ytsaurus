@@ -31,7 +31,6 @@ TYqlPluginOptions ConvertToOptions(
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
         .YTTokenPath = config->YTTokenPath,
-        .UIOrigin = config->UIOrigin,
         .LogBackend = std::move(logBackend),
         .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
         .MaxYqlLangVersion = maxSupportedYqlVersion,
