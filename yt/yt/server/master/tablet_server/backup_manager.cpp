@@ -256,7 +256,7 @@ public:
         UpdateAggregatedBackupState(table);
     }
 
-    virtual void StartRestore(
+    void StartRestore(
         TTableNode* table,
         TTransaction* transaction,
         std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
@@ -968,7 +968,6 @@ private:
         if (mode == EBackupMode::ReplicatedSorted) {
             if (!table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Can backup only replicated tables in mode %Qlv", mode);
-
             }
         } else {
             if (table->IsReplicated()) {

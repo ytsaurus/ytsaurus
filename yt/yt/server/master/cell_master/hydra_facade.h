@@ -71,7 +71,7 @@ IHydraFacadePtr CreateHydraFacade(TTestingTag);
 class TAutomatonBlockGuard
 {
 public:
-    TAutomatonBlockGuard(IHydraFacadePtr hydraFacade);
+    explicit TAutomatonBlockGuard(IHydraFacadePtr hydraFacade);
 
     ~TAutomatonBlockGuard();
 

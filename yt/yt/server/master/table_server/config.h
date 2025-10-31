@@ -41,7 +41,6 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableManagerConfig)
 struct TTableManagerConfig
     : public NYTree::TYsonStruct
 {
-
     REGISTER_YSON_STRUCT(TTableManagerConfig)
 
     static void Register(TRegistrar registrar);

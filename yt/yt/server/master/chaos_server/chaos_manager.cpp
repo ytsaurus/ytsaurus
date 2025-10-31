@@ -379,7 +379,7 @@ private:
 
     void OnCellCreated(TCellBase* cellBase)
     {
-        if (cellBase->GetType() != EObjectType::ChaosCell){
+        if (cellBase->GetType() != EObjectType::ChaosCell) {
             return;
         }
 
@@ -401,7 +401,7 @@ private:
 
     void OnCellDecommissionStarted(TCellBase* cellBase)
     {
-        if (cellBase->GetType() != EObjectType::ChaosCell){
+        if (cellBase->GetType() != EObjectType::ChaosCell) {
             return;
         }
         if (!cellBase->IsDecommissionStarted()) {

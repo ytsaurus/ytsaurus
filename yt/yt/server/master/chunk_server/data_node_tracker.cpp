@@ -1140,8 +1140,7 @@ private:
         static_assert(
             std::is_same_v<THeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
             std::is_same_v<THeartbeatContextPtr, TCtxLocationFullHeartbeatPtr> ||
-            std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>
-        );
+            std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>);
         const auto& originalRequest = context->Request();
 
         const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
@@ -1542,8 +1541,7 @@ private:
                     "(LocationUuid: %v, locationState: %v, nodeAddress: %v)",
                     location->GetUuid(),
                     location->GetState(),
-                    node->GetDefaultAddress()
-                );
+                    node->GetDefaultAddress());
                 location->SetState(EChunkLocationState::Restarted);
             }
 

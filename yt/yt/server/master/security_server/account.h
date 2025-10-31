@@ -119,7 +119,7 @@ public:
 
 public:
     using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
-    TAccount(TAccountId id, bool isRoot = false);
+    explicit TAccount(TAccountId id, bool isRoot = false);
 
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;

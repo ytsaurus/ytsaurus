@@ -190,7 +190,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
         THashMap<std::string, TYsonString> oldSpecifiedAttributes;
         Load(context, oldSpecifiedAttributes);
 
-        for (auto& [uninternedKey, value]: oldSpecifiedAttributes) {
+        for (auto& [uninternedKey, value] : oldSpecifiedAttributes) {
             auto internedKey = TInternedAttributeKey::Lookup(uninternedKey);
             if (knownPoolAttributes.contains(internedKey)) {
                 EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));

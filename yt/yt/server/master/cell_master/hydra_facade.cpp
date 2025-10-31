@@ -75,7 +75,7 @@ class THydraFacade
     : public IHydraFacade
 {
 public:
-    THydraFacade(TTestingTag)
+    explicit THydraFacade(TTestingTag)
         : Bootstrap_(nullptr)
     { }
 

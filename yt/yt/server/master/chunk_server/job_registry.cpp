@@ -158,7 +158,7 @@ public:
     {
         auto nodeIt = NodeAddressToJobs_.find(nodeAddress);
         if (nodeIt == NodeAddressToJobs_.end()) {
-            const static THashSet<TJobPtr> EmptySet;
+            static const THashSet<TJobPtr> EmptySet;
             return EmptySet;
         } else {
             return nodeIt->second;

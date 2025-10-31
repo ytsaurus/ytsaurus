@@ -19,7 +19,6 @@ public:
     explicit TSchemafulNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
 protected:
-
     // It's impossible to override Create method in any meaningful way, because
     // it behaves very differently in chaos replicated tables and table nodes.
 

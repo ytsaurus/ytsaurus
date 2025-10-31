@@ -32,7 +32,7 @@ class TResponseKeeperManager
     , public TMasterAutomatonPart
 {
 public:
-    TResponseKeeperManager(TBootstrap* bootstrap)
+    explicit TResponseKeeperManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ResponseKeeper)
         , ResponseKeeperEvictionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ResponseKeeper),

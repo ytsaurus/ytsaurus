@@ -1739,7 +1739,7 @@ public:
             .IsOK();
     }
 
-    virtual TError CheckLock(
+    TError CheckLock(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& lockRequest) override
@@ -3232,7 +3232,7 @@ private:
             }
         }
 
-        for (auto& [transactionId, branchNodeSet]: transactionToBranchedNodes) {
+        for (auto& [transactionId, branchNodeSet] : transactionToBranchedNodes) {
             for (auto node : branchNodeSet) {
                 YT_LOG_ALERT("Found a branch missing in the entity map, but held by a transaction (NodeId: %v)",
                     node->GetVersionedId());

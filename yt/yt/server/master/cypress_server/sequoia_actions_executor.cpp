@@ -1381,7 +1381,9 @@ private:
             : New<TInheritedAttributeDictionary>(Bootstrap_);
 
         YT_LOG_DEBUG("%v MaterializeNode "
-            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Version: %v, Mode: %v, ExistingNodeId: %v, SerializedNodeSize: %v, NewAccountId: %v, PreserveCreationTime: %v, PreserveExpirationTime: %v, PreserveExpirationTimeout: %v, PreserveOwner: %v, InheritedAttributesOverride: %v)",
+            "(SequoiaTransactionId: %v, NodeId: %v, CypressTransactionId: %v, Version: %v, Mode: %v, ExistingNodeId: %v, "
+            "SerializedNodeSize: %v, NewAccountId: %v, PreserveCreationTime: %v, PreserveExpirationTime: %v, "
+            "PreserveExpirationTimeout: %v, PreserveOwner: %v, InheritedAttributesOverride: %v)",
             FormatLogStage(logStage),
             sequoiaTransactionId,
             nodeId,

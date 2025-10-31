@@ -234,7 +234,7 @@ void LogAccess(
             });
         })
         .Do([&] (auto fluent) {
-            for (const auto& [key, value]: additionalAttributes) {
+            for (const auto& [key, value] : additionalAttributes) {
                 fluent.Item(key).Value(value);
             }
         });

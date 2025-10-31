@@ -288,7 +288,6 @@ public:
                         if (comparator.CompareKeyBounds(readRange.LowerLimit().KeyBound(), lowerPivot) < 0 ||
                             comparator.CompareKeyBounds(upperPivot, readRange.UpperLimit().KeyBound()) < 0)
                         {
-
                             if (!chunkView->GetTransactionId()) {
                                 YT_LOG_ALERT("Chunk view without transaction id is not fully inside its tablet "
                                     "(ChunkViewId: %v, UnderlyingTreeId: %v, "

@@ -50,20 +50,20 @@ public:
             BIND_NO_PROPAGATE(&TMulticellStatisticsCollector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    virtual const TMulticellNodeStatistics& GetMulticellNodeStatistics() override
+    const TMulticellNodeStatistics& GetMulticellNodeStatistics() override
     {
         return GetValue<TMulticellNodeStatistics>();
     }
-    virtual TMulticellNodeStatistics& GetMutableMulticellNodeStatistics() override
+    TMulticellNodeStatistics& GetMutableMulticellNodeStatistics() override
     {
         return GetValue<TMulticellNodeStatistics>();
     }
 
-    virtual const NChunkServer::TChunksSamples& GetChunksSamples() override
+    const NChunkServer::TChunksSamples& GetChunksSamples() override
     {
         return GetValue<NChunkServer::TChunksSamples>();
     }
-    virtual NChunkServer::TChunksSamples& GetMutableChunksSamples() override
+    NChunkServer::TChunksSamples& GetMutableChunksSamples() override
     {
         return GetValue<NChunkServer::TChunksSamples>();
     }

@@ -258,7 +258,6 @@ public:
                             THROW_ERROR_EXCEPTION("Number of destination cells and pivot keys mismatch: pivot keys %v, cells %v",
                                 pivotKeys.size(),
                                 cells.size());
-
                         }
                     }
                 }

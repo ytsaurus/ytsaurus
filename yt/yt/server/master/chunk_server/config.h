@@ -267,7 +267,6 @@ struct TDynamicChunkReincarnatorConfig
     REGISTER_YSON_STRUCT(TDynamicChunkReincarnatorConfig);
 
     static void Register(TRegistrar registrar);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkReincarnatorConfig)

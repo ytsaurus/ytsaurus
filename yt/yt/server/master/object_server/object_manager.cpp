@@ -2235,7 +2235,6 @@ void TObjectManager::HydraExecuteLeader(
             ? responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage())
             : responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(error)))
         {
-
             setResponseKeeperPromise();
         }
     }

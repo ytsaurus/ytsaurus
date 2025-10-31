@@ -1337,7 +1337,7 @@ TJobPtr MummifyJob(const TJobPtr& job)
         : public TJob
     {
     public:
-        TMummyJob(const TJob& other)
+        explicit TMummyJob(const TJob& other)
             : TJob(other)
         { }
 

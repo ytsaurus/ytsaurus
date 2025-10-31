@@ -386,7 +386,7 @@ private:
 
         void Commit()
         {
-            for (const auto& [pool, oldResources]: PoolResourcesBackup_) {
+            for (const auto& [pool, oldResources] : PoolResourcesBackup_) {
                 ApplyConfigChanges(pool, oldResources);
             }
         }
@@ -394,7 +394,7 @@ private:
         void Abort() noexcept
         {
             std::reverse(PoolResourcesBackup_.begin(), PoolResourcesBackup_.end());
-            for (auto& [pool, oldResources]: PoolResourcesBackup_) {
+            for (auto& [pool, oldResources] : PoolResourcesBackup_) {
                 pool->SetResourcesInConfig(std::move(oldResources));
             }
         }
