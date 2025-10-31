@@ -538,6 +538,9 @@ void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("preload_wait_timeout", &TThis::PreloadWaitTimeout)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("source_tablet_snapshot_eviction_timeout", &TThis::SourceTabletSnapshotEvictionTimeout)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

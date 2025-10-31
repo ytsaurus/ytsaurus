@@ -48,6 +48,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -347,20 +349,22 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         }
 
         if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
-            error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
-            error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
+            TTabletRedirectionHint hint;
+
+            hint.PreviousMountRevision = MountRevision;
+            hint.MountRevision = siblingMountRevision;
+            hint.CellId = siblingCellId;
 
             auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
             if (cellDescriptor) {
-                error <<= TErrorAttribute(
-                    "sibling_servant_cell_descriptor",
-                    ConvertToNode(cellDescriptor));
+                hint.CellDescriptor = ConvertToNode(cellDescriptor);
             } else {
                 YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
                     LoggingTag);
             }
 
-            THROW_ERROR error;
+            THROW_ERROR error
+                << TErrorAttribute("redirection_hint", hint);
         } else if (smoothMovementData.TargetActivationFuture) {
             YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
                 LoggingTag);
