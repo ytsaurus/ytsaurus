@@ -2251,6 +2251,13 @@ class YTEnvSetup(object):
                 "min_desired_tablet_size": 0,
                 "action_manager": {
                     "tablet_action_polling_period": 100,
+                },
+                "cluster_state_provider": {
+                    "bundles_freshness_time": 1000,
+                    "nodes_freshness_time": 1000,
+                    "bundles_fetch_period": 400,
+                    "nodes_fetch_period": 10000,
+                    "fetch_planner_period": 100,
                 }
             }
 

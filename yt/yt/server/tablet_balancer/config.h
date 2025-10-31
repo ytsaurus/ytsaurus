@@ -84,6 +84,7 @@ struct TTabletBalancerDynamicConfig
     int MaxActionsPerReshardType;
 
     TActionManagerConfigPtr ActionManager;
+    TClusterStateProviderConfigPtr ClusterStateProvider;
 
     std::vector<std::string> ClustersForBundleHealthCheck;
     int MaxUnhealthyBundlesOnReplicaCluster;
@@ -112,6 +113,27 @@ struct TActionManagerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClusterStateProviderConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration FetchPlannerPeriod;
+    int WorkerThreadPoolSize;
+
+    TDuration BundlesFreshnessTime;
+    TDuration NodesFreshnessTime;
+
+    TDuration BundlesFetchPeriod;
+    TDuration NodesFetchPeriod;
+
+    REGISTER_YSON_STRUCT(TClusterStateProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterStateProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
