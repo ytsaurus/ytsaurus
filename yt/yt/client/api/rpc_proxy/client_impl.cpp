@@ -1875,6 +1875,8 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
     req->set_use_new_slicing_implementation_in_ordered_pool(options.UseNewSlicingImplementationInOrderedPool);
     req->set_use_new_slicing_implementation_in_unordered_pool(options.UseNewSlicingImplementationInUnorderedPool);
 
+    req->set_omit_inaccessible_rows(options.OmitInaccessibleRows);
+
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPartitionTablesPtr& rsp) {

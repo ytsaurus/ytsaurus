@@ -20,6 +20,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
@@ -86,13 +87,22 @@ void ValidateDynamicTableTimestamp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> CollectTableInputChunks(
+struct TInputTableInfo
+{
+    std::vector<NChunkClient::TInputChunkPtr> Chunks;
+    TTableSchemaPtr Schema;
+    bool Dynamic;
+    std::optional<TRlsReadSpec> RlsReadSpec;
+};
+
+TInputTableInfo CollectInputTableInfo(
     const NYPath::TRichYPath& path,
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     NObjectClient::TTransactionId transactionId,
     std::vector<i32> extensionTags,
+    const NChunkClient::TGetUserObjectBasicAttributesOptions& getBasicAttributesOptions,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

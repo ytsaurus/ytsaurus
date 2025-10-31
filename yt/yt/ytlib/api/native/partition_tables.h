@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
+#include <yt/yt/ytlib/table_client/row_level_security.h>
 
 namespace NYT::NApi::NNative {
 
@@ -59,7 +60,8 @@ private:
     void BuildPartitions();
 
     bool IsDataSourcesReady();
-    void AddDataSource(int tableIndex, const NTableClient::TTableSchemaPtr& schema, bool dynamic);
+    // FIXME(coteeq): Hide read spec somehow
+    void AddDataSource(int tableIndex, const NTableClient::TTableSchemaPtr& schema, bool dynamic, std::optional<NTableClient::TRlsReadSpec> rlsReadSpec);
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
         const NChunkPools::TChunkStripeListPtr& chunkStripeList);
     void AddDataSlice(int tableIndex, NChunkClient::TLegacyDataSlicePtr dataSlice);

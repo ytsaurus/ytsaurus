@@ -128,7 +128,7 @@ void TMultiTablePartitioner::CollectInput()
         auto transactionId = path.GetTransactionId();
 
         // TODO(galtsev): make these requests asynchronously; see https://a.yandex-team.ru/review/2564596/details#comment-3570976
-        auto [inputChunks, schema, dynamic] = CollectTableInputChunks(
+        auto inputTableInfo = CollectInputTableInfo(
             path,
             Client_,
             /*nodeDirectory*/ nullptr,
@@ -140,28 +140,31 @@ void TMultiTablePartitioner::CollectInput()
                 TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
                 TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value,
             },
+            TGetUserObjectBasicAttributesOptions{
+                .OmitInaccessibleRows = Options_.OmitInaccessibleRows,
+            },
             Logger);
 
         YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)",
             tableIndex,
             path,
-            schema,
-            inputChunks.size());
+            inputTableInfo.Schema,
+            inputTableInfo.Chunks.size());
 
-        AddDataSource(tableIndex, schema, dynamic);
+        AddDataSource(tableIndex, inputTableInfo.Schema, inputTableInfo.Dynamic, std::move(inputTableInfo.RlsReadSpec));
 
         if (path.GetColumns()) {
-            auto stableColumnNames = MapNamesToStableNames(*schema, *path.GetColumns(), NonexistentColumnName);
-            for (const auto& inputChunk : inputChunks) {
+            auto stableColumnNames = MapNamesToStableNames(*inputTableInfo.Schema, *path.GetColumns(), NonexistentColumnName);
+            for (const auto& inputChunk : inputTableInfo.Chunks) {
                 columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames);
             }
         }
 
-        FixLimitsInOrderedDynamicStore(tableIndex, inputChunks);
+        FixLimitsInOrderedDynamicStore(tableIndex, inputTableInfo.Chunks);
 
-        inputTables.emplace_back(TInputTable{std::move(inputChunks), static_cast<int>(tableIndex)});
+        inputTables.emplace_back(TInputTable{std::move(inputTableInfo.Chunks), static_cast<int>(tableIndex)});
 
-        totalChunkCount += inputChunks.size();
+        totalChunkCount += inputTableInfo.Chunks.size();
     }
 
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
@@ -245,7 +248,11 @@ bool TMultiTablePartitioner::IsDataSourcesReady()
     return DataSourceDirectory_->DataSources().size() == Paths_.size();
 }
 
-void TMultiTablePartitioner::AddDataSource(int tableIndex, const TTableSchemaPtr& schema, bool dynamic)
+void TMultiTablePartitioner::AddDataSource(
+    int tableIndex,
+    const TTableSchemaPtr& schema,
+    bool dynamic,
+    std::optional<TRlsReadSpec> rlsReadSpec)
 {
     YT_VERIFY(!IsDataSourcesReady());
     YT_VERIFY(tableIndex == std::ssize(DataSourceDirectory_->DataSources()));
@@ -267,6 +274,7 @@ void TMultiTablePartitioner::AddDataSource(int tableIndex, const TTableSchemaPtr
             path.GetColumns(),
             /*omittedInaccessibleColumns*/ {});
     }
+    dataSource->SetRlsReadSpec(std::move(rlsReadSpec));
 }
 
 std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertChunkStripeListIntoDataSliceDescriptors(

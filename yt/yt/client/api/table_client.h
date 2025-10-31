@@ -328,6 +328,8 @@ struct TPartitionTablesOptions
 
     //! COMPAT(apollo1321): remove in 25.2 release.
     bool UseNewSlicingImplementationInUnorderedPool = true;
+
+    bool OmitInaccessibleRows = false;
 };
 
 struct TReadTablePartitionOptions

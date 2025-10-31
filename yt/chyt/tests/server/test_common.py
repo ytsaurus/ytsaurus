@@ -2326,6 +2326,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             '''
             assert clique.make_query(query) == [{"res": 4}]
 
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+            # Check again for sanity to account for various miscachings.
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

@@ -176,7 +176,12 @@ void ValidateReadPermissions(
     }
     auto rowLevelAclPerTable = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(tablePathsWithColumns, queryContext->User);
     for (const auto& [index, table] : SEnumerate(tables)) {
-        table->RowLevelAcl = rowLevelAclPerTable[index];
+        auto rowLevelAcl = std::move(rowLevelAclPerTable[index]);
+        if (rowLevelAcl && table->Path.HasRowIndexInRanges()) {
+            THROW_ERROR_EXCEPTION("Cannot use ranges with row_index to read a table with row-level ACL")
+                << TErrorAttribute("path", table->Path);
+        }
+        table->RowLevelAcl = std::move(rowLevelAcl);
     }
 }
 
