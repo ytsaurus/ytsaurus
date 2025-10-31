@@ -182,7 +182,8 @@ class ChaosTestBase(DynamicTablesBase):
                                replication_progress=None,
                                tablet_cell_bundle=None,
                                trimmed_row_counts=None,
-                               tablet_count=None):
+                               tablet_count=None,
+                               external_cell_tag=None):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -210,6 +211,10 @@ class ChaosTestBase(DynamicTablesBase):
                     raise AttributeError(
                         "tablet_count is only supported for ordered tables, for other types use pivot keys instead"
                     )
+            if external_cell_tag:
+                kwargs["external"] = True
+                kwargs["external_cell_tag"] = external_cell_tag
+
             create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
@@ -229,11 +234,29 @@ class ChaosTestBase(DynamicTablesBase):
             check_write = replica["mode"] == "sync" and _enabled(replica)
             self._wait_for_card_era(path, card_id, era=replication_card["era"], check_write=check_write, driver=driver)
 
-    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
+    def _create_chaos_tables(
+            self,
+            cell_id,
+            replicas,
+            sync_replication_era=True,
+            create_replica_tables=True,
+            create_tablet_cells=True,
+            mount_tables=True,
+            ordered=False,
+            schema=None,
+            external_cell_tag=None):
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         if create_replica_tables:
-            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables, ordered, schema=schema)
+            self._create_replica_tables(
+                replicas,
+                replica_ids,
+                create_tablet_cells,
+                mount_tables,
+                ordered,
+                schema=schema,
+                external_cell_tag=external_cell_tag
+            )
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
