@@ -310,7 +310,7 @@ protected:
 
         auto stripeList = ChunkPool_->GetStripeList(cookie);
         const auto& statistics = stripeList->GetAggregateStatistics();
-        EXPECT_TRUE(statistics.RowCount % *BatchRowCount_ == 0);
+        EXPECT_EQ(statistics.RowCount % *BatchRowCount_, 0);
         EXPECT_LE(std::abs(statistics.DataWeight - DataWeightPerJob_), *BatchRowCount_ * MaxChunkRowDataWeight_);
     }
 
@@ -1485,7 +1485,7 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
         totalDataWeight += chunk->GetDataWeight();
         totalCompressedDataSize += chunk->GetCompressedDataSize();
         chunks.push_back(std::move(chunk));
-    };
+    }
 
     // Don't build too many jobs.
     auto normalizeValue = [&] (i64 value, i64 nominator, i64 maxValue) {

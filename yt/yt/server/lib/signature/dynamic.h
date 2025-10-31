@@ -15,7 +15,7 @@ class TDynamicSignatureGenerator
     : public ISignatureGenerator
 {
 public:
-    TDynamicSignatureGenerator(ISignatureGeneratorPtr underlying);
+    explicit TDynamicSignatureGenerator(ISignatureGeneratorPtr underlying);
 
     /*!
     *  \note Thread affinity: any
@@ -39,7 +39,7 @@ class TDynamicSignatureValidator
     : public ISignatureValidator
 {
 public:
-    TDynamicSignatureValidator(ISignatureValidatorPtr underlying);
+    explicit TDynamicSignatureValidator(ISignatureValidatorPtr underlying);
 
     /*!
     *  \note Thread affinity: any

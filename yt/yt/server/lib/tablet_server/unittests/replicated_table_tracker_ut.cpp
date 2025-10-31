@@ -598,7 +598,6 @@ protected:
     const TIntrusivePtr<TMockReplicatedTableTrackerHost> Host_ = New<TMockReplicatedTableTrackerHost>();
 
     IReplicatedTableTrackerPtr Tracker_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

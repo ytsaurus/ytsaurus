@@ -27,12 +27,12 @@ TEST(TSignatureHeaderTest, SerializeDeserialize)
     EXPECT_TRUE(TInstant::TryParseIso8601("2024-08-09T14:44:55Z", instant));
 
     TSignatureHeader header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-        .Issuer="issuer",
-        .KeypairId=TGuid{1, 2, 3, 4},
-        .SignatureId=TGuid{5, 6, 7, 8},
-        .IssuedAt=instant,
-        .ValidAfter=instant - 1s,
-        .ExpiresAt=instant + 1s,
+        .Issuer = "issuer",
+        .KeypairId = TGuid{1, 2, 3, 4},
+        .SignatureId = TGuid{5, 6, 7, 8},
+        .IssuedAt = instant,
+        .ValidAfter = instant - 1s,
+        .ExpiresAt = instant + 1s,
     };
 
     EXPECT_EQ(

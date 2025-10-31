@@ -1,4 +1,4 @@
-#ifndef PROFILING_HELPERS_H_
+#ifndef PROFILING_HELPERS_INL_H_
 #error "Direct inclusion of this file is not allowed, include profiling_helpers.h"
 // For the sake of sane code completion.
 #include "profiling_helpers.h"

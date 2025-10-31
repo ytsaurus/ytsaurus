@@ -549,7 +549,7 @@ TFlushFileRangeResponse DoFlushFileRange(
                 ? SYNC_FILE_RANGE_WRITE
                 : SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER;
             result = HandleEintr(::sync_file_range, *request.Handle, request.Offset, request.Size, flags);
-        };
+        }
         if (result != 0) {
             ythrow TFileError();
         }
@@ -963,7 +963,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
+    TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
         TIOSessionId sessionId) override
@@ -1252,7 +1252,7 @@ public:
         return future;
     }
 
-    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
+    TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory /*category*/,
         TIOSessionId /*sessionId*/) override

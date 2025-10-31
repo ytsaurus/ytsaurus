@@ -127,7 +127,7 @@ class TProgressCounterGuard
 public:
     TProgressCounterGuard() = default;
 
-    TProgressCounterGuard(TProgressCounterPtr progressCounter, i64 value = 1);
+    explicit TProgressCounterGuard(TProgressCounterPtr progressCounter, i64 value = 1);
 
     i64 GetValue() const;
 

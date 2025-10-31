@@ -698,7 +698,7 @@ public:
                 result.push_back(group);
             }
 
-            for (const auto& [key, child]: current->GetChildren()) {
+            for (const auto& [key, child] : current->GetChildren()) {
                 stack.push(child);
             }
         }

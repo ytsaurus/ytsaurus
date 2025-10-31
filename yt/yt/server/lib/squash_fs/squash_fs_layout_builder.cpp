@@ -251,7 +251,6 @@ public:
     TSquashFSLayoutPtr Build() override;
 
 private:
-
     // Default structures of SquashFS.
 
     // This struct stores superblock.
@@ -1398,7 +1397,7 @@ void TSquashFSLayoutBuilder::TDataBlocks::Reset()
 
 ISquashFSLayoutBuilderPtr CreateSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options)
 {
-   return New<TSquashFSLayoutBuilder>(options);
+    return New<TSquashFSLayoutBuilder>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

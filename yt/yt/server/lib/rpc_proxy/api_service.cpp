@@ -317,7 +317,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
                 YT_ABORT();
             default:
                 ThrowUnsupportedRowsetFormat(rowsetFormat);
-        };
+        }
     };
 
     switch (rowsetFormat) {
@@ -4229,7 +4229,7 @@ private:
         if (request->has_upper_timestamp()) {
             options.UpperTimestamp = request->upper_timestamp();
         }
-        for (auto protoReplicationRowIndex : request->start_replication_row_indexes()){
+        for (auto protoReplicationRowIndex : request->start_replication_row_indexes()) {
             auto tabletId = FromProto<TTabletId>(protoReplicationRowIndex.tablet_id());
             int rowIndex = protoReplicationRowIndex.row_index();
             if (options.StartReplicationRowIndexes.contains(tabletId)) {

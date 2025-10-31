@@ -195,6 +195,6 @@ protected:
 
 } // namespace NYT::NSecurityServer
 
-#define PERMISSION_CHECKER_H
+#define PERMISSION_CHECKER_INL_H_
 #include "permission_checker-inl.h"
-#undef PERMISSION_CHECKER_H
+#undef PERMISSION_CHECKER_INL_H_

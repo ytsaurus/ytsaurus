@@ -686,7 +686,6 @@ private:
 
         ++JobsStatistics_.JobCount;
         JobsStatistics_.DataSliceCount += job.GetSliceCount();
-
     }
 };
 

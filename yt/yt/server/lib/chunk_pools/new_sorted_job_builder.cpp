@@ -690,7 +690,6 @@ private:
                     .Value(job);
             }
         }
-
     }
 
     void AddJob(TNewJobStub& job)

@@ -34,7 +34,7 @@ bool IsAdministerValidationNeeded(const NYTree::IAttributeDictionary* attributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NObjectServer
 
 #define HELPERS_INL_H_
 #include "helpers-inl.h"

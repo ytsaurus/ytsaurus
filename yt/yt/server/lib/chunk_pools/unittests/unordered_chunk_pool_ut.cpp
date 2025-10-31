@@ -1086,7 +1086,6 @@ protected:
         FreeChunksToCookie_.erase(dataSlices.front()->GetSingleUnversionedChunk());
         return cookie;
     }
-
 };
 
 TEST_F(TUnorderedChunkPoolTestCounters, BlockedJobCount)
@@ -1481,7 +1480,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         totalDataWeight += chunk->GetDataWeight();
         totalCompressedDataSize += chunk->GetCompressedDataSize();
         totalRowCount += chunk->GetRowCount();
-    };
+    }
 
     // Don't build too many jobs.
     auto normalizeValue = [&] (i64 value, i64 nominator, i64 maxValue) {

@@ -100,8 +100,7 @@ TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
             .Item("payload").Value(Payload)
             .Item("signature").Value(TString(
                 reinterpret_cast<const char*>(signatureBytes.data()),
-                signatureBytes.size()
-            ));
+                signatureBytes.size()));
         writer.OnEndMap();
         writer.Flush();
 

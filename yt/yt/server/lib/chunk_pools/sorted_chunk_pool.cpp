@@ -20,7 +20,7 @@ class TCallbackChunkSliceFetcherFactory
     : public IChunkSliceFetcherFactory
 {
 public:
-    TCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
+    explicit TCallbackChunkSliceFetcherFactory(TCallback<IChunkSliceFetcherPtr()> factoryCallback)
         : FactoryCallback_(std::move(factoryCallback))
     { }
 

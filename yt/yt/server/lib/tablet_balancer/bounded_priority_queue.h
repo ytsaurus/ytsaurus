@@ -44,6 +44,6 @@ private:
 
 } // namespace NYT::NTabletBalancer
 
-#define BOUNDED_PRIORITY_QUEUE_H
+#define BOUNDED_PRIORITY_QUEUE_INL_H_
 #include "bounded_priority_queue-inl.h"
-#undef BOUNDED_PRIORITY_QUEUE_H
+#undef BOUNDED_PRIORITY_QUEUE_INL_H_

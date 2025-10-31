@@ -12,4 +12,4 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, TimestampServerLogger, "TimestampServe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTransactionServer
+} // namespace NYT::NTimestampServer
