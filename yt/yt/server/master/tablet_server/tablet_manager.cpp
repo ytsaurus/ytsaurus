@@ -4322,7 +4322,6 @@ private:
                             << TErrorAttribute(
                                 "converted_resource_quota",
                                 ConvertToYsonString(schemafulNode, EYsonFormat::Text));
-
                     }
                 } catch (const std::exception& ex) {
                     // QWFP alert
@@ -4597,7 +4596,7 @@ private:
             auto* tablet = tabletBase->As<TTablet>();
 
             auto cell = servant->GetCell();
-            if (!IsObjectAlive(cell)){
+            if (!IsObjectAlive(cell)) {
                 continue;
             }
 

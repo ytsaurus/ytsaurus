@@ -2932,7 +2932,7 @@ private:
             return;
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
-        if (!cellLeaseTransactionIds){
+        if (!cellLeaseTransactionIds) {
             THROW_ERROR_EXCEPTION("Requested to issue leases for missing cell")
                 << TErrorAttribute("transaction_ids", transactionIds)
                 << TErrorAttribute("cell_id", cellId)
@@ -2978,7 +2978,7 @@ private:
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto& bulkInsertState = transaction->BulkInsertState();
 
-        for (const auto& [externalCellTag, tableIds]: lockableDynamicTablesToAdd) {
+        for (const auto& [externalCellTag, tableIds] : lockableDynamicTablesToAdd) {
             for (auto tableId : tableIds) {
                 if (bulkInsertState.HasConflict(tableId)) {
                     THROW_ERROR_EXCEPTION("Duplicate lockable dynamic table")
@@ -3555,7 +3555,6 @@ private:
                 CacheTransactionStarted(transaction);
             }
         }
-
     }
 
     void Clear() override

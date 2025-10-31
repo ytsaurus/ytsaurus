@@ -1317,7 +1317,7 @@ private:
         auto addSubrequestTransactions = [&] (
             std::vector<TTransactionId>* transactions,
             TSubrequest& subrequest,
-            THashMap<TTransactionId, TCompactVector<TSubrequest*,1>>* transactionIdToSubrequests)
+            THashMap<TTransactionId, TCompactVector<TSubrequest*, 1>>* transactionIdToSubrequests)
         {
             auto doTransaction = [&] (TTransactionId transactionId) {
                 transactions->push_back(transactionId);

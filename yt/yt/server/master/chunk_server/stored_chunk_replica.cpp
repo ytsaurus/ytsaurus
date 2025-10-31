@@ -151,12 +151,12 @@ void TAugmentedStoredChunkReplicaPtr::Load(NCellMaster::TLoadContext& context)
         switch (type) {
             case EStoredReplicaType::ChunkLocation: {
                 auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TChunkLocation*>(context);
-                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index, state);
                 break;
             }
             case EStoredReplicaType::OffshoreMedia: {
                 auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TMedium*>(context);
-                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index, state);
                 break;
             }
         }

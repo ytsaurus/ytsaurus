@@ -289,8 +289,7 @@ private:
         auto replacedLocationReplicasFuture = Transaction_->SelectRows<NRecords::TLocationReplicas>(BuildSelectLocationSequoiaReplicasQuery(
             Bootstrap_->GetCellTag(),
             NodeId_,
-            FromProto<TChunkLocationIndex>(ReplaceLocationRequest_->location_index())
-        ));
+            FromProto<TChunkLocationIndex>(ReplaceLocationRequest_->location_index())));
 
         auto existingReplicasInReplacedLocationOrError = WaitFor(replacedLocationReplicasFuture);
 

@@ -410,7 +410,7 @@ private:
                 auto newTags = ConvertTo<THashSet<std::string>>(value);
                 if (std::ssize(newTags) > securityManagerDynconfig->MaxUserTagCount) {
                     THROW_ERROR_EXCEPTION("Cannot set user tags as user tags count limit exceeded")
-                        << TErrorAttribute ("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
+                        << TErrorAttribute("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
                 }
                 for (const auto& tag : newTags) {
                     if (std::ssize(tag) >= securityManagerDynconfig->MaxUserTagSize) {

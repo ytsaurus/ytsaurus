@@ -52,7 +52,7 @@ public:
         , DecommissionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletDecommissioner),
             BIND(&TTabletCellDecommissioner::CheckDecommission, MakeWeak(this))))
-        , KickOrphansExecutor_ (New<TPeriodicExecutor>(
+        , KickOrphansExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletDecommissioner),
             BIND(&TTabletCellDecommissioner::CheckOrphans, MakeWeak(this))))
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(

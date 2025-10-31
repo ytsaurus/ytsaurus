@@ -324,7 +324,7 @@ TInheritedAttributeDictionary::TInheritedAttributeDictionary(
     NYTree::IAttributeDictionaryPtr&& attributes)
     : Bootstrap_(bootstrap)
 {
-    for (const auto& [key, value] : attributes->ListPairs()){
+    for (const auto& [key, value] : attributes->ListPairs()) {
         SetYson(key, value);
     }
 }

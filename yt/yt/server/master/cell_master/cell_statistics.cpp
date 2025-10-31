@@ -30,7 +30,10 @@ namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v, DataMissingChunkCount: %v, ParityMissingChunkCount: %v, OldestPartMissingChunkCount: %v, QuorumMissingChunkCount: %v, InconsistentlyPlacedChunkCount: %v",
+    builder->AppendFormat(
+        "ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v, DataMissingChunkCount: %v, "
+        "ParityMissingChunkCount: %v, OldestPartMissingChunkCount: %v, QuorumMissingChunkCount: %v, "
+        "InconsistentlyPlacedChunkCount: %v",
         statistics.chunk_count(),
         statistics.lost_vital_chunk_count(),
         statistics.online_node_count(),

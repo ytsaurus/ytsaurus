@@ -521,7 +521,6 @@ TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TStoredChunkReplicaList& replicas)
 {
-
     VerifyPersistentStateRead();
 
     TCompactMediumMap<EChunkStatus> result;
@@ -548,7 +547,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
 {
     if (chunk->IsErasure()) {
         TStoredChunkReplicaList offshoreReplicas;
-        for (const auto& replica: replicas) {
+        for (const auto& replica : replicas) {
             if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
                 offshoreReplicas.push_back(replica);
             }
@@ -835,7 +834,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
 
         if (totallySealed) {
             if (replicaCount >= targetReplicationFactor && decommissionedReplicaCount > 0) {
-
                 // A replica may be "decommissioned" either because its node is
                 // decommissioned or that node holds another part of the chunk (and that's
                 // not allowed by the configuration).
@@ -1654,7 +1652,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
             std::ssize(targetNodes),
             chunk->GetId());
         return EMisscheduleReason::InsufficientTargetReplicas;
-    };
+    }
 
     return EMisscheduleReason::None;
 }
@@ -2228,7 +2226,6 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                 } else {
                     ++misscheduledRemovalJobs;
                     ++MisscheduledJobs_[EJobType::RemoveChunk][misscheduleReason];
-
                 }
             }
         }
@@ -2404,7 +2401,6 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
                 ++misscheduledRepairJobs;
                 ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::ErrorFetchingReplicas];
             } else {
-
                 auto misscheduleReason = TryScheduleRepairJob(
                     context,
                     queue,

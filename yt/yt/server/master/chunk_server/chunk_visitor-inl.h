@@ -1,4 +1,4 @@
-#ifndef CHUNK_VISITOR_INL_H
+#ifndef CHUNK_VISITOR_INL_H_
 #error "Direct inclusion of this file is not allowed, include chunk_visitor.h"
 // For the sake of sane code completion.
 #include "chunk_visitor.h"

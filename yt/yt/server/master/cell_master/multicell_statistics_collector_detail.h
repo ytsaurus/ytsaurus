@@ -1,3 +1,5 @@
+#pragma once
+
 #include "multicell_statistics_collector.h"
 
 #include "automaton.h"

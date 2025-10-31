@@ -100,7 +100,6 @@ public:
             BIND(&TWorldInitializer::UpdateCachedInitialized, MakeWeak(this)),
             Config_->WorldInitializer->CachedStateUpdatePeriod))
     {
-
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
         hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopEpoch, MakeWeak(this)));

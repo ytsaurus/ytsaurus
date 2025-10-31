@@ -36,7 +36,7 @@ class TEpochHistoryManager
     , public TMasterAutomatonPart
 {
 public:
-    TEpochHistoryManager(TBootstrap* bootstrap)
+    explicit TEpochHistoryManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
         , StoreMutationTimeExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),

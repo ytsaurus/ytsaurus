@@ -490,7 +490,8 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
             return replicaIndex >= std::ssize(result);
         })!= replicaIndexes.end())
     {
-        YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index (ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndexes: %v)",
+        YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index "
+            "(ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndexes: %v)",
             chunk->GetId(),
             mediumIndex,
             std::ssize(result),

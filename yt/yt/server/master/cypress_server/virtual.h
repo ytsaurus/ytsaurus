@@ -170,7 +170,6 @@ private:
     TFuture<NYson::TYsonString> GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

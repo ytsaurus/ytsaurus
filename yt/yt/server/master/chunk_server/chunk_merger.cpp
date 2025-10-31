@@ -1897,7 +1897,7 @@ void TChunkMerger::GuardedDisableChunkMerger()
     auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
     auto batchReq = proxy.ExecuteBatch();
     auto req = TYPathProxy::Set("//sys/@config/chunk_manager/chunk_merger/enable");
-    req->set_value("\%false");
+    req->set_value("%false");
     batchReq->AddRequest(req);
     WaitFor(batchReq->Invoke())
         .ThrowOnError();

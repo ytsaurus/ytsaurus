@@ -144,7 +144,6 @@ TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
         result <<= TError(ex);
         return result;
     }
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

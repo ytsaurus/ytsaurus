@@ -280,7 +280,7 @@ private:
             bootstrap->FinishRecoveryDryRun();
 
             if (IsExportSnapshotMode()) {
-                // TODO (h0pless): maybe rename this to ExportState
+                // TODO(h0pless): maybe rename this to ExportState.
                 ExportSnapshot(bootstrap.get(), ExportConfigPath_);
             }
 

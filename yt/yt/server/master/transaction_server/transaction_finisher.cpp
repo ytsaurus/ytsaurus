@@ -713,7 +713,7 @@ private:
 
         if (!activeRequests.empty()) {
             return;
-        };
+        }
 
         if (Requests_.contains(transaction.Get())) {
             ScheduleFinish(transaction.Get());
