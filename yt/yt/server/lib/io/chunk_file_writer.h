@@ -45,6 +45,10 @@ public:
     // IChunkWriter implementation.
     TFuture<void> Open() override;
 
+    TFuture<void> PreallocateDiskSpace(
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 spaceSize);
+
     bool WriteBlock(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
@@ -124,6 +128,7 @@ private:
 
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;
+    i64 DiskSpace_ = 0;
 
     TIOEngineHandlePtr DataFile_;
 

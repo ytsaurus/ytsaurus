@@ -137,6 +137,7 @@ TSessionBase::TSessionBase(
     , WriteBlocksOptions_(std::move(writeBlocksOptions))
     , ProbePutBlocksRequestSupplier_(New<TProbePutBlocksRequestSupplier>(SessionId_))
     , UseProbePutBlocks_(options.UseProbePutBlocks)
+    , PreallocateDiskSpace_(options.PreallocateDiskSpace)
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);

@@ -107,6 +107,7 @@ protected:
     TProbePutBlocksRequestSupplierPtr ProbePutBlocksRequestSupplier_;
 
     bool UseProbePutBlocks_ = false;
+    bool PreallocateDiskSpace_ = false;
 
     TLocationMemoryGuard GetMemoryForPutBlocks(i64 memory);
 

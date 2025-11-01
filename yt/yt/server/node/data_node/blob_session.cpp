@@ -87,6 +87,13 @@ public:
             BIND(&TBlobWritePipeline::DoOpen, MakeStrong(this)));
     }
 
+    TFuture<void> PreallocateDiskSpace(i64 cumulativeBlockSize)
+    {
+        return EnqueueCommand(BIND(&TBlobWritePipeline::DoPreallocateDiskSpace,
+            MakeStrong(this),
+            cumulativeBlockSize));
+    }
+
     TFuture<void> WriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
@@ -220,6 +227,11 @@ private:
                 auto& performanceCounters = Location_->GetPerformanceCounters();
                 performanceCounters.BlobChunkWriterOpenTime.Record(time);
             }));
+    }
+
+    TFuture<void> DoPreallocateDiskSpace(i64 cumulativeBlockSize)
+    {
+        return Writer_->PreallocateDiskSpace(Options_.WorkloadDescriptor, cumulativeBlockSize);
     }
 
     TFuture<void> DoWriteBlocks(
@@ -763,7 +775,14 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             return;
         }
 
-        Pipeline_->WriteBlocks(WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareSlotId)
+        TFuture<void> preallocateDiskSpace = VoidFuture;
+
+        if (PreallocateDiskSpace_) {
+            preallocateDiskSpace = Pipeline_->PreallocateDiskSpace(MaxCumulativeBlockSize_);
+        }
+
+        preallocateDiskSpace
+            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareSlotId))
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
