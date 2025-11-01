@@ -1093,6 +1093,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_probe_put_blocks", &TThis::UseProbePutBlocks)
         .Default(false);
 
+    registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
+        .Default(false);
+
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 

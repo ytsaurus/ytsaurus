@@ -1099,6 +1099,7 @@ struct TDataNodeDynamicConfig
 
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
+    bool PreallocateDiskSpace;
 
     TP2PConfigPtr P2P;
 

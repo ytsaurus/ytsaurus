@@ -397,6 +397,7 @@ public:
         bool UseProbePutBlocks = false;
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
+        bool PreallocateDiskSpace = false;
     };
 
     TDataNodeTest() = default;
@@ -560,6 +561,7 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
             THashMap<std::string, IServicePtr>());
@@ -593,13 +595,14 @@ public:
         return ActionQueue_;
     }
 
-    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks)
+    auto StartChunk(const TSessionId& sessionId, bool useProbePutBlocks, bool preallocateDiskSpace)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
 
         auto req = proxy.StartChunk();
         req->set_use_probe_put_blocks(useProbePutBlocks);
+        req->set_preallocate_disk_space(preallocateDiskSpace);
         ToProto(req->mutable_session_id(), sessionId);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
 
@@ -710,11 +713,11 @@ public:
         return req->Invoke();
     }
 
-    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize, bool useProbePutBlocks = false)
+    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize, bool useProbePutBlocks = false, bool preallocateDiskSpace = false)
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
-        WaitFor(StartChunk(sessionId, useProbePutBlocks)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, useProbePutBlocks, preallocateDiskSpace)).ThrowOnError();
         if (useProbePutBlocks) {
             int approvedCumulativeBlockSize = 0;
             do {
@@ -765,6 +768,7 @@ struct TGetBlockSetTestCase
     bool FetchFromDisk = true;
     bool EnableSequentialIORequests = true;
     bool UseProbePutBlocks = false;
+    bool PreallocateDiskSpace = false;
     NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
     bool EnableHugePageManager = false;
     NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
@@ -893,7 +897,7 @@ TEST_P(TSkipWriteThrottlingLocationsTest, SkipThrottlingLocationsOnStartChunk)
     YT_VERIFY(std::ssize(ioWeights) == std::ssize(locations));
 
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    auto rspOrError = WaitFor(StartChunk(sessionId, true));
+    auto rspOrError = WaitFor(StartChunk(sessionId, true, false));
 
     if (alwaysThrottleLocation && enableSkipWriteThrottlingLocations) {
         EXPECT_FALSE(rspOrError.IsOK());
@@ -945,7 +949,7 @@ TEST_P(TIoWeightTest, IoBasedOnIoWeight)
 
     for (auto& future : futures) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false)
+        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false, false)
             .AsyncVia(GetActionQueue()->GetInvoker())
             .Run()
             .AsVoid();
@@ -1069,7 +1073,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     TRandomGenerator generator(42);
     int blockCount = testCase.BlockCount;
     int blkSize = testCase.BlockSize;
-    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize, testCase.UseProbePutBlocks);
+    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize, testCase.UseProbePutBlocks, testCase.PreallocateDiskSpace);
 
     int getBlockSetCount = testCase.ParallelGetBlockSetCount;
     std::vector<TFuture<void>> getBlockSetFutures;
@@ -1178,6 +1182,28 @@ INSTANTIATE_TEST_SUITE_P(
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
+            .UseProbePutBlocks = true,
+            .PreallocateDiskSpace = true
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 1000,
+            .BlockSize = 1_KB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .UseProbePutBlocks = false,
+            .PreallocateDiskSpace = true
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 1000,
+            .BlockSize = 1_KB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
             .UseProbePutBlocks = true
         },
         TGetBlockSetTestCase{
@@ -1226,7 +1252,7 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     for (int i = 0; i < 100; ++i) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
         sessionIds.push_back(sessionId);
-        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, true, false)).ThrowOnError();
     }
 
     for (const auto& sessionId: sessionIds) {
@@ -1257,7 +1283,7 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
     for (int i = 0; i < 100; ++i) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
         sessionIds.push_back(sessionId);
-        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, true, false)).ThrowOnError();
     }
 
     for (const auto& sessionId: sessionIds) {
