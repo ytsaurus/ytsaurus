@@ -3105,6 +3105,7 @@ def _prepare_parser():
     add_get_job_input_paths_parser(add_parser)
     add_abort_job_parser(add_parser)
     add_list_jobs_parser(add_parser)
+    add_get_job_trace_parser(add_parser)
     add_get_job_spec_parser(add_parser)
     add_get_job_parser(add_parser)
 
