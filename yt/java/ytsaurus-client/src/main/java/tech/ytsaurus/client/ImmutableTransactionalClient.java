@@ -10,7 +10,9 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 
@@ -28,6 +30,12 @@ public interface ImmutableTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
+    CompletableFuture<UnversionedLookupRowsResultV2> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request);
+
+    CompletableFuture<VersionedLookupRowsResultV2> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request);
+
+    CompletableFuture<List<UnversionedLookupRowsResultV2>> multiLookupRowsV2(MultiLookupRowsRequest request);
+
     @Deprecated
     default <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest.Builder<?, ?> request,
@@ -42,6 +50,8 @@ public interface ImmutableTransactionalClient {
             MultiLookupRowsRequest request,
             YTreeRowSerializer<T> serializer
     );
+
+    
 
     CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request);
 

@@ -154,9 +154,25 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         return executor.execute((client) -> client.multiLookupRows(request, serializer));
     }
 
+
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return executor.execute((client) -> client.versionedLookupRows(request));
+    }
+
+    @Override
+    public CompletableFuture<tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return executor.execute(client -> client.lookupRowsV2(request));
+    }
+
+    @Override
+    public CompletableFuture<tech.ytsaurus.client.rows.VersionedLookupRowsResultV2> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return executor.execute(client -> client.versionedLookupRowsV2(request));
+    }
+
+    @Override
+    public CompletableFuture<List<tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return executor.execute(client -> client.multiLookupRowsV2(request));
     }
 
     @Override

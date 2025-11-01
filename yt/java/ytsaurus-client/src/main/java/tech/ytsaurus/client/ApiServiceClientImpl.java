@@ -100,6 +100,7 @@ import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.MoveNode;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
+import tech.ytsaurus.client.request.MultiLookupRowsSubrequest;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.MutateNode;
 import tech.ytsaurus.client.request.MutatingOptions;
@@ -160,6 +161,8 @@ import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
@@ -651,6 +654,16 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public CompletableFuture<UnversionedLookupRowsResultV2> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, lookupRowsImpl(request, response ->
+                UnversionedLookupRowsResultV2.builder()
+                        .setResponse(response)
+                        .setHeavyExecutor(heavyExecutor)
+                        .setSerializationResolver(serializationResolver)
+                        .build()));
+    }
+
+    @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
@@ -692,11 +705,28 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 }));
     }
 
+
+
+
     @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
         return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
+        )));
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResultV2>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithUnavailableIndexes(
+                response,
+                (rowsetDescriptor, attachments, unavailableKeyIndexes) -> UnversionedLookupRowsResultV2.builder()
+                        .setRowsetDescriptor(rowsetDescriptor)
+                        .setAttachments(attachments)
+                        .setUnavailableKeyIndexes(unavailableKeyIndexes)
+                        .setHeavyExecutor(heavyExecutor)
+                        .setSerializationResolver(serializationResolver)
+                        .build()
         )));
     }
 
@@ -761,12 +791,42 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return result;
     }
 
+    private <T> List<T> multiLookupResponseReaderWithUnavailableIndexes(
+            RpcClientResponse<TRspMultiLookup> response,
+            TriFunction<TRowsetDescriptor, List<byte[]>, List<Integer>, T> resultDeserializer
+    ) {
+        List<T> result = new ArrayList<>(response.body().getSubresponsesCount());
+        int beginAttachmentIndex = 0;
+        for (var subresponse : response.body().getSubresponsesList()) {
+            int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+            result.add(
+                    resultDeserializer.apply(
+                            subresponse.getRowsetDescriptor(),
+                            response.attachments().subList(beginAttachmentIndex, endAttachmentIndex),
+                            subresponse.getUnavailableKeyIndexesList()
+                    )
+            );
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        return result;
+    }
+
 
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return onStarted(request, versionedLookupRowsImpl(request, response -> ApiServiceUtil
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments())));
     }
+
+    @Override
+    public CompletableFuture<VersionedLookupRowsResultV2> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, versionedLookupRowsImpl(request, response ->
+                VersionedLookupRowsResultV2.builder()
+                        .setResponse(response)
+                        .setHeavyExecutor(heavyExecutor)
+                        .build()));
+    }
+
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
             AbstractLookupRowsRequest<?, ?> request,
