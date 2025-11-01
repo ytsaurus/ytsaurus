@@ -196,7 +196,7 @@ private:
     int Length_ = 0;
 };
 
-std::string GenerateIntegerORC(const std::vector<i64>& intArray) {
+std::string GenerateIntegerOrc(const std::vector<i64>& intArray) {
     orc::WriterOptions options;
     std::unique_ptr<orc::Type> schema(orc::Type::buildTypeFromString("struct<int:int>"));
     auto outStream = std::make_unique<StringOutputStream>();
@@ -366,7 +366,7 @@ public:
                 case EFileFormat::Parquet:
                     fileNames.emplace_back(ToString(fileIndex) + ".parquet");
                     break;
-                case EFileFormat::ORC:
+                case EFileFormat::Orc:
                     fileNames.emplace_back(ToString(fileIndex) + ".orc");
                     break;
             }
@@ -387,8 +387,8 @@ public:
                 case EFileFormat::Parquet:
                     formatData.push_back(GenerateIntegerParquet(fileData, arrow20::int64()));
                     break;
-                case EFileFormat::ORC:
-                    formatData.push_back(GenerateIntegerORC(fileData));
+                case EFileFormat::Orc:
+                    formatData.push_back(GenerateIntegerOrc(fileData));
                     break;
             }
         }
@@ -656,6 +656,7 @@ TEST_F(TSmallHuggingfaceServerTest, SimpleImportTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -674,11 +675,11 @@ class TSmallOrcHuggingfaceServerTest
 private:
     void InitializeGenerator() override
     {
-        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::ORC);
+        Generator = std::make_shared<TSmallParquetGenerator>(EFileFormat::Orc);
     }
 };
 
-TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
+TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportOrcFilesFromHuggingface)
 {
     NTesting::TTestFixture fixture;
     auto client = fixture.GetClient();
@@ -694,7 +695,8 @@ TEST_F(TSmallOrcHuggingfaceServerTest, SimpleImportORCFilesFromHuggingface)
         /*subset*/ "default",
         Split,
         resultTable,
-        EFileFormat::ORC,
+        EFileFormat::Orc,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     TTableSchema schema;
@@ -736,6 +738,7 @@ TEST_F(TDifferentSchemasHuggingfaceServerTest, DifferentSchemas)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -769,6 +772,7 @@ TEST_F(TBigHuggingfaceServerTest, ImportBigTableFromHuggingface)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl);
 
     Generator->VerifyAnswer(client, resultTable);
@@ -793,6 +797,7 @@ TEST_F(TBigHuggingfaceServerTest, SplitMetadataRow)
         Split,
         resultTable,
         EFileFormat::Parquet,
+        /*networkProject*/ std::nullopt,
         TestUrl,
         config);
 
@@ -830,7 +835,8 @@ private:
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
             std::move(clientConfig),
-            NS3::CreateAnonymousCredentialProvider(),
+            NS3::CreateStaticCredentialProvider("key", "secret"),
+            /*sslContextConfig*/ nullptr,
             poller,
             poller->GetInvoker());
 

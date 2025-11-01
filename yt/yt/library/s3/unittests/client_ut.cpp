@@ -53,6 +53,7 @@ private:
         S3Client_ = CreateClient(
             std::move(clientConfig),
             S3CredentialProvider_,
+            /*sslContextConfig*/ nullptr,
             Poller_,
             Poller_->GetInvoker());
 

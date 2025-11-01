@@ -45,7 +45,7 @@ How to use:
 - **bucket** — bucket name
 - **prefix** — common prefix of files that represent a single table, if this option is not set, all files from bucket will be imported
 
-S3 access keys should be placed in environment variables 'ACCESS_KEY_ID' and 'SECRET_ACCESS_KEY'
+S3 access keys should be placed in environment variables `ACCESS_KEY_ID` and `SECRET_ACCESS_KEY`.
 
 **Huggingface Parameters**
 
@@ -56,4 +56,4 @@ S3 access keys should be placed in environment variables 'ACCESS_KEY_ID' and 'SE
     - `test` — data reserved for evaluation only
     - `validation` — data reserved for evaluation and improving model hyperparameters
 
-Huggingface token should be placed in the environment variable 'HUGGINGFACE_TOKEN'
+Huggingface token should be placed in the environment variable `HUGGINGFACE_TOKEN`

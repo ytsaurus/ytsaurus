@@ -28,7 +28,7 @@ namespace NYT::NPython {
 
 DEFINE_ENUM(EFileFormat,
     (Parquet)
-    (ORC)
+    (Orc)
 );
 
 class TArrowOutputStream

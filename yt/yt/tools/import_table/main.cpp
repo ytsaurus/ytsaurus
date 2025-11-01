@@ -40,6 +40,9 @@ struct TOpts
         Opts.AddLongOption("config", "YSON file with configuration for fine-grained tuning")
             .Optional()
             .StoreResult(&Config);
+        Opts.AddLongOption("network-project", "Network project")
+            .Optional()
+            .StoreResult(&NetworkProject);
     }
 
     NLastGetopt::TOpts Opts;
@@ -48,6 +51,7 @@ struct TOpts
     TString ResultTable;
     TString Format;
     std::optional<TString> Config;
+    std::optional<TString> NetworkProject;
 };
 
 struct TOptsHuggingface
@@ -109,34 +113,31 @@ TImportConfigPtr LoadConfig(const std::optional<TString>& configPath)
     return config;
 }
 
+EFileFormat ParseFileFormat(const TString& fileFormatString)
+{
+    try {
+        return ParseEnum<EFileFormat>(fileFormatString);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Invalid file format %s", fileFormatString)
+            << ex;
+    }
+}
+
 int ImportFilesFromS3(int argc, const char** argv)
 {
     TOptsS3 opts;
     NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
 
-    if (opts.Format == "parquet") {
-        ImportFilesFromS3(
-            opts.Proxy,
-            opts.Url,
-            opts.Region,
-            opts.Bucket,
-            opts.Prefix,
-            opts.ResultTable,
-            EFileFormat::Parquet,
-            LoadConfig(opts.Config));
-    } else if (opts.Format == "orc") {
-         ImportFilesFromS3(
-            opts.Proxy,
-            opts.Url,
-            opts.Region,
-            opts.Bucket,
-            opts.Prefix,
-            opts.ResultTable,
-            EFileFormat::ORC,
-            LoadConfig(opts.Config));
-    } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
-    }
+    ImportFilesFromS3(
+        opts.Proxy,
+        opts.Url,
+        opts.Region,
+        opts.Bucket,
+        opts.Prefix,
+        opts.ResultTable,
+        ParseFileFormat(opts.Format),
+        opts.NetworkProject,
+        LoadConfig(opts.Config));
 
     return 0;
 }
@@ -146,29 +147,16 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
     TOptsHuggingface opts;
     NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
 
-    if (opts.Format == "parquet") {
-        ImportFilesFromHuggingface(
-            opts.Proxy,
-            opts.Dataset,
-            opts.Subset,
-            opts.Split,
-            opts.ResultTable,
-             EFileFormat::Parquet,
-            /*urlOverride*/ std::nullopt,
-            LoadConfig(opts.Config));
-    } else  if (opts.Format == "orc") {
-        ImportFilesFromHuggingface(
-            opts.Proxy,
-            opts.Dataset,
-            opts.Subset,
-            opts.Split,
-            opts.ResultTable,
-            EFileFormat::ORC,
-            /*urlOverride*/ std::nullopt,
-            LoadConfig(opts.Config));
-    } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, Parquet and ORC are supported now");
-    }
+    ImportFilesFromHuggingface(
+        opts.Proxy,
+        opts.Dataset,
+        opts.Subset,
+        opts.Split,
+        opts.ResultTable,
+        ParseFileFormat(opts.Format),
+        opts.NetworkProject,
+        /*urlOverride*/ std::nullopt,
+        LoadConfig(opts.Config));
 
     return 0;
 }

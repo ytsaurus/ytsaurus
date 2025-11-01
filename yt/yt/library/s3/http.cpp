@@ -6,6 +6,7 @@
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
+#include <yt/yt/core/crypto/config.h>
 #include <yt/yt/core/crypto/tls.h>
 
 #include <yt/yt/core/http/stream.h>
@@ -216,9 +217,14 @@ void PrepareHttpRequest(
 
 namespace {
 
-NYT::NCrypto::TSslContextPtr CreateSslContext()
+NYT::NCrypto::TSslContextPtr CreateSslContext(const NYT::NCrypto::TSslContextConfigPtr& config, NYT::NCrypto::TCertificatePathResolver pathResolver = nullptr)
 {
     auto sslContext = New<NYT::NCrypto::TSslContext>();
+    if (config) {
+        sslContext->ApplyConfig(config, std::move(pathResolver));
+    } else {
+        sslContext->UseBuiltinOpenSslX509Store();
+    }
     sslContext->Commit();
     return sslContext;
 }
@@ -233,12 +239,13 @@ public:
         NHttp::TClientConfigPtr config,
         TNetworkAddress address,
         bool useTls,
+        const NYT::NCrypto::TSslContextConfigPtr& sslContextConfig,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(config)
         , Address_(std::move(address))
         , Dialer_(useTls
-            ? CreateSslContext()->CreateDialer(
+            ? CreateSslContext(sslContextConfig)->CreateDialer(
                 config->Dialer,
                 std::move(poller),
                 S3Logger())
@@ -273,7 +280,21 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        auto connection = WaitFor(Dialer_->Dial(Address_))
+        auto Logger = S3Logger();
+
+        YT_LOG_DEBUG("Performing request (Method: %v, Protocol: %v, Host: %v, Port: %v, Path: %v, Region: %v, Service: %v)",
+            request.Method,
+            request.Protocol,
+            request.Host,
+            request.Port,
+            request.Path,
+            request.Region,
+            request.Service);
+
+        auto dialerContext = New<TDialerContext>();
+        dialerContext->Host = request.Host;
+
+        auto connection = WaitFor(Dialer_->Dial(Address_, dialerContext))
             .ValueOrThrow();
 
         auto input = New<THttpInput>(
@@ -329,6 +350,7 @@ IHttpClientPtr CreateHttpClient(
     NHttp::TClientConfigPtr config,
     NNet::TNetworkAddress address,
     bool useTls,
+    const NYT::NCrypto::TSslContextConfigPtr& sslContextConfig,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker)
 {
@@ -336,6 +358,7 @@ IHttpClientPtr CreateHttpClient(
         std::move(config),
         std::move(address),
         useTls,
+        sslContextConfig,
         std::move(poller),
         std::move(invoker));
 }

@@ -144,7 +144,7 @@ void TArrowRawIterator::Initialize(const TString& inputFilePath, EFileFormat for
     auto* pool = arrow20::default_memory_pool();
 
     switch (format) {
-        case EFileFormat::ORC: {
+        case EFileFormat::Orc: {
             RecordBatchReader_ = std::make_shared<TRecordBatchReaderOrcAdapter>(inputFilePath, pool, arrowBatchSize);
             break;
         }

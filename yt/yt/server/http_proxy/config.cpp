@@ -154,7 +154,7 @@ void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TMemoryLimitRatiosConfig* config) {
         for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
             if (value > 1 || value < 0) {
-                THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
+                THROW_ERROR_EXCEPTION("User ratio must be in range [0, 1]")
                     << TErrorAttribute("user_name", name)
                     << TErrorAttribute("user_ratio", value);
             }

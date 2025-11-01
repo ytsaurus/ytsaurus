@@ -148,10 +148,14 @@ NS3::IClientPtr CreateS3Client(
     clientConfig->Region = std::move(s3Config.Region);
     clientConfig->Bucket = std::move(s3Config.Bucket);
 
+    auto sslConfig = NYT::New<NYT::NCrypto::TSslContextConfig>();
+    sslConfig->InsecureSkipVerify = true;
+
     auto poller = CreateThreadPoolPoller(1, "S3Poller");
     auto client = NS3::CreateClient(
         std::move(clientConfig),
         std::move(credentialProvider),
+        sslConfig,
         poller,
         poller->GetInvoker());
 
@@ -166,7 +170,7 @@ std::vector<TString> GetListFilesKeysFromS3(
     TString secretAccessKey,
     TString prefix)
 {
-    auto s3Client =  CreateS3Client(
+    auto s3Client = CreateS3Client(
         s3Config,
         std::move(accessKeyId),
         std::move(secretAccessKey));
@@ -212,13 +216,12 @@ public:
 
     const std::string& getName() const override
     {
-        return Name_;
+        static std::string name = "OrcInputStreamAdapter";
+        return name;
     }
 
 private:
-    const std::string Name_ = "OrcInputStreamAdapter";
-
-    TRingBuffer* Buffer_;
+    TRingBuffer* const Buffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,7 +393,7 @@ private:
                 metadataWeight = std::max(static_cast<i64>(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataWeight), metadataWeight);
                 return metadataWeight;
             }
-            case EFileFormat::ORC: {
+            case EFileFormat::Orc: {
                 std::unique_ptr<orc::InputStream> stream = std::make_unique<TOrcInputStreamAdapter>(&metadataRingBuffer);
                 orc::ReaderOptions option;
                 auto reader = orc::createReader(std::move(stream), option);
@@ -417,6 +420,7 @@ private:
 
         TString metadata;
         metadata.resize(metadataWeight);
+
         ringBuffer.Read(std::max(static_cast<i64>(0), FileSize_ - metadataWeight), std::min(metadataWeight, FileSize_), metadata.begin());
 
         i64 partIndex = 0;
@@ -541,7 +545,7 @@ std::shared_ptr<arrow20::RecordBatchReader> MakeRecordBatchReaderAdapter(
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
             return std::make_shared<TRecordBatchReaderOrcAdapter>(stream, pool);
         case EFileFormat::Parquet:
             return std::make_shared<TRecordBatchReaderParquetAdapter>(stream, pool);
@@ -555,10 +559,10 @@ TArrowRandomAccessFilePtr MakeFormatStreamAdapter(
     EFileFormat fileFormat)
 {
     switch (fileFormat) {
-        case EFileFormat::ORC:
+        case EFileFormat::Orc:
         {
             auto maxStripeSize = NArrow::GetMaxStripeSize(metadata, startMetadataOffset);
-            return NArrow::CreateORCAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
+            return NArrow::CreateOrcAdapter(metadata, startMetadataOffset, maxStripeSize, std::move(reader));
         }
         case EFileFormat::Parquet:
         {
@@ -752,9 +756,9 @@ std::vector<TTempTable> CreateOutputParserTables(
 
         TArrowSchemaPtr arrowSchema;
         switch (fileFormat) {
-            case EFileFormat::ORC:
+            case EFileFormat::Orc:
             {
-                arrowSchema = NArrow::CreateArrowSchemaFromORCMetadata(&metadata, metadataStartOffset);
+                arrowSchema = NArrow::CreateArrowSchemaFromOrcMetadata(&metadata, metadataStartOffset);
                 break;
             }
             case EFileFormat::Parquet:
@@ -799,6 +803,7 @@ void ImportFilesFromSource(
     const TString& proxy,
     const std::vector<TString>& fileIds,
     const TString& resultTable,
+    const std::optional<TString>& networkProject,
     const TSourceConfig& sourceConfig,
     TImportConfigPtr config)
 {
@@ -825,8 +830,8 @@ void ImportFilesFromSource(
     for (const auto& fileName : fileIds) {
         NRe2::TRe2Ptr regex;
         switch (sourceConfig.Format) {
-            case EFileFormat::ORC:
-                regex = config->ORCFileRegex;
+            case EFileFormat::Orc:
+                regex = config->OrcFileRegex;
                 break;
 
             case EFileFormat::Parquet:
@@ -920,12 +925,17 @@ void ImportFilesFromSource(
             .AddOutput<TNode>(metadataTablePath)
             .DataSizePerJob(1);
 
+        auto jobSpec = TUserJobSpec()
+            .MemoryLimit(config->MemoryLimit);
+        if (networkProject) {
+            jobSpec.NetworkProject(*networkProject);
+        }
         if (attachLibIconv) {
-            spec = spec.MapperSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+           jobSpec.AddLocalFile("./libiconv.so");
         }
 
         ytClient->Map(
-            spec,
+            spec.MapperSpec(jobSpec),
             new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons).ToString()),
             operationOptions);
     }
@@ -944,7 +954,13 @@ void ImportFilesFromSource(
 
     {
         TOperationOptions operationOptions;
-        operationOptions.Spec(TNode()("job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))));
+        auto specNode = TNode()(
+                "job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))
+        );
+        if (config->Pool) {
+            specNode = specNode("pool", *config->Pool);
+        }
+        operationOptions.Spec(specNode);
 
         TTempTable outputInformationTable(
             ytClient,
@@ -984,9 +1000,12 @@ void ImportFilesFromSource(
                 .AddOutput(TRichYPath(outputReduceTable.Name()));
         }
 
+        auto jobSpec = TUserJobSpec()
+            .MemoryLimit(config->MemoryLimit);
         if (attachLibIconv) {
-            reduceOperationSpec = reduceOperationSpec.ReducerSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+            jobSpec.AddLocalFile("./libiconv.so");
         }
+        reduceOperationSpec = reduceOperationSpec.ReducerSpec(jobSpec);
 
         YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the temporary tables (MaxRowWeight: %v)", config->MaxRowWeight);
 
@@ -1021,6 +1040,7 @@ void ImportFilesFromS3(
     const TString& prefix,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     TImportConfigPtr config)
 {
     TString accessKeyId = GetEnv("ACCESS_KEY_ID");
@@ -1046,6 +1066,7 @@ void ImportFilesFromS3(
         proxy,
         fileKeys,
         resultTable,
+        networkProject,
         TSourceConfig{
             .S3Config = s3Config,
             .Format = format,
@@ -1060,6 +1081,7 @@ void ImportFilesFromHuggingface(
     const TString& split,
     const TString& resultTable,
     EFileFormat format,
+    const std::optional<TString>& networkProject,
     const std::optional<TString>& urlOverride,
     TImportConfigPtr config)
 {
@@ -1081,6 +1103,7 @@ void ImportFilesFromHuggingface(
         proxy,
         fileIds,
         resultTable,
+        networkProject,
         TSourceConfig{
             .HuggingfaceConfig = THuggingfaceConfig{
                 .UrlOverride = urlOverride
