@@ -33,7 +33,7 @@ using namespace WAVM;
 static constexpr I64 PageSize = 64_KB;
 static constexpr I64 Padding = 64;
 
-static constexpr I64 SystemLibsSize = 512_KB;
+static constexpr I64 SystemLibsSize = 30_MB;
 static constexpr I64 StackMaxSize = 64_KB;
 static constexpr I64 MaxMemorySize  = 128_GB;
 
@@ -63,6 +63,9 @@ struct TMemoryLayoutData
     Runtime::GCPointer<Runtime::Global> TableBase32;
     Runtime::GCPointer<Runtime::Global> StackLow;
     Runtime::GCPointer<Runtime::Global> StackHigh;
+
+    std::vector<Uptr> MemoryBases = { 0ull };
+    std::vector<Uptr> TableBases = { 0ull };
 
     TMemoryLayoutData BuildMemoryLayoutData(Runtime::Compartment* compartment);
     static void Clear(TMemoryLayoutData* data);
@@ -128,6 +131,25 @@ void TMemoryLayoutData::Clear(TMemoryLayoutData* data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Since pointer to current compartment is stored inside of a thread local,
+// calls to context-switching functions should be guarded via this function.
+template <typename TFunction>
+auto SaveAndRestoreCompartment(IWebAssemblyCompartment* compartment, const TFunction& function) -> decltype(function())
+{
+    auto* savedCompartment = GetCurrentCompartment();
+
+    auto finally = Finally([&] {
+        YT_VERIFY(GetCurrentCompartment() == compartment);
+        SetCurrentCompartment(savedCompartment);
+    });
+
+    SetCurrentCompartment(compartment);
+
+    return function();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Runtime::ModuleRef LoadModuleFromBytecode(TRef bytecode)
 {
     auto featureSpec = IR::FeatureSpec();
@@ -166,7 +188,13 @@ IR::Module ParseWast(const TString& wast)
         wastErrors);
 
     if (!succeeded) {
-        THROW_ERROR_EXCEPTION("Incorrect Wast file format");
+        THROW_ERROR_EXCEPTION(
+            "Incorrect Wast file: %v",
+            MakeFormattableView(
+                wastErrors,
+                [] (TStringBuilderBase* builder, const auto& error) {
+                    FormatValue(builder, error.message, "v");
+                }));
     }
 
     return irModule;
@@ -267,9 +295,12 @@ public:
 
     void* GetFunction(const std::string& name) override
     {
-        auto& instance = Instances_.back();
-        auto* function = Runtime::asFunction(Runtime::getInstanceExport(instance, name.c_str()));
-        return static_cast<void*>(function);
+        for (const auto& it : Instances_) {
+            if (auto* function = Runtime::asFunction(Runtime::getInstanceExport(it, name.c_str())); function != nullptr) {
+                return static_cast<void*>(function);
+            }
+        }
+        return nullptr;
     }
 
     void* GetFunction(size_t index) override
@@ -289,7 +320,9 @@ public:
         auto* mallocFunction = Runtime::getTypedInstanceExport(RuntimeLibraryInstance_, "malloc", signature);
         auto arguments = std::array<IR::UntaggedValue, 1>{std::bit_cast<Uptr>(length)};
         auto result = IR::UntaggedValue{};
-        Runtime::invokeFunction(Context_, mallocFunction, signature, arguments.data(), &result);
+        SaveAndRestoreCompartment(this, [&] {
+            Runtime::invokeFunction(Context_, mallocFunction, signature, arguments.data(), &result);
+        });
         return result.u64;
     }
 
@@ -298,7 +331,9 @@ public:
         static const auto signature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {IR::ValueType::i64});
         auto* freeFunction = getTypedInstanceExport(RuntimeLibraryInstance_, "free", signature);
         auto arguments = std::array<IR::UntaggedValue, 1>{std::bit_cast<Uptr>(offset)};
-        Runtime::invokeFunction(Context_, freeFunction, signature, arguments.data(), {});
+        SaveAndRestoreCompartment(this, [&] {
+            Runtime::invokeFunction(Context_, freeFunction, signature, arguments.data(), {});
+        });
     }
 
     void* GetHostPointer(uintptr_t offset, size_t length) override
@@ -332,8 +367,18 @@ public:
         return MemoryLayoutData_.GlobalOffsetTable;
     }
 
+    // This function is only declared here, because TLinker has not yet been defined.
+    Runtime::LinkResult LinkModule(const IR::Module& irModule);
+
 private:
     friend class TLinker;
+
+    struct TLinkingData
+    {
+        std::vector<std::unique_ptr<Runtime::WeakFunction>> WeakFunctions;
+        std::vector<std::pair<std::string, Uptr>> GlobalsToWeakFunctionsToPatch;
+    };
+
     friend std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image);
 
     static constexpr int TypicalModuleCount = 5;
@@ -348,18 +393,16 @@ private:
     TCompactVector<Runtime::ModuleRef, TypicalModuleCount> Modules_;
 
     TMemoryLayoutData MemoryLayoutData_;
+    TLinkingData LinkingData_;
     TNamedGlobalOffsetTableElements GlobalOffsetTableElements_;
 
     Runtime::GCPointer<Runtime::ExceptionType> ExceptionType_;
 
     bool Stripped_ = false;
 
-    Runtime::LinkResult LinkModule(const IR::Module& irModule);
     void AddExportsToGlobalOffsetTable(const IR::Module& irModule);
-    void InstantiateModule(
-        const Runtime::ModuleRef& wavmModule,
-        const Runtime::LinkResult& linkResult,
-        TStringBuf debugName);
+    void InstantiateModule(const Runtime::ModuleRef& wavmModule, const Runtime::LinkResult& linkResult, TStringBuf debugName);
+    void ApplyDataRelocationsAndCallConstructors(Runtime::Instance* instance);
 
     static void Clone(const TWebAssemblyCompartment& from, TWebAssemblyCompartment* to);
 };
@@ -370,8 +413,9 @@ class TLinker
     : public Runtime::Resolver
 {
 public:
-    explicit TLinker(TWebAssemblyCompartment* compartment)
+    TLinker(TWebAssemblyCompartment* compartment, const IR::Module* incomingModule)
         : Compartment_(compartment)
+        , IncomingModule_(incomingModule)
     { }
 
     bool resolve(
@@ -380,23 +424,53 @@ public:
         IR::ExternType type,
         Runtime::Object*& outObject) override
     {
-        if (auto result = ResolveMemoryLayoutGlobals(objectName); result.has_value()) {
+        if (auto result = ResolveMemoryLayoutGlobals(moduleName, objectName, type); result.has_value()) {
             outObject = *result;
             return true;
         }
 
-        if (auto result = ResolveIntrinsics(objectName); result.has_value()) {
+        if (auto result = ResolveMisc(moduleName, objectName, type); result.has_value()) {
             outObject = *result;
             return true;
         }
 
-        if (auto result = ResolveAlreadyLoaded(moduleName, objectName, type); result.has_value()) {
+        if (auto result = ResolveIntrinsics(moduleName, objectName, type); result.has_value()) {
             outObject = *result;
             return true;
         }
 
-        if (objectName == "__cpp_exception") {
-            outObject = Compartment_->ExceptionType_;
+        if (auto result = ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveAlreadyLoadedFunctionAndInsertIntoGlobalOffsetTable(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveWeakFunction(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveMemoryFromGlobalOffsetTable(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveAlreadyLoadedObject(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveGlobalsPointingToMemory(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
+            return true;
+        }
+
+        if (auto result = ResolveGlobalsPointingToWeakFunctions(moduleName, objectName, type); result.has_value()) {
+            outObject = *result;
             return true;
         }
 
@@ -405,8 +479,12 @@ public:
 
 private:
     TWebAssemblyCompartment* const Compartment_;
+    const IR::Module* const IncomingModule_;
 
-    std::optional<Runtime::Object*> ResolveMemoryLayoutGlobals(const std::string& objectName)
+    std::optional<Runtime::Object*> ResolveMemoryLayoutGlobals(
+        const std::string& /*moduleName*/,
+        const std::string& objectName,
+        IR::ExternType /*type*/)
     {
         if (objectName == "__linear_memory" || objectName == "memory") {
             return Runtime::asObject(Compartment_->MemoryLayoutData_.LinearMemory);
@@ -417,52 +495,45 @@ private:
         } else if (objectName == "__heap_base") {
             return Runtime::asObject(Compartment_->MemoryLayoutData_.HeapBase);
         } else if (objectName == "__memory_base") {
-            return Runtime::asObject(Compartment_->MemoryLayoutData_.MemoryBase);
+            YT_VERIFY(std::ssize(Compartment_->MemoryLayoutData_.MemoryBases) == std::ssize(Compartment_->Modules_) + 1);
+            Uptr newMemoryBase = Compartment_->MemoryLayoutData_.MemoryBases.back();
+            auto* result = Runtime::createGlobal(Compartment_->Compartment_, IR::GlobalType{IR::ValueType::i64, false}, "__memory_base");
+            Runtime::initializeGlobal(result, newMemoryBase);
+            return Runtime::asObject(result);
         } else if (objectName == "__table_base") {
-            return Runtime::asObject(Compartment_->MemoryLayoutData_.TableBase);
+            // TODO(dtorilov): Grow table here if needed.
+            YT_VERIFY(std::ssize(Compartment_->MemoryLayoutData_.TableBases) == std::ssize(Compartment_->Modules_) + 1);
+            Uptr newTableBase = Compartment_->MemoryLayoutData_.TableBases.back();
+            auto* result = Runtime::createGlobal(Compartment_->Compartment_, IR::GlobalType{IR::ValueType::i64, false}, "__table_base");
+            Runtime::initializeGlobal(result, newTableBase);
+            return Runtime::asObject(result);
         } else if (objectName == "__table_base32") {
-            return Runtime::asObject(Compartment_->MemoryLayoutData_.TableBase32);
+            YT_VERIFY(std::ssize(Compartment_->MemoryLayoutData_.TableBases) == std::ssize(Compartment_->Modules_) + 1);
+            Uptr newTableBase = Compartment_->MemoryLayoutData_.TableBases.back();
+            auto* result = Runtime::createGlobal(Compartment_->Compartment_, IR::GlobalType{IR::ValueType::i32, false}, "__table_base");
+            THROW_ERROR_EXCEPTION_IF(newTableBase > std::numeric_limits<I32>::max(), "WebAssembly linkage error: new table base is bigger than max i32 value");
+            Runtime::initializeGlobal(result, static_cast<I32>(newTableBase));
+            return Runtime::asObject(result);
         } else if (objectName == "__stack_low") {
             return Runtime::asObject(Compartment_->MemoryLayoutData_.StackLow);
         } else if (objectName == "__stack_high") {
             return Runtime::asObject(Compartment_->MemoryLayoutData_.StackHigh);
         }
 
-        for (auto global : Compartment_->Compartment_->globals) {
-            if (global->debugName == objectName) {
-                return global;
-            }
-        }
-
         return std::nullopt;
     }
 
-    std::optional<Runtime::Object*> ResolveIntrinsics(const std::string& objectName)
-    {
-        auto function = Runtime::getInstanceExport(Compartment_->IntrinsicsInstance_, objectName);
-        if (function != nullptr) {
-            return function;
-        }
-        return std::nullopt;
-    }
-
-    std::optional<Runtime::Object*> ResolveAlreadyLoaded(
+    std::optional<Runtime::Object*> ResolveIntrinsics(
         const std::string& moduleName,
         const std::string& objectName,
         IR::ExternType type)
     {
-        if (auto result = ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type); result.has_value()) {
-            return result;
-        }
-
-        if (auto result = ResolveMemoryFromGlobalOffsetTable(moduleName, objectName, type); result.has_value()) {
-            return result;
-        }
-
-        for (const auto& instance : Compartment_->Instances_) {
-            auto object = Runtime::getInstanceExport(instance, objectName);
-            if (object != nullptr) {
-                return object;
+        if (moduleName == "env" || moduleName == "wasi_snapshot_preview1") {
+            if (type.kind == IR::ExternKind::function) {
+                auto* function = Runtime::getInstanceExport(Compartment_->IntrinsicsInstance_, objectName);
+                if (function != nullptr) {
+                    return function;
+                }
             }
         }
 
@@ -474,29 +545,67 @@ private:
         const std::string& objectName,
         IR::ExternType type)
     {
-        if (moduleName != "GOT.func" && moduleName != "GOT.mem") {
+        if (moduleName != "GOT.func") {
             return std::nullopt;
         }
 
-        auto demangled = CppDemangle(TString(objectName));
-
-        auto it = Compartment_->GlobalOffsetTableElements_.Functions.find(demangled);
+        auto it = Compartment_->GlobalOffsetTableElements_.Functions.find(objectName);
         if (it == Compartment_->GlobalOffsetTableElements_.Functions.end()) {
             return std::nullopt;
         }
 
-        I64 globalOffsetTableIndex = it->second;
+        Uptr indexInGOT = it->second;
         auto globalType = asGlobalType(type);
         globalType.isMutable = true;
+        auto result = Runtime::createGlobal(Compartment_->Compartment_, globalType, std::string(objectName));
+        Runtime::initializeGlobal(result, indexInGOT);
+        return Runtime::asObject(result);
+    }
 
-        auto resultOffset = Runtime::createGlobal(
-            Compartment_->Compartment_,
-            globalType,
-            std::string(demangled));
+    std::optional<Runtime::Object*> ResolveAlreadyLoadedFunctionAndInsertIntoGlobalOffsetTable(
+        const std::string& moduleName,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        if (moduleName != "GOT.func") {
+            return std::nullopt;
+        }
 
-        YT_ASSERT(resultOffset != nullptr);
-        Runtime::initializeGlobal(resultOffset, globalOffsetTableIndex);
-        return Runtime::asObject(resultOffset);
+        YT_ASSERT(!ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type).has_value());
+
+        for (const auto& instance : Compartment_->Instances_) {
+            auto* object = Runtime::getInstanceExport(instance, objectName);
+            if (object != nullptr && object->kind == Runtime::ObjectKind::function) {
+                Uptr indexInGOT = -1;
+                auto growResult = Runtime::growTable(Compartment_->GetGlobalOffsetTable(), 1, &indexInGOT);
+                THROW_ERROR_EXCEPTION_IF(growResult != Runtime::GrowResult::success, "WebAssembly grow GOT error");
+                Runtime::setTableElement(Compartment_->GetGlobalOffsetTable(), indexInGOT, object);
+                Compartment_->GlobalOffsetTableElements_.Functions[objectName] = indexInGOT;
+                return ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type);
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<Runtime::Object*> ResolveWeakFunction(
+        const std::string& /*moduleName*/,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        if (type.kind == IR::ExternKind::function) {
+            for (const auto& incomingModuleExport : IncomingModule_->exports) {
+                if (incomingModuleExport.name == objectName) {
+                    auto name = std::string("wasm!env!" + CppDemangle(TString(objectName)));
+                    Compartment_->LinkingData_.WeakFunctions.emplace_back(std::move(std::make_unique<Runtime::WeakFunction>(
+                        std::move(name),
+                        incomingModuleExport.index)));
+                    return Compartment_->LinkingData_.WeakFunctions.back().get();
+                }
+            }
+        }
+
+        return std::nullopt;
     }
 
     std::optional<Runtime::Object*> ResolveMemoryFromGlobalOffsetTable(
@@ -515,18 +624,104 @@ private:
             return std::nullopt;
         }
 
-        I64 globalOffsetTableIndex = it->second;
+        I64 indexInGOT = it->second;
         auto globalType = asGlobalType(type);
         globalType.isMutable = true;
+        auto result = Runtime::createGlobal(Compartment_->Compartment_, globalType, std::string(demangled));
+        YT_ASSERT(result != nullptr);
+        Runtime::initializeGlobal(result, indexInGOT);
+        return Runtime::asObject(result);
+    }
 
-        auto resultOffset = Runtime::createGlobal(
-            Compartment_->Compartment_,
-            globalType,
-            std::string(demangled));
+    std::optional<Runtime::Object*> ResolveAlreadyLoadedObject(
+        const std::string& /*moduleName*/,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        for (const auto& instance : Compartment_->Instances_) {
+            auto* object = Runtime::getInstanceExport(instance, objectName);
+            if (object != nullptr && static_cast<U8>(object->kind) == static_cast<U8>(type.kind)) {
+                return object;
+            }
+        }
 
-        YT_ASSERT(resultOffset != nullptr);
-        Runtime::initializeGlobal(resultOffset, globalOffsetTableIndex);
-        return Runtime::asObject(resultOffset);
+        return std::nullopt;
+    }
+
+    std::optional<Runtime::Object*> ResolveMisc(
+        const std::string& /*moduleName*/,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        if (objectName == "__cpp_exception") {
+            return Compartment_->ExceptionType_;
+        }
+
+        if (objectName == "emscripten_console_trace") {
+            auto globalType = asGlobalType(type);
+            globalType.isMutable = true;
+            auto result = Runtime::createGlobal(
+                Compartment_->Compartment_,
+                globalType,
+                std::string(objectName));
+            Runtime::initializeGlobal(Runtime::asGlobal(result), static_cast<I64>(0)); // TODO(dtorilov): Set sane value.
+            return result;
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<Runtime::Object*> ResolveGlobalsPointingToWeakFunctions(
+        const std::string& moduleName,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        if (type.kind != IR::ExternKind::global) {
+            return std::nullopt;
+        }
+
+        for (const auto& incomingModuleExport : IncomingModule_->exports) {
+            if (incomingModuleExport.kind == WAVM::IR::ExternKind::function && incomingModuleExport.name == objectName) {
+                Uptr indexInGOT = -1;
+                auto growResult = Runtime::growTable(Compartment_->GetGlobalOffsetTable(), 1, &indexInGOT);
+                THROW_ERROR_EXCEPTION_IF(growResult != Runtime::GrowResult::success, "WebAssembly grow GOT error");
+                Compartment_->LinkingData_.GlobalsToWeakFunctionsToPatch.emplace_back(objectName, indexInGOT);
+                Compartment_->GlobalOffsetTableElements_.Functions[objectName] = indexInGOT;
+                return ResolveFunctionFromGlobalOffsetTable(moduleName, objectName, type);
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<Runtime::Object*> ResolveGlobalsPointingToMemory(
+        const std::string& moduleName,
+        const std::string& objectName,
+        IR::ExternType type)
+    {
+        if (type.kind != IR::ExternKind::global || moduleName != "GOT.mem") {
+            return std::nullopt;
+        }
+
+        // TODO(dtorilov): Patch this global after linking.
+        for (const auto& exportedDataEntry : IncomingModule_->exports) {
+            if (exportedDataEntry.kind != IR::ExternKind::global) {
+                continue;
+            }
+            if (exportedDataEntry.name == objectName) {
+                auto globalType = asGlobalType(type);
+                globalType.isMutable = true;
+                auto outObject = Runtime::createGlobal(
+                    Compartment_->Compartment_,
+                    globalType,
+                    std::string(objectName));
+                auto incomingGlobal = IncomingModule_->globals.defs[exportedDataEntry.index - IncomingModule_->globals.imports.size()];
+                Runtime::initializeGlobal(Runtime::asGlobal(outObject), incomingGlobal.initializer.i64);
+                return outObject;
+            }
+        }
+
+        return std::nullopt;
     }
 };
 
@@ -534,7 +729,7 @@ private:
 
 Runtime::LinkResult TWebAssemblyCompartment::LinkModule(const IR::Module& irModule)
 {
-    auto linker = TLinker(this);
+    auto linker = TLinker(this, &irModule);
     auto linkResult = Runtime::linkModule(irModule, linker);
 
     if (!linkResult.success) {
@@ -548,25 +743,6 @@ Runtime::LinkResult TWebAssemblyCompartment::LinkModule(const IR::Module& irModu
     }
 
     return linkResult;
-}
-
-void TWebAssemblyCompartment::InstantiateModule(
-    const Runtime::ModuleRef& wavmModule,
-    const Runtime::LinkResult& linkResult,
-    TStringBuf debugName)
-{
-    YT_VERIFY(linkResult.success);
-
-    auto instance = instantiateModule(
-        Compartment_,
-        wavmModule,
-        Runtime::ImportBindings{linkResult.resolvedImports},
-        debugName.data());
-
-    YT_ASSERT(instance);
-
-    Modules_.push_back(wavmModule);
-    Instances_.push_back(instance);
 }
 
 void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& irModule)
@@ -604,6 +780,70 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
         auto demangled = CppDemangle(TString(exportedDataEntry.name));
         GlobalOffsetTableElements_.DataEntries[demangled] = value;
     }
+}
+
+void TWebAssemblyCompartment::InstantiateModule(
+    const Runtime::ModuleRef& wavmModule,
+    const Runtime::LinkResult& linkResult,
+    TStringBuf debugName)
+{
+    YT_VERIFY(linkResult.success);
+
+    auto instance = Runtime::instantiateModule(Compartment_, wavmModule, Runtime::ImportBindings{linkResult.resolvedImports}, debugName.data());
+    THROW_ERROR_EXCEPTION_IF(instance == nullptr, "WebAssembly instantiate module failed");
+    Modules_.push_back(wavmModule);
+    Instances_.push_back(instance);
+
+    {
+        Uptr lastMemoryBase = MemoryLayoutData_.MemoryBases.back();
+        Uptr newMemoryBase = lastMemoryBase;
+        for (auto& dataSegment : wavmModule->ir.dataSegments) {
+            newMemoryBase += dataSegment.data->size();
+        }
+        MemoryLayoutData_.MemoryBases.push_back(newMemoryBase);
+    }
+
+    {
+        Uptr lastTableBase = MemoryLayoutData_.TableBases.back();
+        Uptr newTableBase = lastTableBase;
+        for (auto& elemSegment : wavmModule->ir.elemSegments) {
+            THROW_ERROR_EXCEPTION_IF(elemSegment.tableIndex != 0, "Unsupported module: elem segment table index must be 0");
+            newTableBase += elemSegment.contents->elemIndices.size();
+        }
+        MemoryLayoutData_.TableBases.push_back(newTableBase);
+    }
+
+    {
+        LinkingData_.WeakFunctions.clear();
+    }
+
+    {
+        for (auto& [name, indexInGOT] : LinkingData_.GlobalsToWeakFunctionsToPatch) {
+            auto* object = Runtime::getInstanceExport(instance, name);
+            THROW_ERROR_EXCEPTION_IF(object == nullptr, "WebAssembly linkage error: could not find object %Qv in the instantiated module", name);
+            Runtime::setTableElement(GetGlobalOffsetTable(), indexInGOT, object);
+        }
+        LinkingData_.GlobalsToWeakFunctionsToPatch.clear();
+    }
+
+    ApplyDataRelocationsAndCallConstructors(instance);
+}
+
+void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::Instance* instance)
+{
+    auto callIfDefined = [this] (Runtime::Instance* instance, const IR::FunctionType& signature, const std::string& name) {
+        if (auto* function = getTypedInstanceExport(instance, name, signature)) {
+            auto arguments = std::array<IR::UntaggedValue, 0>{};
+            SaveAndRestoreCompartment(this, [&] {
+                Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+            });
+        }
+    };
+
+    static const auto voidToVoidSignature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {});
+    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_data_relocs");
+    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_global_relocs");
+    callIfDefined(instance, voidToVoidSignature, "__wasm_call_ctors");
 }
 
 void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebAssemblyCompartment* destination)
@@ -682,7 +922,7 @@ Runtime::ModuleRef LoadSystemLibraries()
     featureSpec.memory64 = true;
     featureSpec.exceptionHandling = true;
 
-    auto bytecode = NResource::Find("libc.so.wasm");
+    auto bytecode = NResource::Find("libemscripten-system-libraries-dll.so");
     auto irModule = IR::Module(std::move(featureSpec));
 
     auto loadError = WASM::LoadError();
@@ -696,7 +936,7 @@ Runtime::ModuleRef LoadSystemLibraries()
         THROW_ERROR_EXCEPTION("Could not load WebAssembly system libraries: %v", loadError.message);
     }
 
-    auto resource = NResource::Find("compiled-libc");
+    auto resource = NResource::Find("libemscripten-system-libraries-dll.so.compiled");
     auto objectCode = std::vector<U8>(resource.size());
     ::memcpy(objectCode.data(), resource.data(), resource.size());
 
@@ -705,154 +945,9 @@ Runtime::ModuleRef LoadSystemLibraries()
 
 Runtime::ModuleRef LoadLocalUdfs()
 {
-    auto bytecode = NResource::Find("all-udfs.so.wasm");
+    auto bytecode = NResource::Find("libwasm-udfs-builtin-ytql-udfs.so");
     auto asRef = TRef(bytecode.begin(), bytecode.size());
     return LoadModuleFromBytecode(asRef);
-}
-
-void DefineCxxAbiGlobalStubs(Runtime::Compartment* compartment)
-{
-    static const auto globals = std::vector<const char*>{
-        "_ZTVN10__cxxabiv121__vmi_class_type_infoE",
-        "_ZTSN10__cxxabiv121__vmi_class_type_infoE",
-        "_ZTIN10__cxxabiv121__vmi_class_type_infoE",
-        "_ZTSN10__cxxabiv120__si_class_type_infoE",
-        "_ZTIN10__cxxabiv120__si_class_type_infoE",
-        "_ZTSN10__cxxabiv116__enum_type_infoE",
-        "_ZTIN10__cxxabiv116__enum_type_infoE",
-        "_ZTSN10__cxxabiv117__array_type_infoE",
-        "_ZTIN10__cxxabiv117__array_type_infoE",
-        "_ZTSPKDi",
-        "_ZTIDi",
-        "_ZTSPDi",
-        "_ZTSDi",
-        "_ZTSPKDs",
-        "_ZTIDs",
-        "_ZTSPDs",
-        "_ZTSDs",
-        "_ZTSPKDu",
-        "_ZTIDu",
-        "_ZTSPDu",
-        "_ZTSDu",
-        "_ZTSPKg",
-        "_ZTIg",
-        "_ZTSPg",
-        "_ZTSg",
-        "_ZTSPKe",
-        "_ZTIe",
-        "_ZTSPe",
-        "_ZTSe",
-        "_ZTSPKd",
-        "_ZTId",
-        "_ZTSPd",
-        "_ZTSd",
-        "_ZTSPKf",
-        "_ZTIf",
-        "_ZTSPf",
-        "_ZTSf",
-        "_ZTSPKDh",
-        "_ZTIDh",
-        "_ZTSPDh",
-        "_ZTSDh",
-        "_ZTSPKo",
-        "_ZTIo",
-        "_ZTSPo",
-        "_ZTSo",
-        "_ZTSPKn",
-        "_ZTIn",
-        "_ZTSPn",
-        "_ZTSn",
-        "_ZTSPKy",
-        "_ZTIy",
-        "_ZTSPy",
-        "_ZTSy",
-        "_ZTSPKx",
-        "_ZTIx",
-        "_ZTSPx",
-        "_ZTSx",
-        "_ZTSPKm",
-        "_ZTIm",
-        "_ZTSPm",
-        "_ZTSm",
-        "_ZTSPKl",
-        "_ZTIl",
-        "_ZTSPl",
-        "_ZTSl",
-        "_ZTSPKj",
-        "_ZTIj",
-        "_ZTSPj",
-        "_ZTSj",
-        "_ZTSPKi",
-        "_ZTIi",
-        "_ZTSPi",
-        "_ZTSi",
-        "_ZTSPKt",
-        "_ZTIt",
-        "_ZTSPt",
-        "_ZTSt",
-        "_ZTSPKs",
-        "_ZTIs",
-        "_ZTSPs",
-        "_ZTSs",
-        "_ZTSPKa",
-        "_ZTIa",
-        "_ZTSPa",
-        "_ZTSa",
-        "_ZTSPKh",
-        "_ZTIh",
-        "_ZTSPh",
-        "_ZTSh",
-        "_ZTSPKc",
-        "_ZTIc",
-        "_ZTSPc",
-        "_ZTSc",
-        "_ZTSPKw",
-        "_ZTIw",
-        "_ZTSPw",
-        "_ZTSw",
-        "_ZTSPKb",
-        "_ZTIb",
-        "_ZTSPb",
-        "_ZTSb",
-        "_ZTSPKDn",
-        "_ZTSPDn",
-        "_ZTSDn",
-        "_ZTSPKv",
-        "_ZTSPv",
-        "_ZTVN10__cxxabiv119__pointer_type_infoE",
-        "_ZTSv",
-        "_ZTVN10__cxxabiv123__fundamental_type_infoE",
-        "_ZTSN10__cxxabiv123__fundamental_type_infoE",
-        "_ZTIN10__cxxabiv123__fundamental_type_infoE",
-        "_ZTSN10__cxxabiv129__pointer_to_member_type_infoE",
-        "_ZTSN10__cxxabiv120__function_type_infoE",
-        "_ZTSN10__cxxabiv119__pointer_type_infoE",
-        "_ZTSN10__cxxabiv117__pbase_type_infoE",
-        "_ZTSN10__cxxabiv117__class_type_infoE",
-        "_ZTSN10__cxxabiv116__shim_type_infoE",
-        "_ZTIN10__cxxabiv129__pointer_to_member_type_infoE",
-        "_ZTIN10__cxxabiv120__function_type_infoE",
-        "_ZTIv",
-        "_ZTIN10__cxxabiv119__pointer_type_infoE",
-        "_ZTIDn",
-        "_ZTIN10__cxxabiv117__pbase_type_infoE",
-        "_ZTIN10__cxxabiv116__shim_type_infoE",
-        "_ZTIN10__cxxabiv117__class_type_infoE",
-        "_Znam",
-        "_ZdaPv",
-        "__cxa_pure_virtual",
-        "_ZTVN10__cxxabiv120__si_class_type_infoE",
-        "_ZTVN10__cxxabiv117__class_type_infoE",
-        "__cxa_new_handler",
-        "__cxa_terminate_handler",
-        "__cxa_unexpected_handler",
-    };
-
-    for (const char* global : globals) {
-        Runtime::initializeGlobal(
-            Runtime::createGlobal(compartment, IR::GlobalType{IR::ValueType::i64, true}, global),
-            IR::Value(static_cast<int64_t>(-1)));
-    }
 }
 
 std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
@@ -875,8 +970,6 @@ std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
     }
 
     if (image != EKnownImage::Empty) {
-        DefineCxxAbiGlobalStubs(compartment->Compartment_);
-
         compartment->ExceptionType_ = Runtime::createExceptionType(
             compartment->Compartment_,
             IR::ExceptionType{IR::TypeTuple{IR::ValueType::i64}},

@@ -78,6 +78,8 @@ namespace NYT::NWebAssembly {
     XX(void(*)(void**, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue*), EWebAssemblyValueType::UintPtr)
 
+    XX(void(*)(void*), EWebAssemblyValueType::UintPtr)
+
     XX(void (*)(void**, NYT::NQueryClient::TSubqueryWriteOpClosure*), EWebAssemblyValueType::UintPtr)
 
     XX(const time_t*, EWebAssemblyValueType::UintPtr)

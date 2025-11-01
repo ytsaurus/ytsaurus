@@ -161,19 +161,20 @@ public:
         : Context_(context)
     { }
 
-    TStringBuf GetView() const
+    TStringBuf GetVMView() const
     {
-        return {PtrToVM(GetCurrentCompartment(), Begin_), Size_};
+        return {BeginOffset_, Size_};
     }
 
     TStringBuf GetHostView() const
     {
-        return {Begin_, Size_};
+        return {PtrFromVM(GetCurrentCompartment(), BeginOffset_, Size_), Size_};
     }
 
 private:
-    TExpressionContext* Context_;
-    char* Begin_ = nullptr;
+    TExpressionContext* const Context_;
+    char* BeginOffset_ = {};
+
     size_t Size_ = 0;
     size_t Capacity_ = 0;
 
@@ -186,7 +187,7 @@ private:
         }
         size_t previousSize = Size_;
         Size_ = Capacity_;
-        *ptr = Begin_ + previousSize;
+        *ptr = PtrFromVM(GetCurrentCompartment(), BeginOffset_ + previousSize);
         return Size_ - previousSize;
     }
 
@@ -199,11 +200,11 @@ private:
     void Extend(size_t desiredCapacity)
     {
         YT_ASSERT(desiredCapacity > Capacity_);
-
+        auto* compartment = GetCurrentCompartment();
         Capacity_ = FastClp2(desiredCapacity);
-        auto* oldBegin = Begin_;
-        Begin_ = PtrFromVM(GetCurrentCompartment(), AllocateBytes(Context_, Capacity_), Capacity_);
-        ::memcpy(Begin_, oldBegin, Size_);
+        char* oldBeginOffset = BeginOffset_;
+        BeginOffset_ = AllocateBytes(Context_, Capacity_);
+        ::memcpy(PtrFromVM(compartment, BeginOffset_), PtrFromVM(compartment, oldBeginOffset), Size_);
     }
 };
 
@@ -2668,7 +2669,7 @@ void MakeNgrams(TExpressionContext* context, TValue* result, TValue* textVM, TVa
 
     writer.OnEndList();
 
-    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Composite, output.GetView());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
 }
 
 void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
@@ -2803,7 +2804,7 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
 }
 
 extern "C" void MakeList(
@@ -2860,7 +2861,7 @@ extern "C" void MakeList(
     }
     writer.OnEndList();
 
-    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
 }
 
 bool ListContainsNullImpl(const INodePtr& node)
@@ -3077,7 +3078,7 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
-    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.GetView());
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.GetVMView());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3773,7 +3774,6 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 {
     auto* compartment = GetCurrentCompartment();
 
-    auto* resultAtHost = PtrFromVM(compartment, result);
     auto* stateAtHost = PtrFromVM(compartment, state);
 
     NDetail::TContextStringOutput output(context);
@@ -3783,7 +3783,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     if (stateAtHost->Length != 0) {
         const auto* start = PtrFromVM(compartment, stateAtHost->Data.String);
-        const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
+        const auto* end = start + *PtrFromVM(compartment, std::bit_cast<const i64*>(stateAtHost->Data.String));
         const auto* cursor = start + sizeof(i64);
 
         while (cursor < end) {
@@ -3838,7 +3838,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     writer.OnEndList();
 
-    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetVMView());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4264,7 +4264,7 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContex
     }
     writer.OnEndList();
 
-    return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetView());
+    return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
 }
 
 void SubqueryWriteHelper(
@@ -4370,38 +4370,10 @@ int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count)
     return ::memcmp(first, second, count);
 }
 
-struct tm* gmtime_r(const time_t* time, struct tm* result) // NOLINT
-{
-    auto* compartment = GetCurrentCompartment();
+////////////////////////////////////////////////////////////////////////////////
 
-    auto* gmtime = GmTimeR(PtrFromVM(compartment, time), PtrFromVM(compartment, result));
-    return PtrToVM(compartment, gmtime);
-}
-
-// This code is borrowed from bigb_hash.cpp.
-// It will be removed after full cross-compilation support.
-uint64_t BigBHashImpl(char* s, int len)
-{
-    s = PtrFromVM(GetCurrentCompartment(), s);
-
-    TStringBuf uid{s, static_cast<size_t>(len)};
-    if (uid.length() == 0) {
-        return 0;
-    }
-    ui64 ans;
-    if (uid[0] == 'y' && TryFromString(uid.SubStr(1), ans)) {
-        return ans;
-    }
-    return MultiHash(TStringBuf{"shard"}, uid);
-}
-
-void AddRegexToFunctionContext(TFunctionContext* context, re2::RE2* regex) // NOLINT
-{
-    auto* ptr = context->CreateUntypedObject(regex, [] (void* re) {
-        delete static_cast<re2::RE2*>(re);
-    });
-    context->SetPrivateData(ptr);
-}
+// FIXME(dtorilov): Check TFunctionContext* address.
+// FIXME(dtorilov): Jump into VM and call deleter.
 
 // bool TFunctionContext::IsLiteralArg(int) const
 bool _ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi(TFunctionContext* context, int index) // NOLINT
@@ -4413,6 +4385,27 @@ bool _ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi(TFunctionContext* 
 void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContext* context) // NOLINT
 {
     return context->GetPrivateData();
+}
+
+// NYT::NQueryClient::TFunctionContext::CreateUntypedObject(void*, void (*)(void*))
+void* _ZN3NYT12NQueryClient16TFunctionContext19CreateUntypedObjectEPvPFvS2_E(TFunctionContext* context, void* objectOffset, void (*deleter)(void*))
+{
+    Y_UNUSED(context, deleter);
+    return objectOffset;
+}
+
+// NYT::NQueryClient::TFunctionContext::SetPrivateData(void*)
+void _ZN3NYT12NQueryClient16TFunctionContext14SetPrivateDataEPv(TFunctionContext* context, void* data)
+{
+    context->SetPrivateData(data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NYT::NDetail::AssertTrapImpl(TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, TBasicStringBuf<char, std::__y1::char_traits<char> >, int, TBasicStringBuf<char, std::__y1::char_traits<char> >)
+void _ZN3NYT7NDetail14AssertTrapImplE15TBasicStringBufIcNSt4__y111char_traitsIcEEES5_S5_S5_iS5_(i64, i64, i64, i64, i32, i64)
+{
+    THROW_ERROR_EXCEPTION("YT_ABORT called inside WebAssembly VM");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4598,11 +4591,13 @@ REGISTER_ROUTINE(SubqueryInsertGroupRow);
 REGISTER_ROUTINE(SubqueryGroupOpHelper);
 
 REGISTER_ROUTINE(memcmp);
-REGISTER_ROUTINE(gmtime_r);
-REGISTER_ROUTINE(BigBHashImpl);
-REGISTER_ROUTINE(AddRegexToFunctionContext);
-REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi);
-REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv);
+
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT12NQueryClient16TFunctionContext19CreateUntypedObjectEPvPFvS2_E);
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT12NQueryClient16TFunctionContext14SetPrivateDataEPv);
+
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_ZN3NYT7NDetail14AssertTrapImplE15TBasicStringBufIcNSt4__y111char_traitsIcEEES5_S5_S5_iS5_);
 
 REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM(emscripten_notify_memory_growth);
 

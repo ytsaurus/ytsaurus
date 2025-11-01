@@ -1,6 +1,7 @@
 #include "intrinsics.h"
 
 #include <yt/yt/library/web_assembly/api/compartment.h>
+#include <yt/yt/library/web_assembly/api/pointer.h>
 #include <yt/yt/library/web_assembly/api/type_builder.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -46,8 +47,17 @@ struct TMakeIntrinsic<TResult(TArgs...)>
 #define DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(name, result, ...) \
     result name(__VA_ARGS__) \
     { \
-        THROW_ERROR_EXCEPTION("WebAssembly call to forbidden system call: %Qv", \
-            #name); \
+        auto callStack = WAVM::Platform::captureCallStack(1); \
+        auto description = WAVM::Runtime::describeCallStack(callStack); \
+        auto backtrace = std::string(); \
+        int i = 0; \
+        for (auto& item : description) { \
+            backtrace += std::to_string(i++) + ". "; \
+            backtrace += item; \
+            backtrace += '\n';\
+        } \
+        THROW_ERROR_EXCEPTION("WebAssembly call to forbidden system call: %Qv\n\n%v", \
+            #name, backtrace); \
     } \
     REGISTER_WEB_ASSEMBLY_INTRINSIC(name);
 
@@ -59,8 +69,38 @@ void emscripten_notify_memory_growth(i64) // NOLINT
 {
     // Do nothing.
 }
-
 REGISTER_WEB_ASSEMBLY_INTRINSIC(emscripten_notify_memory_growth);
+
+i32 args_sizes_get(i64* argc, i64* argvBufSize)
+{
+    auto* compartment = GetCurrentCompartment();
+    *(PtrFromVM(compartment, argc)) = 1;
+    *(PtrFromVM(compartment, argvBufSize)) = 0;
+    return 0;
+}
+REGISTER_WEB_ASSEMBLY_INTRINSIC(args_sizes_get);
+
+i32 environ_sizes_get(i64* argc, i64* argvBufSize)
+{
+    auto* compartment = GetCurrentCompartment();
+    *(PtrFromVM(compartment, argc)) = 1;
+    *(PtrFromVM(compartment, argvBufSize)) = 0;
+    return 0;
+}
+REGISTER_WEB_ASSEMBLY_INTRINSIC(environ_sizes_get);
+
+i32 environ_get(i64* first, i64* second)
+{
+    auto* compartment = GetCurrentCompartment();
+    *(PtrFromVM(compartment, first)) = 0;
+    *(PtrFromVM(compartment, second)) = 0;
+    return 0;
+}
+REGISTER_WEB_ASSEMBLY_INTRINSIC(environ_get);
+
+void _emscripten_get_progname(char*, i32)
+{ }
+REGISTER_WEB_ASSEMBLY_INTRINSIC(_emscripten_get_progname);
 
 ////////////////////////////////////////////////////////////////////////////////
 

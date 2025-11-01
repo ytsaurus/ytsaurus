@@ -18,14 +18,12 @@ void AppendFunctionImplementation(
     TType functionRepeatedArgType,
     int functionRepeatedArgIndex,
     bool functionUseFunctionContext,
-    const TSharedRef& functionImpl)
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles)
 {
-    YT_VERIFY(!functionImpl.Empty());
-
     if (functionIsAggregate) {
         aggregateProfilers->emplace(functionName, New<TExternalAggregateCodegen>(
             functionName,
-            functionImpl,
+            implementationFiles,
             functionCallingConvention,
             /*isFirst*/ false,
             functionChunkSpecsFingerprint));
@@ -33,7 +31,7 @@ void AppendFunctionImplementation(
         functionProfilers->emplace(functionName, New<TExternalFunctionCodegen>(
             functionName,
             functionSymbolName,
-            functionImpl,
+            implementationFiles,
             functionCallingConvention,
             functionRepeatedArgType,
             functionRepeatedArgIndex,

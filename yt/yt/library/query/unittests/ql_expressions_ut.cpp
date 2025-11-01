@@ -2757,6 +2757,12 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
         "xor_aggregate",
         ECallingConvention::UnversionedValue);
 
+    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    usedWebAssemblyFiles->emplace(
+        ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
+        ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+        : TSharedRef());
+
     // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
@@ -2767,7 +2773,8 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         {EValueType::Int64},
         EValueType::Int64,
-        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        *usedWebAssemblyFiles);
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -2826,6 +2833,12 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         "concat_all",
         ECallingConvention::UnversionedValue);
 
+    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    usedWebAssemblyFiles->emplace(
+        ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
+        ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+        : TSharedRef());
+
     auto stringType = MakeLogicalType(ESimpleLogicalValueType::String, /*required*/ false);
 
     auto image = CodegenAggregate(
@@ -2837,7 +2850,9 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         /* argumentTypes */ {EValueType::String},
         /* stateType */ EValueType::String,
-        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        *usedWebAssemblyFiles);
+
     auto instance = image.Instantiate();
 
     {
@@ -2920,7 +2935,8 @@ TEST_P(TEvaluateAggregationTest, Basic)
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         {wireType},
         wireType,
-        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        {});
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -3048,7 +3064,8 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         ToWireTypes(argumentTypes),
         GetWireType(stateType),
-        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
+        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native,
+        {});
     auto instance = image.Instantiate();
 
     auto buffer = New<TRowBuffer>();
@@ -3256,14 +3273,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
     EvaluateExpression(expr, rowString, schema, &result, buffer, /*enableWebAssembly*/ false);
     EXPECT_EQ(result, expected);
 
-    // TODO(dtorilov): build and link is_finite and *_localtime and *_valid_utf8 and make_ngrams udfs
-    if (auto function = expr->As<TFunctionExpression>();
-        function && (
-            function->FunctionName == "is_finite" ||
-            function->FunctionName.ends_with("_localtime") ||
-            function->FunctionName.ends_with("_tz") ||
-            function->FunctionName.ends_with("_valid_utf8") ||
-            function->FunctionName == "make_ngrams"))
+    // TODO(dtorilov): Build make_ngrams udf.
+    if (auto function = expr->As<TFunctionExpression>(); function && (function->FunctionName == "make_ngrams"))
     {
         return;
     }

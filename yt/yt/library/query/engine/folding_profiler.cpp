@@ -540,7 +540,8 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
-        EExecutionBackend executionBackend)
+        EExecutionBackend executionBackend,
+        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
@@ -548,6 +549,7 @@ public:
         , ComparerManager_(MakeComparerManager())
         , UseCanonicalNullRelations_(useCanonicalNullRelations)
         , ExecutionBackend_(executionBackend)
+        , UsedWebAssemblyFiles_(usedWebAssemblyFiles)
     {
         YT_VERIFY(Variables_);
     }
@@ -672,6 +674,7 @@ protected:
     const TComparerManagerPtr ComparerManager_;
     const bool UseCanonicalNullRelations_;
     const EExecutionBackend ExecutionBackend_;
+    TUsedWebAssemblyFiles* const UsedWebAssemblyFiles_;
 };
 
 size_t* TryGetSubexpressionRef(
@@ -807,6 +810,13 @@ size_t TExpressionProfiler::Profile(
             Id_),
         functionExpr->GetWireType(),
         function->IsNullable(nullableArgs));
+
+    if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+        if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+            UsedWebAssemblyFiles_->emplace(bytecode);
+        }
+    }
+
     return fragments->Items.size() - 1;
 }
 
@@ -1416,6 +1426,13 @@ size_t TExpressionProfiler::Profile(
                 aggregateItem.Name,
                 ExecutionBackend_,
                 Id_));
+
+            if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                    UsedWebAssemblyFiles_->emplace(bytecode);
+                }
+            }
+
             stateTypes.push_back(GetWireType(aggregateItem.StateType));
         }
 
@@ -1555,8 +1572,9 @@ public:
         EExecutionBackend executionBackend,
         EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
-        i64 maxJoinBatchSize)
-        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend)
+        i64 maxJoinBatchSize,
+        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
+        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles)
         , MaxJoinBatchSize_(maxJoinBatchSize)
         , OptimizationLevel_(optimizationLevel)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
@@ -1949,6 +1967,13 @@ void TQueryProfiler::Profile(
                 aggregateItem.Name,
                 ExecutionBackend_,
                 Id_));
+
+            if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                    UsedWebAssemblyFiles_->emplace(bytecode);
+                }
+            }
+
             stateTypes.push_back(GetWireType(aggregateItem.StateType));
             aggregatedTypes.push_back(GetWireType(aggregateItem.ResultType));
         }
@@ -2591,13 +2616,17 @@ TCGExpressionGenerator Profile(
 {
     TConstAggregateProfilerMapPtr aggregateProfilers;
 
+    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+
     auto profiler = TExpressionProfiler(
         id,
         variables,
         functionProfilers,
         aggregateProfilers,
         useCanonicalNullRelations,
-        executionBackend);
+        executionBackend,
+        usedWebAssemblyFiles.get());
+
     auto fragments = TExpressionFragments();
     auto exprId = profiler.Profile(expr, schema, &fragments);
 
@@ -2606,7 +2635,7 @@ TCGExpressionGenerator Profile(
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
         ] {
-            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend);
+            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend, *usedWebAssemblyFiles);
         };
 }
 
@@ -2623,6 +2652,8 @@ TCGQueryGenerator Profile(
     bool allowUnorderedGroupByWithLimit,
     i64 maxJoinBatchSize)
 {
+    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+
     auto profiler = TQueryProfiler(
         id,
         variables,
@@ -2632,7 +2663,8 @@ TCGQueryGenerator Profile(
         executionBackend,
         optimizationLevel,
         allowUnorderedGroupByWithLimit,
-        maxJoinBatchSize);
+        maxJoinBatchSize,
+        usedWebAssemblyFiles.get());
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
@@ -2649,7 +2681,7 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel);
+            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, *usedWebAssemblyFiles);
         };
 }
 
