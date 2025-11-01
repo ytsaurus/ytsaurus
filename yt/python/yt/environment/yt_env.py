@@ -423,7 +423,7 @@ class YTInstance(object):
             create_ca(
                 ca_cert=self.yt_config.internal_ca_cert,
                 ca_cert_key=self.yt_config.internal_ca_cert_key,
-                subj="/O={}/OU={}".format(self.id, "YT Internal CA"),
+                subj=f"/O={self.id}/OU=YT Internal CA",
             )
 
         if self.yt_config.public_ca_cert is None:
@@ -432,7 +432,7 @@ class YTInstance(object):
             create_ca(
                 ca_cert=self.yt_config.public_ca_cert,
                 ca_cert_key=self.yt_config.public_ca_cert_key,
-                subj="/O={}/OU={}".format(self.id, "YT Public CA"),
+                subj=f"/O={self.id}/OU=YT Public CA",
             )
 
         if self.yt_config.rpc_cert is None:
@@ -443,7 +443,22 @@ class YTInstance(object):
                 ca_cert_key=self.yt_config.internal_ca_cert_key,
                 cert=self.yt_config.rpc_cert,
                 cert_key=self.yt_config.rpc_cert_key,
-                names=names
+                names=names,
+                extended_key_usage="serverAuth",
+                subj=f"/O={self.id}/OU=YT Native RPC Server",
+            )
+
+        if self.yt_config.rpc_client_cert is None:
+            self.yt_config.rpc_client_cert = os.path.join(self.path, "rpc_client.crt")
+            self.yt_config.rpc_client_cert_key = os.path.join(self.path, "rpc_client.key")
+            create_certificate(
+                ca_cert=self.yt_config.internal_ca_cert,
+                ca_cert_key=self.yt_config.internal_ca_cert_key,
+                cert=self.yt_config.rpc_client_cert,
+                cert_key=self.yt_config.rpc_client_cert_key,
+                names=names,
+                extended_key_usage="clientAuth",
+                subj=f"/O={self.id}/OU=YT Native RPC Client",
             )
 
         if self.yt_config.https_cert is None and self.yt_config.http_proxy_count > 0:
@@ -454,7 +469,8 @@ class YTInstance(object):
                 ca_cert_key=self.yt_config.public_ca_cert_key,
                 cert=self.yt_config.https_cert,
                 cert_key=self.yt_config.https_cert_key,
-                names=names
+                names=names,
+                subj=f"/O={self.id}/OU=YT HTTPS Server",
             )
 
         if self.yt_config.public_rpc_cert is None and self.yt_config.rpc_proxy_count > 0:
@@ -465,7 +481,8 @@ class YTInstance(object):
                 ca_cert_key=self.yt_config.public_ca_cert_key,
                 cert=self.yt_config.public_rpc_cert,
                 cert_key=self.yt_config.public_rpc_cert_key,
-                names=names
+                names=names,
+                subj=f"/O={self.id}/OU=YT Public RPC Server",
             )
 
     def _prepare_builtin_environment(self, ports_generator, modify_configs_func, modify_driver_logging_config_func):

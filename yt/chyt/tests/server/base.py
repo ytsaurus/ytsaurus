@@ -30,6 +30,7 @@ import json
 import random
 import copy
 import string
+import pathlib
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -82,6 +83,7 @@ class Clique(object):
     clique_index_by_test_name = {}
     alias = None
     tvm_secret = None
+    tls_secrets = {}
     sql_udf_path = None
     query_log_table_path = None
 
@@ -93,6 +95,12 @@ class Clique(object):
 
             Is generated randomly if not provided.
         """
+
+        self.yt_client = YtClient(config={
+            "enable_token": False,
+            "backend": "native",
+            "driver_config": get_driver().get_config(),
+        })
 
         self.alias = (alias.removeprefix("*")
                       if alias is not None
@@ -208,9 +216,16 @@ class Clique(object):
             stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
             ytserver_readiness_timeout=15,
             tvm_secret=Clique.tvm_secret,
+            client=self.yt_client,
             **kwargs
         )
-        self.spec = simplify_structure(spec_builder.build())
+
+        self.spec = simplify_structure(spec_builder.build(client=self.yt_client))
+
+        for key, value in Clique.tls_secrets.items():
+            self.spec.setdefault("secure_vault", {})
+            self.spec["secure_vault"][key] = value
+
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
 
@@ -670,14 +685,9 @@ class Clique(object):
         if not instance_id:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
-        yt_client = YtClient(config={
-            "enable_token": False,
-            "backend": "native",
-            "driver_config": get_driver().get_config(),
-        })
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
 
-        return Profiler(yt_client, sensors_path)
+        return Profiler(self.yt_client, sensors_path)
 
     def get_profiler_counter(self, sensor, instance_id=None):
         return self.get_profiler(instance_id).counter(sensor)
@@ -840,6 +850,34 @@ class ClickHouseTestBase(YTEnvSetup):
             }
             Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_dst_map")
             Clique.tvm_secret = Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_self_secret")
+
+        if cls.Env.yt_config.enable_tls:
+            # Pass bus certificates via secure vault environment variables.
+            Clique.tls_secrets = {
+                "CHYT_BUS_CA_BUNDLE": pathlib.Path(cls.Env.yt_config.internal_ca_cert).read_text(),
+                "CHYT_BUS_SERVER_CERTIFICATE": pathlib.Path(cls.Env.yt_config.rpc_cert).read_text(),
+                "CHYT_BUS_SERVER_PRIVATE_KEY": pathlib.Path(cls.Env.yt_config.rpc_cert_key).read_text(),
+                "CHYT_BUS_CLIENT_CERTIFICATE": pathlib.Path(cls.Env.yt_config.rpc_client_cert).read_text(),
+                "CHYT_BUS_CLIENT_PRIVATE_KEY": pathlib.Path(cls.Env.yt_config.rpc_client_cert_key).read_text(),
+            }
+            Clique.base_config["bus_server"]["ca"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CA_BUNDLE",
+            }
+            Clique.base_config["bus_server"]["cert_chain"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_SERVER_CERTIFICATE",
+            }
+            Clique.base_config["bus_server"]["private_key"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_SERVER_PRIVATE_KEY",
+            }
+            Clique.base_config["cluster_connection"]["bus_client"]["ca"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CA_BUNDLE",
+            }
+            Clique.base_config["cluster_connection"]["bus_client"]["cert_chain"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CLIENT_CERTIFICATE",
+            }
+            Clique.base_config["cluster_connection"]["bus_client"]["private_key"] = {
+                "environment_variable": "YT_SECURE_VAULT_CHYT_BUS_CLIENT_PRIVATE_KEY",
+            }
 
         Clique.proxy_address = cls._get_proxy_address()
         Clique.chyt_http_address = cls._get_chyt_http_address()
