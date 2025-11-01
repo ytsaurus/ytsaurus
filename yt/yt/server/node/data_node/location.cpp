@@ -947,6 +947,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         throttled = false;
     }
 
+    throttled = throttled || ShouldAlwaysThrottle();
+
     if (throttled) {
         if (isProbing) {
             ReportThrottledProbingRead();
@@ -977,8 +979,11 @@ void TChunkLocation::ReportThrottledProbingWrite() const
     PerformanceCounters_->ReportThrottledProbingWrite();
 }
 
+bool TChunkLocation::ShouldAlwaysThrottle() const {
+    return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation;
+}
+
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
-    TChunkId chunkId,
     const TWorkloadDescriptor& workloadDescriptor,
     bool blocksWindowShifted) const
 {
@@ -1043,24 +1048,35 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         throttled = false;
     }
 
-    if (throttled &&
-        memoryOvercommit &&
+    return TDiskThrottlingResult{
+        .Enabled = throttled || ShouldAlwaysThrottle(),
+        .MemoryOvercommit = memoryOvercommit,
+        .QueueSize = 0L,
+        .Error = std::move(error),
+    };
+}
+
+TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
+    TChunkId chunkId,
+    const TWorkloadDescriptor& workloadDescriptor,
+    bool blocksWindowShifted) const
+{
+    auto diskThrottlingResult = CheckWriteThrottling(workloadDescriptor, blocksWindowShifted);
+
+    if (diskThrottlingResult.Enabled &&
+        diskThrottlingResult.MemoryOvercommit &&
         ChunkStoreHost_->CanPassSessionOutOfTurn(chunkId))
     {
         YT_LOG_WARNING("Session passed out of turn with possible overcommit (Chunkd: %v)",
             chunkId);
-        throttled = false;
+        diskThrottlingResult.Enabled = false;
     }
 
-    if (throttled) {
+    if (diskThrottlingResult.Enabled) {
         ReportThrottledWrite();
     }
 
-    return TDiskThrottlingResult{
-        .Enabled = throttled,
-        .QueueSize = 0L,
-        .Error = std::move(error),
-    };
+    return diskThrottlingResult;
 }
 
 void TChunkLocation::ReportThrottledWrite() const

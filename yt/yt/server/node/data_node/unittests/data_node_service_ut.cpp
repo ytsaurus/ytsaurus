@@ -395,6 +395,8 @@ public:
         std::vector<double> IOWeights = {1.};
         std::vector<int> SessionCountLimits = {1024};
         bool UseProbePutBlocks = false;
+        bool SkipWriteThrottlingLocations = false;
+        bool AlwaysThrottleLocation = false;
     };
 
     TDataNodeTest() = default;
@@ -460,6 +462,7 @@ public:
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
         bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
+        bootstrapConfig->DataNode->SkipWriteThrottlingLocations = TestParams_.SkipWriteThrottlingLocations;
 
         for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
             if (!bootstrapConfig->DataNode->Throttlers[kind]) {
@@ -556,6 +559,7 @@ public:
 
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
             THashMap<std::string, IServicePtr>());
@@ -821,7 +825,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIOWeightTestCase
+struct TIoWeightTestCase
 {
     std::vector<double> IOWeights = {1., 1.};
     std::vector<int> SessionCountLimits = {128, 128};
@@ -829,12 +833,12 @@ struct TIOWeightTestCase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIOWeightTest
+class TIoWeightTest
     : public TDataNodeTest
-    , public ::testing::WithParamInterface<TIOWeightTestCase>
+    , public ::testing::WithParamInterface<TIoWeightTestCase>
 {
 public:
-    TIOWeightTest()
+    TIoWeightTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
                 .ReadThreadCount = 4,
@@ -848,7 +852,88 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TIOWeightTest, GetBlocksByOneDiskIORequestTest)
+struct TSkipWriteThrottlingLocationsTestCase
+{
+    std::vector<double> IOWeights = {1., 1.};
+    std::vector<int> SessionCountLimits = {128, 128};
+    bool SkipWriteThrottlingLocations = false;
+    bool AlwaysThrottleLocation = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSkipWriteThrottlingLocationsTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<TSkipWriteThrottlingLocationsTestCase>
+{
+public:
+    TSkipWriteThrottlingLocationsTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+                .ChooseLocationBasedOnIOWeight = true,
+                .IOWeights = GetParam().IOWeights,
+                .SessionCountLimits = GetParam().SessionCountLimits,
+                .SkipWriteThrottlingLocations = GetParam().SkipWriteThrottlingLocations,
+                .AlwaysThrottleLocation = GetParam().AlwaysThrottleLocation,
+            })
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TSkipWriteThrottlingLocationsTest, SkipThrottlingLocationsOnStartChunk)
+{
+    const auto& ioWeights = GetParam().IOWeights;
+    auto alwaysThrottleLocation = GetParam().AlwaysThrottleLocation;
+    auto enableSkipWriteThrottlingLocations = GetParam().SkipWriteThrottlingLocations;
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+
+    YT_VERIFY(std::ssize(ioWeights) == std::ssize(locations));
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto rspOrError = WaitFor(StartChunk(sessionId, true));
+
+    if (alwaysThrottleLocation && enableSkipWriteThrottlingLocations) {
+        EXPECT_FALSE(rspOrError.IsOK());
+    } else {
+        EXPECT_TRUE(rspOrError.IsOK());
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TSkipWriteThrottlingLocationsTest,
+    TSkipWriteThrottlingLocationsTest,
+    ::testing::Values(
+        TSkipWriteThrottlingLocationsTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .SkipWriteThrottlingLocations = true,
+            .AlwaysThrottleLocation = true
+        },
+        TSkipWriteThrottlingLocationsTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .SkipWriteThrottlingLocations = false,
+            .AlwaysThrottleLocation = true
+        },
+        TSkipWriteThrottlingLocationsTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .SkipWriteThrottlingLocations = true,
+            .AlwaysThrottleLocation = false
+        },
+        TSkipWriteThrottlingLocationsTestCase{
+            .IOWeights = {1, 1, 1, 1, 1},
+            .SessionCountLimits = {128, 128, 128, 128, 128},
+            .SkipWriteThrottlingLocations = false,
+            .AlwaysThrottleLocation = false
+        }
+    )
+);
+
+TEST_P(TIoWeightTest, IoBasedOnIoWeight)
 {
     auto& ioWeights = GetParam().IOWeights;
     auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
@@ -885,22 +970,22 @@ TEST_P(TIOWeightTest, GetBlocksByOneDiskIORequestTest)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TIOWeightTest,
-    TIOWeightTest,
+    TIoWeightTest,
+    TIoWeightTest,
     ::testing::Values(
-        TIOWeightTestCase{
+        TIoWeightTestCase{
             .IOWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
             .SessionCountLimits = {1024, 1024, 1024, 1024, 1024},
         },
-        TIOWeightTestCase{
+        TIoWeightTestCase{
             .IOWeights = {0.2, 0.5},
             .SessionCountLimits = {256, 256},
         },
-        TIOWeightTestCase{
+        TIoWeightTestCase{
             .IOWeights = {0.2, 0.6, 1.5},
             .SessionCountLimits = {128, 128, 128},
         },
-        TIOWeightTestCase{
+        TIoWeightTestCase{
             .IOWeights = {1., 1.},
             .SessionCountLimits = {16, 256},
         }
