@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '0 * * * *'
   push:
-    tags:
+    branches:
       - 'members/epsilond1/create-workflow-for-nightly-tests'
   workflow_dispatch:
 
