@@ -679,7 +679,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
-    YT_VERIFY(!ImplementationFile_.Empty());
+    THROW_ERROR_EXCEPTION_IF(ImplementationFiles_[executionBackend].Empty(), "Found no implementation for UDF %Qv", FunctionName_);
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
@@ -730,7 +730,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
                     innerBuilder,
                     FunctionName_,
                     { std::pair(SymbolName_, functionType) },
-                    ImplementationFile_);
+                    ImplementationFiles_[EExecutionBackend::Native]);
             }
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
@@ -751,6 +751,11 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     };
 }
 
+TSharedRef TExternalFunctionCodegen::GetWebAssemblyBytecodeFile() const
+{
+    return ImplementationFiles_[EExecutionBackend::WebAssembly];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenAggregate TExternalAggregateCodegen::Profile(
@@ -761,7 +766,10 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
 {
-    YT_VERIFY(!ImplementationFile_.Empty());
+    THROW_ERROR_EXCEPTION_IF(
+        ImplementationFiles_[executionBackend].Empty(),
+        "Found no implementation for aggregate UDF %Qv",
+        AggregateName_);
 
     if (id) {
         id->AddString(ToStringRef(Fingerprint_));
@@ -848,7 +856,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                     builder,
                     AggregateName_,
                     aggregateFunctions,
-                    ImplementationFile_);
+                    ImplementationFiles_[EExecutionBackend::Native]);
             }
 
             auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
@@ -956,6 +964,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 bool TExternalAggregateCodegen::IsFirst() const
 {
     return IsFirst_;
+}
+
+TSharedRef TExternalAggregateCodegen::GetWebAssemblyBytecodeFile() const
+{
+    return ImplementationFiles_[EExecutionBackend::WebAssembly];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

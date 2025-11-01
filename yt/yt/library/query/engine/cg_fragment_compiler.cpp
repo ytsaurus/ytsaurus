@@ -4271,12 +4271,15 @@ TCallback<TSignature> BuildCGEntrypoint(
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend)
+std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend, const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         cgModule->BuildWebAssembly();
         auto bytecode = cgModule->GetWebAssemblyBytecode();
-        auto compartment = NWebAssembly::CreateQueryLanguageImage();
+        auto compartment = NWebAssembly::CreateStandardRuntimeImage();
+        for (auto& file : usedWebAssemblyFiles) {
+            compartment->AddModule(file);
+        }
         compartment->AddModule(bytecode);
         compartment->Strip();
         return compartment;
@@ -4289,7 +4292,8 @@ TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount,
     EExecutionBackend executionBackend,
-    NCodegen::EOptimizationLevel optimizationLevel)
+    NCodegen::EOptimizationLevel optimizationLevel,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend, optimizationLevel);
     const auto entryFunctionName = std::string("EvaluateQuery");
@@ -4319,14 +4323,15 @@ TCGQueryImage CodegenQuery(
 
     return {
         BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
 }
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
     const auto entryFunctionName = std::string("EvaluateExpression");
@@ -4359,7 +4364,7 @@ TCGExpressionImage CodegenStandaloneExpression(
 
     return {
         BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
 }
 
@@ -4367,7 +4372,8 @@ TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
 
@@ -4468,8 +4474,20 @@ TCGAggregateImage CodegenAggregate(
             BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(cgModule, mergeName, executionBackend),
             BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(cgModule, finalizeName, executionBackend),
         },
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ui64 TUsedWebAssemblyFilesHasher::operator()(const TSharedRef& ref) const
+{
+    return std::bit_cast<ui64>(ref.begin());
+}
+
+bool TUsedWebAssemblyFilesEqComparer::operator()(const TSharedRef& lhs, const TSharedRef& rhs) const
+{
+    return lhs.begin() == rhs.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -342,22 +342,47 @@ void MakeCodegenWriteOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUsedWebAssemblyFilesHasher
+{
+public:
+    ui64 operator()(const TSharedRef& ref) const;
+};
+
+class TUsedWebAssemblyFilesEqComparer
+{
+public:
+    bool operator()(const TSharedRef& lhs, const TSharedRef& rhs) const;
+};
+
+DECLARE_REFCOUNTED_CLASS(TUsedWebAssemblyFiles)
+
+class TUsedWebAssemblyFiles final
+    : public THashSet<TSharedRef, TUsedWebAssemblyFilesHasher, TUsedWebAssemblyFilesEqComparer>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TUsedWebAssemblyFiles)
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex,
     NCodegen::EExecutionBackend executionBackend,
-    NCodegen::EOptimizationLevel optimizationLevel);
+    NCodegen::EOptimizationLevel optimizationLevel,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
-    NCodegen::EExecutionBackend executionBackend);
+    NCodegen::EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
 
 TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
-    NCodegen::EExecutionBackend executionBackend);
+    NCodegen::EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles);
 
 ////////////////////////////////////////////////////////////////////////////////
 

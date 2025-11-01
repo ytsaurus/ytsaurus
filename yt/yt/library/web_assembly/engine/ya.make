@@ -27,21 +27,21 @@ CFLAGS(
 
 IF (NOT OPENSOURCE)
     FROM_SANDBOX(
-        FILE 4987655926 OUT_NOAUTO lib.so.wasm
+        FILE 9512287245 OUT_NOAUTO libemscripten-system-libraries-dll.so
     )
 
     FROM_SANDBOX(
-        FILE 5750993567 OUT_NOAUTO all-udfs.so.wasm
+        FILE 9512289270 OUT_NOAUTO libemscripten-system-libraries-dll.so.compiled
     )
 
     FROM_SANDBOX(
-        FILE 7514783492 OUT_NOAUTO compiled-libc
+        FILE 9513256380 OUT_NOAUTO libwasm-udfs-builtin-ytql-udfs.so
     )
 
     RESOURCE(
-        lib.so.wasm libc.so.wasm
-        all-udfs.so.wasm all-udfs.so.wasm
-        compiled-libc compiled-libc
+        libemscripten-system-libraries-dll.so libemscripten-system-libraries-dll.so
+        libemscripten-system-libraries-dll.so.compiled libemscripten-system-libraries-dll.so.compiled
+        libwasm-udfs-builtin-ytql-udfs.so libwasm-udfs-builtin-ytql-udfs.so
     )
 ENDIF()
 
