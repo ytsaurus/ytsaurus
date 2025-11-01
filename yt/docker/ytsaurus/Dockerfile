@@ -1,5 +1,9 @@
 # Arguments used in FROM statements need to be declared before the first FROM statement.
 
+ARG UBUNTU_CODENAME=noble
+ARG UBUNTU_IMAGE=ubuntu:${UBUNTU_CODENAME}
+ARG APT_MIRROR="http://archive.ubuntu.com/"
+
 # Args for ytsaurus-server-override.
 ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
@@ -25,23 +29,29 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM ubuntu:noble AS ubuntu-base
+FROM ${UBUNTU_IMAGE} AS ubuntu-base
 
-ARG APT_MIRROR="http://archive.ubuntu.com/"
+ARG UBUNTU_CODENAME
+ARG APT_MIRROR
 
-RUN sed -i "s|http://archive.ubuntu.com/|${APT_MIRROR}|g" /etc/apt/sources.list
+# https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+ADD --chmod=664 \
+  https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776 \
+  /etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      software-properties-common && \
-      add-apt-repository ppa:deadsnakes/ppa
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-      python3-pip \
-      python3.8  \
-      python3.8-distutils \
-      linux-tools-generic
+sed -i "s|http://archive.ubuntu.com/|${APT_MIRROR}|g" /etc/apt/sources.list
+
+# https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
+cat <<EOF >/etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-${UBUNTU_CODENAME}.list
+deb [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] http://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu ${UBUNTU_CODENAME} main
+# deb-src [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] http://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu ${UBUNTU_CODENAME} main
+EOF
+
+EOT
 
 ##########################################################################################
 
@@ -69,14 +79,6 @@ export DEBIAN_FRONTEND=noninteractive
 export TZ=Etc/UTC
 
 apt-get update -q --error-on=any
-apt-get install -y curl
-
-# https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa
-mkdir -p /etc/apt/keyrings
-curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" |
-  tee /etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc
-
-apt-get update -q --error-on=any
 
 packages=(
   curl
@@ -88,6 +90,9 @@ packages=(
   libidn11-dev
   lsb-release
   lsof
+  python3-pip
+  python3.8
+  python3.8-distutils
   python3.11
   python3.11-venv
   strace
@@ -96,6 +101,7 @@ packages=(
   unzip
   zstd
   google-perftools
+  linux-tools-generic
   procps
   jq
   htop
@@ -207,9 +213,10 @@ RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 RUN rm -rf /tmp/ytsaurus_python
 
+# TODO(YTADMIN-12627)
 # python3-cryptography breaks ytsaurus-client in the image: https://github.com/pyca/cryptography/issues/9060#issuecomment-1983130684.
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y \
-  python3-cryptography
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y --auto-remove \
+  python3-cryptography 2>/dev/null || true
 
 ##########################################################################################
 
@@ -318,6 +325,11 @@ COPY ./credits/clickhouse-trampoline.CREDITS /usr/bin/clickhouse-trampoline.CRED
 # Install YT client for setup script.
 RUN python3.8 -m pip install ytsaurus-client
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+
+# TODO(YTADMIN-12627)
+# python3-cryptography breaks ytsaurus-client in the image: https://github.com/pyca/cryptography/issues/9060#issuecomment-1983130684.
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y --auto-remove \
+  python3-cryptography 2>/dev/null || true
 
 # Setup script.
 COPY ./setup_cluster_for_chyt.sh /setup_cluster_for_chyt.sh
