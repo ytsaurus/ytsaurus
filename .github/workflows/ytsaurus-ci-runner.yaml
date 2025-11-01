@@ -30,7 +30,7 @@ jobs:
         run: |
           python3 ytsaurus/.github/ytsaurus-ci/main.py \
                   run-scenario \
-                  nightly-dev \
+                  --scenario nightly-dev \
                   --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
                   --cloud-functions-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
                   --apply
