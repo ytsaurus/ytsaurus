@@ -301,7 +301,7 @@ private:
             connection,
             Address_,
             Invoker_,
-            EMessageType::Response,
+            request.Method,
             Config_);
 
         auto headers = FormHeaders(request);
