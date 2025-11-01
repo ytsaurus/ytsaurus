@@ -2,16 +2,19 @@ from .common import get_value, update
 from .errors import YtResponseError
 from .config import get_config
 from .cypress_commands import get, set, list, exists, create
+from .default_config import ErasureCodecsType, CompressionCodecType
 from .run_operation_commands import run_merge
+from .spec_builders import SpecCommonType
 from .table import TempTable
 from .transaction import Transaction
-from .ypath import TablePath
+from .ypath import TablePath, YPath
 
 import yt.logger as logger
 
 import builtins
 
 from copy import deepcopy
+from typing import Union, Optional, Dict, Any, Literal
 from random import Random
 
 
@@ -45,7 +48,9 @@ def _get_compression_ratio(table, erasure_codec, compression_codec, optimize_for
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
-        ratio = get(tmp + "/@compression_ratio", client=client)
+        compressed_table = get(tmp, attributes=["data_weight", "compressed_data_size"], client=client)
+        ratio = compressed_table.attributes["compressed_data_size"] / compressed_table.attributes["data_weight"]
+        # ratio = get(tmp + "/@compression_ratio", client=client)
         logger.debug("Estimated compression ratio of '%s' (codec: %s, erasure: %s, optimize: %s) is %s", table, compression_codec, erasure_codec, optimize_for, ratio)
         return None if ratio < 0.00001 else ratio
 
@@ -64,21 +69,52 @@ def _check_codec(table, codec_name, codec_value, client):
                 raise
 
 
-def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None,
-              desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None, force_empty=False, client=None):
+def transform(
+    source_table: Union[str, YPath],
+    destination_table: Optional[Union[str, YPath]] = None,
+    erasure_codec: ErasureCodecsType = None,
+    compression_codec: CompressionCodecType = None,
+    desired_chunk_size: Optional[int] = None,
+    spec: Optional[Union[SpecCommonType, Dict[str, Any]]] = None,
+    check_codecs: bool = False,
+    optimize_for: Optional[Literal["lookup", "scan"]] = None,
+    force_empty: bool = False,
+    client=None,
+):
     """Transforms source table to destination table writing data with given compression and erasure codecs.
 
     Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
     table between old and new formats (optimize_for parameter).
-    "desired_chunk_size" parameter implicit disable job splitting mode (in some cases jobs becomes unoptimal but do not divide chunk into smaller)
-    """
+
+    :param desired_chunk_size: Size of table chunks we are aiming for (size corresponds to `@compressed_data_size` attribute);
+        this parameter implicitly disables job splitting (operation might run longer but we do not split output chunks into smaller parts)
+    :param check_codecs: do not transform if "compression", "erasure" and "optimize_for" are relevant
+    :param force_empty: tranform even empty table
+    :param spec: extra operation parameters
+    """  # noqa
 
     spec = get_value(spec, {})
 
     src = TablePath(source_table, client=client).to_yson_type()
     dst = None
+    target_attributes = {}
     if destination_table is not None:
         dst = TablePath(destination_table, client=client).to_yson_type()
+        if exists(dst, client=client):
+            target_attributes = get(dst, attributes=["erasure_codec", "compression_codec", "optimize_for"], client=client).attributes
+    else:
+        if exists(src, client=client):
+            target_attributes = get(src, attributes=["erasure_codec", "compression_codec", "optimize_for"], client=client).attributes
+
+    if erasure_codec is None and target_attributes.get("erasure_codec"):
+        erasure_codec = target_attributes["erasure_codec"]
+        logger.debug("Using erasure codec from destination table: \"%s\"", erasure_codec)
+    if compression_codec is None and target_attributes.get("compression_codec"):
+        compression_codec = target_attributes["compression_codec"]
+        logger.debug("Using compression codec from destination table: \"%s\"", compression_codec)
+    if optimize_for is None and target_attributes.get("optimize_for"):
+        optimize_for = target_attributes["optimize_for"]
+        logger.debug("Using \"optimize for\" from destination table: \"%s\"", optimize_for)
 
     if desired_chunk_size is None:
         desired_chunk_size = get_config(client)["transform_options"]["desired_chunk_size"]
@@ -128,11 +164,11 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         if ratio is None:
             ratio = get(src + "/@compression_ratio", client=client)
 
-        max_data_size_per_job = get_config(client)["transform_options"]["max_data_size_per_job"]
+        max_data_weight_per_job = get_config(client)["transform_options"]["max_data_size_per_job"]
         if ratio == 0.0:
-            data_size_per_job = min(1, max_data_size_per_job)
+            data_weight_per_job = min(1, max_data_weight_per_job)
         else:
-            data_size_per_job = max(1, min(max_data_size_per_job, int(desired_chunk_size / ratio)))
+            data_weight_per_job = max(1, min(max_data_weight_per_job, int(desired_chunk_size / ratio)))
             # force "one job - one chunk" mode (real chunk size based on data_size_per_job)
             desired_chunk_size = desired_chunk_size * 2 + 1024 ** 3
 
@@ -141,7 +177,7 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
                 "title": "Transform table",
                 "combine_chunks": True,
                 "force_transform": True,
-                "data_size_per_job": data_size_per_job,
+                "data_weight_per_job": data_weight_per_job,
                 "job_io": {
                     "table_writer": {
                         "desired_chunk_size": desired_chunk_size

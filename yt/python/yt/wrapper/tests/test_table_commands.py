@@ -983,7 +983,7 @@ class TestBlobTables(object):
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsOperations(object):
     @authors("ignat")
-    def test_transform(self):
+    def test_table_transform(self):
         table = TEST_DIR + "/test_transform_table"
         other_table = TEST_DIR + "/test_transform_table2"
 
@@ -1002,13 +1002,34 @@ class TestTableCommandsOperations(object):
 
         yt.remove(other_table)
         assert yt.transform(table, other_table, compression_codec="zlib_6")
-        assert yt.get(other_table + "/@compression_codec") == "zlib_6"
+        assert yt.get(other_table, attributes=["compression_codec", "optimize_for"]).attributes == {
+            "compression_codec": "zlib_6",
+            "optimize_for": "lookup",
+        }
         assert not yt.transform(other_table, other_table, compression_codec="zlib_6", check_codecs=True)
 
         assert yt.transform(table, other_table, optimize_for="scan")
         assert yt.get(other_table + "/@optimize_for") == "scan"
 
         assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
+
+        yt.remove(other_table)
+        yt.create("table", other_table, attributes={"optimize_for": "scan", "compression_codec": "zlib_6"})
+        assert yt.transform(table, other_table)
+        assert yt.get(other_table, attributes=["compression_codec", "optimize_for", "erasure_codec"]).attributes == {
+            "compression_codec": "zlib_6",
+            "optimize_for": "scan",
+            "erasure_codec": "none",
+        }
+
+        yt.remove(other_table)
+        yt.create("table", other_table, attributes={"optimize_for": "scan", "compression_codec": "zlib_6"})
+        assert yt.transform(table, other_table, compression_codec="zlib_3", optimize_for="lookup")
+        assert yt.get(other_table, attributes=["compression_codec", "optimize_for", "erasure_codec"]).attributes == {
+            "compression_codec": "zlib_3",
+            "optimize_for": "lookup",
+            "erasure_codec": "none",
+        }
 
     @authors("ignat")
     def test_erase(self):

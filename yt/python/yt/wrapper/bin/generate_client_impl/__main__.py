@@ -6,6 +6,7 @@ import typing
 
 from collections import defaultdict
 from copy import deepcopy
+from itertools import chain
 
 
 def _fix_indentation(text, width):
@@ -37,7 +38,10 @@ def join_args(args_tokens, indentation, line_limit=100, types=None):
     if current_tokens:
         lines.append(", ".join(current_tokens))
 
-    return (",\n" + indentation).join(lines)
+    lines_sep = list(map(lambda l: ",\n" + indentation if len(l) <= line_limit * 1.5 else ",  # noqa\n" + indentation, lines))
+    lines_sep[-1] = ""
+
+    return "".join(chain(*zip(lines, lines_sep)))
 
 
 def render_client_header(modules) -> str:
