@@ -1800,11 +1800,19 @@ class TestJobTraceEvents(YTEnvSetup):
 
         wait(lambda: len(select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")) == 15)
         trace_id_parts = select_rows(f"trace_id_hi, trace_id_lo from [{JOB_TRACE_ARCHIVE_PATH}] group by trace_id_hi, trace_id_lo limit 2")
-        trace_id1_parts = (trace_id_parts[0]["trace_id_hi"], trace_id_parts[0]["trace_id_lo"])
-        trace_id2_parts = (trace_id_parts[1]["trace_id_hi"], trace_id_parts[1]["trace_id_lo"])
 
-        assert parts_to_uuid(*trace_id1_parts) == trace_id1
-        assert parts_to_uuid(*trace_id2_parts) == trace_id2
+        trace_id1_parts = None
+        trace_id2_parts = None
+        for parts_row in trace_id_parts:
+            parts = (parts_row["trace_id_hi"], parts_row["trace_id_lo"])
+            uuid = parts_to_uuid(*parts)
+            if uuid == trace_id1:
+                trace_id1_parts = parts
+            elif uuid == trace_id2:
+                trace_id2_parts = parts
+
+        assert trace_id1_parts is not None
+        assert trace_id2_parts is not None
 
         self._set_batch_size(2)
         trace1 = get_job_trace(op.id, job_id, trace_id=trace_id1)
