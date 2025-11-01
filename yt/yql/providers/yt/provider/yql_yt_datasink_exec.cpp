@@ -108,7 +108,7 @@ public:
         AddHandler({TYtReduce::CallableName()}, RequireForTransientOp(), Hndl(&TYtDataSinkExecTransformer::HandleReduce));
         AddHandler({TYtOutput::CallableName()}, RequireFirst(), Pass());
         AddHandler({TYtPublish::CallableName()}, RequireAllOf({TYtPublish::idx_World, TYtPublish::idx_Input}), Hndl(&TYtDataSinkExecTransformer::HandlePublish));
-        AddHandler({TYtDropTable::CallableName()}, RequireFirst(), Hndl(&TYtDataSinkExecTransformer::HandleDrop));
+        AddHandler({TYtDropTable::CallableName(), TYtDropView::CallableName()}, RequireFirst(), Hndl(&TYtDataSinkExecTransformer::HandleDrop));
         AddHandler({TCoCommit::CallableName()}, RequireFirst(), Hndl(&TYtDataSinkExecTransformer::HandleCommit));
         AddHandler({TYtEquiJoin::CallableName()}, RequireSequenceOf({TYtEquiJoin::idx_World, TYtEquiJoin::idx_Input}),
             Hndl(&TYtDataSinkExecTransformer::HandleEquiJoin));
@@ -505,8 +505,6 @@ private:
 
     TStatusCallbackPair HandleDrop(const TExprNode::TPtr& input, TExprContext& ctx) {
         input->SetState(TExprNode::EState::ExecutionInProgress);
-
-        auto drop = TYtDropTable(input);
 
         auto newWorld = ctx.ShallowCopy(*input->Child(0));
         newWorld->SetTypeAnn(input->Child(0)->GetTypeAnn());

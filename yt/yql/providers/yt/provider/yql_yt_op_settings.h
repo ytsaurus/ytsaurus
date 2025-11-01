@@ -17,15 +17,19 @@ namespace NYql {
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 enum class EYtWriteMode: ui32 {
-    Renew           /* "renew" */,
-    RenewKeepMeta   /* "renew_keep_meta" */,
-    Append          /* "append" */,
-    Drop            /* "drop" */,
-    Flush           /* "flush" */,
-    Create          /* "create" */,
-    CreateIfNotExists /* "create_if_not_exists" */,
-    Alter           /* "alter" */,
-
+    Renew                   /* "renew" */,
+    RenewKeepMeta           /* "renew_keep_meta" */,
+    Append                  /* "append" */,
+    Drop                    /* "drop" */,
+    DropIfExists            /* "drop_if_exists" */,
+    Flush                   /* "flush" */,
+    Create                  /* "create" */,
+    CreateIfNotExists       /* "create_if_not_exists" */,
+    Alter                   /* "alter" */,
+    CreateObject            /* "createObject" "create_object" */,
+    CreateObjectIfNotExists /* "createObjectIfNotExists" "create_object_if_not_exists" */,
+    DropObject              /* "dropObject" "drop_object" */,
+    DropObjectIfExists      /* "dropObjectIfExists" "drop_object_if_exists" */,
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +139,7 @@ enum class EYtSettingType: ui64 {
     Columns                  /* "columns"*/,
     Actions                  /* "actions"*/,
     OrderBy                  /* "orderby","order_by" */,
+    Features                 /* "features"*/,
 
     LAST
 };
