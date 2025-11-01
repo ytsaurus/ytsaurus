@@ -22,7 +22,6 @@ def cli(ctx):
 @click.option("--cloud-function-id", type=str, default="d4ee6v3cr3udu6bpnova")
 @click.option("--apply", is_flag=True, help="Make new task with generated spec")
 def run_scenario(scenario, git_token, git_api_url, cloud_functions_token, cloud_function_id, apply):
-    print('check vulnerability')
     auth = ghcr.GitHubAuth(token=git_token, base_url=git_api_url)
     result = cfg_loader.ProcessScenario(scenario, auth)
     session = requests.Session()

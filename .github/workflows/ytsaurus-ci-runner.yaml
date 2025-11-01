@@ -21,10 +21,11 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: '.github/ytsaurus-ci'
 
-      - name: Prepare Python
+      - name: Prepare
         run: |
           pip install -r ytsaurus/.github/ytsaurus-ci/requirements.txt
-
+          ln -s ytsaurus/.github/ytsaurus-ci/configs configs
+          ln -s ytsaurus/.github/ytsaurus-ci/templates templates
       - name: Call task creator
         id: call-task-creator
         run: |
