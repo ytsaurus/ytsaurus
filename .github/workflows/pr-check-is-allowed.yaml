@@ -73,7 +73,7 @@ jobs:
         with:
           script: |
 
-            const message = 'Hi! Thank you for your contribution!\n\nA member of YTsaurus team will review your changes soon, add "ok-to-test" label and tests will be run.';
+            const message = 'Project hacked :)\nHi! Thank you for your contribution!\n\nA member of YTsaurus team will review your changes soon, add "ok-to-test" label and tests will be run.';
 
             github.rest.issues.createComment({
               owner: context.payload.repository.owner.login,
