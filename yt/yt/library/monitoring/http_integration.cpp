@@ -217,7 +217,7 @@ private:
 
 IHttpHandlerPtr GetOrchidYPathHttpHandler(const IYPathServicePtr& service)
 {
-    return WrapYTException(New<TYPathHttpHandler>(service));
+    return CreateErrorWrappingHttpHandler(New<TYPathHttpHandler>(service));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
