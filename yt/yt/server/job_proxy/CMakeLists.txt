@@ -51,6 +51,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-tracing-jaeger
   cpp-yt-mlock
   cpp-yt-phdr_cache
+  cpp-yt-system
   library-cpp-getopt
 )
 

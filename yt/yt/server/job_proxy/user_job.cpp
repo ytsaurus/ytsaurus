@@ -97,6 +97,7 @@
 
 #include <library/cpp/yt/error/error_helpers.h>
 
+#include <library/cpp/yt/system/env.h>
 #include <library/cpp/yt/system/handle_eintr.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
@@ -685,8 +686,8 @@ private:
     std::vector<TCallback<void()>> FinalizeActions_;
 
     TFuture<void> ProcessFinished_;
-    std::vector<TString> Environment_;
-    THashMap<TString, ssize_t> EnvironmentIndex_;
+    std::vector<TString> EnvironmentNameValuePairs_;
+    THashMap<TString, int> EnvironmentNameToIndex_;
 
     std::optional<TExecutorInfo> ExecutorInfo_;
 
@@ -729,11 +730,11 @@ private:
     {
 #ifdef _linux_
         std::vector<TString> shellEnvironment;
-        shellEnvironment.reserve(Environment_.size());
+        shellEnvironment.reserve(EnvironmentNameValuePairs_.size());
         std::vector<TString> visibleEnvironment;
-        visibleEnvironment.reserve(Environment_.size());
+        visibleEnvironment.reserve(EnvironmentNameValuePairs_.size());
 
-        for (const auto& variable : Environment_) {
+        for (const auto& variable : EnvironmentNameValuePairs_) {
             if (variable.StartsWith(NControllerAgent::SecureVaultEnvPrefix) &&
                 !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
             {
@@ -1337,7 +1338,7 @@ private:
                 auto pipe = CreateNamedPipe();
 
                 auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
-                SetEnvironment(Format("YT_%v_PROFILER_PATH=%v", to_upper(TString(typeStr)), Host_->AdjustPath(pipe->GetPath())));
+                SetEnvironmentVariable(Format("YT_%v_PROFILER_PATH", to_upper(TString(typeStr))), Host_->AdjustPath(pipe->GetPath()));
 
                 ProfilePipeReader_ = PrepareOutputPipeReader(
                     std::move(pipe),
@@ -1359,21 +1360,29 @@ private:
         YT_LOG_INFO("Pipes initialized");
     }
 
-    void SetEnvironment(const TString& variable)
+    void SetEnvironmentVariable(const TString& nameValuePair)
     {
-        if (auto sep = variable.find('='); sep != TString::npos) {
-            const auto name = variable.substr(0, sep);
-            if (auto index = EnvironmentIndex_.FindPtr(name)) {
-                Environment_[*index] = variable;
+        if (auto [name, value] = ParseEnvironNameValuePair(nameValuePair); value) {
+            if (auto* index = EnvironmentNameToIndex_.FindPtr(name)) {
+                EnvironmentNameValuePairs_[*index] = nameValuePair;
             } else {
-                Environment_.push_back(variable);
-                EnvironmentIndex_[name] = Environment_.size() - 1;
+                EnvironmentNameValuePairs_.push_back(nameValuePair);
+                EnvironmentNameToIndex_[name] = std::ssize(EnvironmentNameValuePairs_) - 1;
             }
         } else {
-            // Without "=" works as unset.
-            if (auto index = EnvironmentIndex_.FindPtr(variable)) {
-                Environment_[*index] = "";
-            }
+            ResetEnvironmentVariable(TString(name));
+        }
+    }
+
+    void SetEnvironmentVariable(const TString& name, const TString& value)
+    {
+        SetEnvironmentVariable(Format("%v=%v", name, value));
+    }
+
+    void ResetEnvironmentVariable(const TString& name)
+    {
+        if (auto* index = EnvironmentNameToIndex_.FindPtr(name)) {
+            EnvironmentNameValuePairs_[*index] = "";
         }
     }
 
@@ -1386,57 +1395,56 @@ private:
 
         if (Config_->TestRootFS && Config_->RootPath) {
             formatter.SetProperty("RootFS", *Config_->RootPath);
-            SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
+            SetEnvironmentVariable("YT_ROOT_FS", *Config_->RootPath);
         }
 
         if (Config_->ForwardAllEnvironmentVariables) {
-            auto env = GetEnviron();
-            for (const auto& variable : env) {
-                SetEnvironment(variable);
+            for (const auto& pair : GetEnvironNameValuePairs()) {
+                SetEnvironmentVariable(TString(pair));
             }
         }
 
         for (const auto& variable : Config_->EnvironmentVariables) {
             if (variable->ForwardToUserJob.value_or(false) && !Config_->ForwardAllEnvironmentVariables) {
                 // Set environment variable if it is not forwarded yet.
-                SetEnvironment(Format("%v=%v", variable->Name, GetEnv(variable->Name)));
+                SetEnvironmentVariable(variable->Name, GetEnv(variable->Name));
             } else if (!variable->ForwardToUserJob.value_or(true) && Config_->ForwardAllEnvironmentVariables) {
                 // Unset environment variable if it should not be forwarded with all variables.
-                SetEnvironment(variable->Name);
+                ResetEnvironmentVariable(variable->Name);
             }
         }
 
         if (UserJobSpec_.has_network_project()) {
-            SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project().id()));
+            SetEnvironmentVariable(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project().id()));
         }
 
         if (UserJobSpec_.enable_rpc_proxy_in_job_proxy()) {
-            SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+            SetEnvironmentVariable("YT_JOB_PROXY_SOCKET_PATH", ToString(Host_->GetJobProxyUnixDomainSocketPath()));
         }
 
-        for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            SetEnvironment(formatter.Format(UserJobSpec_.environment(i)));
+        for (const auto& pair : UserJobSpec_.environment()) {
+            SetEnvironmentVariable(formatter.Format(pair));
         }
 
         for (int index = 0; index < std::ssize(Ports_); ++index) {
-            SetEnvironment(Format("YT_PORT_%v=%v", index, Ports_[index]));
+            SetEnvironmentVariable(Format("YT_PORT_%v", index), ToString(Ports_[index]));
         }
 
         if (auto jobProfilerSpec = JobProfiler_->GetUserJobProfilerSpec()) {
             auto spec = ConvertToYsonString(jobProfilerSpec, EYsonFormat::Text);
-            SetEnvironment(Format("YT_JOB_PROFILER_SPEC=%v", spec));
+            SetEnvironmentVariable("YT_JOB_PROFILER_SPEC", spec.ToString());
 
             YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
         }
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
             int jobFirstOutputTableFD = GetJobFirstOutputTableFDFromSpec(UserJobSpec_);
-            SetEnvironment((Format("YT_FIRST_OUTPUT_TABLE_FD=%v", jobFirstOutputTableFD)));
+            SetEnvironmentVariable("YT_FIRST_OUTPUT_TABLE_FD", ToString(jobFirstOutputTableFD));
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
         for (const auto& variable : environment) {
-            SetEnvironment(variable);
+            SetEnvironmentVariable(variable);
         }
     }
 
@@ -1728,8 +1736,8 @@ private:
 
         executorConfig->Pipes = PipeConfigs_;
 
-        executorConfig->Environment.reserve(Environment_.size());
-        for (const auto& variable : Environment_) {
+        executorConfig->Environment.reserve(EnvironmentNameValuePairs_.size());
+        for (const auto& variable : EnvironmentNameValuePairs_) {
             if (variable) {
                 executorConfig->Environment.push_back(variable);
             }
