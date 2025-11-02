@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/test_framework/framework.h>

@@ -84,7 +84,7 @@ private:
     int ReadFD_ = InvalidFD;
     int WriteFD_ = InvalidFD;
 
-    TPipe(int fd[2]);
+    explicit TPipe(int fd[2]);
     void Init(TPipe&& other);
 
     friend class TPipeFactory;

@@ -250,7 +250,6 @@ private:
 
         INodePtr rootNode;
         try {
-
             YT_LOG_DEBUG("Started reading response body from Blackbox (CallId: %v, Attempt: %v)",
                 callId,
                 attempt);

@@ -28,8 +28,7 @@ class TFunctionYson
     , public WithConstContext
 {
 public:
-
-    TFunctionYson(ContextPtr context_)
+    explicit TFunctionYson(ContextPtr context_)
         : WithConstContext(context_)
     { }
 

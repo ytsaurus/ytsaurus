@@ -181,8 +181,7 @@ TEST_F(TYCIamServerTest, BadToken)
             TNetworkAddress::Parse("127.0.0.1")
         })).ValueOrThrow(),
         std::exception,
-        "Access is prohibited for this user"
-    );
+        "Access is prohibited for this user");
 }
 
 TEST_F(TYCIamServerTest, IssueToken)
@@ -196,8 +195,7 @@ TEST_F(TYCIamServerTest, IssueToken)
             TNetworkAddress::Parse("127.0.0.1")
         })).ValueOrThrow(),
         std::exception,
-        "YC Iam token authentication service response has non-ok status code"
-    );
+        "YC Iam token authentication service response has non-ok status code");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@ TCriImageCacheEntry::~TCriImageCacheEntry()
 
 bool TCriImageCacheEntry::IsAlias() const
 {
-    return bool(Parent_);
+    return static_cast<bool>(Parent_);
 }
 
 bool TCriImageCacheEntry::HasAliases() const
@@ -260,7 +260,7 @@ public:
                 }
                 YT_LOG_DEBUG("Docker image pull started (Image: %v, Authenticated: %v)",
                     image,
-                    bool(authConfig));
+                    static_cast<bool>(authConfig));
                 return Executor_->PullImage(image, authConfig)
                     .Apply(BIND([this, this_ = MakeStrong(this), image = image] (
                         const TCriImageApi::TRspPullImagePtr& result) mutable

@@ -684,7 +684,6 @@ TTableSchemaPtr BuildEmbeddedSchema()
             {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
         {"extra_int", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-
     });
     return schema;
 }
@@ -1993,18 +1992,20 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
     auto extraIntId = nameTable->RegisterName("extra_int");
     auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
 
-    //message T2 {
-    //    optional ui64 embedded2_num;
-    //};
-    //message T1 {
-    //  required T2 t2 [embedded];
-    //  optional ui64 embedded_num;
-    //};
-    //
-    //message T {
-    //   required T1 t1 [embedded];
-    //   optional ui64 num;
-    //};
+    /*
+    message T2 {
+       optional ui64 embedded2_num;
+    };
+    message T1 {
+     required T2 t2 [embedded];
+     optional ui64 embedded_num;
+    };
+
+    message T {
+      required T1 t1 [embedded];
+      optional ui64 num;
+    };
+    */
 
     auto schema = BuildEmbeddedSchema();
     auto config = BuildEmbeddedConfig(complexTypeMode, protoFormatType);
@@ -2557,8 +2558,8 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
     embedded2_struct->set_float1(1.5f);
     embedded2_struct->set_string1("abc");
 
-    //message.set_extra_field("*");
-    //t1->set_embedded_extra_field("*");
+    // message.set_extra_field("*");
+    // t1->set_embedded_extra_field("*");
 
     auto rowCollector = ParseRows(message, config, schema, rowCount);
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
@@ -4453,7 +4454,6 @@ public:
             .EndList().EndMap().EndList().EndMap());
         return config;
     }
-
 };
 
 TEST_F(TProtobufFormatEnumCompat, WriteCanSkipUnknownEnumValues)

@@ -33,7 +33,7 @@ struct TFunctionTypeBuilder<IsIntrinsic, TResult(TArguments...)>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NWebAssembly
+} // namespace NYT::NWebAssembly
 
 #define WASM_TYPE_BUILDER_INL_H_
 #include "type_builder-inl.h"

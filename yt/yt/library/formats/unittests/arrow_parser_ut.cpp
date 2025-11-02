@@ -599,7 +599,7 @@ std::string MakeDateArrow(
 
     auto arrowSchema = arrow20::schema({
         arrow20::field("date", arrow20::date32()),
-        arrow20::field("datetime",arrow20::timestamp(arrow20::TimeUnit::SECOND)),
+        arrow20::field("datetime", arrow20::timestamp(arrow20::TimeUnit::SECOND)),
         arrow20::field("timestamp", arrow20::timestamp(arrow20::TimeUnit::MICRO)),
     });
     std::vector<std::shared_ptr<arrow20::Array>> columns = {*date32Array, *date64Array, *timestampArray};

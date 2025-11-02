@@ -52,7 +52,7 @@ public:
                 Config_->GroupId);
 
             auto* memberAttributes = MemberClient_->GetAttributes();
-            for (const auto& [key, value]: attributes->ListPairs()) {
+            for (const auto& [key, value] : attributes->ListPairs()) {
                 memberAttributes->Set(key, value);
             }
             NameAndAttributes_ = {name, attributes};

@@ -15,7 +15,7 @@ bool TYsonParserAdapter::Object::find(const std::string_view & key, Element & re
     if (!child) {
         return false;
     }
-    result = child;
+    result = Element(child);
     return true;
 }
 
@@ -43,7 +43,7 @@ bool TYsonParserAdapter::parse(const std::string_view& yson, Element& result)
 {
     try {
         Root_ = ConvertToNode(TYsonStringBuf(TStringBuf(yson.data(), yson.size())));
-        result = Root_;
+        result = Element(Root_);
         return true;
     } catch (const std::exception& /* ex */) {
         return false;

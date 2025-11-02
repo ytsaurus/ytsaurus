@@ -408,7 +408,6 @@ public:
 
         auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
-
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
                 address,

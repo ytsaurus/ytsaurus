@@ -20,7 +20,7 @@ using namespace NPipeIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const static size_t PipeBlockSize = 64 * 1024;
+static const size_t PipeBlockSize = 64 * 1024;
 
 static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Subprocess");
 
