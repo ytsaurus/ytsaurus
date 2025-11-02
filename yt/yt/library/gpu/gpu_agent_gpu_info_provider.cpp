@@ -44,7 +44,7 @@ public:
 
 std::optional<ESlowdownType> ConvertSlowdownType(NYT::NGpuAgent::NProto::SlowdownType source)
 {
-    switch(source) {
+    switch (source) {
         case NYT::NGpuAgent::NProto::HW:
             return ESlowdownType::HW;
         case NYT::NGpuAgent::NProto::HWPowerBrake:
@@ -78,7 +78,6 @@ void FromProto(TGpuInfo* gpuInfo, const NYT::NGpuAgent::NProto::GpuDevice& devic
             gpuInfo->Slowdowns[*converted] = true;
         }
     }
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

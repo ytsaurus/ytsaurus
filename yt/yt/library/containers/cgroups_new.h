@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -50,4 +52,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers::NCgroups
+} // namespace NYT::NContainers::NCGroups

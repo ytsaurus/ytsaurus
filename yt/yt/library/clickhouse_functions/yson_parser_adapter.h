@@ -22,7 +22,7 @@ struct TYsonParserAdapter
     {
     public:
         Element() {}
-        Element(const NYTree::INodePtr & node) : Node_(node) {}
+        Element(const NYTree::INodePtr & node) : Node_(node) {} // Intentionally implicit.
         NYTree::INodePtr GetNode() const { return Node_; }
 
         DB::ElementType type() const
@@ -87,7 +87,7 @@ struct TYsonParserAdapter
             size_t Index_ = 0;
         };
 
-        Array(const NYTree::IListNodePtr & list_node) : ListNode_(list_node) {}
+        explicit Array(const NYTree::IListNodePtr& list_node) : ListNode_(list_node) {}
         Iterator begin() const { return {ListNode_, 0}; }
         Iterator end() const { return {ListNode_, size()}; }
         size_t size() const { return ListNode_->GetChildCount(); }
@@ -97,7 +97,7 @@ struct TYsonParserAdapter
         NYTree::IListNodePtr ListNode_;
     };
 
-    using KeyValuePair = std::pair<std::string_view, Element>;
+    using KeyValuePair = std::pair<std::string_view, NYTree::INodePtr>;
 
     // References a map in an YSON document.
     class Object
@@ -118,7 +118,7 @@ struct TYsonParserAdapter
             size_t Index_ = 0;
         };
 
-        Object(const NYTree::IMapNodePtr & map_node) : MapNode_(map_node) {}
+        explicit Object(const NYTree::IMapNodePtr & map_node) : MapNode_(map_node) {}
         Iterator begin() const;
         Iterator end() const;
         size_t size() const { return MapNode_->GetChildCount(); }
@@ -157,12 +157,12 @@ inline std::string_view TYsonParserAdapter::Element::getString() const
 
 inline TYsonParserAdapter::Array TYsonParserAdapter::Element::getArray() const
 {
-    return Node_->AsList();
+    return Array(Node_->AsList());
 }
 
 inline TYsonParserAdapter::Object TYsonParserAdapter::Element::getObject() const
 {
-    return Node_->AsMap();
+    return Object(Node_->AsMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

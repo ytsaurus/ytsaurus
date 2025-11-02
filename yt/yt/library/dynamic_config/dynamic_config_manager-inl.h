@@ -1,4 +1,4 @@
-#ifndef DYNAMIC_CONFIG_MANAGER_INL_H
+#ifndef DYNAMIC_CONFIG_MANAGER_INL_H_
 #error "Direct inclusion of this file is not allowed, include dynamic_config_manager.h"
 // For the sake of sane code completion.
 #include "dynamic_config_manager.h"

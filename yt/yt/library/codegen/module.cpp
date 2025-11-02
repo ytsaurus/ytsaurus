@@ -100,12 +100,12 @@ public:
     {
 #if defined(_msan_enabled_)
         if (name == "__emutls_get_address") {
-            return (int64_t)yt__emutls_get_address;
+            return reinterpret_cast<int64_t>(yt__emutls_get_address);
         }
 
 #define XX(msan_tls_variable) \
         if (name == "__emutls_v." #msan_tls_variable) { \
-            int64_t p = (int64_t) yt_ ## msan_tls_variable; \
+            auto p = reinterpret_cast<int64_t>(yt_ ## msan_tls_variable); \
             return p; \
         }
 MSAN_TLS_STUBS
@@ -124,7 +124,6 @@ MSAN_TLS_STUBS
 private:
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* const RoutineRegistry_;
-
 };
 
 class TCGModule::TImpl

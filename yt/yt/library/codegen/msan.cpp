@@ -6,7 +6,7 @@
 extern "C" __thread int msan_tls_variable; \
 void yt_ ## msan_tls_variable(void** p) __attribute__((no_sanitize("memory"))) \
 { \
-    *p = (void*)&msan_tls_variable; \
+    *p = reinterpret_cast<void*>(&msan_tls_variable); \
 }
 
 MSAN_TLS_STUBS

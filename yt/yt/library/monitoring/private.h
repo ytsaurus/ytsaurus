@@ -12,4 +12,4 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, MonitoringLogger, "Monitoring");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJournalClient
+} // namespace NYT::NMonitoring

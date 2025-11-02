@@ -148,7 +148,7 @@ private:
     {
         using namespace NYTree;
 
-        if (!ConfigFlag_){
+        if (!ConfigFlag_) {
             THROW_ERROR_EXCEPTION("Missing %qv option", ArgumentName_);
         }
 

@@ -41,7 +41,7 @@ public:
     using TThis = TFluentLogEvent;
     using TBase = NYTree::TFluentYsonBuilder::TFluentMapFragmentBase<NYTree::TFluentYsonVoid, TThis&&>;
 
-    TFluentLogEvent(std::unique_ptr<NYson::IYsonConsumer> consumer);
+    explicit TFluentLogEvent(std::unique_ptr<NYson::IYsonConsumer> consumer);
 
     TFluentLogEvent(TFluentLogEvent&& other) = default;
     TFluentLogEvent(const TFluentLogEvent& other) = delete;

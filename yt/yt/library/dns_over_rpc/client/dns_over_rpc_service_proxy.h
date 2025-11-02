@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 
 #include <yt/yt/core/rpc/client.h>

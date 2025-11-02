@@ -126,7 +126,7 @@ private:
         auto realUrl = builder.FlushRealUrl();
         auto safeUrl = builder.FlushSafeUrl();
 
-        const static auto retryChecker = BIND([] (const TError& error) {
+        static const auto retryChecker = BIND([] (const TError& error) {
             return error.FindMatching(EErrorCode::YCIamRetryableServerError).has_value();
         });
 

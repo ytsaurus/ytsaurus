@@ -24,7 +24,7 @@ static constexpr double InfiniteResourceAmount = 1e10;
 inline constexpr int GetResourceCount() noexcept
 {
     int res = 0;
-    #define XX(name, Name) do { res += 1; } while(false);
+    #define XX(name, Name) do { res += 1; } while (false);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return res;

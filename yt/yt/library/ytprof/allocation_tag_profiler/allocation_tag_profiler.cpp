@@ -87,7 +87,7 @@ class TAllocationTagProfiler
     : public IAllocationTagProfiler
 {
 public:
-    TAllocationTagProfiler(auto&&... /*args*/)
+    explicit TAllocationTagProfiler(auto&&... /*args*/)
     { }
 };
 

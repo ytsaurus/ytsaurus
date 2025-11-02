@@ -453,7 +453,7 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
             Cerr << "Error: " << ToString(error) << Endl; \
         } \
         EXPECT_TRUE(error.IsOK()); \
-    } while(false);
+    } while (false);
 
 TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
 {
@@ -605,7 +605,7 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
     EXPECT_EQ(data.size(), textFromPipe.Size());
     auto result = std::mismatch(textFromPipe.Begin(), textFromPipe.End(), data.begin());
     EXPECT_TRUE(std::equal(textFromPipe.Begin(), textFromPipe.End(), data.begin())) <<
-        (result.first - textFromPipe.Begin()) << " " << (int)(*result.first);
+        (result.first - textFromPipe.Begin()) << " " << static_cast<int>(*result.first);
 }
 
 INSTANTIATE_TEST_SUITE_P(
