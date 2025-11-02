@@ -14,6 +14,7 @@
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
+#include <library/cpp/yt/system/env.h>
 #include <library/cpp/yt/system/exit.h>
 
 #include <util/folder/dirut.h>
@@ -29,16 +30,10 @@
 #include <util/system/shellcommand.h>
 
 #ifdef _unix_
-  #include <unistd.h>
-  #include <errno.h>
-  #include <sys/wait.h>
-  #include <sys/resource.h>
-  #include <spawn.h>
-#endif
-
-#ifdef _darwin_
-  #include <crt_externs.h>
-  #define environ (*_NSGetEnviron())
+    #include <errno.h>
+    #include <sys/wait.h>
+    #include <sys/resource.h>
+    #include <spawn.h>
 #endif
 
 #if defined(__APPLE__)
@@ -283,20 +278,6 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     }
 
     return failure();
-}
-
-std::vector<TString> GetEnviron()
-{
-    std::vector<TString> env;
-    size_t size = 0;
-    for (char** envIt = environ; *envIt; ++envIt) {
-        ++size;
-    }
-    env.reserve(size);
-    for (char** envIt = environ; *envIt; ++envIt) {
-        env.emplace_back(*envIt);
-    }
-    return env;
 }
 
 bool TryKillProcessByPid(int pid, int signal)
@@ -678,8 +659,8 @@ TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration poll
     AddArgument(path);
 
     if (copyEnv) {
-        for (char** envIt = environ; *envIt; ++envIt) {
-            Env_.push_back(Capture(*envIt));
+        for (const auto& pair : GetEnvironNameValuePairs()) {
+            Env_.push_back(Capture(pair));
         }
     }
 }
