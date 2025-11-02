@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/misc/error.h>
