@@ -935,6 +935,8 @@ _get_peer_alt_names (X509 *certificate) {
 
     /* get a memory buffer */
     biobuf = BIO_new(BIO_s_mem());
+    if (biobuf == NULL)
+        return peer_alt_names;
 
     i = -1;
     while ((i = X509_get_ext_by_NID(
@@ -1312,6 +1314,8 @@ _decode_certificate(X509 *certificate) {
 
     /* get a memory buffer */
     biobuf = BIO_new(BIO_s_mem());
+    if (biobuf == NULL)
+        goto fail0;
 
     (void) BIO_reset(biobuf);
     serialNumber = X509_get_serialNumber(certificate);
