@@ -71,6 +71,7 @@ void THunkTablet::Load(TLoadContext& context)
             auto store = New<THunkStore>(storeId, this);
             store->Load(context);
             store->SetState(EHunkStoreState::Passive);
+            InsertOrCrash(PassiveStores_, store);
             EmplaceOrCrash(IdToStore_, storeId, std::move(store));
         }
     }
@@ -190,8 +191,7 @@ void THunkTablet::RemoveStore(const THunkStorePtr& store)
     YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
     YT_VERIFY(store->GetMarkedSealable());
 
-    // NB: May be missing during recovery.
-    PassiveStores_.erase(store);
+    EraseOrCrash(PassiveStores_, store);
 
     auto storeId = store->GetId();
     auto storeState = store->GetState();
