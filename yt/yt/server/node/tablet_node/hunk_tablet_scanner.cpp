@@ -116,7 +116,9 @@ private:
 
         void CheckNoTransactionLock()
         {
-            // NB: It may happen if cell recovered but some 2PC started on previous iteration has not finished yet.
+            // NB: This is not critical for correctness. We wait until previously scheduled transactions are committed.
+            // Such reordering may happen if after cell recovery some 2PC, started on previous iteration, has not finished yet
+            // or if previous scan iteration has failed (i.g. due to timeouts to master) but has scheduled a transaction.
             if (auto transactionId = Tablet_->GetLockTransactionId()) {
                 THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
                     << TErrorAttribute("transaction_id", transactionId);
@@ -310,8 +312,6 @@ private:
 
         void CommitTransaction(const NApi::NNative::ITransactionPtr& transaction)
         {
-            YT_VERIFY(!Tablet_->GetLockTransactionId());
-
             NApi::TTransactionCommitOptions commitOptions{
                 .GeneratePrepareTimestamp = false,
             };
@@ -329,11 +329,9 @@ private:
                 if (lockTransactionId == transaction->GetId()) {
                     TDelayedExecutor::WaitForDuration(TransactionCommitLocalWaitTime);
                 } else if (lockTransactionId) {
-                    auto error = TError("Hunk tablet scanner encountered lock from unexpected transaction")
+                    THROW_ERROR_EXCEPTION("Hunk tablet scanner encountered lock from unexpected transaction")
                         << TErrorAttribute("expected_transaction_id", transaction->GetId())
                         << TErrorAttribute("actual_transaction_id", lockTransactionId);
-                    YT_LOG_ALERT(error);
-                    THROW_ERROR_EXCEPTION(error);
                 } else {
                     YT_LOG_DEBUG("Finished waiting for transaction to unlock tablet");
                     return;
