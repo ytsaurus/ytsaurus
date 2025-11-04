@@ -23,6 +23,7 @@ RECURSE(
     record_codegen
     run_codec
     scheduler_simulator
+    trigrep
     unpack_local_changelog
     unpack_local_snapshot
     upload_chunk
