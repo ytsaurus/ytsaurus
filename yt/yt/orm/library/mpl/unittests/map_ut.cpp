@@ -16,7 +16,7 @@ struct TContainerB
 {
     std::vector<T> Items;
 
-    TContainerB(std::vector<T> items)
+    explicit TContainerB(std::vector<T> items)
         : Items(std::move(items))
     { }
 

@@ -22,10 +22,10 @@ TOptionalLiteralValueWrapper TryCastToLiteralValue(const TExpressionList& exprLi
 {
     if (exprList.size() == 1) {
         if (auto* typedExpr = exprList[0]->As<TLiteralExpression>()) {
-            return typedExpr->Value;
+            return TOptionalLiteralValueWrapper(typedExpr->Value);
         }
     }
-    return std::nullopt;
+    return TOptionalLiteralValueWrapper{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,22 +45,22 @@ public:
 
     TOptionalLiteralValueWrapper OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnReference(TReferenceExpressionPtr /*referenceExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnAlias(TAliasExpressionPtr /*aliasExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnBinary(TBinaryOpExpressionPtr binaryExpr)
@@ -76,7 +76,7 @@ public:
                         return value;
                     }
                 }
-                return std::nullopt;
+                return TOptionalLiteralValueWrapper{};
             }
             case EBinaryOp::Or: {
                 auto lhs = Visit(binaryExpr->Lhs);
@@ -84,7 +84,7 @@ public:
                 if (lhs == rhs) {
                     return lhs;
                 } else {
-                    return std::nullopt;
+                    return TOptionalLiteralValueWrapper{};
                 }
             }
             case EBinaryOp::And: {
@@ -96,41 +96,41 @@ public:
                 if (rhs) {
                     return rhs;
                 }
-                return std::nullopt;
+                return TOptionalLiteralValueWrapper{};
             }
             default:
-                return std::nullopt;
+                return TOptionalLiteralValueWrapper{};
         }
     }
 
     TOptionalLiteralValueWrapper OnFunction(TFunctionExpressionPtr /*functionExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnIn(TInExpressionPtr /*inExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnBetween(TBetweenExpressionPtr /*betweenExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnTransform(TTransformExpressionPtr /*transformExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnCase(TCaseExpressionPtr /*caseExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
     TOptionalLiteralValueWrapper OnLike(TLikeExpressionPtr /*likeExpr*/)
     {
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 
 private:
@@ -143,7 +143,7 @@ private:
         if (exprList.size() == 1) {
             return Visit(exprList[0]);
         }
-        return std::nullopt;
+        return TOptionalLiteralValueWrapper{};
     }
 };
 
@@ -494,11 +494,12 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
         THROW_ERROR_EXCEPTION("Attribute path must be non-empty");
     }
     if (filterQuery.empty()) {
-        return std::nullopt;
+        return {};
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
-    return TQueryVisitorForDefinedAttributeValue(attributePath).Run(queryExpression);
+    return TQueryVisitorForDefinedAttributeValue(attributePath)
+        .Run(queryExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

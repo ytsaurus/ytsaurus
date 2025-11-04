@@ -106,7 +106,7 @@ class TCodedInputStream
     : public google::protobuf::io::CodedInputStream
 {
 public:
-    TCodedInputStream(TWireStringPart wireStringPart)
+    explicit TCodedInputStream(TWireStringPart wireStringPart)
         : google::protobuf::io::CodedInputStream(wireStringPart.AsSpan().data(), wireStringPart.AsSpan().size())
         , Data_(wireStringPart.AsSpan().data())
     { }
@@ -915,7 +915,6 @@ std::string ConvertMapKeyToWireString(
                 return SerializeInt64(
                     *encodedEnum,
                     NYson::TProtobufElementType{google::protobuf::FieldDescriptor::TYPE_ENUM});
-
             }
             break;
         case NProtoBuf::FieldDescriptor::TYPE_DOUBLE:

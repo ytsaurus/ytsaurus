@@ -45,12 +45,12 @@ private:
 
 const ITypeResolver* GetTypeResolver(NTableClient::EValueType type)
 {
-    const static TConstantTypeResolver DoubleResolver(EValueType::Double);
-    const static TConstantTypeResolver Int64Resolver(EValueType::Int64);
-    const static TConstantTypeResolver Uint64Resolver(EValueType::Uint64);
-    const static TConstantTypeResolver BooleanResolver(EValueType::Boolean);
-    const static TConstantTypeResolver StringResolver(EValueType::String);
-    const static TConstantTypeResolver AnyResolver(EValueType::Any);
+    static const TConstantTypeResolver DoubleResolver(EValueType::Double);
+    static const TConstantTypeResolver Int64Resolver(EValueType::Int64);
+    static const TConstantTypeResolver Uint64Resolver(EValueType::Uint64);
+    static const TConstantTypeResolver BooleanResolver(EValueType::Boolean);
+    static const TConstantTypeResolver StringResolver(EValueType::String);
+    static const TConstantTypeResolver AnyResolver(EValueType::Any);
 
     switch (type) {
         case EValueType::Double:
@@ -77,12 +77,12 @@ const ITypeResolver* GetTypeResolver(NTableClient::EValueType type)
 
 const std::string& GetYsonExtractFunction(EValueType type)
 {
-    const static std::string TryGetAny("try_get_any");
-    const static std::string TryGetDouble("try_get_double");
-    const static std::string TryGetInt64("try_get_int64");
-    const static std::string TryGetUint64("try_get_uint64");
-    const static std::string TryGetBoolean("try_get_boolean");
-    const static std::string TryGetString("try_get_string");
+    static const std::string TryGetAny("try_get_any");
+    static const std::string TryGetDouble("try_get_double");
+    static const std::string TryGetInt64("try_get_int64");
+    static const std::string TryGetUint64("try_get_uint64");
+    static const std::string TryGetBoolean("try_get_boolean");
+    static const std::string TryGetString("try_get_string");
 
     switch (type) {
         case EValueType::Double:

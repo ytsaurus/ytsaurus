@@ -46,7 +46,7 @@ void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj
 class TMergeAttributesHelper
 {
 public:
-    TMergeAttributesHelper(NYson::IYsonConsumer* consumer);
+    explicit TMergeAttributesHelper(NYson::IYsonConsumer* consumer);
 
     // Path should be provided in lexicographical order and
     // validated through `ValidateSortedPath()` call.

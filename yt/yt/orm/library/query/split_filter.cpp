@@ -93,7 +93,7 @@ public:
         if (NonAndDepth_ == 0 || commonType.Place == EFilterPlace::Heterogenous) {
             AddExpression(lhs[0], lhsType);
             AddExpression(rhs[0], rhsType);
-            return {.Place=EFilterPlace::Heterogenous};
+            return {.Place = EFilterPlace::Heterogenous};
         }
 
         return commonType;
@@ -295,7 +295,7 @@ private:
         }
 
         if (FilterHints_.Having.contains(expression)) {
-            return {.Place=EFilterPlace::Having};
+            return {.Place = EFilterPlace::Having};
         }
 
         return isReference
@@ -319,7 +319,7 @@ private:
             return lhs;
         }
 
-        return {.Place=EFilterPlace::Heterogenous};
+        return {.Place = EFilterPlace::Heterogenous};
     }
 
     template <std::ranges::range TFilterTypes>
