@@ -73,8 +73,7 @@ TLiteralValue TryBitInvertLiteral(TLiteralValue value)
         },
         [] (const auto& _) -> TLiteralValue {
             return TNullLiteralValue{};
-        }
-    );
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

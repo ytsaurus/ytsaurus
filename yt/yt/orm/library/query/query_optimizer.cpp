@@ -318,7 +318,6 @@ class TJoinOptimizer
     : public TBaseOptimizer
 {
 public:
-
     explicit TJoinOptimizer(TQuery* query)
         : Query_(query)
         , OptimizationChecker_(Query_, ColumnsMapping_)
@@ -411,7 +410,7 @@ class TGroupByOptimizer
     : public TBaseAstVisitor<std::optional<int>, TGroupByOptimizer>
 {
 public:
-    TGroupByOptimizer(const TReference& reference)
+    explicit TGroupByOptimizer(const TReference& reference)
         : Reference_(reference)
     { }
 

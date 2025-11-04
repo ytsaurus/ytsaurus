@@ -61,7 +61,7 @@ TEST(TFilterSplitterTest, NestedNot)
 
     auto splitTree = SplitIntoSubTrees(&parsedQuery->AstHead, queryExpression);
 
-    ASSERT_TRUE(splitTree.size() == 1);
+    ASSERT_EQ(splitTree.size(), 1ull);
 
     ParseAndCheck(splitTree[0], "NOT [c]", 1, true);
 }
