@@ -28,18 +28,17 @@ target_include_directories(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range
 )
 
 target_link_libraries(grpc-third_party-upb PUBLIC
   linux-headers-generic::linux-headers-generic
+  restricted-google-utf8_range
 )
 
 target_sources(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/naive.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-neon.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-sse.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/arena.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/array.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/decode.c
@@ -71,30 +70,6 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/naive.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-neon.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/third_party/utf8_range/range2-sse.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

@@ -14,6 +14,7 @@
 
 add_subdirectory(abseil-cpp)
 add_subdirectory(abseil-cpp-tstring)
+add_subdirectory(google)
 add_subdirectory(boost)
 add_subdirectory(cityhash-1.0.2)
 add_subdirectory(fast_float)
@@ -28,4 +29,3 @@ add_subdirectory(clickhouse-deps)
 add_subdirectory(murmurhash)
 add_subdirectory(patched)
 add_subdirectory(googletest)
-add_subdirectory(google)

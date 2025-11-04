@@ -14,22 +14,47 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(protobuf-third_party-utf8_range)
+add_library(restricted-google-utf8_range)
 
 
-target_compile_options(protobuf-third_party-utf8_range PRIVATE
-  -DGOOGLE_PROTOBUF_CMAKE_BUILD
-  -DHAVE_ZLIB
+target_compile_options(restricted-google-utf8_range PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
-target_link_libraries(protobuf-third_party-utf8_range PUBLIC
+target_link_libraries(restricted-google-utf8_range PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  contrib-restricted-abseil-cpp-tstring
+  contrib-restricted-abseil-cpp
 )
 
-target_sources(protobuf-third_party-utf8_range PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/third_party/utf8_range/utf8_validity.cc
+target_sources(restricted-google-utf8_range PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/naive.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/range2-neon.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/range2-sse.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/utf8_validity.cc
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/naive.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/range2-neon.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/google/utf8_range/range2-sse.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
