@@ -6,6 +6,7 @@ from yt_env_setup import (
 )
 from yt_commands import (
     authors, create_test_tables, extract_statistic_v2, extract_deprecated_statistic,
+    OperationStatisticsViewer,
     print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, wait_no_assert,
     create, ls, get, set, copy, move, remove, exists,
     create_user, create_pool,
@@ -1485,6 +1486,9 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         assert traffic_statistics["inbound"]["from_"]["sum"] > 0
         assert traffic_statistics["_to_"]["sum"] > 0
 
+        undescribed = OperationStatisticsViewer().get_undescribed(statistics)
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
+
         release_breakpoint()
         op.track()
 
@@ -1504,6 +1508,10 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         assert extract_statistic_v2(statistics, "time.exec", summary_type="count") == 10
         assert extract_statistic_v2(statistics, "time.exec") <= \
             extract_statistic_v2(statistics, "time.total")
+
+        undescribed = OperationStatisticsViewer().get_undescribed(statistics)
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
+
 
     @authors("ignat")
     def test_statistics_for_aborted_operation(self):
@@ -1545,6 +1553,9 @@ class TestSchedulerJobStatistics(YTEnvSetup):
             job_state="aborted",
             job_type="map",
             summary_type="count"))
+
+        undescribed = OperationStatisticsViewer().get_undescribed(op.get_statistics())
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
 
 
 ##################################################################
@@ -1646,6 +1657,9 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
         wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
         wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
+
+        undescribed = OperationStatisticsViewer().get_undescribed(op.get_statistics())
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
 
     @authors("max42")
     def test_statistics_truncation(self):

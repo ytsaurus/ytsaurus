@@ -32,6 +32,7 @@ import time
 import warnings
 import logging
 from string import ascii_letters
+from fnmatch import fnmatchcase
 
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -2738,6 +2739,52 @@ def align_chaos_cell_tag():
 
 
 ##################################################################
+
+
+class OperationStatisticsViewer(object):
+    def __init__(self):
+        self._descriptions = None
+
+    def get_descriptions(self):
+        if self._descriptions is None:
+            self._descriptions = get("//sys/scheduler/orchid/scheduler/supported_features/operation_statistics_descriptions")
+        return self._descriptions
+
+    def find_description(self, path):
+        descriptions = self.get_descriptions()
+        if path in descriptions:
+            return path, descriptions[path]
+        for pattern, description in descriptions.items():
+            if "*" in pattern and fnmatchcase(path, pattern):
+                return pattern, description
+        return None, None
+
+    @classmethod
+    def walk_statistics(cls, statistics, base_path=""):
+        # TODO(khlebnikov): Handle v1 aggregates.
+        for name, value in statistics.items():
+            path = f"{base_path}/{name}" if base_path else name
+            if isinstance(value, dict):
+                if "count" in value:
+                    yield None, path, value
+                else:
+                    yield from cls.walk_statistics(value, path)
+            elif isinstance(value, list):
+                for group in value:
+                    yield group["tags"], path, group["summary"]
+
+    def get_undescribed(self, statistics):
+        reported = builtins.set()
+        for _, path, _ in self.walk_statistics(statistics):
+            reported.add(path)
+        undescribed = builtins.set()
+        for path in reported:
+            if path.startswith("custom/"):
+                continue
+            _, description = self.find_description(path)
+            if description is None:
+                undescribed.add(path)
+        return undescribed
 
 
 def get_statistics(statistics, complex_key):
