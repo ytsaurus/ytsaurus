@@ -990,8 +990,15 @@ class TestTableCommandsOperations(object):
         assert not yt.transform(table)
 
         yt.create("table", table)
+
         assert not yt.transform(table)
 
+        table_attributes = yt.get(table, attributes=["compression_codec", "erasure_codec", "optimize_for"]).attributes
+        assert yt.transform(table, force_empty=True)
+        assert table_attributes == yt.get(table, attributes=["compression_codec", "erasure_codec", "optimize_for"]).attributes
+        yt.remove(table)
+
+        yt.create("table", table)
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         yt.transform(table)
