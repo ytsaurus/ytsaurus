@@ -778,7 +778,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31059.
+// Next field 31060.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -867,6 +867,10 @@ extend google.protobuf.FieldOptions
     //
     // If false, this option hides opaque fields completely.
     optional bool emit_opaque_as_entity = 31041;
+
+    // If true, the attribute is not written to history,
+    // even if it's enabled for its parent attribute.
+    optional bool opaque_for_history = 31059;
 
     // Hide field from client, temporary used for migrations, see YTORM-607.
     optional bool deprecated = 31025;
