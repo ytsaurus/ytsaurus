@@ -78,6 +78,7 @@ query_tracker: {{ images.query_tracker }}
 
         result = scenario.to_json()
         assert isinstance(result, dict)
+        assert result["scenario"] == "nightly-dev"
         assert result["ttl"] == 600
         assert "k8sSpec" in result and isinstance(result["k8sSpec"], str)
         assert "operator" in result
