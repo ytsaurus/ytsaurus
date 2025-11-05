@@ -313,9 +313,29 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.7.2 (`ghcr.io/ytsaurus/spyt:2.7.2`)
+**Current release:** 2.7.5 (`ghcr.io/ytsaurus/spyt:2.7.5`)
 
 **All releases:**
+
+{% cut "**2.7.5**" %}
+
+**Release date:** 2025-11-05
+
+Maintenance release with minor enhancements
+
+- Correct reading of unsigned types (uint8, uint16, uint32) in arrow and wire formats
+
+{% endcut %}
+
+{% cut "**2.7.4**" %}
+
+**Release date:** 2025-11-05
+
+Maintenance release with minor enhancements
+
+- More reliable processing of streaming offsets
+
+{% endcut %}
 
 {% cut "**2.7.3**" %}
 
