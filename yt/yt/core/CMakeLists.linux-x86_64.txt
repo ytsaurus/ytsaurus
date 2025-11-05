@@ -174,7 +174,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/crypto.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/tls.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/compression.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/appendable_compressed_file.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/formatter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/fluent_log.cpp
@@ -186,7 +186,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/stream_log_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/system_log_event_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/random_access_gzip.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/zstd_compression.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/zstd_log_codec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backtrace.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy.cpp
