@@ -454,9 +454,8 @@ class Expression(metaclass=_Expression):
                 for v in reversed(vs) if reverse else vs:  # type: ignore
                     if hasattr(v, "parent"):
                         yield v
-            else:
-                if hasattr(vs, "parent"):
-                    yield vs
+            elif hasattr(vs, "parent"):
+                yield vs
 
     def find(self, *expression_types: t.Type[E], bfs: bool = True) -> t.Optional[E]:
         """
@@ -3834,8 +3833,15 @@ class Update(DML):
         )
 
 
+# DuckDB supports VALUES followed by https://duckdb.org/docs/stable/sql/query_syntax/limit
 class Values(UDTF):
-    arg_types = {"expressions": True, "alias": False}
+    arg_types = {
+        "expressions": True,
+        "alias": False,
+        "order": False,
+        "limit": False,
+        "offset": False,
+    }
 
 
 class Var(Expression):
@@ -5602,11 +5608,15 @@ class BitwiseXorAgg(AggFunc):
     pass
 
 
-class BitwiseCountAgg(AggFunc):
+class BitwiseCount(Func):
     pass
 
 
 class ByteLength(Func):
+    pass
+
+
+class Boolnot(Func):
     pass
 
 
@@ -6286,6 +6296,10 @@ class LastDay(Func, TimeUnit):
     arg_types = {"this": True, "unit": False}
 
 
+class PreviousDay(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class LaxBool(Func):
     pass
 
@@ -6329,6 +6343,10 @@ class TimestampDiff(Func, TimeUnit):
 
 class TimestampTrunc(Func, TimeUnit):
     arg_types = {"this": True, "unit": True, "zone": False}
+
+
+class TimeSlice(Func, TimeUnit):
+    arg_types = {"this": True, "expression": True, "unit": True, "kind": False}
 
 
 class TimeAdd(Func, TimeUnit):
@@ -6576,6 +6594,18 @@ class HexEncode(Func):
     arg_types = {"this": True, "case": False}
 
 
+class Hour(Func):
+    pass
+
+
+class Minute(Func):
+    pass
+
+
+class Second(Func):
+    pass
+
+
 # T-SQL: https://learn.microsoft.com/en-us/sql/t-sql/functions/compress-transact-sql?view=sql-server-ver17
 # Snowflake: https://docs.snowflake.com/en/sql-reference/functions/compress
 class Compress(Func):
@@ -6701,7 +6731,7 @@ class FormatJson(Expression):
 
 
 class Format(Func):
-    arg_types = {"this": True, "expressions": True}
+    arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
 
 
@@ -7144,6 +7174,10 @@ class Month(Func):
     pass
 
 
+class Monthname(Func):
+    pass
+
+
 class AddMonths(Func):
     arg_types = {"this": True, "expression": True}
 
@@ -7274,6 +7308,11 @@ class ReadCSV(Func):
     _sql_names = ["READ_CSV"]
     is_var_len_args = True
     arg_types = {"this": True, "expressions": False}
+
+
+class ReadParquet(Func):
+    is_var_len_args = True
+    arg_types = {"expressions": True}
 
 
 class Reduce(Func):
@@ -7752,6 +7791,10 @@ class VariancePop(AggFunc):
     _sql_names = ["VARIANCE_POP", "VAR_POP"]
 
 
+class WidthBucket(Func):
+    arg_types = {"this": True, "min_value": True, "max_value": True, "num_buckets": True}
+
+
 class CovarSamp(Binary, AggFunc):
     pass
 
@@ -7766,6 +7809,10 @@ class Week(Func):
 
 class WeekStart(Expression):
     pass
+
+
+class NextDay(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 class XMLElement(Func):

@@ -270,7 +270,11 @@ def simplify_connectors(expression, root=True):
                 return exp.false()
             if is_zero(left) or is_zero(right):
                 return exp.false()
-            if is_null(left) or is_null(right):
+            if (
+                (is_null(left) and is_null(right))
+                or (is_null(left) and always_true(right))
+                or (always_true(left) and is_null(right))
+            ):
                 return exp.null()
             if always_true(left) and always_true(right):
                 return exp.true()
@@ -293,9 +297,6 @@ def simplify_connectors(expression, root=True):
             if is_false(right):
                 return left
             return _simplify_comparison(expression, left, right, or_=True)
-        elif isinstance(expression, exp.Xor):
-            if left == right:
-                return exp.false()
 
     if isinstance(expression, exp.Connector):
         return _flat_simplify(expression, _simplify_connectors, root)
@@ -1128,7 +1129,7 @@ def remove_where_true(expression):
 
 def always_true(expression):
     return (isinstance(expression, exp.Boolean) and expression.this) or (
-        isinstance(expression, exp.Literal) and not is_zero(expression)
+        isinstance(expression, exp.Literal) and expression.is_number and not is_zero(expression)
     )
 
 

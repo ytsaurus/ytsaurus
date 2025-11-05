@@ -485,6 +485,7 @@ class Parser(metaclass=_Parser):
     # Tokens that can represent identifiers
     ID_VAR_TOKENS = {
         TokenType.ALL,
+        TokenType.ANALYZE,
         TokenType.ATTACH,
         TokenType.VAR,
         TokenType.ANTI,
@@ -1473,7 +1474,7 @@ class Parser(metaclass=_Parser):
 
     RECURSIVE_CTE_SEARCH_KIND = {"BREADTH", "DEPTH", "CYCLE"}
 
-    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows)
+    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows, exp.Values)
 
     STRICT_CAST = True
 
@@ -3225,6 +3226,7 @@ class Parser(metaclass=_Parser):
                 this = select
             else:
                 this = exp.select("*").from_(t.cast(exp.From, from_))
+                this = self._parse_query_modifiers(self._parse_set_operations(this))
         else:
             this = (
                 self._parse_table(consume_pipe=True)
@@ -4624,7 +4626,7 @@ class Parser(metaclass=_Parser):
             return None
 
         return self.expression(
-            kind, expressions=[] if with_prefix else self._parse_wrapped_csv(self._parse_column)
+            kind, expressions=[] if with_prefix else self._parse_wrapped_csv(self._parse_bitwise)
         )
 
     def _parse_grouping_sets(self) -> t.Optional[exp.GroupingSets]:
@@ -5814,7 +5816,7 @@ class Parser(metaclass=_Parser):
             this = self.expression(exp.Tuple)
         elif isinstance(this, exp.UNWRAPPED_QUERIES):
             this = self._parse_subquery(this=this, parse_alias=False)
-        elif isinstance(this, exp.Subquery):
+        elif isinstance(this, (exp.Subquery, exp.Values)):
             this = self._parse_subquery(
                 this=self._parse_query_modifiers(self._parse_set_operations(this)),
                 parse_alias=False,

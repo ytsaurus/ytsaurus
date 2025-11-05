@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import typing as t
 
 from sqlglot import exp, generator, parser, tokens, transforms
@@ -43,6 +44,10 @@ from sqlglot.generator import unsupported_args
 from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
 from sqlglot.parser import binary_range_parser
+
+# Regex to detect time zones in timestamps of the form [+|-]TT[:tt]
+# The pattern matches timezone offsets that appear after the time portion
+TIMEZONE_PATTERN = re.compile(r":\d{2}.*?[+\-]\d{2}(?::\d{2})?")
 
 
 # BigQuery -> DuckDB conversion for the DATE function
@@ -211,7 +216,18 @@ def _arrow_json_extract_sql(self: DuckDB.Generator, expression: JSON_EXTRACT_TYP
 def _implicit_datetime_cast(
     arg: t.Optional[exp.Expression], type: exp.DataType.Type = exp.DataType.Type.DATE
 ) -> t.Optional[exp.Expression]:
-    return exp.cast(arg, type) if isinstance(arg, exp.Literal) else arg
+    if isinstance(arg, exp.Literal) and arg.is_string:
+        ts = arg.name
+        if type == exp.DataType.Type.DATE and ":" in ts:
+            type = (
+                exp.DataType.Type.TIMESTAMPTZ
+                if TIMEZONE_PATTERN.search(ts)
+                else exp.DataType.Type.TIMESTAMP
+            )
+
+        arg = exp.cast(arg, type)
+
+    return arg
 
 
 def _date_diff_sql(self: DuckDB.Generator, expression: exp.DateDiff) -> str:
@@ -694,6 +710,7 @@ class DuckDB(Dialect):
             exp.DateDiff: _date_diff_sql,
             exp.DateStrToDate: datestrtodate_sql,
             exp.Datetime: no_datetime_sql,
+            exp.DatetimeDiff: _date_diff_sql,
             exp.DatetimeSub: date_delta_to_binary_interval_op(),
             exp.DatetimeAdd: date_delta_to_binary_interval_op(),
             exp.DateToDi: lambda self,
@@ -758,6 +775,7 @@ class DuckDB(Dialect):
             exp.Struct: _struct_sql,
             exp.Transform: rename_func("LIST_TRANSFORM"),
             exp.TimeAdd: date_delta_to_binary_interval_op(),
+            exp.TimeSub: date_delta_to_binary_interval_op(),
             exp.Time: no_time_sql,
             exp.TimeDiff: _timediff_sql,
             exp.Timestamp: no_timestamp_sql,
@@ -781,6 +799,7 @@ class DuckDB(Dialect):
                 exp.cast(e.expression, exp.DataType.Type.TIMESTAMP),
                 exp.cast(e.this, exp.DataType.Type.TIMESTAMP),
             ),
+            exp.UnixMicros: rename_func("EPOCH_US"),
             exp.UnixToStr: lambda self, e: self.func(
                 "STRFTIME", self.func("TO_TIMESTAMP", e.this), self.format_time(e)
             ),
