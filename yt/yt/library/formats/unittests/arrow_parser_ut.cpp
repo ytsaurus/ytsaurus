@@ -308,15 +308,15 @@ std::string MakeStructArrow(const std::vector<std::string>& stringData, const st
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
-std::string MakeEmptyStructArrow(int rowCount, bool add_metadata)
+std::string MakeEmptyStructArrow(int rowCount, bool addMetadata)
 {
     auto nullBuilder = std::make_shared<arrow20::NullBuilder>();
 
     std::shared_ptr<arrow20::KeyValueMetadata> metadata;
-    if (add_metadata) {
+    if (addMetadata) {
         metadata = std::make_shared<arrow20::KeyValueMetadata>(
-            std::vector{YtTypeMetadataKey},
-            std::vector{YtTypeMetadataValueEmptyStruct});
+            std::vector{YTTypeMetadataKey},
+            std::vector{YTTypeMetadataValueEmptyStruct});
     }
 
     arrow20::FieldVector fieldVector = {arrow20::field(/*name*/ "", arrow20::null())};
@@ -1320,7 +1320,7 @@ TEST(TArrowParserTest, WrongListInput)
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         parser->Read(data),
         std::exception,
-        "Unexpected arrow type in complex type \"binary\", there was no metadata found with the key \'YtType\' and the value \'yson\'");
+        "Unexpected arrow type in complex type \"binary\", there was no metadata found with the key \"YtType\" and the value \"yson\"");
 }
 
 TEST(TArrowParserTest, EmptyStruct)
