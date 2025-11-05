@@ -1089,7 +1089,7 @@ public:
         bool enablePartialResult,
         TVersionedReadOptions versionedReadOptions,
         const ITabletSnapshotStorePtr& snapshotStore,
-        const std::optional<std::string>& profilingUser,
+        std::optional<std::string> profilingUser,
         IInvokerPtr invoker);
 
     ~TLookupSession();
@@ -1192,7 +1192,7 @@ public:
         const TReadTimestampRange& readTimestampRange,
         const TClientChunkReadOptions& chunkReadOptions,
         IInvokerPtr invoker,
-        const std::optional<std::string>& profilingUser,
+        std::optional<std::string> profilingUser,
         TRowBufferPtr rowBuffer,
         NLogging::TLogger logger);
 
@@ -1287,7 +1287,7 @@ TLookupSession::TLookupSession(
     bool enablePartialResult,
     TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     IInvokerPtr invoker)
     : InMemoryMode_(inMemoryMode)
     , TimestampRange_(timestampRange)
@@ -1299,7 +1299,7 @@ TLookupSession::TLookupSession(
     , EnablePartialResult_(enablePartialResult)
     , VersionedReadOptions_(std::move(versionedReadOptions))
     , SnapshotStore_(snapshotStore)
-    , ProfilingUser_(profilingUser)
+    , ProfilingUser_(std::move(profilingUser))
     , Invoker_(std::move(invoker))
     , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
     , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -1902,7 +1902,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     const TReadTimestampRange& readTimestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     IInvokerPtr invoker,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     TRowBufferPtr rowBuffer,
     NLogging::TLogger logger)
     : TPipeline(
@@ -1922,7 +1922,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
     , ColumnFilter_(std::move(columnFilter))
     , LookupKeys_(std::move(lookupKeys))
     , ChunkLookupKeys_(TPipeline::Initialize(LookupKeys_))
-    , OnDestruction_([this, profilingUser] {
+    , OnDestruction_([this, profilingUser = std::move(profilingUser)] {
         auto* counters = TabletSnapshot_->TableProfiler->GetSelectRowsCounters(profilingUser);
 
         // The following counters are normally accounted for in TProfilingReaderWrapper,
@@ -2448,7 +2448,7 @@ ILookupSessionPtr CreateLookupSession(
     bool enablePartialResult,
     TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     IInvokerPtr invoker)
 {
     return New<TLookupSession>(
@@ -2464,7 +2464,7 @@ ILookupSessionPtr CreateLookupSession(
         enablePartialResult,
         std::move(versionedReadOptions),
         snapshotStore,
-        profilingUser,
+        std::move(profilingUser),
         std::move(invoker));
 }
 
@@ -2547,7 +2547,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const TTimestampReadOptions& timestampReadOptions,
     IInvokerPtr invoker,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     NLogging::TLogger Logger)
 {
     auto timestamp = timestampRange.Timestamp;
@@ -2602,7 +2602,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                profilingUser,
+                std::move(profilingUser),
                 std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
@@ -2617,7 +2617,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                profilingUser,
+                std::move(profilingUser),
                 std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
@@ -2634,7 +2634,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                profilingUser,
+                std::move(profilingUser),
                 std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
@@ -2649,7 +2649,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
                 timestampRange,
                 chunkReadOptions,
                 std::move(invoker),
-                profilingUser,
+                std::move(profilingUser),
                 std::move(rowBuffer),
                 std::move(Logger))
                 ->Run()
