@@ -184,7 +184,8 @@ class Scenario:
             "ttl": self._ttl,
             "k8sSpec": self._render_manifest(),
             "operator": self._operator.to_json(),
-            "components": [component.to_json() for component in self._components]
+            "components": [component.to_json() for component in self._components],
+            "scenario": self._name,
         }
 
         if self._checks:
