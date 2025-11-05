@@ -160,7 +160,7 @@ public:
         THROW_ERROR_EXCEPTION("Access control object children are pre-defined and cannot be added directly");
     }
 
-    std::optional<std::string> FindChildKey(const IConstNodePtr& /*child*/) override
+    std::optional<std::string> FindChildKey(const IConstNodePtr& /*child*/) const override
     {
         THROW_ERROR_EXCEPTION("Node is not a child");
     }
@@ -691,7 +691,7 @@ public:
         THROW_ERROR_EXCEPTION("Access control object namespace children cannot be added directly; consider creating an access control object instead");
     }
 
-    std::optional<std::string> FindChildKey(const IConstNodePtr& child) override
+    std::optional<std::string> FindChildKey(const IConstNodePtr& child) const override
     {
         auto throwNotChild = [] {
             THROW_ERROR_EXCEPTION("Node is not a child");

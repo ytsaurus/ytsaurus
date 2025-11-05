@@ -3393,7 +3393,7 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     SetModified(EModificationType::Content);
 }
 
-std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child)
+std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child) const
 {
     return FindNodeKey(
         Bootstrap_->GetCypressManager(),
@@ -3838,7 +3838,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     SetModified(EModificationType::Content);
 }
 
-std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
+std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child) const
 {
     const auto* impl = GetThisImpl();
 

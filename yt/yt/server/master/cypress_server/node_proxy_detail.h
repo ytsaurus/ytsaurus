@@ -489,7 +489,7 @@ public:
     bool RemoveChild(const std::string& key) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) const override;
 
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
@@ -597,7 +597,7 @@ public:
     bool RemoveChild(int index) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;
     void RemoveChild(const NYTree::INodePtr& child) override;
-    std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) override;
+    std::optional<int> FindChildIndex(const NYTree::IConstNodePtr& child) const override;
 
 private:
     void SetChildNode(
