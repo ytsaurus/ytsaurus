@@ -141,10 +141,12 @@ public:
         i64 maxDataWeight,
         i64 maxPullQueueResponseDataWeight,
         TClientChunkReadOptions chunkReadOptions,
+        std::optional<std::string> profilingUser,
         IInvokerPtr invoker)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , RowIndex_(rowIndex)
         , MaxPullQueueResponseDataWeight_(maxPullQueueResponseDataWeight)
+        , ProfilingUser_(std::move(profilingUser))
         , Invoker_(std::move(invoker))
         , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
         , ChunkReadOptions_(std::move(chunkReadOptions))
@@ -168,10 +170,6 @@ public:
             MaxPullQueueResponseDataWeight_,
             TabletSnapshot_->PhysicalSchema->HasHunkColumns());
 
-        ChunkReadOptions_.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
-            TabletSnapshot_->Settings.MountConfig->EnableHunkColumnarProfiling,
-            TabletSnapshot_->PhysicalSchema);
-
         Reader_ = store->CreateReader(
             TabletSnapshot_,
             tabletIndex,
@@ -193,6 +191,7 @@ private:
     const TTabletSnapshotPtr TabletSnapshot_;
     const i64 RowIndex_;
     const i64 MaxPullQueueResponseDataWeight_;
+    const std::optional<std::string> ProfilingUser_;
     const IInvokerPtr Invoker_;
 
     const TPromise<TFetchRowsFromOrderedStoreResult> ResultPromise_ = NewPromise<TFetchRowsFromOrderedStoreResult>();
@@ -282,8 +281,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto counters = TabletSnapshot_->TableProfiler->GetFetchTableRowsCounters(
-            GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()));
+        auto counters = TabletSnapshot_->TableProfiler->GetFetchTableRowsCounters(ProfilingUser_);
 
         if (!resultOrError.IsOK()) {
             YT_LOG_DEBUG(resultOrError, "Failed to finalize fetching rows from ordered store (TabletId: %v)",
@@ -335,9 +333,14 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
     i64 maxDataWeight,
     i64 maxPullQueueResponseDataWeight,
     TClientChunkReadOptions chunkReadOptions,
+    std::optional<std::string> profilingUser,
     IInvokerPtr invoker)
 {
     if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
+        chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
+            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+            tabletSnapshot->PhysicalSchema);
+
         auto session = New<TFetchRowsSession<THunkDecodingFetchRowsResultWriter>>(
             std::move(tabletSnapshot),
             rowIndex,
@@ -345,6 +348,7 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
             maxDataWeight,
             maxPullQueueResponseDataWeight,
             std::move(chunkReadOptions),
+            std::move(profilingUser),
             std::move(invoker));
         return session->Run(store, tabletIndex);
     } else {
@@ -355,6 +359,7 @@ TFuture<TFetchRowsFromOrderedStoreResult> FetchRowsFromOrderedStore(
             maxDataWeight,
             maxPullQueueResponseDataWeight,
             std::move(chunkReadOptions),
+            std::move(profilingUser),
             std::move(invoker));
         return session->Run(store, tabletIndex);
     }
