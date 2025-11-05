@@ -27,8 +27,8 @@ TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> UDF_BC(TStringBuf nam
 {
     static auto WebAssemblyBytecode =
         ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
-        ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
-        : TSharedRef();
+            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+            : TSharedRef();
     auto result = TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>();
     result[NCodegen::EExecutionBackend::Native] = TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)));
     result[NCodegen::EExecutionBackend::WebAssembly] = WebAssemblyBytecode;

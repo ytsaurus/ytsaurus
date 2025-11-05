@@ -2760,8 +2760,8 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
     usedWebAssemblyFiles->emplace(
         ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
-        ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
-        : TSharedRef());
+            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+            : TSharedRef());
 
     // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
@@ -2836,8 +2836,8 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
     auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
     usedWebAssemblyFiles->emplace(
         ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
-        ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
-        : TSharedRef());
+            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+            : TSharedRef());
 
     auto stringType = MakeLogicalType(ESimpleLogicalValueType::String, /*required*/ false);
 
