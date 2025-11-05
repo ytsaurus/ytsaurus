@@ -334,21 +334,21 @@ bool IsDictColumn(const std::shared_ptr<arrow20::Array>& array)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using ColumnInteger = std::vector<int64_t>;
-using ColumnInteger32 = std::vector<int32_t>;
-using ColumnString = std::vector<std::string>;
-using ColumnNullableString = std::vector<std::optional<std::string>>;
-using ColumnNullableInteger = std::vector<std::optional<int64_t>>;
-using ColumnBool = std::vector<bool>;
-using ColumnDouble = std::vector<double>;
-using ColumnFloat = std::vector<float>;
+using TColumnInteger = std::vector<int64_t>;
+using TColumnInteger32 = std::vector<int32_t>;
+using TColumnString = std::vector<std::string>;
+using TColumnNullableString = std::vector<std::optional<std::string>>;
+using TColumnNullableInteger = std::vector<std::optional<int64_t>>;
+using TColumnBool = std::vector<bool>;
+using TColumnDouble = std::vector<double>;
+using TColumnFloat = std::vector<float>;
 
-using ColumnStringWithNulls = std::vector<std::optional<std::string>>;
-using ColumnBoolWithNulls = std::vector<std::optional<bool>>;
-using ColumnDoubleWithNulls = std::vector<std::optional<double>>;
+using TColumnStringWithNulls = std::vector<std::optional<std::string>>;
+using TColumnBoolWithNulls = std::vector<std::optional<bool>>;
+using TColumnDoubleWithNulls = std::vector<std::optional<double>>;
 
-template<typename T, bool Nullable>
-using ColumnType = std::vector<std::conditional_t<Nullable, std::optional<T>, T>>;
+template <typename T, bool Nullable>
+using TColumn = std::vector<std::conditional_t<Nullable, std::optional<T>, T>>;
 
 struct TOwnerRows
 {
@@ -360,9 +360,9 @@ struct TOwnerRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TCppType, EValueType YtType, bool Nullable>
+template <typename TCppType, EValueType YTType, bool Nullable>
 TOwnerRows MakeUnversionedNumericRows(
-    const std::vector<ColumnType<TCppType, Nullable>>& column,
+    const std::vector<TColumn<TCppType, Nullable>>& column,
     const std::vector<std::string>& columnNames)
 {
     YT_VERIFY(column.size() > 0);
@@ -388,13 +388,13 @@ TOwnerRows MakeUnversionedNumericRows(
 
             TUnversionedValue unversionedValue;
             // Switch would also work here, but this way we execute exactly one statement.
-            if constexpr (YtType == EValueType::Int64) {
+            if constexpr (YTType == EValueType::Int64) {
                 unversionedValue = MakeUnversionedInt64Value(value, columnId);
-            } else if constexpr (YtType == EValueType::Uint64) {
+            } else if constexpr (YTType == EValueType::Uint64) {
                 unversionedValue = MakeUnversionedUint64Value(value, columnId);
-            } else if constexpr (YtType == EValueType::Double) {
+            } else if constexpr (YTType == EValueType::Double) {
                 unversionedValue = MakeUnversionedDoubleValue(value, columnId);
-            } else if constexpr (YtType == EValueType::Boolean) {
+            } else if constexpr (YTType == EValueType::Boolean) {
                 unversionedValue = MakeUnversionedBooleanValue(value, columnId);
             } else {
                 static_assert(false, "YT type is not numeric");
@@ -412,9 +412,9 @@ TOwnerRows MakeUnversionedNumericRows(
     return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
 }
 
-template<typename TCppType, EValueType YtType, bool Nullable>
+template <typename TCppType, EValueType YTType, bool Nullable>
 TOwnerRows MakeUnversionedStringLikeRows(
-    const std::vector<ColumnType<TCppType, Nullable>>& column,
+    const std::vector<TColumn<TCppType, Nullable>>& column,
     const std::vector<std::string>& columnNames)
 {
     YT_VERIFY(column.size() > 0);
@@ -439,7 +439,7 @@ TOwnerRows MakeUnversionedStringLikeRows(
                 buffer.emplace_back(column[colIdx][rowIndex]);
             }
 
-            rowsBuilders[rowIndex].AddValue(MakeUnversionedStringLikeValue(YtType, buffer.back(), columnId));
+            rowsBuilders[rowIndex].AddValue(MakeUnversionedStringLikeValue(YTType, buffer.back(), columnId));
         }
     }
 
@@ -453,7 +453,7 @@ TOwnerRows MakeUnversionedStringLikeRows(
 }
 
 TOwnerRows MakeUnversionedIntegerRows(
-    const std::vector<ColumnInteger>& column,
+    const std::vector<TColumnInteger>& column,
     const std::vector<std::string>& columnNames,
     bool isSigned = true)
 {
@@ -465,7 +465,7 @@ TOwnerRows MakeUnversionedIntegerRows(
 }
 
 TOwnerRows MakeUnversionedNullableIntegerRows(
-    const std::vector<ColumnNullableInteger>& column,
+    const std::vector<TColumnNullableInteger>& column,
     const std::vector<std::string>& columnNames,
     bool isSigned = true)
 {
@@ -477,21 +477,21 @@ TOwnerRows MakeUnversionedNullableIntegerRows(
 }
 
 TOwnerRows MakeUnversionedFloatRows(
-    const std::vector<ColumnFloat>& column,
+    const std::vector<TColumnFloat>& column,
     const std::vector<std::string>& columnNames)
 {
     return MakeUnversionedNumericRows<float, EValueType::Double, false>(column, columnNames);
 }
 
 TOwnerRows MakeUnversionedStringRows(
-    const std::vector<ColumnString>& column,
+    const std::vector<TColumnString>& column,
     const std::vector<std::string>& columnNames)
 {
     return MakeUnversionedStringLikeRows<std::string, EValueType::String, false>(column, columnNames);
 }
 
 TOwnerRows MakeUnversionedNullableStringRows(
-    const std::vector<ColumnNullableString>& column,
+    const std::vector<TColumnNullableString>& column,
     const std::vector<std::string>& columnNames)
 {
     return MakeUnversionedStringLikeRows<std::string, EValueType::String, true>(column, columnNames);
@@ -508,16 +508,16 @@ TString BinaryYsonFromTextYson(const TString& ysonString) {
     return binaryYsonString.Str();
 }
 
-template<bool Nullable>
+template <bool Nullable>
 TOwnerRows MakeUnversionedAnyRowsFromYsonImpl(
-    const std::vector<ColumnType<TString, Nullable>>& columns,
+    const std::vector<TColumn<TString, Nullable>>& columns,
     const std::vector<std::string>& columnNames)
 {
     int columnCount = columns.size();
     int rowCount = columns[0].size();
 
-    std::vector<ColumnType<TString, Nullable>> binaryColumns;
-    binaryColumns.assign(columnCount, ColumnType<TString, Nullable>(rowCount));
+    std::vector<TColumn<TString, Nullable>> binaryColumns;
+    binaryColumns.assign(columnCount, TColumn<TString, Nullable>(rowCount));
 
     for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
@@ -590,7 +590,7 @@ TEST(TArrowWriterTest, SimpleInteger)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {42, 179179};
+    TColumnInteger column = {42, 179179};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames);
 
@@ -618,7 +618,7 @@ TEST(TArrowWriterTest, Json)
 
     TStringStream outputStream;
 
-    ColumnString column = {"42", "true"};
+    TColumnString column = {"42", "true"};
 
     auto rows = MakeUnversionedStringRows({column}, columnNames);
     auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
@@ -648,7 +648,7 @@ TEST(TArrowWriterTest, YT_20699_WrongAlign)
     TStringStream outputStream;
     i64 ma = std::numeric_limits<int>::max();
 
-    ColumnInteger column = {18367, ma};
+    TColumnInteger column = {18367, ma};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
 
@@ -688,7 +688,7 @@ TEST(TArrowWriterTest, SimpleDate)
     TStringStream outputStream;
     i64 ma = std::numeric_limits<int>::max();
 
-    ColumnInteger column = {18367, ma};
+    TColumnInteger column = {18367, ma};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
 
@@ -717,7 +717,7 @@ TEST(TArrowWriterTest, OptionalDate)
     TStringStream outputStream;
     i64 ma = std::numeric_limits<int>::max();
 
-    ColumnNullableInteger column = {18367, std::nullopt, ma, std::nullopt};
+    TColumnNullableInteger column = {18367, std::nullopt, ma, std::nullopt};
 
     auto rows = MakeUnversionedNullableIntegerRows({column}, columnNames, false);
 
@@ -750,7 +750,7 @@ TEST(TArrowWriterTest, OptionalRleDate)
     TStringStream outputStream;
     i64 ma = std::numeric_limits<int>::max();
 
-    ColumnNullableInteger column = {20, 20, 20, 30, 30, 30, std::nullopt, std::nullopt};
+    TColumnNullableInteger column = {20, 20, 20, 30, 30, 30, std::nullopt, std::nullopt};
     for (int i = 0; i < 100; i++) {
         column.push_back(ma);
     }
@@ -783,7 +783,7 @@ TEST(TArrowWriterTest, SimpleDatatime)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {1586966302, 5};
+    TColumnInteger column = {1586966302, 5};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
 
@@ -812,7 +812,7 @@ TEST(TArrowWriterTest, SimpleTimestamp)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {1586966302504185, 5000};
+    TColumnInteger column = {1586966302504185, 5000};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
 
@@ -841,7 +841,7 @@ TEST(TArrowWriterTest, SimpleInterval)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {1586966302504185, 5000};
+    TColumnInteger column = {1586966302504185, 5000};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames, false);
 
@@ -871,7 +871,7 @@ TEST(TArrowWriterTest, SimpleFloat)
 
     TStringStream outputStream;
 
-    ColumnFloat column = {1.2, 3.14};
+    TColumnFloat column = {1.2, 3.14};
 
     auto rows = MakeUnversionedFloatRows({column}, columnNames);
 
@@ -899,7 +899,7 @@ TEST(TArrowWriterTest, ColumnarBatch)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {42, 179179};
+    TColumnInteger column = {42, 179179};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames);
 
@@ -928,7 +928,7 @@ TEST(TArrowWriterTest, RowBatch)
 
     TStringStream outputStream;
 
-    ColumnInteger column = {42, 179179};
+    TColumnInteger column = {42, 179179};
 
     auto rows = MakeUnversionedIntegerRows({column}, columnNames);
 
@@ -1125,7 +1125,7 @@ TEST(TArrowWriterTest, SimpleString)
 
     TStringStream outputStream;
 
-    ColumnString column = {"cat", "mouse"};
+    TColumnString column = {"cat", "mouse"};
 
     auto rows = MakeUnversionedStringRows({column}, columnNames);
     auto writer = CreateArrowWriter(rows.NameTable, &outputStream, tableSchemas);
@@ -1534,8 +1534,8 @@ TEST(TArrowWriterTest, DictionaryAndDirectStrings)
         longString += 'a';
         longString2 += 'b';
     }
-    ColumnString firstColumn = {longString, longString2, longString, longString2};
-    ColumnString secondColumn = {"cat", "dog", "mouse", "table"};
+    TColumnString firstColumn = {longString, longString2, longString, longString2};
+    TColumnString secondColumn = {"cat", "dog", "mouse", "table"};
 
     auto dictRows = MakeUnversionedStringRows({firstColumn}, columnNames);
     auto directRows = MakeUnversionedStringRows({secondColumn}, columnNames);
@@ -1572,12 +1572,12 @@ TEST(TArrowWriterTest, SeveralIntegerColumnsOneBatch)
     TStringStream outputStream;
 
     std::vector<std::string> columnNames;
-    std::vector<ColumnInteger> columnsElements(columnCount);
+    std::vector<TColumnInteger> columnsElements(columnCount);
 
     for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
         // Create column name.
-        std::string ColumnName = "integer" + std::to_string(columnIndex);
-        columnNames.push_back(ColumnName);
+        std::string columnName = "integer" + std::to_string(columnIndex);
+        columnNames.push_back(columnName);
 
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             columnsElements[columnIndex].push_back(rand());
@@ -1620,12 +1620,12 @@ TEST(TArrowWriterTest, SeveralStringColumnsOneBatch)
     TStringStream outputStream;
 
     std::vector<std::string> columnNames;
-    std::vector<ColumnString> columnsElements(columnCount);
+    std::vector<TColumnString> columnsElements(columnCount);
 
     for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
 
-        std::string ColumnName = "string" + std::to_string(columnIndex);
-        columnNames.push_back(ColumnName);
+        std::string columnName = "string" + std::to_string(columnIndex);
+        columnNames.push_back(columnName);
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
             columnsElements[columnIndex].push_back(MakeRandomString(stringSize));
         }
@@ -1682,9 +1682,9 @@ TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
     std::vector<TUnversionedRow> rows;
 
     // Fill bool column.
-    std::string ColumnName = "bool";
-    auto boolId = nameTable->RegisterName(ColumnName);
-    columnNames.push_back(ColumnName);
+    std::string columnName = "bool";
+    auto boolId = nameTable->RegisterName(columnName);
+    columnNames.push_back(columnName);
     for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         boolColumn.push_back((rand() % 2) == 0);
 
@@ -1692,18 +1692,18 @@ TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
     }
 
     // Fill double column.
-    ColumnName = "double";
-    auto columnId = nameTable->RegisterName(ColumnName);
-    columnNames.push_back(ColumnName);
+    columnName = "double";
+    auto columnId = nameTable->RegisterName(columnName);
+    columnNames.push_back(columnName);
     for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         doubleColumn.push_back((double)(rand() % 100) / 10.0);
         rowsBuilders[rowIndex].AddValue(MakeUnversionedDoubleValue(doubleColumn[rowIndex], columnId));
     }
 
     // Fill any column.
-    ColumnName = "any";
-    auto anyId = nameTable->RegisterName(ColumnName);
-    columnNames.push_back(ColumnName);
+    columnName = "any";
+    auto anyId = nameTable->RegisterName(columnName);
+    columnNames.push_back(columnName);
     for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         std::string randomString = MakeRandomString(stringSize);
 
@@ -1748,19 +1748,19 @@ TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
     std::vector<TColumnSchema> schemas_;
 
     for (int columnIdx = 0; columnIdx < columnCount; columnIdx++) {
-        std::string ColumnName = "integer" + std::to_string(columnIdx);
-        columnNames.push_back(ColumnName);
+        std::string columnName = "integer" + std::to_string(columnIdx);
+        columnNames.push_back(columnName);
         schemas_.push_back(TColumnSchema(columnNames[columnIdx], EValueType::Int64));
     }
     tableSchemas.push_back(New<TTableSchema>(schemas_));
 
     TStringStream outputStream;
-    std::vector<std::vector<ColumnInteger>> columnsElements(batchCount, std::vector<ColumnInteger>(columnCount));
+    std::vector<std::vector<TColumnInteger>> columnsElements(batchCount, std::vector<TColumnInteger>(columnCount));
 
     auto nameTable = New<TNameTable>();
     for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-        std::string ColumnName = "integer" + std::to_string(columnIndex);
-        nameTable->RegisterName(ColumnName);
+        std::string columnName = "integer" + std::to_string(columnIndex);
+        nameTable->RegisterName(columnName);
     }
     auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
 
@@ -1768,7 +1768,6 @@ TEST(TArrowWriterTest, SeveralIntegerSeveralBatches)
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
 
         for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-            std::string ColumnName = "integer" + std::to_string(columnIndex);
             for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
                 columnsElements[batchIndex][columnIndex].push_back(rand());
             }
@@ -1818,9 +1817,9 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
     auto doubleId = nameTable->RegisterName(columnNames[1]);
     auto anyId = nameTable->RegisterName(columnNames[2]);
 
-    std::vector<ColumnBoolWithNulls> boolColumns(batchCount);
-    std::vector<ColumnDoubleWithNulls> doubleColumns(batchCount);
-    std::vector<ColumnStringWithNulls> anyColumns(batchCount);
+    std::vector<TColumnBoolWithNulls> boolColumns(batchCount);
+    std::vector<TColumnDoubleWithNulls> doubleColumns(batchCount);
+    std::vector<TColumnStringWithNulls> anyColumns(batchCount);
 
     auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
 
@@ -1887,9 +1886,9 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
 
 TEST(TArrowWriterTest, AnyMetadata)
 {
-    std::string ColumnName = "any";
+    std::string columnName = "any";
     std::vector<TTableSchemaPtr> tableSchemas;
-    std::vector<std::string> columnNames = {ColumnName};
+    std::vector<std::string> columnNames = {columnName};
     std::vector<std::string> anyColumn;
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
@@ -1899,7 +1898,7 @@ TEST(TArrowWriterTest, AnyMetadata)
     TStringStream outputStream;
 
     auto nameTable = New<TNameTable>();
-    auto anyId = nameTable->RegisterName(ColumnName);
+    auto anyId = nameTable->RegisterName(columnName);
     size_t rowCount = 2;
     size_t stringSize = 2;
     std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowCount);
@@ -1938,7 +1937,8 @@ TEST(TArrowWriterTest, AnyMetadata)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TArrowWriterComplexTest, BasicStruct) {
+TEST(TArrowWriterComplexTest, BasicStruct)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"struct"};
 
@@ -1989,7 +1989,8 @@ TEST(TArrowWriterComplexTest, BasicStruct) {
         std::vector<i64>({123, 456}));
 }
 
-TEST(TArrowWriterComplexTest, BasicList) {
+TEST(TArrowWriterComplexTest, BasicList)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"list"};
 
@@ -2037,7 +2038,8 @@ TEST(TArrowWriterComplexTest, BasicList) {
         std::vector<i64>({1, 2, 3, 5, 8}));
 }
 
-TEST(TArrowWriterComplexTest, BasicDict) {
+TEST(TArrowWriterComplexTest, BasicDict)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"dict"};
 
@@ -2090,7 +2092,8 @@ TEST(TArrowWriterComplexTest, BasicDict) {
         std::vector<std::string>({"foo", "bar", ""}));
 }
 
-TEST(TArrowWriterComplexTest, OptionalStruct) {
+TEST(TArrowWriterComplexTest, OptionalStruct)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"optional"};
 
@@ -2139,7 +2142,8 @@ TEST(TArrowWriterComplexTest, OptionalStruct) {
     EXPECT_EQ(integers[2], 34);
 }
 
-TEST(TArrowWriterComplexTest, StructOptional) {
+TEST(TArrowWriterComplexTest, StructOptional)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"struct"};
 
@@ -2189,7 +2193,8 @@ TEST(TArrowWriterComplexTest, StructOptional) {
     EXPECT_EQ(integers[2], 34);
 }
 
-TEST(TArrowWriterComplexTest, DictionaryStruct) {
+TEST(TArrowWriterComplexTest, DictionaryStruct)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"struct"};
 
@@ -2259,7 +2264,8 @@ TEST(TArrowWriterComplexTest, DictionaryStruct) {
     }
 }
 
-TEST(TArrowWriterComplexTest, OptionalOptional) {
+TEST(TArrowWriterComplexTest, OptionalOptional)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"optional"};
 
@@ -2301,8 +2307,8 @@ TEST(TArrowWriterComplexTest, OptionalOptional) {
 
     auto columnMetadata = batch->schema()->field(0)->metadata();
     EXPECT_TRUE(columnMetadata);
-    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
-    EXPECT_EQ(value, YtTypeMetadataValueNestedOptional);
+    auto value = *(columnMetadata->Get(YTTypeMetadataKey));
+    EXPECT_EQ(value, YTTypeMetadataValueNestedOptional);
 
     auto outerOptionalArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
 
@@ -2354,11 +2360,12 @@ TEST(TArrowWriterTest, EmptyStruct)
 
     auto columnMetadata = batch->schema()->field(0)->metadata();
     EXPECT_TRUE(columnMetadata);
-    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
-    EXPECT_EQ(value, YtTypeMetadataValueEmptyStruct);
+    auto value = *(columnMetadata->Get(YTTypeMetadataKey));
+    EXPECT_EQ(value, YTTypeMetadataValueEmptyStruct);
 }
 
-TEST(TArrowWriterComplexTest, OptionalEmptyStruct) {
+TEST(TArrowWriterComplexTest, OptionalEmptyStruct)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"optional"};
 
@@ -2407,11 +2414,12 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct) {
 
     auto columnMetadata = batch->schema()->field(0)->metadata();
     EXPECT_TRUE(columnMetadata);
-    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
-    EXPECT_EQ(value, YtTypeMetadataValueEmptyStruct);
+    auto value = *(columnMetadata->Get(YTTypeMetadataKey));
+    EXPECT_EQ(value, YTTypeMetadataValueEmptyStruct);
 }
 
-TEST(TArrowWriterComplexTest, NullTypes) {
+TEST(TArrowWriterComplexTest, NullTypes)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"null", "null_struct"};
 
@@ -2464,7 +2472,8 @@ TEST(TArrowWriterComplexTest, NullTypes) {
     ASSERT_TRUE(nestedNullArray->IsNull(0));
 }
 
-TEST(TArrowWriterComplexTest, NestedTzType) {
+TEST(TArrowWriterComplexTest, NestedTzType)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"tz"};
 
@@ -2518,7 +2527,8 @@ TEST(TArrowWriterComplexTest, NestedTzType) {
     ASSERT_EQ(tzNameArray, std::vector<std::string>({std::string(GetTzName(0)), std::string(GetTzName(1))}));
 }
 
-TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices) {
+TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
+{
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"tz"};
 
