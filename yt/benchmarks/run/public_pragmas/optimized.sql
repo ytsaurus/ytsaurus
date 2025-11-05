@@ -41,4 +41,3 @@ pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
 pragma FilterPushdownOverJoinOptionalSide;
 pragma yt.TableContentMinAvgChunkSize="0";
-pragma yt.TemporaryCompressionCodec="zstd_1";
