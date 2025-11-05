@@ -58,10 +58,10 @@ http_parser_settings THttpParser::GetParserSettings()
 
 const http_parser_settings ParserSettings = THttpParser::GetParserSettings();
 
-THttpParser::THttpParser(std::optional<EMethod> requestMethod)
-    : ParserType_(requestMethod ? HTTP_RESPONSE : HTTP_REQUEST)
+THttpParser::THttpParser(http_parser_type parserType, std::optional<EMethod> requestMethod)
+    : ParserType_(parserType)
     , Headers_(New<THeaders>())
-    , IsHeadResponse_(requestMethod == EMethod::Head)
+    , RequestMethod_(requestMethod)
 {
     http_parser_init(&Parser_, ParserType_);
     Parser_.data = reinterpret_cast<void*>(this);
@@ -224,7 +224,16 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
     that->State_ = EParserState::HeadersFinished;
 
     // https://datatracker.ietf.org/doc/html/rfc2616#page-33
-    return that->IsHeadResponse_ ? 1 : 0;
+    /* Callbacks should return non-zero to indicate an error. The parser will
+     * then halt execution.
+     *
+     * The one exception is on_headers_complete. In a HTTP_RESPONSE parser
+     * returning '1' from on_headers_complete will tell the parser that it
+     * should not expect a body. This is used when receiving a response to a
+     * HEAD request which may contain 'Content-Length' or 'Transfer-Encoding:
+     * chunked' headers that indicate the presence of a body.
+     */
+    return that->RequestMethod_ == EMethod::Head ? 1 : 0;
 }
 
 int THttpParser::OnBody(http_parser* parser, const char* at, size_t length)
@@ -255,19 +264,23 @@ THttpInput::THttpInput(
     IConnectionPtr connection,
     const TNetworkAddress& remoteAddress,
     IInvokerPtr readInvoker,
+    EMessageType messageType,
     std::optional<EMethod> requestMethod,
     THttpIOConfigPtr config)
     : Connection_(std::move(connection))
     , RemoteAddress_(remoteAddress)
+    , MessageType_(messageType)
     , RequestMethod_(requestMethod)
     , Config_(std::move(config))
     , ReadInvoker_(std::move(readInvoker))
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize, {.InitializeStorage = false}))
-    , Parser_(requestMethod)
+    , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE, requestMethod)
     , StartByteCount_(Connection_->GetReadByteCount())
     , StartStatistics_(Connection_->GetReadStatistics())
     , LastProgressLogTime_(TInstant::Now())
-{ }
+{
+    YT_VERIFY((MessageType_ == EMessageType::Response) == requestMethod.has_value());
+}
 
 std::pair<int, int> THttpInput::GetVersion()
 {
@@ -277,7 +290,7 @@ std::pair<int, int> THttpInput::GetVersion()
 
 EMethod THttpInput::GetMethod()
 {
-    YT_VERIFY(!RequestMethod_);
+    YT_VERIFY(MessageType_ == EMessageType::Request);
 
     EnsureHeadersReceived();
     return Parser_.GetMethod();
@@ -285,7 +298,7 @@ EMethod THttpInput::GetMethod()
 
 const TUrlRef& THttpInput::GetUrl()
 {
-    YT_VERIFY(!RequestMethod_);
+    YT_VERIFY(MessageType_ == EMessageType::Request);
 
     EnsureHeadersReceived();
     return Url_;
@@ -375,7 +388,7 @@ void THttpInput::FinishHeaders()
     HeadersReceived_ = true;
     Headers_ = Parser_.GetHeaders();
 
-    if (!RequestMethod_) {
+    if (MessageType_ == EMessageType::Request) {
         RawUrl_ = Parser_.GetFirstLine();
         Url_ = ParseUrl(RawUrl_);
     }
@@ -394,7 +407,7 @@ bool THttpInput::ReceiveHeaders()
         return true;
     }
 
-    bool idleConnection = !RequestMethod_;
+    bool idleConnection = MessageType_ == EMessageType::Request;
     auto start = TInstant::Now();
 
     if (idleConnection) {
@@ -458,7 +471,7 @@ void THttpInput::FinishMessage()
     SafeToReuse_ = Parser_.ShouldKeepAlive();
 
     auto stats = Connection_->GetReadStatistics();
-    if (!RequestMethod_) {
+    if (MessageType_ == EMessageType::Request) {
         YT_LOG_DEBUG("Finished reading HTTP request body (RequestId: %v, BytesIn: %v, IdleDuration: %v, BusyDuration: %v, Keep-Alive: %v)",
             RequestId_,
             GetReadByteCount(),

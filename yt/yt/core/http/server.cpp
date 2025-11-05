@@ -291,6 +291,7 @@ private:
             connection,
             connection->GetRemoteAddress(),
             GetCurrentInvoker(),
+            EMessageType::Request,
             /*requestMethod*/ std::nullopt,
             Config_);
 

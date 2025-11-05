@@ -153,6 +153,7 @@ private:
                 connection,
                 address,
                 Invoker_,
+                EMessageType::Response,
                 method,
                 Config_);
 
@@ -172,6 +173,7 @@ private:
                 connection,
                 address,
                 Invoker_,
+                EMessageType::Response,
                 method,
                 Config_);
             input->SetReusableState(reusableState);
