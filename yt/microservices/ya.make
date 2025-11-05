@@ -11,6 +11,7 @@ IF (NOT OPENSOURCE)
         error_manager
         excel
         firehose
+        gang_tools
         grant_permissions
         hermes
         id_to_path_mapping
