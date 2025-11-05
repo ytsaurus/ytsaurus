@@ -35,6 +35,24 @@ void TPatchUnwrappingConsumer::OnMyKeyedItem(TStringBuf key)
     Forward(Underlying_);
 }
 
+TPatchUnwrappingConsumer::TState TPatchUnwrappingConsumer::GetState()
+{
+    return TState{
+        .BaseState = TBase::GetState(),
+        .BuilderCheckpoint = Builder_.CreateCheckpoint(),
+        .AttributesFragmentHasValue = AttributesFragment_.has_value()};
+}
+
+void TPatchUnwrappingConsumer::SetState(const TState& state)
+{
+    TBase::SetState(state.BaseState);
+    Builder_.RestoreCheckpoint(state.BuilderCheckpoint);
+    AttributesFragment_ = state.AttributesFragmentHasValue
+        ? std::optional<NYson::TYsonString>(Builder_.GetYsonString())
+        : std::nullopt;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes
