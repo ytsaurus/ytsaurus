@@ -49,8 +49,10 @@ def _get_compression_ratio(table, erasure_codec, compression_codec, optimize_for
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
         compressed_table = get(tmp, attributes=["data_weight", "compressed_data_size"], client=client)
-        ratio = compressed_table.attributes["compressed_data_size"] / compressed_table.attributes["data_weight"]
-        # ratio = get(tmp + "/@compression_ratio", client=client)
+        if compressed_table.attributes["compressed_data_size"] and compressed_table.attributes["data_weight"]:
+            ratio = compressed_table.attributes["compressed_data_size"] / compressed_table.attributes["data_weight"]
+        else:
+            ratio = 0.0
         logger.debug("Estimated compression ratio of '%s' (codec: %s, erasure: %s, optimize: %s) is %s", table, compression_codec, erasure_codec, optimize_for, ratio)
         return None if ratio < 0.00001 else ratio
 
