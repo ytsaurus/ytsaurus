@@ -21,10 +21,14 @@ def mount_cypress(
         proxy=proxy,
         config=config)
     cypress = cypress_fuse.Cypress(yt_client, enable_write_access)
-    FUSE(
-        cypress, mount_point,
-        raw_fi=True, nothreads=True, foreground=True
-    )
+    try:
+        FUSE(
+            cypress, mount_point,
+            raw_fi=True, nothreads=True, foreground=True
+        )
+    except Exception as ex:
+        print("Error: {}".format(str(ex)))
+        exit()
 
     cypress_fuse.CachedYtClient._statistics.report()
     cypress_fuse.Cypress._statistics.report()
@@ -58,7 +62,7 @@ if __name__ == "__main__":
         help="File for logging. If empty - write to stderr.")
     parser.add_argument(
         "--config",
-        type=yson.loads,
+        type=lambda s: yson.loads(s.encode()),
         help="Custom configuration for YtClient.")
 
     args = parser.parse_args()
