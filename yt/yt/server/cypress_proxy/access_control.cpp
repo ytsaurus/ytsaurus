@@ -73,7 +73,7 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
-    const auto& errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
+    auto errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,
