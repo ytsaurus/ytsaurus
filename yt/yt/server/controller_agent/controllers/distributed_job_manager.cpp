@@ -99,6 +99,11 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
 
 void TDistributedJobManager::OnOperationRevived()
 {
+    // COMPAT(pogorelov): Remove in 25.4.
+    if (!Task_) {
+        return;
+    }
+
     auto cookieToGroupCopy = CookieToGroup_;
     for (auto& [cookie, group] : cookieToGroupCopy) {
         if (group.Pending) {
@@ -145,7 +150,13 @@ TProgressCounterPtr TDistributedJobManager::GetProgressCounter() const
     return JobCounter_;
 }
 
-int TDistributedJobManager::GetCookieGroupSize() const {
+int TDistributedJobManager::GetCookieGroupSize() const
+{
+    // COMPAT(pogorelov): Remove in 25.4.
+    if (!Task_) {
+        return 1;
+    }
+
     auto userJobSpec = Task_->GetUserJobSpec();
     return userJobSpec ? userJobSpec->CookieGroupSize : 1;
 }
