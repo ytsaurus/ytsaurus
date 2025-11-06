@@ -233,7 +233,7 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
      * HEAD request which may contain 'Content-Length' or 'Transfer-Encoding:
      * chunked' headers that indicate the presence of a body.
      */
-    return that->RequestMethod_ == EMethod::Head ? 1 : 0;
+    return that->ParserType_ == HTTP_RESPONSE && that->RequestMethod_ == EMethod::Head ? 1 : 0;
 }
 
 int THttpParser::OnBody(http_parser* parser, const char* at, size_t length)
@@ -274,12 +274,16 @@ THttpInput::THttpInput(
     , Config_(std::move(config))
     , ReadInvoker_(std::move(readInvoker))
     , InputBuffer_(TSharedMutableRef::Allocate<THttpParserTag>(Config_->ReadBufferSize, {.InitializeStorage = false}))
-    , Parser_(messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE, requestMethod)
+    , Parser_(
+        messageType == EMessageType::Request ? HTTP_REQUEST : HTTP_RESPONSE,
+        requestMethod)
     , StartByteCount_(Connection_->GetReadByteCount())
     , StartStatistics_(Connection_->GetReadStatistics())
     , LastProgressLogTime_(TInstant::Now())
 {
-    YT_VERIFY((MessageType_ == EMessageType::Response) == requestMethod.has_value());
+    if (MessageType_ == EMessageType::Response) {
+        YT_VERIFY(requestMethod.has_value());
+    }
 }
 
 std::pair<int, int> THttpInput::GetVersion()
