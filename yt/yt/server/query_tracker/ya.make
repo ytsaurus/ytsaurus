@@ -24,6 +24,8 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/python/pyspark/pyspark/sql/connect/proto
+
     library/cpp/yt/phdr_cache
     
     library/cpp/streams/zstd
