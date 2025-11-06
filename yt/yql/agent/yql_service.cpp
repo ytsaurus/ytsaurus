@@ -66,16 +66,15 @@ private:
         auto responseFuture = YqlAgent_->StartQuery(queryId, user, *request);
 
         context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-            YT_LOG_INFO(error, "Query is cancelled (QueryId: %v)", queryId);
+            YT_LOG_INFO(error, "Request is canceled, aborting query (QueryId: %v)", queryId);
 
-            try {
-                WaitFor(YqlAgent_->AbortQuery(queryId))
-                    .ThrowOnError();
-                YT_LOG_DEBUG("Query abort is finished (QueryId: %v)", queryId);
-
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to abort query (QueryId: %v)", queryId);
-            }
+            YqlAgent_->AbortQuery(queryId).Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                if (error.IsOK()) {
+                    YT_LOG_INFO("Query abort finished (QueryId: %v)", queryId);
+                } else {
+                    YT_LOG_ERROR(error, "Failed to abort query (QueryId: %v)", queryId);
+                }
+            }));
         }));
 
         if (request->async()) {
