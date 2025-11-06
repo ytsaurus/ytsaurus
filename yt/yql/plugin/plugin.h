@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <yt/yql/plugin/bridge/interface.h>
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/logger/log.h>
 

@@ -4,6 +4,8 @@
 
 namespace NYT::NYqlPlugin {
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 DECLARE_REFCOUNTED_CLASS(TVanillaJobFile)
 DECLARE_REFCOUNTED_CLASS(TDQYTBackend)
@@ -12,5 +14,7 @@ DECLARE_REFCOUNTED_STRUCT(TDQManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TAdditionalSystemLib)
 DECLARE_REFCOUNTED_STRUCT(TProcessYqlPluginConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlPluginConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin

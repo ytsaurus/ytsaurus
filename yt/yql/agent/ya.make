@@ -24,17 +24,16 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/yt/phdr_cache
-
     library/cpp/getopt
-
     library/cpp/yt/logging/backends/arcadia
     library/cpp/yt/mlock
+    library/cpp/yt/phdr_cache
 
     yt/yt/library/dynamic_config
+    yt/yt/library/monitoring
     yt/yt/library/orchid
-    yt/yt/library/server_program
     yt/yt/library/profiling/perf
+    yt/yt/library/server_program
 
     yt/yt/ytlib
 
@@ -46,11 +45,6 @@ PEERDIR(
     yt/yt/server/lib/component_state_checker
 
     yt/yql/plugin
-
-    yt/yt/library/query/engine
-    yt/yt/library/query/row_comparer
-    yt/yt/library/monitoring
-
     yt/yql/plugin/bridge
 
     yql/essentials/public/langver

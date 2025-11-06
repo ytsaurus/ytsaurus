@@ -7,11 +7,11 @@ namespace NYT::NYqlPlugin::NProcess {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, YqlPluginServiceLogger, "YqlPluginService");
 
-////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYson;
+
 using NYqlClient::NProto::TYqlQueryFile;
 using NYqlClient::NProto::TYqlResponse;
 
@@ -29,11 +29,10 @@ public:
         , YqlPlugin_(std::move(yqlPlugin))
         , QueryActionQueue_(New<TActionQueue>("QueryRunner"))
     {
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RunQuery)
-                         .SetCancelable(true)
-                         // Run in separate thread because RunQuery is long blocking call
-                         .SetInvoker(QueryActionQueue_->GetInvoker()));
+            .SetCancelable(true)
+            // Run in separate thread because RunQuery is long blocking call
+            .SetInvoker(QueryActionQueue_->GetInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUsedClusters));
@@ -42,11 +41,10 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RunQuery)
     {
-        const auto& queryId = FromProto<TQueryId>(request->query_id());
+        auto queryId = FromProto<TQueryId>(request->query_id());
         context->SetRequestInfo("QueryId: %v, User: %v, ExecuteMode: %v", queryId, request->user(), request->mode());
-        context->SetResponseInfo("QueryId: %v", queryId);
 
-        const auto& files = ExtractFiles(request->files_size(), request->files());
+        auto files = ExtractFiles(request->files());
 
         auto queryResult = YqlPlugin_->Run(
           queryId,
@@ -54,20 +52,22 @@ public:
           TYsonString(request->credentials()),
           request->query_text(),
           TYsonString(request->settings()),
-          files,
+          std::move(files),
           request->mode());
 
         auto yqlResponse = ToYqlResponse(queryResult);
 
         response->mutable_response()->Swap(&yqlResponse);
-
+        context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetUsedClusters)
     {
-        const auto& queryId = FromProto<TQueryId>(request->query_id());
-        const auto& files = ExtractFiles(request->files_size(), request->files());
+        auto queryId = FromProto<TQueryId>(request->query_id());
+        context->SetRequestInfo("QueryId: %v", queryId);
+
+        auto files = ExtractFiles(request->files());
         auto clusters = YqlPlugin_->GetUsedClusters(
           queryId,
           request->query_text(),
@@ -84,6 +84,10 @@ public:
             response->set_error(*clusters.YsonError);
         }
 
+        context->SetResponseInfo("QueryId: %v, Clusters: %v, Error: %v",
+            queryId,
+            clusters.Clusters,
+            clusters.YsonError);
         context->Reply();
     }
 
@@ -92,13 +96,13 @@ public:
         auto queryId = FromProto<TQueryId>(request->query_id());
 
         context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
         auto abortResult = YqlPlugin_->Abort(queryId);
 
         if (abortResult.YsonError) {
             *response->mutable_error() = *abortResult.YsonError;
         }
 
+        context->SetResponseInfo("QueryId: %v, Error: %v", queryId, abortResult.YsonError);
         context->Reply();
     }
 
@@ -107,20 +111,20 @@ public:
         auto queryId = FromProto<TQueryId>(request->query_id());
 
         context->SetRequestInfo("QueryId: %v", queryId);
-        context->SetResponseInfo("QueryId: %v", queryId);
-
         auto queryProgress = YqlPlugin_->GetProgress(queryId);
 
-        TYqlResponse yqlResponse = ToYqlResponse(queryProgress);
+        auto yqlResponse = ToYqlResponse(queryProgress);
 
         response->mutable_response()->Swap(&yqlResponse);
 
+        context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetDeclaredParametersInfo)
     {
         auto queryId = FromProto<TQueryId>(request->query_id());
+        context->SetRequestInfo("QueryId: %v", queryId);
 
         auto result = YqlPlugin_->GetDeclaredParametersInfo(
             queryId,
@@ -133,6 +137,7 @@ public:
             response->set_yson_parameters(*result.YsonParameters);
         }
 
+        context->SetResponseInfo("QueryId: %v, Parameters: %v", queryId, result.YsonParameters);
         context->Reply();
     }
 
@@ -140,9 +145,9 @@ private:
     const std::unique_ptr<IYqlPlugin> YqlPlugin_;
     const TActionQueuePtr QueryActionQueue_;
 
-    std::vector<TQueryFile> ExtractFiles(size_t size, const google::protobuf::RepeatedPtrField<TYqlQueryFile>& protoFiles)
+    std::vector<TQueryFile> ExtractFiles(const google::protobuf::RepeatedPtrField<TYqlQueryFile>& protoFiles)
     {
-        std::vector<TQueryFile> files(size);
+        std::vector<TQueryFile> files(protoFiles.size());
         for (const auto& file : protoFiles) {
             files.push_back(NYqlPlugin::TQueryFile{
               .Name = file.name(),
@@ -186,5 +191,7 @@ NRpc::IServicePtr CreateYqlPluginService(
 {
     return New<TYqlPluginService>(std::move(controlInvoker), std::move(yqlAgent));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin::NProcess

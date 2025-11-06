@@ -91,7 +91,6 @@ private:
         /*maxDelay*/ TDuration::Seconds(30),
         /*maxRetries*/ 5);
 
-private:
     template<typename T, typename R>
     T ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const;
 

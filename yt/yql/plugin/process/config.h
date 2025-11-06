@@ -11,6 +11,8 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TProcessYqlPluginInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
@@ -28,5 +30,7 @@ struct TProcessYqlPluginInternalConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TProcessYqlPluginInternalConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin::NProcess
