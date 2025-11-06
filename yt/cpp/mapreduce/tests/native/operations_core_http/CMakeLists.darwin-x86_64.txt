@@ -98,7 +98,7 @@ set_yunittest_property(
   cpp-mapreduce-tests-native-operations_core_http
   PROPERTY
   ENVIRONMENT
-  "YT_TESTS_USE_CORE_HTTP_CLIENT=yes YT_LOG_LEVEL=debug"
+  "YT_TESTS_USE_CORE_HTTP_CLIENT=yes;YT_LOG_LEVEL=debug"
 )
 
 vcs_info(cpp-mapreduce-tests-native-operations_core_http)
