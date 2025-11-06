@@ -62,7 +62,8 @@ bool CheckJobActivity(
 //! - Update some auxiliary fields like FinishTime.
 void UpdateJobletFromSummary(
     const TJobSummary& jobSummary,
-    const TJobletPtr& joblet);
+    const TJobletPtr& joblet,
+    TInstant operationStartTime);
 
 ////////////////////////////////////////////////////////////////////////////////
 

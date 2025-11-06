@@ -205,6 +205,8 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/gpu_check", "GPU liveness check duration", "ms"},
         {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
         {"time/artifacts_caching", "Job's artifact files downloading to the chunk cache duration", "ms"},
+        {"time/relative_start", "Time from operation start till job start", "ms"},
+        {"time/relative_finish", "Time from operation start till job finish or last status update", "ms"},
 
         {"data/input/chunk_count", "Data slices read by job", "pieces"},
         {"data/input/row_count", "Number of rows read by job", "pieces"},
