@@ -333,7 +333,7 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0);
     RegisterAfterFinalizeShutdownCallback(
         BIND([] {
-            YT_LOG_INFO("Module shutdown started");
+            YT_LOG_DEBUG("Module shutdown started");
             for (const auto& [driverId, weakDriver] : ActiveDrivers) {
                 auto driver = weakDriver.Lock();
                 if (!driver) {
@@ -343,7 +343,7 @@ void TDriverModuleBase::Initialize(
                 driver->Terminate();
             }
             ActiveDrivers.clear();
-            YT_LOG_INFO("Module shutdown finished");
+            YT_LOG_DEBUG("Module shutdown finished");
         }),
         /*index*/ 1);
 }
