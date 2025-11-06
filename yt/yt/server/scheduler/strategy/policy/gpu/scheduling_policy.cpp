@@ -500,6 +500,8 @@ public:
     { }
 };
 
+DEFINE_REFCOUNTED_TYPE(TDummySchedulingPolicy)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchedulingPolicyPtr CreateSchedulingPolicy(

@@ -16,7 +16,7 @@ TPoolTreeSnapshot::TPoolTreeSnapshot(
     TStrategyOperationControllerConfigPtr controllerConfig,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
-    int nodeCount,
+    TNodeIdToAddress nodeAddresses,
     NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
     TJobResourcesByTagFilter resourceLimitsByTagFilter)
     : Id_(id)
@@ -28,7 +28,7 @@ TPoolTreeSnapshot::TPoolTreeSnapshot(
     , ControllerConfig_(std::move(controllerConfig))
     , ResourceUsage_(resourceUsage)
     , ResourceLimits_(resourceLimits)
-    , NodeCount_(nodeCount)
+    , NodeAddresses_(std::move(nodeAddresses))
     , SchedulingPolicyState_(std::move(schedulingPolicyState))
     , ResourceLimitsByTagFilter_(std::move(resourceLimitsByTagFilter))
 { }
