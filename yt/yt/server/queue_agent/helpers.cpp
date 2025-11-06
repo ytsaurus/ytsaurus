@@ -44,7 +44,12 @@ TErrorOr<EQueueFamily> DeduceQueueFamily(
         return TError("No replicated table mapping row is known for replicated queue");
     }
     if (replicatedTableMappingRow) {
-        replicatedTableMappingRow->Validate();
+        try {
+            replicatedTableMappingRow->Validate();
+        } catch (const std::exception& ex) {
+            return TError("Invalid replicated table mapping row")
+                << ex;
+        }
     }
 
     if (row.ObjectType == EObjectType::Table || IsReplicatedTableObjectType(row.ObjectType)) {

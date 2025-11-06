@@ -638,6 +638,14 @@ void TReplicatedTableMappingTableRow::Validate() const
                 Ref,
                 *ObjectType);
     }
+
+    try {
+        // NB(apachee): Validate that meta forms proper rich ypaths for replicas.
+        Y_UNUSED(GetReplicas());
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Invalid (chaos) replicated table meta value")
+            << ex;
+    }
 }
 
 void Serialize(const TReplicatedTableMappingTableRow& row, IYsonConsumer* consumer)

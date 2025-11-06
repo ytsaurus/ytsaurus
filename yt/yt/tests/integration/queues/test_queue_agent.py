@@ -2259,6 +2259,10 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
+            "write_replicated_table_mapping": True,
+        },
+        "queue_agent": {
+            "handle_replicated_objects": True,
         },
     }
 
@@ -2423,6 +2427,34 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         assert "error" in queue_status
         queue_error = YtError.from_dict(queue_status["error"])
         assert "Error parsing attribute \"auto_trim_config\"" in str(queue_error)
+
+    @authors("apachee")
+    def test_invalid_replica(self):
+        # See YT-26507.
+        queue_path = "//tmp/queue"
+        bad_replica_path = f"{queue_path}-[{{replica}}]-@&*\\"
+        schema = [{"name": "data", "type": "string"}]
+        create("replicated_table", queue_path, attributes={
+            "dynamic": True,
+            "schema": schema,
+        })
+        replica_id = create_table_replica(queue_path, "primary", bad_replica_path)
+
+        replicas = get(f"{queue_path}/@replicas")
+        print_debug(f"{replicas=}")
+        assert replicas[replica_id]["replica_path"] == bad_replica_path
+
+        CypressSynchronizerOrchid().wait_fresh_pass()
+
+        error = YtError.from_dict(select_rows("* FROM [//sys/queue_agents/replicated_table_mapping]")[0]["synchronization_error"])
+        assert_yt_error(error, "Invalid (chaos) replicated table meta value")
+
+        QueueAgentShardingManagerOrchid().wait_fresh_pass()
+        QueueAgentOrchid().wait_fresh_pass()
+
+        error = YtError.from_dict(QueueAgentOrchid().get_queue_orchid(f"primary:{queue_path}").get_status()["error"])
+        assert_yt_error(error, "Invalid replicated table mapping row")
+        assert_yt_error(error, "meta cannot be null")
 
 
 class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedObjectBase):
