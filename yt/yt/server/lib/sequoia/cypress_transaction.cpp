@@ -1174,10 +1174,7 @@ private:
         auto attributes = FromProto(Request_.attributes());
         auto attributeKeys = attributes->ListKeys();
         for (const auto& attributeName : attributeKeys) {
-            if (attributeName != "operation_type" &&
-                attributeName != "operation_id" &&
-                attributeName != "operation_title")
-            {
+            if (!ShouldMirrorTransactionAttributeToSequoia(attributeName)) {
                 attributes->Remove(attributeName);
             }
         }
@@ -2445,5 +2442,14 @@ TFuture<void> ReplicateCypressTransactions(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool ShouldMirrorTransactionAttributeToSequoia(const std::string& attributeName) {
+    return attributeName == "operation_type" ||
+        attributeName == "operation_id" ||
+        attributeName == "operation_title";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NSequoiaServer

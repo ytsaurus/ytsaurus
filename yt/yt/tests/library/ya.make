@@ -29,6 +29,7 @@ PY_SRCS(
     fake_snapshot_exporter.py
     gdb_helpers.py
     native_snapshot_exporter.py
+    sequoia_reconstructor.py
     yt_chaos_test_base.py
     yt_commands.py
     yt_dynamic_tables_base.py

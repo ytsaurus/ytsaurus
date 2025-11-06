@@ -83,6 +83,73 @@ SCHEMA_COLUMNS = [
 ]
 
 
+class SnapshotBuilderBase:
+    def __init__(self, path_to_run: str, bin_path: str) -> None:
+        self.path_to_run = path_to_run
+        self.bin_path = bin_path
+        self.binary = os.path.join(self.bin_path, "ytserver-master")
+        self.config_path = os.path.join(self.path_to_run, "configs", "master-0-0.yson")
+
+    def build_master_snapshot(self, set_read_only=False):
+        build_master_snapshots(set_read_only=set_read_only)
+
+        self.snapshot_result_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0")
+        assert os.path.exists(self.snapshot_result_dir)
+
+        snapshot_dir = os.path.join(self.snapshot_result_dir, "snapshots")
+
+        snapshots = [name for name in os.listdir(snapshot_dir) if name.endswith(".snapshot")]
+        snapshots.sort()
+
+        self.snapshot_id = snapshots[-1].split(".")[0]
+        self.snapshot_path = os.path.join(snapshot_dir, self.snapshot_id + ".snapshot")
+
+    def validate_master_snapshot(self):
+        changelog_dir = os.path.join(self.snapshot_result_dir, "changelogs")
+        changelog_path = os.path.join(changelog_dir, self.snapshot_id + ".log")
+
+        assert self._run_validation(
+            self.binary,
+            self.snapshot_path,
+            changelog_path,
+            self.snapshot_result_dir,
+            self.config_path,
+        ) == 0
+        return self.snapshot_id
+
+    def _run_validation(
+            self,
+            binary,
+            snapshot_path,
+            changelog_path,
+            build_snapshot_dir,
+            config_path,
+            cell_id=None,
+            snapshot_meta=None):
+        # NB: Sleep after initialize is required since the main thread otherwise can halt before
+        # some other thread uses network.
+        command = [
+            binary,
+            "--validate-snapshot", snapshot_path,
+            "--replay-changelogs", changelog_path,
+            "--build-snapshot", build_snapshot_dir,
+            "--config", config_path,
+        ]
+
+        if cell_id is not None:
+            command += ["--cell-id", cell_id]
+
+        if snapshot_meta is not None:
+            command += ["--snapshot-meta", yson.dumps(snapshot_meta)]
+
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            _, _ = proc.communicate(timeout=PROC_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return proc.returncode
+
+
 def create_schema():
     schema = yson.YsonList()
     schema.attributes["unique_keys"] = False
@@ -92,11 +159,7 @@ def create_schema():
     return schema
 
 
-class NativeSnapshotRunner:
-    def __init__(self, path_to_run: str, bin_path: str) -> None:
-        self.path_to_run = path_to_run
-        self.bin_path = bin_path
-
+class NativeSnapshotRunner(SnapshotBuilderBase):
     def create_export_config(self):
         _attributes = [column for column, _, _, is_attribute in SCHEMA_COLUMNS if is_attribute is True]
         export_users = "%true"
@@ -105,30 +168,9 @@ class NativeSnapshotRunner:
 
     def build_and_export_master_snapshot(self, yt_client: YtClient, append_to_snapshot: list[dict[str, Any]] | None = None):
         snapshot_time = datetime.now(tz=timezone.utc)
-        build_master_snapshots()
 
-        result_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0")
-        assert os.path.exists(result_dir)
-
-        snapshot_dir = os.path.join(result_dir, "snapshots")
-        changelog_dir = os.path.join(result_dir, "changelogs")
-
-        snapshots = [name for name in os.listdir(snapshot_dir) if name.endswith(".snapshot")]
-        snapshots.sort()
-
-        snapshot_id = snapshots[-1].split(".")[0]
-        snapshot_path = os.path.join(snapshot_dir, snapshot_id + ".snapshot")
-        changelog_path = os.path.join(changelog_dir, snapshot_id + ".log")
-        binary = os.path.join(self.bin_path, "ytserver-master")
-
-        config_path = os.path.join(self.path_to_run, "configs", "master-0-0.yson")
-        assert self._run_validation(
-            binary,
-            snapshot_path,
-            changelog_path,
-            result_dir,
-            config_path,
-        ) == 0
+        snapshot_id = self.build_master_snapshot()
+        self.validate_master_snapshot()
 
         export_config = self.create_export_config()
         snapshot_exports_destination = "//sys/admin/snapshots/snapshot_exports/" + snapshot_id + "_abcdabcd_unified_export"
@@ -136,9 +178,9 @@ class NativeSnapshotRunner:
 
         self._run_export(
             yt_client,
-            binary,
-            snapshot_path,
-            config_path,
+            self.binary,
+            self.snapshot_path,
+            self.config_path,
             export_config,
             snapshot_exports_destination,
             user_exports_destination,
@@ -234,35 +276,3 @@ class NativeSnapshotRunner:
             "//sys/admin/snapshots/user_exports/latest",
             force=True,
         )
-
-    def _run_validation(
-            self,
-            binary,
-            snapshot_path,
-            changelog_path,
-            build_snapshot_dir,
-            config_path,
-            cell_id=None,
-            snapshot_meta=None):
-        # NB: Sleep after initialize is required since the main thread otherwise can halt before
-        # some other thread uses network.
-        command = [
-            binary,
-            "--validate-snapshot", snapshot_path,
-            "--replay-changelogs", changelog_path,
-            "--build-snapshot", build_snapshot_dir,
-            "--config", config_path,
-        ]
-
-        if cell_id is not None:
-            command += ["--cell-id", cell_id]
-
-        if snapshot_meta is not None:
-            command += ["--snapshot-meta", yson.dumps(snapshot_meta)]
-
-        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            _, _ = proc.communicate(timeout=PROC_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        return proc.returncode
