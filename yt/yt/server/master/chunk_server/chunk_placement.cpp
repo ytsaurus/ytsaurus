@@ -970,7 +970,6 @@ bool TChunkPlacement::UseHostAwareReplicator() const
     return UseHostAwareReplicator_;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
