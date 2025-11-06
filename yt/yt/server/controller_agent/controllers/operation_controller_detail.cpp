@@ -1582,7 +1582,7 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
 
         auto jobSummary = TAbortedJobSummary(joblet->JobId, abortReason);
         jobSummary.FinishTime = now;
-        UpdateJobletFromSummary(jobSummary, joblet);
+        UpdateJobletFromSummary(jobSummary, joblet, StartTime_);
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
             .Item("reason").Value(abortReason);
         UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
@@ -3287,7 +3287,7 @@ bool TOperationControllerBase::OnJobCompleted(
                 jobSummary->ReadInputDataSlices.size());
         }
 
-        UpdateJobletFromSummary(*jobSummary, joblet);
+        UpdateJobletFromSummary(*jobSummary, joblet, StartTime_);
 
         joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ false);
         UpdateActualHistogram(*jobSummary);
@@ -3416,7 +3416,7 @@ bool TOperationControllerBase::OnJobFailed(
             ShouldUpdateProgressAttributesInCypress_ = true;
         }
 
-        UpdateJobletFromSummary(*jobSummary, joblet);
+        UpdateJobletFromSummary(*jobSummary, joblet, StartTime_);
 
         LogFinishedJobFluently(ELogEventType::JobFailed, joblet)
             .Item("error").Value(error);
@@ -3554,7 +3554,7 @@ bool TOperationControllerBase::OnJobAborted(
         // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard guard;
 
-        UpdateJobletFromSummary(*jobSummary, joblet);
+        UpdateJobletFromSummary(*jobSummary, joblet, StartTime_);
 
         if (abortReason == EAbortReason::ResourceOverdraft) {
             joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ true);
@@ -3810,7 +3810,7 @@ void TOperationControllerBase::OnJobRunning(
         return;
     }
 
-    UpdateJobletFromSummary(*jobSummary, joblet);
+    UpdateJobletFromSummary(*jobSummary, joblet, StartTime_);
 
     GetJobProfiler()->ProfileRunningJob(*joblet);
 

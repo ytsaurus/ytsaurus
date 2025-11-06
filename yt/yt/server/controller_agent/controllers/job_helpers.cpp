@@ -173,7 +173,8 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
 
 void UpdateJobletFromSummary(
     const TJobSummary& jobSummary,
-    const TJobletPtr& joblet)
+    const TJobletPtr& joblet,
+    TInstant operationStartTime)
 {
     using namespace NStatisticPath;
 
@@ -198,8 +199,12 @@ void UpdateJobletFromSummary(
         jobSummary.FinishTime.value_or(TInstant::Now()),
         joblet->LastUpdateTime);
     auto duration = endTime - joblet->StartTime;
+    auto relativeStartTime = joblet->StartTime - operationStartTime;
+    auto relativeFinishTime = endTime - operationStartTime;
 
     controllerStatistics->ReplacePathWithSample("/time/total"_SP, duration.MilliSeconds());
+    controllerStatistics->ReplacePathWithSample("/time/relative_start"_SP, relativeStartTime.MilliSeconds());
+    controllerStatistics->ReplacePathWithSample("/time/relative_finish"_SP, relativeFinishTime.MilliSeconds());
 
     auto getCumulativeMemory = [] (i64 memory, TDuration period) {
         double cumulativeMemory = static_cast<double>(memory) * period.MilliSeconds();
