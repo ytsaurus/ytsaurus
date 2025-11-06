@@ -74,8 +74,8 @@ def _check_codec(table, codec_name, codec_value, client):
 def transform(
     source_table: Union[str, YPath],
     destination_table: Optional[Union[str, YPath]] = None,
-    erasure_codec: ErasureCodecsType = None,
-    compression_codec: CompressionCodecType = None,
+    erasure_codec: Optional[ErasureCodecsType] = None,
+    compression_codec: Optional[CompressionCodecType] = None,
     desired_chunk_size: Optional[int] = None,
     spec: Optional[Union[SpecCommonType, Dict[str, Any]]] = None,
     check_codecs: bool = False,
