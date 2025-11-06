@@ -12,10 +12,4 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(libs)
-add_subdirectory(restricted)
-add_subdirectory(tools)
-add_subdirectory(ydb)
-add_subdirectory(deprecated)
-add_subdirectory(clickhouse)
-add_subdirectory(python)
+add_subdirectory(sql)
