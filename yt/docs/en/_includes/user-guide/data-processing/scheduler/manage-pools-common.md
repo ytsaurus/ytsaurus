@@ -4,7 +4,7 @@ This section explains how to create pools and manage resources and settings of c
 
 ## General information { #common }
 
-The {{product-name}} system has a feature that manages compute pools and supports pool activities such as:
+The {{product-name}} system has a mechanism for managing compute pools, enabling pool actions such as:
 
 - Creating.
 - Renaming.
@@ -22,11 +22,10 @@ You can change the compute pool settings by editing the relevant pool attributes
 * `mode`: A way of allocating resources between operations in the pool.
 * `fifo_sort_parameters`: Managing the order in which operations are started in fifo pools.
 * `resource_limits`: A dict that sets the upper limits for the resources available to the pool.
-* `create_ephemeral_subpools`: Enables the creation of virtual pools.
-* `ephemeral_subpool_config`: A dict describing the configuration of virtual pools.
-* `integral-guarantees`: Integral guarantees.
+* `create_ephemeral_subpools`: Allows creating [ephemeral pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#puly-i-derevya-pulov).
+* `ephemeral_subpool_config`: A dictionary describing the configuration of virtual pools.
 
-For more information about the listed attributes, see [Pool characteristics](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
+For more information about the listed attributes, see [Pool configuration](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
 
 ### Validating
 
