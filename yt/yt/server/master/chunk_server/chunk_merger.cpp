@@ -1756,7 +1756,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     YT_LOG_DEBUG("Merge job scheduled "
         "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, "
-        "ValidateShallowMerge: %v, ValidateChunkMetaExtensions: %v, AccointId: %v)",
+        "ValidateShallowMerge: %v, ValidateChunkMetaExtensions: %v, AccountId: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
