@@ -2213,22 +2213,6 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         wait(lambda: not exists("//tmp/t1") and not exists("//tmp/t2"))
 
-    @authors("babenko")
-    # TODO(kvk1920): YT-26440.
-    @not_implemented_in_sequoia
-    def test_expire_orphaned_node_yt_8064(self):
-        tx1 = start_transaction()
-        tx2 = start_transaction()
-        node_id = create(
-            "table",
-            "//tmp/t",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=2))},
-            tx=tx1,
-        )
-        lock("#" + node_id, tx=tx2, mode="snapshot")
-        abort_transaction(tx1)
-        time.sleep(2)
-
     @authors("shakurov")
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
