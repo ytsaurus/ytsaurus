@@ -6,10 +6,13 @@
 namespace NYT::NYqlPlugin {
 
 using namespace NYson;
+using namespace NYTree;
 
-NYTree::IMapNodePtr IYqlPlugin::GetOrchidNode() const
+////////////////////////////////////////////////////////////////////////////////
+
+IMapNodePtr IYqlPlugin::GetOrchidNode() const
 {
-    return NYTree::GetEphemeralNodeFactory()->CreateMap();
+    return GetEphemeralNodeFactory()->CreateMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

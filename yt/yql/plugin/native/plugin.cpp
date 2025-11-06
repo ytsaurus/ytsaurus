@@ -861,6 +861,7 @@ public:
 
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
+    const bool StartDqManager_;
     TDqManagerPtr DqManager_;
     THolder<IThreadPool> DqGatewayOffloadThreadPool_;
     NYql::TFileStoragePtr FileStorage_;
@@ -877,8 +878,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
-
-    bool StartDqManager_;
 
     std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false)
     {

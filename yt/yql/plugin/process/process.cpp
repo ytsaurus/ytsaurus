@@ -10,11 +10,11 @@ namespace NYT::NYqlPlugin::NProcess {
 
 static constexpr auto& Logger = YqlExecutorProcessLogger;
 
-using NYqlClient::NProto::TYqlQueryFile_EContentType;
-using NYqlClient::NProto::TYqlResponse;
-
 using namespace NConcurrency;
 using namespace NYson;
+
+using NYqlClient::NProto::TYqlQueryFile_EContentType;
+using NYqlClient::NProto::TYqlResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,15 +65,13 @@ TYqlExecutorProcess::TYqlExecutorProcess(
     , YqlPluginProcess_(yqlPluginProcess)
     , ProcessFinishFuture_(std::move(processFinishFuture))
     , RunRequestTimeout_(runRequestTimeout)
-    { }
-
-////////////////////////////////////////////////////////////////////////////////
+{ }
 
 TClustersResult TYqlExecutorProcess::GetUsedClusters(
-        TQueryId queryId,
-        TString queryText,
-        NYson::TYsonString settings,
-        std::vector<TQueryFile> files)
+    TQueryId queryId,
+    TString queryText,
+    TYsonString settings,
+    std::vector<TQueryFile> files)
 {
     auto getUsedClustersReq = PluginProxy_.GetUsedClusters();
 
@@ -107,14 +105,12 @@ TClustersResult TYqlExecutorProcess::GetUsedClusters(
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TQueryResult TYqlExecutorProcess::Run(
     TQueryId queryId,
     TString user,
-    NYson::TYsonString credentials,
+    TYsonString credentials,
     TString queryText,
-    NYson::TYsonString settings,
+    TYsonString settings,
     std::vector<TQueryFile> files,
     int executeMode)
 {
@@ -132,10 +128,10 @@ TQueryResult TYqlExecutorProcess::Run(
     runQueryReq->set_settings(settings.ToString());
 
     for (const auto& file : files) {
-      auto queryFile = runQueryReq->add_files();
-      queryFile->set_name(file.Name);
-      queryFile->set_content(file.Content);
-      queryFile->set_type(static_cast<TYqlQueryFile_EContentType>(file.Type));
+        auto queryFile = runQueryReq->add_files();
+        queryFile->set_name(file.Name);
+        queryFile->set_content(file.Content);
+        queryFile->set_type(static_cast<TYqlQueryFile_EContentType>(file.Type));
     }
 
     runQueryReq->set_mode(executeMode);
@@ -148,8 +144,6 @@ TQueryResult TYqlExecutorProcess::Run(
 
     return ToQueryResult(response.Value()->response());
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId)
 {
@@ -167,9 +161,8 @@ TQueryResult TYqlExecutorProcess::GetProgress(TQueryId queryId)
     return ToQueryResult(response.Value()->response());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId) {
+TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId)
+{
     YT_LOG_INFO("Aborting query (SlotIndex: %v, QueryId: %v)", SlotIndex_, queryId);
     auto abortQueryReq = PluginProxy_.AbortQuery();
     ToProto(abortQueryReq->mutable_query_id(), queryId);
@@ -187,14 +180,12 @@ TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId) {
     return abortResult;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     TQueryId queryId,
     TString user,
     TString queryText,
-    NYson::TYsonString settings,
-    NYson::TYsonString credentials)
+    TYsonString settings,
+    TYsonString credentials)
 {
     auto getDeclaredParametersInfoReq = PluginProxy_.GetDeclaredParametersInfo();
 
@@ -215,10 +206,9 @@ TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     };
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 template<typename T, typename R>
-T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const {
+T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const
+{
     TError error = TError(errorMessage)
         << response
         << TErrorAttribute("slot_index", SlotIndex_);
@@ -228,48 +218,41 @@ T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, cons
     };
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-int TYqlExecutorProcess::SlotIndex() const {
+int TYqlExecutorProcess::SlotIndex() const
+{
     return SlotIndex_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-int TYqlExecutorProcess::DynamicConfigVersion() const {
+int TYqlExecutorProcess::DynamicConfigVersion() const
+{
     return DynamicConfigVersion_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*config*/) {
+void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*config*/)
+{
     // do nothing
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TYqlExecutorProcess::Start() {
+void TYqlExecutorProcess::Start()
+{
     // do nothing
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TYqlExecutorProcess::Stop() {
+void TYqlExecutorProcess::Stop()
+{
     if (ActiveQueryId_) {
         Abort(*ActiveQueryId_);
     }
     YqlPluginProcess_->Kill(SIGKILL);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TYqlExecutorProcess::SubscribeOnFinish(TCallback<void (const TErrorOr<void>& )> callback) {
+void TYqlExecutorProcess::SubscribeOnFinish(TCallback<void (const TErrorOr<void>&)> callback)
+{
     ProcessFinishFuture_.Subscribe(callback);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-bool TYqlExecutorProcess::WaitReady() {
+bool TYqlExecutorProcess::WaitReady()
+{
     // Here we are waiting for rpc server inside started subprocess to be ready to accept calls.
     YT_LOG_DEBUG("Waiting for process to be ready (SlotIndex: %v)", SlotIndex_);
     return DoWithRetry<std::exception>(
@@ -281,17 +264,17 @@ bool TYqlExecutorProcess::WaitReady() {
         });
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<TQueryId> TYqlExecutorProcess::ActiveQueryId() const {
+std::optional<TQueryId> TYqlExecutorProcess::ActiveQueryId() const
+{
     auto guard = Guard(ActiveQueryIdLock_);
     return ActiveQueryId_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void TYqlExecutorProcess::CheckReady() {
-    Y_ENSURE(NFS::Exists(UnixSocketPath_), "Unix socket must exist for process to be ready");
+void TYqlExecutorProcess::CheckReady()
+{
+    THROW_ERROR_EXCEPTION_UNLESS(
+        NFS::Exists(UnixSocketPath_),
+        "Unix socket must exist for process to be ready");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

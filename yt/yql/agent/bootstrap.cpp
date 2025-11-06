@@ -121,9 +121,9 @@ void TBootstrap::DoRun()
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
-    NApi::NNative::TConnectionOptions connectionOptions;
+    NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    NativeConnection_ = NApi::NNative::CreateConnection(
+    NativeConnection_ = NNative::CreateConnection(
         Config_->ClusterConnection,
         std::move(connectionOptions));
 
@@ -167,7 +167,7 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         AgentId_);
 
-    NYTree::IMapNodePtr orchidRoot;
+    IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
         Config_->SolomonExporter,
@@ -317,7 +317,7 @@ void TBootstrap::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-const NApi::NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
+const NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
 {
     return Config_->ClusterConnection;
 }
