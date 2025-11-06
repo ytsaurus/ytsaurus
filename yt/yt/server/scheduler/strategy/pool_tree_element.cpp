@@ -596,6 +596,11 @@ void TPoolTreeElement::BuildResourceMetering(
     TMeteringMap* /*statistics*/) const
 { }
 
+bool TPoolTreeElement::IsDemandFullySatisfied() const
+{
+    return Dominates(Attributes_.FairShare.Total + TResourceVector::Epsilon(), Attributes_.DemandShare);
+}
+
 double TPoolTreeElement::GetAccumulatedResourceRatioVolume() const
 {
     return PersistentAttributes_.IntegralResourcesState.AccumulatedVolume.GetMinResourceRatio(TotalResourceLimits_);

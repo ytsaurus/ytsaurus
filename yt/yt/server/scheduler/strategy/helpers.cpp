@@ -2,6 +2,8 @@
 
 #include "operation.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NScheduler::NStrategy {
@@ -54,6 +56,13 @@ TJobResources ComputeAvailableResources(
     const TJobResources& resourceDiscount)
 {
     return resourceLimits - resourceUsage + resourceDiscount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsGpuPoolTree(const TStrategyTreeConfigPtr& config)
+{
+    return config->MainResource == EJobResourceType::Gpu;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

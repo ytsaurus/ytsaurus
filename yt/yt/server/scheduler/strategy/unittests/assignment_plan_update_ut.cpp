@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_context_detail.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -22,7 +23,7 @@ namespace {
 
 static inline constexpr i64 GB = 1000 * 1000 * 1000;
 
-static const std::vector<std::string> TestModules{"ALA", "BEG", "EVN"};
+static const THashSet<std::string> TestModules{"ALA", "BEG", "EVN"};
 
 static const std::string TestAllocationGroupName{"task"};
 
@@ -119,6 +120,36 @@ TDiskQuota ToDiskQuota(const TDiskRequest& diskRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestAssignmentPlanContext
+    : public TAssignmentPlanContextBase
+{
+public:
+    TTestAssignmentPlanContext(
+        const TOperationMap& operations,
+        const TNodeMap& nodes,
+        NLogging::TLogger logger)
+        : TAssignmentPlanContextBase(std::move(logger))
+        , Operations_(operations)
+        , Nodes_(nodes)
+    { }
+
+    const TOperationMap& Operations() const override
+    {
+        return Operations_;
+    }
+
+    const TNodeMap& Nodes() const override
+    {
+        return Nodes_;
+    }
+
+private:
+    const TOperationMap& Operations_;
+    const TNodeMap& Nodes_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGpuAllocationAssignmentPlanUpdateTest
     : public testing::Test
 {
@@ -131,9 +162,9 @@ public:
 protected:
     const NLogging::TLogger Logger{"Test"};
 
-    static TGpuAllocationSchedulerConfigPtr GetTestConfig()
+    static TGpuSchedulingPolicyConfigPtr GetTestConfig()
     {
-        auto config = New<TGpuAllocationSchedulerConfig>();
+        auto config = New<TGpuSchedulingPolicyConfig>();
         config->Modules = TestModules;
 
         return config;
@@ -144,8 +175,8 @@ protected:
         const TJobResources& nodeResources,
         TDiskResources diskResources = TestSingleMediumDiskResources)
     {
-        auto node = New<TNode>();
-        node->SetSchedulingModule(std::move(module));
+        auto node = New<TNode>(Format("node-%v", NextAvailableNodeId_));
+        node->SchedulingModule() = std::move(module);
 
         auto descriptor = New<TExecNodeDescriptor>();
         descriptor->Id = static_cast<NNodeTrackerClient::TNodeId>(NextAvailableNodeId_);
@@ -153,7 +184,11 @@ protected:
         descriptor->Online = true;
         descriptor->ResourceLimits = nodeResources;
         descriptor->DiskResources = std::move(diskResources);
-        node->UpdateDescriptor(std::move(descriptor));
+
+        // Important to pass the TNode::IsSchedulable check.
+        descriptor->ResourceLimits.SetUserSlots(1);
+
+        node->SetDescriptor(std::move(descriptor));
 
         ++NextAvailableNodeId_;
 
@@ -224,12 +259,15 @@ protected:
         std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
         bool gang = false)
     {
-        return New<TOperation>(
+        auto operation = New<TOperation>(
             TOperationId(TGuid::Create()),
             type,
-            groupedNeededResources,
             gang,
             std::move(specifiedSchedulingModules));
+        operation->Initialize(groupedNeededResources);
+        operation->ReadyToAssignGroupedNeededResources() = groupedNeededResources;
+
+        return operation;
     }
 
     TOperationPtr CreateSingleGroupTestOperation(
@@ -310,14 +348,12 @@ protected:
     }
 
     void DoAllocationAssignmentPlanUpdate(
-        const TOperationMap& operations,
-        const TNodeMap& nodes,
-        TGpuAllocationSchedulerConfigPtr config = GetTestConfig(),
+        IAssignmentPlanContext* context,
+        TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
         TGpuAllocationAssignmentPlanUpdateExecutor updateExecutor(
-            operations,
-            nodes,
+            context,
             now,
             std::move(config),
             Logger);
@@ -327,7 +363,7 @@ protected:
     void DoAllocationAssignmentPlanUpdate(
         const std::vector<TOperationPtr>& operations,
         const std::vector<TNodePtr>& nodes,
-        TGpuAllocationSchedulerConfigPtr config = GetTestConfig(),
+        TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
         TOperationMap operationMap;
@@ -340,7 +376,8 @@ protected:
             EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
         }
 
-        DoAllocationAssignmentPlanUpdate(operationMap, nodeMap, std::move(config), now);
+        TTestAssignmentPlanContext context(operationMap, nodeMap, Logger);
+        DoAllocationAssignmentPlanUpdate(&context, std::move(config), now);
     }
 
     void AddReadyToAssignAllocations(
@@ -696,10 +733,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRemoveAssignmentAfterPlanning
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
     const auto& node = *nodes.begin();
-    EXPECT_EQ(UnitResources * 4, node->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 4, node->AssignedResourceUsage());
 
     const auto& operation = operations[0];
-    EXPECT_EQ(UnitResources * 4, operation->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 4, operation->AssignedResourceUsage());
 
     RemoveAssignment(*node->Assignments().begin());
 
@@ -788,10 +825,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSmallOperationsPackBestEffort
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 3, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 1, operations[2]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 1, operations[3]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 3, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 1, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 1, operations[3]->AssignedResourceUsage());
 
     auto fullNode = (*operations[0]->Assignments().begin())->Node;
     EXPECT_EQ(fullNode, (*operations[2]->Assignments().begin())->Node);
@@ -836,7 +873,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPartiallyScheduledGangGoesFir
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 3, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 3, operations[0]->AssignedResourceUsage());
 
     RemoveAssignment(*operations[0]->Assignments().begin());
 
@@ -1026,9 +1063,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
     auto checkBeforePreemption = [&] {
         EXPECT_EQ(TestNodeResources, node->AssignedResourceUsage());
 
-        EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-        EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
-        EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+        ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+        ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+        ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
 
         EXPECT_EQ(0, operations[0]->GetReadyToAssignNeededAllocationCount());
         EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
@@ -1049,6 +1086,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
     DoAllocationAssignmentPlanUpdate(operations, nodes);
     checkBeforePreemption();
 
+    ASSERT_FALSE(operations[1]->Assignments().empty());
+
     auto preemptibleAssignment = *operations[1]->Assignments().begin();
     preemptibleAssignment->Preemptible = true;
 
@@ -1056,9 +1095,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
 
     EXPECT_EQ(UnitResources * 7, node->AssignedResourceUsage());
 
-    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 1, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 1, operations[2]->AssignedResourceUsage());
 
     EXPECT_EQ(0, operations[0]->GetReadyToAssignNeededAllocationCount());
     EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
@@ -1088,8 +1127,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignmen
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
 
     operations[1]->SetStarving(true);
 
@@ -1125,8 +1164,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignment
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
 
     operations[1]->SetStarving(true);
 
@@ -1137,8 +1176,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignment
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
 
     const auto& node = *nodes.begin();
     EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
@@ -1164,8 +1203,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 8, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 8, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 8, operations[1]->AssignedResourceUsage());
 
     for (const auto& operation : operations) {
         // Check that all operation's assignments are assigned to the same node.
@@ -1293,10 +1332,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreem
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 3, operations[2]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 3, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
 
     (*operations[0]->Assignments().begin())->Preemptible = true;
     (*operations[2]->Assignments().begin())->Preemptible = true;
@@ -1306,10 +1345,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreem
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TJobResources(), operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
 
     const auto& node = *nodes.begin();
     EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
@@ -1374,9 +1413,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
 
     EXPECT_EQ(operations[1]->SchedulingModule(), operations[2]->SchedulingModule());
     EXPECT_TRUE(operations[2]->WaitingForAssignmentsSince());
@@ -1414,16 +1453,16 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemption)
     auto now = TInstant::FromValue(117);
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
 
-    EXPECT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(now, operations[1]->WaitingForAssignmentsSince());
+    ASSERT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(now, operations[1]->WaitingForAssignmentsSince());
 
     now += TDuration::Seconds(1);
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
 
-    EXPECT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(now - TDuration::Seconds(1), operations[1]->WaitingForAssignmentsSince());
+    ASSERT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(now - TDuration::Seconds(1), operations[1]->WaitingForAssignmentsSince());
 
     auto smallAssignment = *operations[0]->Assignments().begin();
 
@@ -1489,8 +1528,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 5, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 5, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 5, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 5, operations[1]->AssignedResourceUsage());
 
     operations.push_back(CreateSimpleTestOperation());
 
@@ -1511,9 +1550,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
 
-    EXPECT_EQ(TestNodeResources * 4, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 5, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 4, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 5, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources, operations[2]->AssignedResourceUsage());
 
     EXPECT_FALSE(operations[0]->SchedulingModule());
     EXPECT_EQ((*nodes.begin())->SchedulingModule(), operations[0]->GetUsedSchedulingModule());
@@ -1558,9 +1597,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRegularPreemptionDoesNotConsi
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
 
     operations[2]->SetStarving(true);
 
@@ -1584,8 +1623,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionC
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
 
     for (const auto& operation : operations) {
         auto preemptibleAssignment = *operation->Assignments().begin();
@@ -1789,6 +1828,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBinding)
     EXPECT_EQ(TJobResources(), operations[3]->AssignedResourceUsage());
     EXPECT_EQ(TInstant::FromValue(117), operations[3]->WaitingForModuleBindingSince());
 
+    ASSERT_FALSE(operations[0]->Assignments().empty());
+
     auto assignmentToBePreempted = *operations[0]->Assignments().begin();
 
     now += config->PriorityModuleBindingTimeout;
@@ -1964,9 +2005,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 2, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 2, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
 
     auto expectedModule = operations[0]->SchedulingModule();
 
@@ -2013,9 +2054,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 2, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 2, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
 
     auto oldModule = operations[0]->SchedulingModule();
 
@@ -2026,10 +2067,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 1, operations[0]->AssignedResourceUsage());
-    EXPECT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources * 1, operations[3]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 1, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 160, operations[2]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 1, operations[3]->AssignedResourceUsage());
 
     EXPECT_FALSE(operations[0]->SchedulingModule());
     EXPECT_EQ(oldModule, operations[0]->GetUsedSchedulingModule());

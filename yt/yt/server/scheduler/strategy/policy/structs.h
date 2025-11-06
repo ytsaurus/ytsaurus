@@ -80,7 +80,7 @@ struct TOperationState final
     std::optional<ESchedulingSegment> SchedulingSegment;
     TSchedulingSegmentModule SchedulingSegmentModule;
     std::optional<TNetworkPriority> NetworkPriority;
-    std::optional<THashSet<TString>> SpecifiedSchedulingSegmentModules;
+    std::optional<THashSet<std::string>> SpecifiedSchedulingSegmentModules;
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;
 
