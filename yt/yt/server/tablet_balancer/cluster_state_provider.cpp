@@ -76,7 +76,7 @@ TClusterStateProvider::TClusterStateProvider(
     , ControlInvoker_(std::move(controlInvoker))
     , WorkerPool_(CreateThreadPool(
         config->WorkerThreadPoolSize,
-        "StateProviderPool"))
+        "ClusterStatePool"))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TClusterStateProvider::FetchState, MakeWeak(this)),
@@ -87,6 +87,13 @@ TClusterStateProvider::TClusterStateProvider(
 void TClusterStateProvider::Start()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+    {
+        auto guard = WriterGuard(Lock_);
+
+        BundlesFuture_.Reset();
+        NodesFuture_.Reset();
+    }
 
     PollExecutor_->Start();
 }
