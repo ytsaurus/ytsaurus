@@ -645,6 +645,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ++NodeCount_;
+        NodeIdToAddress_.emplace(nodeId, nodeAddress);
 
         SchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
         GpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
@@ -655,6 +656,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         --NodeCount_;
+        NodeIdToAddress_.erase(nodeId);
 
         SchedulingPolicy_->UnregisterNode(nodeId);
         GpuSchedulingPolicy_->UnregisterNode(nodeId);
@@ -1288,7 +1290,13 @@ public:
         dynamicOrchidService->AddChild("node_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshotForOrchid();
 
-            BuildYsonFluently(consumer).Value(treeSnapshot->NodeCount());
+            BuildYsonFluently(consumer).Value(std::ssize(treeSnapshot->NodeAddresses()));
+        })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
+
+        dynamicOrchidService->AddChild("node_addresses", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
+            auto treeSnapshot = GetTreeSnapshotForOrchid();
+
+            BuildYsonFluently(consumer).Value(GetValues(treeSnapshot->NodeAddresses()));
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         // TODO(eshcherbin): Why not use tree snapshot here as well?
@@ -1399,6 +1407,7 @@ private:
     // NB(eshcherbin): We have the set of nodes both in strategy and in tree allocation scheduler.
     // Here we only keep current node count to have it ready for snapshot.
     int NodeCount_ = 0;
+    THashMap<TNodeId, std::string> NodeIdToAddress_;
 
     class TPoolsOrchidServiceBase
         : public TYPathServiceBase
@@ -1782,8 +1791,6 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
-        const int nodeCount = NodeCount_;
-
         auto rootElement = RootElement_->Clone();
         {
             TEventTimerGuard timer(FairSharePreUpdateTimer_);
@@ -1905,7 +1912,7 @@ private:
             ControllerConfig_,
             fairShareUpdateResult.ResourceUsage,
             fairShareUpdateResult.ResourceLimits,
-            nodeCount,
+            NodeIdToAddress_,
             std::move(schedulingPolicyState),
             std::move(fairShareUpdateResult.ResourceLimitsByTagFilter));
 

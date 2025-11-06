@@ -26,7 +26,7 @@ class TPoolTreeSnapshot
     DEFINE_BYREF_RO_PROPERTY(TStrategyOperationControllerConfigPtr, ControllerConfig);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
-    DEFINE_BYREF_RO_PROPERTY(int, NodeCount);
+    DEFINE_BYREF_RO_PROPERTY(TNodeIdToAddress, NodeAddresses);
     DEFINE_BYREF_RO_PROPERTY(NPolicy::TPoolTreeSnapshotStatePtr, SchedulingPolicyState);
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesByTagFilter, ResourceLimitsByTagFilter);
 
@@ -41,7 +41,7 @@ public:
         TStrategyOperationControllerConfigPtr controllerConfig,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
-        int nodeCount,
+        TNodeIdToAddress nodeAddresses,
         NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
         TJobResourcesByTagFilter resourceLimitsByTagFilter);
 
