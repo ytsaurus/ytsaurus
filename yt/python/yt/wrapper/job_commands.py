@@ -3,13 +3,104 @@ from .driver import make_request, make_formatted_request
 from .common import set_param
 from .ypath import YPath
 
+from typing import Optional, TypedDict, List, Dict, Any
 
-def list_jobs(operation_id,
-              job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
-              sort_field=None, sort_order=None, limit=None, offset=None,
-              with_stderr=None, with_spec=None, with_fail_context=None, with_monitoring_descriptor=None,
-              with_interruption_info=None, include_cypress=None, include_runtime=None, include_archive=None,
-              data_source=None, attributes=None, operation_incarnation=None, monitoring_descriptor=None, format=None, client=None):
+
+class ListJobJobType(TypedDict, total=False):
+    id: str
+    type: str
+    state: str
+    controller_state: str
+    archive_state: str
+    address: str
+    addresses: Dict[str, str]
+    start_time: str
+    finish_time: str
+    has_spec: bool
+    job_competition_id: str
+    probing_job_competition_id: str
+    has_competitors: bool
+    brief_statistics: Dict[str, Any]
+    core_infos: List[Any]
+    exec_attributes: Dict[str, Any]
+    task_name: str
+    pool_tree: str
+    pool: str
+    is_stale: bool
+    job_cookie: int
+    allocation_id: str
+
+
+class GetJobJobType(ListJobJobType):
+    operation_id: str
+
+    class JobEventsType(TypedDict, total=False):
+        time: str
+        state: Optional[str]
+        phase: str
+
+    events: List[JobEventsType]
+
+    class JobStatisticsType(TypedDict, total=False):
+        chunk_reader_statistics: Dict[str, Any]
+        chunk_writer_statistics: Dict[str, Any]
+        codec: Dict[str, Any]
+        data: Dict[str, Any]
+        exec_agent: Dict[str, Any]
+        job_proxy: Dict[str, Any]
+        latency: Dict[str, Any]
+        time: Dict[str, Any]
+        user_job: Dict[str, Any]
+
+    statistics: JobStatisticsType
+
+
+class ListJobsType(TypedDict, total=False):
+    jobs: List[ListJobJobType]
+    cypress_job_count: Optional[int]
+    scheduler_job_count: Optional[int]
+    controller_agent_job_count: Optional[int]
+    archive_job_count: Optional[int]
+    type_counts: Dict[str, Any]
+    state_counts: Dict[str, Any]
+    errors: List[Any]
+    continuation_token: Any
+
+
+class JobSpecType(TypedDict, total=False):
+    type: int
+    version: int
+    resource_limits: Dict[str, Any]
+    job_spec_ext: Dict[str, Any]
+    reduce_job_spec_ext: Dict[str, Any]
+
+
+def list_jobs(
+    operation_id: str,
+    job_type=None,
+    job_state=None,
+    address=None,
+    job_competition_id=None,
+    with_competitors=None,
+    sort_field=None,
+    sort_order=None,
+    limit=None,
+    offset=None,
+    with_stderr=None,
+    with_spec=None,
+    with_fail_context=None,
+    with_monitoring_descriptor=None,
+    with_interruption_info=None,
+    include_cypress=None,
+    include_runtime=None,
+    include_archive=None,
+    data_source=None,
+    attributes=None,
+    operation_incarnation=None,
+    monitoring_descriptor=None,
+    format=None,
+    client=None,
+) -> ListJobsType:
     """List jobs of operation."""
     params = {"operation_id": operation_id}
     set_param(params, "job_type", job_type)
@@ -44,7 +135,7 @@ def list_jobs(operation_id,
         timeout=timeout)
 
 
-def get_job(operation_id, job_id, format=None, client=None):
+def get_job(operation_id: str, job_id: str, format=None, client=None) -> GetJobJobType:
     """Get job of operation.
 
     :param str operation_id: operation id.
@@ -60,7 +151,7 @@ def get_job(operation_id, job_id, format=None, client=None):
         timeout=timeout)
 
 
-def run_job_shell(job_id, shell_name=None, timeout=None, command=None, client=None):
+def run_job_shell(job_id: str, shell_name: Optional[str] = None, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.
 
     :param str job_id: job id.
@@ -71,7 +162,7 @@ def run_job_shell(job_id, shell_name=None, timeout=None, command=None, client=No
     JobShell(job_id, shell_name=shell_name, interactive=True, timeout=timeout, client=client).run(command=command)
 
 
-def get_job_stderr(operation_id, job_id, client=None):
+def get_job_stderr(operation_id: str, job_id: str, client=None) -> bytes:
     """Gets stderr of the specified job.
 
     :param str operation_id: operation id.
@@ -84,7 +175,7 @@ def get_job_stderr(operation_id, job_id, client=None):
         client=client)
 
 
-def get_job_trace(operation_id, job_id,
+def get_job_trace(operation_id: str, job_id: str,
                   trace_id=None, from_time=None, to_time=None, client=None):
     """Get traces of the specified job."""
     params = {"operation_id": operation_id, "job_id": job_id}
@@ -100,7 +191,7 @@ def get_job_trace(operation_id, job_id,
         client=client)
 
 
-def get_job_input(job_id, client=None):
+def get_job_input(job_id: str, client=None):
     """Get full input of the specified job.
 
     :param str job_id: job id.
@@ -113,7 +204,7 @@ def get_job_input(job_id, client=None):
         client=client)
 
 
-def get_job_input_paths(job_id, client=None):
+def get_job_input_paths(job_id: str, client=None):
     """Get input paths of the specified job.
 
     :param str job_if: job id.
@@ -129,7 +220,7 @@ def get_job_input_paths(job_id, client=None):
     return list(map(YPath, yson_paths))
 
 
-def abort_job(job_id, interrupt_timeout=None, client=None):
+def abort_job(job_id: str, interrupt_timeout: Optional[int] = None, client=None):
     """Interrupts running job with preserved result.
 
     :param str job_id: job id.
@@ -140,7 +231,7 @@ def abort_job(job_id, interrupt_timeout=None, client=None):
     return make_request("abort_job", params, client=client)
 
 
-def dump_job_proxy_log(job_id, operation_id, path, client=None):
+def dump_job_proxy_log(job_id: str, operation_id: str, path: str, client=None):
     """Dumps JobProxy logs for a specified job to cypress.
 
     :param str job_id: job id.
@@ -155,12 +246,12 @@ def dump_job_proxy_log(job_id, operation_id, path, client=None):
     return make_request("dump_job_proxy_log", params, client=client)
 
 
-def dump_job_context(job_id, path, client=None):
+def dump_job_context(job_id: str, path: str, client=None):
     """Dumps job input context to specified path."""
     return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
 
 
-def get_job_fail_context(operation_id, job_id, client=None):
+def get_job_fail_context(operation_id: str, job_id: str, client=None):
     """Get fail context of the specified job.
 
     :param str operation_id: operation id.
@@ -174,11 +265,11 @@ def get_job_fail_context(operation_id, job_id, client=None):
         client=client)
 
 
-def get_job_spec(job_id,
-                 omit_node_directory=None,
-                 omit_input_table_specs=None,
-                 omit_output_table_specs=None,
-                 client=None):
+def get_job_spec(job_id: str,
+                 omit_node_directory: Optional[bool] = None,
+                 omit_input_table_specs: Optional[bool] = None,
+                 omit_output_table_specs: Optional[bool] = None,
+                 client=None) -> JobSpecType:
     """Get spec of the specified job.
 
     :param str job_id: job id.

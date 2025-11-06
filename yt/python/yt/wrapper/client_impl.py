@@ -7,10 +7,14 @@ from .default_config import DefaultConfigType
 from .mappings import VerifiedDict
 from . import client_api
 
-from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import ForwardRef
+
+from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
+from .job_commands import GetJobJobType, JobSpecType, ListJobsType
+from .operation_commands import GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
 from .ypath import YPath
@@ -130,8 +134,8 @@ class YtClient(ClientState):
 
     def abort_job(
             self,
-            job_id,
-            interrupt_timeout=None):
+            job_id: str,
+            interrupt_timeout: Optional[int] = None):
         """
         Interrupts running job with preserved result.
 
@@ -146,8 +150,8 @@ class YtClient(ClientState):
 
     def abort_operation(
             self,
-            operation,
-            message=None, reason=None):
+            operation: str,
+            message: str = None, reason: str = None):
         """
         Aborts operation.
 
@@ -443,7 +447,7 @@ class YtClient(ClientState):
 
     def complete_operation(
             self,
-            operation):
+            operation: str):
         """
         Completes operation.
 
@@ -721,7 +725,7 @@ class YtClient(ClientState):
 
     def dump_job_context(
             self,
-            job_id, path):
+            job_id: str, path: str):
         """
         Dumps job input context to specified path.
         """
@@ -1059,8 +1063,8 @@ class YtClient(ClientState):
 
     def get_job(
             self,
-            operation_id, job_id,
-            format=None):
+            operation_id: str, job_id: str,
+            format=None) -> GetJobJobType:
         """
         Get job of operation.
 
@@ -1075,7 +1079,7 @@ class YtClient(ClientState):
 
     def get_job_input(
             self,
-            job_id):
+            job_id: str):
         """
         Get full input of the specified job.
 
@@ -1088,7 +1092,7 @@ class YtClient(ClientState):
 
     def get_job_input_paths(
             self,
-            job_id):
+            job_id: str):
         """
         Get input paths of the specified job.
 
@@ -1102,8 +1106,9 @@ class YtClient(ClientState):
 
     def get_job_spec(
             self,
-            job_id,
-            omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None):
+            job_id: str,
+            omit_node_directory: Optional[bool] = None, omit_input_table_specs: Optional[bool] = None,
+            omit_output_table_specs: Optional[bool] = None) -> JobSpecType:
         """
         Get spec of the specified job.
 
@@ -1121,7 +1126,7 @@ class YtClient(ClientState):
 
     def get_job_stderr(
             self,
-            operation_id, job_id):
+            operation_id: str, job_id: str) -> bytes:
         """
         Gets stderr of the specified job.
 
@@ -1135,7 +1140,7 @@ class YtClient(ClientState):
 
     def get_job_trace(
             self,
-            operation_id, job_id,
+            operation_id: str, job_id: str,
             trace_id=None, from_time=None, to_time=None):
         """
         Get traces of the specified job.
@@ -1147,7 +1152,8 @@ class YtClient(ClientState):
 
     def get_operation(
             self,
-            operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None):
+            operation_id: str = None, operation_alias: str = None, attributes: Optional[List[str]] = None,
+            include_runtime: Optional[bool] = None, format: Union[str, Format, None] = None) -> GetOperationOperationType:
         """
         Get operation attributes through API.
 
@@ -1159,8 +1165,8 @@ class YtClient(ClientState):
 
     def get_operation_attributes(
             self,
-            operation,
-            fields=None):
+            operation: str,
+            fields: Optional[List[str]] = None):
         """
         Returns dict with operation attributes.
 
@@ -1176,7 +1182,7 @@ class YtClient(ClientState):
 
     def get_operation_state(
             self,
-            operation):
+            operation: str) -> OperationState:
         """
         Returns current state of operation.
 
@@ -1575,12 +1581,12 @@ class YtClient(ClientState):
 
     def list_jobs(
             self,
-            operation_id,
+            operation_id: str,
             job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
             with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
             include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
-            operation_incarnation=None, monitoring_descriptor=None, format=None):
+            operation_incarnation=None, monitoring_descriptor=None, format=None) -> ListJobsType:
         """
         List jobs of operation.
         """
@@ -1597,8 +1603,8 @@ class YtClient(ClientState):
 
     def list_operation_events(
             self,
-            operation_id,
-            event_type=None, format=None):
+            operation_id: str,
+            event_type: str = None, format: Union[str, Format, None] = None):
         """
         List events of given operation.
 
@@ -1613,9 +1619,12 @@ class YtClient(ClientState):
 
     def list_operations(
             self,
-            user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
-            from_time=None, to_time=None, cursor_time=None, cursor_direction=None, include_archive=None,
-            include_counters=None, limit=None, enable_ui_mode=False, attributes=None, format=None):
+            user: str = None, state: Union[ForwardRef("OperationState"), Literal["aborted", "completed", "failed", "running", "starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"], None] = None,  # noqa
+            type: Optional[str] = None, filter: Optional[str] = None, pool_tree: Optional[str] = None,
+            pool: Optional[str] = None, with_failed_jobs: Optional[bool] = None, from_time=None, to_time=None,
+            cursor_time=None, cursor_direction: Optional[Literal["future", "past"]] = None, include_archive: Optional[bool] = None,
+            include_counters: Optional[bool] = None, limit: Optional[int] = None, enable_ui_mode: bool = False,
+            attributes: Optional[List[str]] = None, format: Union[str, Format, None] = None) -> ListOperationsType:
         """
         List operations that satisfy given options.
 
@@ -1844,7 +1853,7 @@ class YtClient(ClientState):
 
     def patch_operation_spec(
             self,
-            operation_id, patches):
+            operation_id: str, patches: List[Mapping[str, Any]]):
         """
         Patches operation spec.
         """
@@ -2394,7 +2403,7 @@ class YtClient(ClientState):
 
     def resume_operation(
             self,
-            operation):
+            operation: str):
         """
         Continues operation after suspending.
 
@@ -2487,8 +2496,8 @@ class YtClient(ClientState):
 
     def run_job_shell(
             self,
-            job_id,
-            shell_name=None, timeout=None, command=None):
+            job_id: str,
+            shell_name: Optional[str] = None, timeout=None, command=None):
         """
         Runs interactive shell in the job sandbox.
 
@@ -3098,8 +3107,8 @@ class YtClient(ClientState):
 
     def suspend_operation(
             self,
-            operation,
-            abort_running_jobs=False, reason=None):
+            operation: str,
+            abort_running_jobs: bool = False, reason: str = None):
         """
         Suspends operation.
 
@@ -3270,7 +3279,7 @@ class YtClient(ClientState):
 
     def update_operation_parameters(
             self,
-            operation_id, parameters):
+            operation_id: str, parameters: Mapping[str, Any]):
         """
         Updates operation runtime parameters.
         """

@@ -62,6 +62,8 @@ from .default_config import DefaultConfigType
 from .mappings import VerifiedDict
 from . import client_api
 
+from typing import ForwardRef
+
 {modules}
 
 
