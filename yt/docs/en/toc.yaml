@@ -174,7 +174,7 @@ items:
            items:
              - name: Overview
                href: user-guide/data-processing/scheduler/scheduler-and-pools.md
-             - name: Pool characteristics
+             - name: Setting up pool trees
                href: user-guide/data-processing/scheduler/pool-settings.md
              - name: How the fair share ratio is calculated
                href: user-guide/data-processing/scheduler/fair-share.md
@@ -190,8 +190,6 @@ items:
                href: user-guide/data-processing/scheduler/memory-digest.md
              - name: Managing compute pools
                href: user-guide/data-processing/scheduler/manage-pools.md
-             - name: Example of setting up pools
-               href: user-guide/data-processing/scheduler/pool-examples.md
          - name: Operation types
            when: audience == "public"
            items:
