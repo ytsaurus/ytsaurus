@@ -11,6 +11,9 @@
 #include "operation.h"
 #include "operation_state.h"
 #include "field_filter.h"
+#include "helpers.h"
+
+#include <yt/yt/server/scheduler/strategy/policy/gpu/scheduling_policy.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
@@ -294,6 +297,13 @@ public:
             StrategyHost_,
             Config_,
             Profiler_))
+        , GpuSchedulingPolicy_(IsGpuPoolTree(Config_) && Config_->GpuSchedulingPolicy
+            ? NPolicy::NGpu::CreateSchedulingPolicy(
+                MakeWeak(this),
+                StrategyHost_,
+                TreeId_,
+                Config_->GpuSchedulingPolicy)
+            : NPolicy::NGpu::CreateDummySchedulingPolicy())
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
@@ -319,6 +329,7 @@ public:
         ProfileManager_->RegisterPool(RootElement_);
 
         SchedulingPolicy_->Initialize();
+        GpuSchedulingPolicy_->Initialize();
 
         YT_LOG_INFO("Pool tree created");
     }
@@ -369,12 +380,19 @@ public:
             return false;
         }
 
+        auto oldConfig = Config_;
+
         Config_ = config;
         ConfigNode_ = std::move(configNode);
         RootElement_->UpdateTreeConfig(Config_);
         ResourceTree_->UpdateConfig(Config_);
 
         SchedulingPolicy_->UpdateConfig(Config_);
+        if (Config_->GpuSchedulingPolicy) {
+            GpuSchedulingPolicy_->UpdateConfig(Config_->GpuSchedulingPolicy);
+        } else if (oldConfig->GpuSchedulingPolicy) {
+            YT_LOG_WARNING("GPU scheduling policy config has been removed");
+        }
 
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
@@ -477,6 +495,7 @@ public:
             Logger);
 
         SchedulingPolicy_->RegisterOperation(operationElement.Get());
+        GpuSchedulingPolicy_->RegisterOperation(operationElement.Get());
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
@@ -516,12 +535,14 @@ public:
         ProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
+        GpuSchedulingPolicy_->DisableOperation(operationElement.Get());
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
         SchedulingPolicy_->UnregisterOperation(operationElement.Get());
+        GpuSchedulingPolicy_->UnregisterOperation(operationElement.Get());
 
         EraseOrCrash(OperationIdToElement_, operationId);
 
@@ -540,6 +561,7 @@ public:
         operationElement->GetMutableParent()->EnableChild(operationElement);
 
         SchedulingPolicy_->EnableOperation(operationElement.Get());
+        GpuSchedulingPolicy_->EnableOperation(operationElement.Get());
     }
 
     void DisableOperation(const TStrategyOperationStatePtr& state) override
@@ -548,6 +570,8 @@ public:
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
+        GpuSchedulingPolicy_->DisableOperation(operationElement.Get());
+
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
 
@@ -616,13 +640,14 @@ public:
         SchedulingPolicy_->RegisterAllocationsFromRevivedOperation(element.Get(), std::move(allocations));
     }
 
-    void RegisterNode(TNodeId nodeId) override
+    void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ++NodeCount_;
 
-        SchedulingPolicy_->RegisterNode(nodeId);
+        SchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
+        GpuSchedulingPolicy_->RegisterNode(nodeId, nodeAddress);
     }
 
     void UnregisterNode(TNodeId nodeId) override
@@ -632,6 +657,7 @@ public:
         --NodeCount_;
 
         SchedulingPolicy_->UnregisterNode(nodeId);
+        GpuSchedulingPolicy_->UnregisterNode(nodeId);
     }
 
     const std::string& GetId() const override
@@ -1025,6 +1051,8 @@ public:
 
     TPersistentTreeStatePtr BuildPersistentState() const override
     {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto result = New<TPersistentTreeState>();
         for (const auto& [poolId, pool] : Pools_) {
             if (pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
@@ -1068,7 +1096,10 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        return SchedulingPolicy_->OnOperationMaterialized(element.Get());
+        auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get());
+        GpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+
+        return error;
     }
 
     TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
@@ -1276,6 +1307,7 @@ public:
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         SchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
+        GpuSchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -1335,6 +1367,7 @@ private:
 
     const NProfiling::TProfiler Profiler_;
     const NPolicy::TSchedulingPolicyPtr SchedulingPolicy_;
+    const NPolicy::NGpu::ISchedulingPolicyPtr GpuSchedulingPolicy_;
     const TPoolTreeProfileManagerPtr ProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -2622,6 +2655,12 @@ private:
     TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        StrategyHost_->GetControlInvoker(EControlQueue::Strategy)->Invoke(BIND(
+            &NGpu::ISchedulingPolicy::UpdateNodeDescriptor,
+            GpuSchedulingPolicy_,
+            schedulingHeartbeatContext->GetNodeDescriptor()->Id,
+            schedulingHeartbeatContext->GetNodeDescriptor()));
 
         if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
             traceContext->AddTag("tree", TreeId_);

@@ -146,7 +146,7 @@ struct IPoolTree
 
     virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) = 0;
 
-    virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+    virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
     virtual const std::string& GetId() const = 0;

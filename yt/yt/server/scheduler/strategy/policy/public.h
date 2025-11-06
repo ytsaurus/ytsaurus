@@ -8,7 +8,8 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulingPolicyHost;
+DECLARE_REFCOUNTED_STRUCT(ISchedulingPolicyHost);
+
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingHeartbeatContext)
@@ -56,6 +57,7 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (FullHostAggressivePreemption)
     (EvictionFromSchedulingModule)
     (OperationBoundToOtherModule)
+    (NodeUnschedulable)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

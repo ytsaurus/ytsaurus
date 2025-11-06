@@ -17,6 +17,7 @@ TEST_SRCS(
     test_scheduler_config.py
     test_scheduler_common.py
     test_scheduler_experiments.py
+    test_scheduler_gpu.py
     test_scheduler_job_commands.py
     test_scheduler_job_tables.py
     test_scheduler_node_interaction.py

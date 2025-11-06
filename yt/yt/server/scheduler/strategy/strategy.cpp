@@ -1183,11 +1183,11 @@ public:
             }));
     }
 
-    void RegisterNodeInTree(const IPoolTreePtr& tree, TNodeId nodeId)
+    void RegisterNodeInTree(const IPoolTreePtr& tree, TNodeId nodeId, const std::string& nodeAddress)
     {
         auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, tree->GetId());
         InsertOrCrash(treeNodeIds, nodeId);
-        tree->RegisterNode(nodeId);
+        tree->RegisterNode(nodeId, nodeAddress);
     }
 
     void UnregisterNodeInTree(const IPoolTreePtr& tree, TNodeId nodeId)
@@ -1514,6 +1514,8 @@ public:
 
     TPersistentStrategyStatePtr BuildPersistentState()
     {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         auto result = New<TPersistentStrategyState>();
         for (const auto& [treeId, tree] : IdToTree_) {
             EmplaceOrCrash(result->TreeStates, treeId, tree->BuildPersistentState());
@@ -2192,7 +2194,7 @@ private:
 
             if (treeId) {
                 const auto& tree = GetOrCrash(IdToTree_, *treeId);
-                RegisterNodeInTree(tree, nodeId);
+                RegisterNodeInTree(tree, nodeId, nodeAddress);
             }
 
             YT_LOG_INFO("Node was registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
@@ -2288,7 +2290,7 @@ private:
         }
         if (newTreeId) {
             const auto& newTree = GetOrCrash(idToTree, *newTreeId);
-            RegisterNodeInTree(newTree, nodeId);
+            RegisterNodeInTree(newTree, nodeId, currentDescriptor.Address);
         }
 
         currentDescriptor.TreeId = newTreeId;

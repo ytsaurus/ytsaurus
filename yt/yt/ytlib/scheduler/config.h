@@ -476,7 +476,7 @@ struct TStrategyOperationSpec
     EPreemptionMode PreemptionMode;
 
     std::optional<ESchedulingSegment> SchedulingSegment;
-    std::optional<THashSet<TString>> SchedulingSegmentModules;
+    std::optional<THashSet<std::string>> SchedulingModules;
 
     bool EnableLimitingAncestorCheck;
 
