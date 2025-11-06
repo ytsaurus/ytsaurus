@@ -2759,7 +2759,8 @@ private:
         BufferedProducer_->Update(buffer);
     }
 
-    struct TOldNodeAlert {
+    struct TOldNodeAlert
+    {
         std::optional<std::string> OldestNodeAddress;
         TInstant OldestNodeChangeTime;
         int AlertedNodeCount = 0;
