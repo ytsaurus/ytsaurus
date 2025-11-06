@@ -1,5 +1,7 @@
 package NYT.NTableClient.NProto;
 
+option go_package = "go.ytsaurus.tech/yt/go/proto/client/table_client";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TFilesExternalSourceSpec
