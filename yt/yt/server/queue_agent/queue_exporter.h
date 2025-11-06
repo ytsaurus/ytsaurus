@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
-#include <yt/yt/ytlib/api/native/type_handler.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
