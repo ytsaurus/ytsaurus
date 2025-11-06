@@ -64,7 +64,8 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPath& pipelinePath)
 {
     auto address = DiscoverPipelineControllerLeader(pipelinePath);
-    auto channel = ChannelFactory_->CreateChannel(address);
+    // Cannot use ChannelFactory_ here because it injects internal TVM ticket.
+    auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
     TControllerServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(Connection_->GetConfig()->FlowPipelineControllerRpcTimeout);
     return proxy;
