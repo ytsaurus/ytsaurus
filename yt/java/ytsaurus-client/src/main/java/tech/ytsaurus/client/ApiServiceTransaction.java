@@ -56,7 +56,9 @@ import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResult;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
@@ -535,6 +537,21 @@ public class ApiServiceTransaction extends Pingable implements TransactionalClie
     @Override
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
         return client.putFileToCache(req.toBuilder().setTransactionalOptions(transactionalOptions).build());
+    }
+
+    @Override
+    public CompletableFuture<UnversionedLookupRowsResult> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return client.lookupRowsV2(request.toBuilder().setTimestamp(startTimestamp).build());
+    }
+
+    @Override
+    public CompletableFuture<VersionedLookupRowsResult> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return client.versionedLookupRowsV2(request.toBuilder().setTimestamp(startTimestamp).build());
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResult>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return client.multiLookupRowsV2(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
     /**

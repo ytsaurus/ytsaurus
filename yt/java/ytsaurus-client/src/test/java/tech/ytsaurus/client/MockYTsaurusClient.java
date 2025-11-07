@@ -125,8 +125,10 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.request.WriteTableFragment;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResult;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
@@ -208,6 +210,21 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
             YTreeRowSerializer<T> serializer
     ) {
         return (CompletableFuture<List<T>>) callMethod("lookupRows");
+    }
+
+    @Override
+    public CompletableFuture<UnversionedLookupRowsResult> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return (CompletableFuture<UnversionedLookupRowsResult>) callMethod("lookupRowsV2");
+    }
+
+    @Override
+    public CompletableFuture<VersionedLookupRowsResult> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return (CompletableFuture<VersionedLookupRowsResult>) callMethod("versionedLookupRowsV2");
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResult>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return (CompletableFuture<List<UnversionedLookupRowsResult>>) callMethod("multiLookupRowsV2");
     }
 
     @Override

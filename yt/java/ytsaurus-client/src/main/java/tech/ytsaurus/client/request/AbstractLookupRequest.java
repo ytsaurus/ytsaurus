@@ -28,6 +28,7 @@ public abstract class AbstractLookupRequest<
     // NB. Java default of keepMissingRows is different from YT default for historical reasons,
     // now we have to keep backward compatibility.
     protected boolean keepMissingRows;
+    protected boolean enablePartialResult;
 
     protected final List<UnversionedRow> filters;
     protected final List<List<?>> unconvertedFilters;
@@ -41,6 +42,7 @@ public abstract class AbstractLookupRequest<
         }
         this.lookupColumns = new ArrayList<>(Objects.requireNonNull(builder.lookupColumns));
         this.keepMissingRows = builder.keepMissingRows;
+        this.enablePartialResult = builder.enablePartialResult;
         this.unconvertedFilters = new ArrayList<>(builder.unconvertedFilters);
         this.filters = new ArrayList<>(builder.filters);
     }
@@ -94,6 +96,15 @@ public abstract class AbstractLookupRequest<
     }
 
     /**
+     * Get enable-partial-result parameter.
+     *
+     * @see Builder#setEnablePartialResult(boolean)
+     */
+    public boolean getEnablePartialResult() {
+        return enablePartialResult;
+    }
+
+    /**
      * Get lookup-columns parameter.
      *
      * @see Builder#addLookupColumn(String)
@@ -128,6 +139,7 @@ public abstract class AbstractLookupRequest<
         // NB. Java default of keepMissingRows is different from YT default for historical reasons,
         // now we have to keep backward compatibility.
         private boolean keepMissingRows = false;
+        private boolean enablePartialResult = false;
 
         protected final List<List<?>> unconvertedFilters = new ArrayList<>();
         protected final List<UnversionedRow> filters = new ArrayList<>();
@@ -171,6 +183,20 @@ public abstract class AbstractLookupRequest<
          */
         public TBuilder setKeepMissingRows(boolean keepMissingRows) {
             this.keepMissingRows = keepMissingRows;
+            return self();
+        }
+
+        /**
+         * Whether to enable partial result on lookup failures.
+         * <p>
+         * When this parameter is set to true, lookup can return partial results
+         * if some keys are unavailable due to timeout or other failures.
+         * Unavailable key indexes are returned in the response to identify which keys failed.
+         * <p>
+         * Default is false.
+         */
+        public TBuilder setEnablePartialResult(boolean enablePartialResult) {
+            this.enablePartialResult = enablePartialResult;
             return self();
         }
 
@@ -220,6 +246,15 @@ public abstract class AbstractLookupRequest<
          */
         public boolean getKeepMissingRows() {
             return keepMissingRows;
+        }
+
+        /**
+         * Get value of enable-partial-result parameter.
+         *
+         * @see #setEnablePartialResult(boolean)
+         */
+        public boolean getEnablePartialResult() {
+            return enablePartialResult;
         }
 
         /**
