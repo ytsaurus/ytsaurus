@@ -2632,6 +2632,54 @@ class TestCypress(YTEnvSetup):
 
         remove("//tmp/t", prerequisite_revisions=[{"path": "//tmp/t&", "revision": target_revision}])
 
+    @authors("koloshmet")
+    def test_attribute_with_prerequisite_revisions(self):
+        create("string_node", "//tmp/test_node")
+        set("//tmp/test_node/@test_attribute", "value", recursive=True)
+        revision = get("//tmp/test_node/@revision")
+
+        assert get(
+            "//tmp/test_node/@test_attribute",
+            prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+        ) == "value"
+
+        set(
+            "//tmp/test_node/@test_attribute",
+            "another value 3",
+            prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+        )
+
+        with raises_yt_error("revision mismatch"):
+            get(
+                "//tmp/test_node/@test_attribute",
+                prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+            )
+
+        with raises_yt_error("revision mismatch"):
+            remove(
+                "//tmp/test_node/@test_attribute",
+                prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+            )
+
+        revision = get("//tmp/test_node/@revision")
+        remove(
+            "//tmp/test_node/@test_attribute",
+            prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+        )
+
+        with raises_yt_error("revision mismatch"):
+            set(
+                "//tmp/test_node/@test_attribute",
+                "one more value",
+                prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+            )
+
+        revision = get("//tmp/test_node/@revision")
+        assert not exists(
+            "//tmp/test_node/@test_attribute",
+            prerequisite_revisions=[{"path": "//tmp/test_node", "revision": revision}]
+        )
+
     @authors("kvk1920", "cherepashka")
     def test_prerequisite_revision_validation_on_link_removal(self):
         create("string_node", "//tmp/s")

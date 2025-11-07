@@ -255,7 +255,8 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
     resolvedPrerequisiteRevisions.reserve(prerequisiteRevisions.size());
     for (const auto& revision : prerequisiteRevisions) {
         // Prerequisite revision paths are prohibited to differ from target and additional paths.
-        auto pathIsAdditional = !PathsEqualIgnoringTrailingAmpersands(revision.Path, originalTargetPath);
+        auto pathIsAdditional = !PathsEqualIgnoringTrailingAmpersands(
+            revision.Path, StripAttributes(originalTargetPath));
         auto prerequisiteRevisionResolveResult = ResolvePath(
             session,
             revision.Path,
@@ -310,8 +311,9 @@ TError CheckPrerequisiteRevisionsPaths(
         }
         originalSourcePath = ValidateAndMakeYPath(TRawYPath(ypathExt.additional_paths(0)));
     }
+    auto targetNodePath = StripAttributes(originalTargetPath);
     for (const auto& revision : prerequisiteRevisions) {
-        if (PathsEqualIgnoringTrailingAmpersands(revision.Path, originalTargetPath)
+        if (PathsEqualIgnoringTrailingAmpersands(revision.Path, targetNodePath)
             || (originalSourcePath && PathsEqualIgnoringTrailingAmpersands(revision.Path, *originalSourcePath)))
         {
             continue;
