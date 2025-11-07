@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
 
@@ -23,10 +23,9 @@ inline constexpr int MaxNodeGpuCount = 8;
 struct TAssignment final
 {
     const std::string AllocationGroupName;
-    TOperation* const Operation = nullptr;
-    TNode* const Node = nullptr;
-
-    TJobResourcesWithQuota ResourceUsage;
+    const TJobResourcesWithQuota ResourceUsage;
+    TOperation* const Operation;
+    TNode* const Node;
 
     bool Preemptible = false;
     bool Preempted = false;
@@ -44,18 +43,22 @@ DEFINE_REFCOUNTED_TYPE(TAssignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): (!) Hide operation and node behind an interface so that
+// assignment plan update algorithm would not be able to change internal state.
 class TOperation final
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
-    // TODO(eshcherbin): What if some allocations complete successfully?
-    DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, InitialGroupedNeededResources);
+
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TAllocationGroupResourcesMap>, InitialGroupedNeededResources);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<TAssignmentPtr>, Assignments);
 
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
+
+    using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
+    DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, AssignmentCountPerGroup);
 
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
 
@@ -66,6 +69,7 @@ public:
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Starving);
 
     // Priority module binding may evict some current operations from a module if necessary.
+    // TODO(eshcherbin): (!) Set this property.
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PriorityModuleBindingEnabled);
 
     //! These properties can be changed during assignment plan update.
@@ -84,9 +88,11 @@ public:
     TOperation(
         TOperationId id,
         EOperationType type,
-        const TAllocationGroupResourcesMap& initialGroupedNeededResources,
         bool gang,
         std::optional<THashSet<std::string>> specifiedSchedulingModules);
+
+    void Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources);
+    bool IsInitialized() const;
 
     bool IsFullHost() const;
     bool IsFullHostModuleBound() const;
@@ -114,13 +120,14 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Support disk
 class TNode final
 {
 public:
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
+    DEFINE_BYREF_RO_PROPERTY(std::string, Address);
     DEFINE_BYREF_RO_PROPERTY(TExecNodeDescriptorPtr, Descriptor);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, SchedulingModule);
+    // TODO(eshcherbin): Add type alias for scheduling module.
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, SchedulingModule);
 
     using TAssignmentSet = TCompactSet<TAssignmentPtr, MaxNodeGpuCount>;
     DEFINE_BYREF_RO_PROPERTY(TAssignmentSet, Assignments);
@@ -129,22 +136,24 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TAssignmentSet, PreemptedAssignments);
 
 public:
-    int GetUnassignedGpuCount() const;
+    explicit TNode(std::string address);
 
-    void SetSchedulingModule(std::string schedulingModule);
-    void UpdateDescriptor(TExecNodeDescriptorPtr descriptor);
+    bool IsSchedulable() const;
+
+    int GetUnassignedGpuCount() const;
 
     std::vector<TDiskQuota> GetPreliminaryAssignedDiskRequests() const;
 
     void AddAssignment(const TAssignmentPtr& assignment);
     void RemoveAssignment(const TAssignmentPtr& assignment);
     void PreemptAssignment(const TAssignmentPtr& assignment);
+
+    void SetDescriptor(TExecNodeDescriptorPtr descriptor);
 };
 
 using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
 
 DEFINE_REFCOUNTED_TYPE(TNode)
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

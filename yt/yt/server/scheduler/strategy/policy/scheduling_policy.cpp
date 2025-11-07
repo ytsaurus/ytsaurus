@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <library/cpp/yt/yson/consumer.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 using namespace NConcurrency;
@@ -2533,7 +2535,7 @@ void TSchedulingPolicy::Initialize()
     MinNodeResourceLimitsCheckExecutor_->Start();
 }
 
-void TSchedulingPolicy::RegisterNode(TNodeId nodeId)
+void TSchedulingPolicy::RegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -2543,8 +2545,9 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId)
 
         YT_LOG_DEBUG(
             "Revived node's scheduling segment "
-            "(NodeId: %v, SchedulingSegment: %v)",
+            "(NodeId: %v, NodeAddress: %v, SchedulingSegment: %v)",
             nodeId,
+            nodeAddress,
             initialSchedulingSegment);
     }
 
@@ -2596,7 +2599,8 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
         nodeState->LastRunningAllocationStatisticsUpdateTime = schedulingHeartbeatContext->GetNow();
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
-    if (IsGpuTree(treeConfig)) {
+
+    if (IsGpuPoolTree(treeConfig)) {
         auto allocationInfos = CollectRunningAllocationsWithPreemptionInfo(schedulingHeartbeatContext, treeSnapshot);
 
         nodeState->RunningAllocations.clear();
@@ -2828,12 +2832,16 @@ TError TSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TP
 
 void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element) const
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     auto operationId = element->GetOperationId();
     GetOperationSharedState(operationId)->Enable();
 }
 
 void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     auto operationId = element->GetOperationId();
     GetOperationSharedState(operationId)->Disable();
     element->ReleaseResources(markAsNonAlive);
@@ -3253,6 +3261,8 @@ void TSchedulingPolicy::BuildElementLoggingStringAttributes(
 
 void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     if (persistentState) {
         try {
             InitialPersistentState_ = ConvertTo<TPersistentStatePtr>(persistentState);
@@ -3281,20 +3291,17 @@ void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
 
 INodePtr TSchedulingPolicy::BuildPersistentState() const
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     auto persistentState = PersistentState_
         ? PersistentState_
         : InitialPersistentState_;
     return ConvertToNode(persistentState);
 }
 
-bool TSchedulingPolicy::IsGpuTree(const TStrategyTreeConfigPtr& config)
-{
-    return config->MainResource == EJobResourceType::Gpu;
-}
-
 bool TSchedulingPolicy::IsGpuTree() const
 {
-    return IsGpuTree(Config_);
+    return IsGpuPoolTree(Config_);
 }
 
 void TSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const

@@ -12,6 +12,7 @@
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 using namespace NLogging;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
 
@@ -91,13 +92,13 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 // TODO(eshcherbin): Support opportunistic jobs.
 TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateExecutor(
-    const TOperationMap& operations,
-    const TNodeMap& nodes,
+    IAssignmentPlanContext* context,
     TInstant now,
-    TGpuAllocationSchedulerConfigPtr config,
+    TGpuSchedulingPolicyConfigPtr config,
     NLogging::TLogger logger)
-    : Operations_(operations)
-    , Nodes_(nodes)
+    : Context_(context)
+    , Operations_(Context_->Operations())
+    , Nodes_(Context_->Nodes())
     , Now_(now)
     , Config_(std::move(config))
     , Logger(std::move(logger))
@@ -106,6 +107,8 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateEx
 void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
 {
     YT_LOG_INFO("Starting GPU allocation assignment plan update");
+
+    TForbidContextSwitchGuard contextSwitchGuard;
 
     InitializeModuleStates();
 
@@ -124,7 +127,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     // TODO(eshcherbin): Add validation that nodes are consistent with previous assignments.
     std::vector<std::pair<std::string, std::optional<std::string>>> nodesWithUnknownModule;
     for (const auto& [_, node] : Nodes_) {
-        if (!node->Descriptor() || !node->SchedulingModule()) {
+        if (!node->IsSchedulable()) {
             continue;
         }
 
@@ -621,39 +624,6 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
     }
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::AddAssignment(const TAssignmentPtr& assignment)
-{
-    YT_LOG_DEBUG("Adding assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
-        assignment->AllocationGroupName,
-        assignment->ResourceUsage,
-        assignment->Node->Descriptor()->GetDefaultAddress(),
-        assignment->Operation->GetId());
-
-    assignment->Node->AddAssignment(assignment);
-    assignment->Operation->AddAssignment(assignment);
-}
-
-void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAssignment(
-    const TAssignmentPtr& assignment,
-    EAllocationPreemptionReason preemptionReason,
-    std::string preemptionDescription)
-{
-    YT_LOG_DEBUG(
-        "Preempting assignment (Reason: %v, Description: %v, "
-        "AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
-        preemptionReason,
-        preemptionDescription,
-        assignment->AllocationGroupName,
-        assignment->ResourceUsage,
-        assignment->Node->Descriptor()->GetDefaultAddress(),
-        assignment->Operation->GetId());
-
-    assignment->PreemptionReason = preemptionReason;
-    assignment->PreemptionDescription = std::move(preemptionDescription);
-    assignment->Node->PreemptAssignment(assignment);
-    assignment->Operation->RemoveAssignment(assignment);
-}
-
 void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
     const TOperationPtr& operation,
     EAllocationPreemptionReason preemptionReason,
@@ -661,7 +631,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
 {
     // NB(eshcherbin): Copy assignments with |GetItems|, because the set will be modified.
     for (const auto& assignment : GetItems(operation->Assignments())) {
-        PreemptAssignment(assignment, preemptionReason, preemptionDescription);
+        Context_->PreemptAssignment(assignment, preemptionReason, preemptionDescription);
     }
 }
 
@@ -807,12 +777,11 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TNode* node)
 {
-    auto assignment = New<TAssignment>(
+    Host_->Context_->AddAssignment(
         AllocationGroupName_,
         AllocationGroupResources_.MinNeededResources,
         Operation_.Get(),
         node);
-    Host_->AddAssignment(assignment);
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::ShouldConsiderDiskUsage() const
@@ -930,7 +899,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
         nodeState.PreemptibleAssignments.pop_back();
         nodeState.PreemptibleResourceUsage -= preemptibleAssignment->ResourceUsage;
 
-        Host_->PreemptAssignment(preemptibleAssignment, PreemptionReason_, PreemptionDescription_);
+        Host_->Context_->PreemptAssignment(preemptibleAssignment, PreemptionReason_, PreemptionDescription_);
 
         ++PreemptedAssignmentCount_;
     }

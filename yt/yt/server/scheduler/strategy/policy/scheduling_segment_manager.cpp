@@ -208,7 +208,7 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
             operationId);
 
         operationState->SchedulingSegment = segment;
-        operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingSegmentModules;
+        operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingModules;
         if (IsModuleAwareSchedulingSegment(segment)) {
             YT_LOG_INFO("XXX (SpecifiedSchedulingSegmentModules: %v, AllModules: %v)", operationState->SpecifiedSchedulingSegmentModules, Config_->GetModules());
             if (operationState->SpecifiedSchedulingSegmentModules) {
@@ -661,10 +661,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             continue;
         }
 
-        bool demandFullySatisfied = Dominates(
-            element->Attributes().FairShare.Total + TResourceVector::Epsilon(),
-            element->Attributes().DemandShare);
-        if (operation->SchedulingSegmentModule || !demandFullySatisfied) {
+        if (operation->SchedulingSegmentModule || !element->IsDemandFullySatisfied()) {
             continue;
         }
 

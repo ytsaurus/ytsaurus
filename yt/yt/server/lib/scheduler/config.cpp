@@ -276,10 +276,16 @@ const THashSet<std::string>& TStrategySchedulingSegmentsConfig::GetModules() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
+void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("plan_update_period", &TThis::PlanUpdatePeriod)
+        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
         .Default(TDuration::Minutes(20));
+
+    registrar.Parameter("module_type", &TThis::ModuleType)
+        .Default(ESchedulingSegmentModuleType::DataCenter);
 
     registrar.Parameter("modules", &TThis::Modules)
         .Default();
@@ -294,7 +300,7 @@ void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1))
         .GreaterThanOrEqual(TDuration::Seconds(1));
 
-    registrar.Postprocessor([&] (TGpuAllocationSchedulerConfig* config) {
+    registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
         for (const auto& module : config->Modules) {
             ValidateGpuSchedulingModuleName(module);
         }
@@ -654,6 +660,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
+
+    registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
+        .Default();
 
     registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
         .Default(true);

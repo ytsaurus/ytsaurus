@@ -2771,7 +2771,7 @@ void TStrategyPackingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int MaxSchedulingSegmentModuleCount = 8;
+static constexpr int MaxSchedulingModuleCount = 8;
 
 void TStrategyOperationSpec::Register(TRegistrar registrar)
 {
@@ -2822,7 +2822,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(EPreemptionMode::Normal);
     registrar.Parameter("scheduling_segment", &TThis::SchedulingSegment)
         .Default();
-    registrar.Parameter("scheduling_segment_modules", &TThis::SchedulingSegmentModules)
+    registrar.Parameter("scheduling_modules", &TThis::SchedulingModules)
+        .Alias("scheduling_segment_modules")
         .Alias("scheduling_segment_data_centers")
         .NonEmpty()
         .Default();
@@ -2840,10 +2841,10 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
-        if (spec->SchedulingSegmentModules && spec->SchedulingSegmentModules->size() >= MaxSchedulingSegmentModuleCount) {
+        if (spec->SchedulingModules && spec->SchedulingModules->size() >= MaxSchedulingModuleCount) {
             THROW_ERROR_EXCEPTION("%Qv size must be not greater than %v",
-                "scheduling_segment_modules",
-                MaxSchedulingSegmentModuleCount);
+                "scheduling_modules",
+                MaxSchedulingModuleCount);
         }
         if (spec->ScheduleInSingleTree && (spec->TentativePoolTrees || spec->UseDefaultTentativePoolTrees)) {
             THROW_ERROR_EXCEPTION("%Qv option cannot be used simultaneously with tentative pool trees (check %Qv and %Qv)",

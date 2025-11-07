@@ -22,7 +22,9 @@ SRCS(
     strategy.cpp
 
     # TODO(eshcherbin): Remove cyclic dependencies and extract policy to a separate build target.
+    policy/gpu/assignment_plan_context_detail.cpp
     policy/gpu/assignment_plan_update.cpp
+    policy/gpu/scheduling_policy.cpp
     policy/gpu/structs.cpp
     policy/gpu/helpers.cpp
 

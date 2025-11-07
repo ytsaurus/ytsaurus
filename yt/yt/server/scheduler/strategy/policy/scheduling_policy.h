@@ -8,6 +8,8 @@
 #include "scheduling_heartbeat_context.h"
 #include "scheduling_segment_manager.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/gpu/public.h>
+
 #include <yt/yt/server/scheduler/strategy/field_filter.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
@@ -577,12 +579,15 @@ struct TPostUpdateContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): (!) Remove this interface completely and provide tree snapshot the other way round.
 struct ISchedulingPolicyHost
     : public virtual TRefCounted
 {
     //! Thread affinity: Control.
     virtual TPoolTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ISchedulingPolicyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -602,7 +607,7 @@ public:
     void Initialize();
 
     //! Node management.
-    void RegisterNode(NNodeTrackerClient::TNodeId nodeId);
+    void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress);
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId);
 
     //! Process scheduling heartbeat.
@@ -693,7 +698,6 @@ public:
     void InitPersistentState(NYTree::INodePtr persistentState);
     NYTree::INodePtr BuildPersistentState() const;
 
-    static bool IsGpuTree(const TStrategyTreeConfigPtr& config);
     bool IsGpuTree() const;
 
     void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const;

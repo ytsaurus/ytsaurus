@@ -222,12 +222,17 @@ DEFINE_REFCOUNTED_TYPE(TStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuAllocationSchedulerConfig
+struct TGpuSchedulingPolicyConfig
     : public NYTree::TYsonStruct
 {
+    TDuration PlanUpdatePeriod;
+
     TDuration ModuleReconsiderationTimeout;
 
-    std::vector<std::string> Modules;
+    // TODO(eshcherbin): Rework how modules are configured.
+    ESchedulingSegmentModuleType ModuleType;
+
+    THashSet<std::string> Modules;
 
     TDuration PriorityModuleBindingTimeout;
 
@@ -235,12 +240,12 @@ struct TGpuAllocationSchedulerConfig
 
     TDuration MinAssignmentPreemptibleDuration;
 
-    REGISTER_YSON_STRUCT(TGpuAllocationSchedulerConfig);
+    REGISTER_YSON_STRUCT(TGpuSchedulingPolicyConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuAllocationSchedulerConfig)
+DEFINE_REFCOUNTED_TYPE(TGpuSchedulingPolicyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -493,6 +498,8 @@ struct TStrategyTreeConfig
     bool EnableDetailedLogsForSingleAllocationVanillaOperations;
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
+
+    TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
 
     // Testing options.
     bool EnablePreliminaryResourceLimitsCheck;
