@@ -1,1 +1,1 @@
-{% include [How to try](../../../_includes/user-guide/data-processing/chyt/try-chyt.md) %}
+{% include [Как попробовать](../../../_includes/user-guide/data-processing/chyt/try-chyt.md) %}
