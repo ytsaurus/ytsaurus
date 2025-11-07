@@ -2584,16 +2584,33 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
         queuePath,
         offset);
 
+    NProfiling::TWallTimer timer;
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
         .ValueOrThrow();
+    auto mountCacheWaitTime = timer.GetElapsedTime();
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
     // The non-native API via SelectRows checks permissions on its own.
+    std::optional<TDuration> permissionCacheWaitTime;
     if (checkPermissions && options.UseNativeTabletNodeApi) {
+        timer.Restart();
         CheckReadPermission(queuePath.GetPath(), tableInfo, Options_, Connection_);
+        permissionCacheWaitTime = timer.GetElapsedTime();
+    }
+
+    if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
+        options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
+        if (!options.DetailedProfilingInfo->TablePath) {
+            // NB: Could be already set to consumer path.
+            options.DetailedProfilingInfo->TablePath = queuePath.GetPath();
+        }
+        options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+        if (permissionCacheWaitTime) {
+            options.DetailedProfilingInfo->PermissionCacheWaitTime += *permissionCacheWaitTime;
+        }
     }
 
     // The code below is used to facilitate reading from [chaos] replicated tables and
@@ -2861,11 +2878,22 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
     const TPullQueueConsumerOptions& options)
 {
+    NProfiling::TWallTimer timer;
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
         .ValueOrThrow();
+    auto mountCacheWaitTime = timer.GetElapsedTime();
 
+    timer.Restart();
     CheckReadPermission(consumerPath.GetPath(), tableInfo, Options_, Connection_);
+    auto permissionCacheWaitTime = timer.GetElapsedTime();
+
+    if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
+        options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
+        options.DetailedProfilingInfo->TablePath = consumerPath.GetPath();
+        options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+        options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
+    }
 
     auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
 
