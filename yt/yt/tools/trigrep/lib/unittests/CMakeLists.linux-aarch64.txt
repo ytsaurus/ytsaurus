@@ -14,12 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(unittests)
-
-add_library(tools-trigrep-lib)
+add_executable(yt-yt-tools-trigrep-lib-unittests)
 
 
-target_compile_options(tools-trigrep-lib PRIVATE
+target_compile_options(yt-yt-tools-trigrep-lib-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -27,22 +25,66 @@ target_compile_options(tools-trigrep-lib PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_link_libraries(tools-trigrep-lib PUBLIC
+target_link_libraries(yt-yt-tools-trigrep-lib-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   yt-yt-core
-  cpp-containers-absl_flat_hash
-  cpp-yt-coding
-  contrib-libs-zstd
+  yt-core-test_framework
+  tools-trigrep-lib
 )
 
-target_sources(tools-trigrep-lib PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/uncompressed_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/zstd_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/index_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/line_reader.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/matcher.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/helpers.cpp
+target_allocator(yt-yt-tools-trigrep-lib-unittests
+  system_allocator
 )
 
+target_link_options(yt-yt-tools-trigrep-lib-unittests PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lrt
+  -ldl
+  -lutil
+)
+
+target_sources(yt-yt-tools-trigrep-lib-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/trigrep/lib/unittests/zstd_reader_ut.cpp
+)
+
+
+add_test(
+  NAME
+  yt-yt-tools-trigrep-lib-unittests
+  COMMAND
+  yt-yt-tools-trigrep-lib-unittests
+)
+
+set_property(
+  TEST
+  yt-yt-tools-trigrep-lib-unittests
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  yt-yt-tools-trigrep-lib-unittests
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(yt-yt-tools-trigrep-lib-unittests)
+
+set_property(
+  TEST
+  yt-yt-tools-trigrep-lib-unittests
+  PROPERTY
+  PROCESSORS
+  1
+)
