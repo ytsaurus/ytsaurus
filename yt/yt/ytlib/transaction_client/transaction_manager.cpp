@@ -944,7 +944,7 @@ private:
         return connection;
     }
 
-    template<class TReqStartTransactionPtr>
+    template <class TReqStartTransactionPtr>
     void FillStartTransactionReq(
         const TReqStartTransactionPtr& request,
         const TTransactionStartOptions& options)

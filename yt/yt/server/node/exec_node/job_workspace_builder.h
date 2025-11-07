@@ -142,13 +142,13 @@ protected:
     void SetNowTime(std::optional<TInstant>& timeField);
 
 private:
-    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+    template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TCallback<TFuture<void>()> MakeStep();
 
-    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+    template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TFuture<void> GuardedAction();
 
-    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+    template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     constexpr const char* GetStepName();
 };
 

@@ -9,11 +9,11 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<>
+template <>
 TString TSkiffIterator::TBase::Name_ = TString();
-template<>
+template <>
 TString TSkiffIterator::TBase::Doc_ = TString();
-template<>
+template <>
 TString TSkiffIterator::TBase::TypeName_ = TString();
 
 TSkiffIterator::TSkiffIterator(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs)

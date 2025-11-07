@@ -8,7 +8,7 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TProfilingCounter>
+template <class TProfilingCounter>
 TProfilingCounter* GetOrCreateProfilingCounter(
     const NProfiling::TProfiler& profiler,
     const TProfilingTags& profilingTags)

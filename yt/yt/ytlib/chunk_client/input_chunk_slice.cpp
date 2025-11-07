@@ -510,7 +510,7 @@ TInputChunkSlice::TInputChunkSlice(
     OverrideSize(inputChunk, protoChunkSpec);
 }
 
-template<class TProtoChunkSpec>
+template <class TProtoChunkSpec>
 void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec)
 {
     if (!protoChunkSpec.has_row_count_override() && !protoChunkSpec.has_data_weight_override()) {

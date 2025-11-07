@@ -15,7 +15,7 @@ struct TIORequest
     int Index = 0;
 };
 
-template<typename TRequest>
+template <typename TRequest>
 i64 AlignRequest(TRequest* request, i64 pageSize)
 {
     auto originalOffset = request->Offset;

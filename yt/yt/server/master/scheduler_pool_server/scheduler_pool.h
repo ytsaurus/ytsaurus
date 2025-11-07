@@ -32,7 +32,7 @@ public:
     void ValidateStrongGuarantees(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig) const;
     void ValidateStrongGuaranteesRecursively(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig) const;
 
-    template<class TResource>
+    template <class TResource>
     void ValidateChildrenGuaranteeSum(
         const char* guaranteeName,
         NScheduler::EJobResourceType resourceType,

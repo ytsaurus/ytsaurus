@@ -70,7 +70,7 @@ private:
 template <typename T>
 class TMutable {
 public:
-    template<typename... TArgs>
+    template <typename... TArgs>
     explicit TMutable(TArgs&&... args)
         : TObj_(std::forward<TArgs>(args)...)
     { }

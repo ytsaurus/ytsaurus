@@ -41,7 +41,7 @@ using NNet::TIP6Address;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename F>
+template <typename F>
 concept CCallableReturningFuture = requires(F f) {
     { f() } -> CFuture;
 };

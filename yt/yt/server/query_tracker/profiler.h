@@ -44,7 +44,7 @@ struct TStateTimeProfilingCounter
 using TStateTimeProfilingCountersMap = NConcurrency::TSyncMap<TProfilingTags, TStateTimeProfilingCounter>;
 using TActiveQueriesProfilingCountersMap = NConcurrency::TSyncMap<TProfilingTags, TActiveQueriesProfilingCounter>;
 
-template<class TProfilingCounter>
+template <class TProfilingCounter>
 TProfilingCounter* GetOrCreateProfilingCounter(
     const NProfiling::TProfiler& profiler,
     const TProfilingTags& profilingTags);

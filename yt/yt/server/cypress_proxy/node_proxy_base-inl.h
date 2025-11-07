@@ -16,7 +16,7 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TCtxPtr>
+template <class TCtxPtr>
 void TNodeProxyBase::FinishSequoiaSessionAndReply(
     const TCtxPtr& context,
     NObjectClient::TCellId coordinatorCellId,

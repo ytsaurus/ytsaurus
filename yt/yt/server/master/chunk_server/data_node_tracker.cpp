@@ -855,7 +855,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    template<class THeartbeatContextPtr>
+    template <class THeartbeatContextPtr>
     struct THeartbeatRequest
         : public TRefCounted
     {
@@ -1107,7 +1107,7 @@ private:
         }
     }
 
-    template<class TRequest>
+    template <class TRequest>
     TCompactVector<TChunkLocationIndex, TypicalChunkLocationCount> ParseLocationDirectory(
         const TNode* node,
         const TRequest& request) const
@@ -1132,7 +1132,7 @@ private:
         return locationDirectoryIndexes;
     }
 
-    template<class THeartbeatContextPtr>
+    template <class THeartbeatContextPtr>
     TIntrusivePtr<THeartbeatRequest<THeartbeatContextPtr>> SplitRequest(
         THeartbeatContextPtr context,
         TRange<TChunkLocationIndex> locationDirectory) const
