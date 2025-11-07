@@ -214,7 +214,7 @@ public:
         return GetKnownAttributes<TStrategyTreeConfig>(KnownPoolTreeAttributes_);
     }
 
-    template<class TConfig>
+    template <class TConfig>
     const THashSet<TInternedAttributeKey>& GetKnownAttributes(THashSet<TInternedAttributeKey>& knownAttributesCache)
     {
         if (knownAttributesCache.empty()) {

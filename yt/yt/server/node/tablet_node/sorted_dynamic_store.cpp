@@ -610,7 +610,7 @@ protected:
         }
     }
 
-    template<class T>
+    template <class T>
     int UpperBoundByTimestamp(TEditList<T> list, TTimestamp maxTimestamp)
     {
         if (!list) {

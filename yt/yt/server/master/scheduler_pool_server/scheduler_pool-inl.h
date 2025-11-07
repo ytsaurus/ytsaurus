@@ -8,7 +8,7 @@ namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TResource>
+template <class TResource>
 void TSchedulerPool::ValidateChildrenGuaranteeSum(
     const char* guaranteeName,
     NScheduler::EJobResourceType resourceType,

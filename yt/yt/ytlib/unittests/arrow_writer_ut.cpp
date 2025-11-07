@@ -572,7 +572,8 @@ void CheckColumnNames(
     }
 }
 
-bool CheckMaxConst(const char* ptr) {
+bool CheckMaxConst(const char* ptr)
+{
     ui32 constMax = 0xFFFFFFFF;
     return *(reinterpret_cast<const uint32_t*>(ptr)) == constMax;
 }

@@ -212,7 +212,7 @@ private:
     i64 CompressedDataSize_ = 0;
     i64 UncompressedDataSize_ = 0;
 
-    template<class TProtoChunkSpec>
+    template <class TProtoChunkSpec>
     void OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec);
 
     PHOENIX_DECLARE_TYPE(TInputChunkSlice, 0xe177a42);

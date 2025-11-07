@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoProfilers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 static typename T::mapped_type GetFieldOrError(
     const T& containerStats,
     EStatField field)

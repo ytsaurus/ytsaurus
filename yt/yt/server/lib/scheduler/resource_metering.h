@@ -58,7 +58,7 @@ using TMeteringMap = THashMap<TMeteringKey, TMeteringStatistics>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<>
+template <>
 struct THash<NYT::NScheduler::TMeteringKey>
 {
     size_t operator()(const NYT::NScheduler::TMeteringKey& key) const;
