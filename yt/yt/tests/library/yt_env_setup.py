@@ -229,6 +229,10 @@ def is_msan_build():
     return get_sanitizer_type() == "memory"
 
 
+def is_sanitizer_build():
+    return bool(get_sanitizer_type())
+
+
 def is_debug_build():
     if arcadia_interop.yatest_common is None:
         return False
@@ -1391,7 +1395,7 @@ class YTEnvSetup(object):
         gc.collect()
 
         class_duration = time() - cls._start_time
-        class_limit = (2 if is_asan_build() else 1) * cls.CLASS_TEST_LIMIT
+        class_limit = (2 if is_sanitizer_build() else 1) * cls.CLASS_TEST_LIMIT
 
         if class_duration > class_limit:
             pytest.fail(
