@@ -484,6 +484,9 @@ items:
          href: admin-guide/identity-sync.md
        - name: Tablet cell bundle management
          href: admin-guide/bundle-controller.md
+       - name: Integrating CHYT with external systems
+         href: admin-guide/integration-chyt.md
+         when: audience == "public"
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy

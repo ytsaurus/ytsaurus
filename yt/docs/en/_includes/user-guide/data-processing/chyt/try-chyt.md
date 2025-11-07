@@ -66,7 +66,18 @@ When CHYT is accessed using the deprecated `/query` path, the alias is passed vi
 
 ### Exclusive connection port { #chyt_port }
 
-Not all clients support custom paths. Special ports can be configured on the HTTP Proxy to access CHYT. These ports don't require custom paths to be specified. For the numbers of dedicated ports, please contact the {{product-name}} cluster administrator. The instructions on how you can configure these ports will be added in the near future.
+Not all clients support custom paths. Special ports can be configured on the HTTP Proxy to access CHYT. These ports don't require custom paths to be specified. To open standard ports 8123 and 8443, edit the very top of `cluster_v1_local.yaml`:
+
+```yaml
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: minisaurus
+spec:
+  clusterFeatures:
+	  httpProxyHaveChytAddress: true
+  coreImage: ...
+```
 
 ## ODBC interface { #odbc }
 
