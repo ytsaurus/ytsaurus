@@ -160,8 +160,10 @@ import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResult;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
@@ -181,15 +183,11 @@ import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
-import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpcproxy.EAtomicity;
 import tech.ytsaurus.rpcproxy.EOperationType;
 import tech.ytsaurus.rpcproxy.ETableReplicaMode;
 import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
-import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
-import tech.ytsaurus.rpcproxy.TReqModifyRows;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
 import tech.ytsaurus.rpcproxy.TReqReadTablePartition;
@@ -651,6 +649,18 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public CompletableFuture<UnversionedLookupRowsResult> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, lookupRowsImpl(request, response ->
+                UnversionedLookupRowsResult.builder()
+                        .setRowsetDescriptor(response.body().getRowsetDescriptor())
+                        .setAttachments(response.attachments())
+                        .setUnavailableKeyIndexes(response.body().getUnavailableKeyIndexesList())
+                        .setHeavyExecutor(heavyExecutor)
+                        .setSerializationResolver(serializationResolver)
+                        .build()));
+    }
+
+    @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
@@ -692,12 +702,37 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 }));
     }
 
+
     @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
         return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
         )));
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResult>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return onStarted(request, multiLookupImpl(request, response -> {
+                    List<UnversionedLookupRowsResult> result = new ArrayList<>(response.body().getSubresponsesCount());
+                    int beginAttachmentIndex = 0;
+                    for (var subresponse : response.body().getSubresponsesList()) {
+                        int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+                        result.add(
+                                UnversionedLookupRowsResult.builder()
+                                        .setRowsetDescriptor(subresponse.getRowsetDescriptor())
+                                        .setAttachments(response.attachments().subList(beginAttachmentIndex,
+                                                endAttachmentIndex))
+                                        .setUnavailableKeyIndexes(subresponse.getUnavailableKeyIndexesList())
+                                        .setHeavyExecutor(heavyExecutor)
+                                        .setSerializationResolver(serializationResolver)
+                                        .build()
+                        );
+                        beginAttachmentIndex = endAttachmentIndex;
+                    }
+                    return result;
+                }
+        ));
     }
 
     @Override
@@ -761,12 +796,21 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return result;
     }
 
-
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return onStarted(request, versionedLookupRowsImpl(request, response -> ApiServiceUtil
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments())));
     }
+
+    @Override
+    public CompletableFuture<VersionedLookupRowsResult> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, versionedLookupRowsImpl(request, response ->
+                VersionedLookupRowsResult.builder()
+                        .setResponse(response)
+                        .setHeavyExecutor(heavyExecutor)
+                        .build()));
+    }
+
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
             AbstractLookupRowsRequest<?, ?> request,
@@ -1918,71 +1962,3 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 }
 
-@NonNullApi
-@NonNullFields
-class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
-    private final GUID transactionId;
-    private final AbstractModifyRowsRequest<?, ?> request;
-
-    ModifyRowsWrapper(GUID transactionId, AbstractModifyRowsRequest<?, ?> request) {
-        this.transactionId = transactionId;
-        this.request = request;
-    }
-
-    @Override
-    public String getArgumentsLogString() {
-        return "TransactionId: " + transactionId + "; ";
-    }
-
-    @Override
-    public void writeHeaderTo(TRequestHeader.Builder header) {
-        request.writeHeaderTo(header);
-    }
-
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
-        builder.body().setTransactionId(RpcUtil.toProto(transactionId));
-        builder.body().setPath(ByteString.copyFromUtf8(request.getPath()));
-        if (request.getRequireSyncReplica().isPresent()) {
-            builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
-        }
-        builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-        request.serializeRowsetTo(builder);
-    }
-}
-
-@NonNullApi
-@NonNullFields
-class GetInSyncReplicasWrapper implements HighLevelRequest<TReqGetInSyncReplicas.Builder> {
-    private final YtTimestamp timestamp;
-    private final GetInSyncReplicas request;
-
-    GetInSyncReplicasWrapper(YtTimestamp timestamp, GetInSyncReplicas request) {
-        this.timestamp = timestamp;
-        this.request = request;
-    }
-
-    @Override
-    public String getArgumentsLogString() {
-        return "Path: " + request.getPath() +
-                "; Timestamp: " + timestamp + "; ";
-    }
-
-    @Override
-    public void writeHeaderTo(TRequestHeader.Builder header) {
-        request.writeHeaderTo(header);
-    }
-
-    /**
-     * Internal method: prepare request to send over network.
-     */
-    @Override
-    public void writeTo(RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, ?> builder) {
-        builder.body().setPath(ByteString.copyFromUtf8(request.getPath()));
-        builder.body().setTimestamp(timestamp.getValue());
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-
-        request.serializeRowsetTo(builder.attachments());
-    }
-}

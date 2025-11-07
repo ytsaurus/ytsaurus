@@ -18,7 +18,9 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResult;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.lang.NonNullApi;
@@ -154,9 +156,25 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
         return executor.execute((client) -> client.multiLookupRows(request, serializer));
     }
 
+
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return executor.execute((client) -> client.versionedLookupRows(request));
+    }
+
+    @Override
+    public CompletableFuture<UnversionedLookupRowsResult> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return executor.execute(client -> client.lookupRowsV2(request));
+    }
+
+    @Override
+    public CompletableFuture<VersionedLookupRowsResult> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return executor.execute(client -> client.versionedLookupRowsV2(request));
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResult>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return executor.execute(client -> client.multiLookupRowsV2(request));
     }
 
     @Override
