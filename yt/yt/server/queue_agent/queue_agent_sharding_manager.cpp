@@ -115,7 +115,7 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
-    const NProfiling::TGauge BannedGauge_;
+    const TGauge BannedGauge_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
