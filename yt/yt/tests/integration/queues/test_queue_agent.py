@@ -13,6 +13,8 @@ from yt_commands import (alter_table_replica, authors, commit_transaction, gener
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
                          execute_batch, make_batch_request, abort_transaction, read_table)
 
+from yt_helpers import profiler_factory
+
 from yt.common import YtError, update, update_inplace
 
 import builtins
@@ -1555,27 +1557,42 @@ class TestMultipleAgents(TestQueueAgentBase):
         assert mapping[0]["object"] == f"primary:{consumer_path}"
         original_host = mapping[0]["host"]
 
+        def is_instance_banned(instance_id):
+            profiler = profiler_factory().at_queue_agent(instance_id)
+            banned_gauge = profiler.gauge("queue_agent/banned")
+            result = banned_gauge.get()
+            if result is None:
+                raise ValueError("gauge is not found")
+            assert result in [0, 1]
+            return bool(result)
+
+        wait(lambda: not is_instance_banned(original_host), ignore_exceptions=True)
+
         set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
+        wait(lambda: is_instance_banned(original_host))
 
         print_debug("mapping after ban: ", get_mapping())
 
         set(f"//sys/queue_agents/instances/{original_host}/@banned", False)
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
+        wait(lambda: not is_instance_banned(original_host))
 
         set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
+        wait(lambda: is_instance_banned(original_host))
 
-        # Any value except True should be treated as False.
         set(f"//sys/queue_agents/instances/{original_host}/@banned", "anime")
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
+        wait(lambda: not is_instance_banned(original_host))
 
         set(f"//sys/queue_agents/instances/{original_host}/@banned", True)
         wait(lambda: list(get_mapping())[0]["host"] != original_host)
+        wait(lambda: is_instance_banned(original_host))
 
-        # Absence of the value should also be treated as False.
         remove(f"//sys/queue_agents/instances/{original_host}/@banned")
         wait(lambda: list(get_mapping())[0]["host"] == original_host)
+        wait(lambda: not is_instance_banned(original_host))
 
         print_debug("final mapping: ", get_mapping())
         assert mapping == get_mapping()
