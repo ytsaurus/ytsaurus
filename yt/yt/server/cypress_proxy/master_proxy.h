@@ -14,8 +14,7 @@ namespace NYT::NCypressProxy {
 
 INodeProxyPtr CreateMasterProxy(
     IBootstrap* bootstrap,
-    TSequoiaSessionPtr session,
-    const NRpc::TAuthenticationIdentity& authenticationIdentity);
+    TSequoiaSessionPtr session);
 
 ////////////////////////////////////////////////////////////////////////////////
 

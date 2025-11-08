@@ -152,17 +152,15 @@ TAbsolutePath GetTargetPathOrThrow(const TResolveResult& resolveResult)
 
 void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
-    const TYPath& targetPath,
+    TYPath targetPath,
     const TResolveResult& resolveResult)
 {
-    // TODO(danilalexeev): In case of a master-object root designator the
-    // following resolve will not produce a meaningful result. Such YPath has to
-    // be resolved by master first.
-    // TODO(kvk1920): probably works (since links are stored in both resolve
-    // tables now), but has to be tested.
+    // Does not contain a prefix leading to a symlink.
     auto linkPath = GetTargetPathOrThrow(resolveResult);
 
-    auto checkAcyclicity = [&] (
+    // Returns |true| iff `forbiddenPrefix` is encountered as a prefix of
+    // a path in question during a resolve process of `pathToResolve`.
+    auto checkCyclicity = [&] (
         TYPath pathToResolve,
         const TAbsolutePath& forbiddenPrefix)
     {
@@ -177,14 +175,20 @@ void ValidateLinkNodeCreation(
 
         for (const auto& [id, path] : history) {
             if (IsLinkType(TypeFromId(id)) && path == forbiddenPrefix) {
-                return false;
+                return true;
             }
         }
 
-        return GetTargetPathOrThrow(resolveResult) != forbiddenPrefix;
+        if (auto* result = std::get_if<TCypressResolveResult>(&resolveResult);
+            result && CheckStartsWithObjectIdOrThrow(result->Path))
+        {
+            return false;
+        }
+
+        return GetTargetPathOrThrow(resolveResult) == forbiddenPrefix;
     };
 
-    if (!checkAcyclicity(targetPath, linkPath)) {
+    if (checkCyclicity(targetPath, linkPath)) {
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
             << TErrorAttribute("target_path", targetPath)
             << TErrorAttribute("path", linkPath);
@@ -411,6 +415,11 @@ std::pair<TRootDesignator, TYPathBuf> GetRootDesignator(TYPathBuf path)
     Y_UNREACHABLE();
 }
 
+bool CheckStartsWithObjectIdOrThrow(TYPathBuf path)
+{
+    return std::holds_alternative<TObjectId>(GetRootDesignator(path).first);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
@@ -594,7 +603,7 @@ TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
    const TAttributeFilter& attributeFilter)
 {
    // Form a template.
-   auto requestTemplate = TYPathProxy::Get("/@");
+   auto requestTemplate = TYPathProxy::Get("&/@");
    if (attributeFilter) {
        ToProto(requestTemplate->mutable_attributes(), attributeFilter);
    }

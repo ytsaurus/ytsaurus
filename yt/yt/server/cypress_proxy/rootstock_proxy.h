@@ -9,8 +9,7 @@ namespace NYT::NCypressProxy {
 INodeProxyPtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr sequoiaSession,
-    NSequoiaClient::TAbsolutePath resolvedPath,
-    const NRpc::TAuthenticationIdentity& authenticationIdentity);
+    NSequoiaClient::TAbsolutePath resolvedPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2005,7 +2005,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: int(get_cpu_delta()) == 0)
 
     @authors("savrus", "babenko")
-    @not_implemented_in_sequoia
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -3608,7 +3607,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
 
     @authors("ifsmirnov")
-    @not_implemented_in_sequoia
     def test_link_to_tablet(self):
         cell_id = sync_create_cells(1)[0]
         self._create_sorted_table("//tmp/t")

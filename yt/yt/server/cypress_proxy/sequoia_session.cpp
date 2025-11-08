@@ -416,6 +416,9 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     const auto& userDirectory = bootstrap->GetUserDirectory();
     auto authenticatedUser = userDirectory->GetUserByNameOrAliasOrThrow(authenticationIdentity.User);
 
+    auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(authenticationIdentity);
+    auto nativeAuthenticatedClient = bootstrap->GetNativeConnection()->CreateNativeClient(clientOptions);
+
     auto sequoiaTransaction = WaitFor(
         StartCypressProxyTransaction(
             sequoiaClient,
@@ -463,6 +466,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         bootstrap,
         std::move(sequoiaTransaction),
         std::move(cypressTransactions),
+        std::move(nativeAuthenticatedClient),
         std::move(authenticatedUser));
 }
 
@@ -729,16 +733,14 @@ const TUserDescriptorPtr& TSequoiaSession::GetCurrentAuthenticatedUser() const
 
 TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     TRange<TCypressNodeDescriptor> nodes,
-    bool duringCopy,
-    const NNative::IClientPtr& client)
+    bool duringCopy)
 {
-    return FetchInheritableAttributes({nodes}, duringCopy, client);
+    return FetchInheritableAttributes({nodes}, duringCopy);
 }
 
 TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
-    bool duringCopy,
-    const NNative::IClientPtr& client)
+    bool duringCopy)
 {
     const auto& masterConnector = Bootstrap_->GetMasterConnector();
     auto inheritableAttributeList = duringCopy
@@ -762,7 +764,7 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     }
 
     auto batcher = TMasterYPathProxy::CreateGetBatcher(
-        client,
+        GetNativeAuthenticatedClient(),
         requestTemplate,
         nodeIds,
         GetCurrentCypressTransactionId());
@@ -778,6 +780,11 @@ TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     }
 
     return inheritableAttributes;
+}
+
+const NApi::NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
+{
+    return NativeAuthenticatedClient_;
 }
 
 void TSequoiaSession::AcquireCypressLockInSequoia(
@@ -1485,11 +1492,13 @@ TSequoiaSession::TSequoiaSession(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr sequoiaTransaction,
     std::vector<TTransactionId> cypressTransactionIds,
+    NApi::NNative::IClientPtr nativeAuthenticatedClient,
     TUserDescriptorPtr authenticatedUser)
     : SequoiaTransaction_(sequoiaTransaction)
     , Bootstrap_(bootstrap)
     , CypressTransactionAncestry_(std::move(cypressTransactionIds))
     , CypressTransactionDepths_(EnumerateCypressTransactionAncestry(CypressTransactionAncestry_))
+    , NativeAuthenticatedClient_(std::move(nativeAuthenticatedClient))
     , AuthenticatedUser_(std::move(authenticatedUser))
     , AcdFetcher_(New<TAcdFetcher>(std::move(sequoiaTransaction)))
 { }

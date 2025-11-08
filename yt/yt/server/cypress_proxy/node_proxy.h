@@ -24,14 +24,12 @@ INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult,
-    std::vector<NSequoiaClient::TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
-    const NRpc::TAuthenticationIdentity& authenticationIdentity);
+    std::vector<NSequoiaClient::TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions);
 
 INodeProxyPtr CreateUnreachableNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TUnreachableSequoiaResolveResult resolveResult,
-    const NRpc::TAuthenticationIdentity& authenticationIdentity);
+    TUnreachableSequoiaResolveResult resolveResult);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,9 +47,7 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaService);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateSequoiaService(
-    IBootstrap* bootstrap,
-    const NRpc::TAuthenticationIdentity authenticationIdentity);
+ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

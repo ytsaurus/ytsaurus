@@ -4,6 +4,8 @@
 #include "private.h"
 #include "sequoia_session.h"
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -37,6 +39,15 @@ bool ShouldBeResolvedInSequoia(TObjectId id)
     // NB: All links are presented in Sequoia tables and have to be resolved in
     // Sequoia.
     return type == EObjectType::Link || (IsSequoiaId(id) && IsSupportedSequoiaType(type));
+}
+
+bool ShouldFetchPathFromMaster(TObjectId id)
+{
+    auto type = TypeFromId(id);
+    return
+        IsCompositeNodeType(type) ||
+        type == EObjectType::Rootstock ||
+        type == EObjectType::PortalEntrance;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,11 +285,32 @@ TResolveIterationResult ResolveByObjectId(
     TObjectId rootDesignator,
     ptrdiff_t suffixOffset)
 {
-    if (!ShouldBeResolvedInSequoia(rootDesignator)) {
-        return TForwardToMaster{std::move(path)};
-    }
-
     auto pathSuffix = TYPathBuf(path, suffixOffset);
+
+    if (!ShouldBeResolvedInSequoia(rootDesignator)) {
+        if (!ShouldFetchPathFromMaster(rootDesignator)) {
+            return TForwardToMaster{std::move(path)};
+        }
+
+        const auto& pathAttribute = NServer::EInternedAttributeKey::Path.Unintern();
+        auto asyncNodeAttributes = FetchSingleObjectAttributes(
+            session->GetNativeAuthenticatedClient(),
+            TVersionedObjectId{rootDesignator, session->GetCurrentCypressTransactionId()},
+            TAttributeFilter({pathAttribute}));
+
+        auto nodeAttributes = WaitFor(asyncNodeAttributes)
+            .ValueOrThrow();
+
+        auto rewrittenPath = nodeAttributes->Get<TYPath>(pathAttribute);
+        if (CheckStartsWithObjectIdOrThrow(rewrittenPath)) [[unlikely]] {
+            YT_LOG_ALERT("Failed to rewrite root object path (ObjectId: %v)",
+                rootDesignator);
+            return TForwardToMaster{std::move(path)};
+        }
+
+        rewrittenPath += pathSuffix;
+        return ResolveByPath(session, method, std::move(rewrittenPath), pathIsAdditional);
+    }
 
     // If path starts with "#<object-id>" we try to find it in
     // "node_id_to_path" Sequoia table. After that we replace object ID with
