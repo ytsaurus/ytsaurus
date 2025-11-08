@@ -28,6 +28,7 @@ using namespace NTracing;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,8 @@ public:
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
         std::string queueAgentStage,
-        TYPath dynamicStateRoot)
+        TYPath dynamicStateRoot,
+        TProfiler profiler)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
         , Client_(std::move(client))
         , ControlInvoker_(std::move(controlInvoker))
@@ -61,6 +63,7 @@ public:
         , DiscoveryClient_(std::move(discoveryClient))
         , QueueAgentStage_(std::move(queueAgentStage))
         , DynamicStateRoot_(std::move(dynamicStateRoot))
+        , BannedGauge_(profiler.Gauge("/banned"))
         , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TQueueAgentShardingManager::Pass, MakeWeak(this)),
@@ -68,7 +71,10 @@ public:
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
         , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
-    { }
+    {
+        // Initialize the metric to 0 (not banned) on startup.
+        BannedGauge_.Update(0.0);
+    }
 
     IYPathServicePtr GetOrchidService() const override
     {
@@ -109,6 +115,7 @@ private:
     const IDiscoveryClientPtr DiscoveryClient_;
     const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
+    const NProfiling::TGauge BannedGauge_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
@@ -226,6 +233,9 @@ private:
                 // NB(apachee): Ignore if attribute is missing, or if its value is not bool.
             }
         }
+
+        bool isBanned = BannedQueueAgentInstances_.contains(MemberClient_->GetId());
+        BannedGauge_.Update(isBanned ? 1 : 0);
     }
 
     void GuardedPass()
@@ -382,7 +392,8 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
     std::string queueAgentStage,
-    TYPath dynamicStateRoot)
+    TYPath dynamicStateRoot,
+    TProfiler profiler)
 {
     return New<TQueueAgentShardingManager>(
         std::move(controlInvoker),
@@ -392,7 +403,8 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
         std::move(memberClient),
         std::move(discoveryClient),
         std::move(queueAgentStage),
-        std::move(dynamicStateRoot));
+        std::move(dynamicStateRoot),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

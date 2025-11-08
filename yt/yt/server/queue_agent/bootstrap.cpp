@@ -248,7 +248,8 @@ private:
             MemberClient_,
             DiscoveryClient_,
             Config_->QueueAgent->Stage,
-            Config_->DynamicState->Root);
+            Config_->DynamicState->Root,
+            QueueAgentProfiler());
 
         QueueAgent_ = New<TQueueAgent>(
             Config_->QueueAgent,
