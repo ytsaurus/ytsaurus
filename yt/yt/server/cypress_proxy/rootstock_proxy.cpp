@@ -47,12 +47,10 @@ public:
     TRootstockProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr sequoiaSession,
-        TAbsolutePath resolvedPath,
-        const TAuthenticationIdentity& authenticationIdentity)
+        TAbsolutePath resolvedPath)
         : TNodeProxyBase(
             bootstrap,
-            std::move(sequoiaSession),
-            std::move(authenticationIdentity))
+            std::move(sequoiaSession))
         , Path_(std::move(resolvedPath))
     { }
 
@@ -164,10 +162,9 @@ private:
 INodeProxyPtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr sequoiaSession,
-    NSequoiaClient::TAbsolutePath resolvedPath,
-    const TAuthenticationIdentity& authenticationIdentity)
+    NSequoiaClient::TAbsolutePath resolvedPath)
 {
-    return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath), authenticationIdentity);
+    return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

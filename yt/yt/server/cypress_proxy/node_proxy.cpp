@@ -181,9 +181,8 @@ public:
         IBootstrap* bootstrap,
         TSequoiaSessionPtr session,
         TSequoiaResolveResult resolveResult,
-        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
-        const TAuthenticationIdentity& authenticationIdentity)
-        : TNodeProxyBase(bootstrap, std::move(session), authenticationIdentity)
+        std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
+        : TNodeProxyBase(bootstrap, std::move(session))
         , Id_(resolveResult.Id)
         , Path_(resolveResult.Path)
         , ParentId_(resolveResult.ParentId)
@@ -395,7 +394,9 @@ protected:
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
         return TObjectServiceProxy::FromDirectMasterChannel(
-            GetNativeAuthenticatedClient()->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTagFromId(id)));
+            SequoiaSession_
+                ->GetNativeAuthenticatedClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTagFromId(id)));
     }
 
     void ValidateCreateOptions(const TReqCreate* request)
@@ -680,7 +681,6 @@ protected:
         }
 
         auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
-            GetNativeAuthenticatedClient(),
             SequoiaSession_,
             attributeFilter,
             Id_);
@@ -971,7 +971,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
             explicitAttributes->Get<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern()));
         ValidateLinkNodeCreation(
             SequoiaSession_,
-            targetPath,
+            std::move(targetPath),
             ResolveResult_);
         type = EObjectType::SequoiaLink;
     }
@@ -1038,8 +1038,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         nodeAncestry,
         SequoiaSession_->FetchInheritableAttributes(
             nodeAncestry,
-            /*duringCopy*/ false,
-            GetNativeAuthenticatedClient()));
+            /*duringCopy*/ false));
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         unresolvedSuffixTokens,
         inheritedAttributes.Get(),
@@ -1206,8 +1205,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     auto nodeAncestry = GetNodeAncestry(replace);
     auto sourceInheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
         {nodeAncestry, nodesToCopy.Nodes},
-        /*duringCopy*/ true,
-        GetNativeAuthenticatedClient());
+        /*duringCopy*/ true);
 
     auto destinationInheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
         nodeAncestry,
@@ -1361,7 +1359,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     // TODO(cherepashka): add response for `Lock` into sequoia response keeper via dataless write rows.
     SequoiaSession_->Commit(CellIdFromObjectId(Id_));
 
-    const auto& client = GetNativeAuthenticatedClient();
+    const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
 
     const auto& stateAttribute = EInternedAttributeKey::State.Unintern();
     auto asyncLockAcquired = waitable
@@ -1507,10 +1505,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
         nodeAncestry,
         SequoiaSession_->FetchInheritableAttributes(
             nodeAncestry,
-            /*duringCopy*/ true,
-            GetNativeAuthenticatedClient()));
+            /*duringCopy*/ true));
 
-    auto client = GetNativeAuthenticatedClient();
+    const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
     auto asyncNode = FetchSingleObject(
         client,
@@ -1633,8 +1630,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
     auto sourceSubtree = SequoiaSession_->FetchSubtree(Path_);
     auto sourceInheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
         sourceSubtree.Nodes,
-        /*duringCopy*/ true,
-        GetNativeAuthenticatedClient());
+        /*duringCopy*/ true);
 
     auto inheritableAttributes = masterConnector->GetSupportedInheritableDuringCopyAttributeKeys();
 
@@ -1708,8 +1704,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
             nodeAncestry,
             SequoiaSession_->FetchInheritableAttributes(
                 nodeAncestry,
-                /*duringCopy*/ false,
-                GetNativeAuthenticatedClient()))
+                /*duringCopy*/ false))
             .Get(),
         force);
 
@@ -2095,8 +2090,7 @@ private:
             ResolveResult_.NodeAncestry,
             SequoiaSession_->FetchInheritableAttributes(
                 ResolveResult_.NodeAncestry,
-                /*duringCopy*/ false,
-                GetNativeAuthenticatedClient()));
+                /*duringCopy*/ false));
         auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_, inheritedAttributes.Get(), AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&setter);
@@ -2194,7 +2188,6 @@ private:
         }
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
-            GetNativeAuthenticatedClient(),
             SequoiaSession_,
             attributeFilter,
             Id_,
@@ -2293,8 +2286,7 @@ private:
             ResolveResult_.NodeAncestry,
             SequoiaSession_->FetchInheritableAttributes(
                 ResolveResult_.NodeAncestry,
-                /*duringCopy*/ false,
-                GetNativeAuthenticatedClient()));
+                /*duringCopy*/ false));
 
         // NB: locks |Id_|.
         auto targetParentId = SequoiaSession_->CreateMapNodeChain(
@@ -2394,7 +2386,6 @@ private:
         }
 
         auto attributeFetcher = CreateAttributeFetcherForListRequest(
-            GetNativeAuthenticatedClient(),
             SequoiaSession_,
             attributeFilter,
             Id_,
@@ -2437,9 +2428,8 @@ public:
     TUnreachableNodeProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr session,
-        TNodeId id,
-        const TAuthenticationIdentity& identity)
-        : TNodeProxyBase(bootstrap, std::move(session), identity)
+        TNodeId id)
+        : TNodeProxyBase(bootstrap, std::move(session))
         , Id_(id)
     { }
 
@@ -2478,8 +2468,7 @@ INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
     TSequoiaResolveResult resolveResult,
-    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions,
-    const TAuthenticationIdentity& authenticationIdentity)
+    std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions)
 {
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
@@ -2489,32 +2478,28 @@ INodeProxyPtr CreateNodeProxy(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
-            std::move(resolvedPrerequisiteRevisions),
-            authenticationIdentity);
+            std::move(resolvedPrerequisiteRevisions));
     } else if (IsSequoiaCompositeNodeType(type)) {
         return New<TMapLikeNodeProxy>(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
-            std::move(resolvedPrerequisiteRevisions),
-            authenticationIdentity);
+            std::move(resolvedPrerequisiteRevisions));
     } else {
         return New<TNodeProxy>(
             bootstrap,
             std::move(session),
             std::move(resolveResult),
-            std::move(resolvedPrerequisiteRevisions),
-            authenticationIdentity);
+            std::move(resolvedPrerequisiteRevisions));
     }
 }
 
 INodeProxyPtr CreateUnreachableNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
-    TUnreachableSequoiaResolveResult resolveResult,
-    const NRpc::TAuthenticationIdentity& authenticationIdentity)
+    TUnreachableSequoiaResolveResult resolveResult)
 {
-    return New<TUnreachableNodeProxy>(bootstrap, std::move(session), resolveResult.Id, authenticationIdentity);
+    return New<TUnreachableNodeProxy>(bootstrap, std::move(session), resolveResult.Id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

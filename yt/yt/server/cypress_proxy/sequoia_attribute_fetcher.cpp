@@ -45,11 +45,8 @@ class TAttributeFetcherBase
     : public ISequoiaAttributeFetcher
 {
 public:
-    TAttributeFetcherBase(
-        const IClientPtr client,
-        const TSequoiaSessionPtr sequoiaSession)
-        : Client_(client)
-        , SequoiaSession_(sequoiaSession)
+    TAttributeFetcherBase(const TSequoiaSessionPtr sequoiaSession)
+        : SequoiaSession_(sequoiaSession)
         , RequestTemplate_(TYPathProxy::Get())
     {
         SetSuppressAccessTracking(RequestTemplate_, true);
@@ -76,7 +73,6 @@ public:
     }
 
 protected:
-    const IClientPtr Client_;
     const TSequoiaSessionPtr SequoiaSession_;
 
     TYPathProxy::TReqGetPtr RequestTemplate_;
@@ -85,7 +81,7 @@ protected:
     TFuture<THashMap<TNodeId, INodePtr>> FetchAttributesFromMaster()
     {
         VectorizedGetBatcher_ = std::make_unique<TMasterYPathProxy::TVectorizedGetBatcher>(
-            Client_,
+            SequoiaSession_->GetNativeAuthenticatedClient(),
             RequestTemplate_,
             NodesToFetchFromMaster_,
             SequoiaSession_->GetCurrentCypressTransactionId());
@@ -154,10 +150,9 @@ class TSimpleAttributeFetcher
 {
 public:
     TSimpleAttributeFetcher(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter)
-        : TAttributeFetcherBase(client, sequoiaSession)
+        : TAttributeFetcherBase(sequoiaSession)
     {
         if (attributeFilter) {
             ToProto(RequestTemplate_->mutable_attributes(), attributeFilter);
@@ -378,10 +373,9 @@ class TRecursiveAttributeFetcher
 {
 public:
     TRecursiveAttributeFetcher(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter)
-        : TAttributeFetcherBase(client, sequoiaSession)
+        : TAttributeFetcherBase(sequoiaSession)
     {
         YT_ASSERT(attributeFilter);
         ToProto(RequestTemplate_->mutable_attributes(), attributeFilter);
@@ -463,14 +457,12 @@ public:
     using TCompositeSequoiaAttributeFetcherPtr = TIntrusivePtr<TCompositeSequoiaAttributeFetcher>;
 
     static TCompositeSequoiaAttributeFetcherPtr ForGetRequest(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter,
         TNodeId rootId,
         const std::vector<TNodeId>& nodesToFetchFromMaster)
     {
         auto result = New<TCompositeSequoiaAttributeFetcher>(
-            client,
             sequoiaSession,
             attributeFilter,
             /*fetchSimpleAttributes*/ true);
@@ -479,14 +471,12 @@ public:
     }
 
     static TCompositeSequoiaAttributeFetcherPtr ForListRequest(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter,
         const TNodeId parentId,
         const std::vector<TCypressChildDescriptor>& children)
     {
         auto result = New<TCompositeSequoiaAttributeFetcher>(
-            client,
             sequoiaSession,
             attributeFilter,
             /*fetchSimpleAttributes*/ true);
@@ -495,13 +485,11 @@ public:
     }
 
     static TCompositeSequoiaAttributeFetcherPtr ForSingleNode(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter,
         const TNodeId nodeId)
     {
         auto result = New<TCompositeSequoiaAttributeFetcher>(
-            client,
             sequoiaSession,
             attributeFilter,
             /*fetchSimpleAttributes*/ false);
@@ -520,12 +508,10 @@ private:
     // would lead to setting RootNodeId_ multiple times which, in turn, would
     // complicate the logic for retrying "no such object" errors.
     TCompositeSequoiaAttributeFetcher(
-        const IClientPtr client,
         const TSequoiaSessionPtr sequoiaSession,
         const TAttributeFilter& attributeFilter,
         bool fetchSimpleAttributes)
-        : Client_(client)
-        , SequoiaSession_(sequoiaSession)
+        : SequoiaSession_(sequoiaSession)
         , AttributeFilter_(attributeFilter)
     {
         if (AttributeFilter_) {
@@ -551,7 +537,7 @@ private:
         // If the simple attribute fetcher is created, the values will be fetched along with attributes.
         // Otherwise, we will need to fetch create simple attribute fetcher and use it to fetch values for scalar nodes.
         if (!IsSimpleAttributeFetcherCreated_) {
-            auto simpleAttributesFetcher = New<TSimpleAttributeFetcher>(Client_, SequoiaSession_, TAttributeFilter());
+            auto simpleAttributesFetcher = New<TSimpleAttributeFetcher>(SequoiaSession_, TAttributeFilter());
             simpleAttributesFetcher->SetScalarOnlyNodesForGetRequest(nodesToFetchFromMaster);
             Fetchers_.push_back(simpleAttributesFetcher);
         }
@@ -621,7 +607,6 @@ private:
         TAttributeFilter recursiveAttributeFilter({EInternedAttributeKey::ResourceUsage.Unintern()});
 
         Fetchers_.push_back(New<TRecursiveAttributeFetcher>(
-            Client_,
             SequoiaSession_,
             recursiveAttributeFilter
         ));
@@ -634,7 +619,6 @@ private:
     {
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
             Fetchers_.push_back(New<TSimpleAttributeFetcher>(
-                Client_,
                 SequoiaSession_,
                 AttributeFilter_
             ));
@@ -642,7 +626,6 @@ private:
         }
     }
 
-    const IClientPtr Client_;
     const TSequoiaSessionPtr SequoiaSession_;
 
     TAttributeFilter AttributeFilter_;
@@ -655,33 +638,29 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
-    const IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const TAttributeFilter& attributeFilter,
     const TNodeId rootId,
     const std::vector<TNodeId>& nodesToFetchFromMaster)
 {
-    return TCompositeSequoiaAttributeFetcher::ForGetRequest(client, sequoiaSession, attributeFilter, rootId, nodesToFetchFromMaster);
+    return TCompositeSequoiaAttributeFetcher::ForGetRequest(sequoiaSession, attributeFilter, rootId, nodesToFetchFromMaster);
 }
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForListRequest(
-    const IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const TAttributeFilter& attributeFilter,
     const TNodeId parentId,
     const std::vector<TCypressChildDescriptor>& children)
 {
-    return TCompositeSequoiaAttributeFetcher::ForListRequest(client, sequoiaSession, attributeFilter, parentId, children);
+    return TCompositeSequoiaAttributeFetcher::ForListRequest(sequoiaSession, attributeFilter, parentId, children);
 }
 
 std::tuple<ISequoiaAttributeFetcherPtr, TAttributeFilter> CreateSpecialAttributeFetcherAndLeftAttributesForNode(
-    const IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const TAttributeFilter& attributeFilter,
     const TNodeId rootId)
 {
     auto attributeFetcher = TCompositeSequoiaAttributeFetcher::ForSingleNode(
-        client,
         sequoiaSession,
         attributeFilter,
         rootId);

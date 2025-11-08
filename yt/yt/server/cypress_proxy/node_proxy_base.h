@@ -22,7 +22,6 @@ public:
 protected:
     IBootstrap* const Bootstrap_;
     const TSequoiaSessionPtr SequoiaSession_;
-    const NApi::NNative::IClientPtr NativeAuthenticatedClient_;
 
     // NB: If this field is set to #ForwardToMaster, no change in persistent state should
     // be made, and vice versa.
@@ -33,8 +32,7 @@ protected:
 
     TNodeProxyBase(
         IBootstrap* bootstrap,
-        TSequoiaSessionPtr sequoiaSession,
-        const NRpc::TAuthenticationIdentity& authenticationIdentity);
+        TSequoiaSessionPtr sequoiaSession);
 
     virtual void BeforeInvoke(const ISequoiaServiceContextPtr& context);
     virtual bool DoInvoke(const ISequoiaServiceContextPtr& context);
@@ -53,8 +51,6 @@ protected:
 
     void AbortSequoiaSessionForLaterForwardingToMaster(
         std::optional<NSecurityClient::TSerializableAccessControlList> forwardEffectiveAcl = std::nullopt);
-
-    const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeProxyBase)

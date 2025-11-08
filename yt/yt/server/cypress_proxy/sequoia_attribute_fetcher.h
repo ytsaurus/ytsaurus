@@ -25,21 +25,18 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaAttributeFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
-    const NApi::NNative::IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     const NCypressClient::TNodeId rootId,
     const std::vector<NCypressClient::TNodeId>& nodesToFetchFromMaster);
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForListRequest(
-    const NApi::NNative::IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     const NCypressClient::TNodeId rootId,
     const std::vector<TCypressChildDescriptor>& children);
 
 std::tuple<ISequoiaAttributeFetcherPtr, NYTree::TAttributeFilter> CreateSpecialAttributeFetcherAndLeftAttributesForNode(
-    const NApi::NNative::IClientPtr client,
     const TSequoiaSessionPtr sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     const NCypressClient::TNodeId rootId);

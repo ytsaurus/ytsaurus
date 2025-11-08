@@ -322,17 +322,18 @@ public:
     // TODO(kvk1920): don't use native client. Fetch from Sequoia tables instead.
     TNodeIdToConstAttributes FetchInheritableAttributes(
         TRange<TCypressNodeDescriptor> nodes,
-        bool duringCopy,
-        const NApi::NNative::IClientPtr& client);
+        bool duringCopy);
     TNodeIdToConstAttributes FetchInheritableAttributes(
         std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
-        bool duringCopy,
-        const NApi::NNative::IClientPtr& client);
+        bool duringCopy);
+
+    const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 
 private:
     IBootstrap* const Bootstrap_;
     const TCypressTransactionAncestry CypressTransactionAncestry_;
     const TCypressTransactionDepths CypressTransactionDepths_;
+    const NApi::NNative::IClientPtr NativeAuthenticatedClient_;
     const TUserDescriptorPtr AuthenticatedUser_;
 
     bool Finished_ = false;
@@ -361,6 +362,7 @@ private:
         IBootstrap* bootstrap,
         NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction,
         std::vector<NCypressClient::TTransactionId> cypressTransactionIds,
+        NApi::NNative::IClientPtr nativeAuthenticatedClient,
         TUserDescriptorPtr authenticatedUser);
 
     //! Returns whether or not an object with a given ID _could_ be created in

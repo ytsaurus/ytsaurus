@@ -945,7 +945,7 @@ private:
             return response;
         }
 
-        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
+        auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         return Visit(invokeResult,
             [&] (TRequestExecutedPayload) -> std::optional<TSharedRefArray> {
