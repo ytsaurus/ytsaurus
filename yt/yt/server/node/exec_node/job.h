@@ -34,6 +34,8 @@
 #include <yt/yt/library/containers/public.h>
 #include <yt/yt/library/containers/cri/public.h>
 
+#include <library/cpp/int128/int128.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -60,6 +62,20 @@ struct TArtifactDescription
     TArtifactPtr Artifact;
     bool AccessedViaBind = false;
     bool AccessedViaVirtualSandbox = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceConsumption
+{
+    // Cpu, VCpu - millicore microseconds.
+    // Memory - byte microseconds.
+    // Gpu - gpu microseconds.
+    TDuration Duration = TDuration::Zero();
+    i128 Cpu = 0;
+    i128 VCpu = 0;
+    i128 Memory = 0;
+    i128 Gpu = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,6 +365,11 @@ private:
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
+    TResourceConsumption RunningPhaseResourceConsumption_;
+    NClusterNode::TJobResources RunningPhaseResourceUsage_ = {};
+    TInstant RunningPhaseStartTime_ = TInstant::Zero();
+    TInstant RunningPhaseStopTime_ = TInstant::Zero();
+
     NServer::TExecAttributes ExecAttributes_;
 
     std::optional<int> ExitCode_;
@@ -587,6 +608,7 @@ private:
     void EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
+    void EnrichStatisticsWithConsumptionInfo(TStatistics* statistics);
 
     void UpdateIOStatistics(const TStatistics& statistics);
 
@@ -635,6 +657,9 @@ private:
     void OnJobFinalized();
 
     void DeduceAndSetFinishedJobState();
+
+    TDuration GetRunningPhaseDuration() const;
+    TResourceConsumption UpdateConsumptionTracking(std::optional<NClusterNode::TJobResources> newUsage = std::nullopt);
 
     static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);

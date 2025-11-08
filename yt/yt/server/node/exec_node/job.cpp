@@ -119,6 +119,8 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
+#include <limits>
+
 #include <util/system/env.h>
 
 namespace NYT::NExecNode {
@@ -1284,6 +1286,8 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     if (JobPhase_ == EJobPhase::Running) {
         ResourceHolder_->SetBaseResourceUsage(newUsage);
     }
+
+    UpdateConsumptionTracking(newUsage);
 }
 
 void TJob::SetProgress(double progress)
@@ -1419,6 +1423,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
     EnrichStatisticsWithDiskInfo(&statistics);
 
     EnrichStatisticsWithArtifactsInfo(&statistics);
+
+    EnrichStatisticsWithConsumptionInfo(&statistics);
 
     UpdateIOStatistics(statistics);
 
@@ -2076,10 +2082,22 @@ void TJob::SetJobPhase(EJobPhase phase)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    auto previousPhase = JobPhase_;
+
     YT_LOG_DEBUG(
         "Setting new job phase (Previous: %v, New: %v)",
-        JobPhase_,
+        previousPhase,
         phase);
+
+    if (phase == EJobPhase::Running && previousPhase != EJobPhase::Running) {
+        RunningPhaseStartTime_ = TInstant::Now();
+        RunningPhaseStopTime_ = TInstant::Zero();
+        RunningPhaseResourceConsumption_ = {};
+        UpdateConsumptionTracking(GetResourceUsage());
+    } else if (previousPhase == EJobPhase::Running && phase != EJobPhase::Running) {
+        RunningPhaseStopTime_ = TInstant::Now();
+        UpdateConsumptionTracking();
+    }
 
     JobPhase_ = phase;
     AddJobEvent(phase);
@@ -4066,6 +4084,32 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ArtifactCacheStatistics_.CacheBypassedArtifactsSize);
 }
 
+void TJob::EnrichStatisticsWithConsumptionInfo(TStatistics* statistics)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    constexpr i128 MicrosecondsInMillisecond = 1'000;
+    constexpr i128 MillicoresInCore = 1'000;
+    constexpr i128 BytesInGibibyte = 1'024 * 1'024 * 1'024;
+
+    auto consumption = UpdateConsumptionTracking();
+
+    i128 cpuCoreMilliseconds = consumption.Cpu / (MillicoresInCore * MicrosecondsInMillisecond);
+    i128 vcpuCoreMilliseconds = consumption.VCpu / (MillicoresInCore * MicrosecondsInMillisecond);
+    i128 memoryGibibyteMilliseconds = consumption.Memory / (BytesInGibibyte * MicrosecondsInMillisecond);
+    i128 gpuMilliseconds = consumption.Gpu / MicrosecondsInMillisecond;
+
+    auto clampToI64 = [] (i128 value) -> i64 {
+        constexpr i128 MaxI64 = static_cast<i128>(std::numeric_limits<i64>::max());
+        return value > MaxI64 ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
+    };
+
+    statistics->ReplacePathWithSample("/job/cpu/cumulative_reserve"_SP, clampToI64(cpuCoreMilliseconds));
+    statistics->ReplacePathWithSample("/job/vcpu/cumulative_reserve"_SP, clampToI64(vcpuCoreMilliseconds));
+    statistics->ReplacePathWithSample("/job/memory/cumulative_reserve"_SP, clampToI64(memoryGibibyteMilliseconds));
+    statistics->ReplacePathWithSample("/job/gpu/cumulative_reserve"_SP, clampToI64(gpuMilliseconds));
+}
+
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -4114,6 +4158,57 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
     BytesWritten_ = newBytesWritten;
     IORequestsRead_ = newIORequestsRead;
     IORequestsWritten_ = newIORequestsWritten;
+}
+
+TDuration TJob::GetRunningPhaseDuration() const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (RunningPhaseStartTime_ == TInstant::Zero()) {
+        return TDuration::Zero();
+    }
+
+    auto stopTime = RunningPhaseStopTime_;
+    if (stopTime == TInstant::Zero()) {
+        stopTime = TInstant::Now();
+    }
+
+    return stopTime - RunningPhaseStartTime_;
+}
+
+TResourceConsumption TJob::UpdateConsumptionTracking(std::optional<NClusterNode::TJobResources> newUsage)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (RunningPhaseStartTime_ == TInstant::Zero()) {
+        if (newUsage) {
+            RunningPhaseResourceUsage_ = *newUsage;
+        }
+        return RunningPhaseResourceConsumption_;
+    }
+
+    auto duration = GetRunningPhaseDuration();
+    if (duration > RunningPhaseResourceConsumption_.Duration) {
+        auto durationDiff = duration - RunningPhaseResourceConsumption_.Duration;
+        auto durationMicroseconds = static_cast<i128>(durationDiff.MicroSeconds());
+        const auto usage = RunningPhaseResourceUsage_;
+
+        auto centicoresToMillicores = [] (i64 centicores) -> i128 {
+            return static_cast<i128>(centicores * 10);
+        };
+
+        RunningPhaseResourceConsumption_.Duration = duration;
+        RunningPhaseResourceConsumption_.Cpu += centicoresToMillicores(usage.Cpu.GetUnderlyingValue()) * durationMicroseconds;
+        RunningPhaseResourceConsumption_.VCpu += centicoresToMillicores(usage.VCpu.GetUnderlyingValue()) * durationMicroseconds;
+        RunningPhaseResourceConsumption_.Memory += static_cast<i128>(usage.UserMemory) * durationMicroseconds;
+        RunningPhaseResourceConsumption_.Gpu += static_cast<i128>(usage.Gpu) * durationMicroseconds;
+    }
+
+    if (newUsage) {
+        RunningPhaseResourceUsage_ = *newUsage;
+    }
+
+    return RunningPhaseResourceConsumption_;
 }
 
 void TJob::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)

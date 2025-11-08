@@ -101,6 +101,10 @@ For a better understanding of job stats, you should be familiar with the notions
 | `chunk_reader_statistics/wait_time` | Time spent waiting for data during chunk reads. Milliseconds. |
 | `chunk_reader_statistics/read_time` | Time spent actively reading chunks, such as parsing strings from read blocks. Milliseconds. |
 | `chunk_reader_statistics/idle_time` | Time during which chunk reads were aborted for the processing of previously read data. Milliseconds. |
+| `job/cpu/cumulative_reserve` | Amount of CPU cores reserved for job execution multiplied by time in milliseconds. Reported in core-milliseconds. |
+| `job/vcpu/cumulative_reserve` | Amount of vCPU cores reserved for job execution multiplied by time in milliseconds. Reported in core-milliseconds. |
+| `job/memory/cumulative_reserve` | Amount of memory (in gibibytes) reserved for job execution multiplied by time in milliseconds. Reported in gibibyte-milliseconds. |
+| `job/gpu/cumulative_reserve` | Amount of GPUs reserved for job execution multiplied by time in milliseconds. Reported in GPU-milliseconds. |
 
 ### Python API
 

@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, run_sleeping_vanilla, print_debug,
-    update_controller_agent_config, get_allocation_id_from_job_id,
+    update_controller_agent_config, merge, sort, list_jobs, map_reduce, get_allocation_id_from_job_id,
     lookup_rows, write_table, map, vanilla, run_test_vanilla,
     abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells)
 
@@ -27,6 +27,7 @@ import builtins
 import time
 import datetime
 from copy import deepcopy
+from math import floor
 
 
 class _TestGetJobBase(YTEnvSetup):
@@ -36,6 +37,14 @@ class _TestGetJobBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 1,
@@ -647,6 +656,275 @@ class TestGetJobMonitoring(_TestGetJobBase):
             is not None)
 
 
+class TestGetJobCumulativeStatistics(_TestGetJobBase):
+    def _run_consumption_job(
+        self,
+        *,
+        command,
+        cpu_limit,
+        memory_limit,
+        memory_reserve_factor,
+        gpu_limit=0,
+    ):
+        task_patch = {
+            "cpu_limit": cpu_limit,
+            "memory_limit": memory_limit,
+            "memory_reserve_factor": memory_reserve_factor,
+        }
+        if gpu_limit:
+            task_patch["gpu_limit"] = gpu_limit
+            task_patch.setdefault("enable_gpu_layers", False)
+
+        op = run_test_vanilla(
+            command,
+            track=True,
+            task_patch=task_patch,
+        )
+
+        jobs = list_jobs(op.id, state="completed")["jobs"]
+        assert len(jobs) == 1
+        job_id = jobs[0]["id"]
+
+        statistics = get_job(op.id, job_id)["statistics"]
+        # User job memory reserve + 128mb footprint(for job proxy and other stuff)
+        initial_memory_bytes = int(memory_limit * memory_reserve_factor + 128 * 1024 * 1024)
+        return statistics, initial_memory_bytes
+
+    def _assert_completed_jobs_have_consumption(self, op_id):
+        jobs = list_jobs(op_id)["jobs"]
+        assert jobs, "Operation produced no jobs"
+        completed_found = False
+        for job_info in jobs:
+            if job_info["state"] != "completed":
+                continue
+            statistics = get_job(op_id, job_info["id"])["statistics"]
+            assert statistics["job"]["cpu"]["cumulative_reserve"]["sum"] > 0, "CPU consumption should be positive"
+            assert statistics["job"]["vcpu"]["cumulative_reserve"]["sum"] > 0, "vCPU consumption should be positive"
+            assert statistics["job"]["memory"]["cumulative_reserve"]["sum"] > 0, "Memory consumption should be positive"
+            completed_found = True
+        assert completed_found, "No completed job found for operation"
+
+    # Job consumption tracking tests.
+    # These tests verify that resource consumption (CPU, vCPU, memory, GPU) is tracked during job execution.
+    # Metrics are exposed at /job/{cpu,vcpu,memory,gpu}/cumulative_reserve.
+
+    RESOURCE_SCENARIOS = (
+        pytest.param(
+            {
+                "sleep_s": 0.3,
+                "cpu_limit": 1.0,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.5,
+                "gpu_limit": 0,
+            },
+            id="cpu-default",
+        ),
+        pytest.param(
+            {
+                "sleep_s": 0.2,
+                "cpu_limit": 0.1,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.1,
+                "gpu_limit": 0,
+            },
+            id="minimal-cpu",
+        ),
+        pytest.param(
+            {
+                "sleep_s": 0.4,
+                "cpu_limit": 1.0,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.8,
+                "gpu_limit": 2,
+            },
+            id="gpu",
+        ),
+    )
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.parametrize("scenario", RESOURCE_SCENARIOS)
+    def test_job_consumption_simple(self, scenario):
+        command = f"sleep {scenario['sleep_s']}"
+        statistics, initial_memory_bytes = self._run_consumption_job(
+            command=command,
+            cpu_limit=scenario["cpu_limit"],
+            memory_limit=scenario["memory_limit"],
+            memory_reserve_factor=scenario["memory_reserve_factor"],
+            gpu_limit=scenario["gpu_limit"],
+        )
+
+        # Allow 300ms overhead.
+        expected_time_min = scenario["sleep_s"] * 1000
+        expected_time_max = expected_time_min + 300
+
+        expected_cpu_min = scenario["cpu_limit"] * expected_time_min
+        expected_cpu_max = scenario["cpu_limit"] * expected_time_max
+        assert floor(expected_cpu_min) <= statistics["job"]["cpu"]["cumulative_reserve"]["sum"] <= floor(expected_cpu_max)
+
+        expected_vcpu_min = scenario["cpu_limit"] * expected_time_min
+        expected_vcpu_max = scenario["cpu_limit"] * expected_time_max
+        assert floor(expected_vcpu_min) <= statistics["job"]["vcpu"]["cumulative_reserve"]["sum"] <= floor(expected_vcpu_max)
+
+        initial_memory_gb = initial_memory_bytes / (1024 * 1024 * 1024)
+        expected_memory_min = initial_memory_gb * expected_time_min
+        expected_memory_max = initial_memory_gb * expected_time_max
+        assert floor(expected_memory_min) <= statistics["job"]["memory"]["cumulative_reserve"]["sum"] <= floor(expected_memory_max)
+
+        expected_gpu_min = scenario["gpu_limit"] * expected_time_min
+        expected_gpu_max = scenario["gpu_limit"] * expected_time_max
+        assert floor(expected_gpu_min) <= statistics["job"]["gpu"]["cumulative_reserve"]["sum"] <= floor(expected_gpu_max)
+
+    @authors("aleksandr.gaev")
+    def test_job_consumption_increases_over_time(self):
+        cpu_limit = 1.0
+        memory_limit_bytes = 512 * 1024 * 1024
+        memory_reserve_factor = 0.5
+
+        op = run_test_vanilla(
+            with_breakpoint("sleep 0.5; BREAKPOINT; sleep 0.5"),
+            track=False,
+            task_patch={
+                "cpu_limit": cpu_limit,
+                "memory_limit": memory_limit_bytes,
+                "memory_reserve_factor": memory_reserve_factor,
+            },
+        )
+
+        (job_id,) = wait_breakpoint()
+
+        # Wait for initial consumption to accumulate.
+        def has_consumption():
+            try:
+                job_info = get_job(op.id, job_id)
+                statistics = job_info.get("statistics", {})
+                return statistics.get("job", {}).get("cpu", {}).get("cumulative_reserve", {}).get("sum", 0) > 0
+            except Exception:
+                return False
+
+        wait(has_consumption, timeout=30)
+
+        # Get consumption while running.
+        stats_t1 = get_job(op.id, job_id)["statistics"]
+        cpu_t1 = stats_t1["job"]["cpu"]["cumulative_reserve"]["sum"]
+        vcpu_t1 = stats_t1["job"]["vcpu"]["cumulative_reserve"]["sum"]
+        memory_t1 = stats_t1["job"]["memory"]["cumulative_reserve"]["sum"]
+
+        assert cpu_t1 > 0, "CPU consumption should be positive"
+        assert vcpu_t1 > 0, "vCPU consumption should be positive"
+        assert memory_t1 > 0, "Memory consumption should be positive"
+
+        # Wait a bit more.
+        time.sleep(0.3)
+
+        # Get consumption again while still running.
+        stats_t2 = get_job(op.id, job_id)["statistics"]
+        cpu_t2 = stats_t2["job"]["cpu"]["cumulative_reserve"]["sum"]
+        vcpu_t2 = stats_t2["job"]["vcpu"]["cumulative_reserve"]["sum"]
+        memory_t2 = stats_t2["job"]["memory"]["cumulative_reserve"]["sum"]
+
+        # Consumption should increase over time.
+        assert cpu_t2 > cpu_t1, "CPU consumption should increase over time"
+        assert vcpu_t2 > vcpu_t1, "vCPU consumption should increase over time"
+        assert memory_t2 > memory_t1, "Memory consumption should increase over time"
+
+        # Complete the job.
+        release_breakpoint()
+        op.track()
+
+        # Final consumption should be even higher.
+        stats_final = get_job(op.id, job_id)["statistics"]
+        cpu_final = stats_final["job"]["cpu"]["cumulative_reserve"]["sum"]
+        vcpu_final = stats_final["job"]["vcpu"]["cumulative_reserve"]["sum"]
+        memory_final = stats_final["job"]["memory"]["cumulative_reserve"]["sum"]
+
+        assert cpu_final > cpu_t2, "CPU consumption should increase over time"
+        assert vcpu_final > vcpu_t2, "vCPU consumption should increase over time"
+        assert memory_final > memory_t2, "Memory consumption should increase over time"
+
+    @authors("krock21")
+    def test_job_consumption_tracks_high_memory_usage_with_low_reserve(self):
+        cpu_limit = 1.0
+        memory_limit_bytes = 1024 * 1024 * 1024
+        memory_reserve_factor = 0.1
+
+        # Need to give some time to get correct average value for memory. Deleting buf to verify that consumption doesn't go down after that.
+        command = """python3 - <<'PY'
+import time
+
+buf = bytearray(800 * 1024 * 1024)
+time.sleep(10.0)
+del buf
+time.sleep(10.0)
+PY
+"""
+
+        statistics, initial_memory_bytes = self._run_consumption_job(
+            command=command,
+            cpu_limit=cpu_limit,
+            memory_limit=memory_limit_bytes,
+            memory_reserve_factor=memory_reserve_factor,
+            gpu_limit=0,
+        )
+
+        # A job should increase memory usage up to 928mb (800mb user_job + 128mb ahead reserve).
+        # A job should work for 20 seconds with that usage. Allow 3 seconds to pick up the usage by job proxy.
+        expected_memory_gb_ms_min = (928 / 1024) * (17 * 1000) + (initial_memory_bytes / 1024 ** 3) * (3 * 1000)
+        # Allow 500ms overhead on max usage for startup and teardown.
+        expected_memory_gb_ms_max = (928 / 1024) * (20 * 1000 + 500)
+
+        assert floor(expected_memory_gb_ms_min) <= statistics["job"]["memory"]["cumulative_reserve"]["sum"] <= floor(expected_memory_gb_ms_max)
+
+    @authors("aleksandr.gaev")
+    def test_merge_job_consumption(self):
+        create("table", "//tmp/consumption_merge_in")
+        create("table", "//tmp/consumption_merge_out")
+        write_table("//tmp/consumption_merge_in", [{"key": i, "value": "x" * 100} for i in range(50)])
+
+        merge_op = merge(
+            in_=["//tmp/consumption_merge_in"],
+            out="//tmp/consumption_merge_out",
+            spec={"force_transform": True},
+            track=False,
+        )
+        merge_op.track()
+
+        self._assert_completed_jobs_have_consumption(merge_op.id)
+
+    @authors("aleksandr.gaev")
+    def test_sort_job_consumption(self):
+        create("table", "//tmp/consumption_sort_in")
+        create("table", "//tmp/consumption_sort_out")
+        write_table("//tmp/consumption_sort_in", [{"key": i, "value": "x" * 50} for i in range(40)])
+
+        sort_op = sort(
+            in_="//tmp/consumption_sort_in",
+            out="//tmp/consumption_sort_out",
+            sort_by=["key"],
+            track=False,
+        )
+        sort_op.track()
+
+        self._assert_completed_jobs_have_consumption(sort_op.id)
+
+    @authors("aleksandr.gaev")
+    def test_mapreduce_job_consumption(self):
+        create("table", "//tmp/consumption_mr_in")
+        create("table", "//tmp/consumption_mr_out")
+        write_table("//tmp/consumption_mr_in", [{"key": i, "value": i} for i in range(30)])
+
+        mr_op = map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/consumption_mr_in",
+            out="//tmp/consumption_mr_out",
+            sort_by=["key"],
+            track=False,
+        )
+        mr_op.track()
+
+        self._assert_completed_jobs_have_consumption(mr_op.id)
+
+
 class TestGetJobAllocationBase(_TestGetJobBase):
     NUM_NODES = 1
     ENABLE_MULTIDAEMON = True
@@ -769,6 +1047,13 @@ class TestGetJobRpcProxy(TestGetJob):
 @pytest.mark.enabled_multidaemon
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
     ENABLE_MULTIDAEMON = True
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+
+class TestGetJobCumulativeStatisticsRpcProxy(TestGetJobCumulativeStatistics):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
