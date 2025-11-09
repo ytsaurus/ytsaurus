@@ -66,6 +66,7 @@ target_sources(contrib-libs-icu PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/errorcode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/filteredbrk.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/filterednormalizer2.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/fixedstring.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/icudataver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/icuplug.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/icu/common/loadednormalizer2impl.cpp
@@ -513,5 +514,5 @@ target_sources(contrib-libs-icu PRIVATE
 
 target_rodata_sources(contrib-libs-icu
   PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/icudt77_dat.rodata
+  ${PROJECT_SOURCE_DIR}/contrib/libs/icu/icudt78_dat.rodata
 )
