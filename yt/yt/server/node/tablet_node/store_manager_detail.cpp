@@ -177,19 +177,19 @@ void TStoreManagerBase::UnscheduleRotation()
 
 void TStoreManagerBase::AddStore(
     IStorePtr store,
-    bool useInterceptedChunkData,
-    bool onFlush,
-    TPartitionId partitionIdHint)
+    TAddStoreOptions options)
 {
-    Tablet_->AddStore(store, onFlush, partitionIdHint);
+    Tablet_->AddStore(store, options.OnFlush, options.PartitionIdHint);
 
     if (store->IsChunk()) {
         auto chunkStore = store->AsChunk();
         if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
             bool shouldSchedulePreload = true;
 
-            if (useInterceptedChunkData) {
-                auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
+            if (options.UseInterceptedChunkData || options.UseRetainedPreloadedChunks) {
+                auto chunkData = options.UseRetainedPreloadedChunks
+                    ? InMemoryManager_->GetInterceptedChunkData(chunkStore->GetChunkId())
+                    : InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetChunkId());
                 if (TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
                     shouldSchedulePreload = false;
                 }
@@ -208,7 +208,7 @@ void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores)
     TBulkInsertProfiler bulkInsertProfiler(Tablet_);
     for (auto store : stores) {
         bulkInsertProfiler.Update(store);
-        AddStore(std::move(store), /*useInterceptedChunkData*/ false, /*onFlush*/ false);
+        AddStore(std::move(store), /*options*/ {});
     }
 }
 
@@ -449,8 +449,7 @@ EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
 void TStoreManagerBase::Mount(
     TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
     TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-    bool createDynamicStore,
-    const NTabletNode::NProto::TMountHint& /*mountHint*/)
+    TMountOptions options)
 {
     for (const auto* descriptor : hunkChunkDescriptors) {
         auto chunkId = FromProto<TChunkId>(descriptor->chunk_id());
@@ -473,7 +472,11 @@ void TStoreManagerBase::Mount(
             storeId,
             descriptor);
         store->Initialize();
-        AddStore(store->AsChunk(), /*useInterceptedChunkData*/ false, /*onFlush*/ false);
+        AddStore(
+            store->AsChunk(),
+            TAddStoreOptions{
+                .UseRetainedPreloadedChunks = options.UseRetainedPreloadedChunks,
+            });
 
         if (auto chunkStore = store->AsChunk()) {
             for (const auto& ref : chunkStore->HunkChunkRefs()) {
@@ -494,7 +497,7 @@ void TStoreManagerBase::Mount(
 
     // NB: Active store must be created _after_ chunk stores to make sure it receives
     // the right starting row index (for ordered tablets only).
-    if (createDynamicStore) {
+    if (options.CreateDynamicStore) {
         CreateActiveStore();
     }
 
@@ -570,7 +573,11 @@ void TStoreManagerBase::LoadReplicatedContent(
             }
 
             store->Initialize();
-            AddStore(store, /*useInterceptedChunkData*/ false, /*onFlush*/ false, partitionId);
+            AddStore(
+                store,
+                TAddStoreOptions{
+                    .PartitionIdHint = partitionId,
+                });
 
             if (store->IsChunk()) {
                 for (const auto& ref : store->AsChunk()->HunkChunkRefs()) {

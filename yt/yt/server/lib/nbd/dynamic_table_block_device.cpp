@@ -316,7 +316,7 @@ public:
         return TString();
     }
 
-    virtual TFuture<TReadResponse> Read(
+    TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
         const TReadOptions& options) override
@@ -369,7 +369,7 @@ public:
         return MakeFuture<TReadResponse>({std::move(result), false});
     }
 
-    virtual TFuture<TWriteResponse> Write(
+    TFuture<TWriteResponse> Write(
         i64 offset,
         const TSharedRef& data,
         const TWriteOptions& options) override
@@ -455,7 +455,7 @@ public:
         // Initialize device and block sizes.
         i64 deviceSize = -1, blockSize = -1;
         auto blocks = BlockCache_->ReadBlocks({{DeviceSizeBlockId, {}}, {BlockSizeBlockId, {}}}, false /*fillEmptyBlocksWithZeros*/, {.Cookie = 0} /*options*/);
-        for (auto& [blockId, blockPayload]: blocks) {
+        for (auto& [blockId, blockPayload] : blocks) {
             YT_VERIFY(blockId == DeviceSizeBlockId || blockId == BlockSizeBlockId);
 
             if (blockPayload.empty()) {

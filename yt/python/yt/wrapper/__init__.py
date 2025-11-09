@@ -43,6 +43,7 @@ from .string_iter_io import StringIterIO  # noqa
 from .user_statistics import write_statistics  # noqa
 from .yamr_mode import set_yamr_mode  # noqa
 from .dynamic_table_commands import ASYNC_LAST_COMMITTED_TIMESTAMP, SYNC_LAST_COMMITTED_TIMESTAMP  # noqa
+from .telemetry import _telemetry  # noqa
 # COMPAT(ignat)
 from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP, SYNC_LAST_COMMITED_TIMESTAMP  # noqa
 from .skiff import convert_to_skiff_schema  # noqa

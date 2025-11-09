@@ -439,8 +439,6 @@ private:
                         extensionTags,
                         &nodeDirectoryBuilder,
                         spec);
-
-
                 }
             } else {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();

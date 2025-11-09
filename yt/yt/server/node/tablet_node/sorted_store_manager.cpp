@@ -578,8 +578,7 @@ void TSortedStoreManager::BuildPivotKeys(
 void TSortedStoreManager::Mount(
     TRange<const TAddStoreDescriptor*> storeDescriptors,
     TRange<const TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-    bool createDynamicStore,
-    const TMountHint& mountHint)
+    TMountOptions options)
 {
     Tablet_->CreateInitialPartition();
 
@@ -588,7 +587,9 @@ void TSortedStoreManager::Mount(
     const auto& schema = *Tablet_->GetPhysicalSchema();
     chunkBoundaries.reserve(storeDescriptors.size());
 
-    auto edenStoreIds = FromProto<THashSet<TStoreId>>(mountHint.eden_store_ids());
+    auto edenStoreIds = options.MountHint
+        ? FromProto<THashSet<TStoreId>>(options.MountHint->eden_store_ids())
+        : THashSet<TStoreId>();
 
     auto isEden = [&] (bool isEdenChunk, TStoreId storeId) {
         // NB: Old tablets may lack eden store ids on master.
@@ -676,8 +677,7 @@ void TSortedStoreManager::Mount(
     TStoreManagerBase::Mount(
         storeDescriptors,
         hunkChunkDescriptors,
-        createDynamicStore,
-        mountHint);
+        std::move(options));
 }
 
 void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
@@ -725,9 +725,9 @@ void TSortedStoreManager::PopulateReplicateTabletContentRequest(
     TStoreManagerBase::PopulateReplicateTabletContentRequest(request);
 }
 
-void TSortedStoreManager::AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint)
+void TSortedStoreManager::AddStore(IStorePtr store, TAddStoreOptions options)
 {
-    TStoreManagerBase::AddStore(store, useInterceptedChunkData, onFlush, partitionIdHint);
+    TStoreManagerBase::AddStore(store, std::move(options));
 
     auto sortedStore = store->AsSorted();
     MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
@@ -741,7 +741,7 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores)
     THashMap<TPartitionId, std::vector<ISortedStorePtr>> addedStoresByPartition;
     for (const auto& store : stores) {
         bulkInsertProfiler.Update(store);
-        AddStore(store, /*useInterceptedChunkData*/ false, /*onFlush*/ false);
+        AddStore(store, /*options*/ {});
 
         auto sortedStore = store->AsSorted();
         addedStoresByPartition[sortedStore->GetPartition()->GetId()].push_back(sortedStore);

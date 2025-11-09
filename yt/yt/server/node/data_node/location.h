@@ -270,6 +270,7 @@ public:
     struct TDiskThrottlingResult
     {
         bool Enabled;
+        bool MemoryOvercommit;
         i64 QueueSize;
         TError Error;
     };
@@ -286,6 +287,9 @@ public:
 
     //! Returns whether writes must be throttled.
     void ReportThrottledProbingWrite() const;
+    TDiskThrottlingResult CheckWriteThrottling(
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool blocksWindowShifted) const;
     TDiskThrottlingResult CheckWriteThrottling(
         TChunkId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
@@ -363,6 +367,8 @@ private:
     THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
+
+    bool ShouldAlwaysThrottle() const;
 
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
@@ -503,6 +509,8 @@ private:
     void RemoveLocationChunks();
 
     bool IsTrashScanStopped() const;
+
+    bool ShouldAlwaysThrottle() const;
 
     i64 GetAdditionalSpace() const override;
 

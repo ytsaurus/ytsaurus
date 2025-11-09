@@ -66,4 +66,4 @@ TEST(TBitNotQueryRewriterTest, BestEffort)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects::NTests
+} // namespace NYT::NOrm::NQuery::NTests

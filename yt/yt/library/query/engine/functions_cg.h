@@ -27,6 +27,8 @@ struct IFunctionCodegen
     {
         return true;
     }
+
+    virtual TSharedRef GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
@@ -43,6 +45,8 @@ struct IAggregateCodegen
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
     virtual bool IsFirst() const = 0;
+
+    virtual TSharedRef GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
@@ -73,7 +77,7 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
-    TUnversionedValueCallingConvention(int repeatedArgIndex);
+    explicit TUnversionedValueCallingConvention(int repeatedArgIndex);
 
     TCGValue MakeCodegenFunctionCall(
         TCGBaseContext& baseBuilder,
@@ -128,13 +132,13 @@ public:
     TExternalFunctionCodegen(
         const std::string& functionName,
         const std::string& symbolName,
-        TSharedRef implementationFile,
+        const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
         ICallingConventionPtr callingConvention,
         TSharedRef fingerprint,
         bool useFunctionContext = false)
         : FunctionName_(functionName)
         , SymbolName_(symbolName)
-        , ImplementationFile_(implementationFile)
+        , ImplementationFiles_(implementationFiles)
         , CallingConvention_(callingConvention)
         , Fingerprint_(fingerprint)
         , UseFunctionContext_(useFunctionContext)
@@ -143,7 +147,7 @@ public:
     TExternalFunctionCodegen(
         const std::string& functionName,
         const std::string& symbolName,
-        TSharedRef implementationFile,
+        const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
         ECallingConvention callingConvention,
         TType repeatedArgType,
         int repeatedArgIndex,
@@ -152,7 +156,7 @@ public:
         : TExternalFunctionCodegen(
             functionName,
             symbolName,
-            implementationFile,
+            implementationFiles,
             GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
             fingerprint,
             useFunctionContext)
@@ -168,10 +172,12 @@ public:
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override;
+
 private:
     const std::string FunctionName_;
     const std::string SymbolName_;
-    const TSharedRef ImplementationFile_;
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
     const ICallingConventionPtr CallingConvention_;
     const TSharedRef Fingerprint_;
     const bool UseFunctionContext_;
@@ -183,12 +189,12 @@ struct TExternalAggregateCodegen
 public:
     TExternalAggregateCodegen(
         const std::string& aggregateName,
-        TSharedRef implementationFile,
+        const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
         ECallingConvention callingConvention,
         bool isFirst,
         TSharedRef fingerprint)
         : AggregateName_(aggregateName)
-        , ImplementationFile_(implementationFile)
+        , ImplementationFiles_(implementationFiles)
         , CallingConvention_(GetCallingConvention(callingConvention))
         , IsFirst_(isFirst)
         , Fingerprint_(fingerprint)
@@ -204,9 +210,11 @@ public:
 
     bool IsFirst() const override;
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override;
+
 private:
     const std::string AggregateName_;
-    const TSharedRef ImplementationFile_;
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
     const ICallingConventionPtr CallingConvention_;
     const bool IsFirst_;
     const TSharedRef Fingerprint_;

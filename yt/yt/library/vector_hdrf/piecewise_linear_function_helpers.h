@@ -66,6 +66,6 @@ NVectorHdrf::TVectorPiecewiseLinearFunction CompressFunction(
 
 } // namespace NYT::NVectorHdrf::NDetail
 
-#define PIECEWISE_LINEAR_FUNCTION_HELPERS_H_
+#define PIECEWISE_LINEAR_FUNCTION_HELPERS_INL_H_
 #include "piecewise_linear_function_helpers-inl.h"
-#undef PIECEWISE_LINEAR_FUNCTION_HELPERS_H_
+#undef PIECEWISE_LINEAR_FUNCTION_HELPERS_INL_H_

@@ -949,7 +949,6 @@ private:
     void ValidateChangelogsSealed()
     {
         ListChangelogs({"sealed"}, [&] (const INodePtr& item, int id, bool atPrimaryPath) {
-
             if (!item->Attributes().Get<bool>("sealed", false)) {
                 THROW_ERROR_EXCEPTION("Changelog %v in changelog store %v is not sealed",
                     id,

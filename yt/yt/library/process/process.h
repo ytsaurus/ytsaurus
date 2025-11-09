@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -17,7 +19,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorOr<TString> ResolveBinaryPath(const TString& binary);
-std::vector<TString> GetEnviron();
 bool TryKillProcessByPid(int pid, int signal);
 
 ////////////////////////////////////////////////////////////////////////////////

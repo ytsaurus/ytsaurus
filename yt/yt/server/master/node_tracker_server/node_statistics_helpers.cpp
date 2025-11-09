@@ -14,7 +14,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void static BuildIOStatisticsYson(
+static void BuildIOStatisticsYson(
     const NNodeTrackerClient::NProto::TIOStatistics& io,
     NYTree::TFluentMap fluent)
 {

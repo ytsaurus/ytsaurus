@@ -632,12 +632,11 @@ private:
                     .DoMapFor(
                         node->ConsistentReplicaPlacementTokenCount(),
                         [&] (TFluentMap fluent, const auto& pair) {
-
-                        auto* medium = chunkManager->FindMediumByIndex(pair.first);
-                        if (IsObjectAlive(medium)) {
-                            fluent.Item(medium->GetName()).Value(pair.second);
-                        }
-                    });
+                            auto* medium = chunkManager->FindMediumByIndex(pair.first);
+                            if (IsObjectAlive(medium)) {
+                                fluent.Item(medium->GetName()).Value(pair.second);
+                            }
+                        });
                 return true;
             }
 

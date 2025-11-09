@@ -536,7 +536,6 @@ TEST_F(TUnversionedRowMergerTest, ResetAggregate1)
 
 TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
 {
-
     TTableSchema schema({
         TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("v", EValueType::Int64),
@@ -602,7 +601,6 @@ TEST_F(TUnversionedRowMergerTest, MergeNestedColumns1)
 
 TEST_F(TUnversionedRowMergerTest, MergeNestedColumns2)
 {
-
     TTableSchema schema({
         TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("nk1", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))
@@ -2569,7 +2567,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 11");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2585,7 +2583,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 11");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 11");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2601,7 +2599,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=20> 10");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=20> 10");
         expectedRows.push_back(expectedRow);
     }
 
@@ -2617,7 +2615,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
             "<id=2;ts=15> 42; <id=2;ts=13> 52");
         inputRows.push_back(row);
 
-        auto expectedRow = BuildVersionedRow("<id=0> 0","<id=1;ts=30> 5");
+        auto expectedRow = BuildVersionedRow("<id=0> 0", "<id=1;ts=30> 5");
         expectedRows.push_back(expectedRow);
     }
 

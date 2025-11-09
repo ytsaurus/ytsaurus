@@ -1067,7 +1067,6 @@ private:
                     .AsyncViaGuarded(
                         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
                         TError("Error fetching Sequoia replicas")));
-
             }
 
             case EInternedAttributeKey::OwningNodes:

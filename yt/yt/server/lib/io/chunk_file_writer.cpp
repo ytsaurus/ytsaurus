@@ -134,6 +134,18 @@ TFuture<void> TChunkFileWriter::Open()
         }));
 }
 
+TFuture<void> TChunkFileWriter::PreallocateDiskSpace(
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 spaceSize)
+{
+    if (DiskSpace_ < spaceSize) {
+        DiskSpace_ = spaceSize;
+        return IOEngine_->Allocate(TAllocateRequest{.Handle = DataFile_, .Size = DiskSpace_}, workloadDescriptor.Category);
+    } else {
+        return VoidFuture;
+    }
+}
+
 bool TChunkFileWriter::WriteBlock(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,

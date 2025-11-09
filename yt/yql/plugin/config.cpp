@@ -9,9 +9,9 @@
 
 namespace NYT::NYqlPlugin {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYTree;
+
+using NSecurityClient::YqlAgentUserName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,8 +156,6 @@ IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defa
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using NSecurityClient::YqlAgentUserName;
 
 void TVanillaJobFile::Register(TRegistrar registrar)
 {
@@ -330,8 +328,6 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
-    registrar.Parameter("ui_origin", &TThis::UIOrigin)
-        .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();
     registrar.Parameter("additional_system_libs", &TThis::AdditionalSystemLibs)
@@ -435,5 +431,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin

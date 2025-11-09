@@ -55,6 +55,7 @@ message TReqStartChunk
     optional NYT.NProto.TGuid placement_id = 6;
     optional bool disable_send_blocks = 9 [default = false];
     optional bool use_probe_put_blocks = 10 [default = false];
+    optional bool preallocate_disk_space = 11 [default = false];
 }
 
 message TRspStartChunk

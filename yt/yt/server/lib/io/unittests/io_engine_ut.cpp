@@ -92,7 +92,7 @@ TEST_P(TIOEngineTest, WriteError)
 
     auto writeToFail = [&] {
         return engine->Write({
-            .Handle= file,
+            .Handle = file,
             .Offset = -10,
             .Buffers = {data.Slice(0, 10), data.Slice(20, 30), data, data.Slice(40, 50)},
             .Flush = true,
@@ -122,7 +122,7 @@ TEST_P(TIOEngineTest, ReadWrite)
 
     auto write = [&] {
         engine->Write({
-            .Handle= file,
+            .Handle = file,
             .Offset = 0,
             .Buffers = {data.Slice(1, 1), data.Slice(1, 1), data, data.Slice(1, 1)},
             .Flush = true,
@@ -141,7 +141,7 @@ TEST_P(TIOEngineTest, ReadWrite)
         auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
-        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
     };
 
@@ -179,7 +179,7 @@ TEST_P(TIOEngineTest, ReadAll)
         .Get()
         .ValueOrThrow();
 
-    EXPECT_TRUE(result.OutputBuffers.size() == 1);
+    EXPECT_EQ(result.OutputBuffers.size(), 1UL);
     EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data));
 }
 
@@ -207,7 +207,7 @@ TEST_P(TIOEngineTest, DirectIO)
         auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
-        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
     };
 
@@ -245,7 +245,7 @@ TEST_P(TIOEngineTest, DirectIOUnalignedFile)
         auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
-        EXPECT_TRUE(result.OutputBuffers.size() == 1);
+        EXPECT_EQ(result.OutputBuffers.size(), 1UL);
         EXPECT_TRUE(TRef::AreBitwiseEqual(result.OutputBuffers[0], data.Slice(offset, offset + size)));
     };
 
@@ -408,7 +408,6 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
             }
         }
     }
-
 }
 
 TEST_P(TIOEngineTest, DirectIOAligned)

@@ -451,7 +451,6 @@ public:
                 YqlAgentToken_ = NYT::TConfig::Get()->Token;
             }
 
-            UIOrigin_ = options.UIOrigin;
             // do not use token from .yt/token or env in queries
             NYT::TConfig::Get()->Token = {};
 
@@ -615,10 +614,8 @@ public:
             sqlSettings.DqDefaultAuto = NSQLTranslation::ISqlFeaturePolicy::MakeAlwaysAllow();
         }
 
-        if (UIOrigin_) {
-            program->SetOperationId(ToString(queryId));
-            program->SetOperationUrl(NFS::CombinePaths({UIOrigin_, sqlSettings.DefaultCluster, "queries", ToString(queryId)}));
-        }
+        program->SetOperationId(ToString(queryId));
+        program->SetOperationUrl(sqlSettings.DefaultCluster);
 
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
@@ -864,6 +861,7 @@ public:
 
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
+    const bool StartDqManager_;
     TDqManagerPtr DqManager_;
     THolder<IThreadPool> DqGatewayOffloadThreadPool_;
     NYql::TFileStoragePtr FileStorage_;
@@ -873,7 +871,6 @@ private:
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
-    TString UIOrigin_;
 
     TLangVersion MaxYqlLangVersion_;
     TLangVersion DefaultYqlApiLangVersion_;
@@ -881,8 +878,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
-
-    bool StartDqManager_;
 
     std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false)
     {
@@ -1037,7 +1032,7 @@ private:
         YQL_LOG(DEBUG) << __FUNCTION__ << ": dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
-            false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
+            false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "yql-agent");
         factory->AddUserDataTable(UserDataTable_);
         factory->SetCredentials(MakeIntrusive<NYql::TCredentials>());
         factory->SetModules(dynamicConfig.ModuleResolver);

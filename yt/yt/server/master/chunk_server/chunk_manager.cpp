@@ -3143,7 +3143,6 @@ private:
                 node,
                 request->chunks(),
                 /*incremental*/ false);
-
         }
 
         SetAnnounceReplicaRequests(
@@ -6095,7 +6094,7 @@ private:
                 mediumIndex,
                 reason);
             return {nullptr, nullptr};
-        };
+        }
         if (medium->IsOffshore()) {
             YT_LOG_ALERT(
                 "Cannot process chunk event with offshore medium "

@@ -30,8 +30,7 @@ public:
     void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-        bool createDynamicStore,
-        const NTabletNode::NProto::TMountHint& mountHint) override;
+        TMountOptions options) override;
 
     void LockHunkStores(TWriteContext* context) override;
 

@@ -215,7 +215,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                         EExecutionBackend::Native),
                     {wireType},
                     wireType,
-                    EExecutionBackend::Native);
+                    EExecutionBackend::Native,
+                    {});
             }
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;

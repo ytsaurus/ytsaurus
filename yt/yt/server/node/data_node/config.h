@@ -535,7 +535,10 @@ struct TDataNodeTestingOptions
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
-    // Always return on SendBlocks that network is throttling.
+    //! TChunkLocation::CheckWriteThrottling/TChunkLocation::CheckReadThrottling always return throttled.
+    bool AlwaysThrottleLocation;
+
+    //! Always return on SendBlocks that network is throttling.
     std::optional<bool> AlwaysThrottleNetOnSendBlocks;
 
     //! Test location disable during full heartbeat, contains location uuid.
@@ -955,6 +958,9 @@ struct TDataNodeConfig
     //! If |true| then location on StartChunk is randomly chosen based on io_weight.
     bool ChooseLocationBasedOnIOWeight;
 
+    //! If |true| then write throttling locations on StartChunk won't be chosen.
+    bool SkipWriteThrottlingLocations;
+
     //! If |true| then IO requests in one session are proccessed sequentially.
     bool EnableSequentialIORequests;
 
@@ -1093,6 +1099,7 @@ struct TDataNodeDynamicConfig
 
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
+    bool PreallocateDiskSpace;
 
     TP2PConfigPtr P2P;
 
@@ -1126,6 +1133,8 @@ struct TDataNodeDynamicConfig
     std::optional<i64> DiskReadThrottlingLimit;
 
     std::optional<bool> ChooseLocationBasedOnIOWeight;
+
+    std::optional<bool> SkipWriteThrottlingLocations;
 
     std::optional<bool> EnableSequentialIORequests;
 

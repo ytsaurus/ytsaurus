@@ -469,6 +469,104 @@ class TestIoEngine(YTEnvSetup):
         }, False)
 
     @authors("vvshlyaga")
+    def test_write_with_preallocating_disk_space(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "preallocate_disk_space": True
+            }
+        })
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "preallocate_disk_space": True,
+                },
+            })
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0,
+                        'write_memory_limit': -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "write_memory_limit": -1,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False, False)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'read_memory_limit': -1,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'read_memory_limit': -1,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, True, False)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'total_memory_limit': -1,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'total_memory_limit': -1,
+                    }
+                }
+            }
+        }, False, True)
+
+    @authors("vvshlyaga")
     def test_write_without_send_blocks(self):
         update_nodes_dynamic_config({
             "data_node": {

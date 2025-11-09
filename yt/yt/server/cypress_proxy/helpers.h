@@ -33,7 +33,7 @@ void SetAccessTrackingOptions(
 
 void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
-    const NYPath::TYPath& targetPath,
+    NYPath::TYPath targetPath,
     const TResolveResult& resolveResult);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +73,10 @@ using TRootDesignator = std::variant<NObjectClient::TObjectId, TSlashRootDesigna
 //! Returns the root designator, throws if path does not contain any.
 //! Validates GUID in case of object root designator.
 std::pair<TRootDesignator, NYPath::TYPathBuf> GetRootDesignator(NYPath::TYPathBuf path);
+
+//! Returns |true| if path starts with `#<object-id>` and |false| in case of
+//! other root designator. Throws otherwise (see #GetRootDesignator).
+bool CheckStartsWithObjectIdOrThrow(NYPath::TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

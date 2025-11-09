@@ -22,14 +22,13 @@ using namespace DB;
 //! after that there is an arbitrary number of arguments specifying path to a desired part from the YSON's root.
 //! For example,
 //! select YSONExtractInt('{a = "hello"; b = [-100; 200.0; 300]}', 'b', 1) = -100
-template <typename Name, template<typename> typename Impl>
+template <typename Name, template <typename> typename Impl>
 class TFunctionYson
     : public IFunction
     , public WithConstContext
 {
 public:
-
-    TFunctionYson(ContextPtr context_)
+    explicit TFunctionYson(ContextPtr context_)
         : WithConstContext(context_)
     { }
 

@@ -81,6 +81,8 @@ def create_response_error(underlying_error):
         error = YtTabletNotMounted(underlying_error)
     elif sample_error.is_rpc_unavailable():
         error = YtRpcUnavailable(underlying_error)
+    elif sample_error.is_proxy_banned():
+        error = YtProxyBanned(underlying_error)
     elif sample_error.is_all_target_nodes_failed():
         error = YtAllTargetNodesFailed(underlying_error)
     elif sample_error.is_transport_error():
@@ -128,6 +130,13 @@ class YtRequestQueueSizeLimitExceeded(YtResponseError):
 
 class YtRpcUnavailable(YtResponseError):
     """Rpc unavailable error.
+       It is used in retries.
+    """
+    pass
+
+
+class YtProxyBanned(YtResponseError):
+    """Proxy is banned.
        It is used in retries.
     """
     pass

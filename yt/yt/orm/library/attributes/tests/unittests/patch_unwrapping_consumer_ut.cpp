@@ -60,6 +60,40 @@ TEST(TPatchUnwrappingConsumerTest, Forwarding)
     ASSERT_EQ(helper.Flush().AsStringBuf(), expected.AsStringBuf());
 }
 
+TEST(TPatchUnwrappingConsumerTest, BuilderCheckpointing)
+{
+    TYsonStringBuilder stringBuilder(EYsonFormat::Text, EYsonType::MapFragment, /*enableRaw*/ false);
+    TYsonBuilder<TPatchUnwrappingConsumer> builder(stringBuilder);
+
+    BuildYsonFluently(builder.GetConsumer())
+        .BeginAttributes()
+            .Item("attr").Entity()
+        .EndAttributes()
+        .BeginMap()
+            .Item("key");
+    auto checkpoint = builder.CreateCheckpoint();
+    builder->OnBeginList();
+    builder->OnEndList();
+    builder.RestoreCheckpoint(checkpoint);
+    builder->OnBeginList();
+    builder->OnListItem();
+    builder->OnEntity();
+    builder->OnEndList();
+    builder->OnEndMap();
+
+    auto expected = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
+        .Item("key")
+            .BeginAttributes()
+                .Item("attr").Entity()
+            .EndAttributes()
+            .BeginList()
+                .Item().Entity()
+            .EndList()
+        .Finish();
+
+    ASSERT_EQ(stringBuilder.Flush().AsStringBuf(), expected.AsStringBuf());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

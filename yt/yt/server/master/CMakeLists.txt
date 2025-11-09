@@ -98,6 +98,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/sequoia_reconstructor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer.cpp

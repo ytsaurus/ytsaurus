@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/codegen_api/execution_backend.h>
+
 #include <yt/yt/library/query/base/functions_common.h>
 
 namespace NYT::NQueryClient {
@@ -19,7 +21,7 @@ void AppendFunctionImplementation(
     TType functionRepeatedArgType,
     int functionRepeatedArgIndex,
     bool functionUseFunctionContext,
-    const TSharedRef& functionImpl);
+    const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles);
 
 ////////////////////////////////////////////////////////////////////////////////
 

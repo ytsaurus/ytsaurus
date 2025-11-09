@@ -1,10 +1,11 @@
 from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated, utcnow, get_value
 from .config import get_config
-from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .constants import LOCAL_MODE_URL_PATTERN
 from .driver import make_request, make_formatted_request, get_api_version
-from .http_helpers import get_proxy_address_url, get_retriable_errors
+from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .exceptions_catcher import ExceptionCatcher
+from .format import Format
+from .http_helpers import get_proxy_address_url, get_retriable_errors
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
 from .retries import Retrier
@@ -20,11 +21,104 @@ except ImportError:
 
 import builtins
 import logging
+import typing
 from datetime import datetime, timedelta
 from time import sleep, time
+from typing import List, Dict, Tuple, Optional, Literal, Union, Mapping, Any, TypedDict
 from multiprocessing import TimeoutError
 
 from io import StringIO
+
+
+_OperationStateType = Literal["aborted", "completed", "failed", "running", "starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"]
+if typing.TYPE_CHECKING or hasattr(typing, "TypeAlias"):
+    OperationStateType: typing.TypeAlias = _OperationStateType
+else:
+    OperationStateType = _OperationStateType
+
+
+class ListOperationsOperationType(TypedDict, total=False):
+    id: str
+    state: OperationStateType
+    type: str
+    operation_type: str
+    authenticated_user: str
+    start_time: str
+    finish_time: str
+    brief_progress: Dict[str, Any]
+    brief_spec: Dict[str, Any]
+    experiment_assignment_names: List[str]
+
+    class OperationRuntimeParametersType(TypedDict, total=False):
+        acl: List[Dict[str, Any]]
+        controller_agent_tag: str
+        erased_trees: List[str]
+        options_per_job_shell: Dict[str, Any]
+        owners: List[str]
+        scheduling_options_per_pool_tree: Dict[str, Any]
+        scheduling_tag_filter: str
+
+    runtime_parameters: OperationRuntimeParametersType
+
+    suspended: bool
+
+
+class GetOperationOperationType(ListOperationsOperationType):
+    progress: Dict[str, Any]
+    full_spec: Dict[str, Any]
+    spec: Dict[str, Any]
+    provided_spec: Dict[str, Any]
+    experiment_assignments: List[Dict[str, Any]]
+    unrecognized_spec: Dict[str, Any]
+
+    class ResultType(TypedDict, total=False):
+        class ResultErrorType(TypedDict, total=False):
+            code: int
+            message: str
+            attributes: Dict[str, Any]
+        error: ResultErrorType
+
+    result: ResultType
+    events: List[Dict[str, Any]]
+    scheduling_attributes_per_pool_tree: Dict[str, Any]
+    slot_index_per_pool_tree: Dict[str, Any]
+    alerts: Dict[str, Any]
+    task_names: List[Any]
+    controller_features: List[Dict[str, Any]]
+
+
+class ListOperationsType(TypedDict, total=False):
+    operations: List[ListOperationsOperationType]
+    incomplete: bool
+    pool_tree_counts: Dict[str, int]
+    pool_counts: Dict[str, int]
+    user_counts: Dict[str, int]
+
+    class ListOperationsStateCountsType(TypedDict, total=False):
+        initializing: int
+        preparing: int
+        materializing: int
+        pending: int
+        running: int
+        completing: int
+        completed: int
+        failed: int
+
+    state_counts: ListOperationsStateCountsType
+
+    class ListOperationsTypeCountsType(TypedDict, total=False):
+        map: int
+        merge: int
+        erase: int
+        sort: int
+        reduce: int
+        map_reduce: int
+        remote_copy: int
+        vanilla: int
+
+    type_counts: ListOperationsTypeCountsType
+
+    failed_jobs_count: int
 
 
 class OperationInfoRetrier(Retrier):
@@ -52,10 +146,11 @@ class OperationInfoRetrier(Retrier):
         logger.warning('Request %s failed with error %s',
                        self.command, repr(error))
 
+
 # Public functions
 
 
-def abort_operation(operation, message=None, reason=None, client=None):
+def abort_operation(operation: str, message: str = None, reason: str = None, client=None):
     """Aborts operation.
 
     Do nothing if operation is in final state.
@@ -72,7 +167,7 @@ def abort_operation(operation, message=None, reason=None, client=None):
     make_request(command_name, params, client=client)
 
 
-def suspend_operation(operation, abort_running_jobs=False, reason=None, client=None):
+def suspend_operation(operation: str, abort_running_jobs: bool = False, reason: str = None, client=None):
     """Suspends operation.
 
     :param str operation: operation id.
@@ -83,7 +178,7 @@ def suspend_operation(operation, abort_running_jobs=False, reason=None, client=N
     return make_request(command_name, params, client=client)
 
 
-def resume_operation(operation, client=None):
+def resume_operation(operation: str, client=None):
     """Continues operation after suspending.
 
     :param str operation: operation id.
@@ -92,7 +187,7 @@ def resume_operation(operation, client=None):
     return make_request(command_name, {"operation_id": operation}, client=client)
 
 
-def complete_operation(operation, client=None):
+def complete_operation(operation: str, client=None):
     """Completes operation.
 
     Aborts all running and pending jobs.
@@ -107,7 +202,14 @@ def complete_operation(operation, client=None):
     return make_request(command_name, {"operation_id": operation}, client=client)
 
 
-def get_operation(operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None, client=None):
+def get_operation(
+    operation_id: str = None,
+    operation_alias: str = None,
+    attributes: Optional[List[str]] = None,
+    include_runtime: Optional[bool] = None,
+    format: Union[str, Format, None] = None,
+    client=None,
+) -> GetOperationOperationType:
     """Get operation attributes through API.
     """
     params = {}
@@ -127,11 +229,26 @@ def get_operation(operation_id=None, operation_alias=None, attributes=None, incl
         timeout=timeout).run()
 
 
-def list_operations(user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
-                    from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
-                    include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
-                    attributes=None,
-                    format=None, client=None):
+def list_operations(
+    user: str = None,
+    state: Union["OperationState", OperationStateType, None] = None,
+    type: Optional[str] = None,
+    filter: Optional[str] = None,
+    pool_tree: Optional[str] = None,
+    pool: Optional[str] = None,
+    with_failed_jobs: Optional[bool] = None,
+    from_time=None,
+    to_time=None,
+    cursor_time=None,
+    cursor_direction: Optional[Literal["future", "past"]] = None,
+    include_archive: Optional[bool] = None,
+    include_counters: Optional[bool] = None,
+    limit: Optional[int] = None,
+    enable_ui_mode: bool = False,
+    attributes: Optional[List[str]] = None,
+    format: Union[str, Format, None] = None,
+    client=None,
+) -> ListOperationsType:
     """List operations that satisfy given options.
     """
     def format_time(time):
@@ -167,7 +284,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool_tree=Non
         timeout=timeout)
 
 
-def list_operation_events(operation_id, event_type=None, format=None, client=None):
+def list_operation_events(operation_id: str, event_type: str = None, format: Union[str, Format, None] = None, client=None):
     """List events of given operation.
 
     :param str operation_id: operation id.
@@ -222,7 +339,7 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool_tree=
         cursor_time = datetime_to_string(date_string_to_datetime(cursor_time) - timedelta(microseconds=step))
 
 
-def update_operation_parameters(operation_id, parameters, client=None):
+def update_operation_parameters(operation_id: str, parameters: Mapping[str, Any], client=None):
     """Updates operation runtime parameters."""
     command_name = "update_operation_parameters" if get_api_version(client) == "v4" else "update_op_parameters"
     return make_request(
@@ -231,7 +348,7 @@ def update_operation_parameters(operation_id, parameters, client=None):
         client=client)
 
 
-def patch_operation_spec(operation_id, patches, client=None):
+def patch_operation_spec(operation_id: str, patches: List[Mapping[str, Any]], client=None):
     """Patches operation spec."""
     command_name = "patch_operation_spec" if get_api_version(client) == "v4" else "patch_op_spec"
     return make_request(
@@ -244,7 +361,7 @@ def patch_operation_spec(operation_id, patches, client=None):
 
 class OperationState(object):
     """State of operation (simple wrapper for string name)."""
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
     def is_finished(self):
@@ -300,7 +417,7 @@ class TimeWatcher(object):
         sleep(pause)
 
 
-def get_operation_attributes(operation, fields=None, client=None):
+def get_operation_attributes(operation: str, fields: Optional[List[str]] = None, client=None):
     """Returns dict with operation attributes.
 
     :param str operation: operation id.
@@ -310,7 +427,7 @@ def get_operation_attributes(operation, fields=None, client=None):
     return get_operation(operation, attributes=fields, client=client)
 
 
-def get_operation_state(operation, client=None):
+def get_operation_state(operation: str, client=None) -> OperationState:
     """Returns current state of operation.
 
     :param str operation: operation id.
@@ -326,7 +443,7 @@ def get_operation_state(operation, client=None):
         config["proxy"]["retries"]["count"] = retry_count
 
 
-def get_operation_progress(operation, with_build_time=False, client=None):
+def get_operation_progress(operation: str, with_build_time: bool = False, client=None):
     def calculate_total(counter):
         if isinstance(counter, dict):
             return sum(map(calculate_total, counter.values()))
@@ -358,7 +475,7 @@ def get_operation_progress(operation, with_build_time=False, client=None):
         return progress
 
 
-def order_progress(progress):
+def order_progress(progress: Dict[str, Any]) -> List[Tuple[str, Any]]:
     filter_out = ("completed_details",)
     filter_out_if_zero = ("suspended", "invalidated", "uncategorized")
     keys = ("running", "completed", "pending", "failed", "aborted", "lost", "total")
@@ -388,9 +505,9 @@ def order_progress(progress):
 
 class PrintOperationInfo(object):
     """Caches operation state and prints info by update."""
-    def __init__(self, operation, client=None):
+    def __init__(self, operation: str, client=None):
         self.operation = operation
-        self.state = None
+        self.state: OperationState = None
         self.progress = None
         self.progress_build_time = None
 
@@ -401,7 +518,7 @@ class PrintOperationInfo(object):
         self.client = client
         self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])
 
-    def __call__(self, state):
+    def __call__(self, state: OperationState):
         if (self.state is None or self.state.is_starting()) and not state.is_starting():
             unrecognized_spec = get_operation_attributes(
                 self.operation,
@@ -433,13 +550,13 @@ class PrintOperationInfo(object):
                         self.log("%s: %s", readable_name, str(attribute_value))
         self.state = state
 
-    def log(self, message, *args, **kwargs):
+    def log(self, message: str, *args, **kwargs):
         elapsed_seconds = (datetime.now() - self.operation_start_time).total_seconds()
         message = "({0:2} min) ".format(int(elapsed_seconds) // 60) + message
         logger.log(self.level, message, *args, **kwargs)
 
 
-def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
+def get_operation_state_monitor(operation: str, time_watcher: TimeWatcher, action=lambda: None, client=None):
     """
     Yields state and sleeps. Waits for final state of operation.
 
@@ -461,7 +578,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
         time_watcher.wait()
 
 
-def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
+def get_jobs_with_error_or_stderr(operation: str, only_failed_jobs: bool, client=None):
     # TODO(ostyakov): Remove local import
     from .client import YtClient
 

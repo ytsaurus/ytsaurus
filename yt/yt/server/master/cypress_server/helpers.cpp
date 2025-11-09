@@ -525,7 +525,7 @@ TNodeId GetNodeParentId(const TCypressNode* node)
 {
     if (node->IsSequoia() && node->ImmutableSequoiaProperties()) {
         return node->ImmutableSequoiaProperties()->ParentId;
-    } if (node->GetType() == EObjectType::PortalExit) {
+    } else if (node->GetType() == EObjectType::PortalExit) {
         return node->As<TPortalExitNode>()->GetParentId();
     } else {
         return node->GetParent()->GetId();

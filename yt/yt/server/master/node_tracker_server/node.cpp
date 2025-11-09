@@ -211,7 +211,6 @@ bool TNode::MustReportHeartbeatsToAllMasters() const
     return heartbeats.contains(ENodeHeartbeatType::Data) ||
         heartbeats.contains(ENodeHeartbeatType::Tablet) ||
         heartbeats.contains(ENodeHeartbeatType::Cellar);
-
 }
 
 THashSet<ENodeHeartbeatType> TNode::GetHeartbeatTypes() const

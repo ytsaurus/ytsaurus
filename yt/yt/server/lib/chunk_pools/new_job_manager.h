@@ -101,7 +101,7 @@ public:
     //! Used only for persistence.
     TNewJobManager();
 
-    TNewJobManager(const NLogging::TLogger& logger);
+    explicit TNewJobManager(const NLogging::TLogger& logger);
 
     //! NB: Without manual dtor, other classes cannot persist TNewJobManager
     //! because they do not know how to destruct std::unique_ptr<TJobOrder>.

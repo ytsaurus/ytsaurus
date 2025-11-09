@@ -37,4 +37,4 @@ inline bool IsAccessLogEnabled(NCellMaster::TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NSecurityServer

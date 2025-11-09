@@ -51,6 +51,7 @@ namespace NYT::NQueryClient {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NCodegen;
 using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NFileClient;
@@ -670,7 +671,7 @@ void AppendFunctionImplementation(
     const TFunctionProfilerMapPtr& functionProfilers,
     const TAggregateProfilerMapPtr& aggregateProfilers,
     const TExternalFunctionImpl& function,
-    const TSharedRef& impl)
+    const TEnumIndexedArray<EExecutionBackend, TSharedRef>& impl)
 {
     AppendFunctionImplementation(
         functionProfilers,
@@ -715,11 +716,15 @@ void FetchFunctionImplementationsFromCypress(
 
     for (size_t index = 0; index < externalCGInfo->Functions.size(); ++index) {
         const auto& function = externalCGInfo->Functions[index];
+
+        auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
+        implementationFiles[EExecutionBackend::Native] = results[index]->File;
+
         AppendFunctionImplementation(
             functionProfilers,
             aggregateProfilers,
             function,
-            results[index]->File);
+            implementationFiles);
     }
 }
 
@@ -736,9 +741,11 @@ void FetchFunctionImplementationsFromFiles(
 
         auto path = TString(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
-        auto impl = TSharedRef::FromString(file.ReadAll());
 
-        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, impl);
+        auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
+        implementationFiles[EExecutionBackend::Native] = TSharedRef::FromString(file.ReadAll());
+
+        AppendFunctionImplementation(functionProfilers, aggregateProfilers, function, implementationFiles);
     }
 }
 

@@ -28,6 +28,7 @@ SRCS(
     cell_master/proto/multicell_node_statistics.proto
     cell_master/proto/response_keeper_manager.proto
     cell_master/response_keeper_manager.cpp
+    cell_master/sequoia_reconstructor.cpp
     cell_master/serialize.cpp
     cell_master/snapshot_exporter.cpp
     cell_master/world_initializer.cpp

@@ -134,6 +134,6 @@ private:
 
 } // namespace NYT::NQueryClient
 
-#define POSITION_INDEPENDENT_VALUE_TRANSFER_INL_H
+#define POSITION_INDEPENDENT_VALUE_TRANSFER_INL_H_
 #include "position_independent_value_transfer-inl.h"
-#undef POSITION_INDEPENDENT_VALUE_TRANSFER_INL_H
+#undef POSITION_INDEPENDENT_VALUE_TRANSFER_INL_H_

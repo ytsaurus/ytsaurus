@@ -247,7 +247,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
     WaitForPredicate(BIND(checkGroups, groupId, std::vector{subgroupId1, subgroupId2, subgroupId3}));
 
     auto checkResponseSize = [&] (int expectedSize, bool expectIncomplete) {
-        auto groupsFuture = discoveryClient->ListGroups(groupId, {.Limit=expectedSize});
+        auto groupsFuture = discoveryClient->ListGroups(groupId, {.Limit = expectedSize});
         if (!groupsFuture.Wait()) {
             return false;
         }
@@ -327,7 +327,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
         auto membersOrError = discoveryClient->ListMembers(groupId, options).Get();
         if (!membersOrError.IsOK()) {
             return false;
-        };
+        }
         const auto& members = membersOrError.ValueOrThrow();
         if (members.size() != 1 || members[0].Id != memberId) {
             return false;

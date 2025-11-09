@@ -1,10 +1,7 @@
 import _thread
 import datetime
-import datetime
 import logging
 import multiprocessing
-import os
-import random
 import signal
 import threading
 import time
@@ -13,6 +10,7 @@ import yt.common as yt_common
 import yt.wrapper as yt
 
 from yt.wrapper.http_helpers import get_token
+from lib.reporter import create_test_run_reporter
 
 ##################################################################
 
@@ -60,8 +58,15 @@ class TimeoutHandler():
             logging.info("Timeout handler thread joined")
 
 
-def run_and_track_success(callback, base_path, timeout, transaction_title,
-    failure_expiration_timeout=None, success_expiration_timeout=None):
+def run_and_track_success(
+    callback,
+    base_path,
+    timeout,
+    transaction_title,
+    failure_expiration_timeout=None,
+    success_expiration_timeout=None,
+    test_run_reporter_config=None,
+):
     """
     Prepares environment for the Odin check, runs the callback and reports its status.
 
@@ -80,6 +85,8 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
           is set to the "@error_message" attribute. Custom error message can be
           provided with the "error_message" exception member.
     """
+
+    test_run_reporter = create_test_run_reporter(test_run_reporter_config)
 
     dir_name = str(int(datetime.datetime.now().timestamp()))
     path = base_path + "/" + dir_name
@@ -104,6 +111,7 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         try:
             client.set(path + "/@success", True)
             _set_expiration_timeout(success_expiration_timeout)
+            test_run_reporter.report_success()
         except Exception as e:
             # Parent exception has been already logged by the caller, do not log it twice.
             e.__context__ = None
@@ -120,6 +128,7 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
             client.set(path + "/@success", False)
             client.set(path + "/@error_message", error_message)
             _set_expiration_timeout(failure_expiration_timeout)
+            test_run_reporter.report_failure(error_message)
         except Exception as e:
             # Parent exception has been already logged by the caller, do not log it twice.
             e.__context__ = None

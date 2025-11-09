@@ -258,6 +258,8 @@ private:
 
     bool ShouldChooseLocationBasedOnIOWeight();
 
+    bool ShouldSkipWriteThrottlingLocations();
+
     void DoRegisterExistingChunk(const IChunkPtr& chunk);
 
     void DoRegisterExistingJournalChunk(const IChunkPtr& chunk);

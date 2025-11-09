@@ -44,4 +44,4 @@ DEFINE_REFCOUNTED_TYPE(TGroupTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDiscoveryClient
+} // namespace NYT::NDiscoveryServer

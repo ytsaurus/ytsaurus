@@ -222,6 +222,10 @@ def test_queues(base_path, spec, attributes, args):
     table_path = base_path + "/queue"
     attributes = copy.deepcopy(attributes)
 
+    # We do not want any job retries so there no collision occur due to restart of producers/consumers.
+    if spec.queues.max_failed_job_count is not None:
+        yt.config["spec_defaults"]["max_failed_job_count"] = spec.queues.max_failed_job_count
+
     # XXX
     attributes.pop("chunk_format", None)
 

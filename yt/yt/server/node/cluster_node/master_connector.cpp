@@ -471,6 +471,8 @@ private:
 
         YT_LOG_WARNING(error, "Master transaction lease aborted");
 
+        LeaseTransaction_.Reset();
+
         ResetAndRegisterAtMaster(ERegistrationReason::LeaseTransactionAborted);
     }
 

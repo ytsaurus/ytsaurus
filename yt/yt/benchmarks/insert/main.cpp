@@ -618,7 +618,7 @@ private:
         ammo->Rows = MakeSharedRange(std::move(rows), ammo->RowBuffer);
     }
 
-    template<typename T>
+    template <typename T>
     void CheckError(const TErrorOr<T>& errorOr) {
         if (!errorOr.IsOK()) {
             Cout << Format("%v", errorOr) << Endl;

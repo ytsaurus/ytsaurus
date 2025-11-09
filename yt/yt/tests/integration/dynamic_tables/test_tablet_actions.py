@@ -363,6 +363,39 @@ class TestTabletActions(TabletActionsBase):
         with raises_yt_error("can not be set together with"):
             _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
 
+    @authors("atalmenev")
+    def test_data_retention_in_memory(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[]] + [[i] for i in range(5, 20, 5)],
+            mount_config={
+                "testing": {
+                    "simulated_store_preload_delay": 30 * 10**6,
+                }
+            },
+            in_memory_mode="uncompressed")
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "FF"} for i in range(20)])
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[]] + [[i] for i in range(1, 20, 1)],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        wait(lambda: get("//tmp/t/@preload_state") == "complete", timeout=5)
+
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])
@@ -1466,6 +1499,8 @@ class TabletBalancerBase(TabletActionsBase):
         self._create_sorted_table("//tmp/t")
 
         def check_balancer_is_active(should_be_active):
+            if self.ENABLE_STANDALONE_TABLET_BALANCER:
+                sleep(1)
             sync_reshard_table("//tmp/t", [[], [1]])
             sync_mount_table("//tmp/t")
             if should_be_active:

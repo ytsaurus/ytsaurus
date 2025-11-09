@@ -480,7 +480,6 @@ void TCompositeElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdate
         Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::RegularPools] =
             Attributes().StrongGuaranteeShare - childPriorityStrongGuaranteeShare;
     }
-
 }
 
 void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* context)

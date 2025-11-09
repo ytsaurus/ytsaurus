@@ -117,6 +117,6 @@ private:
 
 } // namespace NYT::NDynamicConfig
 
-#define DYNAMIC_CONFIG_MANAGER_INL_H
+#define DYNAMIC_CONFIG_MANAGER_INL_H_
 #include "dynamic_config_manager-inl.h"
-#undef DYNAMIC_CONFIG_MANAGER_INL_H
+#undef DYNAMIC_CONFIG_MANAGER_INL_H_

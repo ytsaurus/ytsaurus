@@ -193,7 +193,7 @@ INodePtr TNonversionedMapObjectProxyBase<TObject>::FindChild(const std::string& 
 
 template <class TObject>
 std::optional<std::string> TNonversionedMapObjectProxyBase<TObject>::FindChildKey(
-    const IConstNodePtr& child)
+    const IConstNodePtr& child) const
 {
     auto childProxy = FromNode(child);
     const auto* childImpl = childProxy->GetThisImpl();

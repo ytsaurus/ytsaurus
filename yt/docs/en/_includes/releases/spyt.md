@@ -8,6 +8,26 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.7.5**" %}
+
+**Release date:** 2025-11-05
+
+Maintenance release with minor enhancements
+
+- Correct reading of unsigned types (uint8, uint16, uint32) in arrow and wire formats
+
+{% endcut %}
+
+{% cut "**2.7.4**" %}
+
+**Release date:** 2025-11-05
+
+Maintenance release with minor enhancements
+
+- More reliable processing of streaming offsets
+
+{% endcut %}
+
 {% cut "**2.7.3**" %}
 
 **Release date:** 2025-09-08

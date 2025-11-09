@@ -20,5 +20,12 @@
         testing={
             skip_verify=%false;
         };
-    }
+    };
+    check_runner={
+        test_run_reporter={
+            report_cluster=markov;
+            report_path=//home/dev/fomasha/stress_test_statistics;
+            report_test_run_name=odin_iterative_sorted_tables_runner;
+        }
+    };
 }

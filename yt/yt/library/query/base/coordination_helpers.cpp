@@ -39,7 +39,7 @@ size_t Step(size_t current, size_t source, size_t target)
     YT_VERIFY(current <= source);
 
     // Original expression: ((c * t / s + 1) * s + t - 1) / t - c;
-    auto result = (source - 1 - current * target % source ) / target + 1;
+    auto result = (source - 1 - current * target % source) / target + 1;
     YT_VERIFY(current + result <= source);
     YT_VERIFY(result > 0);
     return result;

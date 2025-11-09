@@ -140,6 +140,7 @@ ELSE()
         table_commands.py
         table_helpers.py
         table.py
+        telemetry.py
         thread_pool.py
         transaction_commands.py
         transaction.py

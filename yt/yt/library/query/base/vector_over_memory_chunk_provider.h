@@ -68,6 +68,6 @@ private:
 
 } // namespace NYT::NQueryClient
 
-#define VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H
+#define VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H_
 #include "vector_over_memory_chunk_provider-inl.h"
-#undef VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H
+#undef VECTOR_OVER_MEMORY_CHUNK_PROVIDER_INL_H_

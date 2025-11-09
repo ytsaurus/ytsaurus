@@ -246,3 +246,6 @@ class ProfilerFactory(object):
 
     def at_query_tracker(self, qt, **kwargs):
         return Profiler(self.yt_client, "//sys/query_tracker/instances/{0}/orchid/sensors".format(qt), **kwargs)
+
+    def at_queue_agent(self, queue_agent_instance, **kwargs):
+        return Profiler(self.yt_client, "//sys/queue_agents/instances/{0}/orchid/sensors".format(queue_agent_instance), **kwargs)

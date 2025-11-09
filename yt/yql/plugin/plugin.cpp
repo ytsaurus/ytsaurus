@@ -6,10 +6,13 @@
 namespace NYT::NYqlPlugin {
 
 using namespace NYson;
+using namespace NYTree;
 
-NYTree::IMapNodePtr IYqlPlugin::GetOrchidNode() const
+////////////////////////////////////////////////////////////////////////////////
+
+IMapNodePtr IYqlPlugin::GetOrchidNode() const
 {
-    return NYTree::GetEphemeralNodeFactory()->CreateMap();
+    return GetEphemeralNodeFactory()->CreateMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +34,6 @@ TYqlPluginOptions ConvertToOptions(
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
         .YTTokenPath = config->YTTokenPath,
-        .UIOrigin = config->UIOrigin,
         .LogBackend = std::move(logBackend),
         .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
         .MaxYqlLangVersion = maxSupportedYqlVersion,

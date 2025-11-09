@@ -18,14 +18,26 @@
 
 #include <llvm/ADT/FoldingSet.h>
 
-#define UDF_BC(name) TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)))
-
 namespace NYT::NQueryClient {
-namespace NBuiltins {
-
-using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dtorilov): Rename.
+TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> UDF_BC(TStringBuf name)
+{
+    static auto WebAssemblyBytecode =
+        ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
+            ? TSharedRef::FromString(::NResource::Find("libwasm-udfs-builtin-ytql-udfs.so"))
+            : TSharedRef();
+    auto result = TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>();
+    result[NCodegen::EExecutionBackend::Native] = TSharedRef::FromString(::NResource::Find(std::string("/llvm_bc/") + std::string(name)));
+    result[NCodegen::EExecutionBackend::WebAssembly] = WebAssemblyBytecode;
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NBuiltins {
 
 class TIfFunctionCodegen
     : public IFunctionCodegen
@@ -105,6 +117,10 @@ public:
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
 };
 
 TStringBuf GetUpperBound(TStringBuf source, TChunkedMemoryPool* memoryPool)
@@ -265,6 +281,11 @@ public:
     {
         return false;
     }
+
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
 };
 
 class TIfNullCodegen
@@ -323,6 +344,11 @@ public:
         YT_VERIFY(nullableArgs.size() == 2);
         return nullableArgs[1];
     }
+
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
 };
 
 class TIsNaNCodegen
@@ -371,6 +397,11 @@ public:
     bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const override
     {
         return false;
+    }
+
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
     }
 };
 
@@ -428,6 +459,11 @@ private:
             [&] (TCGExprContext& /*builder*/) {
                 return argument;
             });
+    }
+
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
     }
 };
 
@@ -704,6 +740,12 @@ public:
         return nullableArgs[0];
     }
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        // We rely on the fact that all the necessary casting routines are builtins.
+        return UDF_BC("to_any")[NCodegen::EExecutionBackend::WebAssembly];
+    }
+
 private:
     TWeakPtr<TFunctionProfilerMap> FunctionProfilers_;
 
@@ -716,7 +758,6 @@ private:
 
         return functionProfilers;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1026,6 +1067,11 @@ public:
         return false;
     }
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
+
     TCGValue InitializeAggregateValue(
         TCGBaseContext& builder,
         Value* buffer,
@@ -1274,6 +1320,11 @@ public:
         return false;
     }
 
+    TSharedRef GetWebAssemblyBytecodeFile() const override
+    {
+        return {};
+    }
+
     TCGValue InitializeAggregateValue(
         TCGBaseContext& builder,
         Value* buffer,
@@ -1307,7 +1358,7 @@ public:
             Value* aggregateLength = unpacked[1].GetLength();
 
             Value* compareResult;
-            if (Function_ == "argmin"){
+            if (Function_ == "argmin") {
                 compareResult = CodegenCompare(
                     builder,
                     argumentTypes[1],

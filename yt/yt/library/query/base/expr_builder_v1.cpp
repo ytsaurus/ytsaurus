@@ -567,7 +567,7 @@ private:
     TReferenceResolver ColumnResolver_;
 
     const TNamedItemList* GroupItems_ = nullptr;
-    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
+    // TODO(lukyan): Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
 
     TAggregateItemList* AggregateItems_ = nullptr;
 
@@ -661,7 +661,7 @@ TUntypedExpression TExprBuilderV1::OnExpression(
                 type,
                 CastValueWithCheck(GetValue(literalValue), type));
         };
-        return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
+        return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = true};
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         return OnReference(NAst::TReference(aliasExpr->Name));
     } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
@@ -1050,7 +1050,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
             return New<TFunctionExpression>(type, functionName, std::move(typedOperands));
         };
 
-        return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
+        return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = false};
     }
 }
 
@@ -1079,7 +1079,7 @@ TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* una
                     type,
                     CastValueWithCheck(*foldedExpr, type));
             };
-            return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
+            return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = true};
         }
     }
 
@@ -1096,7 +1096,7 @@ TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* una
             opSource);
         return New<TUnaryOpExpression>(type, op, untypedOperand.Generator(argType));
     };
-    return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
+    return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = false};
 }
 
 TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
@@ -1128,7 +1128,7 @@ TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
                     type,
                     CastValueWithCheck(*foldedExpr, type));
             };
-            return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
+            return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = true};
         }
     }
 

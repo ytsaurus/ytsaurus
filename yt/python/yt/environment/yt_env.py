@@ -2080,6 +2080,17 @@ class YTInstance(object):
             {
                 "backend": "rpc",
                 "driver_config": self.configs[driver_name],
+                "proxy": {
+                    "retries": {
+                        "enable": True,
+                        "count": 10000,
+                        "total_timeout": 1000 * 120,
+                        "backoff": {
+                            "policy": "constant_time",
+                            "constant_time": 500,
+                        }
+                    },
+                },
             }
         )
         return YtClient(token=token, config=config)
@@ -2097,6 +2108,17 @@ class YTInstance(object):
             {
                 "backend": "native",
                 "driver_config": driver_config,
+                "proxy": {
+                    "retries": {
+                        "enable": True,
+                        "count": 10000,
+                        "total_timeout": 1000 * 120,
+                        "backoff": {
+                            "policy": "constant_time",
+                            "constant_time": 500,
+                        }
+                    },
+                },
             }
         )
 

@@ -477,7 +477,6 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
     } while (waitForBatch());
 
     SaveIterators_.clear();
-
 }
 
 template <class TValue, class TTraits>

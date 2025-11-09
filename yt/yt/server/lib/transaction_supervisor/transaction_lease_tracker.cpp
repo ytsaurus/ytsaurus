@@ -546,7 +546,7 @@ public:
     void Stop() override
     { }
 
-    virtual void RegisterTransaction(
+    void RegisterTransaction(
         TTransactionId /*transactionId*/,
         TTransactionId /*parentId*/,
         std::optional<TDuration> /*timeout*/,

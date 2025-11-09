@@ -114,7 +114,7 @@ void ConsumeAll(NYT::TMpscShardedQueue<i64>& queue, auto consumer)
     queue.ConsumeAll(consumer);
 }
 
-template<typename TQueue>
+template <typename TQueue>
 void Bench(const std::string& queueName, int producersCount)
 {
     auto startTime = TInstant::Now();
@@ -160,7 +160,7 @@ void Bench(const std::string& queueName, int producersCount)
     Cerr << "Queue: " << queueName << "\tThreadCount: " << producersCount << "\tTook: " << TInstant::Now() - startTime <<  Endl;
 }
 
-template<typename TQueue>
+template <typename TQueue>
 void BenchMany(const std::string& name)
 {
     for (auto threadCount : {1, 4, 8, 16, 32, 64})

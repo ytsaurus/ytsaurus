@@ -25,7 +25,7 @@ namespace NYT::NSchedulerSimulator {
 
 // TODO(max42): move to -inl.h
 
-template<class TConfig>
+template <class TConfig>
 TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
 {
     NYTree::INodePtr configNode;

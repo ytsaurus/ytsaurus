@@ -16,11 +16,9 @@ struct TOptionalLiteralValueWrapper
 {
     std::optional<NQueryClient::NAst::TLiteralValue> Value;
 
-    TOptionalLiteralValueWrapper(std::nullopt_t)
-        : Value(std::nullopt)
-    { }
+    TOptionalLiteralValueWrapper() = default;
 
-    TOptionalLiteralValueWrapper(NQueryClient::NAst::TLiteralValue value)
+    explicit TOptionalLiteralValueWrapper(NQueryClient::NAst::TLiteralValue value)
         : Value(std::move(value))
     { }
 

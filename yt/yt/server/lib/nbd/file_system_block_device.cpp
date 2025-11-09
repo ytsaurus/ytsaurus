@@ -92,7 +92,7 @@ public:
         return Reader_->GetPath();
     }
 
-    virtual TFuture<TReadResponse> Read(
+    TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
         const TReadOptions& options) override
@@ -122,7 +122,7 @@ public:
             }));
     }
 
-    virtual TFuture<TWriteResponse> Write(
+    TFuture<TWriteResponse> Write(
         i64 /*offset*/,
         const TSharedRef& /*data*/,
         const TWriteOptions& /*options*/) override

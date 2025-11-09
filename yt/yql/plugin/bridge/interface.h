@@ -39,7 +39,6 @@ struct TBridgeYqlPluginOptions
     size_t OperationAttributesLength = 0;
 
     const char* YTTokenPath = nullptr;
-    const char* UIOrigin = nullptr;
 
     // TODO(max42): passing C++ objects across shared libraries is incredibly
     // fragile. This is a temporary mean until we come up with something more

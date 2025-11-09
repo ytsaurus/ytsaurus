@@ -7,10 +7,14 @@ from .default_config import DefaultConfigType
 from .mappings import VerifiedDict
 from . import client_api
 
-from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import ForwardRef
+
+from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
 from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
+from .job_commands import GetJobJobType, JobSpecType, ListJobsType
+from .operation_commands import GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
 from .ypath import YPath
@@ -130,8 +134,8 @@ class YtClient(ClientState):
 
     def abort_job(
             self,
-            job_id,
-            interrupt_timeout=None):
+            job_id: str,
+            interrupt_timeout: Optional[int] = None):
         """
         Interrupts running job with preserved result.
 
@@ -146,8 +150,8 @@ class YtClient(ClientState):
 
     def abort_operation(
             self,
-            operation,
-            message=None, reason=None):
+            operation: str,
+            message: str = None, reason: str = None):
         """
         Aborts operation.
 
@@ -443,7 +447,7 @@ class YtClient(ClientState):
 
     def complete_operation(
             self,
-            operation):
+            operation: str):
         """
         Completes operation.
 
@@ -721,7 +725,7 @@ class YtClient(ClientState):
 
     def dump_job_context(
             self,
-            job_id, path):
+            job_id: str, path: str):
         """
         Dumps job input context to specified path.
         """
@@ -1059,8 +1063,8 @@ class YtClient(ClientState):
 
     def get_job(
             self,
-            operation_id, job_id,
-            format=None):
+            operation_id: str, job_id: str,
+            format=None) -> GetJobJobType:
         """
         Get job of operation.
 
@@ -1075,7 +1079,7 @@ class YtClient(ClientState):
 
     def get_job_input(
             self,
-            job_id):
+            job_id: str):
         """
         Get full input of the specified job.
 
@@ -1088,7 +1092,7 @@ class YtClient(ClientState):
 
     def get_job_input_paths(
             self,
-            job_id):
+            job_id: str):
         """
         Get input paths of the specified job.
 
@@ -1102,8 +1106,9 @@ class YtClient(ClientState):
 
     def get_job_spec(
             self,
-            job_id,
-            omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None):
+            job_id: str,
+            omit_node_directory: Optional[bool] = None, omit_input_table_specs: Optional[bool] = None,
+            omit_output_table_specs: Optional[bool] = None) -> JobSpecType:
         """
         Get spec of the specified job.
 
@@ -1121,7 +1126,7 @@ class YtClient(ClientState):
 
     def get_job_stderr(
             self,
-            operation_id, job_id):
+            operation_id: str, job_id: str) -> bytes:
         """
         Gets stderr of the specified job.
 
@@ -1135,7 +1140,7 @@ class YtClient(ClientState):
 
     def get_job_trace(
             self,
-            operation_id, job_id,
+            operation_id: str, job_id: str,
             trace_id=None, from_time=None, to_time=None):
         """
         Get traces of the specified job.
@@ -1147,7 +1152,8 @@ class YtClient(ClientState):
 
     def get_operation(
             self,
-            operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None):
+            operation_id: str = None, operation_alias: str = None, attributes: Optional[List[str]] = None,
+            include_runtime: Optional[bool] = None, format: Union[str, Format, None] = None) -> GetOperationOperationType:
         """
         Get operation attributes through API.
 
@@ -1159,8 +1165,8 @@ class YtClient(ClientState):
 
     def get_operation_attributes(
             self,
-            operation,
-            fields=None):
+            operation: str,
+            fields: Optional[List[str]] = None):
         """
         Returns dict with operation attributes.
 
@@ -1176,7 +1182,7 @@ class YtClient(ClientState):
 
     def get_operation_state(
             self,
-            operation):
+            operation: str) -> OperationState:
         """
         Returns current state of operation.
 
@@ -1575,12 +1581,12 @@ class YtClient(ClientState):
 
     def list_jobs(
             self,
-            operation_id,
+            operation_id: str,
             job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
             with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
             include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
-            operation_incarnation=None, monitoring_descriptor=None, format=None):
+            operation_incarnation=None, monitoring_descriptor=None, format=None) -> ListJobsType:
         """
         List jobs of operation.
         """
@@ -1597,8 +1603,8 @@ class YtClient(ClientState):
 
     def list_operation_events(
             self,
-            operation_id,
-            event_type=None, format=None):
+            operation_id: str,
+            event_type: str = None, format: Union[str, Format, None] = None):
         """
         List events of given operation.
 
@@ -1613,9 +1619,12 @@ class YtClient(ClientState):
 
     def list_operations(
             self,
-            user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
-            from_time=None, to_time=None, cursor_time=None, cursor_direction=None, include_archive=None,
-            include_counters=None, limit=None, enable_ui_mode=False, attributes=None, format=None):
+            user: str = None, state: Union[ForwardRef("OperationState"), Literal["aborted", "completed", "failed", "running", "starting", "orphaned", "waiting_for_agent", "initializing", "reviving", "reviving_jobs"], None] = None,  # noqa
+            type: Optional[str] = None, filter: Optional[str] = None, pool_tree: Optional[str] = None,
+            pool: Optional[str] = None, with_failed_jobs: Optional[bool] = None, from_time=None, to_time=None,
+            cursor_time=None, cursor_direction: Optional[Literal["future", "past"]] = None, include_archive: Optional[bool] = None,
+            include_counters: Optional[bool] = None, limit: Optional[int] = None, enable_ui_mode: bool = False,
+            attributes: Optional[List[str]] = None, format: Union[str, Format, None] = None) -> ListOperationsType:
         """
         List operations that satisfy given options.
 
@@ -1844,7 +1853,7 @@ class YtClient(ClientState):
 
     def patch_operation_spec(
             self,
-            operation_id, patches):
+            operation_id: str, patches: List[Mapping[str, Any]]):
         """
         Patches operation spec.
         """
@@ -2394,7 +2403,7 @@ class YtClient(ClientState):
 
     def resume_operation(
             self,
-            operation):
+            operation: str):
         """
         Continues operation after suspending.
 
@@ -2487,8 +2496,8 @@ class YtClient(ClientState):
 
     def run_job_shell(
             self,
-            job_id,
-            shell_name=None, timeout=None, command=None):
+            job_id: str,
+            shell_name: Optional[str] = None, timeout=None, command=None):
         """
         Runs interactive shell in the job sandbox.
 
@@ -3098,8 +3107,8 @@ class YtClient(ClientState):
 
     def suspend_operation(
             self,
-            operation,
-            abort_running_jobs=False, reason=None):
+            operation: str,
+            abort_running_jobs: bool = False, reason: str = None):
         """
         Suspends operation.
 
@@ -3151,15 +3160,22 @@ class YtClient(ClientState):
 
     def transform(
             self,
-            source_table,
-            destination_table=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None,
-            spec=None, check_codecs=False, optimize_for=None, force_empty=False):
+            source_table: Union[str, YPath],
+            destination_table: Union[str, YPath, None] = None, erasure_codec: Optional[Literal["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"]] = None,  # noqa
+            compression_codec: Optional[Literal["none", "snappy", "lz4", "lz4_high_compression", "brotli_1", "brotli_2", "brotli_3", "brotli_4", "brotli_5", "brotli_6", "brotli_7", "brotli_8", "brotli_9", "brotli_10", "brotli_11", "zlib_1", "zlib_2", "zlib_3", "zlib_4", "zlib_5", "zlib_6", "zlib_7", "zlib_8", "zlib_9", "zstd_1", "zstd_2", "zstd_3", "zstd_4", "zstd_5", "zstd_6", "zstd_7", "zstd_8", "zstd_9", "zstd_10", "zstd_11", "zstd_12", "zstd_13", "zstd_14", "zstd_15", "zstd_16", "zstd_17", "zstd_18", "zstd_19", "zstd_20", "zstd_21", "lzma_0", "lzma_1", "lzma_2", "lzma_3", "lzma_4", "lzma_5", "lzma_6", "lzma_7", "lzma_8", "lzma_9", "bzip2_1", "bzip2_2", "bzip2_3", "bzip2_4", "bzip2_5", "bzip2_6", "bzip2_7", "bzip2_8", "bzip2_9", "zstd_fast_1", "zstd_fast_2", "zstd_fast_3", "zstd_fast_4", "zstd_fast_5", "zstd_fast_6", "zstd_fast_7", "zlib6", "gzip_normal", "zlib9", "gzip_best_compression", "zstd", "brotli3", "brotli5", "brotli8", "quick_lz"]] = None,  # noqa
+            desired_chunk_size: Optional[int] = None, spec: Union[SpecCommonType, Dict[str, Any], None] = None,
+            check_codecs: bool = False, optimize_for: Optional[Literal["lookup", "scan"]] = None, force_empty: bool = False):
         """
         Transforms source table to destination table writing data with given compression and erasure codecs.
 
         Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
         table between old and new formats (optimize_for parameter).
-        "desired_chunk_size" parameter implicit disable job splitting mode (in some cases jobs becomes unoptimal but do not divide chunk into smaller)
+
+        :param desired_chunk_size: Size of table chunks we are aiming for (size corresponds to `@compressed_data_size` attribute);
+        this parameter implicitly disables job splitting (operation might run longer but we do not split output chunks into smaller parts)
+        :param check_codecs: do not transform if "compression", "erasure" and "optimize_for" are relevant
+        :param force_empty: tranform even empty table
+        :param spec: extra operation parameters
 
         """
         return client_api.transform(
@@ -3263,7 +3279,7 @@ class YtClient(ClientState):
 
     def update_operation_parameters(
             self,
-            operation_id, parameters):
+            operation_id: str, parameters: Mapping[str, Any]):
         """
         Updates operation runtime parameters.
         """

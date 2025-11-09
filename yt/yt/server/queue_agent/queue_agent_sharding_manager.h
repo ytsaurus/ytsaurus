@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +38,8 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     NDiscoveryClient::IMemberClientPtr memberClient,
     NDiscoveryClient::IDiscoveryClientPtr discoveryClient,
     std::string queueAgentStage,
-    NYPath::TYPath dynamicStateRoot);
+    NYPath::TYPath dynamicStateRoot,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

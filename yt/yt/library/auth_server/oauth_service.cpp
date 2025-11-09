@@ -88,7 +88,7 @@ private:
         auto httpHeaders = New<THeaders>();
         httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
 
-        const static auto retryChecker = BIND([] (const TError& error) {
+        static const auto retryChecker = BIND([] (const TError& error) {
             return !error.FindMatching(NRpc::EErrorCode::InvalidCredentials).has_value();
         });
         auto jsonResponseChecker = CreateJsonResponseChecker(

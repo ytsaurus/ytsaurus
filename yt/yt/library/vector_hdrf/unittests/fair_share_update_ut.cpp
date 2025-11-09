@@ -314,7 +314,7 @@ class TPoolElementMock
     , public TCompositeElementMock
 {
 public:
-    TPoolElementMock(TString id)
+    explicit TPoolElementMock(TString id)
         : TCompositeElementMock(std::move(id))
     { }
 
@@ -358,7 +358,7 @@ class TOperationElementMock
     , public TElementMock
 {
 public:
-    TOperationElementMock(TString id)
+    explicit TOperationElementMock(TString id)
         : TElementMock(std::move(id))
     { }
 
@@ -712,7 +712,6 @@ TEST_P(TFairShareUpdateParametrizedTest, TestSimple)
 
     std::array<TOperationElementMockPtr, OperationCount> operations;
     for (int i = 0; i < OperationCount; ++i) {
-
         TCompositeElementMock* parent = i < 2
             ? poolA.Get()
             : poolC.Get();

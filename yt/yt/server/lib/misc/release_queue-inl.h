@@ -1,4 +1,4 @@
-#ifndef RELEASE_QUEUE_H_
+#ifndef RELEASE_QUEUE_INL_H_
 #error "Direct inclusion of this file is not allowed, include release_queue.h"
 // For the sake of sane code completion.
 #include "release_queue.h"
@@ -26,7 +26,7 @@ typename TReleaseQueue<T>::TCookie TReleaseQueue<T>::Checkpoint() const
     return HeadCookie_ + Queue_.size();
 }
 
-template<class T>
+template <class T>
 std::vector<T> TReleaseQueue<T>::Release(TCookie limit)
 {
     auto count = ClampVal<i64>(limit - HeadCookie_, 0, Queue_.size());

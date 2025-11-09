@@ -82,7 +82,6 @@ protected:
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
-
 };
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -871,6 +870,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         AggregateProfilers_.Get());
 
     {
+        auto files = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
+        files[EExecutionBackend::Native] = TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr);
+
         TypeInferrers_->emplace("short_invalid_ir", CreateFunctionTypeInferrer(
             EValueType::Int64,
             std::vector<TType>{EValueType::Int64}));
@@ -878,13 +880,16 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         FunctionProfilers_->emplace("short_invalid_ir", New<TExternalFunctionCodegen>(
             "short_invalid_ir",
             "short_invalid_ir",
-            TSharedRef(short_invalid_ir_bc, short_invalid_ir_bc_len, nullptr),
+            files,
             GetCallingConvention(ECallingConvention::Simple),
             TSharedRef(),
             false));
     }
 
     {
+        auto files = TEnumIndexedArray<EExecutionBackend, TSharedRef>();
+        files[EExecutionBackend::Native] = TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr);
+
         TypeInferrers_->emplace("long_invalid_ir", CreateFunctionTypeInferrer(
             EValueType::Int64,
             std::vector<TType>{EValueType::Int64}));
@@ -892,7 +897,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         FunctionProfilers_->emplace("long_invalid_ir", New<TExternalFunctionCodegen>(
             "long_invalid_ir",
             "long_invalid_ir",
-            TSharedRef(long_invalid_ir_bc, long_invalid_ir_bc_len, nullptr),
+            files,
             GetCallingConvention(ECallingConvention::Simple),
             TSharedRef(),
             false));
@@ -1494,7 +1499,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls3)
         split,
         source,
         ResultMatcher(result),
-        {.UseCanonicalNullRelations=true});
+        {.UseCanonicalNullRelations = true});
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
@@ -1747,7 +1752,7 @@ TEST_F(TQueryEvaluateTest, BigIn)
     TStringBuilder inBuilder;
     inBuilder.AppendString("a in (");
 
-    for (int i = 0; i < 50; ++ i) {
+    for (int i = 0; i < 50; ++i) {
         if (i != 0) {
             inBuilder.AppendString(", ");
         }
@@ -1832,7 +1837,7 @@ TEST_F(TQueryEvaluateTest, BigTransform)
     TStringBuilder transformBuilder;
     transformBuilder.AppendString("transform(a, (");
 
-    for (int i = -50; i < 50; ++ i) {
+    for (int i = -50; i < 50; ++i) {
         if (i != -50) {
             transformBuilder.AppendString(", ");
         }
@@ -1841,7 +1846,7 @@ TEST_F(TQueryEvaluateTest, BigTransform)
 
     transformBuilder.AppendString("), (");
 
-    for (int i = -50; i < 50; ++ i) {
+    for (int i = -50; i < 50; ++i) {
         if (i != -50) {
             transformBuilder.AppendString(", ");
         }
@@ -2582,8 +2587,7 @@ TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
         },
     };
 
-    // TODO(dtorilov): Compile WASM.
-    EvaluateCoordinatedGroupByImpl(
+    EvaluateCoordinatedGroupBy(
         "any_to_yson_string(array_agg(v, ignore_null)) as av, "
         "any_to_yson_string(array_agg(k, true)) as ak ,"
         "any_to_yson_string(array_agg(v_any, true)) as av_any, "
@@ -2617,8 +2621,7 @@ TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
             EXPECT_TRUE(av_any.Contains("[1;2;3;]"));
             EXPECT_TRUE(av_any.Contains("6"));
             EXPECT_TRUE(av_any.Contains("{\"x\"=1;\"y\"=2;}"));
-        },
-        EExecutionBackend::Native);
+        });
 }
 
 TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
@@ -4382,7 +4385,7 @@ TEST_F(TQueryEvaluateTest, InputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit=3});
+    Evaluate("a, b FROM [//t] where uint64(a) > 1 and uint64(a) < 9", split, source, ResultMatcher(result), {.InputRowLimit = 3});
 
     SUCCEED();
 }
@@ -4412,7 +4415,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit)
         "a=4;b=40"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit=3});
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), {.OutputRowLimit = 3});
 
     SUCCEED();
 }
@@ -4433,7 +4436,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(YsonToRow(std::string() + "x=" + std::to_string(10000), resultSplit, false));
 
-    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit=100});
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit = 100});
 
     SUCCEED();
 }
@@ -4458,7 +4461,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit3)
         result.push_back(YsonToRow(Format("a=%v", i), resultSplit, false));
     }
 
-    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), {.OutputRowLimit=10});
+    Evaluate("a FROM [//t] group by a", split, source, ResultMatcher(result), {.OutputRowLimit = 10});
 
     SUCCEED();
 }
@@ -4604,7 +4607,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         {{"//t", split}},
         {source},
         ResultMatcher(resultWithSplit),
-        {.ExecutionBackend=EExecutionBackend::Native});
+        {.ExecutionBackend = EExecutionBackend::Native});
 
     SUCCEED();
 }
@@ -5041,7 +5044,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
         "x=4",
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=4});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit = 4});
 
     SUCCEED();
 }
@@ -5084,7 +5087,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
         "x=1"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit=5});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result), {.OutputRowLimit = 5});
 
     SUCCEED();
 }
@@ -5130,7 +5133,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
         "x=3"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit=4});
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, OrderedResultMatcher(result, {"x"}), {.OutputRowLimit = 4});
 
     result = YsonToRows({
         "x=1",
@@ -5196,7 +5199,6 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
         "\"a.ut\"=4;\"b.c\"=300;\"a.b\"=30;\"b.b\"=30",
         "\"a.ut\"=5;\"b.c\"=200;\"a.b\"=20;\"b.b\"=20",
         "\"a.ut\"=6;\"b.c\"=100;\"a.b\"=10;\"b.b\"=10"
-
     }, resultSplit);
 
     for (size_t limit = 1; limit <= 6; ++limit) {
@@ -5562,7 +5564,6 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
         "d=3;e=4;f=10",
         "d=4;e=7;f=14",
         "d=4;e=8;f=13",
-
     });
 
     auto resultSplit = MakeSplit({
@@ -7120,7 +7121,6 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
 
 TEST_F(TQueryEvaluateTest, YsonStringToAny)
 {
-    // TODO(dtorilov): Add WebAssembly UDF.
     {
         auto split = MakeSplit({{"a", EValueType::String}});
         auto source = TSource{
@@ -7185,7 +7185,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
         }, resultSplit);
 
         auto query = "yson_string_to_any(a) as r FROM [//t]";
-        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+        Evaluate(query, split, source, ResultMatcher(result));
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
@@ -7195,7 +7195,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
         auto result = YsonToRows({R"(r=%true)"}, resultSplit);
 
         auto query = "yson_string_to_any(a) = make_entity() as r FROM [//t]";
-        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+        Evaluate(query, split, source, ResultMatcher(result));
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
@@ -7205,7 +7205,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
         auto result = YsonToRows({R"(r=[""])"}, resultSplit);
 
         auto query = "make_list(yson_string_to_any('\"\"')) as r FROM [//t]";
-        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+        Evaluate(query, split, source, ResultMatcher(result));
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
@@ -7216,7 +7216,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
 
         auto query = "yson_string_to_any('') as r FROM [//t]";
         EXPECT_THROW_THAT(
-            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            Evaluate(query, split, source, ResultMatcher(result)),
             HasSubstr("Error occurred while parsing YSON"));
     }
     {
@@ -7228,7 +7228,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
 
         auto query = "yson_string_to_any('[[1;2;3]') as r FROM [//t]";
         EXPECT_THROW_THAT(
-            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            Evaluate(query, split, source, ResultMatcher(result)),
             HasSubstr("Unexpected \"finish\""));
     }
     {
@@ -7240,7 +7240,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
 
         auto query = "yson_string_to_any(a) as r FROM [//t]";
         EXPECT_THROW_THAT(
-            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            Evaluate(query, split, source, ResultMatcher(result)),
             HasSubstr("Error occurred while parsing YSON"));
     }
 
@@ -7885,7 +7885,8 @@ TEST_F(TQueryEvaluateTest, RegexFullMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result));
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -7912,7 +7913,8 @@ TEST_F(TQueryEvaluateTest, RegexPartialMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result));
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -7937,7 +7939,8 @@ TEST_F(TQueryEvaluateTest, RegexReplaceFirst)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -7962,7 +7965,8 @@ TEST_F(TQueryEvaluateTest, RegexReplaceAll)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -7987,7 +7991,8 @@ TEST_F(TQueryEvaluateTest, RegexExtract)
         "",
     }, resultSplit);
 
-    Evaluate(
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend(
         "regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]",
         split,
         source,
@@ -8016,7 +8021,8 @@ TEST_F(TQueryEvaluateTest, RegexEscape)
         "",
     }, resultSplit);
 
-    Evaluate("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result));
+    // TODO(dtorilov): Make correct deleter for TFunctionContext::CreateObject WebAssembly.
+    EvaluateOnlyViaNativeExecutionBackend("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -8321,7 +8327,6 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
         split,
         source,
         ResultMatcher(result));
-
 }
 
 TEST_F(TQueryEvaluateTest, Casts)
@@ -9137,7 +9142,7 @@ TEST_P(TQueryEvaluatePlaceholdersTest, Simple)
     const auto& placeholders = TYsonStringBuf(std::get<1>(args));
     const auto& result = std::get<2>(args);
 
-    Evaluate(query, split, source, ResultMatcher(result), {.PlaceholderValues=placeholders});
+    Evaluate(query, split, source, ResultMatcher(result), {.PlaceholderValues = placeholders});
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -9176,7 +9181,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
         auto source = TSource{ R"(a="1";b="2")", };
         auto result = std::vector<TOwningRow>{};
         Evaluate("b from [//t] where a = {a}", split, source, ResultMatcher(result), {
-            .PlaceholderValues=TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
+            .PlaceholderValues = TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
         });
     }
 
@@ -9191,7 +9196,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
 
         EXPECT_THROW_THAT(
             Evaluate("b from [//t] where a = {a}", split, source, AnyMatcher, {
-                .PlaceholderValues=TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv},
+                .PlaceholderValues = TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv},
             }),
             HasSubstr("Type mismatch in expression"));
     }
@@ -9956,7 +9961,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
     Evaluate("greatest(d) as r1, greatest(%false, d) as r2 FROM [//t]", split, source, resultMatcherBool);
     Evaluate("greatest(e) as r1, greatest('ada', e) as r2 FROM [//t]", split, source, resultMatcherString);
 
-   SUCCEED();
+    SUCCEED();
 }
 
 
@@ -9989,7 +9994,7 @@ TEST_F(TQueryEvaluateTest, MathAbs)
         "a=#;b=#;c=#;d=#"
     }, split);
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "abs(a) as a, abs(b) as b, abs(c) as c, abs(d) as d from [//t]",
         split,
         source,
@@ -10022,7 +10027,7 @@ TEST_F(TQueryEvaluateTest, MathAcos)
         "a=1.3694384"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "acos(a) as a from [//t]",
         split,
         source,
@@ -10047,7 +10052,7 @@ TEST_F(TQueryEvaluateTest, MathAsin)
         "a=0.2013579"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "asin(a) as a from [//t]",
         split,
         source,
@@ -10072,7 +10077,7 @@ TEST_F(TQueryEvaluateTest, MathCeil)
         "a=-14"
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "ceil(a) as a from [//t]",
         split,
         source,
@@ -10097,7 +10102,7 @@ TEST_F(TQueryEvaluateTest, MathCbrt)
         "a=2.5406681"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "cbrt(a) as a from [//t]",
         split,
         source,
@@ -10122,7 +10127,7 @@ TEST_F(TQueryEvaluateTest, MathCos)
         "a=0.95533648912"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "cos(a) as a from [//t]",
         split,
         source,
@@ -10147,7 +10152,7 @@ TEST_F(TQueryEvaluateTest, MathCot)
         "a=-3.664954802"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "cot(a) as a from [//t]",
         split,
         source,
@@ -10172,7 +10177,7 @@ TEST_F(TQueryEvaluateTest, MathDegrees)
         "a=97.402825"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "degrees(a) as a from [//t]",
         split,
         source,
@@ -10199,7 +10204,7 @@ TEST_F(TQueryEvaluateTest, MathEven)
         "a=2",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "even(a) as a from [//t]",
         split,
         source,
@@ -10224,7 +10229,7 @@ TEST_F(TQueryEvaluateTest, MathExp)
         "a=544.5719101"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "exp(a) as a from [//t]",
         split,
         source,
@@ -10249,7 +10254,7 @@ TEST_F(TQueryEvaluateTest, MathFloor)
         "a=-2"
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "floor(a) as a from [//t]",
         split,
         source,
@@ -10274,7 +10279,7 @@ TEST_F(TQueryEvaluateTest, MathGamma)
         "a=32.578096"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "gamma(a) as a from [//t]",
         split,
         source,
@@ -10299,7 +10304,7 @@ TEST_F(TQueryEvaluateTest, MathIsinf)
         "a=%true"
     }, MakeSplit({{"a", EValueType::Boolean}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "is_inf(a) as a from [//t]",
         split,
         source,
@@ -10324,7 +10329,7 @@ TEST_F(TQueryEvaluateTest, MathLgamma)
         "a=3.1780538303479458"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "lgamma(a) as a from [//t]",
         split,
         source,
@@ -10349,7 +10354,7 @@ TEST_F(TQueryEvaluateTest, MathLn)
         "a=1.60943791243"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "ln(a) as a from [//t]",
         split,
         source,
@@ -10376,13 +10381,13 @@ TEST_F(TQueryEvaluateTest, MathLog)
         "a=3.0",
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "log(a) as a from [//t]",
         split,
         source,
         ResultMatcher(result));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "log10(a) as a from [//t]",
         split,
         source,
@@ -10409,7 +10414,7 @@ TEST_F(TQueryEvaluateTest, MathLog2)
         "a=3.0",
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "log2(a) as a from [//t]",
         split,
         source,
@@ -10434,7 +10439,7 @@ TEST_F(TQueryEvaluateTest, MathRadians)
         "a=0.785398"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "radians(a) as a from [//t]",
         split,
         source,
@@ -10459,7 +10464,7 @@ TEST_F(TQueryEvaluateTest, MathSign)
         "a=-1",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "sign(a) as a from [//t]",
         split,
         source,
@@ -10486,7 +10491,7 @@ TEST_F(TQueryEvaluateTest, MathSignbit)
         "a=%false",
     }, MakeSplit({{"a", EValueType::Boolean}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "signbit(a) as a from [//t]",
         split,
         source,
@@ -10511,7 +10516,7 @@ TEST_F(TQueryEvaluateTest, MathSin)
         "a=0.4794255386"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "sin(a) as a from [//t]",
         split,
         source,
@@ -10538,7 +10543,7 @@ TEST_F(TQueryEvaluateTest, MathSqrt)
         "a=3.",
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "sqrt(a) as a from [//t]",
         split,
         source,
@@ -10563,7 +10568,7 @@ TEST_F(TQueryEvaluateTest, MathTan)
         "a=0.54630248984"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "tan(a) as a from [//t]",
         split,
         source,
@@ -10588,7 +10593,7 @@ TEST_F(TQueryEvaluateTest, MathTrunc)
         "a=-1",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "trunc(a) as a from [//t]",
         split,
         source,
@@ -10613,7 +10618,7 @@ TEST_F(TQueryEvaluateTest, MathBitCount)
         "a=1",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "bit_count(a) as a from [//t]",
         split,
         source,
@@ -10639,7 +10644,7 @@ TEST_F(TQueryEvaluateTest, MathAtan2)
         "a=0.463647609"
     }, MakeSplit({{"a", EValueType::Double}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "atan2(a, b) as a from [//t]",
         split,
         source,
@@ -10666,7 +10671,7 @@ TEST_F(TQueryEvaluateTest, MathFactorial)
         "a=1307674368000u"
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "factorial(a) as a from [//t]",
         split,
         source,
@@ -10692,7 +10697,7 @@ TEST_F(TQueryEvaluateTest, MathGcd)
         "a=2u",
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "gcd(a, b) as a from [//t]",
         split,
         source,
@@ -10718,7 +10723,7 @@ TEST_F(TQueryEvaluateTest, MathLcm)
         "a=24u"
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "lcm(a, b) as a from [//t]",
         split,
         source,
@@ -10743,7 +10748,7 @@ TEST_F(TQueryEvaluateTest, MathRound)
         "a=-2",
     }, MakeSplit({{"a", EValueType::Int64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "round(a) as a from [//t]",
         split,
         source,
@@ -10769,7 +10774,7 @@ TEST_F(TQueryEvaluateTest, MathXor)
         "a=10u"
     }, MakeSplit({{"a", EValueType::Uint64}}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "xor(a, b) as a from [//t]",
         split,
         source,
@@ -10820,13 +10825,13 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         "has_intersection=%false",
     }, MakeSplit({{"has_intersection", EValueType::Boolean},}));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "list_has_intersection(a, b) as has_intersection from [//t]",
         split,
         source,
         ResultMatcher(result));
 
-    EvaluateOnlyViaNativeExecutionBackend(
+    Evaluate(
         "list_has_intersection(b, a) as has_intersection from [//t]",
         split,
         source,
@@ -11088,8 +11093,7 @@ INSTANTIATE_TEST_SUITE_P(
             "Reference expression index is out of bounds"),
         std::make_tuple(
             "avg(a % 2) from `//t` group by 1",
-            "Misuse of aggregate function \"avg\"")
-   ));
+            "Misuse of aggregate function \"avg\"")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

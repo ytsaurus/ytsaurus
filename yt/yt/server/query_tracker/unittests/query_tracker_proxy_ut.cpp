@@ -42,7 +42,7 @@ const TYsonString EmptyList = TYsonString(TString("[]"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TResult, typename TRecordDescriptor, typename TRecord>
+template <typename TResult, typename TRecordDescriptor, typename TRecord>
 TFuture<TResult> MakeQueryResult(
     const std::vector<TRecord>& records = {},
     bool isPartialRecord = false)

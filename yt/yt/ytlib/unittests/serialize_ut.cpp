@@ -15,7 +15,7 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TOriginal, typename TResult = TOriginal>
+template <typename TOriginal, typename TResult = TOriginal>
 void TestSerializationDeserialization(const TOriginal& original)
 {
     auto yson = ConvertToYsonString(original);

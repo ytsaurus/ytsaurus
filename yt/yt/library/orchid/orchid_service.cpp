@@ -78,7 +78,6 @@ private:
                 context->Reply();
             }));
     }
-
 };
 
 IServicePtr CreateOrchidService(

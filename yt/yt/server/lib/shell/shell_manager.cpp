@@ -82,7 +82,7 @@ class TShellManagerBase
     : public IShellManager
 {
 public:
-    TShellManagerBase(const TShellManagerConfig& config)
+    explicit TShellManagerBase(const TShellManagerConfig& config)
         : PreparationDir_(CombinePaths(config.PreparationDir, GetSandboxRelPath(ESandboxKind::Home)))
         , WorkingDir_(CombinePaths(config.WorkingDir, GetSandboxRelPath(ESandboxKind::Home)))
         , EnableJobShellSeccopm(config.EnableJobShellSeccopm)

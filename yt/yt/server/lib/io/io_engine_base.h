@@ -138,7 +138,7 @@ using TIOEngineSensorsPtr = TIntrusivePtr<TIOEngineSensors>;
 class TRequestStatsGuard
 {
 public:
-    TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors);
+    explicit TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors);
     TRequestStatsGuard(TRequestStatsGuard&& other) = default;
 
     ~TRequestStatsGuard();

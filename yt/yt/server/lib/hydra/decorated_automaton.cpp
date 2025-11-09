@@ -1039,7 +1039,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 
         Automaton_->LoadSnapshot(snapshotLoadContext);
 
-        if (prepareState){
+        if (prepareState) {
             // Snapshot preparation is a "mutation" that is executed before first mutation
             // in changelog.
             TVersion hydraContextVersion(snapshotId, -1);

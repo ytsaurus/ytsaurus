@@ -124,7 +124,7 @@ class TOperationControllerWrapper
     : public IOperationController
 {
 private:
-    template<typename Class, typename R, typename... MArgs, typename... Args>
+    template <typename Class, typename R, typename... MArgs, typename... Args>
     decltype(auto) DoExecuteGuarded(R(Class::*Method)(MArgs...) const, Args&&... args)
         const
         noexcept(false)
@@ -135,7 +135,7 @@ private:
         return (*Underlying_.*Method)(std::forward<MArgs>(args)...);
     }
 
-    template<typename Class, typename R, typename... MArgs, typename... Args>
+    template <typename Class, typename R, typename... MArgs, typename... Args>
     decltype(auto) DoExecuteGuarded(R(Class::*Method)(MArgs...), Args&&... args)
         noexcept(false)
     {

@@ -67,7 +67,9 @@ protected:
     TObjectServiceProxy CreateWriteProxy(TCellTag cellTag)
     {
         return TObjectServiceProxy::FromDirectMasterChannel(
-            GetNativeAuthenticatedClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+            SequoiaSession_
+                ->GetNativeAuthenticatedClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
     }
 };
 
@@ -264,10 +266,9 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
 
 INodeProxyPtr CreateMasterProxy(
     IBootstrap* bootstrap,
-    TSequoiaSessionPtr session,
-    const TAuthenticationIdentity& authenticationIdentity)
+    TSequoiaSessionPtr session)
 {
-    return New<TMasterProxy>(bootstrap, std::move(session), authenticationIdentity);
+    return New<TMasterProxy>(bootstrap, std::move(session));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

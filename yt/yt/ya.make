@@ -1,6 +1,6 @@
 RECURSE(
-    build
     benchmarks
+    build
     client
     core
     experiments
@@ -18,6 +18,7 @@ IF (NOT OPENSOURCE)
         fuzz
         orm
         packages/tests_package
+        pando
         utilities
     )
 ENDIF()

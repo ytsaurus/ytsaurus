@@ -461,7 +461,7 @@ private:
     int LogMessageCount_ = 0;
 
     int FullRecomputeAttempts_ = 0;
-    int PartialRecomputeAttempts_= 0;
+    int PartialRecomputeAttempts_ = 0;
     int MaxCellPerNodeCount_ = 0;
 
     void Initialize();

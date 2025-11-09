@@ -244,7 +244,7 @@ public:
     bool IsSequoia() const = delete;
 
 protected:
-    virtual IActionStateFactory* GetActionStateFactory() override;
+    IActionStateFactory* GetActionStateFactory() override;
 
 private:
     bool Upload_ = false;

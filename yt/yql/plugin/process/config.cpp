@@ -4,6 +4,8 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex)
@@ -18,5 +20,7 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_gateways_config", &TThis::DynamicGatewaysConfig)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin::NProcess

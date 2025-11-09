@@ -69,7 +69,7 @@ TEST_F(TIncumbentSchedulerTest, TestScheduleToFollowers)
 
     THashMap<std::string, int> peerToCount;
     for (auto& address : incumbentMap[EIncumbentType::ChunkReplicator].Addresses) {
-        EXPECT_FALSE(address == "3");
+        EXPECT_NE(address, "3");
         peerToCount[*address]++;
     }
 

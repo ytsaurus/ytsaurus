@@ -538,6 +538,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default();
 
+    registrar.Parameter("always_throttle_location", &TThis::AlwaysThrottleLocation)
+        .Default(false);
+
     registrar.Parameter("always_throttle_net_on_send_blocks", &TThis::AlwaysThrottleNetOnSendBlocks)
         .Default();
 
@@ -947,6 +950,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
         .Default(false);
 
+    registrar.Parameter("skip_write_throttling_locations", &TThis::SkipWriteThrottlingLocations)
+        .Default(false);
+
     registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
@@ -1087,6 +1093,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_probe_put_blocks", &TThis::UseProbePutBlocks)
         .Default(false);
 
+    registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
+        .Default(false);
+
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
@@ -1139,6 +1148,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("choose_location_based_on_io_weight", &TThis::ChooseLocationBasedOnIOWeight)
+        .Default();
+
+    registrar.Parameter("skip_write_throttling_locations", &TThis::SkipWriteThrottlingLocations)
         .Default();
 
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)

@@ -157,7 +157,7 @@ protected:
 
     struct TMockChunkSliceFetcherBuilder
     {
-        TMockChunkSliceFetcherBuilder(TSortedChunkPoolNewKeysTest* owner)
+        explicit TMockChunkSliceFetcherBuilder(TSortedChunkPoolNewKeysTest* owner)
             : Owner(owner)
         { }
 
@@ -273,8 +273,7 @@ protected:
 
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(
             std::move(owningMinBoundaryKey),
-            std::move(owningMaxBoundaryKey)
-        );
+            std::move(owningMaxBoundaryKey));
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;

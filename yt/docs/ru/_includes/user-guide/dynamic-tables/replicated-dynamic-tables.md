@@ -482,11 +482,11 @@ YT_PROXY=second-replica-cluster yt select-rows '* from [//tmp/replica]' --format
 yt get '#730e-8611b-3ff02c5-f647333f/@replication_lag_time'
 141000
 
-# Изменение типа репликации на first-replica-cluster и включение реплики.
+# Изменение типа репликации на second-replica-cluster и включение реплики.
 yt alter-table-replica 730e-8611b-3ff02c5-f647333f --enable --mode sync
 
-# Чтение данных из first-replica-cluster и проверка наличия данных.
-YT_PROXY=first-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
+# Чтение данных из second-replica-cluster и проверка наличия данных.
+YT_PROXY=second-replica-cluster yt select-rows '* from [//tmp/replica]' --format json
 {"k":1,"v":100}
 {"k":2,"v":200}
 

@@ -1,0 +1,37 @@
+name: YTsaurus CI runner
+
+on:
+  workflow_call:
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN:
+        required: true
+      YTSAURUS_CI_K8S_EDITOR_TOKEN:
+        required: true
+
+jobs:
+  create-task-for-ytsaurus-ci:
+    name: Create new task for YTsaurus CI
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+          sparse-checkout-cone-mode: false
+          sparse-checkout: '.github/ytsaurus-ci'
+
+      - name: Prepare
+        run: |
+          pip install -r ytsaurus/.github/ytsaurus-ci/requirements.txt
+          ln -s ytsaurus/.github/ytsaurus-ci/configs configs
+          ln -s ytsaurus/.github/ytsaurus-ci/templates templates
+      - name: Call task creator
+        id: call-task-creator
+        run: |
+          python3 ytsaurus/.github/ytsaurus-ci/main.py \
+                  run-scenario \
+                  --scenario nightly-dev \
+                  --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+                  --cloud-functions-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
+                  --apply

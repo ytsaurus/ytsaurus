@@ -243,7 +243,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashInt64ScalarBB = nullptr;
     {
@@ -270,7 +270,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashStringBB = nullptr;
     {
@@ -300,7 +300,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     BasicBlock* hashAnyBB = nullptr;
     {
@@ -330,7 +330,7 @@ TValueTypeLabels CodegenHasherBody(
 
         result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
         builder->CreateBr(gotoNextBB);
-    };
+    }
 
     builder->SetInsertPoint(gotoHashBB);
 
@@ -1320,7 +1320,6 @@ TCodegenExpression MakeCodegenLiteralExpr(
                 type,
                 "literal." + Twine(index))
                 .Steal();
-
         };
 }
 
@@ -2626,7 +2625,6 @@ TLlvmClosure MakeConsumerWithPIConversion(
     size_t consumerSlot,
     const std::vector<int>& stringLikeColumnIndices)
 {
-
     return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name, [
             consumerSlot,
             stringLikeColumnIndices = std::move(stringLikeColumnIndices)
@@ -2712,7 +2710,6 @@ size_t MakeCodegenNestedGroupOp(
         stateTypes = std::move(stateTypes),
         comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
-
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "NestedGroupCollect", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
@@ -3538,7 +3535,6 @@ size_t MakeCodegenOnceOp(
         =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-
         using TBool = NCodegen::TTypes::i<1>;
         auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
@@ -4150,7 +4146,6 @@ size_t MakeCodegenOffsetLimiterOp(
         =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
-
         // index = 0
         Value* indexPtr = builder->CreateAlloca(builder->getInt64Ty(), nullptr, "indexPtr");
         builder->CreateStore(builder->getInt64(0), indexPtr);
@@ -4276,12 +4271,15 @@ TCallback<TSignature> BuildCGEntrypoint(
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend)
+std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend, const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         cgModule->BuildWebAssembly();
         auto bytecode = cgModule->GetWebAssemblyBytecode();
-        auto compartment = NWebAssembly::CreateQueryLanguageImage();
+        auto compartment = NWebAssembly::CreateStandardRuntimeImage();
+        for (auto& file : usedWebAssemblyFiles) {
+            compartment->AddModule(file);
+        }
         compartment->AddModule(bytecode);
         compartment->Strip();
         return compartment;
@@ -4294,7 +4292,8 @@ TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount,
     EExecutionBackend executionBackend,
-    NCodegen::EOptimizationLevel optimizationLevel)
+    NCodegen::EOptimizationLevel optimizationLevel,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend, optimizationLevel);
     const auto entryFunctionName = std::string("EvaluateQuery");
@@ -4324,14 +4323,15 @@ TCGQueryImage CodegenQuery(
 
     return {
         BuildCGEntrypoint<TCGQuerySignature, TCGPIQuerySignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
 }
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,
     size_t exprId,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
     const auto entryFunctionName = std::string("EvaluateExpression");
@@ -4364,7 +4364,7 @@ TCGExpressionImage CodegenStandaloneExpression(
 
     return {
         BuildCGEntrypoint<TCGExpressionSignature, TCGPIExpressionSignature>(cgModule, entryFunctionName, executionBackend),
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
 }
 
@@ -4372,7 +4372,8 @@ TCGAggregateImage CodegenAggregate(
     TCodegenAggregate codegenAggregate,
     std::vector<EValueType> argumentTypes,
     EValueType stateType,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    const TUsedWebAssemblyFiles& usedWebAssemblyFiles)
 {
     auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
 
@@ -4473,8 +4474,20 @@ TCGAggregateImage CodegenAggregate(
             BuildCGEntrypoint<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>(cgModule, mergeName, executionBackend),
             BuildCGEntrypoint<TCGAggregateFinalizeSignature, TCGPIAggregateFinalizeSignature>(cgModule, finalizeName, executionBackend),
         },
-        BuildImage(cgModule, executionBackend),
+        BuildImage(cgModule, executionBackend, usedWebAssemblyFiles),
     };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ui64 TUsedWebAssemblyFilesHasher::operator()(const TSharedRef& ref) const
+{
+    return std::bit_cast<ui64>(ref.begin());
+}
+
+bool TUsedWebAssemblyFilesEqComparer::operator()(const TSharedRef& lhs, const TSharedRef& rhs) const
+{
+    return lhs.begin() == rhs.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

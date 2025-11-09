@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, run_sleeping_vanilla, wait, get, set, exists, ls, check_permission,
-    create_pool, create_pool_tree, get_driver, raises_yt_error)
+    create_pool, create_pool_tree, get_driver, raises_yt_error, update_scheduler_config)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path, scheduler_orchid_pool_path,
@@ -24,7 +24,7 @@ import time
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
+class TestSchedulerPoolTreeOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -37,7 +37,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
     }
 
     @authors("pogorelov")
-    def test_pool_tree_orchid(self):
+    def test_exists(self):
         create_pool_tree("pool_tree", config={"node_tag_filter": "tag"})
         wait(lambda: exists(scheduler_new_orchid_pool_tree_path("pool_tree")))
 
@@ -234,57 +234,35 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             'running_operation_count': 0,
         }
 
-
-@pytest.mark.enabled_multidaemon
-class TestOrchidOnSchedulerRestart(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "fair_share_update_period": 500,
-            "testing_options": {
-                "enable_random_master_disconnection": False,
+    @authors("pogorelov", "eshcherbin")
+    def test_orchid_on_scheduler_restarts(self):
+        create_pool("pool")
+        update_scheduler_config(
+            "testing_options",
+            {
+                "enable_random_master_disconnection": True,
                 "random_master_disconnection_max_backoff": 2000,
                 "finish_operation_transition_delay": {
                     "duration": 1000,
                 },
             },
-        },
-    }
+        )
 
-    @authors("pogorelov")
-    def test_orchid_on_scheduler_restarts(self):
-        create_pool("pool")
-        try:
-            set("//sys/scheduler/config/testing_options", {"enable_random_master_disconnection": True})
-            for _ in range(50):
-                try:
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_usage", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/pools", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
-                    get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
-                except YtError:
-                    pass
-                time.sleep(0.1)
-        finally:
-            set("//sys/scheduler/config/testing_options", {})
-            time.sleep(2)
+        for _ in range(50):
+            try:
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_usage", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/pools", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
+                get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
+            except YtError:
+                pass
+            time.sleep(0.1)
 
-
-@authors("renadeen")
-@pytest.mark.enabled_multidaemon
-class TestRedirectToClusterAttribute(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-    NUM_MASTERS = 1
-    NUM_SCHEDULERS = 1
-
-    def test_simple(self):
+    @authors("renadeen")
+    def test_redirect_to_cluster(self):
         create_pool("pool")
         create_pool("child_pool", parent_name="pool")
 
@@ -292,3 +270,8 @@ class TestRedirectToClusterAttribute(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_pool_path("pool"))["redirect_to_cluster"] == "watt")
         wait(lambda: get(scheduler_orchid_pool_path("child_pool"))["redirect_to_cluster"] == "watt")
+
+    @authors("eshcherbin")
+    def test_node_addresses(self):
+        wait(lambda: frozenset(list(ls("//sys/cluster_nodes"))) ==
+             frozenset(get(scheduler_new_orchid_pool_tree_path("default") + "/node_addresses")))

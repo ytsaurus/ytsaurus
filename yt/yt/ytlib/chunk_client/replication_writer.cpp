@@ -956,6 +956,7 @@ private:
         req->set_enable_direct_io(Config_->EnableDirectIO);
         req->set_disable_send_blocks(disableSendBlocks);
         req->set_use_probe_put_blocks(Config_->UseProbePutBlocks);
+        req->set_preallocate_disk_space(Config_->PreallocateDiskSpace);
         ToProto(req->mutable_placement_id(), Options_->PlacementId);
 
         auto rspOrError = WaitFor(req->Invoke());

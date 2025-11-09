@@ -189,11 +189,8 @@ class TSequoiaService
     : public ISequoiaService
 {
 public:
-    explicit TSequoiaService(
-        IBootstrap* bootstrap,
-        TAuthenticationIdentity authenticationIdentity)
+    explicit TSequoiaService(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , AuthenticationIdentity_(std::move(authenticationIdentity))
     { }
 
     TInvokeResult TryInvoke(
@@ -227,8 +224,7 @@ public:
                             Bootstrap_,
                             session,
                             TAbsolutePath::MakeCanonicalPathOrThrow(
-                                cypressResolveResult->Path),
-                            AuthenticationIdentity_);
+                                cypressResolveResult->Path));
                     } catch (const std::exception& ex) {
                         // TODO(danilalexeev): Implement the top-level #GuardedTryInvoke.
                         context->Reply(ex);
@@ -262,12 +258,12 @@ public:
                     return TForwardToMasterPayload{};
             }
         } else if (auto* unreachableResolveResult = std::get_if<TUnreachableSequoiaResolveResult>(&resolveResult)) {
-            proxy = CreateUnreachableNodeProxy(Bootstrap_, session, *unreachableResolveResult, AuthenticationIdentity_);
+            proxy = CreateUnreachableNodeProxy(Bootstrap_, session, *unreachableResolveResult);
         } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
-            proxy = CreateMasterProxy(Bootstrap_, session, AuthenticationIdentity_);
+            proxy = CreateMasterProxy(Bootstrap_, session);
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
-            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult, resolvedPrerequisiteRevisions, AuthenticationIdentity_);
+            proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult, resolvedPrerequisiteRevisions);
         }
 
         return proxy->Invoke(context);
@@ -275,16 +271,13 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    TAuthenticationIdentity AuthenticationIdentity_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaServicePtr CreateSequoiaService(
-    IBootstrap* bootstrap,
-    TAuthenticationIdentity authenticationIdentity)
+ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap)
 {
-    return New<TSequoiaService>(bootstrap, std::move(authenticationIdentity));
+    return New<TSequoiaService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

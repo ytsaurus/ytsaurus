@@ -21,6 +21,31 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAddStoreOptions
+{
+    // Indicates whether intercepted chunk data is used during the compaction process,
+    // and we expect to have exclusive access to it.
+    bool UseInterceptedChunkData;
+
+    // Indicates whether preloaded chunks are used that were specifically retained earlier
+    // during the unmount.
+    bool UseRetainedPreloadedChunks;
+
+    bool OnFlush;
+    TPartitionId PartitionIdHint;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMountOptions
+{
+    bool CreateDynamicStore;
+    bool UseRetainedPreloadedChunks;
+    const NTabletNode::NProto::TMountHint* MountHint;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStoreFlushResult
 {
     std::vector<NTabletNode::NProto::TAddStoreDescriptor> StoresToAdd;
@@ -73,11 +98,7 @@ struct IStoreManager
     virtual void UnscheduleRotation() = 0;
     virtual void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore = false) = 0;
 
-    virtual void AddStore(
-        IStorePtr store,
-        bool useInterceptedChunkData,
-        bool onFlush,
-        TPartitionId partitionIdHint = {}) = 0;
+    virtual void AddStore(IStorePtr store, TAddStoreOptions options) = 0;
     virtual void BulkAddStores(TRange<IStorePtr> stores) = 0;
     virtual void CreateActiveStore(TDynamicStoreId hintId = {}) = 0;
 
@@ -114,8 +135,7 @@ struct IStoreManager
     virtual void Mount(
         TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-        bool createDynamicStore,
-        const NTabletNode::NProto::TMountHint& mountHint) = 0;
+        TMountOptions options) = 0;
     virtual void Remount(const TTableSettings& settings) = 0;
 
     virtual void PopulateReplicateTabletContentRequest(

@@ -137,8 +137,10 @@ class TestGetOperationLink(TestQueriesYqlSimpleBase):
         query.track()
 
         op = list_operations()["operations"][0]["id"]
-        op_url = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_op_url"]
-        assert str(op_url) == f"https://ui.test.ru/primary/queries/{query.id}"
+        op_cluster = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_op_url"]
+        assert str(op_cluster) == "primary"
+        op_runner = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_runner"]
+        assert str(op_runner) == "yql-agent"
 
 
 class TestMetrics(TestQueriesYqlSimpleBase):
@@ -1619,7 +1621,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
             {
                 "available_yql_versions": ["2025.01",],
                 "default_yql_ui_version": "2025.01",
-                "supported_features": {"declare_params": True},
+                "supported_features": {"declare_params": True, "yql_runner": True},
             }
 
     @authors("kirsiv40")

@@ -27,7 +27,7 @@ class TDataNodeTrackerService
     : public TMasterHydraServiceBase
 {
 public:
-    TDataNodeTrackerService(TBootstrap* bootstrap)
+    explicit TDataNodeTrackerService(TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
             TDataNodeTrackerServiceProxy::GetDescriptor(),

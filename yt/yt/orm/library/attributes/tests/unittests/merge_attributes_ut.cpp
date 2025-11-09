@@ -25,7 +25,7 @@ struct TForcePath
 
 void FormatValue(::NYT::TStringBuilderBase* builder, const TForcePath& path, TStringBuf /*spec*/)
 {
-    Format(builder,"{Path: %v, Force: %v}", path.Path, path.Force);
+    Format(builder, "{Path: %v, Force: %v}", path.Path, path.Force);
 }
 
 void PrintTo(const TForcePath& path, std::ostream* os)
@@ -113,8 +113,8 @@ TEST(TMergeAttributesTest, EtcWithParent)
     NYson::TYsonString element1YsonStringBuf{R"({"h"=17;})"sv};
 
     auto mergedYsonString = NewMergeAttributes({
-            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc=true},
-            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc=true},
+            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc = true},
+            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc = true},
             {.Path = "", .Value = element0YsonStringBuf},
             {.Path = "/etc/i", .Value = element1YsonStringBuf},
         });
@@ -166,8 +166,8 @@ TEST(TMergeAttributesTest, Etc)
     NYson::TYsonString etc1YsonStringBuf{R"({"b"="d";})"sv};
 
     auto mergedYsonString = NewMergeAttributes({
-            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc=true},
-            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc=true},
+            {.Path = "/etc", .Value = etc0YsonStringBuf, .IsEtc = true},
+            {.Path = "/etc", .Value = etc1YsonStringBuf, .IsEtc = true},
         });
     NYson::TYsonString expectedYsonString{R"({"etc"={"a"="c";"b"="d";};})"sv};
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
@@ -179,7 +179,7 @@ TEST(TMergeAttributesTest, DuplicateValues)
     NYson::TYsonString etcYsonStringBuf{R"({"a"="c";})"sv};
     std::vector<TAttributeValue> attributeValues = {
         {.Path = "/x/a", .Value = elementYsonStringBuf},
-        {.Path = "/x", .Value = etcYsonStringBuf, .IsEtc=true},
+        {.Path = "/x", .Value = etcYsonStringBuf, .IsEtc = true},
     };
 
     {

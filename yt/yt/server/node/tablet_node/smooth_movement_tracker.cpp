@@ -111,9 +111,6 @@ using namespace NTableClient;
   TTT   *                                            *  * target is the main servant from this moment
   TTT   *                                            *
   TTT   *                                            *  - send deallocation request to master.
-  TTT   *                                            *   TODO: wait for client cache invalidation
-  TTT   *                                            *   because client retries rely on source being
-  TTT   *                                            *   alive.
   TTT   *                                            *
 
  */
@@ -244,7 +241,6 @@ public:
                     break;
 
                 case ESmoothMovementStage::ServantSwitched:
-                    // TODO(ifsmirnov): wait for cache invalidation.
                     newStage = ESmoothMovementStage::SourceDeactivationRequested;
                     break;
 
@@ -329,7 +325,7 @@ public:
             }
         };
 
-        validateProto(NProto::TReqMountTablet::GetDescriptor(),            30, 5);
+        validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
         validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
@@ -729,6 +725,8 @@ private:
                         movementData.GetSiblingAvenueEndpointId(),
                         req);
                 }
+
+                tablet->SetSnapshotEvictionTimeout(GetDynamicConfig()->SourceTabletSnapshotEvictionTimeout);
 
                 // TODO(ifsmirnov): maybe should unregister sibling avenue here.
 

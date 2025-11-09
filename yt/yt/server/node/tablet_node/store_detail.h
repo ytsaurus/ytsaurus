@@ -281,6 +281,8 @@ public:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
+    TInMemoryChunkDataPtr GetInMemoryChunkData() override;
+
     TMinHashDigestBlockIndex GetMinHashDigestBlockIndex() const;
 
     // Fast path.

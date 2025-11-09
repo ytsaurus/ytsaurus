@@ -49,6 +49,7 @@ target_sources(yt-server-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/action_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/bundle_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/cluster_state_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/tablet_balancer/helpers.cpp

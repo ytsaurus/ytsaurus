@@ -1,4 +1,4 @@
-#ifndef PERMISSION_CHECKER_H
+#ifndef PERMISSION_CHECKER_INL_H_
 #error "Direct inclusion of this file is not allowed, include permission_checker.h"
 // For the sake of sane code completion.
 #include "permission_checker.h"

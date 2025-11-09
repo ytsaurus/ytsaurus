@@ -30,7 +30,6 @@ struct TContextTrackingInserter
 
         instruction->setName(name);
     }
-
 };
 
 class TCGIRBuilder

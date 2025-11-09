@@ -1,15 +1,20 @@
 #pragma once
 
-#include <library/cpp/yt/memory/ref_counted.h>
+#include "public.h"
+
+#include <library/cpp/yt/misc/global.h>
+
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TAssignment)
+YT_DEFINE_GLOBAL(const NLogging::TLogger, GpuSchedulingPolicyLogger, "GpuSchedulingPolicy");
 
-DECLARE_REFCOUNTED_CLASS(TOperation)
-DECLARE_REFCOUNTED_CLASS(TNode)
+////////////////////////////////////////////////////////////////////////////////
+
+using TSchedulingModule = std::string;
 
 ////////////////////////////////////////////////////////////////////////////////
 

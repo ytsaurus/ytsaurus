@@ -105,6 +105,6 @@ void DumpGlobalMemoryUsageSnapshot(
 
 } // namespace NYT::NServer
 
-#define PROFILING_HELPERS_H_
+#define PROFILING_HELPERS_INL_H_
 #include "profiling_helpers-inl.h"
-#undef PROFILING_HELPERS_H_
+#undef PROFILING_HELPERS_INL_H_

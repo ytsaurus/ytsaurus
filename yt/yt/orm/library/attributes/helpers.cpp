@@ -231,91 +231,91 @@ public:
         , Forward_(underlying)
     { }
 
-    void OnStringScalar(TStringBuf string) override final
+    void OnStringScalar(TStringBuf string) final
     {
         if (Forward_) {
             Forward_->OnStringScalar(string);
         }
     };
 
-    void OnBeginList() override final
+    void OnBeginList() final
     {
         if (Forward_) {
             Forward_->OnBeginList();
         }
     };
 
-    void OnListItem() override final
+    void OnListItem() final
     {
         if (Forward_) {
             Forward_->OnListItem();
         }
     };
 
-    void OnEndList() override final
+    void OnEndList() final
     {
         if (Forward_) {
             Forward_->OnEndList();
         }
     };
 
-    void OnBeginMap() override final
+    void OnBeginMap() final
     {
         if (Forward_) {
             Forward_->OnBeginMap();
         }
     };
 
-    void OnEndMap() override final
+    void OnEndMap() final
     {
         if (Forward_) {
             Forward_->OnEndMap();
         }
     };
 
-    void OnKeyedItem(TStringBuf key) override final
+    void OnKeyedItem(TStringBuf key) final
     {
         if (Forward_) {
             Forward_->OnKeyedItem(key);
         }
     };
 
-    void OnInt64Scalar(i64 value) override final
+    void OnInt64Scalar(i64 value) final
     {
         if (Forward_) {
             Forward_->OnInt64Scalar(value);
         }
     };
 
-    void OnUint64Scalar(ui64 value) override final
+    void OnUint64Scalar(ui64 value) final
     {
         if (Forward_) {
             Forward_->OnUint64Scalar(value);
         }
     };
 
-    void OnDoubleScalar(double value) override final
+    void OnDoubleScalar(double value) final
     {
         if (Forward_) {
             Forward_->OnDoubleScalar(value);
         }
     };
 
-    void OnBooleanScalar(bool value) override final
+    void OnBooleanScalar(bool value) final
     {
         if (Forward_) {
             Forward_->OnBooleanScalar(value);
         }
     };
 
-    void OnEntity() override final
+    void OnEntity() final
     {
         if (Forward_) {
             Forward_->OnEntity();
         }
     };
 
-    void OnBeginAttributes() override final
+    void OnBeginAttributes() final
     {
         if (Reporter_) {
             Reporter_();
@@ -325,7 +325,7 @@ public:
         Forward_ = nullptr;
     };
 
-    void OnEndAttributes() override final
+    void OnEndAttributes() final
     {
         --AttributesDepth_;
         if (AttributesDepth_ == 0) {

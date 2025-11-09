@@ -6769,3 +6769,75 @@ class TestChaosSingleCluster(ChaosTestBase):
         values = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], replica_consistency="sync") == values)
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_REMOTE_CLUSTERS = 0
+    NUM_NODES = 3
+    NUM_CHAOS_NODES = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+    }
+
+    @authors("osidorkin")
+    def test_move_chaos_table_through_portal(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/d1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/d2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, external_cell_tag=11)
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows(replicas[0]["replica_path"], values)
+        wait(lambda: lookup_rows(replicas[1]["replica_path"], [{"key": 1}]) == values)
+
+        for replica_index in [1, 2]:
+            old_path = replicas[replica_index]["replica_path"]
+            sync_unmount_table(old_path)
+            new_path = f"//tmp/p/{replicas[replica_index]["replica_path"].split('/')[-1]}"
+            move(old_path, new_path)
+            alter_table_replica(replica_ids[replica_index], replica_path=new_path)
+            replicas[replica_index]["replica_path"] = new_path
+            sync_mount_table(new_path)
+
+        values2 = [{"key": 2, "value": "2"}]
+        insert_rows(replicas[0]["replica_path"], values2)
+        wait(lambda: lookup_rows(replicas[1]["replica_path"], [{"key": 2}]) == values2)

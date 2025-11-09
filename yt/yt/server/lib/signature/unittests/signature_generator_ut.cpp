@@ -147,7 +147,7 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     std::atomic<size_t> finishedCount = 0;
 
     auto signerTask = BIND([this, &data, &allStarted, &finishedCount] () {
-        while (!allStarted.load());
+        while (!allStarted.load()) { }
         while (true) {
             Y_UNUSED(Gen->Sign(data));
             if (finishedCount.fetch_add(1) > 100'000) {
@@ -163,7 +163,7 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     }
 
     allStarted.store(true);
-    while (finishedCount.load() == 0);
+    while (finishedCount.load() == 0) { }
     Gen->SetKeyPair(std::move(newKeyPair));
     EXPECT_LE(finishedCount.load(), 5000u);
 }
@@ -207,7 +207,7 @@ TEST_F(TSignatureGeneratorTest, ReconfigureMultipleTimes)
     std::atomic<size_t> signCount = 0;
 
     auto signerTask = BIND([this, &allStarted, &shouldStop, &signCount] () {
-        while (!allStarted.load());
+        while (!allStarted.load()) { }
         while (!shouldStop.load()) {
             auto signature = Gen->Sign("data");
             EXPECT_EQ(signature->Payload(), "data");
@@ -216,7 +216,7 @@ TEST_F(TSignatureGeneratorTest, ReconfigureMultipleTimes)
     });
 
     auto reconfigureTask = BIND([this, &allStarted, &shouldStop] () {
-        while (!allStarted.load());
+        while (!allStarted.load()) { }
         for (int i = 0; i < 100 && !shouldStop.load(); ++i) {
             auto newConfig = New<TSignatureGeneratorConfig>();
             newConfig->SignatureExpirationDelta = TDuration::Hours(1 + i % 3);

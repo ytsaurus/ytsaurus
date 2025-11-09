@@ -234,7 +234,6 @@ void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
 
 void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 {
-
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
 

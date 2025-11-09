@@ -223,5 +223,5 @@ def add_common_dashboard_parameters(dashboard):
         "Cluster",
         MonitoringLabelDashboardParameter("", "cluster", "-", selectors='{sensor="yt.build.version"}'),
     )
-    dashboard.add_parameter("proxy", "YT proxy", MonitoringTextDashboardParameter(default_value="-"))
+    dashboard.add_parameter("pipeline_cluster", "Pipeline cluster", MonitoringTextDashboardParameter(default_value="-"))
     dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))

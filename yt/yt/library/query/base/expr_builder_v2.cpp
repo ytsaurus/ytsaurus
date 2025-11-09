@@ -418,7 +418,7 @@ TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReferen
         YT_VERIFY(groupItems);
 
         if (!reference.TableName) {
-            for (const auto& [expression, name]: *groupItems) {
+            for (const auto& [expression, name] : *groupItems) {
                 // TODO(lukyan): InferColumnName(reference) instead of reference.ColumnName?
                 if (name == reference.ColumnName) {
                     return New<TReferenceExpression>(expression->LogicalType, reference.ColumnName);
@@ -1041,7 +1041,6 @@ TConstExpressionPtr TExprBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseEx
                 {TTypingCtx::TFunctionSignature({expectedConditionType})},
                 {actualConditionType},
                 0);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
                 << ex;

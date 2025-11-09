@@ -1756,7 +1756,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     YT_LOG_DEBUG("Merge job scheduled "
         "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, "
-        "ValidateShallowMerge: %v, ValidateChunkMetaExtensions: %v, AccointId: %v)",
+        "ValidateShallowMerge: %v, ValidateChunkMetaExtensions: %v, AccountId: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
@@ -1897,7 +1897,7 @@ void TChunkMerger::GuardedDisableChunkMerger()
     auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
     auto batchReq = proxy.ExecuteBatch();
     auto req = TYPathProxy::Set("//sys/@config/chunk_manager/chunk_merger/enable");
-    req->set_value("\%false");
+    req->set_value("%false");
     batchReq->AddRequest(req);
     WaitFor(batchReq->Invoke())
         .ThrowOnError();

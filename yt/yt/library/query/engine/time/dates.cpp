@@ -13,6 +13,7 @@ namespace NYT::NQueryClient::NRoutines {
 
 using namespace NDatetime;
 using namespace NTableClient;
+using namespace NWebAssembly;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,6 +119,8 @@ void FormatTimestamp(
     char* format,
     int formatLength)
 {
+    auto* compartment = GetCurrentCompartment();
+
     ValidateFormatStringLength(formatLength);
     ValidateTimestamp(timestamp, localtime);
 
@@ -129,14 +132,14 @@ void FormatTimestamp(
     }
 
     char buffer[MaxFormatLength + 1];
-    memcpy(buffer, format, formatLength);
+    ::memcpy(buffer, PtrFromVM(compartment, format, formatLength), formatLength);
     buffer[formatLength] = '\0';
 
-    auto* resultPtr = context->AllocateUnaligned(BufferLength, NWebAssembly::EAddressSpace::WebAssembly);
-    auto length = strftime(resultPtr, BufferLength, buffer, &timeinfo);
+    auto* resultPtr = context->AllocateUnaligned(BufferLength, EAddressSpace::WebAssembly);
+    auto length = strftime(PtrFromVM(compartment, resultPtr), BufferLength, buffer, &timeinfo);
 
-    *result = resultPtr;
-    *resultLength = length;
+    *PtrFromVM(compartment, result) = resultPtr;
+    *PtrFromVM(compartment, resultLength) = length;
 }
 
 void FormatTimestampTZ(
@@ -150,21 +153,23 @@ void FormatTimestampTZ(
     char* format,
     int formatLength)
 {
+    auto* compartment = GetCurrentCompartment();
+
     ValidateFormatStringLength(formatLength);
 
-    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+    auto timezone = GetTimeZoneFromPrivateData(functionContext, PtrFromVM(compartment, timezoneString, timezoneLength), timezoneLength);
 
     struct tm tm = ToCivilTime(TInstant::Seconds(timestamp), timezone);
 
     char buffer[MaxFormatLength + 1];
-    memcpy(buffer, format, formatLength);
+    ::memcpy(buffer, PtrFromVM(compartment, format, formatLength), formatLength);
     buffer[formatLength] = '\0';
 
     auto* resultPtr = context->AllocateUnaligned(BufferLength, NWebAssembly::EAddressSpace::WebAssembly);
-    auto length = strftime(resultPtr, BufferLength, buffer, &tm);
+    auto length = strftime(PtrFromVM(compartment, resultPtr), BufferLength, buffer, &tm);
 
-    *result = resultPtr;
-    *resultLength = length;
+    *PtrFromVM(compartment, result) = resultPtr;
+    *PtrFromVM(compartment, resultLength) = length;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,7 +526,10 @@ i64 TimestampFloorDayTZInternal(i64 timestamp, TTimeZone timezone)
 
 i64 TimestampFloorDayTZ(i64 timestamp, char* timezoneString, int timezoneLength, TFunctionContext* functionContext)
 {
-    auto timezone = GetTimeZoneFromPrivateData(functionContext, timezoneString, timezoneLength);
+    auto timezone = GetTimeZoneFromPrivateData(
+        functionContext,
+        PtrFromVM(GetCurrentCompartment(), timezoneString, timezoneLength),
+        timezoneLength);
 
     return TimestampFloorDayTZInternal(timestamp, timezone);
 }

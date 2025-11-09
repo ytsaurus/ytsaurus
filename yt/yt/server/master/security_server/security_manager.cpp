@@ -624,24 +624,24 @@ public:
                         continue;
                     }
                     TWithTagGuard guard(&buffer, "medium", medium->GetName());
-                    buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
+                    buffer.AddGauge("/disk_space_in_gb", static_cast<double>(space) / 1_GB);
                     auto committedIt = std::find_if(
                         committedDiskSpace.begin(),
                         committedDiskSpace.end(),
                         [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
                     if (committedIt != committedDiskSpace.end()) {
-                        profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
+                        profileDetailed(space / static_cast<double>(1_GB), committedIt->second / static_cast<double>(1_GB), "/detailed_disk_space_in_gb");
                     }
                 }
 
                 const auto& resourceLimit = account->ClusterResourceLimits();
-                for (const auto& [index, space]: resourceLimit.DiskSpace()) {
+                for (const auto& [index, space] : resourceLimit.DiskSpace()) {
                     const auto* medium = chunkManager->FindMediumByIndex(index);
                     if (!IsObjectAlive(medium)) {
                         continue;
                     }
                     TWithTagGuard guard(&buffer, "medium", medium->GetName());
-                    buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / double(1_GB));
+                    buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / static_cast<double>(1_GB));
                 }
 
                 buffer.AddGauge("/node_count_limit", resourceLimit.GetNodeCount().UnsafeToUnderlying());
@@ -2925,6 +2925,7 @@ private:
         {0xffffffffffffffe6, PermissionCacheUserName,        true,  &SuperusersGroup_                  },
         {0xffffffffffffffe5, ReplicatedTableTrackerUserName, false, &SuperusersGroup_                  },
         {0xffffffffffffffe4, ChunkReplicaCacheUserName,      false, &SuperusersGroup_                  },
+        {0xffffffffffffffe3, SignatureKeysmithUserName,      false, &SuperusersGroup_                  },
     };
 
     NHydra::TEntityMap<TGroup> GroupMap_;

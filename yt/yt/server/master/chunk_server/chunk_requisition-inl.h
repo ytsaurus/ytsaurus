@@ -75,7 +75,6 @@ inline TChunkReplication::const_iterator TChunkReplication::begin() const
 
 inline TChunkReplication::const_iterator TChunkReplication::end() const
 {
-
     return Entries_.end();
 }
 

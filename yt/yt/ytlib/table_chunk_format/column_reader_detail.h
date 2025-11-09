@@ -219,7 +219,7 @@ private:
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, flags);
     }
 
-    template<class TRow>
+    template <class TRow>
     i64 DoReadValues(TMutableRange<TRow> rows)
     {
         i64 rangeRowIndex = 0;

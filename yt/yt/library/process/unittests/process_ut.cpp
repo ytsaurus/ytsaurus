@@ -84,7 +84,7 @@ TEST(TProcessTest, StdOut)
     auto future = outStream->Read(buffer);
     auto result = WaitFor(future);
     size_t sz = result.ValueOrThrow();
-    EXPECT_TRUE(sz > 0);
+    EXPECT_GT(sz, 0UL);
 }
 
 TEST(TSimpleProcess, GetCommandLine1)

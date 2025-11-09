@@ -41,7 +41,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     YT_VERIFY(DirectoryManager_);
 }
 
-template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -77,7 +77,7 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
     return (*this.*Step)();
 }
 
-template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
 constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
     if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
@@ -95,7 +95,7 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
     }
 }
 
-template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+template <TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);

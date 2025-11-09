@@ -34,19 +34,16 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NApi::NNative;
 using namespace NConcurrency;
+using namespace NProfiling;
+using namespace NThreading;
 using namespace NYson;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
 
 using NYqlClient::NProto::TYqlQueryFile_EContentType;
 using NYqlClient::NProto::TYqlResponse;
 
-////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = ProcessYqlPluginLogger;
 constexpr int MODE0711 = S_IRWXU | S_IXGRP | S_IXOTH;
@@ -98,7 +95,7 @@ public:
     TClustersResult GetUsedClusters(
         TQueryId queryId,
         TString queryText,
-        NYson::TYsonString settings,
+        TYsonString settings,
         std::vector<TQueryFile> files) override
     {
         // Yql agent calls this method first when staring query, so we acquire
@@ -121,9 +118,9 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
-        NYson::TYsonString credentials,
+        TYsonString credentials,
         TString queryText,
-        NYson::TYsonString settings,
+        TYsonString settings,
         std::vector<TQueryFile> files,
         int executeMode) override
     {
@@ -185,8 +182,8 @@ public:
         TQueryId queryId,
         TString user,
         TString queryText,
-        NYson::TYsonString settings,
-        NYson::TYsonString credentials) override
+        TYsonString settings,
+        TYsonString credentials) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
         if (!pluginProcessOrError.IsOK()) {
@@ -208,7 +205,7 @@ public:
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
     {
-        auto guard = NThreading::WriterGuard(ProcessesLock_);
+        auto guard = WriterGuard(ProcessesLock_);
         YT_LOG_INFO("Updating dynamic config");
 
         CurrentDynamicGatewaysConfig_ = config.GatewaysConfig;
@@ -227,9 +224,9 @@ public:
         YT_LOG_INFO("Dynamic config updated");
     }
 
-    NYTree::IMapNodePtr GetOrchidNode() const override
+    IMapNodePtr GetOrchidNode() const override
     {
-        auto guard = NThreading::ReaderGuard(ProcessesLock_);
+        auto guard = ReaderGuard(ProcessesLock_);
         return BuildYsonNodeFluently()
             .BeginMap()
                 .Item("active_processes").Value(RunningYqlQueries_.size())
@@ -252,15 +249,15 @@ private:
 
     std::unique_ptr<IYqlPlugin> DqControllerYqlPlugin_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProcessesLock_);
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ProcessesLock_);
     THashMap<TQueryId, TYqlExecutorProcessPtr> RunningYqlQueries_;
     ::NThreading::TBlockingQueue<TYqlExecutorProcessPtr> StandbyProcessesQueue_;
 
-    NProfiling::TGauge StandbyProcessesGauge_;
-    NProfiling::TGauge ActiveProcessesGauge_;
-    NProfiling::TGauge ProcessesLimitGauge_;
+    TGauge StandbyProcessesGauge_;
+    TGauge ActiveProcessesGauge_;
+    TGauge ProcessesLimitGauge_;
 
-private:
+
     TYqlExecutorProcessPtr AcquireSlotForQuery(TQueryId queryId) noexcept
     {
         auto acquiredProcess = StandbyProcessesQueue_.Pop();
@@ -270,7 +267,7 @@ private:
             return nullptr;
         }
 
-        auto guard = NThreading::WriterGuard(ProcessesLock_);
+        auto guard = WriterGuard(ProcessesLock_);
 
         RunningYqlQueries_[queryId] = *acquiredProcess;
 
@@ -289,7 +286,7 @@ private:
 
     TErrorOr<TYqlExecutorProcessPtr> GetYqlPluginByQueryId(TQueryId queryId)
     {
-        auto guard = NThreading::ReaderGuard(ProcessesLock_);
+        auto guard = ReaderGuard(ProcessesLock_);
 
         if (!RunningYqlQueries_.contains(queryId)) {
             YT_LOG_WARNING("Query was not found in running queries (QueryId: %v)", queryId);
@@ -301,7 +298,7 @@ private:
 
     void CleanupAfterQueryFinish(std::optional<TQueryId> queryId)
     {
-        auto guard = NThreading::WriterGuard(ProcessesLock_);
+        auto guard = WriterGuard(ProcessesLock_);
         if (queryId) {
             RunningYqlQueries_.erase(*queryId);
         }
@@ -314,7 +311,7 @@ private:
         if (process->ActiveQueryId()) {
             return;
         }
-        YT_LOG_WARNING("Query did not start after acquiring process; Restarting process (SlotIndex: %v, QueryId: %v)", process->SlotIndex(), queryId);
+        YT_LOG_WARNING("Query did not start after acquiring process; restarting process (SlotIndex: %v, QueryId: %v)", process->SlotIndex(), queryId);
         process->Stop();
         CleanupAfterQueryFinish(queryId);
     }
@@ -339,9 +336,9 @@ private:
             return;
         }
 
-        auto guard = NThreading::WriterGuard(ProcessesLock_);
+        auto guard = WriterGuard(ProcessesLock_);
         if (process->DynamicConfigVersion() < DynamicConfigVersion_) {
-            YT_LOG_DEBUG("Dynamic config was updated during process start; Restarting process (SlotIndex: %v)", slotIndex);
+            YT_LOG_DEBUG("Dynamic config was updated during process start; restarting process (SlotIndex: %v)", slotIndex);
             restartProcess();
             return;
         }
@@ -386,7 +383,7 @@ private:
     {
         YT_LOG_INFO("Starting yql plugin process (SlotIndex: %v)", slotIndex);
 
-        return BIND_NO_PROPAGATE(&TProcessYqlPlugin::StartProcess, this, slotIndex)
+        return BIND_NO_PROPAGATE(&TProcessYqlPlugin::StartProcess, Passed(this), slotIndex)
             .AsyncVia(Invoker_)
             .Run()
             .Apply(BIND_NO_PROPAGATE([this, slotIndex](const TErrorOr<TYqlExecutorProcessPtr>& result) {
@@ -414,10 +411,10 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_LOG_DEBUG("Starting plugin process (SlotIndex: %v)", slotIndex);
-        auto guard = NThreading::ReaderGuard(ProcessesLock_);
-        TString workingDirectory = GetSlotPath(slotIndex);
+        auto guard = ReaderGuard(ProcessesLock_);
+        auto workingDirectory = GetSlotPath(slotIndex);
         NFS::MakeDirRecursive(workingDirectory, MODE0711);
-        TString unixDomainSocketPath = GetUnixDomainSocketPath(slotIndex);
+        auto unixDomainSocketPath = GetUnixDomainSocketPath(slotIndex);
 
         if (NFS::Exists(unixDomainSocketPath)) {
             NFS::Remove(unixDomainSocketPath);
@@ -426,11 +423,11 @@ private:
         auto serverConfig = NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
         auto clientConfig = NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
 
-        TProcessYqlPluginInternalConfigPtr config = BuildProcessConfig(slotIndex, serverConfig);
+        auto config = BuildProcessConfig(slotIndex, serverConfig);
 
         auto client = NBus::CreateBusClient(clientConfig);
 
-        TProcessBasePtr process = New<TSimpleProcess>(YqlAgentProgramName);
+        auto process = New<TSimpleProcess>(YqlAgentProgramName);
 
         WriteConfig(config, NFS::CombinePaths(workingDirectory, YqlPluginConfigFilename));
 
@@ -455,7 +452,7 @@ private:
 
     TProcessYqlPluginInternalConfigPtr BuildProcessConfig(int slotIndex, NBus::TBusServerConfigPtr serverConfig)
     {
-        TProcessYqlPluginInternalConfigPtr config = NYTree::CloneYsonStruct(ConfigTemplate_);
+        auto config = NYTree::CloneYsonStruct(ConfigTemplate_);
 
         config->SlotIndex = slotIndex;
         config->BusServer = serverConfig;
@@ -504,9 +501,9 @@ private:
         TConnectionCompoundConfigPtr clusterConnectionConfig,
         TString maxSupportedYqlVersion)
     {
-        TProcessYqlPluginInternalConfigPtr result = New<TProcessYqlPluginInternalConfig>();
+        auto result = New<TProcessYqlPluginInternalConfig>();
 
-        TSingletonsConfigPtr pluginSingletonsConfig = CloneYsonStruct(singletonsConfig);
+        auto pluginSingletonsConfig = CloneYsonStruct(singletonsConfig);
 
         pluginSingletonsConfig->SetSingletonConfig(config->ProcessPluginConfig->LogManagerTemplate);
 
@@ -521,7 +518,7 @@ private:
 
     void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig, std::string maxSupportedYqlVersion)
     {
-        TYqlPluginOptions options = ConvertToOptions(
+        auto options = ConvertToOptions(
             Config_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
@@ -546,5 +543,7 @@ std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
 {
     return std::make_unique<TProcessYqlPlugin>(std::move(pluginConfig), singletonsConfig, clusterConnectionConfig, maxSupportedYqlVersion, profiler);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin::NProcess

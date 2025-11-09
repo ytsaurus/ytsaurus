@@ -128,7 +128,6 @@ public:
             .OperationAttributes = options.OperationAttributes.AsStringBuf().data(),
             .OperationAttributesLength = options.OperationAttributes.AsStringBuf().size(),
             .YTTokenPath = options.YTTokenPath.data(),
-            .UIOrigin = options.UIOrigin.data(),
             .LogBackend = &options.LogBackend,
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),

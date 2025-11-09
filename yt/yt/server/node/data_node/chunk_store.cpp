@@ -874,6 +874,16 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             continue;
         }
 
+        if (ShouldSkipWriteThrottlingLocations()) {
+            auto diskThrottlingResult = location->CheckWriteThrottling(options.WorkloadDescriptor, true);
+            if (diskThrottlingResult.Enabled || diskThrottlingResult.MemoryOvercommit) {
+                throttledLocations.push_back(location);
+                throttledLocationErrors.push_back(TError("Session cannot be started because of disk throttling")
+                    << diskThrottlingResult.Error);
+                continue;
+            }
+        }
+
         if (options.PlacementId || ShouldChooseLocationBasedOnIOWeight()) {
             candidateIndices.push_back(index);
         } else {
@@ -1076,6 +1086,13 @@ bool TChunkStore::ShouldChooseLocationBasedOnIOWeight()
     return DynamicConfig_
         ? DynamicConfig_->ChooseLocationBasedOnIOWeight.value_or(Config_->ChooseLocationBasedOnIOWeight)
         : Config_->ChooseLocationBasedOnIOWeight;
+}
+
+bool TChunkStore::ShouldSkipWriteThrottlingLocations()
+{
+    return DynamicConfig_
+        ? DynamicConfig_->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
+        : Config_->SkipWriteThrottlingLocations;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

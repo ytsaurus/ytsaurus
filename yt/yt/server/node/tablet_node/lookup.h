@@ -46,7 +46,7 @@ ILookupSessionPtr CreateLookupSession(
     bool enablePartialResult,
     NTableClient::TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TTimestampReadOptions& timestampReadOptions,
     IInvokerPtr invoker,
-    const std::optional<std::string>& profilingUser,
+    std::optional<std::string> profilingUser,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -232,7 +232,7 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
-    TMockBlackboxService(bool useLowercaseLogin = false)
+    explicit TMockBlackboxService(bool useLowercaseLogin = false)
         : UseLowercaseLogin_(useLowercaseLogin)
     { }
 
@@ -410,7 +410,6 @@ public:
 
 TEST_F(TCachingTokenAuthenticatorTest, GoodCaching)
 {
-
     EXPECT_CALL(*Blackbox_, Call("oauth", _))
         .WillRepeatedly(Return(GoodResult));
 
@@ -630,7 +629,6 @@ protected:
             .WillByDefault(Return(TParsedTicket{43, {"bad", "scope"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("bad_ticket")))
             .WillByDefault(Return(Response("{users=[{login=ScopelessUser;attributes={\"1008\"=scopeless_user}}]}")));
-
     }
 
     THashMap<TString, TString> TicketParam(const TString& ticket)

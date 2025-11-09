@@ -1,5 +1,6 @@
 #include "structs.h"
 
+#include "private.h"
 #include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -16,31 +17,40 @@ TAssignment::TAssignment(
     TOperation* operation,
     TNode* node)
     : AllocationGroupName(std::move(allocationGroupName))
+    , ResourceUsage(std::move(resourceUsage))
     , Operation(operation)
     , Node(node)
-    , ResourceUsage(std::move(resourceUsage))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
-        TOperationId id,
-        EOperationType type,
-        const TAllocationGroupResourcesMap& initialGroupedNeededResources,
-        bool gang,
-        std::optional<THashSet<std::string>> specifiedSchedulingModules)
+    TOperationId id,
+    EOperationType type,
+    bool gang,
+    std::optional<THashSet<std::string>> specifiedSchedulingModules)
     : Id_(id)
     , Type_(type)
-    , InitialGroupedNeededResources_(initialGroupedNeededResources)
-    , ReadyToAssignGroupedNeededResources_(initialGroupedNeededResources)
     , SpecifiedSchedulingModules_(std::move(specifiedSchedulingModules))
     , Gang_(gang)
 { }
 
+void TOperation::Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources)
+{
+    YT_VERIFY(!IsInitialized());
+
+    InitialGroupedNeededResources_ = initialGroupedNeededResources;
+}
+
+bool TOperation::IsInitialized() const
+{
+    return InitialGroupedNeededResources_.has_value();
+}
+
 bool TOperation::IsFullHost() const
 {
     return std::ranges::all_of(
-        InitialGroupedNeededResources_,
+        *InitialGroupedNeededResources_,
         [&] (const auto& pair) {
             const auto& allocationGroupResources = pair.second;
             return allocationGroupResources.MinNeededResources.GetGpu() == MaxNodeGpuCount;
@@ -56,7 +66,7 @@ bool TOperation::IsFullHostModuleBound() const
 
 int TOperation::GetInitialNeededAllocationCount() const
 {
-    return DoGetNeededAllocationCount(InitialGroupedNeededResources_);
+    return DoGetNeededAllocationCount(*InitialGroupedNeededResources_);
 }
 
 int TOperation::GetReadyToAssignNeededAllocationCount() const
@@ -70,6 +80,7 @@ void TOperation::AddAssignment(const TAssignmentPtr& assignment)
 
     InsertOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ += assignment->ResourceUsage;
+    ++AssignmentCountPerGroup_[assignment->AllocationGroupName];
 
     auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
@@ -82,6 +93,7 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
 
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;
+    --GetOrCrash(AssignmentCountPerGroup_, assignment->AllocationGroupName);
 }
 
 void TOperation::SetPreemptible(bool preemptible)
@@ -115,19 +127,24 @@ int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& g
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNode::TNode(std::string address)
+    : Address_(std::move(address))
+{ }
+
+bool TNode::IsSchedulable() const
+{
+    return Descriptor_ &&
+        Descriptor_->Online &&
+        Descriptor_->ResourceLimits.GetUserSlots() > 0 &&
+        SchedulingModule_;
+}
+
 int TNode::GetUnassignedGpuCount() const
 {
     return Descriptor_->ResourceLimits.GetGpu() - AssignedResourceUsage_.GetGpu();
 }
 
-void TNode::SetSchedulingModule(std::string schedulingModule)
-{
-    YT_VERIFY(!SchedulingModule_);
-
-    SchedulingModule_ = std::move(schedulingModule);
-}
-
-void TNode::UpdateDescriptor(TExecNodeDescriptorPtr descriptor)
+void TNode::SetDescriptor(TExecNodeDescriptorPtr descriptor)
 {
     if (Descriptor_) {
         YT_VERIFY(Descriptor_->Id == descriptor->Id);
@@ -169,8 +186,6 @@ void TNode::RemoveAssignment(const TAssignmentPtr& assignment)
 void TNode::PreemptAssignment(const TAssignmentPtr& assignment)
 {
     RemoveAssignment(assignment);
-
-    assignment->Preempted = true;
     InsertOrCrash(PreemptedAssignments_, assignment);
 }
 

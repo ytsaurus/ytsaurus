@@ -57,6 +57,7 @@ PEERDIR(
 
     library/cpp/yt/mlock
     library/cpp/yt/phdr_cache
+    library/cpp/yt/system
 
     library/cpp/getopt
 )

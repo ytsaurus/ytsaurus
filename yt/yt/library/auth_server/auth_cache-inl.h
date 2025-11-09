@@ -147,7 +147,7 @@ bool TAuthCache<TKey, TValue, TContext>::TEntry::IsOutdated(TDuration ttl, TDura
     }
 }
 
-template<class TKey, class TValue, class TContext>
+template <class TKey, class TValue, class TContext>
 bool TAuthCache<TKey, TValue, TContext>::TEntry::IsExpired(TDuration ttl)
 {
     auto now = NProfiling::GetCpuInstant();

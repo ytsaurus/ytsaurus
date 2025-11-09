@@ -6,6 +6,7 @@ SRCS(
     action_manager.cpp
     bootstrap.cpp
     bundle_state.cpp
+    cluster_state_provider.cpp
     config.cpp
     dynamic_config_manager.cpp
     helpers.cpp

@@ -312,7 +312,7 @@ public:
 
         auto signature = GetSignature(typingCtx);
 
-        // TODO: Argument types and additional types (result, state)
+        // TODO(lukyan): Argument types and additional types (result, state)
         // Return two vectors?
         return typingCtx->InferFunctionType(name, {signature}, argumentTypeIds, 2);
     }

@@ -93,14 +93,12 @@ TOrderedStoreManager::TOrderedStoreManager(
 void TOrderedStoreManager::Mount(
     TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
     TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-    bool createDynamicStore,
-    const TMountHint& mountHint)
+    TMountOptions options)
 {
     TStoreManagerBase::Mount(
         storeDescriptors,
         hunkChunkDescriptors,
-        createDynamicStore,
-        mountHint);
+        std::move(options));
     Tablet_->UpdateTotalRowCount();
     Tablet_->RecomputeReplicaStatuses();
 }

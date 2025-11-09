@@ -8,7 +8,7 @@
 
 namespace NYT::NOrm::NAttributes {
 
-namespace {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,7 +72,7 @@ struct TDefaultTraits
     }
 };
 
-} // namespace
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +112,7 @@ void TPathVisitor<TSelf>::VisitGeneric(
     TVisitParam&& target,
     EVisitReason reason)
 {
-    using TTraits = TPathVisitorTraits<std::remove_cvref_t<TVisitParam>>;
+    using TTraits = NDetail::TPathVisitorTraits<std::remove_cvref_t<TVisitParam>>;
 
     if constexpr (TTraits::IsVector) {
         Self()->VisitVector(std::forward<TVisitParam>(target), reason);
@@ -223,7 +223,7 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
             } else {
                 target.insert(
                     target.begin() + index,
-                    TDefaultTraits<typename TVisitedValue::value_type>::Default());
+                    NDetail::TDefaultTraits<typename TVisitedValue::value_type>::Default());
                 Self()->VisitGeneric(target[index], reason);
                 return;
             }
@@ -259,7 +259,7 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
                 using TVisitedValue = std::remove_reference_t<TVisitParam>;
                 if constexpr (std::is_const_v<TVisitedValue>) {
                     Self()->VisitGeneric(
-                        TDefaultTraits<typename TVisitedValue::value_type>::StaticDefault(),
+                        NDetail::TDefaultTraits<typename TVisitedValue::value_type>::StaticDefault(),
                         reason);
                     return;
                 } else {
@@ -380,10 +380,10 @@ void TPathVisitor<TSelf>::OnMapKeyError(
             using TVisitedValue = std::remove_reference_t<TVisitParam>;
             if constexpr (std::is_const_v<TVisitedValue>) {
                 Self()->VisitGeneric(
-                    TDefaultTraits<typename TVisitedValue::mapped_type>::StaticDefault(),
+                    NDetail::TDefaultTraits<typename TVisitedValue::mapped_type>::StaticDefault(),
                     reason);
             } else {
-                target[mapKey] = TDefaultTraits<typename TVisitedValue::mapped_type>::Default();
+                target[mapKey] = NDetail::TDefaultTraits<typename TVisitedValue::mapped_type>::Default();
                 Self()->VisitGeneric(target[mapKey], reason);
             }
             return;

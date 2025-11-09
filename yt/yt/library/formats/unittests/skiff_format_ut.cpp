@@ -73,7 +73,6 @@ TTableSchemaPtr CreateSingleValueTableSchema(const TLogicalTypePtr& logicalType)
     std::vector<TColumnSchema> columns;
     if (logicalType) {
         columns.emplace_back("value", logicalType);
-
     }
     auto strict = static_cast<bool>(logicalType);
     return New<TTableSchema>(columns, strict);
@@ -1285,7 +1284,6 @@ TEST(TSkiffFormatUuidTest, TestError)
     }));
     EXPECT_THROW_WITH_SUBSTRING(skiffWriter->Close().Get().ThrowOnError(),
         "Unexpected type");
-
 }
 
 class TSkiffWriterSingular
@@ -2568,7 +2566,6 @@ TEST(TSkiffWriter, TestSkippedFields)
         ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
         checkedSkiffParser.ValidateFinished();
     }
-
 }
 
 TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
@@ -2691,7 +2688,6 @@ TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
     // The end.
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

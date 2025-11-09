@@ -84,8 +84,8 @@ void TPoolTreeProfileManager::ProfileTree(
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
-    NodeCountGauge_.Update(treeSnapshot->NodeCount());
-    PoolCountGauge_.Update(treeSnapshot->PoolMap().size());
+    NodeCountGauge_.Update(std::ssize(treeSnapshot->NodeAddresses()));
+    PoolCountGauge_.Update(std::ssize(treeSnapshot->PoolMap()));
     TotalElementCountGauge_.Update(treeSnapshot->RootElement()->GetTreeSize());
 
     ProfileDistributedResources(treeSnapshot);

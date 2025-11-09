@@ -608,7 +608,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
                     }
                 }
 
-                // TODO: Capture *sampleIt ?
+                // TODO(lukyan): Capture *sampleIt ?
                 auto lower = sampleIt == samples.begin() ? minBound : *(sampleIt - 1);
                 auto upper = sampleIt == samples.end() ? maxBound : *sampleIt;
 

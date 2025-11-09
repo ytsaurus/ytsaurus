@@ -59,24 +59,46 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IAssignmentPlanContext
+{
+    virtual ~IAssignmentPlanContext() = default;
+
+    virtual const TOperationMap& Operations() const = 0;
+    virtual const TNodeMap& Nodes() const = 0;
+
+    virtual void AddAssignment(
+        std::string allocationGroupName,
+        TJobResourcesWithQuota resourceUsage,
+        TOperation* operation,
+        TNode* node) = 0;
+
+    virtual void PreemptAssignment(
+        const TAssignmentPtr& assignment,
+        EAllocationPreemptionReason preemptionReason,
+        std::string preemptionDescription) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(eshcherbin): Rename to TAssignmentPlanner (?) and config TAssignmentPlannerConfig (???)
 class TGpuAllocationAssignmentPlanUpdateExecutor
 {
 public:
     TGpuAllocationAssignmentPlanUpdateExecutor(
-        const TOperationMap& operations,
-        const TNodeMap& nodes,
+        IAssignmentPlanContext* context,
         TInstant now,
-        TGpuAllocationSchedulerConfigPtr config,
+        TGpuSchedulingPolicyConfigPtr config,
         NLogging::TLogger logger);
 
     void Run();
 
 private:
+    IAssignmentPlanContext* const Context_;
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
     const TInstant Now_;
 
-    const TGpuAllocationSchedulerConfigPtr Config_;
+    const TGpuSchedulingPolicyConfigPtr Config_;
     const NLogging::TLogger Logger;
 
     // NB(eshcherbin): This vector can and will be sorted in-place.
@@ -112,12 +134,6 @@ private:
     void ProcessRegularOperations();
 
     //! General assignment planning.
-    void AddAssignment(const TAssignmentPtr& assignment);
-    void PreemptAssignment(
-        const TAssignmentPtr& assignment,
-        EAllocationPreemptionReason preemptionReason,
-        std::string preemptionDescription);
-
     void PreemptAllOperationAssignments(
         const TOperationPtr& operation,
         EAllocationPreemptionReason preemptionReason,

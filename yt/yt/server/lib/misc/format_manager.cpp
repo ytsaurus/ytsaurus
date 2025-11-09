@@ -90,7 +90,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
             if (!tasks || tasks->GetType() != ENodeType::Map) {
                 return;
             }
-            for (const auto& [name, taskSpec]: tasks->AsMap()->GetChildren()) {
+            for (const auto& [name, taskSpec] : tasks->AsMap()->GetChildren()) {
                 processTask("/tasks/" + name);
             }
             return;

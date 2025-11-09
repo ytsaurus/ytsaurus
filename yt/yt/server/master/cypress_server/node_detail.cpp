@@ -205,7 +205,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         clonedAccount);
 
     // See SerializeNodeCore.
-   TCypressNode* trunkNode = nullptr;
+    TCypressNode* trunkNode = nullptr;
     if (auto targetNodeId = context->GetInplaceLoadTargetNodeId()) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         // You might wonder if trying to load data into an existing trunk node is a bad idea. Especially, since in the case when

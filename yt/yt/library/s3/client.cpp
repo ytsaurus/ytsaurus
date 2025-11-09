@@ -408,7 +408,6 @@ public:
 
         auto asyncAddress = TAddressResolver::Get()->Resolve(TString{urlRef.Host});
         return asyncAddress.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TNetworkAddress& address) {
-
             bool useTls = (urlRef.Protocol == "https");
             TNetworkAddress s3Address(
                 address,
@@ -448,7 +447,17 @@ public:
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
-    static TError ErrorFromResponse(NHttp::IResponsePtr response)
+    static void FillErrorWithHeaders(TError& error, const NHttp::IResponsePtr& response)
+    {
+        auto headers = response->GetHeaders();
+        for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
+            if (auto* value = headers->Find(header)) {
+                error <<= TErrorAttribute(TString(header), *value);
+            }
+        }
+    }
+
+    static TError ErrorFromResponse(NHttp::EMethod method, const NHttp::IResponsePtr& response)
     {
         auto statusCode = response->GetStatusCode();
         auto error = TError(
@@ -456,6 +465,11 @@ private:
             ToUnderlying(statusCode),
             ToHttpString(statusCode));
         error <<= TErrorAttribute("http_code", statusCode);
+        if (method == NHttp::EMethod::Head) {
+            FillErrorWithHeaders(error, response);
+            return error;
+        }
+
         auto responseBody = response->ReadAll();
         try {
             auto parsedDocument = ParseXmlDocument(responseBody);
@@ -464,12 +478,7 @@ private:
             }
         } catch (const std::exception&) {
             error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
-            auto headers = response->GetHeaders();
-            for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
-                if (auto* value = headers->Find(header)) {
-                    error <<= TErrorAttribute(TString(header), *value);
-                }
-            }
+            FillErrorWithHeaders(error, response);
         }
         return error;
     }
@@ -486,14 +495,14 @@ private:
                 CredentialProvider_);
 
             return Client_->MakeRequest(std::move(req))
-                .ApplyUnique(BIND([] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .ApplyUnique(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
                         return TError("HTTP request failed") << std::move(responseOrError);
                     }
                     auto& response = responseOrError.Value();
                     // 3xx are not really errors but we don't handle redirects anyways
                     if (ToUnderlying(response->GetStatusCode()) >= 300) {
-                        return ErrorFromResponse(response);
+                        return ErrorFromResponse(method, response);
                     }
                     TCommandResponse rsp;
                     rsp.Deserialize(response);

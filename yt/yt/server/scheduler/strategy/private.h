@@ -79,6 +79,7 @@ using TAllocationPreemptionStatusMapPerOperation = THashMap<TOperationId, TAlloc
 using TJobResourcesByTagFilter = THashMap<TSchedulingTagFilter, TJobResources>;
 
 using TNodeIdSet = THashSet<NNodeTrackerClient::TNodeId>;
+using TNodeIdToAddress = THashMap<NNodeTrackerClient::TNodeId, std::string>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

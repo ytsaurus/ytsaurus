@@ -51,7 +51,7 @@ def _build_quotas_usage(d, os_documentation):
             SchedulerPools(f"yt.scheduler.pools.effective_strong_guarantee_resources.{resource}")
                 .nan_as_zero()
                 .legend_format("Effective guarantee"),
-            SchedulerPools(f"yt.scheduler.pools.strong_guarantee_resources.{resource}")
+            SchedulerPools(f"yt.scheduler.pools.specified_strong_guarantee_resources.{resource_in_config}")
                 .nan_as_zero()
                 .legend_format("Configured guarantee"),
             SchedulerPools(f"yt.scheduler.pools.specified_resource_limits.{resource_in_config}")

@@ -830,7 +830,8 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
                 assert tasks[0]["task_name"] == "partition(0)"
                 assert tasks[1]["task_name"] == "final_sort"
                 assert 2 <= progress["partition"]["total"] <= 3
-                assert progress["final_sort"]["total"] == 2
+                # NB(apollo1321): One partition may be empty due to sampling.
+                assert 1 <= progress["final_sort"]["total"] <= 2
             case _:
                 assert False
 

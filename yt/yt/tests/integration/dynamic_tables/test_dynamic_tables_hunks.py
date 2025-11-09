@@ -4001,7 +4001,6 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t") == rows1 + rows2 + rows3 + rows4
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="YT-24832")
     def test_static_hunks_multiple_tablets(self):
         sync_create_cells(1)
 

@@ -76,7 +76,7 @@ void PrepareHttpRequest(
         if (auto payload = request->Payload) {
             return NCrypto::Sha256HashHex(payload);
         } else {
-            const static auto EmptyPayloadHash = NCrypto::Sha256HashHex("");
+            static const auto EmptyPayloadHash = NCrypto::Sha256HashHex("");
             return EmptyPayloadHash;
         }
     }();
@@ -195,8 +195,8 @@ void PrepareHttpRequest(
             scope,
             NCrypto::Sha256HashHex(canonicalRequest));
 
-        const static TString Aws4 = "AWS4";
-        const static TString Aws4Request = "aws4_request";
+        static const TString Aws4 = "AWS4";
+        static const TString Aws4Request = "aws4_request";
 
         auto dateKey = NCrypto::HmacSha256(Aws4 + credentials.SecretAccessKey, date);
         auto dateRegionKey = NCrypto::HmacSha256(dateKey, request->Region);

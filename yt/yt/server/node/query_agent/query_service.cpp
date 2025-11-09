@@ -605,7 +605,7 @@ private:
                 ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
                 : TVersionedReadOptions(),
             Bootstrap_->GetTabletSnapshotStore(),
-            GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
+            GetCurrentProfilingUser(),
             GetCurrentInvoker());
 
         for (int index = 0; index < tabletCount; ++index) {
@@ -1543,8 +1543,8 @@ private:
 
         TServiceProfilerGuard profilerGuard;
 
-        auto currentProfilingUser = GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());
-        auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+        auto profilingUser = GetCurrentProfilingUser();
+        auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(profilingUser);
         profilerGuard.Start(counters->FetchTableRows);
 
         if (!orderedStores.empty()) {
@@ -1600,6 +1600,7 @@ private:
             request->max_data_weight(),
             MaxPullQueueResponseDataWeight_.load(std::memory_order::relaxed),
             std::move(chunkReadOptions),
+            std::move(profilingUser),
             GetCurrentInvoker());
 
         if (auto maybeResult = resultFuture.TryGetUnique()) {
@@ -1613,7 +1614,8 @@ private:
                 resultFuture.ApplyUnique(BIND(
                 [
                     context = context,
-                    throttler = std::move(throttler)
+                    throttler = std::move(throttler),
+                    profilerGuard = std::move(profilerGuard)
                 ] (TFetchRowsFromOrderedStoreResult&& result) {
                     ProcessFetchRowsResult(context, throttler, std::move(result));
                 })),

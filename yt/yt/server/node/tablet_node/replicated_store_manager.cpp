@@ -168,9 +168,9 @@ void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationRe
     LogStoreManager_->Rotate(createNewStore, reason, allowEmptyStore);
 }
 
-void TReplicatedStoreManager::AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint)
+void TReplicatedStoreManager::AddStore(IStorePtr store, TAddStoreOptions options)
 {
-    LogStoreManager_->AddStore(std::move(store), useInterceptedChunkData, onFlush, partitionIdHint);
+    LogStoreManager_->AddStore(std::move(store), std::move(options));
 }
 
 void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> /*stores*/)
@@ -280,14 +280,12 @@ void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 void TReplicatedStoreManager::Mount(
     TRange<const NTabletNode::NProto::TAddStoreDescriptor*> storeDescriptors,
     TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
-    bool createDynamicStore,
-    const NTabletNode::NProto::TMountHint& mountHint)
+    TMountOptions options)
 {
     LogStoreManager_->Mount(
         storeDescriptors,
         hunkChunkDescriptors,
-        createDynamicStore,
-        mountHint);
+        std::move(options));
 }
 
 void TReplicatedStoreManager::Remount(const TTableSettings& settings)

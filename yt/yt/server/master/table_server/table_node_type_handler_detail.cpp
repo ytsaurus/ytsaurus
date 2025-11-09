@@ -72,7 +72,7 @@ constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TImpl>
+template <class TImpl>
 TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstrap)
     : TSchemafulNodeTypeHandler(bootstrap)
     , TTabletOwnerTypeHandler(bootstrap)
@@ -632,7 +632,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     }
 }
 
-template<class TImpl>
+template <class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
     static const THashSet<std::string> SupportedInheritableAttributes{

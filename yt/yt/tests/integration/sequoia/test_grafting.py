@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, copy, move, link, remove, wait,
     start_transaction, commit_transaction, abort_all_transactions,
-    raises_yt_error, create_user, ls
+    raises_yt_error, create_user, ls, lock,
 )
 
 from yt_sequoia_helpers import (
@@ -225,7 +225,7 @@ class TestSequoiaSyncMode(YTEnvSetup):
         super().teardown_method(method)
 
     @authors("danilalexeev")
-    def test_link_through_sequoia(self):
+    def test_link_through_sequoia1(self):
         id1 = create("table", "//cypress/t1")
         link("//cypress/t1", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
@@ -235,6 +235,21 @@ class TestSequoiaSyncMode(YTEnvSetup):
         assert get("//tmp/l2/@id") == id1
         assert get("//cypress/l3/@id") == id1
         assert get("//cypress/l4/@id") == id1
+
+    @authors("kvk1920", "danilalexeev")
+    def test_link_through_sequoia2(self):
+        m1 = create("map_node", "//cypress/m1")
+        m2 = create("map_node", "//cypress/m1/m2")
+        link(f"#{m1}", "//tmp/link_to_cypress")
+        assert m2 == get("//tmp/link_to_cypress/m2/@id")
+
+        s = create("map_node", "//tmp/s")
+        link("//tmp/s", "//cypress/m1/m2/link_to_sequoia")
+        assert s == get("//tmp/link_to_cypress/m2/link_to_sequoia/@id")
+
+        tx = start_transaction()
+        lock("//tmp/link_to_cypress/m2/link_to_sequoia", mode="snapshot", tx=tx)
+        assert s in {r["node_id"] for r in select_rows_from_ground(f"* from [{DESCRIPTORS.node_snapshots.get_default_path()}]")}
 
     @authors("danilalexeev")
     def test_cypress_link_branch(self):
@@ -257,11 +272,33 @@ class TestSequoiaSyncMode(YTEnvSetup):
         assert get("//cypress/link", tx=tx0) == 2
 
     @authors("danilalexeev")
-    def test_cyclic_link_through_sequoia(self):
-        link("//cypress/l2", "//tmp/l1", force=True)
-        link("//tmp/l3", "//cypress/l2", force=True)
+    @pytest.mark.parametrize("from_object_id_resolve", [False, True])
+    def test_cyclic_link_through_sequoia(self, from_object_id_resolve):
+        cypress_id = get("//cypress&/@id")
+        rootstock_id = get("//tmp&/@id")
+
+        def adjust_path(path: str) -> str:
+            if from_object_id_resolve:
+                return (path.replace("//cypress", f"#{cypress_id}")
+                        .replace("//tmp", f"#{rootstock_id}"))
+            else:
+                return path
+
+        def make_link(target_path, link_path):
+            link(adjust_path(target_path), adjust_path(link_path), force=True)
+
         with raises_yt_error("Failed to create link: link is cyclic"):
-            link("//tmp/l1", "//tmp/l3", force=True)
+            make_link("//cypress/l", "//cypress/l")
+
+        make_link("//cypress/l2", "//tmp/l1")
+        make_link("//tmp/l3", "//cypress/l2")
+        with raises_yt_error("Failed to create link: link is cyclic"):
+            make_link("//tmp/l1", "//tmp/l3")
+
+        make_link("//cypress/b", "//cypress/a")
+        make_link("//tmp/c", "//cypress/b")
+        with raises_yt_error("Failed to create link: link is cyclic"):
+            make_link("//cypress/a", "//tmp/c")
 
     @authors("danilalexeev")
     def test_broken_links(self):

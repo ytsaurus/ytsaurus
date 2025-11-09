@@ -330,7 +330,7 @@ if [ "${publish_ports}" == true ]; then
 fi
 
 if [ "${disable_query_tracker}" != "true" ]; then
-    params="$params -c {name=query-tracker} -c {name=yql-agent;config={ui_origin=\"$(printf '%q' "${docker_hostname}:${interface_port}")\";path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
+    params="$params -c {name=query-tracker} -c {name=yql-agent;config={path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
 fi
 
 if [ -n "${rpc_proxy_config}" ]; then

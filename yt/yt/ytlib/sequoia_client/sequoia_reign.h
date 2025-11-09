@@ -21,6 +21,7 @@ DEFINE_ENUM(ESequoiaReign,
     ((FixAccountInCopy)                    (10))
     ((BannedUsers)                         (11))
     ((FromObjectIdResolve)                 (12))
+    ((FromObjectIdResolveLinkTarget)       (13))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");

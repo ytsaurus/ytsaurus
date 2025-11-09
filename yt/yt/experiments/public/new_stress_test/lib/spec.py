@@ -227,6 +227,7 @@ spec_template = {
     "queues": {
         "use_hunk_storage": False,
         "use_erasure_hunk_storage": BoolVariable(VariationPolicy.PickRandom),
+        "max_failed_job_count": 1,
     },
 
     "replicated": {

@@ -32,6 +32,7 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
                 .setTimestamp(timestamp)
                 .setRetentionTimestamp(retentionTimestamp)
                 .setKeepMissingRows(keepMissingRows)
+                .setEnablePartialResult(enablePartialResult)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)

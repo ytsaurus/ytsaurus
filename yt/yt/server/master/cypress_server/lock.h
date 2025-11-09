@@ -37,7 +37,7 @@ void FormatValue(TStringBuilderBase* builder, const TLockKey& key, TStringBuf fo
 struct TLockRequest
 {
     TLockRequest() = default;
-    TLockRequest(ELockMode mode);
+    TLockRequest(ELockMode mode); // Intentionally implicit.
 
     static TLockRequest MakeSharedChild(TStringBuf key);
     static TLockRequest MakeSharedAttribute(TStringBuf key);

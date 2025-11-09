@@ -61,7 +61,7 @@ protected:
     static void CheckRecord(i32 data, const TSharedRef& record)
     {
         EXPECT_EQ(sizeof(data), record.Size());
-        EXPECT_EQ(       data , *(reinterpret_cast<const i32*>(record.Begin())));
+        EXPECT_EQ(data , *(reinterpret_cast<const i32*>(record.Begin())));
     }
 
     static void CheckRecords(const std::vector<TSharedRef>& records, int firstRecordIndex, int recordCount)

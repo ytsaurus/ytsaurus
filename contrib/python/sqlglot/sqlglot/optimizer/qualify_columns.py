@@ -280,10 +280,12 @@ def _expand_alias_refs(
     alias_to_expression: t.Dict[str, t.Tuple[exp.Expression, int]] = {}
     projections = {s.alias_or_name for s in expression.selects}
     is_bigquery = dialect == "bigquery"
+    replaced = False
 
     def replace_columns(
         node: t.Optional[exp.Expression], resolve_table: bool = False, literal_index: bool = False
     ) -> None:
+        nonlocal replaced
         is_group_by = isinstance(node, exp.Group)
         is_having = isinstance(node, exp.Having)
         if not node or (expand_only_groupby and not is_group_by):
@@ -329,6 +331,7 @@ def _expand_alias_refs(
                     # We should not qualify "id" with "custom_fields" in either clause, since the aggregation shadows the actual table
                     # and we'd get the error: "Column custom_fields contains an aggregation function, which is not allowed in GROUP BY clause"
                     column.replace(exp.to_identifier(column.name))
+                    replaced = True
                     return
 
             if table and (not alias_expr or skip_replace):
@@ -339,7 +342,9 @@ def _expand_alias_refs(
                 ):
                     if literal_index:
                         column.replace(exp.Literal.number(i))
+                        replaced = True
                 else:
+                    replaced = True
                     column = column.replace(exp.paren(alias_expr))
                     simplified = simplify_parens(column, dialect)
                     if simplified is not column:
@@ -376,7 +381,8 @@ def _expand_alias_refs(
         for join in expression.args.get("joins") or []:
             replace_columns(join)
 
-    scope.clear_cache()
+    if replaced:
+        scope.clear_cache()
 
 
 def _expand_group_by(scope: Scope, dialect: DialectType) -> None:

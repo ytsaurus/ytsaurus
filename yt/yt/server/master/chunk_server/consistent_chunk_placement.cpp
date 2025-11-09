@@ -335,7 +335,6 @@ int TConsistentChunkPlacement::DoRemoveNode(TNode* node, int mediumIndex, int to
     mediumRing.RemoveServer(node, tokenCount);
 
     return affectedGroupCount;
-
 }
 
 std::vector<TChunk*> TConsistentChunkPlacement::UpdateNodeTokenCount(

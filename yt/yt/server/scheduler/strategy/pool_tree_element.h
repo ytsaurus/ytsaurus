@@ -326,6 +326,8 @@ public:
         const THashMap<TString, TResourceVolume>& poolResourceUsages,
         TMeteringMap* meteringMap) const;
 
+    bool IsDemandFullySatisfied() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 

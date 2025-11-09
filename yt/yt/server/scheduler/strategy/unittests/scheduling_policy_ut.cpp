@@ -4,6 +4,7 @@
 #include <yt/yt/server/scheduler/strategy/operation_state.h>
 #include <yt/yt/server/scheduler/strategy/operation_controller.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
@@ -873,7 +874,7 @@ protected:
             SchedulerConfig_,
             /*resourceUsage*/ TJobResources{},
             /*resourceLimits*/ TJobResources{},
-            /*nodeCount*/ 0,
+            /*nodeAddresses*/ TNodeIdToAddress{},
             std::move(schedulingPolicyState),
             TJobResourcesByTagFilter{});
     }

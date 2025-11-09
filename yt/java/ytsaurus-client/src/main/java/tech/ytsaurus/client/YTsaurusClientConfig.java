@@ -316,18 +316,20 @@ public class YTsaurusClientConfig {
             javaOptions = JavaOptions.empty().withOption("-XX:+UseParallelGC");
 
             int javaMajorVersion = getJavaMajorVersion();
-            if (javaMajorVersion >= 21) {
-                javaBinary = "/opt/jdk21/bin/java";
-            } else if (javaMajorVersion >= 17) {
-                javaBinary = "/opt/jdk17/bin/java";
-            } else if (javaMajorVersion >= 15) {
-                javaBinary = "/opt/jdk15/bin/java";
-            } else if (javaMajorVersion >= 11) {
-                javaBinary = "/opt/jdk11/bin/java";
+            // The minimum supported JDK version is 11.
+            int jdkVersion = 11;
+            if (javaMajorVersion > 21) {
+                jdkVersion = 25;
+            } else if (javaMajorVersion > 17) {
+                jdkVersion = 21;
+            } else if (javaMajorVersion > 11) {
+                jdkVersion = 17;
             }
+            javaBinary = String.format("/opt/jdk%d/bin/java", jdkVersion);
 
             this.layerPaths = List.of(
-                    YPath.simple("//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz"),
+                    YPath.simple(String.format(
+                            "//porto_layers/delta/jdk/jdk%d/layer_with_jdk%d_latest.tar.gz", jdkVersion, jdkVersion)),
                     YPath.simple("//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz")
             );
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/yt/ytlib/discovery_client/public.h>
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 

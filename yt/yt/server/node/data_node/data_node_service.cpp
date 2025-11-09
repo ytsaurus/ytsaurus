@@ -300,15 +300,18 @@ private:
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
         options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
+        options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
 
-        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
+            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
             options.EnableMultiplexing,
             options.PlacementId,
             options.DisableSendBlocks,
-            options.UseProbePutBlocks);
+            options.UseProbePutBlocks,
+            options.PreallocateDiskSpace);
 
         ValidateOnline();
 

@@ -63,7 +63,7 @@ public:
     std::vector<std::pair<std::string, NYTree::INodePtr>> GetChildren() const override;
     std::vector<std::string> GetKeys() const override;
     NYTree::INodePtr FindChild(const std::string& key) const override;
-    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) override;
+    std::optional<std::string> FindChildKey(const NYTree::IConstNodePtr& child) const override;
 
     bool AddChild(const std::string& key, const NYTree::INodePtr& child) override;
     void ReplaceChild(const NYTree::INodePtr& oldChild, const NYTree::INodePtr& newChild) override;

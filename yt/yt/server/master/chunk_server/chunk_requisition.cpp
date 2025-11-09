@@ -578,7 +578,6 @@ void Serialize(const TSerializableChunkRequisition::TEntry& entry, NYson::IYsonC
             .Item("replication_policy").Value(entry.ReplicationPolicy)
             .Item("committed").Value(entry.Committed)
         .EndMap();
-
 }
 
 void Deserialize(TSerializableChunkRequisition::TEntry& entry, NYTree::INodePtr node)

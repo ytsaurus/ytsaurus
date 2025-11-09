@@ -499,6 +499,9 @@ items:
         href: admin-guide/identity-sync.md
       - name: Управление бандлами динамических таблиц
         href: admin-guide/bundle-controller.md
+      - name: Интеграция CHYT с внешними системами
+        href: admin-guide/integration-chyt.md
+        when: audience == "public"
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy

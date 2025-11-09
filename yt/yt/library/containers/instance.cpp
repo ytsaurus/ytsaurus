@@ -106,7 +106,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
     TString deviceName;
     int statisticsValue;
 
-    while(NRe2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
+    while (NRe2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
         // hw - total statistic for all devices.
         // In that function we extract only per device statistic, because of that we skip hw.
         if (deviceName != "hw") {

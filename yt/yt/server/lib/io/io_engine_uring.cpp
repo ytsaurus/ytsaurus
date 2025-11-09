@@ -1459,7 +1459,7 @@ private:
         std::vector<TRequestQueue::TEnqueuedTask> shardTasks;
         auto& queue = Shards_[shardIndex].Queue;
 
-        while(true) {
+        while (true) {
             bool dequeued = false;
             queue.PrepareDequeue();
 
@@ -1768,12 +1768,12 @@ public:
         return SubmitRequest(std::move(uringRequest), category, { });
     }
 
-    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
+    TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
         EWorkloadCategory /*category*/,
         TIOSessionId /*sessionId*/) override
     {
-        // TODO (capone212): implement
+        // TODO(capone212): implement.
         return MakeFuture(TFlushFileRangeResponse{});
     }
 
@@ -1900,7 +1900,7 @@ IIOEnginePtr CreateIOEngineUring(
                 std::move(logger));
         default:
             YT_ABORT();
-    };
+    }
 
 #endif
     return { };

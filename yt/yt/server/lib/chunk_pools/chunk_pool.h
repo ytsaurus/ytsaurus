@@ -155,7 +155,7 @@ public:
     //! Used only for persistence.
     TChunkPoolOutputWithJobManagerBase() = default;
 
-    TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger);
+    explicit TChunkPoolOutputWithJobManagerBase(const NLogging::TLogger& logger);
 
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
     IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;

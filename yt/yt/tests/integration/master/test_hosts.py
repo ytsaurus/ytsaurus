@@ -162,6 +162,7 @@ class TestHostAwareReplication(TestHostsBase):
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "use_host_aware_replicator": True,
+            "enable_two_random_choices_write_target_allocation": False,
         }
     }
 

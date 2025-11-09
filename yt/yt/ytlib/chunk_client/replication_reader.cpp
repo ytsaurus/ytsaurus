@@ -4124,10 +4124,10 @@ private:
         };
     }
 
-    template<class TResponse>
+    template <class TResponse>
     TFuture<TResponse> ExecuteBatchRequest(const TRequestBatch<TResponse>& queuedBatch);
 
-    template<>
+    template <>
     TFuture<TPeerResponsePtr> ExecuteBatchRequest(const TRequestBatch<TPeerResponsePtr>& queuedBatch)
     {
         TDataNodeServiceProxy proxy(queuedBatch.Channel);
@@ -4151,7 +4151,7 @@ private:
         return req->Invoke();
     }
 
-    template<>
+    template <>
     TFuture<TGetBlocksResult> ExecuteBatchRequest(const TRequestBatch<TGetBlocksResult>& queuedBatch)
     {
         TDataNodeServiceProxy proxy(queuedBatch.Channel);

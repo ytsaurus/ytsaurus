@@ -1,5 +1,6 @@
 from .default_config import DefaultConfigType
 from .system_random import SystemRandom
+from .telemetry import Telemetry
 
 from copy import deepcopy
 
@@ -67,6 +68,8 @@ class ClientState(object):
 
         self._random_generator = SystemRandom()
         self._generate_mutation_id = None
+
+        self._telemetry = Telemetry()
 
     def _copy_init_state(self, other):
         self.__dict__.update(deepcopy(other._as_dict()))

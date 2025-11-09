@@ -11,10 +11,8 @@ IF (OPENSOURCE)
     TAG(ya:not_autocheck)
 ENDIF()
 
-ENV(
-    YT_TESTS_USE_CORE_HTTP_CLIENT="yes"
-    YT_LOG_LEVEL=debug
-)
+ENV(YT_TESTS_USE_CORE_HTTP_CLIENT="yes")
+ENV(YT_LOG_LEVEL=debug)
 
 SRCS(
     ../operations/helpers.cpp

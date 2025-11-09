@@ -135,7 +135,7 @@ TEST_F(TPortoProcessTest, StdOut)
     auto future = outStream->Read(buffer);
     TErrorOr<size_t> result = WaitFor(future);
     size_t sz = result.ValueOrThrow();
-    EXPECT_TRUE(sz > 0);
+    EXPECT_GT(sz, 0UL);
     p->GetInstance()->Destroy();
 }
 

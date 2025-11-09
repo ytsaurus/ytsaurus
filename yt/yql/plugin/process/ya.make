@@ -1,10 +1,11 @@
 LIBRARY()
 
 SRCS(
-    plugin.cpp
-    process.cpp
-    plugin_service.cpp
     config.cpp
+    plugin.cpp
+    plugin_service.cpp
+    process.cpp
+    program.cpp
     public.cpp
 )
 

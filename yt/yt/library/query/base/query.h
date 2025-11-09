@@ -74,7 +74,7 @@ struct TReferenceExpression
 {
     std::string ColumnName;
 
-    TReferenceExpression(const TLogicalTypePtr& type);
+    explicit TReferenceExpression(const TLogicalTypePtr& type);
     TReferenceExpression(const TLogicalTypePtr& type, const std::string& columnName);
 };
 
@@ -327,7 +327,7 @@ DEFINE_REFCOUNTED_TYPE(TGroupClause)
 struct TColumnDescriptor
 {
     // Renamed column.
-    // TODO: Do not keep name but restore name from table alias and column name from original schema.
+    // TODO(sabdenovch): Do not keep name but restore name from table alias and column name from original schema.
     std::string Name;
     // Index in schema.
     int Index;
@@ -456,7 +456,7 @@ struct TBaseQuery
 
     i64 Offset = 0;
 
-    // TODO: Update protocol and fix it
+    // TODO(sabdenovch): Update protocol and fix it
     i64 Limit = UnorderedReadHint;
 
     // True if the grouping key uses each column of primary key.

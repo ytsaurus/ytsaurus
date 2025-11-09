@@ -43,6 +43,6 @@ private:
 
 } // namespace NYT::NServer
 
-#define RELEASE_QUEUE_H_
+#define RELEASE_QUEUE_INL_H_
 #include "release_queue-inl.h"
-#undef RELEASE_QUEUE_H_
+#undef RELEASE_QUEUE_INL_H_

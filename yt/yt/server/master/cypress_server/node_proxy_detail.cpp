@@ -2522,7 +2522,7 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
     auto preserveOwner = request->preserve_owner();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
     auto preserveAcl = request->preserve_acl();
-    auto allowSecondaryIndexAbandonment= request->allow_secondary_index_abandonment();
+    auto allowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
 
     context->SetIncrementalRequestInfo(
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
@@ -3393,7 +3393,7 @@ void TCypressMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr
     SetModified(EModificationType::Content);
 }
 
-std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child)
+std::optional<std::string> TCypressMapNodeProxy::FindChildKey(const IConstNodePtr& child) const
 {
     return FindNodeKey(
         Bootstrap_->GetCypressManager(),
@@ -3838,7 +3838,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
     SetModified(EModificationType::Content);
 }
 
-std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child)
+std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child) const
 {
     const auto* impl = GetThisImpl();
 

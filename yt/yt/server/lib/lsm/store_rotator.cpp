@@ -248,7 +248,6 @@ private:
             batch.Rotations.push_back(TRotateStoreRequest{
                 .Tablet = MakeStrong(store->GetTablet()),
                 .Reason = EStoreRotationReason::Forced,
-
             });
 
             MemoryDigest_.PassiveUsage += store->GetDynamicMemoryUsage();

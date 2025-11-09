@@ -1327,7 +1327,7 @@ class TReplicatedTableTrackerStateProvider
     : public IReplicatedTableTrackerStateProvider
 {
 public:
-    TReplicatedTableTrackerStateProvider(TBootstrap* bootstrap)
+    explicit TReplicatedTableTrackerStateProvider(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     {
         Bootstrap_->GetTabletManager()->SubscribeReplicatedTableCreated(BIND_NO_PROPAGATE(

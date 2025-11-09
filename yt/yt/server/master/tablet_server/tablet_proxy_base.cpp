@@ -274,7 +274,7 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
         default:
             break;
-    };
+    }
 
     return TBase::GetBuiltinAttribute(key, consumer);
 }

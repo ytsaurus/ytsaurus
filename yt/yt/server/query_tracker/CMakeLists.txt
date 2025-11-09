@@ -31,6 +31,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  sql-connect-proto
   cpp-yt-phdr_cache
   cpp-streams-zstd
   library-cpp-getopt

@@ -1034,7 +1034,7 @@ protected:
             adjustedIndex = std::max(currentIndex, cumulativeStatistics.UpperBound(limit, member));
         }
         // NB: Unsealed chunks are not accounted in chunk list statistics.
-        while (adjustedIndex > 0 && !IsSealedChild(children[adjustedIndex - 1]) ) {
+        while (adjustedIndex > 0 && !IsSealedChild(children[adjustedIndex - 1])) {
             --adjustedIndex;
         }
         return adjustedIndex;

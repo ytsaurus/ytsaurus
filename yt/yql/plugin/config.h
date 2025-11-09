@@ -27,6 +27,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TDQYTBackend
     : public NYTree::TYsonStruct
 {
@@ -62,6 +64,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDQYTBackend)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TDQYTCoordinator
     : public NYTree::TYsonStruct
 {
@@ -78,6 +82,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDQYTCoordinator)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TDQManagerConfig
     : public NYTree::TYsonStruct
@@ -116,6 +122,8 @@ struct TAdditionalSystemLib
 
 DEFINE_REFCOUNTED_TYPE(TAdditionalSystemLib)
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TProcessYqlPluginConfig
     : public NYTree::TYsonStruct
 {
@@ -136,6 +144,8 @@ struct TProcessYqlPluginConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TProcessYqlPluginConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TYqlPluginConfig
     : public NYTree::TYsonStruct
@@ -166,8 +176,6 @@ struct TYqlPluginConfig
 
     TString YTTokenPath;
 
-    TString UIOrigin;
-
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
     std::optional<TString> YqlPluginSharedLibrary;
 
@@ -184,4 +192,4 @@ DEFINE_REFCOUNTED_TYPE(TYqlPluginConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NYqlPlugin

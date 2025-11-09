@@ -60,7 +60,6 @@ IYPathServicePtr CreateService(
     const INodePtr& owningNode)
 {
     try {
-
         auto manifest = New<TOrchidManifest>();
 
         // NB: An attempt to obtain orchid manifest from #owningNode->Attributes() would lead
