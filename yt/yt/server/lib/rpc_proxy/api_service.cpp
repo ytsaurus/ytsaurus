@@ -385,10 +385,16 @@ public:
             "/select_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))
+        , PullQueueDuration_(Profiler_.TimeHistogram(
+            "/pull_queue_duration",
+            TDuration::MicroSeconds(1),
+            TDuration::Seconds(10)))
         , LookupMountCacheWaitTime_(Profiler_.Timer("/lookup_mount_cache_wait_time"))
         , SelectMountCacheWaitTime_(Profiler_.Timer("/select_mount_cache_wait_time"))
+        , PullQueueMountCacheWaitTime_(Profiler_.Timer("/pull_queue_mount_cache_wait_time"))
         , LookupPermissionCacheWaitTime_(Profiler_.Timer("/lookup_permission_cache_wait_time"))
         , SelectPermissionCacheWaitTime_(Profiler_.Timer("/select_permission_cache_wait_time"))
+        , PullQueuePermissionCacheWaitTime_(Profiler_.Timer("/pull_queue_permission_cache_wait_time"))
         , WastedLookupSubrequestCount_(Profiler_.Counter("/wasted_lookup_subrequest_count"))
     { }
 
@@ -402,6 +408,11 @@ public:
         return SelectDuration_;
     }
 
+    const TEventTimer& PullQueueDurationTimer() const
+    {
+        return PullQueueDuration_;
+    }
+
     const TEventTimer& LookupMountCacheWaitTimer() const
     {
         return LookupMountCacheWaitTime_;
@@ -412,6 +423,11 @@ public:
         return SelectMountCacheWaitTime_;
     }
 
+    const TEventTimer& PullQueueMountCacheWaitTimer() const
+    {
+        return PullQueueMountCacheWaitTime_;
+    }
+
     const TEventTimer& LookupPermissionCacheWaitTimer() const
     {
         return LookupPermissionCacheWaitTime_;
@@ -420,6 +436,11 @@ public:
     const TEventTimer& SelectPermissionCacheWaitTimer() const
     {
         return SelectPermissionCacheWaitTime_;
+    }
+
+    const TEventTimer& PullQueuePermissionCacheWaitTimer() const
+    {
+        return PullQueuePermissionCacheWaitTime_;
     }
 
     const TCounter& WastedLookupSubrequestCount() const
@@ -445,12 +466,15 @@ private:
     //! Histograms.
     TEventTimer LookupDuration_;
     TEventTimer SelectDuration_;
+    TEventTimer PullQueueDuration_;
 
     //! Timers.
     TEventTimer LookupMountCacheWaitTime_;
     TEventTimer SelectMountCacheWaitTime_;
+    TEventTimer PullQueueMountCacheWaitTime_;
     TEventTimer LookupPermissionCacheWaitTime_;
     TEventTimer SelectPermissionCacheWaitTime_;
+    TEventTimer PullQueuePermissionCacheWaitTime_;
 
     TCounter WastedLookupSubrequestCount_;
 
@@ -3743,6 +3767,7 @@ private:
                 .UserTag = userTag,
                 .TablePath = detailedProfilingInfo->TablePath,
             });
+
             counters->LookupDurationTimer().Record(timer.GetElapsedTime());
             counters->LookupMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
             counters->LookupPermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
@@ -3772,6 +3797,7 @@ private:
                 .UserTag = userTag,
                 .TablePath = detailedProfilingInfo->TablePath,
             });
+
             counters->SelectDurationTimer().Record(timer.GetElapsedTime());
             counters->SelectMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
             counters->SelectPermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
@@ -3781,6 +3807,23 @@ private:
 
         for (const auto& reason : detailedProfilingInfo->RetryReasons) {
             counters->GetRetryCounterByReason(reason)->Increment();
+        }
+    }
+
+    void ProcessPullQueueDetailedProfilingInfo(
+        TWallTimer timer,
+        const std::string& userTag,
+        const TDetailedProfilingInfoPtr& detailedProfilingInfo)
+    {
+        if (detailedProfilingInfo->EnableDetailedTableProfiling) {
+            auto counters = GetOrCreateDetailedProfilingCounters({
+                .UserTag = userTag,
+                .TablePath = detailedProfilingInfo->TablePath,
+            });
+
+            counters->PullQueueDurationTimer().Record(timer.GetElapsedTime());
+            counters->PullQueueMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
+            counters->PullQueuePermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
         }
     }
 
@@ -4576,10 +4619,15 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        TWallTimer timer;
+
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
         TPullQueueOptions options;
         SetTimeoutOptions(&options, context.Get());
+
+        auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
+        options.DetailedProfilingInfo = detailedProfilingInfo;
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
@@ -4609,15 +4657,22 @@ private:
                     rowBatchReadOptions,
                     options);
             },
-            [=] (const auto& context, const auto& queueRowset) {
+            [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            (const auto& context, const auto& queueRowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
                 response->set_start_offset(queueRowset->GetStartOffset());
 
+                ProcessPullQueueDetailedProfilingInfo(
+                    timer,
+                    context->GetAuthenticationIdentity().UserTag,
+                    detailedProfilingInfo);
+
                 context->SetResponseInfo(
-                    "RowCount: %v, StartOffset: %v",
+                    "RowCount: %v, StartOffset: %v, EnableDetailedTableProfiling: %v",
                     queueRowset->GetRows().size(),
-                    queueRowset->GetStartOffset());
+                    queueRowset->GetStartOffset(),
+                    detailedProfilingInfo->EnableDetailedTableProfiling);
             });
     }
 
@@ -4641,11 +4696,16 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        TWallTimer timer;
+
         auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
         TPullQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
+
+        auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
+        options.DetailedProfilingInfo = detailedProfilingInfo;
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
@@ -4678,15 +4738,22 @@ private:
                     rowBatchReadOptions,
                     options);
             },
-            [=] (const auto& context, const auto& queueRowset) {
+            [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            (const auto& context, const auto& queueRowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
                 response->set_start_offset(queueRowset->GetStartOffset());
 
+                ProcessPullQueueDetailedProfilingInfo(
+                    timer,
+                    context->GetAuthenticationIdentity().UserTag,
+                    detailedProfilingInfo);
+
                 context->SetResponseInfo(
-                    "RowCount: %v, StartOffset: %v",
+                    "RowCount: %v, StartOffset: %v, EnableDetailedTableProfiling: %v",
                     queueRowset->GetRows().size(),
-                    queueRowset->GetStartOffset());
+                    queueRowset->GetStartOffset(),
+                    detailedProfilingInfo->EnableDetailedTableProfiling);
             });
     }
 
