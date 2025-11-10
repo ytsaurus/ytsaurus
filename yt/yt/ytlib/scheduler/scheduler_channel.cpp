@@ -69,8 +69,8 @@ public:
 
         // TODO(gritukan): Pass Cypress Proxy here?
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(MasterChannel_);
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
+        // TODO(eshcherbin): Should we introduce a separate config option just for this single request?
+        proxy.SetDefaultTimeout(Config_->RpcTimeout);
         auto batchReq = proxy.ExecuteBatch();
         batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@addresses"));
         return batchReq->Invoke()
