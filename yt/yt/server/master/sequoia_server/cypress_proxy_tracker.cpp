@@ -148,7 +148,7 @@ private:
 
     void Clear() override
     {
-        CypressProxyByAddress_ = {};
+        CypressProxyByAddress_.clear();
         CypressProxyMap_.Clear();
     }
 
