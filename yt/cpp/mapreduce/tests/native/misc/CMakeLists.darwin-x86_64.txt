@@ -58,6 +58,7 @@ target_sources(yt-cpp-mapreduce-tests-native-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/canonize_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/custom_client_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/cypress_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/distributed_table_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/error.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/file_io.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/format_attribute.cpp

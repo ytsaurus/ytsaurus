@@ -61,6 +61,7 @@ target_sources(cpp-mapreduce-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/file_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/file_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/file_fragment_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/format_hints.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/init.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/lock.cpp

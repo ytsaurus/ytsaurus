@@ -53,6 +53,8 @@ public:
     MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
 
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TNode>>, CreateNodeFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+
     MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Erase, (const TEraseOperationSpec&, const TOperationOptions&), (override));
@@ -113,6 +115,15 @@ public:
     MOCK_METHOD(TYPath, PutFileToCache, (const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&), (override));
     MOCK_METHOD(TCheckPermissionResponse, CheckPermission, (const TString&, EPermission, const TYPath&, const TCheckPermissionOptions&), (override));
 
+    MOCK_METHOD(TDistributedWriteTableSessionWithCookies, StartDistributedWriteTableSession, (const TRichYPath& richPath, i64 cookieCount, const TStartDistributedWriteTableOptions& options), (override));
+    MOCK_METHOD(void, PingDistributedWriteTableSession, (const TDistributedWriteTableSession& session, const TPingDistributedWriteTableOptions& options), (override));
+    MOCK_METHOD(void, FinishDistributedWriteTableSession, (const TDistributedWriteTableSession& session, const TVector<TWriteTableFragmentResult>& results, const TFinishDistributedWriteTableOptions& options), (override));
+
+    MOCK_METHOD(TDistributedWriteFileSessionWithCookies, StartDistributedWriteFileSession, (const TRichYPath& richPath, i64 cookieCount, const TStartDistributedWriteFileOptions& options), (override));
+    MOCK_METHOD(void, PingDistributedWriteFileSession, (const TDistributedWriteFileSession& session, const TPingDistributedWriteFileOptions& options), (override));
+    MOCK_METHOD(void, FinishDistributedWriteFileSession, (const TDistributedWriteFileSession& session, const TVector<TWriteFileFragmentResult>& results, const TFinishDistributedWriteFileOptions& options), (override));
+    MOCK_METHOD(IFileFragmentWriterPtr, CreateFileFragmentWriter, (const TDistributedWriteFileCookie& cookie, const TFileFragmentWriterOptions& options), (override));
+
     MOCK_METHOD(IClientPtr, GetParentClient, (bool), (override));
     MOCK_METHOD(void, Shutdown, (), (override));
 
@@ -164,6 +175,8 @@ public:
     MOCK_METHOD(::TIntrusivePtr<IYaMRWriterImpl>, CreateYaMRWriter, (const TRichYPath&, const TTableWriterOptions&), (override));
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
 
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TNode>>, CreateNodeFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+
     MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Erase, (const TEraseOperationSpec&, const TOperationOptions&), (override));
@@ -194,6 +207,8 @@ public:
     MOCK_METHOD(void, Commit, (), (override));
     MOCK_METHOD(void, Abort, (), (override));
     MOCK_METHOD(void, Ping, (), (override));
+
+    MOCK_METHOD(IFileFragmentWriterPtr, CreateFileFragmentWriter, (const TDistributedWriteFileCookie& cookie, const TFileFragmentWriterOptions& options), (override));
 
     MOCK_METHOD(IClientPtr, GetParentClient, (bool), (override));
 
