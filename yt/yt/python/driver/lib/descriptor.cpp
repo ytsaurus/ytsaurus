@@ -25,6 +25,11 @@ Py::Object TCommandDescriptor::OutputType(Py::Tuple& /*args*/, Py::Dict& /*kwarg
     return Py::Bytes(ToString(Descriptor_.OutputType));
 }
 
+Py::Object TCommandDescriptor::CommandName(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+{
+    return Py::String(Descriptor_.CommandName);
+}
+
 Py::Object TCommandDescriptor::IsVolatile(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
     return Py::Boolean(Descriptor_.Volatile);
@@ -47,6 +52,7 @@ void TCommandDescriptor::InitType(const TString& moduleName)
 
         PYCXX_ADD_KEYWORDS_METHOD(input_type, InputType, "Input type of the command");
         PYCXX_ADD_KEYWORDS_METHOD(output_type, OutputType, "Output type of the command");
+        PYCXX_ADD_KEYWORDS_METHOD(name, CommandName, "Command name");
         PYCXX_ADD_KEYWORDS_METHOD(is_volatile, IsVolatile, "Check that command is volatile");
         PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "Check that command is heavy");
 

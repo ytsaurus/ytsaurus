@@ -314,6 +314,25 @@ class TestDriverLogging(object):
         assert yt.native_driver.yp_service_discovery_configured
         assert yt.config["yp_service_discovery_config"] is None and yt.native_driver.ENABLE_YP_SERVICE_DISCOVERY
 
+    @authors("denvr")
+    def test_command_descriptions(self, yt_env_with_rpc):
+        if yt.config["backend"] != "rpc":
+            pytest.skip()
+        client_rpc = yt.YtClient(config=deepcopy(yt.config.config))
+        client_http = yt.YtClient(config=deepcopy(yt.config.config))
+        client_http.config["backend"] = "http"
+
+        client_rpc.list("/")
+        list_rpc = client_rpc._driver.get_command_descriptors()["list"]
+        list_http = yt.http_helpers.get_http_api_commands(client=client_http)["list"]
+        assert isinstance(list_http.is_heavy, bool)
+        assert isinstance(list_rpc.is_heavy, typing.Callable)
+        assert isinstance(list_rpc.is_heavy(), bool)
+        assert list_rpc.is_heavy() == list_http.is_heavy
+        if hasattr(list_rpc, "name"):
+            # added 2025
+            assert list_rpc.name() == list_http.name
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
