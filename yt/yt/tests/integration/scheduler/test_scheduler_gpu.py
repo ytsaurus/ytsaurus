@@ -73,6 +73,7 @@ class TestDryRunGpuSchedulingPolicy(YTEnvSetup):
             "node_tag_filter": "gpu",
             "main_resource": "gpu",
             "gpu_scheduling_policy": {
+                "mode": "dry_run",
                 "plan_update_period": 100,
                 "module_type": "data_center",
                 "modules": [TestDryRunGpuSchedulingPolicy.DATA_CENTER],

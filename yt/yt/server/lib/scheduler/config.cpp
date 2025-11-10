@@ -271,6 +271,9 @@ const THashSet<std::string>& TStrategySchedulingSegmentsConfig::GetModules() con
 
 void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default(EGpuSchedulingPolicyMode::Noop);
+
     registrar.Parameter("plan_update_period", &TThis::PlanUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
@@ -646,7 +649,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
         .Default(true);

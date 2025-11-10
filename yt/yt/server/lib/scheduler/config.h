@@ -225,6 +225,8 @@ DEFINE_REFCOUNTED_TYPE(TStrategySchedulingSegmentsConfig)
 struct TGpuSchedulingPolicyConfig
     : public NYTree::TYsonStruct
 {
+    EGpuSchedulingPolicyMode Mode;
+
     TDuration PlanUpdatePeriod;
 
     TDuration ModuleReconsiderationTimeout;

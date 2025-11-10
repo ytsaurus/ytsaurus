@@ -176,6 +176,11 @@ DEFINE_ENUM(EGpuSchedulingModuleType,
     (InfinibandCluster)
 );
 
+DEFINE_ENUM(EGpuSchedulingPolicyMode,
+    (Noop)
+    (DryRun)
+);
+
 // TODO(eshcherbin): Scheduling segments algorithm will be deprecated.
 using ESchedulingSegmentModuleType = EGpuSchedulingModuleType;
 

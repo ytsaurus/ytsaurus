@@ -297,13 +297,11 @@ public:
             StrategyHost_,
             Config_,
             Profiler_))
-        , GpuSchedulingPolicy_(IsGpuPoolTree(Config_) && Config_->GpuSchedulingPolicy
-            ? NPolicy::NGpu::CreateSchedulingPolicy(
-                MakeWeak(this),
-                StrategyHost_,
-                TreeId_,
-                Config_->GpuSchedulingPolicy)
-            : NPolicy::NGpu::CreateDummySchedulingPolicy())
+        , GpuSchedulingPolicy_(NPolicy::NGpu::CreateSchedulingPolicy(
+            MakeWeak(this),
+            StrategyHost_,
+            TreeId_,
+            Config_))
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
@@ -388,11 +386,7 @@ public:
         ResourceTree_->UpdateConfig(Config_);
 
         SchedulingPolicy_->UpdateConfig(Config_);
-        if (Config_->GpuSchedulingPolicy) {
-            GpuSchedulingPolicy_->UpdateConfig(Config_->GpuSchedulingPolicy);
-        } else if (oldConfig->GpuSchedulingPolicy) {
-            YT_LOG_WARNING("GPU scheduling policy config has been removed");
-        }
+        GpuSchedulingPolicy_->UpdateConfig(Config_->GpuSchedulingPolicy);
 
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
