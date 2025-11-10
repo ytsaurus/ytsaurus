@@ -30,7 +30,7 @@ jobs:
       - name: Parse Tag
         id: tag
         run: |
-          echo "RELEASE_VERSION=0.0.1-alpha" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=0.0.0-alpha" >> $GITHUB_OUTPUT
 
       - name: Package And Push Helm Chart
         run: |
