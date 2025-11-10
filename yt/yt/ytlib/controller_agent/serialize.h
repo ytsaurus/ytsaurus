@@ -85,6 +85,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PerTableInputQuery)                    (302105))
     ((RemoveUnusedLocalityStatistics)        (302106))
     ((RefactorChunkStripeList)               (302107))
+    ((DropIsFinalOutput)                     (302108))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

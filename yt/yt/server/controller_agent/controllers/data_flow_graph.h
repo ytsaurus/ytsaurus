@@ -142,7 +142,6 @@ struct TOutputStreamDescriptorBase
     // randomly.
     NObjectClient::TCellTagList CellTags;
     bool ImmediatelyUnstageChunkLists = false;
-    bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
 
     // In most situations coincides with the index of an stream descriptor,
@@ -154,7 +153,6 @@ struct TOutputStreamDescriptorBase
     TDataFlowGraph::TVertexDescriptor TargetDescriptor;
 
     std::optional<int> PartitionTag;
-
 };
 
 struct TOutputStreamDescriptor

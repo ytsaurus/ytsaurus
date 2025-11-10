@@ -106,7 +106,6 @@ void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, CellTags);
     Persist(context, ImmediatelyUnstageChunkLists);
     Persist(context, IsOutputTableDynamic);
-    Persist(context, IsFinalOutput);
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);

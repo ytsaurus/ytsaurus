@@ -2094,7 +2094,6 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
         streamDescriptor->ChunkMapping = AutoMergeTask_->GetChunkMapping();
         streamDescriptor->ImmediatelyUnstageChunkLists = true;
         streamDescriptor->RequiresRecoveryInfo = true;
-        streamDescriptor->IsFinalOutput = false;
         // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
         // and output edges. The underlying operation must not build an output edge, as it doesn't know
         // whether the resulting vertex is shallow_auto_merge or auto_merge.
@@ -5751,7 +5750,6 @@ void TOperationControllerBase::InitializeStandardStreamDescriptors()
         const auto& descriptor = StandardStreamDescriptors_.emplace_back(
             outputTable->GetStreamDescriptorTemplate(index)->Clone());
         descriptor->DestinationPool = GetSink();
-        descriptor->IsFinalOutput = true;
         descriptor->LivePreviewIndex = index;
         descriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
         descriptor->PartitionTag = index;
