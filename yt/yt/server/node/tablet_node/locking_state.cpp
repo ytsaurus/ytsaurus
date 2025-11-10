@@ -23,12 +23,12 @@ TLockingState::TLockingState(TObjectId objectId)
     : ObjectId_(objectId)
 { }
 
-void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
+TError TLockingState::TryLock(TTransactionId transactionId, EObjectLockMode lockMode)
 {
     YT_VERIFY(HasHydraContext());
 
-    auto throwConflictError = [&] (TTransactionId concurrentTransactionId) {
-        THROW_ERROR_EXCEPTION("Object %v is already locked by concurrent transaction %v",
+    auto makeConflictError = [&] (TTransactionId concurrentTransactionId) {
+        return TError("Object %v is already locked by concurrent transaction %v",
             ObjectId_,
             concurrentTransactionId);
     };
@@ -37,17 +37,17 @@ void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
     switch (lockMode) {
         case EObjectLockMode::Exclusive:
             if (ExclusiveLockTransactionId_ && ExclusiveLockTransactionId_ != transactionId) {
-                throwConflictError(ExclusiveLockTransactionId_);
+                return makeConflictError(ExclusiveLockTransactionId_);
             }
             if (!SharedLockTransactionIds_.empty()) {
-                throwConflictError(*SharedLockTransactionIds_.begin());
+                return makeConflictError(*SharedLockTransactionIds_.begin());
             }
             locked = ExclusiveLockTransactionId_ != transactionId;
             ExclusiveLockTransactionId_ = transactionId;
             break;
         case EObjectLockMode::Shared:
             if (ExclusiveLockTransactionId_) {
-                throwConflictError(ExclusiveLockTransactionId_);
+                return makeConflictError(ExclusiveLockTransactionId_);
             }
             locked = SharedLockTransactionIds_.insert(transactionId).second;
             break;
@@ -60,6 +60,8 @@ void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
         ObjectId_,
         transactionId,
         lockMode);
+
+    return {};
 }
 
 bool TLockingState::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)

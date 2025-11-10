@@ -115,9 +115,9 @@ bool THunkStore::IsLockedByTablet(TTabletId tabletId) const
     return TabletIdToLockCount_.contains(tabletId);
 }
 
-void THunkStore::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
+TError THunkStore::TryLock(TTransactionId transactionId, EObjectLockMode lockMode)
 {
-    LockingState_.Lock(transactionId, lockMode);
+    return LockingState_.TryLock(transactionId, lockMode);
 }
 
 void THunkStore::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
