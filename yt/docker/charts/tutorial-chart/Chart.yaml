@@ -1,0 +1,11 @@
+apiVersion: v2
+name: generate-tutorial-chart
+description: Helm chart to to upload YTsaurus tutorials
+version: 0.0.0-alpha
+type: application
+keywords:
+- ytsaurus
+- scripts
+home: https://ytsaurus.tech/
+sources:
+- https://github.com/ytsaurus/ytsaurus

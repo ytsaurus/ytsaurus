@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tutorial.fullname" . }}-init
+  labels:
+    {{- include "tutorial.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
+    helm.sh/hook-weight: "-10"
+spec:
+  backoffLimit: {{ .Values.tutorial.initJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "tutorial.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: tutorial-init
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./usr/local/bin/app"]
+          args:
+            - "--proxy={{ .Values.tutorial.args.proxy }}"
+            - "--token=$({{ .Values.tutorial.args.tokenEnvVariable }})"
+            - "--yt-directory={{ .Values.tutorial.args.ytDirectory }}"
+            - "--nomenclature-count={{ .Values.tutorial.args.ncCount }}"
+            - "--days-to-generate={{ .Values.tutorial.args.daysToGenerate }}"
+            - "--desired-order-size={{ .Values.tutorial.args.desiredOrderSize }}"
+            {{- if .Values.tutorial.args.force }}
+            - "--force"
+            {{- end }}
+      {{- end }}
+{{- end }}
