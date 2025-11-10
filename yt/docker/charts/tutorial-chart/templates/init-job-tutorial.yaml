@@ -32,4 +32,4 @@ spec:
             {{- end }}
           env:
             - name: {{ .Values.tutorial.args.tokenEnvVariable }}
-              value: {{ .Values.tutorial.token }}
+              value: {{ .Values.tutorial.token | quote }}
