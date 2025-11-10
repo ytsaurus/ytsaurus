@@ -1,11 +1,9 @@
-#include "multi_chunk_pool.h"
 #include "chunk_pool.h"
+#include "multi_chunk_pool.h"
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
-
-#include <util/generic/noncopyable.h>
 
 namespace NYT::NChunkPools {
 
@@ -36,7 +34,7 @@ public:
     {
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         auto cookie = pool->Add(std::move(stripe));
 
         return AddCookie(poolIndex, cookie);
@@ -46,7 +44,7 @@ public:
     {
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         auto cookie = pool->AddWithKey(std::move(stripe), key);
 
         return AddCookie(poolIndex, cookie);
@@ -54,15 +52,15 @@ public:
 
     void Suspend(TExternalCookie externalCookie) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto* pool = Pool(poolIndex);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        auto* pool = GetPool(poolIndex);
         pool->Suspend(cookie);
     }
 
     void Resume(TExternalCookie externalCookie) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto* pool = Pool(poolIndex);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        auto* pool = GetPool(poolIndex);
         pool->Resume(cookie);
     }
 
@@ -71,16 +69,16 @@ public:
         TChunkStripePtr stripe,
         TInputChunkMappingPtr mapping) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
         stripe->PartitionTag = poolIndex;
-        auto* cookiePool = Pool(poolIndex);
+        auto* cookiePool = GetPool(poolIndex);
 
         cookiePool->Reset(cookie, std::move(stripe), std::move(mapping));
     }
 
     void FinishPool(int poolIndex) override
     {
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         if (pool) {
             pool->Finish();
         }
@@ -100,6 +98,17 @@ public:
     }
 
 protected:
+    void AddPoolInput(IPersistentChunkPoolInputPtr pool, int poolIndex)
+    {
+        if (poolIndex >= std::ssize(UnderlyingPools_)) {
+            UnderlyingPools_.resize(poolIndex + 1);
+        }
+
+        YT_VERIFY(!UnderlyingPools_[poolIndex]);
+        UnderlyingPools_[poolIndex] = std::move(pool);
+    }
+
+private:
     std::vector<IPersistentChunkPoolInputPtr> UnderlyingPools_;
 
     //! Mapping external_cookie -> cookie_descriptor.
@@ -107,7 +116,7 @@ protected:
 
     bool IsFinished_ = false;
 
-    TCookieDescriptor Cookie(TExternalCookie externalCookie) const
+    TCookieDescriptor GetCookie(TExternalCookie externalCookie) const
     {
         YT_VERIFY(externalCookie >= 0);
         YT_VERIFY(externalCookie < std::ssize(Cookies_));
@@ -123,22 +132,12 @@ protected:
         return externalCookie;
     }
 
-    IPersistentChunkPoolInput* Pool(int poolIndex)
+    IPersistentChunkPoolInput* GetPool(int poolIndex) const
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
 
         return UnderlyingPools_[poolIndex].Get();
-    }
-
-    void AddPoolInput(IPersistentChunkPoolInputPtr pool, int poolIndex)
-    {
-        if (poolIndex >= std::ssize(UnderlyingPools_)) {
-            UnderlyingPools_.resize(poolIndex + 1);
-        }
-
-        YT_VERIFY(!UnderlyingPools_[poolIndex]);
-        UnderlyingPools_[poolIndex] = std::move(pool);
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMultiChunkPoolInput, 0xe712ad5b);
@@ -161,7 +160,7 @@ class TMultiChunkPoolOutput
     , public TJobSplittingBase
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+    DEFINE_SIGNAL_OVERRIDE(void(TInputChunkPtr, std::any tag), ChunkTeleported);
     DEFINE_SIGNAL_OVERRIDE(void(), Completed);
     DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
@@ -231,13 +230,13 @@ public:
                 return IChunkPoolOutput::NullCookie;
             } else {
                 poolIndex = *BlockedPools_.begin();
-                auto* pool = Pool(poolIndex);
+                auto* pool = GetPool(poolIndex);
                 cookie = pool->Extract(nodeId);
                 YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
             }
         } else {
             poolIndex = CurrentPoolIndex();
-            cookie = Pool(poolIndex)->Extract(nodeId);
+            cookie = GetPool(poolIndex)->Extract(nodeId);
         }
 
         YT_VERIFY(poolIndex != -1);
@@ -266,7 +265,7 @@ public:
             return Extract(nodeId);
         }
 
-        auto* pool = Pool(underlyingPoolIndexHint);
+        auto* pool = GetPool(underlyingPoolIndexHint);
         if (!pool) {
             return Extract(nodeId);
         }
@@ -284,8 +283,8 @@ public:
 
     TChunkStripeListPtr GetStripeList(TExternalCookie externalCookie) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto stripeList = Pool(poolIndex)->GetStripeList(cookie);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        auto stripeList = GetPool(poolIndex)->GetStripeList(cookie);
         stripeList->SetPartitionTag(poolIndex);
 
         return stripeList;
@@ -298,32 +297,32 @@ public:
 
     int GetStripeListSliceCount(TExternalCookie externalCookie) const override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        return Pool(poolIndex)->GetStripeListSliceCount(cookie);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        return GetPool(poolIndex)->GetStripeListSliceCount(cookie);
     }
 
     void Completed(TExternalCookie externalCookie, const TCompletedJobSummary& jobSummary) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        Pool(poolIndex)->Completed(cookie, jobSummary);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        GetPool(poolIndex)->Completed(cookie, jobSummary);
     }
 
     void Failed(TExternalCookie externalCookie) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        Pool(poolIndex)->Failed(cookie);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        GetPool(poolIndex)->Failed(cookie);
     }
 
     void Aborted(TExternalCookie externalCookie, EAbortReason reason) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        Pool(poolIndex)->Aborted(cookie, reason);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        GetPool(poolIndex)->Aborted(cookie, reason);
     }
 
     void Lost(TExternalCookie externalCookie) override
     {
-        auto [poolIndex, cookie] = Cookie(externalCookie);
-        Pool(poolIndex)->Lost(cookie);
+        auto [poolIndex, cookie] = GetCookie(externalCookie);
+        GetPool(poolIndex)->Lost(cookie);
     }
 
     void Finalize() override
@@ -401,7 +400,7 @@ private:
     //! Whether pool is completed.
     bool IsCompleted_ = false;
 
-    const IPersistentChunkPoolOutput* Pool(int poolIndex) const
+    const IPersistentChunkPoolOutput* GetPool(int poolIndex) const
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
@@ -409,7 +408,7 @@ private:
         return UnderlyingPools_[poolIndex].Get();
     }
 
-    IPersistentChunkPoolOutput* Pool(int poolIndex)
+    IPersistentChunkPoolOutput* GetPool(int poolIndex)
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
@@ -426,10 +425,10 @@ private:
 
     const IPersistentChunkPoolOutput* CurrentPool() const
     {
-        return Pool(CurrentPoolIndex());
+        return GetPool(CurrentPoolIndex());
     }
 
-    TCookieDescriptor Cookie(TExternalCookie externalCookie) const
+    TCookieDescriptor GetCookie(TExternalCookie externalCookie) const
     {
         return Cookies_[externalCookie];
     }
@@ -449,7 +448,7 @@ private:
 
     void SetupCallbacks(int poolIndex)
     {
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         pool->SubscribeChunkTeleported(
             BIND([this, poolIndex] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 ChunkTeleported_.Fire(std::move(teleportChunk), poolIndex);
@@ -471,7 +470,7 @@ private:
 
     void OnUnderlyingPoolPendingJobCountChanged(int poolIndex)
     {
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         auto& poolIterator = PendingPoolIterators_[poolIndex];
         bool hasPendingJobs = pool->GetJobCounter()->GetPending() > 0;
         if (poolIterator == PendingPools_.end() && hasPendingJobs) {
@@ -484,7 +483,7 @@ private:
 
     void OnUnderlyingPoolBlockedJobCountChanged(int poolIndex)
     {
-        auto* pool = Pool(poolIndex);
+        auto* pool = GetPool(poolIndex);
         bool hasBlockedJobs = pool->GetJobCounter()->GetBlocked() > 0;
         if (hasBlockedJobs) {
             BlockedPools_.insert(poolIndex);
@@ -517,7 +516,7 @@ void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
         // and restore them from scratch here using underlying pools statistics.
         this_->PendingPoolIterators_ = std::vector<std::list<int>::iterator>(this_->UnderlyingPools_.size(), this_->PendingPools_.end());
         for (int poolIndex = std::ssize(this_->UnderlyingPools_) - 1; poolIndex >= 0; --poolIndex) {
-            if (this_->Pool(poolIndex)) {
+            if (this_->GetPool(poolIndex)) {
                 this_->SetupCallbacks(poolIndex);
                 this_->OnUnderlyingPoolPendingJobCountChanged(poolIndex);
                 this_->OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
