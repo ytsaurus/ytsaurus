@@ -7,7 +7,7 @@ from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .errors import (
-    YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict,
+    YtNoSuchService, YtTabletIsInIntermediateState, YtHunkTabletStoreToggleConflict, YtTabletTransactionLockConflict,
     YtNoSuchTablet, YtTabletNotMounted, YtResponseError, YtRowIsBlocked, YtBlockedRowWaitTimeout,
     YtNoSuchCell, YtChunkNotPreloaded, YtNoInSyncReplicas)
 from .ypath import TablePath
@@ -133,6 +133,7 @@ def get_dynamic_table_retriable_errors():
         list(get_retriable_errors()) + [
             YtNoSuchService,
             YtTabletIsInIntermediateState,
+            YtHunkTabletStoreToggleConflict,
             YtTabletTransactionLockConflict,
             YtNoSuchTablet,
             YtTabletNotMounted,

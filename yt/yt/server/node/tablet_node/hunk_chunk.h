@@ -49,7 +49,7 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
+    TError TryLock(TTransactionId transactionId, EObjectLockMode lockMode);
     void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
 
     //! Returns |true| iff store ref count and prepared store ref count are both zero

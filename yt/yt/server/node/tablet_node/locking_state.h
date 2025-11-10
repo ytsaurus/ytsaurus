@@ -16,10 +16,10 @@ public:
     explicit TLockingState(TObjectId objectId);
 
     //! Attempts to lock object in given transaction with given lock mode.
-    //! Throws on conflict error.
+    //! Return error iff lock attempt failed.
     // NB: Multiple locks of the same kind from the same transaction are counted
     // as one.
-    void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
+    TError TryLock(TTransactionId transactionId, EObjectLockMode lockMode);
 
     //! Attempts to release lock. Returns true if object was locked
     //! by given transaction with given lock mode and thus was unlocked
