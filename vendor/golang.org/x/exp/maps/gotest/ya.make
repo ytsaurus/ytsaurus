@@ -2,6 +2,6 @@ GO_TEST_FOR(vendor/golang.org/x/exp/maps)
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.0.0-20250305212735-054e65f0b394)
+VERSION(v0.0.0-20250813145105-42675adae3e6)
 
 END()
