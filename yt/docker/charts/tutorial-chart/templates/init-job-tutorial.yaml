@@ -31,5 +31,4 @@ spec:
             {{- if .Values.tutorial.args.force }}
             - "--force"
             {{- end }}
-      {{- end }}
 {{- end }}
