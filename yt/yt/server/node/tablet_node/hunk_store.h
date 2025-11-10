@@ -37,7 +37,7 @@ public:
     void Unlock(TTabletId tabletId);
     bool IsLockedByTablet(TTabletId tabletId) const;
 
-    void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
+    TError TryLock(TTransactionId transactionId, EObjectLockMode lockMode);
     void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
     bool IsLocked() const;
 

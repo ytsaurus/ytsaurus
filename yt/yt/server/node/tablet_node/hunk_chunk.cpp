@@ -73,9 +73,9 @@ void THunkChunk::Load(TLoadContext& context)
     Load(context, LockingState_);
 }
 
-void THunkChunk::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
+TError THunkChunk::TryLock(TTransactionId transactionId, EObjectLockMode lockMode)
 {
-    LockingState_.Lock(transactionId, lockMode);
+    return LockingState_.TryLock(transactionId, lockMode);
 }
 
 void THunkChunk::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
