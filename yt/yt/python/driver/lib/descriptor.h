@@ -22,6 +22,9 @@ public:
     Py::Object OutputType(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TCommandDescriptor, OutputType)
 
+    Py::Object CommandName(Py::Tuple& args, Py::Dict& kwargs);
+    PYCXX_KEYWORDS_METHOD_DECL(TCommandDescriptor, CommandName)
+
     Py::Object IsVolatile(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TCommandDescriptor, IsVolatile)
 
