@@ -50,9 +50,7 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     TWeakPtr<ISchedulingPolicyHost> host,
     IStrategyHost* strategyHost,
     const std::string& treeId,
-    TGpuSchedulingPolicyConfigPtr config);
-
-ISchedulingPolicyPtr CreateDummySchedulingPolicy();
+    const TStrategyTreeConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

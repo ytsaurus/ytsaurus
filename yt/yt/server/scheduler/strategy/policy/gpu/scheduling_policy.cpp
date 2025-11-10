@@ -5,6 +5,7 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
+#include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -274,6 +275,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        if (Config_->Mode != config->Mode) {
+            YT_LOG_WARNING("Scheduling policy config update failed because mode has changed (OldMode: %v, NewMode: %v)",
+                Config_->Mode,
+                config->Mode);
+            return;
+        }
+
         Config_ = std::move(config);
 
         PlanUpdateExecutor_->SetPeriod(Config_->PlanUpdatePeriod);
@@ -462,10 +470,14 @@ DEFINE_REFCOUNTED_TYPE(TSchedulingPolicy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDummySchedulingPolicy
+class TNoopSchedulingPolicy
     : public ISchedulingPolicy
 {
 public:
+    explicit TNoopSchedulingPolicy(const std::string& treeId)
+        : Logger(GetLogger(treeId))
+    { }
+
     void Initialize() override
     { }
 
@@ -496,9 +508,21 @@ public:
     void PopulateOrchidService(const TCompositeMapServicePtr& /*orchidService*/) const override
     { }
 
-    void UpdateConfig(TGpuSchedulingPolicyConfigPtr /*config*/) override
-    { }
+    void UpdateConfig(TGpuSchedulingPolicyConfigPtr config) override
+    {
+        if (EGpuSchedulingPolicyMode::Noop != config->Mode) {
+            YT_LOG_WARNING("Scheduling policy config update failed because mode has changed (OldMode: %v, NewMode: %v)",
+                EGpuSchedulingPolicyMode::Noop,
+                config->Mode);
+            return;
+        }
+    }
+
+private:
+    const TLogger Logger;
 };
+
+DEFINE_REFCOUNTED_TYPE(TNoopSchedulingPolicy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -506,18 +530,17 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     TWeakPtr<ISchedulingPolicyHost> host,
     IStrategyHost* strategyHost,
     const std::string& treeId,
-    TGpuSchedulingPolicyConfigPtr config)
+    const TStrategyTreeConfigPtr& config)
 {
-    return New<TSchedulingPolicy>(
-        std::move(host),
-        strategyHost,
-        treeId,
-        std::move(config));
-}
+    if (IsGpuPoolTree(config) && config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::DryRun) {
+        return New<TSchedulingPolicy>(
+            std::move(host),
+            strategyHost,
+            treeId,
+            config->GpuSchedulingPolicy);
+    }
 
-ISchedulingPolicyPtr CreateDummySchedulingPolicy()
-{
-    return New<TDummySchedulingPolicy>();
+    return New<TNoopSchedulingPolicy>(treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
