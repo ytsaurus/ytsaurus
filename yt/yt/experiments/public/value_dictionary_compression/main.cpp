@@ -15,12 +15,15 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/value_consumer.h>
@@ -132,7 +135,9 @@ public:
         Schema_ = GetSchemaFromChunkMeta(*ChunkMeta_);
         NameTable_ = TNameTable::FromSchema(*Schema_);
 
-        YT_VERIFY(EChunkFormat::TableVersionedSimple == FromProto<EChunkFormat>(ChunkMeta_->format()));
+        YT_VERIFY(
+            EChunkFormat::TableVersionedSimple == FromProto<EChunkFormat>(ChunkMeta_->format()) ||
+            EChunkFormat::TableVersionedColumnar == FromProto<EChunkFormat>(ChunkMeta_->format()));
 
         TChunkSpec chunkSpec;
         chunkSpec.set_table_index(0);
@@ -155,21 +160,42 @@ public:
             columnIndexes.push_back(Schema_->GetColumnIndex(schemaColumn));
         }
 
-        TClientChunkReadOptions options;
-        return CreateVersionedChunkReader(
-            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
-            New<TChunkReaderConfig>(),
-            BackendReader_,
-            ChunkState_,
-            CachedVersionedChunkMeta_,
-            options,
-            MinKey(),
-            MaxKey(),
-            NTableClient::TColumnFilter(columnIndexes),
-            AsyncLastCommittedTimestamp,
-            /*produceAllVersions*/ false,
-            /*memoryManager*/ nullptr,
-            /*sessionInvoker*/ nullptr);
+        auto chunkFormat = FromProto<EChunkFormat>(ChunkMeta_->format());
+        if (EChunkFormat::TableVersionedSimple == chunkFormat) {
+            TClientChunkReadOptions options;
+            return CreateVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+                New<TChunkReaderConfig>(),
+                BackendReader_,
+                ChunkState_,
+                CachedVersionedChunkMeta_,
+                options,
+                MinKey(),
+                MaxKey(),
+                NTableClient::TColumnFilter(columnIndexes),
+                AsyncLastCommittedTimestamp,
+                /*produceAllVersions*/ false,
+                /*memoryManager*/ nullptr,
+                /*sessionInvoker*/ nullptr);
+        } else if (EChunkFormat::TableVersionedColumnar == chunkFormat) {
+            return NColumnarChunkFormat::CreateVersionedChunkReader(
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                AsyncLastCommittedTimestamp,
+                CachedVersionedChunkMeta_,
+                Schema_,
+                NTableClient::TColumnFilter(columnIndexes),
+                New<TChunkColumnMapping>(Schema_, CachedVersionedChunkMeta_->ChunkSchema()),
+                NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                    TChunkReaderConfig::GetDefault(),
+                    BackendReader_,
+                    GetNullBlockCache(),
+                    /*chunkReadOptions*/ {},
+                    CachedVersionedChunkMeta_),
+                /*produceAllVersions*/ false,
+                New<NColumnarChunkFormat::TReaderStatistics>());
+        } else {
+            YT_ABORT();
+        }
     }
 
     const TRowBufferPtr& GetRowBuffer() const
@@ -241,25 +267,36 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         const auto& value = row.Values()[0];
         YT_VERIFY(IsStringLikeType(value.Type));
         int valueLength = value.Length;
-        if (valueLength < compressorOptions.InlineValueSize) {
+        if (valueLength < compressorOptions.InlineValueSize || valueLength > 16000) {
             inlineValues.push_back(value);
             inlineValuesSize += value.Length;
         } else {
-            if (filledSamplesSize + valueLength < compressorOptions.SamplesSize) {
-                memcpy(samples.Begin() + filledSamplesSize, value.Data.String, valueLength);
-                filledSamplesSize += valueLength;
-                sampleSizes.push_back(valueLength);
-            }
             refValues.push_back(value);
             refValuesSize += valueLength;
         }
     }
 
-    Cerr << "Total: " << std::ssize(rows) <<
-        " Inline: " << std::ssize(inlineValues) << " Size: " << inlineValuesSize <<
-        " Ref: " << std::ssize(refValues) << " Size: " << refValuesSize <<
-        " DictFromSamplesSize: " << filledSamplesSize << Endl;
+    std::vector<int> sampleIndexes(refValues.size());
+    std::iota(sampleIndexes.begin(), sampleIndexes.end(), 0);
+    std::shuffle(sampleIndexes.begin(), sampleIndexes.end(), std::mt19937{123});
 
+    for (auto index : sampleIndexes) {
+        const auto& value = refValues[index];
+        if (filledSamplesSize + static_cast<int>(value.Length) >= compressorOptions.SamplesSize) {
+            break;
+        }
+
+        memcpy(samples.Begin() + filledSamplesSize, value.Data.String, value.Length);
+        filledSamplesSize += value.Length;
+        sampleSizes.push_back(value.Length);
+    }
+
+    Cerr << "Row count: " << std::ssize(rows) <<
+        ", Inline value count: " << std::ssize(inlineValues) << ", Inline value size: " << inlineValuesSize <<
+        ", Ref value count: " << std::ssize(refValues) << ", Ref value size: " << refValuesSize <<
+        ", Samples count: " << std::ssize(sampleSizes) << ", Samples size: " << filledSamplesSize << Endl;
+
+    Cerr << "Compress whole blob statistics" << Endl;
     // Compress blob with all values as a one.
     {
         TBlob valuesBlob(
@@ -275,7 +312,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
         TBlob compressedValuesBlob(
             GetRefCountedTypeCookie<TDefaultBlobTag>(),
-            /*size*/ refValuesSize + 1_KB,
+            /*size*/ refValuesSize + 10_KB,
             /*initiailizeStorage*/ true,
             /*pageAligned*/ true);
 
@@ -292,6 +329,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             << " CompressionTime: " << timer.GetElapsedTime() << Endl;
     }
 
+    Cerr << "Compress using samples" << Endl;
     // Dictionary directly from samples.
     {
         TWallTimer timer;
@@ -308,22 +346,15 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
         TBlob buffer;
         int compressedRefValueSize = 0;
-        for (auto row : rows) {
-            if (row.GetValueCount() == 0) {
-                continue;
-            }
-            const auto& value = row.Values()[0];
-            int valueLength = value.Length;
-            buffer.Resize(valueLength + 1_KB);
-            if (valueLength < compressorOptions.InlineValueSize) {
-                continue;
-            }
+        for (auto refValue : refValues) {
+            int valueLength = refValue.Length;
+            buffer.Resize(valueLength + 10_KB);
             timer.Start();
             auto compressedSize = ZSTD_compress_usingCDict(
                 cctx,
                 buffer.Begin(),
                 buffer.Size(),
-                value.Data.String,
+                refValue.Data.String,
                 valueLength,
                 cdict);
             YT_VERIFY(!ZSTD_isError(compressedSize));
@@ -337,6 +368,7 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
             " DictCreationTime: " << dictCreationTime << " CompressionTime: " << dictCompressionTime << Endl;
     }
 
+    Cerr << "Compress using pretrained dictionary" << Endl;
     // Train dictionary from samples.
     {
         TBlob dict(
@@ -366,22 +398,15 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
 
         TBlob buffer;
         int compressedRefValueSize = 0;
-        for (auto row : rows) {
-            if (row.GetValueCount() == 0) {
-                continue;
-            }
-            const auto& value = row.Values()[0];
-            int valueLength = value.Length;
-            buffer.Resize(valueLength + 1_KB);
-            if (valueLength < compressorOptions.InlineValueSize) {
-                continue;
-            }
+        for (auto refValue : refValues) {
+            int valueLength = refValue.Length;
+            buffer.Resize(valueLength + 10_KB);
             timer.Start();
             auto compressedSize = ZSTD_compress_usingCDict(
                 cctx,
                 buffer.Begin(),
                 buffer.Size(),
-                value.Data.String,
+                refValue.Data.String,
                 valueLength,
                 cdict);
             YT_VERIFY(!ZSTD_isError(compressedSize));
@@ -394,6 +419,8 @@ void DoRunChunkDictionaryCompression(TCompressorOptions compressorOptions)
         Cerr << "Size: " << refValuesSize << " CompressedSize: " << compressedRefValueSize <<
             " DictCreationTime: " << dictCreationTime << " CompressionTime: " << dictCompressionTime << Endl;
     }
+
+    Cerr << "Generic experiment" << Endl;
 
     // Experiment with small random strings on frame header, frame parameters.
     {
