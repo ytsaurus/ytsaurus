@@ -485,7 +485,7 @@ private:
             }
 
             if (!lostHunkStoreIds.empty()) {
-                YT_LOG_DEBUG("Hunk store locks are lost; write ignored "
+                YT_LOG_ALERT("Hunk store locks are lost; write ignored "
                     "(%v, TransactionId: %v, HunkStoreIds: %v)",
                     tablet->GetLoggingTag(),
                     transactionId,
