@@ -432,12 +432,15 @@ protected:
         SetAccessTrackingOptions(req, AccessTrackingOptions_);
         SetAllowResolveFromSequoiaObject(req, true);
 
-        auto rspOrError = WaitFor(CreateReadProxyForObject(Id_).Execute(std::move(req)));
-        if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Node touch failed")
-                << TErrorAttribute("node_id", Id_)
-                << rspOrError;
-        }
+        using TResponsePtr = TIntrusivePtr<typename std::decay_t<decltype(*req)>:: TTypedResponse>;
+
+        YT_UNUSED_FUTURE(CreateReadProxyForObject(Id_)
+            .Execute(std::move(req))
+            .Apply(BIND([id = Id_] (const TErrorOr<TResponsePtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    YT_LOG_ERROR(rspOrError, "Node touch failed (NodeId: %v)", id);
+                }
+            })));
     }
 
     TCellTag RemoveRootstock()
