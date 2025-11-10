@@ -7,6 +7,9 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/canonize_path.cpp
     ${MISC_SRCS_ROOT}/custom_client_config.cpp
     ${MISC_SRCS_ROOT}/cypress_client.cpp
+    ${MISC_SRCS_ROOT}/distributed_table_api.cpp
+#   TODO(achains): Enable After YT-26108 or use with -DYT_RECIPE_BUILD_FROM_SOURCE=yes
+#   ${MISC_SRCS_ROOT}/distributed_file_api.cpp
     ${MISC_SRCS_ROOT}/error.cpp
     ${MISC_SRCS_ROOT}/file_io.cpp
     ${MISC_SRCS_ROOT}/format_attribute.cpp
