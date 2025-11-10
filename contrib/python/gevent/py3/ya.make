@@ -32,6 +32,7 @@ NO_COMPILER_WARNINGS()
 NO_LINT()
 
 NO_CHECK_IMPORTS(
+    gevent._fileobjectposix
     gevent._imap
     gevent.resolver.dnspython
     gevent.win32util
