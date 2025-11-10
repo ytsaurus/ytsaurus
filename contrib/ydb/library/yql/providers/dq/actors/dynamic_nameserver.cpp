@@ -4,7 +4,7 @@
 
 #include <contrib/ydb/library/actors/interconnect/interconnect.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_impl.h>
-#include <contrib/ydb/library/actors/interconnect/interconnect_address.h>
+#include <contrib/ydb/library/actors/interconnect/address/interconnect_address.h>
 #include <contrib/ydb/library/actors/interconnect/events_local.h>
 
 #include <contrib/ydb/library/actors/core/hfunc.h>

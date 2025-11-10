@@ -1,13 +1,15 @@
 #include "cq_actor.h"
-#include "events.h"
-#include "rdma.h"
-#include "ctx.h"
 
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 
 #include <contrib/ydb/library/actors/interconnect/logging/logging.h>
 #include <contrib/ydb/library/actors/interconnect/poller/poller_actor.h>
+#include <contrib/ydb/library/actors/interconnect/rdma/ctx.h>
+#include <contrib/ydb/library/actors/interconnect/rdma/events.h>
+#include <contrib/ydb/library/actors/interconnect/rdma/rdma.h>
+
+#include <contrib/libs/ibdrv/include/infiniband/verbs.h>
 
 using namespace NActors;
 

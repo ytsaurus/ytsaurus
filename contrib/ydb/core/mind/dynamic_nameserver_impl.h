@@ -6,7 +6,7 @@
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/interconnect/events_local.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect_impl.h>
-#include <contrib/ydb/library/actors/interconnect/interconnect_address.h>
+#include <contrib/ydb/library/actors/interconnect/address/interconnect_address.h>
 #include <contrib/ydb/core/base/tablet_pipe.h>
 #include <contrib/ydb/core/cms/console/configs_dispatcher.h>
 #include <contrib/ydb/core/cms/console/console.h>

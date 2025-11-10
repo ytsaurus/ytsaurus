@@ -616,6 +616,13 @@ private:
         }
 
         NUdf::TUnboxedValue row;
+
+        YQL_ENSURE(!Input.IsInvalid());
+        if (Input.IsFinish() || !Input.HasValue()) {
+            LastFetchStatus = NUdf::EFetchStatus::Finish;
+            return;
+        }
+
         while ((LastFetchStatus = Input.Fetch(row)) == NUdf::EFetchStatus::Ok) {
             StreamLookupWorker->AddInputRow(std::move(row));
         }

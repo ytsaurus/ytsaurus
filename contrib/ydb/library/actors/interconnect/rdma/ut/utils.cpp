@@ -1,6 +1,6 @@
 #include "utils.h"
 
-#include <contrib/ydb/library/actors/interconnect/rdma/cq_actor.h>
+#include <contrib/ydb/library/actors/interconnect/rdma/cq_actor/cq_actor.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/ctx.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/events.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/link_manager.h>

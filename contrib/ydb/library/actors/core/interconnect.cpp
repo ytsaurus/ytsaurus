@@ -159,7 +159,7 @@ namespace NActors {
                     const bool success = TryFromString(value, moduleId);
                     Y_ABORT_UNLESS(success);
                     break;
-		}
+                }
 
                 case TKeys::Rack:
                     // hacky way to obtain numeric id by a rack name

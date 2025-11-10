@@ -1,6 +1,6 @@
 #include "one_layer.h"
 
-#include <contrib/ydb/core/tx/columnshard/engines/storage/optimizer/lcbuckets/planner/level/common_level.h>
+#include <contrib/ydb/core/tx/columnshard/engines/storage/optimizer/lcbuckets/planner/level/one_layer.h>
 
 namespace NKikimr::NOlap::NStorageOptimizer::NLCBuckets {
 
