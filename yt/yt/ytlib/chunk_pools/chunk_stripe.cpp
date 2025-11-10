@@ -23,16 +23,6 @@ TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign)
     DataSlices.emplace_back(std::move(dataSlice));
 }
 
-TChunkStripe::TChunkStripe(const std::vector<TLegacyDataSlicePtr>& dataSlices)
-{
-    DataSlices.insert(DataSlices.end(), dataSlices.begin(), dataSlices.end());
-}
-
-TChunkStripe::TChunkStripe(TChunkListId chunkListId, TBoundaryKeys boundaryKeys)
-    : ChunkListId(chunkListId)
-    , BoundaryKeys(boundaryKeys)
-{ }
-
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
