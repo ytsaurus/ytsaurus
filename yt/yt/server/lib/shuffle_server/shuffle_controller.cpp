@@ -87,7 +87,7 @@ private:
             currentEpoch = WriterIndexToEpoch_[*writerIndex];
         }
 
-        Chunks_.reserve(chunks.size());
+        Chunks_.reserve(Chunks_.size() + chunks.size());
         for (auto& chunk : chunks) {
             const auto* partitionsExt = chunk->PartitionsExt().get();
             YT_VERIFY(partitionsExt);
