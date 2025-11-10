@@ -10,6 +10,9 @@
 #include <memory>
 #include <optional>
 
+// Forward declaration of strong typedef.
+#include <library/cpp/yt/misc/strong_typedef-fwd.h>
+
 namespace google::protobuf {
 class Message;
 }
@@ -27,11 +30,6 @@ namespace NTableClient {
 } // namespace NYT::NTableClient
 
 class TNode;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename T, typename Tag>
-class TStrongTypedef;
 
 ////////////////////////////////////////////////////////////////////////////////
 
