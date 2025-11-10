@@ -20,7 +20,7 @@ spec:
         - name: tutorial-init
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["./usr/local/bin/app"]
+          command: ["/usr/local/bin/app"]
           args:
             - "--proxy={{ .Values.tutorial.args.proxy }}"
             - "--yt-directory={{ .Values.tutorial.args.ytDirectory }}"

@@ -4,7 +4,7 @@ image:
   pullPolicy: IfNotPresent
 
 tutorial:
-  token: "yt.token"
+  token: "YOUR_YT_TOKEN"
   args:
     proxy: "ytsaurus.http.proxy.tech"
     tokenEnvVariable: "YT_TOKEN"
@@ -14,8 +14,5 @@ tutorial:
     desiredOrderSize: 3000
     force: true
   replicaCount: 1
-  serviceAccount:
-    create: true
-    name: ""
   initJob:
     backoffLimit: 2
