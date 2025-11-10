@@ -4,6 +4,7 @@ image:
   pullPolicy: IfNotPresent
 
 tutorial:
+  token: "yt.token"
   args:
     proxy: "ytsaurus.http.proxy.tech"
     tokenEnvVariable: "YT_TOKEN"
