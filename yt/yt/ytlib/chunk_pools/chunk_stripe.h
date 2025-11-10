@@ -16,8 +16,6 @@ struct TChunkStripe
 {
     explicit TChunkStripe(bool foreign = false);
     explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false);
-    explicit TChunkStripe(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices);
-    explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
     NTableClient::TChunkStripeStatistics GetStatistics() const;
     int GetChunkCount() const;
