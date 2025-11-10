@@ -1,6 +1,6 @@
 apiVersion: v2
-name: generate-tutorial-chart
-description: Helm chart to to upload YTsaurus tutorials
+name: tutorial-chart
+description: Helm chart to upload YTsaurus tutorial
 version: 0.0.0-alpha
 type: application
 keywords:
