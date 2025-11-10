@@ -23,7 +23,6 @@ spec:
           command: ["./usr/local/bin/app"]
           args:
             - "--proxy={{ .Values.tutorial.args.proxy }}"
-            - "--token=$({{ .Values.tutorial.args.tokenEnvVariable }})"
             - "--yt-directory={{ .Values.tutorial.args.ytDirectory }}"
             - "--nomenclature-count={{ .Values.tutorial.args.ncCount }}"
             - "--days-to-generate={{ .Values.tutorial.args.daysToGenerate }}"
