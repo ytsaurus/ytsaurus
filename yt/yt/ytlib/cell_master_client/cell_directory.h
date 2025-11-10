@@ -52,6 +52,8 @@ struct ICellDirectory
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId) = 0;
 
+    // NB: naked master cell channels don't have neither retries nor default
+    // timeouts.
     virtual NRpc::IChannelPtr FindNakedMasterChannel(
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
