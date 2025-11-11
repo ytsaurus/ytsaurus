@@ -14,7 +14,7 @@
 
 
 from .._util import ConversionUtil
-from .._model import ConsumerGroupState
+from .._model import ConsumerGroupState, ConsumerGroupType
 from ._acl import AclOperation
 
 
@@ -31,13 +31,17 @@ class ConsumerGroupListing:
         Whether a consumer group is simple or not.
     state : ConsumerGroupState
         Current state of the consumer group.
+    type : ConsumerGroupType
+        Type of the consumer group.
     """
 
-    def __init__(self, group_id, is_simple_consumer_group, state=None):
+    def __init__(self, group_id, is_simple_consumer_group, state=None, type=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+        if type is not None:
+            self.type = ConversionUtil.convert_to_enum(type, ConsumerGroupType)
 
 
 class ListConsumerGroupsResult:
