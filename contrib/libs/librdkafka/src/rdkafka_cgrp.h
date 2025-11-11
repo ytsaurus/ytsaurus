@@ -346,6 +346,9 @@ typedef struct rd_kafka_cgrp_s {
                                              * assignment */
         } rkcg_c;
 
+        /* Timestamp of last rebalance start */
+        rd_ts_t rkcg_ts_rebalance_start;
+
 } rd_kafka_cgrp_t;
 
 

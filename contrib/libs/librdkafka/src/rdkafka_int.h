@@ -127,12 +127,12 @@ typedef struct rd_kafka_fetch_pos_s {
 /**
  * Protocol level sanity
  */
-#define RD_KAFKAP_BROKERS_MAX    10000
-#define RD_KAFKAP_TOPICS_MAX     1000000
-#define RD_KAFKAP_PARTITIONS_MAX 100000
-#define RD_KAFKAP_GROUPS_MAX     100000
-#define RD_KAFKAP_CONFIGS_MAX    10000
-
+#define RD_KAFKAP_BROKERS_MAX              10000
+#define RD_KAFKAP_TOPICS_MAX               1000000
+#define RD_KAFKAP_PARTITIONS_MAX           100000
+#define RD_KAFKAP_GROUPS_MAX               100000
+#define RD_KAFKAP_CONFIGS_MAX              10000
+#define RD_KAFKAP_ABORTED_TRANSACTIONS_MAX 1000000
 
 #define RD_KAFKA_OFFSET_IS_LOGICAL(OFF) ((OFF) < 0)
 
@@ -234,7 +234,50 @@ rd_kafka_txn_state2str(rd_kafka_txn_state_t state) {
         return names[state];
 }
 
+/**
+ * @enum Telemetry States
+ */
+typedef enum {
+        /** Initial state, awaiting telemetry broker to be assigned */
+        RD_KAFKA_TELEMETRY_AWAIT_BROKER,
+        /** Telemetry broker assigned and GetSubscriptions scheduled */
+        RD_KAFKA_TELEMETRY_GET_SUBSCRIPTIONS_SCHEDULED,
+        /** GetSubscriptions request sent to the assigned broker */
+        RD_KAFKA_TELEMETRY_GET_SUBSCRIPTIONS_SENT,
+        /** PushTelemetry scheduled to send */
+        RD_KAFKA_TELEMETRY_PUSH_SCHEDULED,
+        /** PushTelemetry sent to the assigned broker */
+        RD_KAFKA_TELEMETRY_PUSH_SENT,
+        /** Client is being terminated and last PushTelemetry is scheduled to
+         *  send */
+        RD_KAFKA_TELEMETRY_TERMINATING_PUSH_SCHEDULED,
+        /** Client is being terminated and last PushTelemetry is sent */
+        RD_KAFKA_TELEMETRY_TERMINATING_PUSH_SENT,
+        /** Telemetry is terminated */
+        RD_KAFKA_TELEMETRY_TERMINATED,
+} rd_kafka_telemetry_state_t;
 
+
+static RD_UNUSED const char *
+rd_kafka_telemetry_state2str(rd_kafka_telemetry_state_t state) {
+        static const char *names[] = {"AwaitBroker",
+                                      "GetSubscriptionsScheduled",
+                                      "GetSubscriptionsSent",
+                                      "PushScheduled",
+                                      "PushSent",
+                                      "TerminatingPushScheduled",
+                                      "TerminatingPushSent",
+                                      "Terminated"};
+        return names[state];
+}
+
+static RD_UNUSED const char *rd_kafka_type2str(rd_kafka_type_t type) {
+        static const char *types[] = {
+            [RD_KAFKA_PRODUCER] = "producer",
+            [RD_KAFKA_CONSUMER] = "consumer",
+        };
+        return types[type];
+}
 
 /**
  * Kafka handle, internal representation of the application's rd_kafka_t.
@@ -337,7 +380,20 @@ struct rd_kafka_s {
                                         *   (or equivalent).
                                         *   Used to enforce
                                         *   max.poll.interval.ms.
-                                        *   Only relevant for consumer. */
+                                        *   Set to INT64_MAX while polling
+                                        *   to avoid reaching
+                                        * max.poll.interval.ms. during that time
+                                        * frame. Only relevant for consumer. */
+        rd_ts_t rk_ts_last_poll_start; /**< Timestamp of last application
+                                        *   consumer_poll() call start
+                                        *   Only relevant for consumer.
+                                        *   Not an atomic as Kafka consumer
+                                        *   isn't thread safe. */
+        rd_ts_t rk_ts_last_poll_end;   /**< Timestamp of last application
+                                        *   consumer_poll() call end
+                                        *   Only relevant for consumer.
+                                        *   Not an atomic as Kafka consumer
+                                        *   isn't thread safe. */
         /* First fatal error. */
         struct {
                 rd_atomic32_t err; /**< rd_kafka_resp_err_t */
@@ -619,6 +675,64 @@ struct rd_kafka_s {
                 rd_kafka_q_t *callback_q; /**< SASL callback queue, if any. */
         } rk_sasl;
 
+        struct {
+                /* Fields for the control flow - unless guarded by lock, only
+                 * accessed from main thread. */
+                /**< Current state of the telemetry state machine. */
+                rd_kafka_telemetry_state_t state;
+                /**< Preferred broker for sending telemetry (Lock protected). */
+                rd_kafka_broker_t *preferred_broker;
+                /**< Timer for all the requests we schedule. */
+                rd_kafka_timer_t request_timer;
+                /**< Lock for preferred telemetry broker and state. */
+                mtx_t lock;
+                /**< Used to wait for termination (Lock protected). */
+                cnd_t termination_cnd;
+
+                /* Fields obtained from broker as a result of GetSubscriptions -
+                 * only accessed from main thread.
+                 */
+                rd_kafka_Uuid_t client_instance_id;
+                int32_t subscription_id;
+                rd_kafka_compression_t *accepted_compression_types;
+                size_t accepted_compression_types_cnt;
+                int32_t push_interval_ms;
+                int32_t telemetry_max_bytes;
+                rd_bool_t delta_temporality;
+                char **requested_metrics;
+                size_t requested_metrics_cnt;
+                /* TODO: Use rd_list_t to store the metrics */
+                int *matched_metrics;
+                size_t matched_metrics_cnt;
+
+                struct {
+                        rd_ts_t ts_last;  /**< Timestamp of last push */
+                        rd_ts_t ts_start; /**< Timestamp from when collection
+                                           *   started */
+                        /** Total rebalance latency (ms) up to previous push */
+                        uint64_t rebalance_latency_total;
+                } rk_historic_c;
+
+                struct {
+                        rd_avg_t rk_avg_poll_idle_ratio;
+                        rd_avg_t rk_avg_commit_latency; /**< Current commit
+                                                         *   latency avg */
+                        rd_avg_t
+                            rk_avg_rebalance_latency; /**< Current rebalance
+                                                       *   latency avg */
+                } rd_avg_current;
+
+                struct {
+                        rd_avg_t rk_avg_poll_idle_ratio;
+                        rd_avg_t rk_avg_commit_latency; /**< Rolled over commit
+                                                         *   latency avg */
+                        rd_avg_t
+                            rk_avg_rebalance_latency; /**< Rolled over rebalance
+                                                       *   latency avg */
+                } rd_avg_rollover;
+
+        } rk_telemetry;
+
         /* Test mocks */
         struct {
                 rd_kafka_mock_cluster_t *cluster; /**< Mock cluster, created
@@ -860,6 +974,7 @@ const char *rd_kafka_purge_flags2str(int flags);
 #define RD_KAFKA_DBG_MOCK        0x10000
 #define RD_KAFKA_DBG_ASSIGNOR    0x20000
 #define RD_KAFKA_DBG_CONF        0x40000
+#define RD_KAFKA_DBG_TELEMETRY   0x80000
 #define RD_KAFKA_DBG_ALL         0xfffff
 #define RD_KAFKA_DBG_NONE        0x0
 
@@ -1011,7 +1126,7 @@ static RD_INLINE RD_UNUSED int rd_kafka_max_poll_exceeded(rd_kafka_t *rk) {
         last_poll = rd_atomic64_get(&rk->rk_ts_last_poll);
 
         /* Application is blocked in librdkafka function, see
-         * rd_kafka_app_poll_blocking(). */
+         * rd_kafka_app_poll_start(). */
         if (last_poll == INT64_MAX)
                 return 0;
 
@@ -1037,9 +1152,30 @@ static RD_INLINE RD_UNUSED int rd_kafka_max_poll_exceeded(rd_kafka_t *rk) {
  * @locality any
  * @locks none
  */
-static RD_INLINE RD_UNUSED void rd_kafka_app_poll_blocking(rd_kafka_t *rk) {
-        if (rk->rk_type == RD_KAFKA_CONSUMER)
+static RD_INLINE RD_UNUSED void
+rd_kafka_app_poll_start(rd_kafka_t *rk, rd_ts_t now, rd_bool_t is_blocking) {
+        if (rk->rk_type != RD_KAFKA_CONSUMER)
+                return;
+
+        if (!now)
+                now = rd_clock();
+        if (is_blocking)
                 rd_atomic64_set(&rk->rk_ts_last_poll, INT64_MAX);
+        if (rk->rk_ts_last_poll_end) {
+                int64_t poll_idle_ratio = 0;
+                rd_ts_t poll_interval   = now - rk->rk_ts_last_poll_start;
+                if (poll_interval) {
+                        rd_ts_t idle_interval =
+                            rk->rk_ts_last_poll_end - rk->rk_ts_last_poll_start;
+                        poll_idle_ratio =
+                            idle_interval * 1000000 / poll_interval;
+                }
+                rd_avg_add(
+                    &rk->rk_telemetry.rd_avg_current.rk_avg_poll_idle_ratio,
+                    poll_idle_ratio);
+                rk->rk_ts_last_poll_start = now;
+                rk->rk_ts_last_poll_end   = 0;
+        }
 }
 
 /**
@@ -1052,7 +1188,8 @@ static RD_INLINE RD_UNUSED void rd_kafka_app_poll_blocking(rd_kafka_t *rk) {
  */
 static RD_INLINE RD_UNUSED void rd_kafka_app_polled(rd_kafka_t *rk) {
         if (rk->rk_type == RD_KAFKA_CONSUMER) {
-                rd_atomic64_set(&rk->rk_ts_last_poll, rd_clock());
+                rd_ts_t now = rd_clock();
+                rd_atomic64_set(&rk->rk_ts_last_poll, now);
                 if (unlikely(rk->rk_cgrp &&
                              rk->rk_cgrp->rkcg_group_protocol ==
                                  RD_KAFKA_GROUP_PROTOCOL_CONSUMER &&
@@ -1062,6 +1199,10 @@ static RD_INLINE RD_UNUSED void rd_kafka_app_polled(rd_kafka_t *rk) {
                             rk->rk_cgrp,
                             "app polled after poll interval exceeded");
                 }
+                if (!rk->rk_ts_last_poll_end)
+                        rk->rk_ts_last_poll_end = now;
+                rd_dassert(rk->rk_ts_last_poll_end >=
+                           rk->rk_ts_last_poll_start);
         }
 }
 

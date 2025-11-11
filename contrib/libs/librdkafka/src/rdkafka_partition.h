@@ -648,6 +648,8 @@ void rd_kafka_toppar_offset_request(rd_kafka_toppar_t *rktp,
                                     rd_kafka_fetch_pos_t query_pos,
                                     int backoff_ms);
 
+void rd_kafka_toppar_purge_internal_fetch_queue_maybe(rd_kafka_toppar_t *rktp);
+
 int rd_kafka_toppar_purge_queues(rd_kafka_toppar_t *rktp,
                                  int purge_flags,
                                  rd_bool_t include_xmit_msgq);

@@ -58,6 +58,7 @@
 #include "rdkafka_partition.h"
 #include "rdkafka_broker.h"
 #include "rdkafka_offset.h"
+#include "rdkafka_telemetry.h"
 #include "rdkafka_transport.h"
 #include "rdkafka_proto.h"
 #include "rdkafka_buf.h"
@@ -234,31 +235,37 @@ static void rd_kafka_broker_features_set(rd_kafka_broker_t *rkb, int features) {
                    rd_kafka_features2str(rkb->rkb_features));
 }
 
-
 /**
  * @brief Check and return supported ApiVersion for \p ApiKey.
  *
  * @returns the highest supported ApiVersion in the specified range (inclusive)
  *          or -1 if the ApiKey is not supported or no matching ApiVersion.
  *          The current feature set is also returned in \p featuresp
- * @locks none
+ *
+ * @remark Same as rd_kafka_broker_ApiVersion_supported except for locking.
+ *
+ * @locks rd_kafka_broker_lock() if do_lock is rd_false
+ * @locks_acquired rd_kafka_broker_lock() if do_lock is rd_true
  * @locality any
  */
-int16_t rd_kafka_broker_ApiVersion_supported(rd_kafka_broker_t *rkb,
-                                             int16_t ApiKey,
-                                             int16_t minver,
-                                             int16_t maxver,
-                                             int *featuresp) {
+int16_t rd_kafka_broker_ApiVersion_supported0(rd_kafka_broker_t *rkb,
+                                              int16_t ApiKey,
+                                              int16_t minver,
+                                              int16_t maxver,
+                                              int *featuresp,
+                                              rd_bool_t do_lock) {
         struct rd_kafka_ApiVersion skel = {.ApiKey = ApiKey};
         struct rd_kafka_ApiVersion ret  = RD_ZERO_INIT, *retp;
 
-        rd_kafka_broker_lock(rkb);
+        if (do_lock)
+                rd_kafka_broker_lock(rkb);
         if (featuresp)
                 *featuresp = rkb->rkb_features;
 
         if (rkb->rkb_features & RD_KAFKA_FEATURE_UNITTEST) {
                 /* For unit tests let the broker support everything. */
-                rd_kafka_broker_unlock(rkb);
+                if (do_lock)
+                        rd_kafka_broker_unlock(rkb);
                 return maxver;
         }
 
@@ -267,7 +274,9 @@ int16_t rd_kafka_broker_ApiVersion_supported(rd_kafka_broker_t *rkb,
                     sizeof(*rkb->rkb_ApiVersions), rd_kafka_ApiVersion_key_cmp);
         if (retp)
                 ret = *retp;
-        rd_kafka_broker_unlock(rkb);
+
+        if (do_lock)
+                rd_kafka_broker_unlock(rkb);
 
         if (!retp)
                 return -1;
@@ -283,6 +292,24 @@ int16_t rd_kafka_broker_ApiVersion_supported(rd_kafka_broker_t *rkb,
                 return maxver;
 }
 
+/**
+ * @brief Check and return supported ApiVersion for \p ApiKey.
+ *
+ * @returns the highest supported ApiVersion in the specified range (inclusive)
+ *          or -1 if the ApiKey is not supported or no matching ApiVersion.
+ *          The current feature set is also returned in \p featuresp
+ * @locks none
+ * @locks_acquired rd_kafka_broker_lock()
+ * @locality any
+ */
+int16_t rd_kafka_broker_ApiVersion_supported(rd_kafka_broker_t *rkb,
+                                             int16_t ApiKey,
+                                             int16_t minver,
+                                             int16_t maxver,
+                                             int *featuresp) {
+        return rd_kafka_broker_ApiVersion_supported0(
+            rkb, ApiKey, minver, maxver, featuresp, rd_true /* do_lock */);
+}
 
 /**
  * @brief Set broker state.
@@ -668,6 +695,19 @@ void rd_kafka_broker_fail(rd_kafka_broker_t *rkb,
                 }
         }
 
+        /* If the broker is the preferred telemetry broker, remove it. */
+        /* TODO(milind): check if this right. */
+        mtx_lock(&rkb->rkb_rk->rk_telemetry.lock);
+        if (rkb->rkb_rk->rk_telemetry.preferred_broker == rkb) {
+                rd_kafka_dbg(rkb->rkb_rk, TELEMETRY, "TELBRKLOST",
+                             "Lost telemetry broker %s due to state change",
+                             rkb->rkb_name);
+                rd_kafka_broker_destroy(
+                    rkb->rkb_rk->rk_telemetry.preferred_broker);
+                rkb->rkb_rk->rk_telemetry.preferred_broker = NULL;
+        }
+        mtx_unlock(&rkb->rkb_rk->rk_telemetry.lock);
+
         /* Query for topic leaders to quickly pick up on failover. */
         if (err != RD_KAFKA_RESP_ERR__DESTROY &&
             old_state >= RD_KAFKA_BROKER_STATE_UP)
@@ -941,11 +981,22 @@ static void rd_kafka_broker_timeout_scan(rd_kafka_broker_t *rkb, rd_ts_t now) {
                         char rttinfo[32];
                         /* Print average RTT (if avail) to help diagnose. */
                         rd_avg_calc(&rkb->rkb_avg_rtt, now);
+                        rd_avg_calc(
+                            &rkb->rkb_telemetry.rd_avg_current.rkb_avg_rtt,
+                            now);
                         if (rkb->rkb_avg_rtt.ra_v.avg)
                                 rd_snprintf(rttinfo, sizeof(rttinfo),
                                             " (average rtt %.3fms)",
                                             (float)(rkb->rkb_avg_rtt.ra_v.avg /
                                                     1000.0f));
+                        else if (rkb->rkb_telemetry.rd_avg_current.rkb_avg_rtt
+                                     .ra_v.avg)
+                                rd_snprintf(
+                                    rttinfo, sizeof(rttinfo),
+                                    " (average rtt %.3fms)",
+                                    (float)(rkb->rkb_telemetry.rd_avg_current
+                                                .rkb_avg_rtt.ra_v.avg /
+                                            1000.0f));
                         else
                                 rttinfo[0] = 0;
                         rd_kafka_broker_fail(rkb, LOG_ERR,
@@ -1338,15 +1389,15 @@ void rd_kafka_brokers_broadcast_state_change(rd_kafka_t *rk) {
  * @locks rd_kafka_*lock() MUST be held
  * @locality any
  */
-static rd_kafka_broker_t *
-rd_kafka_broker_random0(const char *func,
-                        int line,
-                        rd_kafka_t *rk,
-                        rd_bool_t is_up,
-                        int state,
-                        int *filtered_cnt,
-                        int (*filter)(rd_kafka_broker_t *rk, void *opaque),
-                        void *opaque) {
+rd_kafka_broker_t *rd_kafka_broker_random0(const char *func,
+                                           int line,
+                                           rd_kafka_t *rk,
+                                           rd_bool_t is_up,
+                                           int state,
+                                           int *filtered_cnt,
+                                           int (*filter)(rd_kafka_broker_t *rk,
+                                                         void *opaque),
+                                           void *opaque) {
         rd_kafka_broker_t *rkb, *good = NULL;
         int cnt  = 0;
         int fcnt = 0;
@@ -1380,11 +1431,6 @@ rd_kafka_broker_random0(const char *func,
 
         return good;
 }
-
-#define rd_kafka_broker_random(rk, state, filter, opaque)                      \
-        rd_kafka_broker_random0(__FUNCTION__, __LINE__, rk, rd_false, state,   \
-                                NULL, filter, opaque)
-
 
 /**
  * @returns the broker (with refcnt increased) with the highest weight based
@@ -1825,6 +1871,32 @@ static rd_kafka_buf_t *rd_kafka_waitresp_find(rd_kafka_broker_t *rkb,
                 /* Convert ts_sent to RTT */
                 rkbuf->rkbuf_ts_sent = now - rkbuf->rkbuf_ts_sent;
                 rd_avg_add(&rkb->rkb_avg_rtt, rkbuf->rkbuf_ts_sent);
+                rd_avg_add(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_rtt,
+                           rkbuf->rkbuf_ts_sent);
+
+                switch (rkbuf->rkbuf_reqhdr.ApiKey) {
+                case RD_KAFKAP_Fetch:
+                        if (rkb->rkb_rk->rk_type == RD_KAFKA_CONSUMER)
+                                rd_avg_add(&rkb->rkb_telemetry.rd_avg_current
+                                                .rkb_avg_fetch_latency,
+                                           rkbuf->rkbuf_ts_sent);
+                        break;
+                case RD_KAFKAP_OffsetCommit:
+                        if (rkb->rkb_rk->rk_type == RD_KAFKA_CONSUMER)
+                                rd_avg_add(
+                                    &rkb->rkb_rk->rk_telemetry.rd_avg_current
+                                         .rk_avg_commit_latency,
+                                    rkbuf->rkbuf_ts_sent);
+                        break;
+                case RD_KAFKAP_Produce:
+                        if (rkb->rkb_rk->rk_type == RD_KAFKA_PRODUCER)
+                                rd_avg_add(&rkb->rkb_telemetry.rd_avg_current
+                                                .rkb_avg_produce_latency,
+                                           rkbuf->rkbuf_ts_sent);
+                        break;
+                default:
+                        break;
+                }
 
                 if (rkbuf->rkbuf_flags & RD_KAFKA_OP_F_BLOCKING &&
                     rd_atomic32_sub(&rkb->rkb_blocking_request_cnt, 1) == 1)
@@ -2245,6 +2317,7 @@ static int rd_kafka_broker_connect(rd_kafka_broker_t *rkb) {
  * @locality Broker thread
  */
 void rd_kafka_broker_connect_up(rd_kafka_broker_t *rkb) {
+        int features;
 
         rkb->rkb_max_inflight       = rkb->rkb_rk->rk_conf.max_inflight;
         rkb->rkb_reauth_in_progress = rd_false;
@@ -2260,6 +2333,18 @@ void rd_kafka_broker_connect_up(rd_kafka_broker_t *rkb) {
                 NULL, rkb, rd_false /*dont force*/, "connected") ==
             RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC)
                 rd_kafka_metadata_refresh_brokers(NULL, rkb, "connected");
+
+        if (rd_kafka_broker_ApiVersion_supported(
+                rkb, RD_KAFKAP_GetTelemetrySubscriptions, 0, 0, &features) !=
+                -1 &&
+            rkb->rkb_rk->rk_conf.enable_metrics_push) {
+                rd_kafka_t *rk = rkb->rkb_rk;
+                rd_kafka_op_t *rko =
+                    rd_kafka_op_new(RD_KAFKA_OP_SET_TELEMETRY_BROKER);
+                rd_kafka_broker_keep(rkb);
+                rko->rko_u.telemetry_broker.rkb = rkb;
+                rd_kafka_q_enq(rk->rk_ops, rko);
+        }
 }
 
 
@@ -2798,6 +2883,10 @@ int rd_kafka_send(rd_kafka_broker_t *rkb) {
                 /* Add to outbuf_latency averager */
                 rd_avg_add(&rkb->rkb_avg_outbuf_latency,
                            rkbuf->rkbuf_ts_sent - rkbuf->rkbuf_ts_enq);
+                rd_avg_add(
+                    &rkb->rkb_telemetry.rd_avg_current.rkb_avg_outbuf_latency,
+                    rkbuf->rkbuf_ts_sent - rkbuf->rkbuf_ts_enq);
+
 
                 if (rkbuf->rkbuf_flags & RD_KAFKA_OP_F_BLOCKING &&
                     rd_atomic32_add(&rkb->rkb_blocking_request_cnt, 1) == 1)
@@ -3407,6 +3496,11 @@ rd_kafka_broker_op_serve(rd_kafka_broker_t *rkb, rd_kafka_op_t *rko) {
                                 : (topic_err
                                        ? topic_err
                                        : RD_KAFKA_RESP_ERR__UNKNOWN_PARTITION));
+
+                        if (rkb->rkb_rk->rk_type == RD_KAFKA_CONSUMER) {
+                                rd_kafka_toppar_purge_internal_fetch_queue_maybe(
+                                    rktp);
+                        }
                 }
 
                 rd_kafka_toppar_unlock(rktp);
@@ -4736,6 +4830,27 @@ void rd_kafka_broker_destroy_final(rd_kafka_broker_t *rkb) {
         rd_avg_destroy(&rkb->rkb_avg_outbuf_latency);
         rd_avg_destroy(&rkb->rkb_avg_rtt);
         rd_avg_destroy(&rkb->rkb_avg_throttle);
+        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_rtt);
+        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_rtt);
+        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_throttle);
+        rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_throttle);
+        rd_avg_destroy(
+            &rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_outbuf_latency);
+        rd_avg_destroy(
+            &rkb->rkb_telemetry.rd_avg_current.rkb_avg_outbuf_latency);
+
+        if (rkb->rkb_rk->rk_type == RD_KAFKA_CONSUMER) {
+                rd_avg_destroy(
+                    &rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_fetch_latency);
+                rd_avg_destroy(
+                    &rkb->rkb_telemetry.rd_avg_current.rkb_avg_fetch_latency);
+        } else if (rkb->rkb_rk->rk_type == RD_KAFKA_PRODUCER) {
+                rd_avg_destroy(
+                    &rkb->rkb_telemetry.rd_avg_current.rkb_avg_produce_latency);
+                rd_avg_destroy(&rkb->rkb_telemetry.rd_avg_rollover
+                                    .rkb_avg_produce_latency);
+        }
+
 
         mtx_lock(&rkb->rkb_logname_lock);
         rd_free(rkb->rkb_logname);
@@ -4823,13 +4938,50 @@ rd_kafka_broker_t *rd_kafka_broker_add(rd_kafka_t *rk,
         rd_kafka_bufq_init(&rkb->rkb_retrybufs);
         rkb->rkb_ops = rd_kafka_q_new(rk);
         rd_avg_init(&rkb->rkb_avg_int_latency, RD_AVG_GAUGE, 0, 100 * 1000, 2,
-                    rk->rk_conf.stats_interval_ms ? 1 : 0);
+                    rk->rk_conf.stats_interval_ms);
         rd_avg_init(&rkb->rkb_avg_outbuf_latency, RD_AVG_GAUGE, 0, 100 * 1000,
-                    2, rk->rk_conf.stats_interval_ms ? 1 : 0);
+                    2, rk->rk_conf.stats_interval_ms);
         rd_avg_init(&rkb->rkb_avg_rtt, RD_AVG_GAUGE, 0, 500 * 1000, 2,
-                    rk->rk_conf.stats_interval_ms ? 1 : 0);
+                    rk->rk_conf.stats_interval_ms);
         rd_avg_init(&rkb->rkb_avg_throttle, RD_AVG_GAUGE, 0, 5000 * 1000, 2,
-                    rk->rk_conf.stats_interval_ms ? 1 : 0);
+                    rk->rk_conf.stats_interval_ms);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_rtt,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_rtt,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_throttle,
+                    RD_AVG_GAUGE, 0, 5000 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_throttle,
+                    RD_AVG_GAUGE, 0, 5000 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_outbuf_latency,
+                    RD_AVG_GAUGE, 0, 100 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        rd_avg_init(&rkb->rkb_telemetry.rd_avg_current.rkb_avg_outbuf_latency,
+                    RD_AVG_GAUGE, 0, 100 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+
+        if (rk->rk_type == RD_KAFKA_CONSUMER) {
+                rd_avg_init(
+                    &rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_fetch_latency,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+                rd_avg_init(
+                    &rkb->rkb_telemetry.rd_avg_current.rkb_avg_fetch_latency,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2,
+                    rk->rk_conf.enable_metrics_push);
+        } else if (rk->rk_type == RD_KAFKA_PRODUCER) {
+                rd_avg_init(
+                    &rkb->rkb_telemetry.rd_avg_current.rkb_avg_produce_latency,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2, rd_true);
+                rd_avg_init(
+                    &rkb->rkb_telemetry.rd_avg_rollover.rkb_avg_produce_latency,
+                    RD_AVG_GAUGE, 0, 500 * 1000, 2, rd_true);
+        }
+
         rd_refcnt_init(&rkb->rkb_refcnt, 0);
         rd_kafka_broker_keep(rkb); /* rk_broker's refcount */
 

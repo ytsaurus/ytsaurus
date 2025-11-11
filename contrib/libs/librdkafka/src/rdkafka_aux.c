@@ -332,3 +332,78 @@ uint16_t rd_kafka_Node_port(const rd_kafka_Node_t *node) {
 const char *rd_kafka_Node_rack(const rd_kafka_Node_t *node) {
         return node->rack;
 }
+
+/**
+ * @brief Creates a new rd_kafka_topic_partition_result_t object.
+ */
+
+rd_kafka_topic_partition_result_t *
+rd_kafka_topic_partition_result_new(const char *topic,
+                                    int32_t partition,
+                                    rd_kafka_resp_err_t err,
+                                    const char *errstr) {
+
+        rd_kafka_topic_partition_result_t *new_result;
+
+        new_result = rd_calloc(1, sizeof(*new_result));
+        new_result->topic_partition =
+            rd_kafka_topic_partition_new(topic, partition);
+        new_result->topic_partition->err = err;
+        new_result->error = rd_kafka_error_new(err, "%s", errstr);
+
+        return new_result;
+}
+
+const rd_kafka_topic_partition_t *rd_kafka_topic_partition_result_partition(
+    const rd_kafka_topic_partition_result_t *partition_result) {
+        return partition_result->topic_partition;
+}
+
+const rd_kafka_error_t *rd_kafka_topic_partition_result_error(
+    const rd_kafka_topic_partition_result_t *partition_result) {
+        return partition_result->error;
+}
+
+/**
+ * @brief Destroys the rd_kafka_topic_partition_result_t object.
+ */
+void rd_kafka_topic_partition_result_destroy(
+    rd_kafka_topic_partition_result_t *partition_result) {
+        rd_kafka_topic_partition_destroy(partition_result->topic_partition);
+        rd_kafka_error_destroy(partition_result->error);
+        rd_free(partition_result);
+}
+
+/**
+ * @brief Destroys the array of rd_kafka_topic_partition_result_t  objects.
+ */
+void rd_kafka_topic_partition_result_destroy_array(
+    rd_kafka_topic_partition_result_t **partition_results,
+    int32_t partition_results_cnt) {
+        int32_t i;
+        for (i = 0; i < partition_results_cnt; i++) {
+                rd_kafka_topic_partition_result_destroy(partition_results[i]);
+        }
+}
+
+rd_kafka_topic_partition_result_t *rd_kafka_topic_partition_result_copy(
+    const rd_kafka_topic_partition_result_t *src) {
+        return rd_kafka_topic_partition_result_new(
+            src->topic_partition->topic, src->topic_partition->partition,
+            src->topic_partition->err, src->error->errstr);
+}
+
+void *rd_kafka_topic_partition_result_copy_opaque(const void *src,
+                                                  void *opaque) {
+        return rd_kafka_topic_partition_result_copy(
+            (const rd_kafka_topic_partition_result_t *)src);
+}
+
+/**
+ * @brief Frees the memory allocated for a
+ *        topic partition result object by calling
+ *        its destroy function.
+ */
+void rd_kafka_topic_partition_result_free(void *ptr) {
+        rd_kafka_topic_partition_result_destroy(ptr);
+}

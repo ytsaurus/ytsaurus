@@ -1647,6 +1647,60 @@ rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_states(
         return !err ? NULL : rd_kafka_error_new(err, "%s", errstr);
 }
 
+rd_kafka_error_t *rd_kafka_AdminOptions_set_match_consumer_group_types(
+    rd_kafka_AdminOptions_t *options,
+    const rd_kafka_consumer_group_type_t *consumer_group_types,
+    size_t consumer_group_types_cnt) {
+        size_t i;
+        char errstr[512];
+        rd_kafka_resp_err_t err;
+        rd_list_t *types_list  = rd_list_new(0, NULL);
+        uint64_t types_bitmask = 0;
+
+        rd_list_init_int32(types_list, consumer_group_types_cnt);
+
+        if (RD_KAFKA_CONSUMER_GROUP_TYPE__CNT >= 64) {
+                rd_assert("BUG: cannot handle types with a bitmask anymore");
+        }
+
+        for (i = 0; i < consumer_group_types_cnt; i++) {
+                uint64_t type_bit;
+                rd_kafka_consumer_group_type_t type = consumer_group_types[i];
+
+                if (type < RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN ||
+                    type >= RD_KAFKA_CONSUMER_GROUP_TYPE__CNT) {
+                        rd_list_destroy(types_list);
+                        return rd_kafka_error_new(
+                            RD_KAFKA_RESP_ERR__INVALID_ARG,
+                            "Only a valid type is allowed");
+                } else if (type == RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN) {
+                        rd_list_destroy(types_list);
+                        return rd_kafka_error_new(
+                            RD_KAFKA_RESP_ERR__INVALID_ARG,
+                            "UNKNOWN type is not allowed");
+                }
+
+                type_bit = 1 << type;
+                if (types_bitmask & type_bit) {
+                        rd_list_destroy(types_list);
+                        return rd_kafka_error_new(
+                            RD_KAFKA_RESP_ERR__INVALID_ARG,
+                            "Duplicate types not allowed");
+                } else {
+                        types_bitmask = types_bitmask | type_bit;
+                        rd_list_set_int32(types_list, (int32_t)i, type);
+                }
+        }
+
+        err = rd_kafka_confval_set_type(&options->match_consumer_group_types,
+                                        RD_KAFKA_CONFVAL_PTR, types_list,
+                                        errstr, sizeof(errstr));
+        if (err) {
+                rd_list_destroy(types_list);
+        }
+        return !err ? NULL : rd_kafka_error_new(err, "%s", errstr);
+}
+
 void rd_kafka_AdminOptions_set_opaque(rd_kafka_AdminOptions_t *options,
                                       void *opaque) {
         rd_kafka_confval_set_type(&options->opaque, RD_KAFKA_CONFVAL_PTR,
@@ -1668,7 +1722,8 @@ static void rd_kafka_AdminOptions_init(rd_kafka_t *rk,
             options->for_api == RD_KAFKA_ADMIN_OP_DELETETOPICS ||
             options->for_api == RD_KAFKA_ADMIN_OP_CREATEPARTITIONS ||
             options->for_api == RD_KAFKA_ADMIN_OP_DELETERECORDS ||
-            options->for_api == RD_KAFKA_ADMIN_OP_LISTOFFSETS)
+            options->for_api == RD_KAFKA_ADMIN_OP_LISTOFFSETS ||
+            options->for_api == RD_KAFKA_ADMIN_OP_ELECTLEADERS)
                 rd_kafka_confval_init_int(&options->operation_timeout,
                                           "operation_timeout", -1, 3600 * 1000,
                                           rk->rk_conf.admin.request_timeout_ms);
@@ -1716,6 +1771,14 @@ static void rd_kafka_AdminOptions_init(rd_kafka_t *rk,
                                          "match_consumer_group_states");
 
         if (options->for_api == RD_KAFKA_ADMIN_OP_ANY ||
+            options->for_api == RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS)
+                rd_kafka_confval_init_ptr(&options->match_consumer_group_types,
+                                          "match_consumer_group_types");
+        else
+                rd_kafka_confval_disable(&options->match_consumer_group_types,
+                                         "match_consumer_group_types");
+
+        if (options->for_api == RD_KAFKA_ADMIN_OP_ANY ||
             options->for_api == RD_KAFKA_ADMIN_OP_LISTOFFSETS)
                 rd_kafka_confval_init_int(&options->isolation_level,
                                           "isolation_level", 0, 1, 0);
@@ -1747,6 +1810,16 @@ static void rd_kafka_AdminOptions_copy_to(rd_kafka_AdminOptions_t *dst,
                     states_list_copy, errstr, sizeof(errstr));
                 rd_assert(!err);
         }
+        if (src->match_consumer_group_types.u.PTR) {
+                char errstr[512];
+                rd_list_t *types_list_copy = rd_list_copy_preallocated(
+                    src->match_consumer_group_types.u.PTR, NULL);
+
+                rd_kafka_resp_err_t err = rd_kafka_confval_set_type(
+                    &dst->match_consumer_group_types, RD_KAFKA_CONFVAL_PTR,
+                    types_list_copy, errstr, sizeof(errstr));
+                rd_assert(!err);
+        }
 }
 
 
@@ -1769,6 +1842,9 @@ rd_kafka_AdminOptions_new(rd_kafka_t *rk, rd_kafka_admin_op_t for_api) {
 void rd_kafka_AdminOptions_destroy(rd_kafka_AdminOptions_t *options) {
         if (options->match_consumer_group_states.u.PTR) {
                 rd_list_destroy(options->match_consumer_group_states.u.PTR);
+        }
+        if (options->match_consumer_group_types.u.PTR) {
+                rd_list_destroy(options->match_consumer_group_types.u.PTR);
         }
         rd_free(options);
 }
@@ -2825,9 +2901,8 @@ const char *rd_kafka_ResourcePatternType_name(
 }
 
 const char *rd_kafka_ResourceType_name(rd_kafka_ResourceType_t restype) {
-        static const char *names[] = {
-            "UNKNOWN", "ANY", "TOPIC", "GROUP", "BROKER",
-        };
+        static const char *names[] = {"UNKNOWN", "ANY",    "TOPIC",
+                                      "GROUP",   "BROKER", "TRANSACTIONAL_ID"};
 
         if ((unsigned int)restype >= (unsigned int)RD_KAFKA_RESOURCE__CNT)
                 return "UNSUPPORTED";
@@ -5697,7 +5772,7 @@ rd_kafka_DescribeUserScramCredentialsRequest(rd_kafka_broker_t *rkb,
                 rd_kafkap_str_t *user = rd_list_elem(userlist, i);
                 /* Name */
                 rd_kafka_buf_write_str(rkbuf, user->str, user->len);
-                rd_kafka_buf_write_tags(rkbuf);
+                rd_kafka_buf_write_tags_empty(rkbuf);
         }
         rd_kafka_buf_ApiVersion_set(rkbuf, ApiVersion, 0);
         /* Last Tag buffer included automatically*/
@@ -6130,7 +6205,7 @@ rd_kafka_resp_err_t rd_kafka_AlterUserScramCredentialsRequest(
                 /* Mechanism */
                 rd_kafka_buf_write_i8(
                     rkbuf, alteration->alteration.deletion.mechanism);
-                rd_kafka_buf_write_tags(rkbuf);
+                rd_kafka_buf_write_tags_empty(rkbuf);
         }
         rd_kafka_buf_finalize_arraycnt(rkbuf, of_deletions, num_deletions);
 
@@ -6176,11 +6251,11 @@ rd_kafka_resp_err_t rd_kafka_AlterUserScramCredentialsRequest(
                 /* SaltedPassword */
                 rd_kafka_buf_write_kbytes(rkbuf, password_bytes);
                 rd_kafkap_bytes_destroy(password_bytes);
-                rd_kafka_buf_write_tags(rkbuf);
+                rd_kafka_buf_write_tags_empty(rkbuf);
 #endif
         }
 
-        rd_kafka_buf_write_tags(rkbuf);
+        rd_kafka_buf_write_tags_empty(rkbuf);
         rd_kafka_buf_ApiVersion_set(rkbuf, ApiVersion, 0);
         rd_kafka_broker_buf_enq_replyq(rkb, rkbuf, replyq, resp_cb, opaque);
         return RD_KAFKA_RESP_ERR_NO_ERROR;
@@ -7131,12 +7206,14 @@ const rd_kafka_group_result_t **rd_kafka_ListConsumerGroupOffsets_result_groups(
 static rd_kafka_ConsumerGroupListing_t *
 rd_kafka_ConsumerGroupListing_new(const char *group_id,
                                   rd_bool_t is_simple_consumer_group,
-                                  rd_kafka_consumer_group_state_t state) {
+                                  rd_kafka_consumer_group_state_t state,
+                                  rd_kafka_consumer_group_type_t type) {
         rd_kafka_ConsumerGroupListing_t *grplist;
         grplist                           = rd_calloc(1, sizeof(*grplist));
         grplist->group_id                 = rd_strdup(group_id);
         grplist->is_simple_consumer_group = is_simple_consumer_group;
         grplist->state                    = state;
+        grplist->type                     = type;
         return grplist;
 }
 
@@ -7150,7 +7227,7 @@ static rd_kafka_ConsumerGroupListing_t *rd_kafka_ConsumerGroupListing_copy(
     const rd_kafka_ConsumerGroupListing_t *grplist) {
         return rd_kafka_ConsumerGroupListing_new(
             grplist->group_id, grplist->is_simple_consumer_group,
-            grplist->state);
+            grplist->state, grplist->type);
 }
 
 /**
@@ -7185,6 +7262,11 @@ int rd_kafka_ConsumerGroupListing_is_simple_consumer_group(
 rd_kafka_consumer_group_state_t rd_kafka_ConsumerGroupListing_state(
     const rd_kafka_ConsumerGroupListing_t *grplist) {
         return grplist->state;
+}
+
+rd_kafka_consumer_group_type_t rd_kafka_ConsumerGroupListing_type(
+    const rd_kafka_ConsumerGroupListing_t *grplist) {
+        return grplist->type;
 }
 
 /**
@@ -7256,11 +7338,16 @@ rd_kafka_admin_ListConsumerGroupsRequest(rd_kafka_broker_t *rkb,
         rd_kafka_resp_err_t err;
         rd_kafka_error_t *error;
         const char **states_str = NULL;
+        const char **types_str  = NULL;
         int states_str_cnt      = 0;
         rd_list_t *states =
             rd_kafka_confval_get_ptr(&options->match_consumer_group_states);
+        int types_str_cnt = 0;
+        rd_list_t *types =
+            rd_kafka_confval_get_ptr(&options->match_consumer_group_types);
 
-        /* Prepare list_options */
+
+        /* Prepare list_options for consumer group state */
         if (states && rd_list_cnt(states) > 0) {
                 states_str_cnt = rd_list_cnt(states);
                 states_str     = rd_calloc(states_str_cnt, sizeof(*states_str));
@@ -7270,11 +7357,25 @@ rd_kafka_admin_ListConsumerGroupsRequest(rd_kafka_broker_t *rkb,
                 }
         }
 
+        /* Prepare list_options for consumer group type */
+        if (types && rd_list_cnt(types) > 0) {
+                types_str_cnt = rd_list_cnt(types);
+                types_str     = rd_calloc(types_str_cnt, sizeof(*types_str));
+                for (i = 0; i < types_str_cnt; i++) {
+                        types_str[i] = rd_kafka_consumer_group_type_name(
+                            rd_list_get_int32(types, i));
+                }
+        }
         error = rd_kafka_ListGroupsRequest(rkb, -1, states_str, states_str_cnt,
-                                           replyq, resp_cb, opaque);
+                                           types_str, types_str_cnt, replyq,
+                                           resp_cb, opaque);
 
         if (states_str) {
                 rd_free(states_str);
+        }
+
+        if (types_str) {
+                rd_free(types_str);
         }
 
         if (error) {
@@ -7305,7 +7406,8 @@ rd_kafka_ListConsumerGroupsResponse_parse(rd_kafka_op_t *rko_req,
         rd_kafka_broker_t *rkb    = reply->rkbuf_rkb;
         rd_list_t valid, errors;
         rd_kafka_ListConsumerGroupsResult_t *list_result;
-        char *group_id = NULL, *group_state = NULL, *proto_type = NULL;
+        char *group_id = NULL, *group_state = NULL, *proto_type = NULL,
+             *group_type_str = NULL;
 
         api_version = rd_kafka_buf_ApiVersion(reply);
         if (api_version >= 1) {
@@ -7333,16 +7435,21 @@ rd_kafka_ListConsumerGroupsResponse_parse(rd_kafka_op_t *rko_req,
 
         for (i = 0; i < cnt; i++) {
                 rd_kafkap_str_t GroupId, ProtocolType,
-                    GroupState = RD_ZERO_INIT;
+                    GroupState = RD_ZERO_INIT, GroupType = RD_ZERO_INIT;
                 rd_kafka_ConsumerGroupListing_t *group_listing;
                 rd_bool_t is_simple_consumer_group, is_consumer_protocol_type;
                 rd_kafka_consumer_group_state_t state =
                     RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN;
+                rd_kafka_consumer_group_type_t type =
+                    RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN;
 
                 rd_kafka_buf_read_str(reply, &GroupId);
                 rd_kafka_buf_read_str(reply, &ProtocolType);
                 if (api_version >= 4) {
                         rd_kafka_buf_read_str(reply, &GroupState);
+                }
+                if (api_version >= 5) {
+                        rd_kafka_buf_read_str(reply, &GroupType);
                 }
                 rd_kafka_buf_skip_tags(reply);
 
@@ -7353,21 +7460,29 @@ rd_kafka_ListConsumerGroupsResponse_parse(rd_kafka_op_t *rko_req,
                         state = rd_kafka_consumer_group_state_code(group_state);
                 }
 
+                if (api_version >= 5) {
+                        group_type_str = RD_KAFKAP_STR_DUP(&GroupType);
+                        type =
+                            rd_kafka_consumer_group_type_code(group_type_str);
+                }
+
                 is_simple_consumer_group = *proto_type == '\0';
                 is_consumer_protocol_type =
                     !strcmp(proto_type, CONSUMER_PROTOCOL_TYPE);
                 if (is_simple_consumer_group || is_consumer_protocol_type) {
                         group_listing = rd_kafka_ConsumerGroupListing_new(
-                            group_id, is_simple_consumer_group, state);
+                            group_id, is_simple_consumer_group, state, type);
                         rd_list_add(&valid, group_listing);
                 }
 
                 rd_free(group_id);
                 rd_free(group_state);
                 rd_free(proto_type);
-                group_id    = NULL;
-                group_state = NULL;
-                proto_type  = NULL;
+                rd_free(group_type_str);
+                group_id       = NULL;
+                group_state    = NULL;
+                proto_type     = NULL;
+                group_type_str = NULL;
         }
         rd_kafka_buf_skip_tags(reply);
 
@@ -7378,6 +7493,8 @@ err_parse:
                 rd_free(group_state);
         if (proto_type)
                 rd_free(proto_type);
+        if (group_type_str)
+                rd_free(group_type_str);
 
         if (reply->rkbuf_err) {
                 error_code = reply->rkbuf_err;
@@ -9006,6 +9123,295 @@ void rd_kafka_DescribeCluster(rd_kafka_t *rk,
             RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT, &cbs, options, rkqu->rkqu_q);
 
         rd_kafka_q_enq(rk->rk_ops, rko);
+}
+
+/**@}*/
+
+/**
+ * @name ElectLeaders
+ * @{
+ *
+ *
+ *
+ *
+ */
+
+/**
+ * @brief Creates a new rd_kafka_ElectLeaders_t object with the given
+ *        \p election_type and \p partitions.
+ */
+rd_kafka_ElectLeaders_t *
+rd_kafka_ElectLeaders_new(rd_kafka_ElectionType_t election_type,
+                          rd_kafka_topic_partition_list_t *partitions) {
+
+        rd_kafka_ElectLeaders_t *elect_leaders;
+
+        elect_leaders = rd_calloc(1, sizeof(*elect_leaders));
+        if (partitions)
+                elect_leaders->partitions =
+                    rd_kafka_topic_partition_list_copy(partitions);
+        elect_leaders->election_type = election_type;
+
+        return elect_leaders;
+}
+
+rd_kafka_ElectLeaders_t *
+rd_kafka_ElectLeaders_copy(const rd_kafka_ElectLeaders_t *elect_leaders) {
+        return rd_kafka_ElectLeaders_new(elect_leaders->election_type,
+                                         elect_leaders->partitions);
+}
+
+void rd_kafka_ElectLeaders_destroy(rd_kafka_ElectLeaders_t *elect_leaders) {
+        if (elect_leaders->partitions)
+                rd_kafka_topic_partition_list_destroy(
+                    elect_leaders->partitions);
+        rd_free(elect_leaders);
+}
+
+static void rd_kafka_ElectLeaders_free(void *ptr) {
+        rd_kafka_ElectLeaders_destroy(ptr);
+}
+
+/**
+ * @brief Creates a new rd_kafka_ElectLeadersResult_t object with the given
+ *        \p error and \p partitions.
+ */
+static rd_kafka_ElectLeadersResult_t *
+rd_kafka_ElectLeadersResult_new(rd_list_t *partitions) {
+
+        rd_kafka_ElectLeadersResult_t *result;
+        result = rd_calloc(1, sizeof(*result));
+        rd_list_init_copy(&result->partitions, partitions);
+        rd_list_copy_to(&result->partitions, partitions,
+                        rd_kafka_topic_partition_result_copy_opaque, NULL);
+        return result;
+}
+
+static const rd_kafka_topic_partition_result_t **
+rd_kafka_ElectLeadersResult_partitions(
+    const rd_kafka_ElectLeadersResult_t *result,
+    size_t *cntp) {
+        *cntp = rd_list_cnt(&result->partitions);
+        return (const rd_kafka_topic_partition_result_t **)
+            result->partitions.rl_elems;
+}
+
+static void
+rd_kafka_ElectLeadersResult_destroy(rd_kafka_ElectLeadersResult_t *result) {
+        rd_list_destroy(&result->partitions);
+        rd_free(result);
+}
+
+static void rd_kafka_ElectLeadersResult_free(void *ptr) {
+        rd_kafka_ElectLeadersResult_destroy(ptr);
+}
+
+static const rd_kafka_ElectLeadersResult_t *rd_kafka_ElectLeaders_result_result(
+    const rd_kafka_ElectLeaders_result_t *result) {
+        return (const rd_kafka_ElectLeadersResult_t *)rd_list_elem(
+            &result->rko_u.admin_result.results, 0);
+}
+
+const rd_kafka_topic_partition_result_t **
+rd_kafka_ElectLeaders_result_partitions(
+    const rd_kafka_ElectLeaders_result_t *result,
+    size_t *cntp) {
+        return rd_kafka_ElectLeadersResult_partitions(
+            rd_kafka_ElectLeaders_result_result(result), cntp);
+}
+
+/**
+ * @brief Parse ElectLeadersResponse and create ADMIN_RESULT op.
+ */
+static rd_kafka_resp_err_t
+rd_kafka_ElectLeadersResponse_parse(rd_kafka_op_t *rko_req,
+                                    rd_kafka_op_t **rko_resultp,
+                                    rd_kafka_buf_t *reply,
+                                    char *errstr,
+                                    size_t errstr_size) {
+        const int log_decode_errors           = LOG_ERR;
+        rd_kafka_op_t *rko_result             = NULL;
+        rd_kafka_ElectLeadersResult_t *result = NULL;
+        int16_t top_level_error_code          = 0;
+        int32_t TopicArrayCnt;
+        int partition_cnt;
+        rd_list_t partitions_arr;
+        rd_kafka_ElectLeaders_t *request =
+            rko_req->rko_u.admin_request.args.rl_elems[0];
+        int i;
+        int j;
+
+        rd_kafka_buf_read_throttle_time(reply);
+
+        if (rd_kafka_buf_ApiVersion(reply) >= 1) {
+                rd_kafka_buf_read_i16(reply, &top_level_error_code);
+        }
+
+        if (top_level_error_code) {
+                rd_kafka_admin_result_fail(
+                    rko_req, top_level_error_code,
+                    "ElectLeaders request failed: %s",
+                    rd_kafka_err2str(top_level_error_code));
+                return top_level_error_code;
+        }
+
+        /* #partitions */
+        rd_kafka_buf_read_arraycnt(reply, &TopicArrayCnt, RD_KAFKAP_TOPICS_MAX);
+
+        if (request->partitions)
+                partition_cnt = request->partitions->cnt;
+        else
+                partition_cnt = 1;
+        rd_list_init(&partitions_arr, partition_cnt,
+                     rd_kafka_topic_partition_result_free);
+        memset(partitions_arr.rl_elems, 0,
+               sizeof(*partitions_arr.rl_elems) * partition_cnt);
+
+        for (i = 0; i < TopicArrayCnt; i++) {
+                rd_kafka_topic_partition_result_t *partition_result;
+                rd_kafkap_str_t ktopic;
+                char *topic;
+                int32_t PartArrayCnt;
+
+                rd_kafka_buf_read_str(reply, &ktopic);
+                RD_KAFKAP_STR_DUPA(&topic, &ktopic);
+
+                rd_kafka_buf_read_arraycnt(reply, &PartArrayCnt,
+                                           RD_KAFKAP_PARTITIONS_MAX);
+
+                for (j = 0; j < PartArrayCnt; j++) {
+                        int32_t partition;
+                        int16_t partition_error_code;
+                        rd_kafkap_str_t partition_error_msg;
+                        char *partition_errstr;
+                        int orig_pos;
+
+                        rd_kafka_buf_read_i32(reply, &partition);
+                        rd_kafka_buf_read_i16(reply, &partition_error_code);
+                        rd_kafka_buf_read_str(reply, &partition_error_msg);
+
+                        rd_kafka_buf_skip_tags(reply);
+
+                        if (RD_KAFKAP_STR_IS_NULL(&partition_error_msg) ||
+                            RD_KAFKAP_STR_LEN(&partition_error_msg) == 0)
+                                partition_errstr = (char *)rd_kafka_err2str(
+                                    partition_error_code);
+                        else
+                                RD_KAFKAP_STR_DUPA(&partition_errstr,
+                                                   &partition_error_msg);
+
+                        partition_result = rd_kafka_topic_partition_result_new(
+                            topic, partition, partition_error_code,
+                            partition_errstr);
+
+                        if (request->partitions) {
+                                orig_pos =
+                                    rd_kafka_topic_partition_list_find_idx(
+                                        request->partitions, topic, partition);
+
+                                if (orig_pos == -1) {
+                                        rd_kafka_buf_parse_fail(
+                                            reply,
+                                            "Broker returned partition %s "
+                                            "[%" PRId32
+                                            "] that was not "
+                                            "included in the original request",
+                                            topic, partition);
+                                }
+
+                                if (rd_list_elem(&partitions_arr, orig_pos) !=
+                                    NULL) {
+                                        rd_kafka_buf_parse_fail(
+                                            reply,
+                                            "Broker returned partition %s "
+                                            "[%" PRId32 "] multiple times",
+                                            topic, partition);
+                                }
+
+                                rd_list_set(&partitions_arr, orig_pos,
+                                            partition_result);
+                        } else {
+                                rd_list_add(&partitions_arr, partition_result);
+                        }
+                }
+                rd_kafka_buf_skip_tags(reply);
+        }
+
+        rd_kafka_buf_skip_tags(reply);
+
+        result = rd_kafka_ElectLeadersResult_new(&partitions_arr);
+
+        rko_result = rd_kafka_admin_result_new(rko_req);
+
+        rd_list_init(&rko_result->rko_u.admin_result.results, 1,
+                     rd_kafka_ElectLeadersResult_free);
+
+        rd_list_add(&rko_result->rko_u.admin_result.results, result);
+
+        *rko_resultp = rko_result;
+
+        rd_list_destroy(&partitions_arr);
+
+        return RD_KAFKA_RESP_ERR_NO_ERROR;
+err_parse:
+
+        rd_list_destroy(&partitions_arr);
+
+        if (rko_result)
+                rd_kafka_op_destroy(rko_result);
+
+        rd_snprintf(errstr, errstr_size,
+                    "ElectLeaders response protocol parse failure: %s",
+                    rd_kafka_err2str(reply->rkbuf_err));
+
+        return reply->rkbuf_err;
+}
+
+void rd_kafka_ElectLeaders(rd_kafka_t *rk,
+                           rd_kafka_ElectLeaders_t *elect_leaders,
+                           const rd_kafka_AdminOptions_t *options,
+                           rd_kafka_queue_t *rkqu) {
+        rd_kafka_op_t *rko;
+        rd_kafka_topic_partition_list_t *copied_partitions = NULL;
+
+        static const struct rd_kafka_admin_worker_cbs cbs = {
+            rd_kafka_ElectLeadersRequest,
+            rd_kafka_ElectLeadersResponse_parse,
+        };
+
+        rd_assert(rkqu);
+
+        rko = rd_kafka_admin_request_op_new(rk, RD_KAFKA_OP_ELECTLEADERS,
+                                            RD_KAFKA_EVENT_ELECTLEADERS_RESULT,
+                                            &cbs, options, rkqu->rkqu_q);
+
+        if (elect_leaders->partitions) {
+                /* Duplicate topic partitions should not be present in the list
+                 */
+                copied_partitions = rd_kafka_topic_partition_list_copy(
+                    elect_leaders->partitions);
+                if (rd_kafka_topic_partition_list_has_duplicates(
+                        copied_partitions, rd_false /* check partition*/)) {
+                        rd_kafka_admin_result_fail(
+                            rko, RD_KAFKA_RESP_ERR__INVALID_ARG,
+                            "Duplicate partitions specified");
+                        rd_kafka_admin_common_worker_destroy(
+                            rk, rko, rd_true /*destroy*/);
+                        rd_kafka_topic_partition_list_destroy(
+                            copied_partitions);
+                        return;
+                }
+        }
+
+        rd_list_init(&rko->rko_u.admin_request.args, 1,
+                     rd_kafka_ElectLeaders_free);
+
+        rd_list_add(&rko->rko_u.admin_request.args,
+                    rd_kafka_ElectLeaders_copy(elect_leaders));
+
+        rd_kafka_q_enq(rk->rk_ops, rko);
+        if (copied_partitions)
+                rd_kafka_topic_partition_list_destroy(copied_partitions);
 }
 
 /**@}*/

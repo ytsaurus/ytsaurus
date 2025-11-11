@@ -46,7 +46,7 @@ typedef struct rd_kafka_mock_request_s rd_kafka_mock_request_t;
 static void rd_kafka_mock_cluster_destroy0(rd_kafka_mock_cluster_t *mcluster);
 static rd_kafka_mock_request_t *
 rd_kafka_mock_request_new(int32_t id, int16_t api_key, int64_t timestamp_us);
-
+static void rd_kafka_mock_request_free(void *element);
 
 static rd_kafka_mock_broker_t *
 rd_kafka_mock_broker_find(const rd_kafka_mock_cluster_t *mcluster,
@@ -949,11 +949,11 @@ static void rd_kafka_mock_connection_close(rd_kafka_mock_connection_t *mconn,
         rd_free(mconn);
 }
 
+void rd_kafka_mock_connection_send_response0(rd_kafka_mock_connection_t *mconn,
+                                             rd_kafka_buf_t *resp,
+                                             rd_bool_t tags_written) {
 
-void rd_kafka_mock_connection_send_response(rd_kafka_mock_connection_t *mconn,
-                                            rd_kafka_buf_t *resp) {
-
-        if (resp->rkbuf_flags & RD_KAFKA_OP_F_FLEXVER) {
+        if (!tags_written && (resp->rkbuf_flags & RD_KAFKA_OP_F_FLEXVER)) {
                 /* Empty struct tags */
                 rd_kafka_buf_write_i8(resp, 0);
         }
@@ -1106,7 +1106,7 @@ rd_kafka_mock_connection_read_request(rd_kafka_mock_connection_t *mconn,
                                   RD_KAFKAP_REQHDR_SIZE);
 
                 /* For convenience, shave off the ClientId */
-                rd_kafka_buf_skip_str(rkbuf);
+                rd_kafka_buf_skip_str_no_flexver(rkbuf);
 
                 /* And the flexible versions header tags, if any */
                 rd_kafka_buf_skip_tags(rkbuf);
@@ -2237,6 +2237,39 @@ rd_kafka_mock_set_apiversion(rd_kafka_mock_cluster_t *mcluster,
             rd_kafka_op_req(mcluster->ops, rko, RD_POLL_INFINITE));
 }
 
+rd_kafka_resp_err_t
+rd_kafka_mock_telemetry_set_requested_metrics(rd_kafka_mock_cluster_t *mcluster,
+                                              char **metrics,
+                                              size_t metrics_cnt) {
+        rd_kafka_op_t *rko = rd_kafka_op_new(RD_KAFKA_OP_MOCK);
+
+        rko->rko_u.mock.hi      = metrics_cnt;
+        rko->rko_u.mock.metrics = NULL;
+        if (metrics_cnt) {
+                size_t i;
+                rko->rko_u.mock.metrics =
+                    rd_calloc(metrics_cnt, sizeof(char *));
+                for (i = 0; i < metrics_cnt; i++)
+                        rko->rko_u.mock.metrics[i] = rd_strdup(metrics[i]);
+        }
+        rko->rko_u.mock.cmd = RD_KAFKA_MOCK_CMD_REQUESTED_METRICS_SET;
+
+        return rd_kafka_op_err_destroy(
+            rd_kafka_op_req(mcluster->ops, rko, RD_POLL_INFINITE));
+}
+
+rd_kafka_resp_err_t
+rd_kafka_mock_telemetry_set_push_interval(rd_kafka_mock_cluster_t *mcluster,
+                                          int64_t push_interval_ms) {
+        rd_kafka_op_t *rko = rd_kafka_op_new(RD_KAFKA_OP_MOCK);
+
+        rko->rko_u.mock.hi  = push_interval_ms;
+        rko->rko_u.mock.cmd = RD_KAFKA_MOCK_CMD_TELEMETRY_PUSH_INTERVAL_SET;
+
+        return rd_kafka_op_err_destroy(
+            rd_kafka_op_req(mcluster->ops, rko, RD_POLL_INFINITE));
+}
+
 
 /**
  * @brief Apply command to specific broker.
@@ -2346,6 +2379,7 @@ rd_kafka_mock_cluster_cmd(rd_kafka_mock_cluster_t *mcluster,
         rd_kafka_mock_topic_t *mtopic;
         rd_kafka_mock_partition_t *mpart;
         rd_kafka_mock_broker_t *mrkb;
+        size_t i;
 
         switch (rko->rko_u.mock.cmd) {
         case RD_KAFKA_MOCK_CMD_TOPIC_CREATE:
@@ -2476,12 +2510,36 @@ rd_kafka_mock_cluster_cmd(rd_kafka_mock_cluster_t *mcluster,
                     .MaxVersion = (int16_t)rko->rko_u.mock.hi;
                 break;
 
+        case RD_KAFKA_MOCK_CMD_REQUESTED_METRICS_SET:
+                mcluster->metrics_cnt = rko->rko_u.mock.hi;
+                if (!mcluster->metrics_cnt)
+                        break;
+
+                mcluster->metrics =
+                    rd_calloc(mcluster->metrics_cnt, sizeof(char *));
+                for (i = 0; i < mcluster->metrics_cnt; i++)
+                        mcluster->metrics[i] =
+                            rd_strdup(rko->rko_u.mock.metrics[i]);
+                break;
+
+        case RD_KAFKA_MOCK_CMD_TELEMETRY_PUSH_INTERVAL_SET:
+                mcluster->telemetry_push_interval_ms = rko->rko_u.mock.hi;
+                break;
+
         default:
                 rd_assert(!*"unknown mock cmd");
                 break;
         }
 
         return RD_KAFKA_RESP_ERR_NO_ERROR;
+}
+
+void rd_kafka_mock_group_initial_rebalance_delay_ms(
+    rd_kafka_mock_cluster_t *mcluster,
+    int32_t delay_ms) {
+        mtx_lock(&mcluster->lock);
+        mcluster->defaults.group_initial_rebalance_delay_ms = delay_ms;
+        mtx_unlock(&mcluster->lock);
 }
 
 
@@ -2525,6 +2583,7 @@ static void rd_kafka_mock_cluster_destroy0(rd_kafka_mock_cluster_t *mcluster) {
         rd_kafka_mock_error_stack_t *errstack;
         thrd_t dummy_rkb_thread;
         int ret;
+        size_t i;
 
         while ((mtopic = TAILQ_FIRST(&mcluster->topics)))
                 rd_kafka_mock_topic_destroy(mtopic);
@@ -2544,6 +2603,8 @@ static void rd_kafka_mock_cluster_destroy0(rd_kafka_mock_cluster_t *mcluster) {
                 TAILQ_REMOVE(&mcluster->errstacks, errstack, link);
                 rd_kafka_mock_error_stack_destroy(errstack);
         }
+
+        rd_list_destroy(&mcluster->request_list);
 
         /*
          * Destroy dummy broker
@@ -2574,6 +2635,13 @@ static void rd_kafka_mock_cluster_destroy0(rd_kafka_mock_cluster_t *mcluster) {
 
         rd_socket_close(mcluster->wakeup_fds[0]);
         rd_socket_close(mcluster->wakeup_fds[1]);
+
+        if (mcluster->metrics) {
+                for (i = 0; i < mcluster->metrics_cnt; i++) {
+                        rd_free(mcluster->metrics[i]);
+                }
+                rd_free(mcluster->metrics);
+        }
 }
 
 
@@ -2634,7 +2702,8 @@ rd_kafka_mock_cluster_t *rd_kafka_mock_cluster_new(rd_kafka_t *rk,
         TAILQ_INIT(&mcluster->topics);
         mcluster->defaults.partition_cnt      = 4;
         mcluster->defaults.replication_factor = RD_MIN(3, broker_cnt);
-        mcluster->track_requests              = rd_false;
+        mcluster->defaults.group_initial_rebalance_delay_ms = 3000;
+        mcluster->track_requests                            = rd_false;
 
         TAILQ_INIT(&mcluster->cgrps);
 
@@ -2646,6 +2715,8 @@ rd_kafka_mock_cluster_t *rd_kafka_mock_cluster_new(rd_kafka_t *rk,
 
         memcpy(mcluster->api_handlers, rd_kafka_mock_api_handlers,
                sizeof(mcluster->api_handlers));
+
+        rd_list_init(&mcluster->request_list, 0, rd_kafka_mock_request_free);
 
         /* Use an op queue for controlling the cluster in
          * a thread-safe manner without locking. */
@@ -2764,7 +2835,7 @@ static void rd_kafka_mock_request_free(void *element) {
 void rd_kafka_mock_start_request_tracking(rd_kafka_mock_cluster_t *mcluster) {
         mtx_lock(&mcluster->lock);
         mcluster->track_requests = rd_true;
-        rd_list_init(&mcluster->request_list, 32, rd_kafka_mock_request_free);
+        rd_list_clear(&mcluster->request_list);
         mtx_unlock(&mcluster->lock);
 }
 

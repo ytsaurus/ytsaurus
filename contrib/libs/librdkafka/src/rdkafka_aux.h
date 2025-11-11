@@ -128,4 +128,47 @@ void rd_kafka_Node_destroy(rd_kafka_Node_t *node);
 
 void rd_kafka_Node_free(void *node);
 
+/**
+ * @brief Represents a topic partition result.
+ *
+ * @remark Public Type
+ */
+struct rd_kafka_topic_partition_result_s {
+        rd_kafka_topic_partition_t *topic_partition;
+        rd_kafka_error_t *error;
+};
+
+/**
+ * @brief Create a new rd_kafka_topic_partition_result_t object.
+ *
+ * @param topic The topic name.
+ * @param partition The partition number.
+ * @param err The error code.
+ * @param errstr The error string.
+ *
+ * @returns a newly allocated rd_kafka_topic_partition_result_t object.
+ *          Use rd_kafka_topic_partition_result_destroy() to free object when
+ *          done.
+ */
+rd_kafka_topic_partition_result_t *
+rd_kafka_topic_partition_result_new(const char *topic,
+                                    int32_t partition,
+                                    rd_kafka_resp_err_t err,
+                                    const char *errstr);
+
+rd_kafka_topic_partition_result_t *rd_kafka_topic_partition_result_copy(
+    const rd_kafka_topic_partition_result_t *src);
+
+void *rd_kafka_topic_partition_result_copy_opaque(const void *src,
+                                                  void *opaque);
+
+void rd_kafka_topic_partition_result_destroy(
+    rd_kafka_topic_partition_result_t *partition_result);
+
+void rd_kafka_topic_partition_result_destroy_array(
+    rd_kafka_topic_partition_result_t **partition_results,
+    int32_t partition_results_cnt);
+
+void rd_kafka_topic_partition_result_free(void *ptr);
+
 #endif /* _RDKAFKA_AUX_H_ */
