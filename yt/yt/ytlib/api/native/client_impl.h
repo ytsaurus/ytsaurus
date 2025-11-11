@@ -1558,6 +1558,8 @@ private:
     TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
     NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const NYPath::TYPath& pipelinePath);
+
+    void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
