@@ -245,7 +245,7 @@ private:
                     *schema,
                     RealColumnNames_,
                     NonexistentColumnName);
-                for (auto& inputDataSlice : resultStripe->DataSlices) {
+                for (auto& inputDataSlice : resultStripe->DataSlices()) {
                     for (auto& inputChunkSlice : inputDataSlice->ChunkSlices) {
                         columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), columnStableNames);
                     }
@@ -291,7 +291,7 @@ private:
         i64 totalFilteredDataWeight = 0;
         for (int operandIndex = 0; operandIndex < std::ssize(ResultStripes_); ++operandIndex) {
             auto& stripe = ResultStripes_[operandIndex];
-            auto& dataSlices = stripe->DataSlices;
+            auto& dataSlices = stripe->DataSlices();
 
             auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
                 if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
@@ -499,7 +499,7 @@ private:
                     dataSlice->VirtualRowIndex = 0;
                 }
 
-                ResultStripes_[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
+                ResultStripes_[operandIndex]->DataSlices().emplace_back(std::move(dataSlice));
             }
 
             ++operandTableIndexes[operandIndex];
@@ -1093,7 +1093,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
     TReadRangeRegistry inputReadRangeRegistry;
 
     for (const auto& chunkStripe : queryInput.StripeList->Stripes()) {
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
+        for (const auto& dataSlice : chunkStripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
             if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
                 (dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal()))
@@ -1116,7 +1116,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         subquery.StripeList = chunkPool->GetStripeList(cookie);
 
         for (const auto& chunkStripe : subquery.StripeList->Stripes()) {
-            for (const auto& dataSlice : chunkStripe->DataSlices) {
+            for (const auto& dataSlice : chunkStripe->DataSlices()) {
                 YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->ReadRangeIndex) {
                     auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()]->GetComparator();
@@ -1158,8 +1158,8 @@ std::vector<TSubquery> BuildThreadSubqueries(
             YT_VERIFY(operandIndex >= 0);
             YT_VERIFY(operandIndex < queryInput.OperandCount);
             auto& flattenedStripe = flattenedStripes[operandIndex];
-            for (const auto& dataSlice : stripe->DataSlices) {
-                flattenedStripe->DataSlices.push_back(dataSlice);
+            for (const auto& dataSlice : stripe->DataSlices()) {
+                flattenedStripe->DataSlices().push_back(dataSlice);
             }
         }
 
@@ -1222,8 +1222,8 @@ std::vector<TSubquery> BuildThreadSubqueries(
                 }
                 for (size_t index = leftIndex; index < rightIndex; ++index) {
                     for (size_t stripeIndex = 0; stripeIndex < stripes.size(); ++stripeIndex) {
-                        for (auto& dataSlice : subqueries[index].StripeList->Stripes()[stripeIndex]->DataSlices) {
-                            stripes[stripeIndex]->DataSlices.emplace_back(std::move(dataSlice));
+                        for (auto& dataSlice : subqueries[index].StripeList->Stripes()[stripeIndex]->DataSlices()) {
+                            stripes[stripeIndex]->DataSlices().emplace_back(std::move(dataSlice));
                         }
                     }
                 }

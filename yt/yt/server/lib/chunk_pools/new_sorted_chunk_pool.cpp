@@ -96,7 +96,7 @@ public:
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        if (stripe->DataSlices.empty()) {
+        if (stripe->DataSlices().empty()) {
             return IChunkPoolInput::NullCookie;
         }
 
@@ -104,7 +104,7 @@ public:
         bool isForeign = inputStreamDescriptor.IsForeign();
         int prefixLength = isForeign ? SortedJobOptions_.ForeignComparator.GetLength() : SortedJobOptions_.PrimaryComparator.GetLength();
 
-        for (auto& dataSlice : stripe->DataSlices) {
+        for (auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
 
             // For simplicity, we require that any data slice in sorted chunk pool has
@@ -172,7 +172,7 @@ public:
         }
 
         for (auto& stripe : Stripes_) {
-            for (auto& dataSlice : stripe.GetStripe()->DataSlices) {
+            for (auto& dataSlice : stripe.GetStripe()->DataSlices()) {
                 YT_VERIFY(!dataSlice->IsLegacy);
             }
         }
@@ -300,7 +300,7 @@ private:
                 if (suspendableStripe.GetTeleport()) {
                     continue;
                 }
-                for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+                for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices()) {
                     processDataSlice(dataSlice, inputCookie);
                 }
             }
@@ -326,7 +326,7 @@ private:
             if (suspendableStripe.GetTeleport()) {
                 continue;
             }
-            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices()) {
                 // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
                 // while versioned slices are taken as is.
                 bool isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
@@ -433,7 +433,7 @@ private:
             auto inputStreamIndex = stripe->GetInputStreamIndex();
             auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
             auto isTeleportable = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsTeleportable();
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 yielder.TryYield();
 
                 auto lowerBound = dataSlice->LowerLimit().KeyBound;

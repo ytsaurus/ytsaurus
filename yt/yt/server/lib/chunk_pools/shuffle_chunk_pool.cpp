@@ -7,8 +7,6 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
@@ -79,7 +77,7 @@ public:
         TInputStripe inputStripe;
         inputStripe.ElementaryIndexBegin = std::ssize(ElementaryStripes_);
 
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
 
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
@@ -328,7 +326,7 @@ private:
             list->SetPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
 
             for (const auto& stripe : list->Stripes()) {
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     YT_VERIFY(!dataSlice->IsLegacy);
                 }
             }

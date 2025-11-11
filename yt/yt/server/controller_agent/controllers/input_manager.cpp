@@ -1108,7 +1108,7 @@ void TInputManager::RegisterInputStripe(
     stripeDescriptor.Task = task;
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         for (const auto& slice : dataSlice->ChunkSlices) {
             auto inputChunk = slice->GetInputChunk();
             auto chunkId = inputChunk->GetChunkId();
@@ -1233,10 +1233,11 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
         case EUnavailableChunkAction::Skip: {
             descriptor->State = EInputChunkState::Skipped;
             for (const auto& inputStripe : descriptor->InputStripes) {
-                inputStripe.Stripe->DataSlices.erase(
+                auto& dataSlices = inputStripe.Stripe->DataSlices();
+                dataSlices.erase(
                     std::remove_if(
-                        inputStripe.Stripe->DataSlices.begin(),
-                        inputStripe.Stripe->DataSlices.end(),
+                        dataSlices.begin(),
+                        dataSlices.end(),
                         [&] (TLegacyDataSlicePtr slice) {
                             try {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
@@ -1247,7 +1248,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                                 return true;
                             }
                         }),
-                    inputStripe.Stripe->DataSlices.end());
+                    dataSlices.end());
 
                 // Store information that chunk disappeared in the chunk mapping.
                 for (const auto& chunk : descriptor->InputChunks) {

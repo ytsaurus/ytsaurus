@@ -97,11 +97,11 @@ public:
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        if (stripe->DataSlices.empty()) {
+        if (stripe->DataSlices().empty()) {
             return IChunkPoolInput::NullCookie;
         }
 
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(dataSlice->IsLegacy);
         }
 
@@ -223,13 +223,13 @@ public:
         for (const auto& legacyStripe : legacyStripeList->Stripes()) {
             auto newStripe = New<TChunkStripe>();
             newStripe->Foreign = legacyStripe->Foreign;
-            for (const auto& legacyDataSlice : legacyStripe->DataSlices) {
+            for (const auto& legacyDataSlice : legacyStripe->DataSlices()) {
                 auto newDataSlice = CreateInputDataSlice(legacyDataSlice);
                 auto prefixLength = InputStreamDirectory_.GetDescriptor(legacyDataSlice->GetInputStreamIndex()).IsPrimary()
                     ? PrimaryPrefixLength_
                     : ForeignPrefixLength_;
                 newDataSlice->TransformToNew(RowBuffer_, prefixLength);
-                newStripe->DataSlices.emplace_back(std::move(newDataSlice));
+                newStripe->DataSlices().push_back(std::move(newDataSlice));
             }
             newStripeList->AddStripe(std::move(newStripe));
         }
@@ -321,7 +321,7 @@ private:
                 continue;
             }
 
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
                 // while versioned slices are taken as is.
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
@@ -450,7 +450,7 @@ private:
         for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             auto primary = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary();
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 yielder.TryYield();
 
                 if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&

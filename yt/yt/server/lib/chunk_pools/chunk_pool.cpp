@@ -42,7 +42,7 @@ IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe,
     // Stripes may either contain several data slices or consist only of a single chunk tree id.
     // All classes that are inherited from this base are dealing with explicit chunk representations,
     // so they are not ready to work with stripes that do not contain data slices.
-    YT_VERIFY(!stripe->DataSlices.empty());
+    YT_VERIFY(!stripe->DataSlices().empty());
 
     return Add(stripe);
 }

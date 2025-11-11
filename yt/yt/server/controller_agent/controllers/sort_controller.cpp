@@ -1097,7 +1097,7 @@ protected:
                 auto& jobResultExt = jobSummary.GetJobResultExt();
                 auto stripe = BuildIntermediateChunkStripe(jobResultExt.mutable_output_chunk_specs());
 
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     // NB: Intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
                     auto keyColumnCount = Controller_->GetSortedMergeSortColumns().size();
                     SetLimitsFromShortenedBoundaryKeys(dataSlice, keyColumnCount, Controller_->RowBuffer_);

@@ -383,7 +383,7 @@ bool TTask::HasInputLocality() const
 
 void TTask::AddInput(TChunkStripePtr stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         // For all pools except sorted pool this simply drops key bounds (keeping them
         // in InputChunkToReadBounds_) as pools have no use for them.
         // For sorted chunk pool behavior is trickier as task adjusts the input read limits
@@ -1766,7 +1766,7 @@ void TTask::AddChunksToInputSpec(
 
     stripe = GetChunkMapping()->GetMappedStripe(stripe);
 
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         YT_VERIFY(!dataSlice->IsLegacy);
         AdjustOutputKeyBounds(dataSlice);
         YT_VERIFY(!dataSlice->IsLegacy);
@@ -2218,7 +2218,7 @@ void TTask::RegisterOutput(
     for (int tableIndex = 0; tableIndex < std::ssize(streamDescriptors); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             const auto& streamDescriptor = streamDescriptors[tableIndex];
-            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
+            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices()) {
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
                     streamDescriptor->LivePreviewIndex,
@@ -2276,11 +2276,11 @@ void TTask::RegisterStripe(
     bool processEmptyStripes,
     const std::optional<TMD5Hash>& digest)
 {
-    if (stripe->DataSlices.empty() && !stripe->ChunkListId) {
+    if (stripe->DataSlices().empty() && !stripe->ChunkListId) {
         return;
     }
 
-    if (stripe->DataSlices.empty() && !processEmptyStripes) {
+    if (stripe->DataSlices().empty() && !processEmptyStripes) {
         return;
     }
 
@@ -2411,7 +2411,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         dataSlice->SetInputStreamIndex(tableIndex);
         YT_VERIFY(tableIndex >= 0);
         YT_VERIFY(tableIndex < tableCount);
-        stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
+        stripes[tableIndex]->DataSlices().push_back(std::move(dataSlice));
     }
     return stripes;
 }

@@ -18,7 +18,7 @@ std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& strip
 {
     std::vector<TInputChunkPtr> chunks;
     for (const auto& stripe : stripeList->Stripes()) {
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             chunks.emplace_back(dataSlice->GetSingleUnversionedChunk());
         }
     }

@@ -473,7 +473,7 @@ protected:
     TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
         auto chunkStripe = New<TChunkStripe>(InputManager_->GetInputTables()[dataSlice->GetTableIndex()]->IsForeign());
-        chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
+        chunkStripe->DataSlices().push_back(std::move(dataSlice));
         return chunkStripe;
     }
 

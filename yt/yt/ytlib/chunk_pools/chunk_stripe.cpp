@@ -18,16 +18,15 @@ TChunkStripe::TChunkStripe(bool foreign)
 { }
 
 TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign)
-    : Foreign(foreign)
-{
-    DataSlices.emplace_back(std::move(dataSlice));
-}
+    : DataSlices_({std::move(dataSlice)})
+    , Foreign(foreign)
+{ }
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
 
-    for (const auto& dataSlice : DataSlices) {
+    for (const auto& dataSlice : DataSlices_) {
         result.DataWeight += dataSlice->GetDataWeight();
         result.RowCount += dataSlice->GetRowCount();
         result.ChunkCount += dataSlice->GetChunkCount();
@@ -42,7 +41,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
 int TChunkStripe::GetChunkCount() const
 {
     int result = 0;
-    for (const auto& dataSlice : DataSlices) {
+    for (const auto& dataSlice : DataSlices_) {
         result += dataSlice->GetChunkCount();
     }
     return result;
@@ -50,20 +49,20 @@ int TChunkStripe::GetChunkCount() const
 
 int TChunkStripe::GetTableIndex() const
 {
-    YT_VERIFY(!DataSlices.empty());
-    YT_VERIFY(!DataSlices.front()->ChunkSlices.empty());
-    return DataSlices.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
+    YT_VERIFY(!DataSlices_.empty());
+    YT_VERIFY(!DataSlices_.front()->ChunkSlices.empty());
+    return DataSlices_.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
 }
 
 int TChunkStripe::GetInputStreamIndex() const
 {
-    YT_VERIFY(!DataSlices.empty());
-    return DataSlices.front()->GetInputStreamIndex();
+    YT_VERIFY(!DataSlices_.empty());
+    return DataSlices_.front()->GetInputStreamIndex();
 }
 
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DataSlices);
+    PHOENIX_REGISTER_FIELD(1, DataSlices_);
     PHOENIX_REGISTER_FIELD(2, WaitingChunkCount);
     PHOENIX_REGISTER_FIELD(3, Foreign);
     // COMPAT(apollo1321): Remove in 25.3.
@@ -120,7 +119,7 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
 void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
 {
     Statistics_ += stripe->GetStatistics();
-    SliceCount_ += std::ssize(stripe->DataSlices);
+    SliceCount_ += std::ssize(stripe->DataSlices());
     Stripes_.push_back(std::move(stripe));
 }
 

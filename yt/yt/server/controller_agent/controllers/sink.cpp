@@ -46,7 +46,7 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
 
     bool isHunk = false;
     if (table->Dynamic) {
-        for (auto& slice : stripe->DataSlices) {
+        for (auto& slice : stripe->DataSlices()) {
             YT_VERIFY(slice->ChunkSlices.size() == 1);
             const auto& chunk = slice->ChunkSlices[0]->GetInputChunk();
             isHunk |= chunk->IsHunk();
