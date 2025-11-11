@@ -127,6 +127,8 @@ constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf
     {"YtPartitionCount", "10"}
 });
 
+constexpr auto DefaultPQGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defaults)
@@ -319,6 +321,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Alias("ytflow_gateway_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
+    registrar.Parameter("pq_gateway", &TThis::PQGatewayConfig)
+        .Alias("pq_gateway_config")
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
     registrar.Parameter("file_storage", &TThis::FileStorageConfig)
         .Alias("file_storage_config")
         .Default(GetEphemeralNodeFactory()->CreateMap())
@@ -423,6 +429,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         }
         ytflowGatewaySettings = MergeDefaultSettings(ytflowGatewaySettings->AsList(), DefaultYtflowGatewaySettings);
         YT_VERIFY(ytflowGatewayConfig->AddChild("default_settings", std::move(ytflowGatewaySettings)));
+
+        auto pqGatewayConfig = config->PQGatewayConfig->AsMap();
+        auto pqGatewaySettings = pqGatewayConfig->FindChild("default_settings");
+        if (pqGatewaySettings) {
+            pqGatewayConfig->RemoveChild(pqGatewaySettings);
+        } else {
+            pqGatewaySettings = GetEphemeralNodeFactory()->CreateList();
+        }
+        pqGatewaySettings = MergeDefaultSettings(pqGatewaySettings->AsList(), DefaultPQGatewaySettings);
+        YT_VERIFY(pqGatewayConfig->AddChild("default_settings", std::move(pqGatewaySettings)));
 
         auto icSettingsConfig = config->DQManagerConfig->ICSettings->AsMap();
         auto closeOnIdleMs = icSettingsConfig->FindChild("close_on_idle_ms");

@@ -23,4 +23,10 @@ void ExtYtflow(
     TVector<NYql::TDataProviderInitializer>& dataProvidersInit,
     const NYql::TFileStoragePtr& fileStorage);
 
+void ExtPq(
+    const NYql::TGatewaysConfig& gatewaysConfig,
+    const NKikimr::NMiniKQL::IFunctionRegistry* funcRegistry,
+    TVector<NYql::TDataProviderInitializer>& dataProvidersInit,
+    const NYql::TFileStoragePtr& fileStorage);
+
 } // namespace NYT::NYqlPlugin
