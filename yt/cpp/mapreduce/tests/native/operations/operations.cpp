@@ -24,6 +24,8 @@
 
 #include <yt/cpp/mapreduce/util/wait_for_tablets_state.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <library/cpp/digest/md5/md5.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -31,8 +33,6 @@
 #include <util/datetime/base.h>
 
 #include <util/generic/maybe.h>
-#include <util/generic/scope.h>
-#include <util/generic/xrange.h>
 
 #include <util/folder/path.h>
 
@@ -465,7 +465,7 @@ class TVanillaWithPorts : public IVanillaJob<>
 {
 public:
     TVanillaWithPorts() = default;
-    TVanillaWithPorts(TStringBuf fileName, size_t portCount)
+    TVanillaWithPorts(TStringBuf fileName, int portCount)
         : FileName_(fileName)
         , PortCount_(portCount)
     { }
@@ -473,7 +473,7 @@ public:
     void Do() override
     {
         TOFStream stream(FileName_);
-        for (const auto i: xrange(PortCount_)) {
+        for (int i = 0; i < PortCount_; ++i) {
             stream << GetEnv("YT_PORT_" + ToString(i)) << '\n';
         }
         stream.Flush();
@@ -483,7 +483,7 @@ public:
 
 private:
     TString FileName_;
-    size_t PortCount_;
+    int PortCount_ = 0;
 };
 REGISTER_VANILLA_JOB(TVanillaWithPorts)
 
@@ -591,6 +591,29 @@ class TMapperForOrderedDynamicTables : public IMapper<TNodeReader, TNodeWriter>
 };
 
 REGISTER_MAPPER(TMapperForOrderedDynamicTables)
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+auto CreateSchedulerPool(const IClientPtr& client, const TString& poolName, const TNode& attributes)
+{
+    auto attributesCopy = attributes;
+    attributesCopy["name"] = poolName;
+    attributesCopy["pool_tree"] = "default";
+
+    client->Create("", NT_SCHEDULER_POOL, TCreateOptions().Attributes(attributesCopy));
+
+    TString orchidPath = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/" + poolName;
+
+    WaitForPredicate([&] {
+        return client->Exists(orchidPath);
+    });
+
+    auto removePath = "//sys/pools/" + poolName;
+    return Finally([client, removePath] {
+        client->Remove(removePath);
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1768,27 +1791,17 @@ TEST(Operations, MaxOperationCountExceeded)
     const auto poolName = TString("max_operation_count_exceeded");
 
     size_t maxOperationCount = 1;
-    client->Create(
-        "",
-        NT_SCHEDULER_POOL,
-        TCreateOptions().Attributes(NYT::TNode()
-            ("name", poolName)
-            ("pool_tree", "default")
-            ("max_operation_count", maxOperationCount)));
-
-    Y_DEFER {
-        client->Remove("//sys/pools/" + poolName);
-    };
+    auto poolGuard = CreateSchedulerPool(client, poolName, TNode()("max_operation_count", maxOperationCount));
 
     CreateTableWithFooColumn(client, workingDir + "/input");
 
     TVector<IOperationPtr> operations;
 
-    Y_DEFER {
+    auto abortGuard = Finally([&] {
         for (auto& operation : operations) {
             operation->AbortOperation();
         }
-    };
+    });
 
     auto startOp = [&] {
         return client->Map(
@@ -1851,9 +1864,9 @@ void TestJobNodeReader(ENodeReaderFormat nodeReaderFormat, bool strictSchema)
 
     TString inputPath = workingDir + "/input";
     TString outputPath = workingDir + "/input";
-    Y_DEFER {
+    auto removeGuard = Finally([&] {
         client->Remove(inputPath, TRemoveOptions().Force(true));
-    };
+    });
 
     auto row = TNode()
         ("int64", 1 - (1LL << 62))
@@ -2584,19 +2597,10 @@ TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
 
     const auto poolName = TString("cache_cleaned_when_operation_start_was_retried");
 
-    client->Create(
-        "",
-        NT_SCHEDULER_POOL,
-        TCreateOptions().Attributes(NYT::TNode()
-            ("name", poolName)
-            ("pool_tree", "default")
-            ("max_running_operation_count", 1)
-            ("max_pending_operation_count", 1)
-        ));
-
-    Y_DEFER {
-        client->Remove("//sys/pools/" + poolName);
-    };
+    auto finallyGuard = CreateSchedulerPool(
+        client,
+        poolName,
+        TNode()("max_running_operation_count", 1)("max_pending_operation_count", 1));
 
     auto sleepingOp = client->Map(
         TMapOperationSpec()
@@ -2607,11 +2611,11 @@ TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
         TOperationOptions()
             .Wait(false));
 
-    Y_DEFER {
+    auto abortGuard = Finally([&] {
         if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
             sleepingOp->AbortOperation();
         }
-    };
+    });
 
     auto runMap = [&] {
         auto opWithFile = client->Map(
@@ -2668,17 +2672,7 @@ TEST(Operations, CacheCleanedWhenOperationWasPending)
     }
 
     const auto poolName = TString("cache_cleaned_when_operation_was_pending");
-    client->Create(
-        "",
-        NT_SCHEDULER_POOL,
-        TCreateOptions().Attributes(NYT::TNode()
-            ("name", poolName)
-            ("pool_tree", "default")
-            ("max_running_operation_count", 1)));
-
-    Y_DEFER {
-        client->Remove("//sys/pools/" + poolName);
-    };
+    auto poolGuard = CreateSchedulerPool(client, poolName, TNode()("max_running_operation_count", 1));
 
     auto sleepingOp = client->Map(
         TMapOperationSpec()
@@ -2689,11 +2683,11 @@ TEST(Operations, CacheCleanedWhenOperationWasPending)
         TOperationOptions()
             .Wait(false));
 
-    Y_DEFER {
+    auto abortGuard = Finally([&] {
         if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
             sleepingOp->AbortOperation();
         }
-    };
+    });
 
     auto opWithFile = client->Map(
         TMapOperationSpec()
@@ -3171,7 +3165,7 @@ TEST(Operations, AllocatedPorts)
     TTempFile tempFile(MakeTempName());
     Chmod(tempFile.Name().c_str(), 0777);
 
-    const ui16 portCount = 7;
+    const int portCount = 7;
 
     client->RunVanilla(TVanillaOperationSpec()
         .AddTask(TVanillaTask()
@@ -3182,11 +3176,13 @@ TEST(Operations, AllocatedPorts)
 
     TFileInput stream(tempFile.Name());
     TString line;
-    for ([[maybe_unused]] const auto _: xrange(portCount)) {
+
+    for (int i = 0; i < portCount; ++i) {
         EXPECT_TRUE(stream.ReadLine(line));
         const auto port = FromString<ui16>(line);
         EXPECT_GT(port, 1023);
     }
+
     EXPECT_TRUE(!stream.ReadLine(line));
 }
 
@@ -3198,9 +3194,9 @@ TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
     auto workingDir = fixture.GetWorkingDir();
 
     auto oldLogger = GetLogger();
-    Y_DEFER {
+    auto loggerGuard = Finally([&] {
         SetLogger(oldLogger);
-    };
+    });
 
     TStringStream stream;
     SetLogger(new TStreamTeeLogger(ILogger::INFO, &stream, oldLogger));
