@@ -62,7 +62,6 @@ int TChunkStripe::GetInputStreamIndex() const
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, DataSlices_);
-    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount_);
     PHOENIX_REGISTER_FIELD(3, Foreign_);
     PHOENIX_REGISTER_FIELD(5, ChunkListId_);
     PHOENIX_REGISTER_FIELD(6, BoundaryKeys_);
