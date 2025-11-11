@@ -394,6 +394,8 @@ struct rd_kafka_mock_cluster_s {
         struct {
                 int partition_cnt;      /**< Auto topic create part cnt */
                 int replication_factor; /**< Auto topic create repl factor */
+                /** Group initial rebalance delay */
+                int32_t group_initial_rebalance_delay_ms;
         } defaults;
 
         /**< Dynamic array of IO handlers for corresponding fd in .fds */
@@ -407,6 +409,15 @@ struct rd_kafka_mock_cluster_s {
 
         /**< Request handlers */
         struct rd_kafka_mock_api_handler api_handlers[RD_KAFKAP__NUM];
+
+        /** Requested metrics. */
+        char **metrics;
+
+        /** Requested metric count. */
+        size_t metrics_cnt;
+
+        /** Telemetry push interval ms. Default is 5 min */
+        int64_t telemetry_push_interval_ms;
 
         /**< Appends the requests received to mock cluster if set to true,
          *   defaulted to false for less memory usage. */
@@ -430,8 +441,13 @@ struct rd_kafka_mock_cluster_s {
 
 
 rd_kafka_buf_t *rd_kafka_mock_buf_new_response(const rd_kafka_buf_t *request);
-void rd_kafka_mock_connection_send_response(rd_kafka_mock_connection_t *mconn,
-                                            rd_kafka_buf_t *resp);
+
+#define rd_kafka_mock_connection_send_response(mconn, resp)                    \
+        rd_kafka_mock_connection_send_response0(mconn, resp, rd_false)
+
+void rd_kafka_mock_connection_send_response0(rd_kafka_mock_connection_t *mconn,
+                                             rd_kafka_buf_t *resp,
+                                             rd_bool_t tags_written);
 void rd_kafka_mock_connection_set_blocking(rd_kafka_mock_connection_t *mconn,
                                            rd_bool_t blocking);
 
@@ -565,8 +581,6 @@ rd_kafka_mock_cgrp_get(rd_kafka_mock_cluster_t *mcluster,
                        const rd_kafkap_str_t *ProtocolType);
 void rd_kafka_mock_cgrps_connection_closed(rd_kafka_mock_cluster_t *mcluster,
                                            rd_kafka_mock_connection_t *mconn);
-
-
 /**
  *@}
  */

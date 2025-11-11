@@ -406,8 +406,8 @@ rd_kafka_op_t *rd_kafka_q_pop_serve(rd_kafka_q_t *rkq,
 
                 rd_timeout_init_timespec_us(&timeout_tspec, timeout_us);
 
-                if (timeout_us && can_q_contain_fetched_msgs)
-                        rd_kafka_app_poll_blocking(rkq->rkq_rk);
+                if (can_q_contain_fetched_msgs)
+                        rd_kafka_app_poll_start(rkq->rkq_rk, 0, timeout_us);
 
                 while (1) {
                         rd_kafka_op_res_t res;
@@ -542,8 +542,8 @@ int rd_kafka_q_serve(rd_kafka_q_t *rkq,
 
         rd_timeout_init_timespec(&timeout_tspec, timeout_ms);
 
-        if (timeout_ms && can_q_contain_fetched_msgs)
-                rd_kafka_app_poll_blocking(rk);
+        if (can_q_contain_fetched_msgs)
+                rd_kafka_app_poll_start(rk, 0, timeout_ms);
 
         /* Wait for op */
         while (!(rko = TAILQ_FIRST(&rkq->rkq_q)) &&
@@ -681,10 +681,9 @@ int rd_kafka_q_serve_rkmessages(rd_kafka_q_t *rkq,
 
         mtx_unlock(&rkq->rkq_lock);
 
-        if (timeout_ms)
-                rd_kafka_app_poll_blocking(rk);
-
         rd_timeout_init_timespec(&timeout_tspec, timeout_ms);
+
+        rd_kafka_app_poll_start(rk, 0, timeout_ms);
 
         rd_kafka_yield_thread = 0;
         while (cnt < rkmessages_size) {

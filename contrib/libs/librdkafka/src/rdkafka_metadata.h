@@ -335,5 +335,7 @@ void rd_kafka_metadata_cache_wait_state_change_async(
     rd_kafka_t *rk,
     rd_kafka_enq_once_t *eonce);
 
+rd_kafka_op_res_t
+rd_kafka_metadata_update_op(rd_kafka_t *rk, rd_kafka_metadata_internal_t *mdi);
 /**@}*/
 #endif /* _RDKAFKA_METADATA_H_ */

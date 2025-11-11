@@ -1337,7 +1337,8 @@ rd_kafka_topic_metadata_update(rd_kafka_topic_t *rkt,
         if (mdt->err == RD_KAFKA_RESP_ERR_NO_ERROR) {
                 upd += rd_kafka_topic_partition_cnt_update(rkt,
                                                            mdt->partition_cnt);
-                if (rd_kafka_Uuid_cmp(mdit->topic_id, RD_KAFKA_UUID_ZERO)) {
+                if (rd_kafka_Uuid_cmp(mdit->topic_id, RD_KAFKA_UUID_ZERO) &&
+                    rd_kafka_Uuid_cmp(mdit->topic_id, rkt->rkt_topic_id)) {
                         /* FIXME: an offset reset must be triggered.
                          * when rkt_topic_id wasn't zero.
                          * There are no problems
@@ -1346,6 +1347,12 @@ rd_kafka_topic_metadata_update(rd_kafka_topic_t *rkt,
                          * causing an out of range and an offset reset,
                          * but the rarer case where they're higher needs
                          * to be checked. */
+                        rd_kafka_dbg(
+                            rk, TOPIC | RD_KAFKA_DBG_METADATA, "METADATA",
+                            "Topic %s changed id from %s to %s",
+                            rkt->rkt_topic->str,
+                            rd_kafka_Uuid_base64str(&rkt->rkt_topic_id),
+                            rd_kafka_Uuid_base64str(&mdit->topic_id));
                         rkt->rkt_topic_id = mdit->topic_id;
                 }
                 /* If the metadata times out for a topic (because all brokers
@@ -1368,7 +1375,7 @@ rd_kafka_topic_metadata_update(rd_kafka_topic_t *rkt,
                     rd_kafka_toppar_get(rkt, mdt->partitions[j].id, 0);
 
                 rd_kafka_dbg(rk, TOPIC | RD_KAFKA_DBG_METADATA, "METADATA",
-                             "  Topic %s partition %i Leader %" PRId32
+                             "Topic %s [%" PRId32 "] Leader %" PRId32
                              " Epoch %" PRId32,
                              rkt->rkt_topic->str, mdt->partitions[j].id,
                              mdt->partitions[j].leader, leader_epoch);
