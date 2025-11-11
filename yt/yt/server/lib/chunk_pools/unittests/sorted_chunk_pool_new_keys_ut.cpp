@@ -749,12 +749,12 @@ protected:
             // TODO(max42): it is possible to rewrite this check in linear time, but the
             // implementation is quite nasty even for a quadratic version, so let's stop on it.
             for (const auto& lhsStripe : lhs->Stripes()) {
-                if (lhsStripe->Foreign) {
+                if (lhsStripe->IsForeign()) {
                     continue;
                 }
                 for (const auto& lhsDataSlice : lhsStripe->DataSlices()) {
                     for (const auto& rhsStripe : rhs->Stripes()) {
-                        if (rhsStripe->Foreign) {
+                        if (rhsStripe->IsForeign()) {
                             continue;
                         }
                         for (const auto& rhsDataSlice : rhsStripe->DataSlices()) {
@@ -865,7 +865,7 @@ protected:
         for (const auto& stripeList : stripeLists) {
             bool hasPrimarySlices = false;
             for (const auto& stripe : stripeList->Stripes()) {
-                if (stripe->Foreign) {
+                if (stripe->IsForeign()) {
                     continue;
                 }
                 hasPrimarySlices |= !stripe->DataSlices().empty();
@@ -880,7 +880,7 @@ protected:
             if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
                 for (const auto& stripe : stripeList->Stripes()) {
                     int tableIndex = stripe->GetTableIndex();
-                    EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->Foreign);
+                    EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->IsForeign());
                 }
             }
         }
@@ -906,7 +906,7 @@ protected:
                         EXPECT_FALSE(dataSlice->IsLegacy);
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                             EXPECT_FALSE(chunkSlice->IsLegacy);
-                            if (stripe->Foreign) {
+                            if (stripe->IsForeign()) {
                                 auto chunkId = chunkSlice->GetInputChunk()->GetChunkId();
                                 auto foreignChunkSlice = TChunkSlice(chunkSlice, dataSlice, ForeignComparator_);
                                 attachedForeignChunks.insert(chunkId);
@@ -4747,9 +4747,9 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         auto stripe = CreateStripe({dataSlice});
         YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
         if (useMultiPool) {
-            stripe->PartitionTag = std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_);
-            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->PartitionTag;
-            stripesByPoolIndex[*stripe->PartitionTag].push_back(stripe);
+            stripe->SetPartitionTag(std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_));
+            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->GetPartitionTag();
+            stripesByPoolIndex[*stripe->GetPartitionTag()].push_back(stripe);
         } else {
             stripesByPoolIndex[0].push_back(stripe);
         }

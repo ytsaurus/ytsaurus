@@ -632,7 +632,7 @@ protected:
             auto stripeList = ChunkPool_->GetStripeList(cookie);
             for (const auto& stripe : stripeList->Stripes()) {
                 int tableIndex = stripe->GetTableIndex();
-                EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->Foreign);
+                EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->IsForeign());
             }
         }
     }
@@ -3278,9 +3278,9 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         auto stripe = CreateStripe({chunk});
         YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
         if (useMultiPool) {
-            stripe->PartitionTag = std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_);
-            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->PartitionTag;
-            stripesByPoolIndex[*stripe->PartitionTag].push_back(stripe);
+            stripe->SetPartitionTag(std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_));
+            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->GetPartitionTag();
+            stripesByPoolIndex[*stripe->GetPartitionTag()].push_back(stripe);
         } else {
             stripesByPoolIndex[0].push_back(stripe);
         }

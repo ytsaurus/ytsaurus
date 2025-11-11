@@ -629,7 +629,7 @@ protected:
             TTask::PropagatePartitions(streamDescriptors, inputStripeList, outputStripes);
 
             auto& shuffleStripe = outputStripes->front();
-            shuffleStripe->PartitionTag = GetPartitionIndex(inputStripeList);
+            shuffleStripe->SetPartitionTag(GetPartitionIndex(inputStripeList));
         }
 
     private:
@@ -1008,7 +1008,7 @@ protected:
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
             }
-            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->PartitionTag);
+            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetPartitionTag());
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
             // Let's live like this a bit, and then maybe move it inside pool.
             descriptor->DestinationPool->Reset(cookie, stripe, descriptor->ChunkMapping);
@@ -1108,11 +1108,7 @@ protected:
                     dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
-                if (Controller_->SimpleSort_) {
-                    stripe->PartitionTag = 0;
-                } else {
-                    stripe->PartitionTag = joblet->InputStripeList->GetPartitionTag();
-                }
+                stripe->SetPartitionTag(Controller_->SimpleSort_ ? 0 : joblet->InputStripeList->GetPartitionTag());
 
                 std::optional<TMD5Hash> outputDigest;
                 if (!jobResultExt.output_digests().empty()) {
@@ -1302,7 +1298,7 @@ protected:
         void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
             if (!Controller_->SimpleSort_) {
-                auto partitionIndex = *completedJob->InputStripe->PartitionTag;
+                auto partitionIndex = *completedJob->InputStripe->GetPartitionTag();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 auto nodeId = completedJob->NodeDescriptor.Id;
                 partition->AddLocality(nodeId, -completedJob->DataWeight);

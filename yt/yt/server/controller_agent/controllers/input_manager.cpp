@@ -1121,12 +1121,12 @@ void TInputManager::RegisterInputStripe(
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
             if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                ++stripe->WaitingChunkCount;
+                ++stripe->WaitingChunkCount();
             }
         }
     }
 
-    if (stripe->WaitingChunkCount > 0) {
+    if (stripe->WaitingChunkCount() > 0) {
         task->GetChunkPoolInput()->Suspend(stripeDescriptor.Cookie);
     }
 }
@@ -1202,8 +1202,8 @@ void TInputManager::OnInputChunkAvailable(
     descriptor->State = EInputChunkState::Active;
 
     for (const auto& inputStripe : descriptor->InputStripes) {
-        --inputStripe.Stripe->WaitingChunkCount;
-        if (inputStripe.Stripe->WaitingChunkCount > 0) {
+        --inputStripe.Stripe->WaitingChunkCount();
+        if (inputStripe.Stripe->WaitingChunkCount() > 0) {
             continue;
         }
 
@@ -1263,10 +1263,10 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
         case EUnavailableChunkAction::Wait: {
             descriptor->State = EInputChunkState::Waiting;
             for (const auto& inputStripe : descriptor->InputStripes) {
-                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                if (inputStripe.Stripe->WaitingChunkCount() == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
-                ++inputStripe.Stripe->WaitingChunkCount;
+                ++inputStripe.Stripe->WaitingChunkCount();
             }
             break;
         }

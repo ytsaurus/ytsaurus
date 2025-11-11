@@ -15,14 +15,14 @@ TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
 
 IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    YT_VERIFY(stripe->ChunkListId);
+    YT_VERIFY(stripe->GetChunkListId());
     auto& table = Controller_->OutputTables_[OutputTableIndex_];
-    auto chunkListId = stripe->ChunkListId;
+    auto chunkListId = stripe->GetChunkListId();
 
     if (table->TableUploadOptions.TableSchema->IsSorted() && Controller_->ShouldVerifySortedOutput()) {
         // We override the key suggested by the task with the one formed by the stripe boundary keys.
-        YT_VERIFY(stripe->BoundaryKeys);
-        key = TChunkStripeKey(stripe->BoundaryKeys);
+        YT_VERIFY(stripe->GetBoundaryKeys());
+        key = TChunkStripeKey(stripe->GetBoundaryKeys());
     }
 
     if (Controller_->IsLegacyOutputLivePreviewSupported()) {

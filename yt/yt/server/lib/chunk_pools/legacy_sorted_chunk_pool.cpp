@@ -222,7 +222,7 @@ public:
         newStripeList->SetApproximate(legacyStripeList->IsApproximate());
         for (const auto& legacyStripe : legacyStripeList->Stripes()) {
             auto newStripe = New<TChunkStripe>();
-            newStripe->Foreign = legacyStripe->Foreign;
+            newStripe->SetForeign(legacyStripe->IsForeign());
             for (const auto& legacyDataSlice : legacyStripe->DataSlices()) {
                 auto newDataSlice = CreateInputDataSlice(legacyDataSlice);
                 auto prefixLength = InputStreamDirectory_.GetDescriptor(legacyDataSlice->GetInputStreamIndex()).IsPrimary()

@@ -32,8 +32,8 @@ public:
 
     TExternalCookie Add(TChunkStripePtr stripe) override
     {
-        YT_VERIFY(stripe->PartitionTag);
-        auto poolIndex = *stripe->PartitionTag;
+        YT_VERIFY(stripe->GetPartitionTag());
+        auto poolIndex = *stripe->GetPartitionTag();
         auto* pool = GetPool(poolIndex);
         auto cookie = pool->Add(std::move(stripe));
 
@@ -42,8 +42,8 @@ public:
 
     TExternalCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
-        YT_VERIFY(stripe->PartitionTag);
-        auto poolIndex = *stripe->PartitionTag;
+        YT_VERIFY(stripe->GetPartitionTag());
+        auto poolIndex = *stripe->GetPartitionTag();
         auto* pool = GetPool(poolIndex);
         auto cookie = pool->AddWithKey(std::move(stripe), key);
 
@@ -70,7 +70,7 @@ public:
         TInputChunkMappingPtr mapping) override
     {
         auto [poolIndex, cookie] = GetCookie(externalCookie);
-        stripe->PartitionTag = poolIndex;
+        stripe->SetPartitionTag(poolIndex);
         auto* cookiePool = GetPool(poolIndex);
 
         cookiePool->Reset(cookie, std::move(stripe), std::move(mapping));

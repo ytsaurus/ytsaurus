@@ -746,7 +746,7 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
-        if (stripe->Foreign) {
+        if (stripe->IsForeign()) {
             std::move(stripe->DataSlices().begin(), stripe->DataSlices().end(), std::back_inserter(foreignSlices));
             stripe->DataSlices().clear();
         }
@@ -823,12 +823,12 @@ void TNewJobManager::Enlarge(
         i64 compressedDataSize = currentJobStub->GetCompressedDataSize();
         i64 sliceCount = currentJobStub->GetSliceCount();
         for (const auto& stripe : job.StripeList()->Stripes()) {
-            if (!force && stripe->Foreign) {
+            if (!force && stripe->IsForeign()) {
                 YT_LOG_DEBUG("Stopping enlargement due to the foreign data stripe");
                 return false;
             }
             for (const auto& dataSlice : stripe->DataSlices()) {
-                (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
+                (stripe->IsForeign() ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
                 compressedDataSize += dataSlice->GetCompressedDataSize();
                 ++sliceCount;
             }
@@ -917,7 +917,7 @@ void TNewJobManager::Enlarge(
                         // rows, but does not seem to be easy :/
                         //
                         // See also YT-25074.
-                        currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->Foreign);
+                        currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->IsForeign());
                     }
                 }
                 currentJobStub->InputCookies_.insert(currentJobStub->InputCookies_.end(), job.InputCookies().begin(), job.InputCookies().end());
