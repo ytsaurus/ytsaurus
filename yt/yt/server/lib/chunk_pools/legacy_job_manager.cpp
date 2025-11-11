@@ -26,7 +26,7 @@ void TLegacyJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPo
     int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
     auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
-    stripe->DataSlices.emplace_back(dataSlice);
+    stripe->DataSlices().push_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
     }
@@ -116,19 +116,20 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
             };
 
             bool sortNeeded = false;
-            for (size_t index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
-                const auto& currentDataSlice = stripe->DataSlices[index];
-                const auto& nextDataSlice = stripe->DataSlices[index + 1];
+            for (size_t index = 0; index + 1 < stripe->DataSlices().size(); ++index) {
+                const auto& currentDataSlice = stripe->DataSlices()[index];
+                const auto& nextDataSlice = stripe->DataSlices()[index + 1];
                 if (!dataSliceComparator(currentDataSlice, nextDataSlice)) {
                     sortNeeded = true;
                     break;
                 }
             }
 
+
             if (sortNeeded) {
                 std::sort(
-                    stripe->DataSlices.begin(),
-                    stripe->DataSlices.end(),
+                    stripe->DataSlices().begin(),
+                    stripe->DataSlices().end(),
                     dataSliceComparator);
             }
         }
@@ -138,8 +139,8 @@ void TLegacyJobStub::Finalize(bool sortByPosition)
 
     // This order is crucial for ordered map.
     std::sort(stripes.begin(), stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
-        auto& lhsSlice = lhs->DataSlices.front();
-        auto& rhsSlice = rhs->DataSlices.front();
+        auto& lhsSlice = lhs->DataSlices().front();
+        auto& rhsSlice = rhs->DataSlices().front();
 
         if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
             return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
@@ -189,7 +190,7 @@ TString TLegacyJobStub::GetDebugString() const
     builder.AppendString("{");
     bool isFirst = true;
     for (const auto& stripe : StripeList_->Stripes()) {
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             if (isFirst) {
                 isFirst = false;
             } else {
@@ -568,8 +569,8 @@ std::vector<TLegacyDataSlicePtr> TLegacyJobManager::ReleaseForeignSlices(IChunkP
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
         if (stripe->Foreign) {
-            std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
-            stripe->DataSlices.clear();
+            std::move(stripe->DataSlices().begin(), stripe->DataSlices().end(), std::back_inserter(foreignSlices));
+            stripe->DataSlices().clear();
         }
     }
     return foreignSlices;
@@ -638,13 +639,13 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
         i64 primaryDataWeight = currentJobStub->GetPrimaryDataWeight();
         i64 foreignDataWeight = currentJobStub->GetForeignDataWeight();
         for (const auto& stripe : job.StripeList()->Stripes()) {
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
             }
         }
         if ((primaryDataWeight <= primaryDataWeightPerJob && foreignDataWeight + primaryDataWeight <= dataWeightPerJob) || force) {
             for (const auto& stripe : job.StripeList()->Stripes()) {
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->Foreign);
                 }
             }

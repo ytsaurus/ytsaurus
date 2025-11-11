@@ -373,7 +373,7 @@ protected:
     TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(false /*foreign*/);
-        chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
+        chunkStripe->DataSlices().push_back(std::move(dataSlice));
         return chunkStripe;
     }
 

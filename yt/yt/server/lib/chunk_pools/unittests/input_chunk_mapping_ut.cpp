@@ -87,7 +87,7 @@ protected:
             dataSlices.emplace_back(std::move(dataSlice));
         }
         auto stripe = New<TChunkStripe>();
-        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices));
+        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices()));
         return stripe;
     }
 
@@ -104,7 +104,7 @@ protected:
     std::vector<TInputChunkPtr> ToChunks(const TChunkStripePtr& stripe)
     {
         std::vector<TInputChunkPtr> chunks;
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             chunks.push_back(dataSlice->GetSingleUnversionedChunk());
         }
         return chunks;
@@ -285,22 +285,22 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     TInputSliceLimit upperLimit;
     upperLimit.KeyBound = TKeyBound::FromRow(BuildRow({56}), /*isInclusive*/ false, /*isUpper*/ false);
     upperLimit.RowIndex = 78;
-    stripeAWithLimits->DataSlices[0]->LowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
-    stripeAWithLimits->DataSlices[0]->UpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
+    stripeAWithLimits->DataSlices()[0]->LowerLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
+    stripeAWithLimits->DataSlices()[0]->UpperLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
 
     auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits);
 
-    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
-    auto newLowerLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
+    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();
+    auto newLowerLimit = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();
     EXPECT_EQ(oldLowerLimit.KeyBound, newLowerLimit.KeyBound);
     EXPECT_EQ(oldLowerLimit.RowIndex, newLowerLimit.RowIndex);
 
-    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
-    auto newUpperLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
+    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->UpperLimit();
+    auto newUpperLimit = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->UpperLimit();
     EXPECT_EQ(oldUpperLimit.KeyBound, newUpperLimit.KeyBound);
     EXPECT_EQ(oldUpperLimit.RowIndex, newUpperLimit.RowIndex);
 
-    EXPECT_EQ(mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->GetInputChunk(), chunkB);
+    EXPECT_EQ(mappedStripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->GetInputChunk(), chunkB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

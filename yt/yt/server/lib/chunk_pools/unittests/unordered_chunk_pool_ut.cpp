@@ -149,7 +149,7 @@ protected:
             dataSlices.emplace_back(std::move(dataSlice));
         }
         auto stripe = New<TChunkStripe>();
-        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices));
+        std::move(dataSlices.begin(), dataSlices.end(), std::back_inserter(stripe->DataSlices()));
         return ChunkPool_->Add(stripe);
     }
 
@@ -231,10 +231,10 @@ protected:
         // Check that data slices from each stripe are all from the same table.
         for (const auto& stripeList : stripeLists) {
             for (const auto& stripe : stripeList->Stripes()) {
-                ASSERT_TRUE(!stripe->DataSlices.empty());
-                int tableIndex = stripe->DataSlices.front()->GetTableIndex();
+                ASSERT_TRUE(!stripe->DataSlices().empty());
+                int tableIndex = stripe->DataSlices().front()->GetTableIndex();
 
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         const auto& inputChunk = chunkSlice->GetInputChunk();
                         EXPECT_EQ(tableIndex, inputChunk->GetTableIndex());
@@ -326,7 +326,7 @@ protected:
             auto stripeList = ChunkPool_->GetStripeList(cookie);
             for (const auto& stripe : stripeList->Stripes()) {
                 if (stripe) {
-                    for (const auto& dataSlice : stripe->DataSlices) {
+                    for (const auto& dataSlice : stripe->DataSlices()) {
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                             auto chunk = chunkSlice->GetInputChunk();
                             EXPECT_TRUE(chunk);
@@ -1079,7 +1079,7 @@ protected:
         }
         auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes();
         YT_VERIFY(std::ssize(stripes) == 1);
-        auto dataSlices = stripes.front()->DataSlices;
+        auto dataSlices = stripes.front()->DataSlices();
         YT_VERIFY(std::ssize(dataSlices) == 1);
         auto chunk = dataSlices.front()->GetSingleUnversionedChunk();
         ExtractedChunksToCookie_[chunk] = FreeChunksToCookie_[chunk];
@@ -1597,7 +1597,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(stripe);
 
                 THashSet<TChunkId> inputChunks;
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                     inputChunks.insert(chunk->GetChunkId());
                 }

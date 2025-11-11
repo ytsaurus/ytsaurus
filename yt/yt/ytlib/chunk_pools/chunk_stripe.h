@@ -11,11 +11,16 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkStripe
+class TChunkStripe
     : public TRefCounted
 {
+public:
+    using TDataSlices = TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1>;
+
     explicit TChunkStripe(bool foreign = false);
     explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false);
+
+    DEFINE_BYREF_RW_PROPERTY(TDataSlices, DataSlices);
 
     NTableClient::TChunkStripeStatistics GetStatistics() const;
     int GetChunkCount() const;
@@ -24,7 +29,6 @@ struct TChunkStripe
 
     int GetInputStreamIndex() const;
 
-    TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
 
@@ -35,6 +39,7 @@ struct TChunkStripe
     //! For example, it may represent partition index in intermediate sort or output table index in sink.
     std::optional<int> PartitionTag = std::nullopt;
 
+private:
     PHOENIX_DECLARE_TYPE(TChunkStripe, 0x20bf907f);
 };
 

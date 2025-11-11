@@ -138,7 +138,7 @@ protected:
         const auto& stripes = job.GetStripeList()->Stripes();
         ASSERT_EQ(std::ssize(stripes), 1);
 
-        const auto& dataSlices = stripes[0]->DataSlices;
+        const auto& dataSlices = stripes[0]->DataSlices();
         ASSERT_EQ(std::ssize(dataSlices), std::ssize(expectations.SliceExpectations));
 
         for (int i = 0; i < std::ssize(expectations.SliceExpectations); ++i) {

@@ -4194,7 +4194,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
             chunkId,
             UnavailableIntermediateChunkCount_);
 
-        for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
+        for (auto& dataSlice : completedJob->InputStripe->DataSlices()) {
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
             if (inputChunk->GetChunkId() == chunkId) {
@@ -8694,7 +8694,7 @@ void TOperationControllerBase::AttachToLivePreview(
     TStringBuf tableName,
     const TChunkStripePtr& stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             AttachToLivePreview(tableName, chunkSlice->GetInputChunk());
         }
@@ -8878,7 +8878,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     const TCompletedJobPtr& completedJob,
     const TChunkStripePtr& stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         // NB: Intermediate slice must be trivial.
         auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
         YT_VERIFY(ChunkOriginMap_.emplace(chunkId, completedJob).second);

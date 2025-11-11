@@ -44,8 +44,8 @@ TCompletedJobSummary SummaryWithSplitJobCount(
     TCompletedJobSummary jobSummary;
     for (const auto& stripe : stripeList->Stripes()) {
         std::copy(
-            stripe->DataSlices.begin(),
-            stripe->DataSlices.end(),
+            stripe->DataSlices().begin(),
+            stripe->DataSlices().end(),
             std::back_inserter(jobSummary.UnreadInputDataSlices));
     }
     jobSummary.SplitJobCount = splitJobCount;

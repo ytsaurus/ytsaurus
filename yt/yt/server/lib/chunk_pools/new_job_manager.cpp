@@ -30,7 +30,7 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
     int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
     auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
-    stripe->DataSlices.push_back(dataSlice);
+    stripe->DataSlices().push_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
     }
@@ -60,7 +60,7 @@ void TNewJobStub::Finalize()
     std::vector<TChunkStripePtr> stripes;
     stripes.reserve(StripeMap_.size());
     for (auto& [tableAndRangeIndex, stripe] : StripeMap_) {
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
         stripes.push_back(std::move(stripe));
@@ -69,8 +69,8 @@ void TNewJobStub::Finalize()
 
     // This order is crucial for ordered map.
     std::sort(stripes.begin(), stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
-        auto& lhsSlice = lhs->DataSlices.front();
-        auto& rhsSlice = rhs->DataSlices.front();
+        auto& lhsSlice = lhs->DataSlices().front();
+        auto& rhsSlice = rhs->DataSlices().front();
 
         if (lhsSlice->GetTableIndex() != rhsSlice->GetTableIndex()) {
             return lhsSlice->GetTableIndex() < rhsSlice->GetTableIndex();
@@ -126,7 +126,7 @@ TString TNewJobStub::GetDebugString() const
     bool isFirst = true;
     for (const auto& [key, stripe] : StripeMap_) {
         builder.AppendFormat("(%v, %v): ", key.first, key.second);
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             if (isFirst) {
                 isFirst = false;
             } else {
@@ -747,8 +747,8 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
         if (stripe->Foreign) {
-            std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
-            stripe->DataSlices.clear();
+            std::move(stripe->DataSlices().begin(), stripe->DataSlices().end(), std::back_inserter(foreignSlices));
+            stripe->DataSlices().clear();
         }
     }
     return foreignSlices;
@@ -827,7 +827,7 @@ void TNewJobManager::Enlarge(
                 YT_LOG_DEBUG("Stopping enlargement due to the foreign data stripe");
                 return false;
             }
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
                 compressedDataSize += dataSlice->GetCompressedDataSize();
                 ++sliceCount;
@@ -902,7 +902,7 @@ void TNewJobManager::Enlarge(
             const auto& job = Jobs_[*finishIndex];
             if (shouldJoinJob(currentJobStub.get(), job, finishIndex == startIndex /*force*/)) {
                 for (const auto& stripe : job.StripeList()->Stripes()) {
-                    for (const auto& dataSlice : stripe->DataSlices) {
+                    for (const auto& dataSlice : stripe->DataSlices()) {
                         // TODO(coteeq): Do not duplicate rows in foreign slices here.
                         // For primary slices everything is simple - we just throw more slices to
                         // the currentJobStub and it works because everything is ordered.
