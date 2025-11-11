@@ -95,6 +95,26 @@ class ConsumerGroupState(Enum):
         return self.value < other.value
 
 
+class ConsumerGroupType(Enum):
+    """
+    Enumerates the different types of Consumer Group Type.
+
+    Values:
+    -------
+    """
+    #: Type is not known or not set
+    UNKNOWN = cimpl.CONSUMER_GROUP_TYPE_UNKNOWN
+    #: Consumer Type
+    CONSUMER = cimpl.CONSUMER_GROUP_TYPE_CONSUMER
+    #: Classic Type
+    CLASSIC = cimpl.CONSUMER_GROUP_TYPE_CLASSIC
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
+
+
 class TopicCollection:
     """
     Represents collection of topics in the form of different identifiers
@@ -144,6 +164,25 @@ class IsolationLevel(Enum):
 
     READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED  #: Receive all the offsets.
     READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED  #: Skip offsets belonging to an aborted transaction.
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
+
+
+class ElectionType(Enum):
+    """
+    Enumerates the different types of leader elections.
+
+    Values:
+    -------
+    """
+
+    #: Preferred election
+    PREFERRED = cimpl.ELECTION_TYPE_PREFERRED
+    #: Unclean election
+    UNCLEAN = cimpl.ELECTION_TYPE_UNCLEAN
 
     def __lt__(self, other):
         if self.__class__ != other.__class__:

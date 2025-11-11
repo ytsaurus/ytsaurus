@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2.4.0)
+VERSION(2.6.1)
 
 LICENSE(Apache-2.0)
 
@@ -50,6 +50,7 @@ PY_SRCS(
     confluent_kafka/admin/_group.py
     confluent_kafka/admin/_listoffsets.py
     confluent_kafka/admin/_metadata.py
+    confluent_kafka/admin/_records.py
     confluent_kafka/admin/_resource.py
     confluent_kafka/admin/_scram.py
     confluent_kafka/admin/_topic.py

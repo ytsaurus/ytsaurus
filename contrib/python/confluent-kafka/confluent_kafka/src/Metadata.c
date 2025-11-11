@@ -257,6 +257,7 @@ static PyObject *c_brokers_to_py (Handle *self,
                         goto err;
                 }
 
+                Py_DECREF(key);
                 Py_DECREF(broker);
         }
 
