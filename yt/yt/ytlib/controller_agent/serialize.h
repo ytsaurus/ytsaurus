@@ -86,6 +86,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoveUnusedLocalityStatistics)        (302106))
     ((RefactorChunkStripeList)               (302107))
     ((DropIsFinalOutput)                     (302108))
+    ((MoveWaitingChunkCount)                 (302109))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -241,6 +241,7 @@ private:
         NChunkPools::TChunkStripePtr Stripe;
         NChunkPools::IChunkPoolInput::TCookie Cookie = NChunkPools::IChunkPoolInput::NullCookie;
         TTaskPtr Task;
+        int WaitingChunkCount = 0;
 
         void Persist(const TPersistenceContext& context);
     };

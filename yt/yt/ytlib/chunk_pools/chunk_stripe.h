@@ -30,9 +30,6 @@ public:
 
     int GetInputStreamIndex() const;
 
-    // TODO(apollo1321): This field is only used in TInputManager and should be moved there.
-    DEFINE_BYREF_RW_PROPERTY(int, WaitingChunkCount);
-
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Foreign);
 
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::TChunkListId, ChunkListId);
