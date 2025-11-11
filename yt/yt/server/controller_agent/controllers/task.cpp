@@ -1110,7 +1110,7 @@ void TTask::PropagatePartitions(
 {
     YT_VERIFY(outputStripes->size() == streamDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < std::ssize(*outputStripes); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex]->PartitionTag;
+        (*outputStripes)[stripeIndex]->SetPartitionTag(streamDescriptors[stripeIndex]->PartitionTag);
     }
 }
 
@@ -1744,7 +1744,7 @@ void TTask::AddParallelInputSpec(
         TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes()) {
-        auto* inputSpec = stripe->Foreign
+        auto* inputSpec = stripe->IsForeign()
             ? jobSpecExt->add_foreign_input_table_specs()
             : jobSpecExt->add_input_table_specs();
         AddChunksToInputSpec(
@@ -2276,7 +2276,7 @@ void TTask::RegisterStripe(
     bool processEmptyStripes,
     const std::optional<TMD5Hash>& digest)
 {
-    if (stripe->DataSlices().empty() && !stripe->ChunkListId) {
+    if (stripe->DataSlices().empty() && !stripe->GetChunkListId()) {
         return;
     }
 
@@ -2433,17 +2433,17 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < std::ssize(chunkTreeIds); ++tableIndex) {
-        stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
+        stripes[tableIndex]->SetChunkListId(chunkTreeIds[tableIndex]);
         if (OutputStreamDescriptors_[tableIndex]->TableWriterOptions->ReturnBoundaryKeys) {
             // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
             if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
                 !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&
                 boundaryKeysPerTable.Get(boundaryKeysIndex).sorted())
             {
-                stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
+                stripes[tableIndex]->SetBoundaryKeys(BuildBoundaryKeysFromOutputResult(
                     boundaryKeysPerTable.Get(boundaryKeysIndex),
                     OutputStreamDescriptors_[tableIndex],
-                    TaskHost_->GetRowBuffer());
+                    TaskHost_->GetRowBuffer()));
             }
             ++boundaryKeysIndex;
         }

@@ -18,26 +18,31 @@ public:
     using TDataSlices = TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1>;
 
     explicit TChunkStripe(bool foreign = false);
-    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false);
+    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice);
 
     DEFINE_BYREF_RW_PROPERTY(TDataSlices, DataSlices);
 
     NTableClient::TChunkStripeStatistics GetStatistics() const;
     int GetChunkCount() const;
 
+    //! Input table index. May be -1 if chunk stripe is intermediate.
     int GetTableIndex() const;
 
     int GetInputStreamIndex() const;
 
-    int WaitingChunkCount = 0;
-    bool Foreign = false;
+    // TODO(apollo1321): This field is only used in TInputManager and should be moved there.
+    DEFINE_BYREF_RW_PROPERTY(int, WaitingChunkCount);
 
-    NChunkClient::TChunkListId ChunkListId;
-    TBoundaryKeys BoundaryKeys;
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Foreign);
+
+    DEFINE_BYVAL_RW_PROPERTY(NChunkClient::TChunkListId, ChunkListId);
+
+    DEFINE_BYVAL_RW_PROPERTY(TBoundaryKeys, BoundaryKeys);
 
     //! This field represents correspondence of chunk stripe to chunk pool in multi chunk pool.
     //! For example, it may represent partition index in intermediate sort or output table index in sink.
-    std::optional<int> PartitionTag = std::nullopt;
+    //! It is not used for filtering chunk blocks.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, PartitionTag);
 
 private:
     PHOENIX_DECLARE_TYPE(TChunkStripe, 0x20bf907f);

@@ -568,7 +568,7 @@ std::vector<TLegacyDataSlicePtr> TLegacyJobManager::ReleaseForeignSlices(IChunkP
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
-        if (stripe->Foreign) {
+        if (stripe->IsForeign()) {
             std::move(stripe->DataSlices().begin(), stripe->DataSlices().end(), std::back_inserter(foreignSlices));
             stripe->DataSlices().clear();
         }
@@ -640,13 +640,13 @@ void TLegacyJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJo
         i64 foreignDataWeight = currentJobStub->GetForeignDataWeight();
         for (const auto& stripe : job.StripeList()->Stripes()) {
             for (const auto& dataSlice : stripe->DataSlices()) {
-                (stripe->Foreign ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
+                (stripe->IsForeign() ? foreignDataWeight : primaryDataWeight) += dataSlice->GetDataWeight();
             }
         }
         if ((primaryDataWeight <= primaryDataWeightPerJob && foreignDataWeight + primaryDataWeight <= dataWeightPerJob) || force) {
             for (const auto& stripe : job.StripeList()->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices()) {
-                    currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->Foreign);
+                    currentJobStub->AddDataSlice(dataSlice, IChunkPoolInput::NullCookie, !stripe->IsForeign());
                 }
             }
             currentJobStub->InputCookies_.insert(currentJobStub->InputCookies_.end(), job.InputCookies().begin(), job.InputCookies().end());

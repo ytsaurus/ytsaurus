@@ -14,12 +14,11 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe(bool foreign)
-    : Foreign(foreign)
+    : Foreign_(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign)
+TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice)
     : DataSlices_({std::move(dataSlice)})
-    , Foreign(foreign)
 { }
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
@@ -63,17 +62,11 @@ int TChunkStripe::GetInputStreamIndex() const
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, DataSlices_);
-    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount);
-    PHOENIX_REGISTER_FIELD(3, Foreign);
-    // COMPAT(apollo1321): Remove in 25.3.
-    registrar
-        .template VirtualField<4>("Solid", [] (TThis* /*this_*/, auto& context) {
-            Load<bool>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::DropSolidFromChunkStripe)();
-    PHOENIX_REGISTER_FIELD(5, ChunkListId);
-    PHOENIX_REGISTER_FIELD(6, BoundaryKeys);
-    PHOENIX_REGISTER_FIELD(7, PartitionTag);
+    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount_);
+    PHOENIX_REGISTER_FIELD(3, Foreign_);
+    PHOENIX_REGISTER_FIELD(5, ChunkListId_);
+    PHOENIX_REGISTER_FIELD(6, BoundaryKeys_);
+    PHOENIX_REGISTER_FIELD(7, PartitionTag_);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripe);
