@@ -116,6 +116,7 @@ message TReqFlowExecute
 {
     optional string command = 1;
     optional bytes argument = 2 [(NYT.NYson.NProto.yson_string) = true];
+    optional string user = 3; // Authenticated user name.
 }
 
 message TRspFlowExecute
