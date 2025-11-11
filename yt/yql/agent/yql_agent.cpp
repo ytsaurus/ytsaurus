@@ -515,6 +515,8 @@ private:
                 THROW_ERROR error;
             }
 
+            EraseNonYtClusters(clustersResult.Clusters);
+
             THashMap<TString, IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
                 queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
@@ -652,6 +654,8 @@ private:
                 THROW_ERROR error;
             }
 
+            EraseNonYtClusters(clustersResult.Clusters);
+
             THashMap<TString, IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
                 queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
@@ -742,6 +746,17 @@ private:
             .BeginMap()
                 .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
             .EndMap();
+    }
+
+    void EraseNonYtClusters(std::vector<std::pair<TString, TString>>& clusters) const {
+        auto ytClusterNames = ClusterDirectory_->GetClusterNames();
+        THashSet<TString> presentYtClusters(ytClusterNames.begin(), ytClusterNames.end());
+        EraseIf(clusters, [&presentYtClusters](const std::pair<TString, TString>& cluster) {
+            if (!presentYtClusters.contains(cluster.first)) {
+                return true;
+            }
+            return false;
+        });
     }
 };
 

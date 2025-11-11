@@ -27,6 +27,7 @@ struct TYqlPluginOptions
     NYson::TYsonString GatewayConfig;
     NYson::TYsonString DqGatewayConfig;
     NYson::TYsonString YtflowGatewayConfig;
+    NYson::TYsonString PqGatewayConfig;
     NYson::TYsonString DqManagerConfig;
     NYson::TYsonString FileStorageConfig;
     NYson::TYsonString OperationAttributes;
