@@ -93,9 +93,15 @@ private:
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
-                    auto wrappedError = TError("Error getting user info for user %Qv",
-                        user)
-                        << resultOrError;
+                    TError wrappedError;
+                    if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        wrappedError = TError("No such user %Qv",
+                            user);
+                    } else {
+                        wrappedError = TError("Error getting user info for user %Qv",
+                            user);
+                    }
+                    wrappedError <<= resultOrError;
                     YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }
