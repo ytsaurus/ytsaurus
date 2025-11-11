@@ -20,3 +20,21 @@ def get_bool_attribute_if_exists(yt_client, attribute_path):
     if yt_client.get(attribute_path):
         return EXISTS_AND_TRUE
     return EXISTS_AND_FALSE
+
+
+JOB_TYPES = [
+    "replication",
+    "repair",
+    "removal",
+    "seal",
+    "merge",
+]
+
+
+def get_disabled_jobs(yt_client):
+    config = yt_client.get("//sys/@config/chunk_manager")
+    return {
+        job_type
+        for job_type in JOB_TYPES
+        if config[f"max_misscheduled_{job_type}_jobs_per_heartbeat"] == 0
+    }
