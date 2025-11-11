@@ -162,15 +162,18 @@ def run_job_shell(job_id: str, shell_name: Optional[str] = None, timeout=None, c
     JobShell(job_id, shell_name=shell_name, interactive=True, timeout=timeout, client=client).run(command=command)
 
 
-def get_job_stderr(operation_id: str, job_id: str, client=None) -> bytes:
+def get_job_stderr(operation_id: str, job_id: str, stderr_type: Optional[str] = None, client=None) -> bytes:
     """Gets stderr of the specified job.
 
     :param str operation_id: operation id.
     :param str job_id: job id.
+    :param str type: stderr type.
     """
+    params = {"operation_id": operation_id, "job_id": job_id}
+    set_param(params, "type", stderr_type)
     return make_request(
         "get_job_stderr",
-        {"operation_id": operation_id, "job_id": job_id},
+        params,
         return_content=False,
         client=client)
 

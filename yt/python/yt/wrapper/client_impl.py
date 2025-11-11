@@ -1126,17 +1126,20 @@ class YtClient(ClientState):
 
     def get_job_stderr(
             self,
-            operation_id: str, job_id: str) -> bytes:
+            operation_id: str, job_id: str,
+            stderr_type: Optional[str] = None) -> bytes:
         """
         Gets stderr of the specified job.
 
         :param str operation_id: operation id.
         :param str job_id: job id.
+        :param str type: stderr type.
 
         """
         return client_api.get_job_stderr(
             operation_id, job_id,
-            client=self)
+            client=self,
+            stderr_type=stderr_type)
 
     def get_job_trace(
             self,
