@@ -4,7 +4,7 @@
 #include "udf_cpp_abi.h"
 #endif
 
-#include "platform_specific.h"
+#include "port.h"
 
 namespace NYT::NQueryClient::NUdf {
 
