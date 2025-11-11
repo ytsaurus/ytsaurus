@@ -2074,6 +2074,7 @@ def add_get_job_stderr_parser(add_parser):
     parser = add_parser("get-job-stderr", get_job_stderr)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
     add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
+    parser.add_argument("--stderr-type", choices=("user_job_stderr", "gpu_check_stderr"), help="return stderr of specified type")
 
 
 @copy_docstring_from(yt.get_job_trace)
