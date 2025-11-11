@@ -32,7 +32,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 93GB
+          disk-size: 372GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
@@ -120,7 +120,7 @@ jobs:
         run: |
           docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
           docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
-          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }} 
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
 
   stop-vm:
     name: Stop VM
