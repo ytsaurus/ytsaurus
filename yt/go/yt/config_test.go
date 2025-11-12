@@ -2,6 +2,7 @@ package yt
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,10 +10,11 @@ import (
 
 func TestClusterURL(t *testing.T) {
 	type config struct {
-		proxy         string
-		defaultSuffix string
-		useTLS        bool
-		useTVM        bool
+		proxy                   string
+		defaultSuffix           string
+		useTLS                  bool
+		useTVM                  bool
+		ytProxyUrlAliasingValue string
 	}
 
 	tvmHTTPPort := fmt.Sprint(TVMOnlyHTTPProxyPort)
@@ -148,10 +150,32 @@ func TestClusterURL(t *testing.T) {
 			config{proxy: "https://[::1]:23924"},
 			"https://[::1]:23924",
 		},
+		{
+			"alias found",
+			config{
+				proxy:                   "cluster3",
+				ytProxyUrlAliasingValue: `{"cluster2"="http://127.0.0.1:30799";"cluster3"="http://127.0.0.1:30399";}`,
+			},
+			"http://127.0.0.1:30399",
+		},
+		{
+			"alias not found",
+			config{
+				proxy:                   "cluster4",
+				ytProxyUrlAliasingValue: `{"cluster2"="http://127.0.0.1:30799";"cluster3"="http://127.0.0.1:30399";}`,
+			},
+			"http://cluster4.yt.yandex.net",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if test.config.defaultSuffix != "" {
 				t.Skip("default_suffix is not supported yet")
+			}
+			if test.config.ytProxyUrlAliasingValue != "" {
+				require.NoError(t, os.Setenv("YT_PROXY_URL_ALIASING_CONFIG", test.config.ytProxyUrlAliasingValue))
+				defer func() {
+					require.NoError(t, os.Unsetenv("YT_PROXY_URL_ALIASING_CONFIG"))
+				}()
 			}
 
 			conf := Config{

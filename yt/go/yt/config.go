@@ -18,6 +18,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	zaplog "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 type Config struct {
@@ -194,16 +195,43 @@ type Config struct {
 	HTTPClient *http.Client
 }
 
+func getProxyAliasIfExists(proxy string) (*string, error) {
+	configStr := os.Getenv("YT_PROXY_URL_ALIASING_CONFIG")
+	if configStr == "" {
+		return nil, nil
+	}
+
+	proxyAliasing := map[string]string{}
+	if err := yson.Unmarshal([]byte(configStr), &proxyAliasing); err != nil {
+		return nil, fmt.Errorf("failed to parse YT_PROXY_URL_ALIASING_CONFIG: %w", err)
+	}
+
+	proxyAlias, ok := proxyAliasing[proxy]
+	if !ok {
+		return nil, nil
+	} else if proxyAlias == "" {
+		return nil, fmt.Errorf("proxy alias for %q is empty", proxy)
+	}
+	return &proxyAlias, nil
+}
+
 func (c *Config) GetProxy() (string, error) {
+	var proxy string
 	if c.Proxy != "" {
-		return c.Proxy, nil
+		proxy = c.Proxy
+	} else if proxyFromEnv := os.Getenv("YT_PROXY"); proxyFromEnv != "" {
+		proxy = proxyFromEnv
+	} else {
+		return "", xerrors.New("YT proxy is not set (either Config.Proxy or YT_PROXY must be set)")
 	}
 
-	if proxy := os.Getenv("YT_PROXY"); proxy != "" {
-		return proxy, nil
+	if alias, err := getProxyAliasIfExists(proxy); err != nil {
+		return "", err
+	} else if alias != nil {
+		proxy = *alias
 	}
 
-	return "", xerrors.New("YT proxy is not set (either Config.Proxy or YT_PROXY must be set)")
+	return proxy, nil
 }
 
 func (c *Config) GetClusterURL() (ClusterURL, error) {
