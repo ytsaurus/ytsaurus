@@ -2365,7 +2365,11 @@ private:
             return;
         }
 
-        if (!replicationCard->Replicas().empty()) {
+        // COMPAT(gryzlov-ad)
+        auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
+        if (reign >= EChaosReign::DoNotSkipCommenceNewEraIfNoReplicas &&
+            !replicationCard->Replicas().empty())
+        {
             int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
             int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
             if (syncQueueCount < minSyncQueueCount) {
