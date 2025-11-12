@@ -184,6 +184,10 @@ private:
             loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
 
             auto localSnapshotStoreConfig = New<NHydra::TLocalSnapshotStoreConfig>();
+
+            // NB: In dry-run we do not want to recursively remove all temporary files
+            // as BuildSnapshotPath_ could point to non-isolated directory.
+            localSnapshotStoreConfig->CleanTemporaryFilesOnStoreInitialize = false;
             localSnapshotStoreConfig->Path = NFS::GetRealPath(BuildSnapshotPath_);
             localSnapshotStoreConfig->UseHeaderlessWriter = true;
 
