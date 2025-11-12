@@ -67,6 +67,11 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
             version);
     }
 
+    if (!attributes.Contains(LeaderControllerAddressAttribute)) {
+        THROW_ERROR_EXCEPTION("Cannot discover pipeline controller because attribute %Qv is not set on pipeline. "
+            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
+            LeaderControllerAddressAttribute);
+    }
     auto address = attributes.Get<TString>(LeaderControllerAddressAttribute);
 
     YT_LOG_DEBUG("Finished discovering pipeline controller leader (PipelinePath: %v, Address: %v)",
@@ -76,9 +81,8 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
     return address;
 }
 
-TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPath& pipelinePath)
+TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TString& address)
 {
-    auto address = DiscoverPipelineControllerLeader(pipelinePath);
     // Cannot use ChannelFactory_ here because it injects internal TVM ticket.
     auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
     TControllerServiceProxy proxy(std::move(channel));
@@ -231,7 +235,21 @@ TFlowExecuteResult TClient::DoFlowExecute(
     const TFlowExecuteOptions& options)
 {
     ValidatePipelinePermission(pipelinePath, EPermission::Read);
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto controllerAddress = DiscoverPipelineControllerLeader(pipelinePath);
+    auto proxy = CreatePipelineControllerLeaderProxy(controllerAddress);
+
+    auto executeRequest = [&](auto& req) {
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.GetCode() == NRpc::EErrorCode::TransportError) {
+            THROW_ERROR_EXCEPTION("Cannot connect to pipeline controller leader. "
+                "Probably controller is stopped or it is failing")
+                << TErrorAttribute("flow_execute_command", req->command())
+                << TErrorAttribute("pipeline_path", pipelinePath)
+                << TErrorAttribute("pipeline_controller_leader_address", controllerAddress)
+                << rspOrError;
+        }
+        return rspOrError.ValueOrThrow();
+    };
 
     // Get and check command-specific permission.
     {
@@ -247,8 +265,7 @@ TFlowExecuteResult TClient::DoFlowExecute(
                 .Item("command").Value(command)
             .EndMap();
         req->set_argument(ToProto(argument));
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+        auto rsp = executeRequest(req);
         auto requiredPermission = ConvertTo<IMapNodePtr>(TYsonString(rsp->result()))
             ->GetChildValueOrThrow<EPermission>("permission");
         if (requiredPermission != EPermission::Read) {
@@ -265,8 +282,7 @@ TFlowExecuteResult TClient::DoFlowExecute(
         req->set_argument(ToProto(argument));
     }
     req->set_user(Options_.GetAuthenticatedUser());
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto rsp = executeRequest(req);
     return {
         .Result = rsp->has_result() ? TYsonString(rsp->result()) : TYsonString{},
     };
