@@ -23,13 +23,15 @@ The tree configuration has the following options:
 - `integral_guarantees`: Settings for managing [integral guarantees](../../../../user-guide/data-processing/scheduler/integral-guarantees.md) in the given tree.
 - `pool_config_presets`: Description of pool configuration presets.
 
-Below are the options associated with the [preemption mechanism](../../../../user-guide/data-processing/scheduler/preemption.md):
+{% include [pool tree preemption settings](pool-tree-preemption-settings.md) %}
+
+<!--Below are the options associated with the [preemption mechanism](../../../../user-guide/data-processing/scheduler/preemption.md):
 - `preemptive_scheduling_backoff`: A limit on the frequency of preemptive allocation scheduling within a single node.
 - `fair_share_starvation_timeout`: If an operation has received fewer resources than allocated when this timeout expires, it becomes `starving`, meaning its allocations will be scheduled using preemptive scheduling.
 - `fair_share_starvation_tolerance`: A threshold value indicating that an operation is not receiving sufficient resources. An operation is considered starving (`BelowFairShare` status) if `usage_share < fair_share * tolerance` for the dominant resource.
 - `preemption_satisfaction_threshold`: A threshold value for classifying allocations as preemptible or non‑preemptible. Allocations are considered preemptible if they lie strictly above the specified threshold in terms of their contribution to the operation’s usage share.
 - `non_preemptible_resource_usage_threshold`: An operation will not be subject to preemption if its resource usage is less than this value.
-- `allocation_preemption_timeout`: An allocation preemption timeout. If a job in a given allocation supports interruption, the system ensures that the job has enough time to complete successfully before being aborted.
+- `allocation_preemption_timeout`: An allocation preemption timeout. If a job in a given allocation supports interruption, the system ensures that the job has enough time to complete successfully before being aborted.-->
 
 ## Pool configuration { #pools }
 
@@ -56,6 +58,8 @@ For the guarantees to be fulfilled, the dominant resource of the operation has t
 * `ephemeral_subpool_config`: A nested configuration of ephemeral subpools created in the current pool. Makes sense only if the `create_ephemeral_subpools` option is specified. You can specify the `mode`, `max_running_operation_count`, `max_operation_count`, and `resource_limits` in the configuration.
 * `offloading_settings`: A setting responsible for offloading some of the pool jobs to another tree along with the tree where the pool resides. Job offloading works for operations started after the setting was enabled. Example: `yt set //sys/pool_trees/<pool_tree>/<pool>/@offloading_settings '{<pool_tree_X>={pool=<pool_name_Y>}}'`.
 * `config_presets`: A list of presets applied to the given pool.
+
+{% include [pool preemption settings](pool-preemption-settings.md) %}
 
 Each pool has its _unique_ (in one given tree) name. The name of the pool selected to start the operation is shown in the operation settings.
 

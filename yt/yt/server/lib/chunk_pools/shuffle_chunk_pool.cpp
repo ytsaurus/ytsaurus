@@ -325,6 +325,8 @@ private:
             // This behaviour is incorrect and should be fixed in YT-26516.
             list->SetPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
 
+            list->SetApproximate(run.IsApproximate);
+
             for (const auto& stripe : list->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices()) {
                     YT_VERIFY(!dataSlice->IsLegacy);

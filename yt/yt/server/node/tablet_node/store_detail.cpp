@@ -1313,7 +1313,7 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
     return DoGetBlockCache();
 }
 
-TInMemoryChunkDataPtr TChunkStoreBase::GetInMemoryChunkData()
+TInMemoryChunkDataPtr TChunkStoreBase::GetInMemoryChunkData() const
 {
     auto guard = ReaderGuard(SpinLock_);
     return PreloadedBlockCache_ ? PreloadedBlockCache_->GetInMemoryChunkData() : nullptr;

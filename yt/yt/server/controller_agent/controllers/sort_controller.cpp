@@ -1066,13 +1066,11 @@ protected:
 
             AddOutputTableSpecs(jobSpec, joblet);
 
-            auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
-
             AddSequentialInputSpec(jobSpec, joblet);
 
             auto partitionIndex = joblet->InputStripeList->GetPartitionTag();
             if (partitionIndex) {
+                auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
                 auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
                 jobSpecExt->set_partition_tag(partitionTag);
                 if (joblet->CookieGroupInfo.OutputIndex > 0) {

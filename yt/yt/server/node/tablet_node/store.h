@@ -213,7 +213,7 @@ struct IChunkStore
 
     virtual i64 GetMemoryUsage() const = 0;
 
-    virtual TInMemoryChunkDataPtr GetInMemoryChunkData() = 0;
+    virtual TInMemoryChunkDataPtr GetInMemoryChunkData() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)

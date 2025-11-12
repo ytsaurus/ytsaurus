@@ -10,6 +10,8 @@
 
 #include <library/cpp/yt/coding/zig_zag.h>
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
@@ -40,7 +42,9 @@ protected:
 
     ui64 MaxValue_;
     ui64 MinValue_;
-    THashMap<ui64, int> DistinctValues_;
+
+    // NB(pavook): flat_hash_map is better than THashMap since we don't iterate at all. See ytlib/benchmarks.
+    absl::flat_hash_map<ui64, int> DistinctValues_;
 
     void Reset()
     {
