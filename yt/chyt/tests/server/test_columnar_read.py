@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt_commands import (write_table, authors, create, merge)
 
@@ -318,3 +318,8 @@ class TestColumnarRead(ClickHouseTestBase):
         merge(in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t")
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             assert clique.make_query('select * from "//tmp/t" order by x') == [{"x": 1}, {"x": 2}]
+
+
+@enable_sequoia
+class TestColumnarReadSequoia(TestColumnarRead):
+    pass

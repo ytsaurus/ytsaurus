@@ -73,6 +73,10 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
     TTransactionId readTransactionId,
     const TLogger& logger)
 {
+    if (paths.empty()) {
+        return MakeFuture<std::vector<TErrorOr<TObjectLock>>>({});
+    }
+
     const auto& Logger = logger;
 
     YT_LOG_INFO("Acquiring snapshot locks (Paths: %v)", paths);
@@ -100,6 +104,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
                     locks[index] = TObjectLock{
                         .NodeId = FromProto<TNodeId>(rsp->node_id()),
                         .Revision = FromProto<TRevision>(rsp->revision()),
+                        .ExternalTransactionId = FromProto<TTransactionId>(rsp->external_transaction_id()),
                     };
                     YT_LOG_INFO("Snapshot lock is acquired (LockId: %v, NodeId: %v, Revision: %v, ReadTransactionId: %v)",
                         rsp->lock_id(),
@@ -694,14 +699,30 @@ TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
 
 void TQueryContext::AcquireSnapshotLocks(const std::vector<TYPath>& paths)
 {
+    for (const auto& error : TryAcquireSnapshotLocks(paths)) {
+        error.ThrowOnError();
+    }
+}
+
+std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(const std::vector<TYPath>& paths)
+{
+    if (paths.empty()) {
+        return {};
+    }
+
     auto locks = WaitForUniqueFast(DoAcquireSnapshotLocks(paths))
         .ValueOrThrow();
 
     SaveQueryReadTransaction();
 
+    std::vector<TError> result(paths.size());
     for (size_t index = 0; index < paths.size(); ++index) {
-        SnapshotLocks.emplace(paths[index], locks[index].ValueOrThrow());
+        if (locks[index].IsOK()) {
+            SnapshotLocks.emplace(paths[index], locks[index].Value());
+        }
+        result[index] = std::move(locks[index]);
     }
+    return result;
 }
 
 void TQueryContext::AddStatisticsSample(const TStatisticPath& path, i64 sample)

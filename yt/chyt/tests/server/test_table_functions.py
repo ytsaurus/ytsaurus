@@ -1,7 +1,7 @@
 from yt_commands import (create, authors, write_table, get,
                          raises_yt_error)
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 import yt.yson as yson
 
@@ -343,3 +343,8 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$table_name": "t1", "result": 4},
                 {"$table_name": "t2", "result": 6},
             ]
+
+
+@enable_sequoia
+class TestTableFunctionsSequoia(TestTableFunctions):
+    pass

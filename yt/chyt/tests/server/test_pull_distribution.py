@@ -1,6 +1,6 @@
 from yt_commands import (authors, create, write_table)
 
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt.test_helpers import assert_items_equal
 
@@ -209,3 +209,8 @@ class TestPullDistributionMode(ClickHouseTestBase):
             # Separate tables will be read using pull mode.
             assert pulling_stats["secondary_queries_count"] == 2 * instance_count
             assert pulling_stats["pull_mode_queries_count"] == 2 * instance_count
+
+
+@enable_sequoia
+class TestPullDistributionModeSequoia(TestPullDistributionMode):
+    pass

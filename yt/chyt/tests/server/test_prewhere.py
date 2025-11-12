@@ -2,7 +2,7 @@ from yt_commands import (authors, create, write_table, insert_rows, get, print_d
                          sync_unmount_table, raises_yt_error)
 from yt.wrapper import yson
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 import pytest
 import itertools
@@ -391,3 +391,8 @@ class TestClickHousePrewhere(ClickHouseTestBase):
                     (dt >= toDateTime('1999-09-01 00:00:00'))
             """
             assert clique.make_query(query) == [{"a": 2, "b": "1999-10-01", "c": 2}]
+
+
+@enable_sequoia
+class TestClickHousePrewhereSequoia(TestClickHousePrewhere):
+    pass

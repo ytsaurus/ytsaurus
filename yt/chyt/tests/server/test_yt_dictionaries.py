@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia, enable_sequoia_acls
 
 from helpers import get_async_expiring_cache_config
 
@@ -440,3 +440,9 @@ class TestYtDictionaries(ClickHouseTestBase):
             assert result == [
                 {"str": "str1"},
             ]
+
+
+@enable_sequoia
+@enable_sequoia_acls
+class TestYtDictionariesSequoia(TestYtDictionaries):
+    pass

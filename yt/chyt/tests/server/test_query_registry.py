@@ -1,6 +1,6 @@
 from yt_commands import (create, authors, print_debug, write_table)
 
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt.common import YtError, wait
 
@@ -119,3 +119,8 @@ class TestQueryRegistry(ClickHouseTestBase):
                 iter=10,
             )
             t.join()
+
+
+@enable_sequoia
+class TestQueryRegistrySequoia(TestQueryRegistry):
+    pass

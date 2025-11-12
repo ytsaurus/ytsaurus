@@ -416,6 +416,8 @@ class YTInstance(object):
 
     def _prepare_certificates(self):
         names = [self.yt_config.fqdn, self.yt_config.cluster_name]
+        if self.yt_config.peer_alternative_host_name:
+            names.append(self.yt_config.peer_alternative_host_name)
 
         if self.yt_config.internal_ca_cert is None:
             self.yt_config.internal_ca_cert = os.path.join(self.path, "internal_ca.crt")

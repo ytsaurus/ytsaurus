@@ -165,6 +165,10 @@ std::vector<TTablePtr> FetchTables(
 
             auto& table = tables.emplace_back(New<TTable>(path, attributes));
 
+            if (auto it = queryContext->SnapshotLocks.find(path.GetPath()); it != queryContext->SnapshotLocks.end()) {
+                table->ExternalTransactionId = it->second.ExternalTransactionId;
+            }
+
             if (table->Dynamic) {
                 ++dynamicTableCount;
             }

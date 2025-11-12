@@ -1,4 +1,4 @@
-from base import Clique, ClickHouseTestBase, get_current_test_name
+from base import Clique, ClickHouseTestBase, get_current_test_name, enable_sequoia
 
 from yt_commands import (authors, create_user, sync_mount_table, add_member, remove, create, sync_create_cells,
                          create_tablet_cell_bundle, freeze_table, wait_for_tablet_state, write_file, read_table,
@@ -48,6 +48,9 @@ class TestLogTailer(YTEnvSetup):
         log_tailer_config["cluster_connection"] = copy.deepcopy(self.Env.configs["driver"])
         if "tvm_service" in log_tailer_config["cluster_connection"]:
             log_tailer_config["cluster_connection"].pop("tvm_service")
+
+        if self.USE_SEQUOIA:
+            os.mkdir(os.path.join(self.path_to_run, "logs"))
 
         os.mkdir(os.path.join(self.path_to_run, "logs", "dummy_logger"))
         log_tailer_config_file = os.path.join(self.path_to_run, "logs", "dummy_logger", "log_tailer_config.yson")
@@ -291,3 +294,13 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             remove(log_table)
             raise
         remove(log_table)
+
+
+@enable_sequoia
+class TestLogTailerSequoia(TestLogTailer):
+    pass
+
+
+@enable_sequoia
+class TestClickHouseWithLogTailerSequoia(TestClickHouseWithLogTailer):
+    pass

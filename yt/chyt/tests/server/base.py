@@ -843,6 +843,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         if exists("//sys/clickhouse"):
             return
+
         create("map_node", "//sys/clickhouse")
         create("document", "//sys/clickhouse/config", attributes={"value": {}})
         create("map_node", "//sys/clickhouse/breakpoints")
@@ -905,3 +906,39 @@ class ClickHouseTestBase(YTEnvSetup):
 
         sync_create_cells(1)
         create_access_control_object_namespace(name="chyt")
+
+
+def enable_sequoia(test_class):
+    test_class.USE_SEQUOIA = True
+    test_class.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    test_class.ENABLE_TMP_ROOTSTOCK = True
+    test_class.ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+    test_class.NUM_SECONDARY_MASTER_CELLS = 3
+    test_class.MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator", "sequoia_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+    return test_class
+
+
+def enable_sequoia_acls(test_class):
+    if not hasattr(test_class, "DELTA_CYPRESS_PROXY_CONFIG"):
+        test_class.DELTA_CYPRESS_PROXY_CONFIG = {}
+    test_class.DELTA_CYPRESS_PROXY_CONFIG.update({
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    })
+
+    if not hasattr(test_class, "DELTA_DYNAMIC_MASTER_CONFIG"):
+        test_class.DELTA_DYNAMIC_MASTER_CONFIG = {}
+    test_class.DELTA_DYNAMIC_MASTER_CONFIG.update({
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    })
+
+    return test_class

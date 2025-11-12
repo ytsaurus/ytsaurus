@@ -734,6 +734,22 @@ class YTEnvSetup(object):
             **local_yt_config,
         )
 
+        if enable_tls:
+            if cls._is_ground_cluster(index) or cls.has_ground(index):
+                primary_index = index % cls.get_ground_index_offset()
+                ground_index = primary_index + cls.get_ground_index_offset()
+                yt_config.peer_alternative_host_name = cls.get_cluster_name(primary_index) + "_or_" + cls.get_cluster_name(ground_index)
+            if index < cls.get_ground_index_offset() and cls.get_param("USE_SEQUOIA", index):
+                for attr in [
+                    "internal_ca_cert",
+                    "internal_ca_cert_key",
+                    "rpc_cert",
+                    "rpc_cert_key",
+                    "rpc_client_cert",
+                    "rpc_client_cert_key",
+                ]:
+                    setattr(yt_config, attr, getattr(cls.ground_envs[index].yt_config, attr))
+
         if yt_config.jobs_environment_type == "porto" and not porto_available():
             pytest.skip("Porto is not available")
 
@@ -1726,23 +1742,32 @@ class YTEnvSetup(object):
 
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
-                paths_to_ignore = ["//sys/operations", "//sys/pools"]
+                paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry"]
 
                 non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
 
                 def sequoia_tables_empty():
+                    nodes_to_ignore = {
+                        record["node_id"] for record in yt_commands.select_rows(
+                            f"node_id from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where " + " or ".join(f"is_prefix('{p}', path)" for p in paths_to_ignore),
+                            driver=driver)}
+
                     def condition(descriptor):
                         if descriptor is DESCRIPTORS.node_id_to_path:
                             return (
                                 " where " +
-                                " and ".join([f"path != '{p}'" for p in paths_to_ignore]))
+                                " and ".join([f"not is_prefix('{p}', path)" for p in paths_to_ignore]))
                         if descriptor is DESCRIPTORS.path_to_node_id:
                             return (
                                 " where " +
                                 " and ".join([
-                                    f"path != '{yt_sequoia_helpers.mangle_sequoia_path(p)}'"
+                                    f"not is_prefix('{yt_sequoia_helpers.mangle_sequoia_path(p)}', path)"
                                     for p in paths_to_ignore
                                 ]))
+                        if descriptor is DESCRIPTORS.acls:
+                            return (
+                                " where node_id not in (" + ", ".join([f"'{n}'" for n in nodes_to_ignore]) + ")"
+                            )
                         return ""
 
                     nonlocal non_empty_tables

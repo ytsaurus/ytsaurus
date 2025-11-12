@@ -3,7 +3,7 @@ from helpers import get_object_attribute_cache_config
 from yt_commands import (authors, raises_yt_error, create, create_dynamic_table, exists, sync_mount_table, write_table,
                          sync_create_cells)
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 import time
 
@@ -107,3 +107,8 @@ class TestClickHouseDdl(ClickHouseTestBase):
         with Clique(1) as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
+
+
+@enable_sequoia
+class TestClickHouseDdlSequoia(TestClickHouseDdl):
+    pass

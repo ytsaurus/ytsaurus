@@ -254,11 +254,6 @@ private:
             queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
         }
 
-        if (auto breakpointFilename = queryContext->Settings->Testing->ConcatTableRangeBreakpoint) {
-            HandleBreakpoint(*breakpointFilename, queryContext->Client());
-            YT_LOG_DEBUG("Concat tables range function handled breakpoint (Breakpoint: %v)", breakpointFilename);
-        }
-
         TListNodeOptions options;
         static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
         options.Attributes = {
@@ -271,12 +266,34 @@ private:
         }
 
         auto nodeIdOrPath = queryContext->GetNodeIdOrPath(Directory_.GetPath());
-        auto items = WaitFor(queryContext->Client()->ListNode(nodeIdOrPath, options))
-            .ValueOrThrow();
-        auto itemList = ConvertTo<IListNodePtr>(items);
+        auto items = ConvertTo<IListNodePtr>(WaitFor(queryContext->Client()->ListNode(nodeIdOrPath, options))
+            .ValueOrThrow())
+            ->GetChildren();
+
+        if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+            std::vector<TString> paths(items.size());
+            std::ranges::transform(items, paths.begin(), [] (const INodePtr& item) {
+                return item->Attributes().Get<TYPath>("path");
+            });
+            auto errors = queryContext->TryAcquireSnapshotLocks(paths);
+
+            std::vector<INodePtr> lockedItems;
+            lockedItems.reserve(items.size());
+            for (int i = 0; i < std::ssize(items); ++i) {
+                if (errors[i].IsOK()) {
+                    lockedItems.push_back(items[i]);
+                }
+            }
+            items = std::move(lockedItems);
+        }
+
+        if (auto breakpointFilename = queryContext->Settings->Testing->ConcatTableRangeBreakpoint) {
+            HandleBreakpoint(*breakpointFilename, queryContext->Client());
+            YT_LOG_DEBUG("Concat tables range function handled breakpoint (Breakpoint: %v)", breakpointFilename);
+        }
 
         std::vector<TRichYPath> itemPaths;
-        for (const auto& child : itemList->GetChildren()) {
+        for (const auto& child : items) {
             const auto& attributes = child->Attributes();
             auto path = attributes.Get<TYPath>("path");
             if (IsPathAllowed(path)) {

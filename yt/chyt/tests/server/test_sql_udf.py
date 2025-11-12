@@ -2,7 +2,7 @@ from yt_commands import (authors, raises_yt_error,
                          create_user, make_ace, set as yt_set,
                          remove)
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 import time
 
@@ -137,3 +137,8 @@ class TestSqlUdf(ClickHouseTestBase):
 
             with raises_yt_error("Function with name `linear_equation` does not exist"):
                 clique.make_query("select linear_equation(number, 5) as result from numbers(1)")
+
+
+@enable_sequoia
+class TestSqlUdfSequoia(TestSqlUdf):
+    pass

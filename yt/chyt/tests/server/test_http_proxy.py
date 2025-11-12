@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from helpers import get_scheduling_options
 
@@ -406,12 +406,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
         create_user("u1")
-        with Clique(1, config_patch=patch, alias="*ch_alias") as clique:
+        # NB: unique clique alias is used here because scheduler's restart
+        # somehow break the clique instance so reusing of this clique alias in
+        # other tests is impossible. DO NOT REUSE THIS ALIAS.
+        with Clique(1, config_patch=patch, alias="*ch_alias_unique_13") as clique:
             acl = [make_ace("allow", "u1", "use")]
-            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
+            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias_unique_13/principal/@acl", acl)
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
             yt_set(
-                "//sys/strawberry/chyt/ch_alias/@strawberry_persistent_state",
+                "//sys/strawberry/chyt/ch_alias_unique_13/@strawberry_persistent_state",
                 {
                     "yt_operation_id": clique.op.id,
                     "yt_operation_state": "running",
@@ -843,3 +846,13 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
                 "http_code": 400,
                 "error_code": 1,
             })
+
+
+@enable_sequoia
+class TestClickHouseHttpProxySequoia(TestClickHouseHttpProxy):
+    pass
+
+
+@enable_sequoia
+class TestClickHouseProxyStructuredLogSequoia(TestClickHouseProxyStructuredLog):
+    pass
