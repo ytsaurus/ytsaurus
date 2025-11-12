@@ -1,7 +1,7 @@
 LIBRARY()
 
 RESOURCE_FILES(
-    .clang-format
+    .clang-format-json
 )
 
 END()
