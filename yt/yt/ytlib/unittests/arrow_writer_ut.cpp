@@ -9,6 +9,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
 
+#include <yt/yt/library/formats/arrow_metadata_constants.h>
 #include <yt/yt/library/formats/arrow_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -52,6 +53,7 @@ using namespace NFormats;
 using namespace NNamedValue;
 using namespace NTableClient;
 using namespace NTzTypes;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,9 +231,16 @@ std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow20::Array>& a
 
 std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow20::Array>& array)
 {
-    auto int32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
+    auto int32Array = std::dynamic_pointer_cast<arrow20::Int32Array>(array);
     YT_VERIFY(int32Array);
     return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
+}
+
+std::vector<uint32_t> ReadUInteger32Array(const std::shared_ptr<arrow20::Array>& array)
+{
+    auto uint32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
+    YT_VERIFY(uint32Array);
+    return  {uint32Array->raw_values(), uint32Array->raw_values() + array->length()};
 }
 
 std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow20::Array>& array)
@@ -246,19 +255,19 @@ std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow20::Array>& 
     return stringArray;
 }
 
-std::vector<bool> ReadboolArrayray(const std::shared_ptr<arrow20::Array>& array)
+std::vector<bool> ReadBooleanArray(const std::shared_ptr<arrow20::Array>& array)
 {
     auto arraySize = array->length();
-    auto boolArrayray = std::dynamic_pointer_cast<arrow20::BooleanArray>(array);
-    YT_VERIFY(boolArrayray);
+    auto booleanArray = std::dynamic_pointer_cast<arrow20::BooleanArray>(array);
+    YT_VERIFY(booleanArray);
     std::vector<bool> result;
     for (int i = 0; i < arraySize; i++) {
-        result.push_back(boolArrayray->Value(i));
+        result.push_back(booleanArray->Value(i));
     }
     return result;
 }
 
-std::vector<double> ReaddoubleArrayray(const std::shared_ptr<arrow20::Array>& array)
+std::vector<double> ReadDoubleArray(const std::shared_ptr<arrow20::Array>& array)
 {
     auto doubleArray = std::dynamic_pointer_cast<arrow20::DoubleArray>(array);
     YT_VERIFY(doubleArray);
@@ -276,7 +285,7 @@ std::vector<std::string> ReadStringArrayFromDict(const std::shared_ptr<arrow20::
 {
     auto dictAr = std::dynamic_pointer_cast<arrow20::DictionaryArray>(array);
     YT_VERIFY(dictAr);
-    auto indices = ReadInteger32Array(dictAr->indices());
+    auto indices = ReadUInteger32Array(dictAr->indices());
 
     // Get values array.
     auto values = ReadStringArray(dictAr->dictionary());
@@ -324,6 +333,9 @@ using ColumnStringWithNulls = std::vector<std::optional<std::string>>;
 using ColumnBoolWithNulls = std::vector<std::optional<bool>>;
 using ColumnDoubleWithNulls = std::vector<std::optional<double>>;
 
+template<typename T, bool Nullable>
+using ColumnType = std::vector<std::conditional_t<Nullable, std::optional<T>, T>>;
+
 struct TOwnerRows
 {
     std::vector<TUnversionedRow> Rows;
@@ -334,117 +346,108 @@ struct TOwnerRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<typename TCppType, EValueType YtType, bool Nullable>
+TOwnerRows MakeUnversionedNumericRows(
+    const std::vector<ColumnType<TCppType, Nullable>>& column,
+    const std::vector<std::string>& columnNames)
+{
+    YT_VERIFY(column.size() > 0);
+
+    auto nameTable = New<TNameTable>();
+
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+
+    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
+        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
+
+        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
+            TCppType value;
+            if constexpr (Nullable) {
+                if (!column[colIdx][rowIndex]) {
+                    rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
+                    continue;
+                }
+                value = *column[colIdx][rowIndex];
+            } else {
+                value = column[colIdx][rowIndex];
+            }
+
+            TUnversionedValue unversionedValue;
+            // Switch would also work here, but this way we execute exactly one statement.
+            if constexpr (YtType == EValueType::Int64) {
+                unversionedValue = MakeUnversionedInt64Value(value, columnId);
+            } else if constexpr (YtType == EValueType::Uint64) {
+                unversionedValue = MakeUnversionedUint64Value(value, columnId);
+            } else if constexpr (YtType == EValueType::Double) {
+                unversionedValue = MakeUnversionedDoubleValue(value, columnId);
+            } else if constexpr (YtType == EValueType::Boolean) {
+                unversionedValue = MakeUnversionedBooleanValue(value, columnId);
+            } else {
+                static_assert(false, "YT type is not numeric");
+            }
+            rowsBuilders[rowIndex].AddValue(unversionedValue);
+        }
+    }
+
+    std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
+    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+}
+
+template<typename TCppType, EValueType YtType, bool Nullable>
+TOwnerRows MakeUnversionedStringLikeRows(
+    const std::vector<ColumnType<TCppType, Nullable>>& column,
+    const std::vector<std::string>& columnNames)
+{
+    YT_VERIFY(column.size() > 0);
+
+    std::vector<TString> buffer;
+
+    auto nameTable = New<TNameTable>();
+
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+
+    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
+        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
+
+        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
+            if constexpr (Nullable) {
+                if (!column[colIdx][rowIndex]) {
+                    rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
+                    continue;
+                }
+                buffer.emplace_back(*column[colIdx][rowIndex]);
+            } else {
+                buffer.emplace_back(column[colIdx][rowIndex]);
+            }
+
+            rowsBuilders[rowIndex].AddValue(MakeUnversionedStringLikeValue(YtType, buffer.back(), columnId));
+        }
+    }
+
+    std::vector<TUnversionedRow> rows;
+    std::vector<TUnversionedOwningRow> owningRows;
+    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+}
+
 TOwnerRows MakeUnversionedIntegerRows(
     const std::vector<ColumnInteger>& column,
     const std::vector<std::string>& columnNames,
     bool isSigned = true)
 {
-    YT_VERIFY(column.size() > 0);
-
-    auto nameTable = New<TNameTable>();
-
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
-
-    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
-        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
-        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            if (isSigned) {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedInt64Value(column[colIdx][rowIndex], columnId));
-            } else {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedUint64Value(column[colIdx][rowIndex], columnId));
-            }
-        }
+    if (isSigned) {
+        return MakeUnversionedNumericRows<int64_t, EValueType::Int64, false>(column, columnNames);
+    } else {
+        return MakeUnversionedNumericRows<int64_t, EValueType::Uint64, false>(column, columnNames);
     }
-    std::vector<TUnversionedRow> rows;
-    std::vector<TUnversionedOwningRow> owningRows;
-    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
-        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
-        rows.push_back(owningRows.back().Get());
-    }
-    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
-}
-
-TOwnerRows MakeUnversionedFloatRows(
-    const std::vector<ColumnFloat>& column,
-    const std::vector<std::string>& columnNames)
-{
-    YT_VERIFY(column.size() > 0);
-
-    auto nameTable = New<TNameTable>();
-
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
-
-    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
-        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
-        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            rowsBuilders[rowIndex].AddValue(MakeUnversionedDoubleValue(column[colIdx][rowIndex], columnId));
-        }
-    }
-    std::vector<TUnversionedRow> rows;
-    std::vector<TUnversionedOwningRow> owningRows;
-    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
-        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
-        rows.push_back(owningRows.back().Get());
-    }
-    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
-}
-
-TOwnerRows MakeUnversionedStringRows(
-    const std::vector<ColumnString>& column,
-    const std::vector<std::string>& columnNames)
-{
-    YT_VERIFY(column.size() > 0);
-    std::vector<TString> strings;
-
-    auto nameTable = New<TNameTable>();
-
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
-
-    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
-        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
-        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            strings.push_back(TString(column[colIdx][rowIndex]));
-            rowsBuilders[rowIndex].AddValue(MakeUnversionedStringValue(strings.back(), columnId));
-        }
-    }
-    std::vector<TUnversionedRow> rows;
-    std::vector<TUnversionedOwningRow> owningRows;
-    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
-        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
-        rows.push_back(owningRows.back().Get());
-    }
-    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
-}
-
-TOwnerRows MakeUnversionedNullableStringRows(
-    const std::vector<ColumnNullableString>& column,
-    const std::vector<std::string>& columnNames)
-{
-    YT_VERIFY(column.size() > 0);
-    std::vector<TString> strings;
-
-    auto nameTable = New<TNameTable>();
-
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
-
-    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
-        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
-        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            if (column[colIdx][rowIndex] == std::nullopt) {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
-            } else {
-                strings.push_back(TString(*column[colIdx][rowIndex]));
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedStringValue(strings.back(), columnId));
-            }
-        }
-    }
-    std::vector<TUnversionedRow> rows;
-    std::vector<TUnversionedOwningRow> owningRows;
-    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
-        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
-        rows.push_back(owningRows.back().Get());
-    }
-    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
 }
 
 TOwnerRows MakeUnversionedNullableIntegerRows(
@@ -452,32 +455,86 @@ TOwnerRows MakeUnversionedNullableIntegerRows(
     const std::vector<std::string>& columnNames,
     bool isSigned = true)
 {
-    YT_VERIFY(column.size() > 0);
+    if (isSigned) {
+        return MakeUnversionedNumericRows<int64_t, EValueType::Int64, true>(column, columnNames);
+    } else {
+        return MakeUnversionedNumericRows<int64_t, EValueType::Uint64, true>(column, columnNames);
+    }
+}
 
-    auto nameTable = New<TNameTable>();
+TOwnerRows MakeUnversionedFloatRows(
+    const std::vector<ColumnFloat>& column,
+    const std::vector<std::string>& columnNames)
+{
+    return MakeUnversionedNumericRows<float, EValueType::Double, false>(column, columnNames);
+}
 
-    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(column[0].size());
+TOwnerRows MakeUnversionedStringRows(
+    const std::vector<ColumnString>& column,
+    const std::vector<std::string>& columnNames)
+{
+    return MakeUnversionedStringLikeRows<std::string, EValueType::String, false>(column, columnNames);
+}
 
-    for (int colIdx = 0; colIdx < std::ssize(column); colIdx++) {
-        auto columnId = nameTable->RegisterName(columnNames[colIdx]);
-        for (int rowIndex = 0; rowIndex < std::ssize(column[colIdx]); rowIndex++) {
-            if (!column[colIdx][rowIndex]) {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedNullValue(columnId));
-            } else if (isSigned) {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedInt64Value(*column[colIdx][rowIndex], columnId));
+TOwnerRows MakeUnversionedNullableStringRows(
+    const std::vector<ColumnNullableString>& column,
+    const std::vector<std::string>& columnNames)
+{
+    return MakeUnversionedStringLikeRows<std::string, EValueType::String, true>(column, columnNames);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString BinaryYsonFromTextYson(const TString& ysonString) {
+    TStringStream binaryYsonString;
+
+    TYsonWriter ysonWriter(&binaryYsonString, EYsonFormat::Binary);
+    ParseYsonStringBuffer(ysonString, EYsonType::Node, &ysonWriter);
+
+    return binaryYsonString.Str();
+}
+
+template<bool Nullable>
+TOwnerRows MakeUnversionedAnyRowsFromYsonImpl(
+    const std::vector<ColumnType<TString, Nullable>>& columns,
+    const std::vector<std::string>& columnNames)
+{
+    int columnCount = columns.size();
+    int rowCount = columns[0].size();
+
+    std::vector<ColumnType<TString, Nullable>> binaryColumns;
+    binaryColumns.assign(columnCount, ColumnType<TString, Nullable>(rowCount));
+
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            if constexpr (Nullable) {
+                if (columns[columnIndex][rowIndex]) {
+                    binaryColumns[columnIndex][rowIndex] = BinaryYsonFromTextYson(*columns[columnIndex][rowIndex]);
+                }
             } else {
-                rowsBuilders[rowIndex].AddValue(MakeUnversionedUint64Value(*column[colIdx][rowIndex], columnId));
+                binaryColumns[columnIndex][rowIndex] = BinaryYsonFromTextYson(columns[columnIndex][rowIndex]);
             }
         }
     }
-    std::vector<TUnversionedRow> rows;
-    std::vector<TUnversionedOwningRow> owningRows;
-    for (int rowIndex = 0; rowIndex < std::ssize(rowsBuilders); rowIndex++) {
-        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
-        rows.push_back(owningRows.back().Get());
-    }
-    return {std::move(rows), std::move(rowsBuilders), std::move(nameTable), std::move(owningRows)};
+
+    return MakeUnversionedStringLikeRows<TString, EValueType::Any, Nullable>(binaryColumns, columnNames);
 }
+
+TOwnerRows MakeUnversionedAnyRowsFromYson(
+    const std::vector<std::vector<TString>>& columns,
+    const std::vector<std::string>& columnNames)
+{
+    return MakeUnversionedAnyRowsFromYsonImpl<false>(columns, columnNames);
+}
+
+TOwnerRows MakeUnversionedNullableAnyRowsFromYson(
+    const std::vector<std::vector<std::optional<TString>>>& columns,
+    const std::vector<std::string>& columnNames)
+{
+    return MakeUnversionedAnyRowsFromYsonImpl<true>(columns, columnNames);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::string MakeRandomString(int stringSize)
 {
@@ -1660,8 +1717,8 @@ TEST(TArrowWriterTest, SeveralMultiTypesColumnsOneBatch)
 
     CheckColumnNames(batch, columnNames);
 
-    EXPECT_EQ(ReadboolArrayray(batch->column(0)), boolColumn);
-    EXPECT_EQ(ReaddoubleArrayray(batch->column(1)), doubleColumn);
+    EXPECT_EQ(ReadBooleanArray(batch->column(0)), boolColumn);
+    EXPECT_EQ(ReadDoubleArray(batch->column(1)), doubleColumn);
     EXPECT_EQ(ReadAnyStringArray(batch->column(2)), anyColumn);
 }
 
@@ -1794,8 +1851,8 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
     for (const auto& batch : batches) {
         CheckColumnNames(batch, columnNames);
 
-        auto boolArray = ReadboolArrayray(batch->column(0));
-        auto doubleArray = ReaddoubleArrayray(batch->column(1));
+        auto boolArray = ReadBooleanArray(batch->column(0));
+        auto doubleArray = ReadDoubleArray(batch->column(1));
         auto anyArray = ReadAnyStringArray(batch->column(2));
 
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -1812,6 +1869,481 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
 
         batchIndex++;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TArrowWriterComplexTest, BasicStruct) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"struct"};
+
+    auto structType = StructLogicalType({
+        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], structType),
+    }));
+
+    TStringStream outputStream;
+
+    std::vector<TString> ysonStrings = {
+        "[foo;123;]",
+        "[bar;456;]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+
+    EXPECT_EQ(
+        ReadStringArray(structArray->GetFieldByName("a")),
+        std::vector<std::string>({"foo", "bar"}));
+    EXPECT_EQ(
+        ReadInteger64Array(structArray->GetFieldByName("b")),
+        std::vector<i64>({123, 456}));
+}
+
+TEST(TArrowWriterComplexTest, BasicList) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"list"};
+
+    auto listType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], listType),
+    }));
+
+    TStringStream outputStream;
+
+    std::vector<TString> ysonStrings = {
+        "[1;2;3;]",
+        "[5;8;]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto listArray = std::dynamic_pointer_cast<arrow20::ListArray>(batch->column(0));
+
+    EXPECT_EQ(
+        ReadInteger32Array(listArray->offsets()),
+        std::vector<ui32>({0, 3, 5}));
+    EXPECT_EQ(
+        ReadInteger64Array(listArray->Flatten().ValueOrDie()),
+        std::vector<i64>({1, 2, 3, 5, 8}));
+}
+
+TEST(TArrowWriterComplexTest, BasicDict) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"dict"};
+
+    auto dictType = DictLogicalType(
+        SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], dictType),
+    }));
+
+    TStringStream outputStream;
+
+    std::vector<TString> ysonStrings = {
+        "[[12;\"foo\";];[34;\"bar\";];]",
+        "[[56;\"\"];]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto mapArray = std::dynamic_pointer_cast<arrow20::MapArray>(batch->column(0));
+
+    EXPECT_EQ(
+        ReadInteger32Array(mapArray->offsets()),
+        std::vector<ui32>({0, 2, 3}));
+    EXPECT_EQ(
+        ReadInteger64Array(mapArray->keys()),
+        std::vector<i64>({12, 34, 56}));
+    EXPECT_EQ(
+        ReadStringArray(mapArray->items()),
+        std::vector<std::string>({"foo", "bar", ""}));
+}
+
+TEST(TArrowWriterComplexTest, OptionalStruct) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"optional"};
+
+    auto listType = OptionalLogicalType(StructLogicalType({
+        TStructField{"integer", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], listType),
+    }));
+
+    std::vector<std::optional<TString>> ysonStrings = {
+        "[12;]",
+        std::nullopt,
+        "[34;]",
+    };
+
+    auto rows = MakeUnversionedNullableAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+
+    EXPECT_EQ(structArray->null_bitmap_data()[0], 0b101);
+    auto integers = ReadInteger64Array(structArray->GetFieldByName("integer"));
+    EXPECT_EQ(integers[0], 12);
+    EXPECT_EQ(integers[2], 34);
+}
+
+TEST(TArrowWriterComplexTest, StructOptional) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"struct"};
+
+    auto listType = StructLogicalType({
+        TStructField{"integer", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], listType),
+    }));
+
+    std::vector<TString> ysonStrings = {
+        "[12;]",
+        "[#;]",
+        "[34;]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+
+    auto integerArray = structArray->GetFieldByName("integer");
+    EXPECT_EQ(integerArray->null_bitmap_data()[0], 0b101);
+    auto integers = ReadInteger64Array(integerArray);
+    EXPECT_EQ(integers[0], 12);
+    EXPECT_EQ(integers[2], 34);
+}
+
+TEST(TArrowWriterComplexTest, DictionaryStruct) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"struct"};
+
+    auto structType = OptionalLogicalType(StructLogicalType({
+        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], structType),
+    }));
+
+    TStringStream outputStream;
+
+    const int copiesCount = 10;
+
+    std::vector<std::optional<TString>> ysonStrings;
+    std::vector<std::optional<std::string>> strings;
+    std::vector<std::optional<int64_t>> integers;
+    for (int i = 0; i < copiesCount; ++i) {
+        ysonStrings.push_back("[foo;123;]");
+        strings.push_back("foo");
+        integers.push_back(123);
+        ysonStrings.push_back("[bar;456;]");
+        strings.push_back("bar");
+        integers.push_back(456);
+        ysonStrings.push_back(std::nullopt);
+        strings.push_back(std::nullopt);
+        integers.push_back(std::nullopt);
+    }
+
+    auto rows = MakeUnversionedNullableAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::DictionaryArray>(batch->column(0));
+
+    auto indices = ReadUInteger32Array(structArray->indices());
+    auto dictionary = std::dynamic_pointer_cast<arrow20::StructArray>(structArray->dictionary());
+    auto stringValues = ReadStringArray(dictionary->GetFieldByName("a"));
+    auto integerValues = ReadInteger64Array(dictionary->GetFieldByName("b"));
+
+    for (int i = 0; i < std::ssize(ysonStrings); ++i) {
+        if (ysonStrings[i]) {
+            EXPECT_EQ(*strings[i], stringValues[indices[i]]);
+            EXPECT_EQ(*integers[i], integerValues[indices[i]]);
+        } else {
+            EXPECT_TRUE(structArray->IsNull(i));
+        }
+    }
+}
+
+TEST(TArrowWriterComplexTest, OptionalOptional) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"optional"};
+
+    auto listType = OptionalLogicalType(
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], listType),
+    }));
+
+    std::vector<std::optional<TString>> ysonStrings = {
+        std::nullopt,
+        "[#;]",
+        "[-42;]",
+    };
+
+    auto rows = MakeUnversionedNullableAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto columnMetadata = batch->schema()->field(0)->metadata();
+    EXPECT_TRUE(columnMetadata);
+    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
+    EXPECT_EQ(value, YtTypeMetadataValueNestedOptional);
+
+    auto outerOptionalArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+
+    EXPECT_EQ(outerOptionalArray->null_bitmap_data()[0], 0b110);
+
+    auto innerOptionalArray = std::dynamic_pointer_cast<arrow20::Int64Array>(outerOptionalArray->fields()[0]);
+
+    EXPECT_TRUE(innerOptionalArray->IsNull(1));
+    EXPECT_FALSE(innerOptionalArray->IsNull(2));
+
+    auto integerValues = ReadInteger64Array(innerOptionalArray);
+
+    EXPECT_EQ(integerValues[2], -42);
+}
+
+TEST(TArrowWriterTest, EmptyStruct)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"struct"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], StructLogicalType({})),
+    }));
+
+    TStringStream outputStream;
+
+    std::vector<TString> ysonStrings(3, "[]");
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto columnMetadata = batch->schema()->field(0)->metadata();
+    EXPECT_TRUE(columnMetadata);
+    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
+    EXPECT_EQ(value, YtTypeMetadataValueEmptyStruct);
+}
+
+TEST(TArrowWriterComplexTest, OptionalEmptyStruct) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"optional"};
+
+    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], optionalType),
+    }));
+
+    std::vector<std::optional<TString>> ysonStrings = {
+        "[]",
+        std::nullopt,
+        std::nullopt,
+        "[]",
+        std::nullopt,
+    };
+
+    auto rows = MakeUnversionedNullableAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = batch->column(0);
+
+    for (int rowIndex = 0; rowIndex < std::ssize(ysonStrings); ++rowIndex) {
+        EXPECT_EQ(ysonStrings[rowIndex].has_value(), structArray->IsValid(rowIndex));
+    }
+
+    auto columnMetadata = batch->schema()->field(0)->metadata();
+    EXPECT_TRUE(columnMetadata);
+    auto value = *(columnMetadata->Get(YtTypeMetadataKey));
+    EXPECT_EQ(value, YtTypeMetadataValueEmptyStruct);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
