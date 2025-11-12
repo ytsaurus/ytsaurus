@@ -321,7 +321,7 @@ def _parse_arguments():
 
     # Operation settings
     parser.add_argument("--job-cpu-limit", type=int, default=1)
-    parser.add_argument("--memory-limit-gbs", type=float, default=1.5)  # Most small clusters use 1.5 GiB
+    parser.add_argument("--memory-limit-gbs", type=float, default=3)  # Most small clusters use 3 GiB
     parser.add_argument("--job-time-limit", type=int, default=90 * 60)  # 90m
     parser.add_argument("--validation-timeout", type=int, default=75 * 60)  # 75m
     parser.add_argument("--max-failed-jobs", type=int, default=3)
