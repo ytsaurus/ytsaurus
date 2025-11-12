@@ -1,6 +1,6 @@
 {% extends '//builtin/run.ym' %}
 
-{% block current_version %}1.24.6{% endblock %}
+{% block current_version %}1.24.8{% endblock %}
 
 {% block current_url %}
 https://go.dev/dl/go{{self.version().strip()}}.src.tar.gz
@@ -76,6 +76,11 @@ find ./src -type f -name ya.make \
     | sort >> ya.make
 
 echo ')' >> ya.make
+
+ls patches/*.patch | while read patch_file; do
+  patch --input=${patch_file} --strip 1 --no-backup-if-mismatch --fuzz {{fuzz or 1}} || (echo ${patch_file} fail && exit 1)
+done
+
 {% endblock %}
 
 {% block run_license_analyzer %}
