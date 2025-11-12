@@ -26,6 +26,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     private final TableSchema tableSchema;
     private final boolean unordered;
     private final boolean omitInaccessibleColumns;
+    private final boolean omitInaccessibleRows;
     @Nullable
     private final YTreeNode config;
     @Nullable
@@ -42,6 +43,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         this.tableSchema = builder.tableSchema;
         this.unordered = builder.unordered;
         this.omitInaccessibleColumns = builder.omitInaccessibleColumns;
+        this.omitInaccessibleRows = builder.omitInaccessibleRows;
         this.config = builder.config;
         this.transactionalOptions = builder.transactionalOptions;
     }
@@ -95,6 +97,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     public TReqReadTable.Builder writeTo(TReqReadTable.Builder builder) {
         builder.setUnordered(unordered);
         builder.setOmitInaccessibleColumns(omitInaccessibleColumns);
+        builder.setOmitInaccessibleColumns(omitInaccessibleRows);
         builder.setPath(ByteString.copyFromUtf8(getPath()));
         if (config != null) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -132,6 +135,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
                 .setTableSchema(tableSchema)
                 .setUnordered(unordered)
                 .setOmitInaccessibleColumns(omitInaccessibleColumns)
+                .setOmitInaccessibleRows(omitInaccessibleRows)
                 .setConfig(config)
                 .setTransactionalOptions(transactionalOptions)
                 .setTimeout(timeout)
@@ -164,6 +168,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         private TableSchema tableSchema;
         private boolean unordered = false;
         private boolean omitInaccessibleColumns = false;
+        private boolean omitInaccessibleRows = false;
         @Nullable
         private YTreeNode config = null;
 
@@ -204,6 +209,11 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
         public TBuilder setOmitInaccessibleColumns(boolean omitInaccessibleColumns) {
             this.omitInaccessibleColumns = omitInaccessibleColumns;
+            return self();
+        }
+
+        public TBuilder setOmitInaccessibleRows(boolean omitInaccessibleRows) {
+            this.omitInaccessibleRows = omitInaccessibleRows;
             return self();
         }
 
