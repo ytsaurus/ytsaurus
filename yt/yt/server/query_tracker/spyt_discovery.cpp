@@ -1,3 +1,4 @@
+// SPYT discovery is deprecated in favor of SPYT connect engine
 #include "spyt_discovery.h"
 
 #include <yt/yt/ytlib/api/native/client.h>

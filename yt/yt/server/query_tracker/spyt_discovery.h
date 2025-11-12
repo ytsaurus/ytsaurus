@@ -1,3 +1,4 @@
+// SPYT discovery is deprecated in favor of SPYT connect engine
 #pragma once
 
 #include <yt/yt/ytlib/api/native/public.h>
