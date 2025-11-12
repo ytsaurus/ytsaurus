@@ -900,6 +900,140 @@ PARAMETERS { "path" = "//tmp/file" }
 OUTPUT this is sample file content
 ```
 
+### start_distributed_write_file_session { #start_distributed_write_file_session }
+
+Part of the distributed API. See [start_distributed_write_session](#start_distributed_write_session)
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Initialize a session of distributed writing to a file.
+- Request cookies for distributed session participants.
+- Not all requested cookies have to be used.
+- The same cookie object can be reused to write a new fragment.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | -------------    | ------------------------- | ------------------------------------------------------------             |
+| `path` | Yes |                           | Path to a file in Cypress. |
+| `cookie_count` | Yes |                           | Number of distributed session participants. Positive number. |
+| `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
+| `timeout` | No |                           | Session TTL since the last ping (in ms). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: A signed distributed session object along with a list of signed cookies of participants.
+
+Example:
+
+```bash
+PARAMETERS {
+    "path" = "//tmp/file";
+    "cookie_count" = "2";
+}
+
+OUTPUT {
+    "session" = "sample_signed_session";
+    "cookies" = ["sample_signed_cookie_1"; "sample_signed_cookie_2"];
+}
+```
+
+### ping_distributed_write_file_session { #ping_distributed_write_file_session }
+
+Part of the distributed API.
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestors` is specified), thereby extending the transaction's TTL.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| --------------------------     | -------------    | ------------------------- | ------------------------------------------------------------ |
+| `session` | Yes |                           | Object of the signed distributed session. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### finish_distributed_write_file_session { #finish_distributed_write_file_session }
+
+Part of the distributed API.
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Merges write fragments into a file.
+- The merging order corresponds to the order of transmitted write results.
+- The merging order does not depend on the order of issued cookies during [start_distributed_write_file_session] (#start_distributed_write_file_session).
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| --------------------------     | -------------    | ------------------------- | ------------------------------------------------------------                |
+| `session` | Yes |                           | Object of the signed distributed session. |
+| `results` | Yes |                           | List of write fragments (see [write_file_fragment](#write_file_fragment)). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### write_file_fragment { #write_file_fragment }
+
+Part of the distributed API.
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write a data fragment to a file.
+- The same cookie object can be reused to write a new fragment.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | -------------    | ------------------------- | ------------------------------------------------------------             |
+| `cookie` | Yes |                           | Signed cookie of a distributed session's participant. |
+
+Input data:
+
+- Type: `binary`.
+- Value: Contents of the file write fragment.
+
+Output data:
+
+- Type: `structured`.
+- Value: Signed result of writing the fragment to a file.
+
+Example:
+
+```bash
+PARAMETERS {"cookie" = "sample_signed_cookie_1"}
+
+INPUT this is sample file fragment content
+
+OUTPUT "sample_signed_result"
+```
+
 ## Working with file cache { #file_cache }
 
 To learn more about the file cache, see the [File cache](../../user-guide/storage/file-cache.md) section.
@@ -1496,8 +1630,8 @@ Semantics:
 - Be sure to specify `tablet_count` for an ordered table. For a sorted table, you can specify both `tablet_count` and `pivot_keys`. The resharded tablets are replaced by a set of new tablets.
 - In the case of a sorted table:
   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
-  - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+  - When passing `tablet_count`, the system will select boundary keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
+  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as boundary keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
@@ -1507,10 +1641,10 @@ Parameters:
 | `path` | Yes |                           | Table path. |
 | `first_tablet_index` | No | `0` | Index of the first resharded tablet. |
 | `last_tablet_index` | No | `tablet_count - 1` | Index of the last resharded tablet. |
-| `pivot_keys` | No |                           | Pivot keys for the new tablets (for a sorted table). |
+| `pivot_keys` | No |                           | Boundary keys for the new tablets (for a sorted table). |
 | `tablet_count` | No |                           | Number of new tablets. |
 | `uniform` | No | `false` | Uniformly reshard tablets based on an integer key column. |
-| `enable_slicing` | No | `false` | Use sampling to increase granularity (for a more precise splitting into tablets) when pivot keys are selected automatically. This might help if you have many entries on one key and few entries on another key. |
+| `enable_slicing` | No | `false` | Use sampling to increase granularity (for a more precise splitting into tablets) when boundary keys are selected automatically. This might help if you have many entries on one key and few entries on another key. |
 | `slicing_accuracy` | No | `0.05` | Tolerance acceptable for uniform regarding into a given number of tablets. |
 
 Input data:
@@ -1681,6 +1815,156 @@ OUTPUT {
     "legacy_chunks_data_weight" = 100242;
     "timestamp_total_weight" = 50056;
 }
+```
+
+### start_distributed_write_session { #start_distributed_write_session }
+
+YT provides a mechanism for distributed file and table writes.
+
+In a scenario when multiple participants write to a single table or file, this mechanism is less taxing on the master server resources compared to using the [write_table](#write_table)/[write_file](#write_file) method (with append=true).
+
+The workflow for using distributed table write methods is as follows (same applies to distributed file writes, see [start_distributed_write_file_session](#start_distributed_write_file_session)):
+
+1. First, one participant (the distributed session host) initiates the distributed write mechanism using the [start_distributed_write_session](#start_distributed_write_session) method. The method returns a session and a cookie array for write participants.
+
+2. The host distributes cookies among participants. Each session participant writes data via [write_fragment](#write_fragment) using their respective cookie. This method returns a write result that the participant passes to the distributed session host.
+
+3. Finally, the host calls the [finish_distributed_write_session](#finish_distributed_write_session) method, passing the array of write results to it. All write fragments will be combined into the final table.
+
+4. Between [start_distributed_write_session](#start_distributed_write_session) and [finish_distributed_write_session](#finish_distributed_write_session), the session must be pinged with the [ping_distributed_write_session](#ping_distributed_write_session) method to prevent timeout termination.
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Initialize a session of distributed writing to a table.
+- Request cookies for distributed session participants.
+- Not all requested cookies have to be used.
+- The same cookie object can be reused to write a new fragment.
+- If the table `path` includes the `append=%true` attribute, the entries are appended to the table; otherwise, the table is overwritten.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | -------------    | ------------------------- | ------------------------------------------------------------             |
+| `path` | Yes |                           | Path to a table in Cypress. |
+| `cookie_count` | Yes |                           | Number of distributed session participants. Positive number. |
+| `transaction_id` | No | *null-transaction-id* | Current transaction ID. |
+| `ping_ancestor_transactions` | No | `false` | Whether to ping all the parent transactions while running the operation. |
+| `timeout` | No |                           | Session TTL since the last ping (in ms). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+- Value: A signed distributed session object along with a list of signed cookies of participants.
+
+Example:
+
+```bash
+PARAMETERS {
+    "path" = "//tmp/table";
+    "cookie_count" = "2";
+}
+
+OUTPUT {
+    "session" = "sample_signed_session";
+    "cookies" = ["sample_signed_cookie_1"; "sample_signed_cookie_2"];
+}
+```
+
+### ping_distributed_write_session { #ping_distributed_write_session }
+
+Part of the distributed tabular API.
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Pings the distributed session transaction on the server (including all parent transactions if `ping_ancestors` is specified), thereby extending the transaction's TTL.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| --------------------------     | -------------    | ------------------------- | ------------------------------------------------------------ |
+| `session` | Yes |                           | Object of the signed distributed session. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### finish_distributed_write_session { #finish_distributed_write_session }
+
+Part of the distributed tabular API.
+
+Command properties: **Mutating**, **Light**.
+
+Semantics:
+
+- Merges write fragments into a table.
+- For sorted tables, passed write results are sorted by boundary keys.
+Key intervals must not overlap, and the keys themselves can't be duplicate. With all invariants met, the order of passed results does not matter.
+- For unsorted tables, fragments are combined in the order in which the results were passed.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| --------------------------     | -------------    | ------------------------- | ------------------------------------------------------------                |
+| `session` | Yes |                           | Object of the signed distributed session. |
+| `results` | Yes |                           | List of write fragments (see [write_fragment](#write_fragment)). |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+### write_fragment { #write_fragment }
+
+Part of the distributed tabular API.
+
+Command properties: **Mutating**, **Heavy**.
+
+Semantics:
+
+- Write a data fragment to a table.
+- The same cookie object can be reused to write a new fragment.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| -------------------------- | -------------    | ------------------------- | ------------------------------------------------------------             |
+| `cookie` | Yes |                           | Signed cookie of a distributed session's participant. |
+| `max_row_buffer_size` | No | 1_MB | Size of the string buffer for the internal writer |
+
+Input data:
+
+- Type: `tabular`.
+- Value: Table fragment content.
+
+Output data:
+
+- Type: `structured`.
+- Value: Signed result of writing the table fragment.
+
+Example:
+
+```bash
+PARAMETERS {"cookie" = "sample_signed_cookie_1"}
+
+INPUT { "id" = 1; "value" = 1.125; };
+INPUT { "id" = 2; "value" = 2.000; };
+
+OUTPUT "sample_signed_result"
 ```
 
 ## Running operations
