@@ -108,7 +108,7 @@ XSF_HOST_DEVICE inline bool signbit(double x) { return cuda::std::signbit(x); }
 XSF_HOST_DEVICE inline double hypot(double x, double y) { return cuda::std::hypot(x, y); }
 
 // Fallback to global namespace for functions unsupported on NVRTC
-#ifndef _LIBCUDACXX_COMPILER_NVRTC
+#ifndef __CUDACC_RTC__
 XSF_HOST_DEVICE inline double ceil(double x) { return cuda::std::ceil(x); }
 XSF_HOST_DEVICE inline double floor(double x) { return cuda::std::floor(x); }
 XSF_HOST_DEVICE inline double round(double x) { return cuda::std::round(x); }
@@ -210,8 +210,13 @@ using enable_if = cuda::std::enable_if<Cond, T>;
 template <typename T>
 using decay = cuda::std::decay<T>;
 
-template <typename T>
-using invoke_result = cuda::std::invoke_result<T>;
+template <typename F>
+struct invoke_result {
+    using type = decltype(cuda::std::declval<F>()());
+};
+
+template <typename F>
+using invoke_result_t = typename invoke_result<F>::type;
 
 template <typename T1, typename T2>
 using pair = cuda::std::pair<T1, T2>;

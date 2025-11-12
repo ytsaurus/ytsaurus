@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: scipy
-Version: 1.16.2
+Version: 1.16.3
 Summary: Fundamental algorithms for scientific computing in Python
 Maintainer-Email: SciPy Developers <scipy-dev@python.org>
 License: Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers.

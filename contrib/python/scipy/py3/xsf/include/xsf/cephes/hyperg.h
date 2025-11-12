@@ -270,7 +270,7 @@ namespace cephes {
 
             while (t > MACHEP) {
                 if (bn == 0) { /* check bn first since if both   */
-                    sf_error("hyperg", SF_ERROR_SINGULAR, NULL);
+                    set_error("hyperg", SF_ERROR_SINGULAR, NULL);
                     return (std::numeric_limits<double>::infinity()); /* an and bn are zero it is     */
                 }
                 if (an == 0) /* a singularity            */

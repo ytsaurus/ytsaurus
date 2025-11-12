@@ -20,7 +20,7 @@ pixi run build-tests
 For subsequent test runs, to skip re-cloning [`xsref`](https://github.com/scipy/xsref) or to control parallelism for individual commands, you can use:
 
 ```shell
-pixi run clone-xsf
+pixi run clone-xsref
 pixi run configure-tests
 pixi run build-only -j8
 pixi run --skip-deps tests -j2
