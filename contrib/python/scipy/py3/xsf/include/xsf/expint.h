@@ -149,6 +149,9 @@ XSF_HOST_DEVICE inline double expi(double x) {
             }
         }
         ei = ga + std::log(x) + x * ei;
+    } else if (std::isinf(x)) {
+        // Special use-case needed because exp(inf) / inf is undefined/NaN
+        return std::numeric_limits<double>::infinity();
     } else {
         // Asymptotic expansion (the series is not convergent)
         ei = 1.0;
@@ -164,7 +167,7 @@ XSF_HOST_DEVICE inline double expi(double x) {
 
 XSF_HOST_DEVICE inline float expi(float x) { return expi(static_cast<double>(x)); }
 
-static std::complex<double> expi(std::complex<double> z) {
+static XSF_HOST_DEVICE inline std::complex<double> expi(std::complex<double> z) {
     // ============================================
     // Purpose: Compute exponential integral Ei(x)
     // Input :  x  --- Complex argument of Ei(x)
