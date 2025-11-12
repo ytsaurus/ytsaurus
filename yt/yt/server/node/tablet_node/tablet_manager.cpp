@@ -2049,7 +2049,7 @@ private:
                 if (tablet->IsPreloadedChunkRetentionRequired() &&
                     tablet->GetSettings().MountConfig->InMemoryMode != EInMemoryMode::None)
                 {
-                    YT_LOG_INFO("Tablet is retaining chunks (%v)",
+                    YT_LOG_INFO("Preloaded chunk data will be retained after unmount (%v)",
                         tablet->GetLoggingTag());
                     const auto& inMemoryManager = Bootstrap_->GetInMemoryManager();
                     for (const auto& [storeId, store] : tablet->StoreIdMap()) {

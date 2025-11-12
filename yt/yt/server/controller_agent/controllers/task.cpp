@@ -2138,6 +2138,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
         }
     }
 
+    jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
+
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate()) {
         jobSpecExt->set_input_data_weight(static_cast<i64>(

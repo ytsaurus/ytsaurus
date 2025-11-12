@@ -1021,7 +1021,7 @@ private:
                     table,
                     serializedTableSettings,
                     assignment,
-                    /*freeze*/ action->GetFreeze(),
+                    action->GetFreeze(),
                     useRetainedPreloadedChunks);
 
                 ChangeTabletActionState(action, ETabletActionState::Mounting);

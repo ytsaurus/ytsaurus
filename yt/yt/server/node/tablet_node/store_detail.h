@@ -281,7 +281,7 @@ public:
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 
-    TInMemoryChunkDataPtr GetInMemoryChunkData() override;
+    TInMemoryChunkDataPtr GetInMemoryChunkData() const override;
 
     TMinHashDigestBlockIndex GetMinHashDigestBlockIndex() const;
 

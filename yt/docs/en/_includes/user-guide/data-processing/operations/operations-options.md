@@ -49,6 +49,7 @@ The default values, if set, are provided in parentheses:
 
 - `omit_inaccessible_columns` (false) — skips columns that cannot be accessed. By default, operations in this scenario end with an error at startup.
 - `alias` — alias of the operation. Makes the operation available in search and through the `get-operation` command on the specified row.
+  The alias must start with the `*` symbol. Only one operation with this given alias can be run simultaneously. You can run an operation with another alias or rerun the operation with the same alias after it is completed. The `get-operation` returns the recent operation.
 - `job_node_account` (tmp_jobs) — account under which chunks of files with the error log (stderr) and input context are stored.
 - `suspend_operation_if_account_limit_exceeded` (false) — suspends (pauses) the operation in case of the "Account limit exceeded" error in a job.
 - `enable_job_splitting` (true) — determines if the scheduler is allowed to adaptively split user jobs that take a long time.
