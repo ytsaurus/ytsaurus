@@ -9,7 +9,11 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <Columns/IColumn.h>
 
@@ -58,6 +62,11 @@ DB::VirtualColumnsDescription MakeVirtualColumnsDescription(DB::NamesAndTypesLis
     return virtualColumns;
 }
 
+std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
+    const std::vector<TString>& paths,
+    const std::vector<TString>& attributesToFetch,
+    TQueryContext* queryContext);
+
 //! Returns a list of table paths from provided dirs with its attributes.
 //! If any master request is failed (e.g. ResolveError), the error will be returned.
 std::vector<TErrorOr<INodePtr>> ListDirs(
@@ -65,69 +74,169 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
-    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+    // In sync mode execution for Sequoia nodes is a bit tricky:
+    // 1) Use "list" verb to get children of each directory;
+    // 2) Acquire snapshot locks for every child node;
+    // 3) Re-read attributes got on step (1) if there's a chance they're
+    //    obsolete.
+    // To optimize step (3) attribute "revision" is requested at step (1) and
+    // compared with revision got at step (2). If revision hasn't been changed
+    // step (3) is omitted.
+    // Note that steps (2) and (3) are needed for Sequoia nodes only.
 
-    if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+    bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+    bool shouldLock = sync && queryContext->QueryKind == EQueryKind::InitialQuery;
+
+    if (shouldLock) {
         queryContext->AcquireSnapshotLocks(dirPaths);
     }
 
+    // If caller didn't request "revision" this attribute should be filtered out
+    // from result later.
+    bool additionalRevisionRequested = false;
+    if (shouldLock &&
+        !attributesToFetch.empty() &&
+        std::ranges::find(attributesToFetch, "revision") == attributesToFetch.end())
+    {
+        additionalRevisionRequested = true;
+    }
+
     const auto& client = queryContext->Client();
+    const auto& settings = queryContext->Settings->ListDir;
+    const auto& connection = client->GetNativeConnection();
+    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
+
+    std::vector<TError> errors;
+    std::vector<INodePtr> cypressNodes;
+    std::vector<INodePtr> sequoiaNodes;
+
+    // Step (1): list directories.
+    {
+        std::vector<TString> attributesHolder;
+        const std::vector<TString>* attributesWithRevision = &attributesToFetch;
+        if (additionalRevisionRequested) {
+            attributesHolder.resize(attributesToFetch.size() + 1);
+            std::ranges::copy(attributesToFetch, attributesHolder.begin());
+            attributesHolder.back() = "revision";
+            attributesWithRevision = &attributesHolder;
+        }
+
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, connection, masterReadOptions);
+        for (const auto& path : dirPaths) {
+            auto req = TYPathProxy::List(path);
+            SetCachingHeader(req, connection, masterReadOptions);
+            if (sync) {
+                SetTransactionId(req, queryContext->ReadTransactionId);
+            }
+            ToProto(req->mutable_attributes(), TAttributeFilter(*attributesWithRevision));
+            if (settings->MaxSize) {
+                req->set_limit(settings->MaxSize);
+            }
+            batchReq->AddRequest(req);
+        }
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+
+        for (const auto& [index, rspOrError] : SEnumerate(batchRsp->GetResponses<TYPathProxy::TRspList>())) {
+            if (!rspOrError.IsOK()) {
+                errors.push_back(rspOrError);
+                continue;
+            }
+
+            auto listNode = ConvertToNode(TYsonString(rspOrError.Value()->value()));
+            if (listNode->Attributes().Get<bool>("incomplete", false)) {
+                THROW_ERROR_EXCEPTION("Directory contains too many nodes, list request returned incomplete result");
+            }
+
+            std::vector<INodePtr>* listedNodes;
+            const auto& snapshotLocks = queryContext->SnapshotLocks;
+            if (auto it = snapshotLocks.find(dirPaths[index]); it != snapshotLocks.end() && IsSequoiaId(it->second.NodeId)) {
+                listedNodes = &sequoiaNodes;
+            } else {
+                listedNodes = &cypressNodes;
+            }
+
+            for (auto& node : listNode->AsList()->GetChildren()) {
+                node->AsString()->SetValue(Format("%v/%v", dirPaths[index], node->GetValue<TString>()));
+                listedNodes->push_back(std::move(node));
+            }
+        }
+    }
 
     if (auto breakpointFilename = queryContext->Settings->Testing->ListDirsBreakpoint) {
         HandleBreakpoint(*breakpointFilename, client);
     }
 
-    const auto& settings = queryContext->Settings->ListDir;
-
-    const auto& connection = client->GetNativeConnection();
-    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
-
-    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
-    auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection, masterReadOptions);
-
-    int index = 0;
-    for (auto& path : dirPaths) {
-        auto req = TYPathProxy::List(queryContext->GetNodeIdOrPath(path));
-        SetCachingHeader(req, connection, masterReadOptions);
-        ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
-        req->Tag() = index;
-        ++index;
-        if (settings->MaxSize) {
-            req->set_limit(settings->MaxSize);
+    // Step (2): acquire snapshot locks for Sequoia nodes.
+    if (shouldLock && !sequoiaNodes.empty()) {
+        std::vector<TString> sequoiaPathsToLock(sequoiaNodes.size());
+        std::ranges::transform(sequoiaNodes, sequoiaPathsToLock.begin(), [] (const INodePtr& node) {
+            return node->GetValue<std::string>();
+        });
+        auto lockRsps = queryContext->TryAcquireSnapshotLocks(sequoiaPathsToLock);
+        std::vector<INodePtr> lockedNodes;
+        lockedNodes.reserve(sequoiaNodes.size());
+        for (int i : std::views::iota(0, std::ssize(sequoiaNodes))) {
+            if (lockRsps[i].IsOK()) {
+                lockedNodes.push_back(std::move(sequoiaNodes[i]));
+            } else if (!lockRsps[i].FindMatching(NYTree::EErrorCode::ResolveError)) {
+                errors.push_back(std::move(lockRsps[i]));
+            }
+            // If node was removed after step (1) just skip it.
         }
-
-        if (sync) {
-            SetTransactionId(req, queryContext->ReadTransactionId);
-        }
-
-        batchReq->AddRequest(req);
+        sequoiaNodes = std::move(lockedNodes);
     }
 
-    auto batchResponse = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
+    // Step (3): fix fetched attributes if they are changed between initial
+    // list and snapshot lock acquiring.
+    if (shouldLock && !attributesToFetch.empty()) {
+        const auto& snapshotLocks = queryContext->SnapshotLocks;
 
-    std::vector<TErrorOr<INodePtr>> result;
-
-    for (const auto& [tag, rspOrError] : batchResponse->GetTaggedResponses<TYPathProxy::TRspList>()) {
-        index = std::any_cast<int>(tag);
-        if (rspOrError.IsOK()) {
-            auto listNode = ConvertToNode(TYsonString(rspOrError.Value()->value()));
-
-            if (listNode->Attributes().Get<bool>("incomplete", false)) {
-                THROW_ERROR_EXCEPTION("Directory contains too many nodes, list request returned incomplete result");
+        // NB: it's racy to use node path to access node's snapshot but
+        // GetNodeAttributes() replaces such paths with node IDs.
+        std::vector<TYPath> inconsistentNodePaths;
+        // Remove inconsistent
+        std::erase_if(sequoiaNodes, [&] (INodePtr& node) {
+            auto path = node->GetValue<TString>();
+            auto it = snapshotLocks.find(path);
+            if (it == snapshotLocks.end()) {
+                // Node was not locked.
+                return false;
             }
 
-            auto nodes = listNode->AsList()->GetChildren();
-            for (auto& node : nodes) {
-                node->AsString()->SetValue(dirPaths[index] + "/" + node->GetValue<TString>());
-                result.push_back(std::move(node));
+            auto fetchedNodeRevision = node->Attributes().Find<NHydra::TRevision>("revision");
+            auto lockRevision = it->second.Revision;
+            if (fetchedNodeRevision == lockRevision) {
+                return false;
             }
-        } else {
-            result.push_back(TError(rspOrError));
+            // Sequoia node was changed between fetch and lock.
+            inconsistentNodePaths.push_back(std::move(path));
+            return true;
+        });
+
+        if (additionalRevisionRequested) {
+            for (auto* nodeList : {&cypressNodes, &sequoiaNodes}) {
+                for (auto& node : *nodeList) {
+                    node->MutableAttributes()->Remove("revision");
+                }
+            }
+        }
+
+        for (auto& inconsistentNodeRsp : GetNodeAttributes(inconsistentNodePaths, attributesToFetch, queryContext)) {
+            if (inconsistentNodeRsp.IsOK()) {
+                sequoiaNodes.push_back(std::move(inconsistentNodeRsp.Value()));
+            } else {
+                errors.push_back(std::move(inconsistentNodeRsp));
+            }
         }
     }
 
+    std::vector<TErrorOr<INodePtr>> result(errors.size() + cypressNodes.size() + sequoiaNodes.size());
+    std::ranges::move(errors, result.begin());
+    std::ranges::move(cypressNodes, result.begin() + errors.size());
+    std::ranges::move(sequoiaNodes, result.begin() + errors.size() + cypressNodes.size());
     return result;
 }
 
@@ -137,6 +246,10 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
+    if (paths.empty()) {
+        return {};
+    }
+
     bool sync = (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
 
     if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {

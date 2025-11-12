@@ -655,7 +655,7 @@ private:
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
-            [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
+            [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
@@ -663,7 +663,11 @@ private:
                 if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
                     req->set_omit_dynamic_stores(true);
                 }
-                SetTransactionId(req, TransactionId_);
+                if (InputTables_[tableIndex]->ExternalTransactionId) {
+                    SetTransactionId(req, InputTables_[tableIndex]->ExternalTransactionId);
+                } else {
+                    SetTransactionId(req, TransactionId_);
+                }
                 SetSuppressAccessTracking(req, true);
                 SetSuppressExpirationTimeoutRenewal(req, true);
             },

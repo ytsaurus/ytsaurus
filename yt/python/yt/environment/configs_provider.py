@@ -1697,7 +1697,7 @@ def _build_native_bus_config(yt_config, is_server=False, from_files=True, env_pr
     config = {
         "encryption_mode": "required",
         "verification_mode": "full",
-        "peer_alternative_host_name": yt_config.cluster_name,
+        "peer_alternative_host_name": yt_config.peer_alternative_host_name or yt_config.cluster_name,
     }
 
     if from_files:

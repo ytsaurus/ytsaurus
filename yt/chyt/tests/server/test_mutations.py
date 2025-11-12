@@ -4,7 +4,7 @@ from yt_type_helpers import make_schema, normalize_schema
 
 from yt.test_helpers import assert_items_equal
 
-from base import ClickHouseTestBase, QueryFailedError, Clique
+from base import ClickHouseTestBase, QueryFailedError, Clique, enable_sequoia
 
 from helpers import get_object_attribute_cache_config, get_schema_from_description
 
@@ -923,3 +923,8 @@ class TestMutations(ClickHouseTestBase):
                 clique.make_query("DROP TABLE my_db.my_table_renamed")
 
             assert clique.make_query("SHOW TABLES FROM my_db") == [{"name": "other_table"}]
+
+
+@enable_sequoia
+class TestMutationsSequoia(TestMutations):
+    pass

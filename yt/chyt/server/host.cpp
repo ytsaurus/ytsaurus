@@ -374,7 +374,9 @@ public:
 
     void InvalidateCachedObjectAttributes(const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths)
     {
-        YT_LOG_DEBUG("Invalidating locally cached table attributes (PathCount: %v)", paths.size());
+        YT_LOG_DEBUG("Invalidating locally cached table attributes (PathCount: %v, Paths: %v)",
+            paths.size(),
+            MakeShrunkFormattableView(paths, TDefaultFormatter{}, 10));
 
         for (const auto& [path, refreshRevision] : paths) {
             TableAttributeCache_->InvalidateActiveAndSetRefreshRevision(path, refreshRevision);

@@ -172,6 +172,7 @@ public:
 
     //! Synchronously acquire snapshot locks on given paths under the read transaction.
     void AcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
+    std::vector<TError> TryAcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
 
     // QueryLog
 

@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -16,6 +18,7 @@ struct TObjectLock
 {
     NObjectClient::TObjectId NodeId;
     NHydra::TRevision Revision = NHydra::NullRevision;
+    NTransactionClient::TTransactionId ExternalTransactionId;
 };
 
 void Serialize(const TObjectLock& lock, NYson::IYsonConsumer* consumer);

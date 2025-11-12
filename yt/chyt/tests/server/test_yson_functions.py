@@ -1,9 +1,10 @@
-import json
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from yt_commands import (create, write_table, read_table, authors, raises_yt_error, merge)
 
 import yt.yson as yson
+
+import json
 
 
 class TestYsonFunctions(ClickHouseTestBase):
@@ -295,3 +296,8 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert json_res == {'a': 1}
             result = clique.make_query("select ConvertYsonToJson(null) as v")
             assert result[0]["v"] is None
+
+
+@enable_sequoia
+class TestYsonFunctionsSequoia(TestYsonFunctions):
+    pass

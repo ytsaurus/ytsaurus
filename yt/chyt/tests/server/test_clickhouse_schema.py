@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from yt_commands import (authors, create, write_table, raises_yt_error)
 
@@ -414,3 +414,8 @@ class TestClickHouseSchema(ClickHouseTestBase):
             ]
             result = clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a", format="TabSeparatedRaw")
             assert yson.dumps(x, yson_format='binary') == result.content[:-1]
+
+
+@enable_sequoia
+class TestClickHouseSchemaSequoia(TestClickHouseSchema):
+    pass

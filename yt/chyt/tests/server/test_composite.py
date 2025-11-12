@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from helpers import get_schema_from_description
 
@@ -294,3 +294,8 @@ class TestComposite(ClickHouseTestBase):
                 unique_keys=False,
             )
             assert read_table("//tmp/t1") == [{"lc_arr": ["abc", "bcd"], "lc_tup": [1, "abcd"]}]
+
+
+@enable_sequoia
+class TestCompositeSequoia(TestComposite):
+    pass

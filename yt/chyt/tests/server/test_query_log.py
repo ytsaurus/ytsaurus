@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug,
                          raises_yt_error)
@@ -269,3 +269,8 @@ class TestQueryLog(ClickHouseTestBase):
                 assert len(row["chyt_query_statistics"]["sink_to_storage"]["chunk_rows"]) > 0
                 assert len(row["chyt_query_statistics"]["sink_to_storage"]["write_time"]) > 0
                 assert len(row["chyt_query_statistics"]["sink_to_storage"]["convertation_time"]) > 0
+
+
+@enable_sequoia
+class TestQueryLogSequoia(TestQueryLog):
+    pass

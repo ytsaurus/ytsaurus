@@ -4,7 +4,7 @@ from yt_commands import (create, authors, write_table, insert_rows, get, sync_re
 
 from yt_type_helpers import optional_type
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from .helpers import get_disabled_cache_config
 
@@ -1841,3 +1841,23 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                 ):
                     check_complex(lower_limit, upper_limit)
                     check_complex(upper_limit, lower_limit)
+
+
+@enable_sequoia
+class TestInputFetchingSequoia(TestInputFetching):
+    pass
+
+
+@enable_sequoia
+class TestReadInOrderSequoia(TestReadInOrder):
+    pass
+
+
+@enable_sequoia
+class TestInferReadRangeSequoia(TestInferReadRange):
+    pass
+
+
+@enable_sequoia
+class TestInputFetchingYPathSequoia(TestInputFetchingYPath):
+    pass
