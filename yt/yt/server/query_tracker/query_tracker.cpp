@@ -8,6 +8,7 @@
 #include "chyt_engine.h"
 #include "mock_engine.h"
 #include "spyt_engine.h"
+#include "spyt_connect_engine.h"
 #include "search_index.h"
 #include "helpers.h"
 
@@ -103,6 +104,7 @@ public:
         Engines_[EQueryEngine::Yql] = CreateYqlEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Chyt] = CreateChytEngine(StateClient_, StateRoot_);
         Engines_[EQueryEngine::Spyt] = CreateSpytEngine(StateClient_, StateRoot_);
+        Engines_[EQueryEngine::SpytConnect] = CreateSpytConnectEngine(StateClient_, StateRoot_);
         // This is a correct call, despite being virtual call in constructor.
         TQueryTracker::Reconfigure(config);
     }
@@ -124,6 +126,7 @@ public:
         Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine);
         Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine);
         Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
+        Engines_[EQueryEngine::SpytConnect]->Reconfigure(config->SpytConnectEngine);
     }
 
     IYPathServicePtr GetOrchidService() const override
@@ -410,7 +413,19 @@ private:
         IQueryHandlerPtr handler;
         if (!IsFinishingState(optionalRecord->State)) {
             try {
-                handler = Engines_[queryRecord.Engine]->StartOrAttachQuery(queryRecord);
+                auto engine = queryRecord.Engine;
+                // Temporary workaround for resolving spyt and spyt connect engines. At some point spyt engine
+                // should be completely replaced by spyt connect engine.
+                if (engine == EQueryEngine::Spyt) {
+                    auto settings = ConvertToNode(queryRecord.Settings);
+                    auto useSpytConnectNode = settings->AsMap()->FindChild("use_spyt_connect");
+                    bool useSpytConnect = useSpytConnectNode ? useSpytConnectNode->AsBoolean()->GetValue() : Config_->UseSpytConnectEngine;
+                    if (useSpytConnect) {
+                        YT_LOG_DEBUG("Using SpytConnectEngine instead of SpytEngine");
+                        engine = EQueryEngine::SpytConnect;
+                    }
+                }
+                handler = Engines_[engine]->StartOrAttachQuery(queryRecord);
                 handler->Start();
             } catch (const std::exception& ex) {
                 YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");

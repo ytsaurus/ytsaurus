@@ -1,4 +1,3 @@
-// This engine is deprecated in favor of SpytConnectEngine
 #pragma once
 
 #include "private.h"
@@ -9,7 +8,7 @@ namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateSpytEngine(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
+IQueryEnginePtr CreateSpytConnectEngine(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
