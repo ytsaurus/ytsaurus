@@ -56,6 +56,8 @@ public:
     bool TryIncrementRequestQueueSize(TUser* user);
     void DecrementRequestQueueSize(TUser* user);
 
+    void IncrementFailedExpirationRequestCount(TUser* user);
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const NDistributedThrottler::IDistributedThrottlerFactoryPtr ThrottlerFactory_;

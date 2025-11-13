@@ -137,6 +137,7 @@ public:
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
     const NCypressServer::IPortalManagerPtr& GetPortalManager() const;
     const NCypressServer::IGraftingManagerPtr& GetGraftingManager() const;
+    const NCypressServer::IExpirationTrackerPtr& GetExpirationTracker() const;
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
@@ -238,6 +239,7 @@ protected:
     NCypressServer::ICypressManagerPtr CypressManager_;
     NCypressServer::IPortalManagerPtr PortalManager_;
     NCypressServer::IGraftingManagerPtr GraftingManager_;
+    NCypressServer::IExpirationTrackerPtr ExpirationTracker_;
     NCypressServer::ISequoiaActionsExecutorPtr SequoiaActionsExecutor_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;

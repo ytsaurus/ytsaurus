@@ -304,6 +304,7 @@ private:
 
         if (populateUserDirectory) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             auto* protoUserDirectory = response->mutable_user_directory();
 
             static auto toProtoSubject = [] (
@@ -338,10 +339,16 @@ private:
             };
 
             for (auto [_, user] : securityManager->Users()) {
+                if (!IsObjectAlive(user) || !objectManager->IsObjectLifeStageValid(user)) {
+                    continue;
+                }
                 toProtoUser(protoUserDirectory->add_users(), user);
             }
 
             for (auto [_, group] : securityManager->Groups()) {
+                if (!IsObjectAlive(group) || !objectManager->IsObjectLifeStageValid(group)) {
+                    continue;
+                }
                 toProtoSubject(protoUserDirectory->add_groups(), group);
             }
         }

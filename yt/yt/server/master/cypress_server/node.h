@@ -34,6 +34,39 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+class TClonableBuiltinAttributePtr
+{
+    static_assert(std::copyable<T> || NObjectServer::CClonable<T>);
+
+public:
+    TClonableBuiltinAttributePtr() noexcept;
+    explicit TClonableBuiltinAttributePtr(const T& value);
+    explicit TClonableBuiltinAttributePtr(T&& value);
+
+    template <class... TArgs>
+    TClonableBuiltinAttributePtr(std::in_place_t, TArgs&&... args);
+
+    TClonableBuiltinAttributePtr(TClonableBuiltinAttributePtr&& other) noexcept = default;
+    TClonableBuiltinAttributePtr& operator=(TClonableBuiltinAttributePtr&& other) noexcept = default;
+
+    TClonableBuiltinAttributePtr Clone() const;
+
+    explicit operator bool() const noexcept;
+
+    T* operator->() const noexcept;
+
+    T* Get() const noexcept;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+private:
+    static std::unique_ptr<T> ConstructCopy(const T& value);
+
+    std::unique_ptr<T> Value_;
+};
+
 struct TNullVersionedBuiltinAttribute
 {
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -50,7 +83,8 @@ template <class T>
 struct TVersionedBuiltinAttributeTraits
 {
     using TRawType = T;
-    static constexpr bool IsPointer = std::is_pointer_v<T>;
+    static constexpr bool IsInherentlyNullable = std::is_pointer_v<T>;
+    static constexpr bool SerializeAsRaw = std::is_pointer_v<T>;
     static T ToRaw(T value);
     static T FromRaw(T value);
 };
@@ -59,9 +93,20 @@ template <class T>
 struct TVersionedBuiltinAttributeTraits<NObjectServer::TStrongObjectPtr<T>>
 {
     using TRawType = T*;
-    static constexpr bool IsPointer = true;
+    static constexpr bool IsInherentlyNullable = true;
+    static constexpr bool SerializeAsRaw = true;
     static T* ToRaw(const NObjectServer::TStrongObjectPtr<T>& value);
     static NObjectServer::TStrongObjectPtr<T> FromRaw(T* value);
+};
+
+template <class T>
+struct TVersionedBuiltinAttributeTraits<TClonableBuiltinAttributePtr<T>>
+{
+    using TRawType = T*;
+    static constexpr bool IsInherentlyNullable = true;
+    static constexpr bool SerializeAsRaw = false;
+    static T* ToRaw(const TClonableBuiltinAttributePtr<T>& value);
+    static TClonableBuiltinAttributePtr<T> FromRaw(T* value);
 };
 
 template <class T>
@@ -70,8 +115,12 @@ using TRawVersionedBuiltinAttributeType = typename TVersionedBuiltinAttributeTra
 template <class T>
 class TVersionedBuiltinAttribute
 {
+    static_assert(std::movable<T>);
     static_assert(std::copyable<T> || NObjectServer::CClonable<T>,
         "TVersionedBuiltinAttribute requires T to be either copyable or clonable");
+    static_assert(
+        !TVersionedBuiltinAttributeTraits<T>::SerializeAsRaw || TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable,
+        "Serialization as raw is implemented only for inherently nullable types");
 
 public:
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -129,8 +178,8 @@ public:
 
 private:
     std::conditional_t<
-        TVersionedBuiltinAttributeTraits<T>::IsPointer,
-        std::optional<T>, // std::nullopt is null, nullptr is tombstone.
+        TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable,
+        std::optional<T>, // std::nullopt is null, value-initialized value is tombstone.
         // NB: Don't reorder the types; tags are used for persistence.
         std::variant<TNullVersionedBuiltinAttribute, TTombstonedVersionedBuiltinAttribute, T>
     > BoxedValue_;
@@ -141,11 +190,11 @@ private: \
     ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType> name##_; \
     \
 public: \
-    attrType Get##name() const \
+    std::same_as<::NYT::NCypressServer::TRawVersionedBuiltinAttributeType<attrType>> auto Get##name() const \
     { \
         return ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType>::Get(&ownerType::name##_, this); \
     } \
-    std::optional<attrType> TryGet##name() const \
+    std::same_as<std::optional<::NYT::NCypressServer::TRawVersionedBuiltinAttributeType<attrType>>> auto TryGet##name() const \
     { \
         return ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType>::TryGet(&ownerType::name##_, this); \
     } \
@@ -200,8 +249,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime);
-
     //! Master memory usage account was already charged for.
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TDetailedMasterMemory, ChargedDetailedMasterMemoryUsage);
 
@@ -229,8 +276,44 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
-    // NB: Store as TString to reduce memory footprint.
-    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
+    template <std::copyable TTime>
+    class TExpirationProperties
+    {
+    public:
+        using TView = std::pair<NSecurityServer::TUserRawPtr, TTime>;
+
+        TExpirationProperties() = default;
+        TExpirationProperties(NSecurityServer::TUserPtr user, TTime time);
+        explicit TExpirationProperties(TInstant lastReset);
+
+        TExpirationProperties Clone() const;
+
+        void Save(NCellMaster::TSaveContext& context) const;
+        void Load(NCellMaster::TLoadContext& context);
+
+        bool IsReset() const;
+
+        std::optional<TView> AsView() const;
+        std::optional<TInstant> GetLastResetTime() const;
+        std::optional<NSecurityServer::TUserRawPtr> GetUser() const;
+        std::optional<TTime> GetExpiration() const;
+
+    private:
+        using TLastResetInstant = TInstant;
+        using TValue = std::pair<NSecurityServer::TUserPtr, TTime>;
+        // NB: Don't reorder the types; tags are used for persistence.
+        std::variant<TValue, TLastResetInstant> ExpirationValue_;
+    };
+
+    using TExpirationTimeProperties = TExpirationProperties<TInstant>;
+    using TExpirationTimePropertiesPtr = TClonableBuiltinAttributePtr<TExpirationTimeProperties>;
+
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TExpirationTimePropertiesPtr, ExpirationTimeProperties);
+
+    using TExpirationTimeoutProperties = TExpirationProperties<TDuration>;
+    using TExpirationTimeoutPropertiesPtr = TClonableBuiltinAttributePtr<TExpirationTimeoutProperties>;
+
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TExpirationTimeoutPropertiesPtr, ExpirationTimeoutProperties);
 
     //! Used for both Sequoia nodes and Cypress link nodes. Note that link nodes
     //! do not have |ParentId| set up properly.
@@ -292,6 +375,17 @@ public:
 
     std::optional<TCypressNodeExpirationMap::iterator> GetExpirationTimeoutIterator() const;
     void SetExpirationTimeoutIterator(std::optional<TCypressNodeExpirationMap::iterator> value);
+
+    std::optional<TExpirationTimeProperties::TView> GetExpirationTimePropertiesView() const;
+    std::optional<TInstant> GetExpirationTime() const;
+    std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeUser() const;
+    std::optional<TInstant> GetExpirationTimeLastResetTime() const;
+
+    std::optional<TExpirationTimeoutProperties::TView> GetExpirationTimeoutPropertiesView() const;
+    std::optional<TDuration> GetExpirationTimeout() const;
+    std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeoutUser() const;
+    std::optional<TInstant> GetExpirationTimeoutLastResetTime() const;
+
 
     //! Returns the static type of the node.
     /*!

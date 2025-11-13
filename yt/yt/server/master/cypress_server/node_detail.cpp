@@ -171,8 +171,8 @@ void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     Save(*context, node->TryGetAnnotation());
     Save(*context, node->GetCreationTime());
     Save(*context, node->GetModificationTime());
-    Save(*context, node->TryGetExpirationTime());
-    Save(*context, node->TryGetExpirationTimeout());
+    Save(*context, node->GetExpirationTime());
+    Save(*context, node->GetExpirationTimeout());
 
     // User attributes.
     auto keyToAttribute = GetNodeAttributes(
@@ -267,13 +267,13 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     // Copy expiration time.
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetExpirationTime(trunkNode, expirationTime);
+        cypressManager->SetExpirationTime(trunkNode, *expirationTime);
     }
 
     // Copy expiration timeout.
     if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SetExpirationTimeout(trunkNode, expirationTimeout);
+        cypressManager->SetExpirationTimeout(trunkNode, *expirationTimeout);
     }
 
     // Copy attributes directly to suppress validation.

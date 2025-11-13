@@ -38,6 +38,11 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<NYT::NRpc::TAuthenticationIdentity> TryGetAuthenticationIdentity(
+    const NRpc::NProto::TRequestHeader& header);
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<NSequoiaClient::TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::TRequestHeader& header);
 
 TError CheckPrerequisitesAfterRequestInvocation(

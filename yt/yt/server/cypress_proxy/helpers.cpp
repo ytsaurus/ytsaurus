@@ -195,6 +195,24 @@ void ValidateLinkNodeCreation(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TAuthenticationIdentity> TryGetAuthenticationIdentity(
+    const NRpc::NProto::TRequestHeader& header)
+{
+    if (!header.has_user()) {
+        return {};
+    }
+
+    std::string userTag;
+    if (header.has_user_tag()) {
+        userTag = header.user_tag();
+    }
+    return TAuthenticationIdentity(header.user(), userTag);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TPrerequisiteRevision> GetPrerequisiteRevisions(const NRpc::NProto::TRequestHeader& header)
 {
     const auto prerequisitesExt = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;

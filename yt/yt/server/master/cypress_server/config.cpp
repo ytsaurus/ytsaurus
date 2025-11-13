@@ -58,8 +58,14 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("max_expired_nodes_removals_per_commit", &TThis::MaxExpiredNodesRemovalsPerCommit)
         .Default(1000);
+    registrar.Parameter("expiration_attempt_limit", &TThis::ExpirationAttemptLimit)
+        .Default(3);
     registrar.Parameter("expiration_backoff_time", &TThis::ExpirationBackoffTime)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("expiration_attempt_persist_period", &TThis::ExpirationAttemptPersistPeriod)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("enable_authorized_expiration", &TThis::EnableAuthorizedExpiration)
+        .Default(false);
 
     registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);

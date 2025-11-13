@@ -8,6 +8,74 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TClonableBuiltinAttributePtr<T>::TClonableBuiltinAttributePtr() noexcept
+{ }
+
+template <class T>
+TClonableBuiltinAttributePtr<T>::TClonableBuiltinAttributePtr(const T& value)
+    : Value_(ConstructCopy(value))
+{ }
+
+template <class T>
+TClonableBuiltinAttributePtr<T>::TClonableBuiltinAttributePtr(T&& value)
+    : Value_(std::make_unique<T>(std::move(value)))
+{ }
+
+template <class T>
+template <class... TArgs>
+TClonableBuiltinAttributePtr<T>::TClonableBuiltinAttributePtr(std::in_place_t, TArgs&&... args)
+    : Value_(std::make_unique<T>(std::forward<TArgs>(args)...))
+{ }
+
+template <class T>
+TClonableBuiltinAttributePtr<T> TClonableBuiltinAttributePtr<T>::Clone() const
+{
+    return TClonableBuiltinAttributePtr(*Value_);
+}
+
+template <class T>
+TClonableBuiltinAttributePtr<T>::operator bool() const noexcept
+{
+    return static_cast<bool>(Value_);
+}
+
+template <class T>
+T* TClonableBuiltinAttributePtr<T>::operator->() const noexcept
+{
+    return Get();
+}
+
+template <class T>
+T* TClonableBuiltinAttributePtr<T>::Get() const noexcept
+{
+    return Value_.get();
+}
+
+template <class T>
+void TClonableBuiltinAttributePtr<T>::Save(NCellMaster::TSaveContext& context) const
+{
+    TUniquePtrSerializer<>::Save(context, Value_);
+}
+
+template <class T>
+void TClonableBuiltinAttributePtr<T>::Load(NCellMaster::TLoadContext& context)
+{
+    TUniquePtrSerializer<>::Load(context, Value_);
+}
+
+template <class T>
+std::unique_ptr<T> TClonableBuiltinAttributePtr<T>::ConstructCopy(const T& value)
+{
+    if constexpr (NObjectServer::CClonable<T>) {
+        return std::make_unique<T>(value.Clone());
+    } else {
+        return std::make_unique<T>(value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline TCypressNodeDynamicData* TCypressNode::GetDynamicData() const
 {
     return GetTypedDynamicData<TCypressNodeDynamicData>();
@@ -91,6 +159,21 @@ NObjectServer::TStrongObjectPtr<T> TVersionedBuiltinAttributeTraits<NObjectServe
     return NObjectServer::TStrongObjectPtr<T>(value);
 }
 
+template <class T>
+T* TVersionedBuiltinAttributeTraits<TClonableBuiltinAttributePtr<T>>::ToRaw(const TClonableBuiltinAttributePtr<T>& value)
+{
+    return value.Get();
+}
+
+template <class T>
+TClonableBuiltinAttributePtr<T> TVersionedBuiltinAttributeTraits<TClonableBuiltinAttributePtr<T>>::FromRaw(T* value)
+{
+    if (!value) {
+        return {};
+    }
+    return TClonableBuiltinAttributePtr<T>(*value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -103,13 +186,12 @@ void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceConte
 template <class T>
 void TVersionedBuiltinAttribute<T>::Save(TSerializeNodeContext& context) const
 {
+    using TTraits = TVersionedBuiltinAttributeTraits<T>;
     using NYT::Save;
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        if (BoxedValue_) {
-            Save(context, std::optional<TRawVersionedBuiltinAttributeType<T>>(TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_)));
-        } else {
-            Save(context, std::optional<TRawVersionedBuiltinAttributeType<T>>());
-        }
+    if constexpr (TTraits::SerializeAsRaw && TTraits::IsInherentlyNullable) {
+        Save(context, BoxedValue_.transform([] (const auto& unboxedValue) {
+            return TTraits::ToRaw(unboxedValue);
+        }));
     } else {
         Save(context, BoxedValue_);
     }
@@ -118,13 +200,13 @@ void TVersionedBuiltinAttribute<T>::Save(TSerializeNodeContext& context) const
 template <class T>
 void TVersionedBuiltinAttribute<T>::Load(TMaterializeNodeContext& context)
 {
+    using TTraits = TVersionedBuiltinAttributeTraits<T>;
     using NYT::Load;
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        if (auto optionalValue = Load<std::optional<TRawVersionedBuiltinAttributeType<T>>>(context)) {
-            BoxedValue_ = TVersionedBuiltinAttributeTraits<T>::FromRaw(*optionalValue);
-        } else {
-            BoxedValue_ = std::nullopt;
-        }
+    if constexpr (TTraits::SerializeAsRaw && TTraits::IsInherentlyNullable) {
+        BoxedValue_ = Load<std::optional<TRawVersionedBuiltinAttributeType<T>>>(context)
+            .transform([] (TRawVersionedBuiltinAttributeType<T>&& rawValue) {
+                return TTraits::FromRaw(std::move(rawValue));
+            });
     } else {
         Load(context, BoxedValue_);
     }
@@ -133,8 +215,8 @@ void TVersionedBuiltinAttribute<T>::Load(TMaterializeNodeContext& context)
 template <class T>
 void TVersionedBuiltinAttribute<T>::Set(T value)
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        // nullptrs are not allowed; Remove() should be used instead.
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
+        // default values are not allowed; Remove() should be used instead.
         YT_VERIFY(value);
     }
 
@@ -144,7 +226,7 @@ void TVersionedBuiltinAttribute<T>::Set(T value)
 template <class T>
 void TVersionedBuiltinAttribute<T>::Reset()
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
         BoxedValue_ = std::nullopt;
     } else {
         BoxedValue_ = TNullVersionedBuiltinAttribute{};
@@ -154,8 +236,8 @@ void TVersionedBuiltinAttribute<T>::Reset()
 template <class T>
 void TVersionedBuiltinAttribute<T>::Remove()
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        BoxedValue_ = TVersionedBuiltinAttributeTraits<T>::FromRaw(nullptr);
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
+        BoxedValue_.emplace();
     } else {
         BoxedValue_ = TTombstonedVersionedBuiltinAttribute{};
     }
@@ -164,7 +246,7 @@ void TVersionedBuiltinAttribute<T>::Remove()
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsNull() const
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
         return !BoxedValue_.has_value();
     } else {
         return std::holds_alternative<TNullVersionedBuiltinAttribute>(BoxedValue_);
@@ -174,8 +256,8 @@ bool TVersionedBuiltinAttribute<T>::IsNull() const
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsTombstoned() const
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        return BoxedValue_ && TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_) == nullptr;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
+        return BoxedValue_ && !*BoxedValue_;
     } else {
         return std::holds_alternative<TTombstonedVersionedBuiltinAttribute>(BoxedValue_);
     }
@@ -184,8 +266,8 @@ bool TVersionedBuiltinAttribute<T>::IsTombstoned() const
 template <class T>
 bool TVersionedBuiltinAttribute<T>::IsSet() const
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
-        return BoxedValue_ && TVersionedBuiltinAttributeTraits<T>::ToRaw(*BoxedValue_) != nullptr;
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
+        return BoxedValue_ && *BoxedValue_;
     } else {
         return std::holds_alternative<T>(BoxedValue_);
     }
@@ -194,7 +276,7 @@ bool TVersionedBuiltinAttribute<T>::IsSet() const
 template <class T>
 TRawVersionedBuiltinAttributeType<T> TVersionedBuiltinAttribute<T>::Unbox() const
 {
-    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsPointer) {
+    if constexpr (TVersionedBuiltinAttributeTraits<T>::IsInherentlyNullable) {
         const auto& result = *BoxedValue_;
         YT_VERIFY(result);
         return TVersionedBuiltinAttributeTraits<T>::ToRaw(result);
@@ -219,7 +301,7 @@ template <class TOwner>
 {
     auto result = TryGet(member, node);
     YT_VERIFY(result);
-    return TVersionedBuiltinAttributeTraits<T>::ToRaw(*result);
+    return *std::move(result);
 }
 
 template <class T>
@@ -230,7 +312,7 @@ template <class TOwner>
 {
     auto result = TryGet(memberGetter, node);
     YT_VERIFY(result);
-    return TVersionedBuiltinAttributeTraits<T>::ToRaw(*result);
+    return *std::move(result);
 }
 
 template <class T>
@@ -307,12 +389,103 @@ TVersionedBuiltinAttribute<T> TVersionedBuiltinAttribute<T>::Clone() const
     TVersionedBuiltinAttribute<T> result;
     if constexpr (std::copyable<T>) {
         result.BoxedValue_ = BoxedValue_;
-    } else if constexpr (NObjectServer::CClonable<T>) {
-        result.BoxedValue_ = BoxedValue_ ? std::optional(BoxedValue_->Clone()) : std::nullopt;
     } else {
-        static_assert("Unsupported type");
+        static_assert(NObjectServer::CClonable<T>);
+        result.BoxedValue_ = BoxedValue_ ? std::optional(BoxedValue_->Clone()) : std::nullopt;
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <std::copyable TTime>
+TCypressNode::TExpirationProperties<TTime>::TExpirationProperties(
+    NSecurityServer::TUserPtr user, TTime expiration)
+    : ExpirationValue_(std::in_place_index<0>, std::move(user), std::move(expiration))
+{ }
+
+template <std::copyable TTime>
+TCypressNode::TExpirationProperties<TTime>::TExpirationProperties(
+    TInstant lastResetTime)
+    : ExpirationValue_(std::in_place_index<1>, lastResetTime)
+{ }
+
+template <std::copyable TTime>
+TCypressNode::TExpirationProperties<TTime> TCypressNode::TExpirationProperties<TTime>::Clone() const
+{
+    return Visit(
+        ExpirationValue_,
+        [] (const TValue& value) {
+            const auto& [user, expiration] = value;
+            return TExpirationProperties(user.Clone(), expiration);
+        },
+        [] (const TLastResetInstant& lastResetInstant) {
+            return TExpirationProperties(lastResetInstant);
+        }
+    );
+}
+
+template <std::copyable TTime>
+void TCypressNode::TExpirationProperties<TTime>::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, ExpirationValue_);
+}
+
+template <std::copyable TTime>
+void TCypressNode::TExpirationProperties<TTime>::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, ExpirationValue_);
+}
+
+template <std::copyable TTime>
+bool TCypressNode::TExpirationProperties<TTime>::IsReset() const
+{
+    return !std::holds_alternative<TValue>(ExpirationValue_);
+}
+
+template <std::copyable TTime>
+std::optional<typename TCypressNode::TExpirationProperties<TTime>::TView> TCypressNode::TExpirationProperties<TTime>::AsView() const
+{
+    if (!std::holds_alternative<TValue>(ExpirationValue_)) {
+        return std::nullopt;
+    }
+
+    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
+    return TView(user.Get(), expiration);
+}
+
+template <std::copyable TTime>
+std::optional<TInstant> TCypressNode::TExpirationProperties<TTime>::GetLastResetTime() const
+{
+    if (!std::holds_alternative<TLastResetInstant>(ExpirationValue_)) {
+        return std::nullopt;
+    }
+
+    return std::get<TLastResetInstant>(ExpirationValue_);
+}
+
+template <std::copyable TTime>
+std::optional<NSecurityServer::TUserRawPtr> TCypressNode::TExpirationProperties<TTime>::GetUser() const
+{
+    if (!std::holds_alternative<TValue>(ExpirationValue_)) {
+        return std::nullopt;
+    }
+
+    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
+    return user.Get();
+}
+
+template <std::copyable TTime>
+std::optional<TTime> TCypressNode::TExpirationProperties<TTime>::GetExpiration() const
+{
+    if (!std::holds_alternative<TValue>(ExpirationValue_)) {
+        return std::nullopt;
+    }
+
+    const auto& [user, expiration] = std::get<TValue>(ExpirationValue_);
+    return expiration;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

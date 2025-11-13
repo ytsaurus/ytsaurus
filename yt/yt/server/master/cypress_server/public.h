@@ -41,6 +41,7 @@ DECLARE_REFCOUNTED_STRUCT(ICypressManager)
 DECLARE_REFCOUNTED_STRUCT(IPortalManager)
 DECLARE_REFCOUNTED_STRUCT(IGraftingManager)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaActionsExecutor)
+DECLARE_REFCOUNTED_CLASS(IExpirationTracker)
 
 DECLARE_REFCOUNTED_STRUCT(TResolveCacheNode)
 DECLARE_REFCOUNTED_CLASS(TResolveCache)
@@ -71,7 +72,7 @@ class TInheritedAttributeDictionary;
 using TConstInheritedAttributeDictionaryPtr = TIntrusivePtr<const TInheritedAttributeDictionary>;
 
 using TCypressNodeList = TCompactVector<TCypressNode*, 8>;
-using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
+using TCypressNodeExpirationMap = std::multimap<TInstant, NObjectServer::TRawObjectPtr<TCypressNode>>;
 
 struct TLockRequest;
 

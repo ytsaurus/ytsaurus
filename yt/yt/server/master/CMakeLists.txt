@@ -485,6 +485,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunks_samples.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/expiration_tracker.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.pb.h
@@ -511,6 +512,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunks_samples.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/expiration_tracker.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/portal_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/maintenance_tracker_server/proto/maintenance_tracker.proto
