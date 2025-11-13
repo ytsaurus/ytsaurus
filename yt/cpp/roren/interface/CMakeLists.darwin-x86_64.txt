@@ -28,6 +28,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   tools-enum_parser-enum_serialization_runtime
   library-cpp-iterator
   cpp-yson-node
+  cpp-yt-misc
   cpp-yt-string
   flow-lib-serializer
   roren-library-bind

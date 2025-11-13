@@ -37,6 +37,7 @@ SRCS(
 PEERDIR(
     library/cpp/iterator
     library/cpp/yson/node
+    library/cpp/yt/misc
     library/cpp/yt/string
     yt/yt/flow/lib/serializer
     yt/cpp/roren/library/bind
