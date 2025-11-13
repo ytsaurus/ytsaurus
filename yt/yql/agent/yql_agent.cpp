@@ -720,9 +720,11 @@ private:
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
     }
 
-    THashSet<std::string> FetchAllowedReadSubjects(IClientPtr client, const TString& path)
+    THashSet<std::string> FetchAllowedReadSubjects(
+        const IClientPtr& client,
+        const TString& path)
     {
-        auto aclAttributePath = ::TStringBuilder() << path << "/@effective_acl";
+        auto aclAttributePath = Format("%v/@effective_acl", path);
 
         auto acl = ConvertTo<std::vector<TSerializableAccessControlEntry>>(
             WaitFor(client->GetNode(aclAttributePath)).ValueOrThrow());
