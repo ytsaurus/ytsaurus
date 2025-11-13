@@ -60,7 +60,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"FolderInlineItemsLimit", "200"},
     {"FolderInlineDataLimit", "500K"},
     {"WideFlowLimit", "101"},
-    {"NativeYtTypeCompatibility", "complex,date,null,void,date,float,json,decimal"},
+    {"NativeYtTypeCompatibility", "complex,date,null,void,date,float,json,decimal,uuid"},
     {"MapJoinUseFlow", "1"},
     {"HybridDqDataSizeLimitForOrdered", "384M"},
     {"HybridDqDataSizeLimitForUnordered", "8G"},
