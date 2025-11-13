@@ -495,6 +495,14 @@ private:
         YT_LOG_INFO("Running query via YQL plugin");
 
         std::vector<TSharedRef> wireRowsets;
+
+        TPeriodicExecutorPtr refreshTokenExecutor;
+        auto stopTokenRefresh = [&] {
+            if (refreshTokenExecutor) {
+                WaitUntilSet(refreshTokenExecutor->Stop());
+            }
+        };
+
         try {
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
@@ -524,7 +532,7 @@ private:
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-            auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+            refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front().first;
@@ -572,15 +580,6 @@ private:
 
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
-            auto finally = Finally([&] {
-                try {
-                    WaitUntilSet(refreshTokenExecutor->Stop());
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to stop token refresh gracefully");
-                } catch (...) {
-                    YT_ABORT();
-                }
-            });
 
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
@@ -627,6 +626,8 @@ private:
                     }
                 }
             }
+
+            stopTokenRefresh();
             response.mutable_yql_response()->Swap(&yqlResponse);
             return {response, wireRowsets};
         } catch (const std::exception& ex) {
@@ -634,6 +635,7 @@ private:
                 << TErrorAttribute("query_id", queryId)
                 << TError(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
+            stopTokenRefresh();
             THROW_ERROR error;
         }
     }
