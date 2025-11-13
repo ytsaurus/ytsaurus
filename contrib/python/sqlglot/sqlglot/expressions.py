@@ -118,7 +118,7 @@ class Expression(metaclass=_Expression):
             self._set_parent(arg_key, value)
 
     def __eq__(self, other) -> bool:
-        return type(self) is type(other) and hash(self) == hash(other)
+        return self is other or (type(self) is type(other) and hash(self) == hash(other))
 
     def __hash__(self) -> int:
         if self._hash is None:
@@ -1893,7 +1893,13 @@ class Comment(Expression):
 
 
 class Comprehension(Expression):
-    arg_types = {"this": True, "expression": True, "iterator": True, "condition": False}
+    arg_types = {
+        "this": True,
+        "expression": True,
+        "position": False,
+        "iterator": True,
+        "condition": False,
+    }
 
 
 # https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#mergetree-table-ttl
@@ -5620,6 +5626,14 @@ class Boolnot(Func):
     pass
 
 
+class Booland(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class Boolor(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#bool_for_json
 class JSONBool(Func):
     pass
@@ -5974,11 +5988,11 @@ class Lead(AggFunc):
 # some dialects have a distinction between first and first_value, usually first is an aggregate func
 # and first_value is a window func
 class First(AggFunc):
-    pass
+    arg_types = {"this": True, "expression": False}
 
 
 class Last(AggFunc):
-    pass
+    arg_types = {"this": True, "expression": False}
 
 
 class FirstValue(AggFunc):
@@ -6276,6 +6290,14 @@ class WeekOfYear(Func):
     _sql_names = ["WEEK_OF_YEAR", "WEEKOFYEAR"]
 
 
+class YearOfWeek(Func):
+    _sql_names = ["YEAR_OF_WEEK", "YEAROFWEEK"]
+
+
+class YearOfWeekIso(Func):
+    _sql_names = ["YEAR_OF_WEEK_ISO", "YEAROFWEEKISO"]
+
+
 class MonthsBetween(Func):
     arg_types = {"this": True, "expression": True, "roundoff": False}
 
@@ -6426,6 +6448,10 @@ class Encode(Func):
     arg_types = {"this": True, "charset": True}
 
 
+class EqualNull(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class Exp(Func):
     pass
 
@@ -6570,6 +6596,16 @@ class Greatest(Func):
     is_var_len_args = True
 
 
+class GreatestIgnoreNulls(Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+
+
+class LeastIgnoreNulls(Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+
+
 # Trino's `ON OVERFLOW TRUNCATE [filler_string] {WITH | WITHOUT} COUNT`
 # https://trino.io/docs/current/functions/aggregate.html#listagg
 class OverflowTruncateBehavior(Expression):
@@ -6666,6 +6702,10 @@ class Int64(Func):
 
 class IsInf(Func):
     _sql_names = ["IS_INF", "ISINF"]
+
+
+class IsNullValue(Func):
+    pass
 
 
 # https://www.postgresql.org/docs/current/functions-json.html
@@ -7349,6 +7389,7 @@ class RegexpReplace(Func):
         "position": False,
         "occurrence": False,
         "modifiers": False,
+        "single_replace": False,
     }
 
 
@@ -7389,6 +7430,14 @@ class RegexpCount(Func):
         "position": False,
         "parameters": False,
     }
+
+
+class RegrValx(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrValy(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 class Repeat(Func):
@@ -7754,18 +7803,38 @@ class Uuid(Func):
     arg_types = {"this": False, "name": False}
 
 
+TIMESTAMP_PARTS = {
+    "year": False,
+    "month": False,
+    "day": False,
+    "hour": False,
+    "min": False,
+    "sec": False,
+    "nano": False,
+}
+
+
 class TimestampFromParts(Func):
     _sql_names = ["TIMESTAMP_FROM_PARTS", "TIMESTAMPFROMPARTS"]
     arg_types = {
-        "year": True,
-        "month": True,
-        "day": True,
-        "hour": True,
-        "min": True,
-        "sec": True,
-        "nano": False,
+        **TIMESTAMP_PARTS,
         "zone": False,
         "milli": False,
+        "this": False,
+        "expression": False,
+    }
+
+
+class TimestampLtzFromParts(Func):
+    _sql_names = ["TIMESTAMP_LTZ_FROM_PARTS", "TIMESTAMPLTZFROMPARTS"]
+    arg_types = TIMESTAMP_PARTS.copy()
+
+
+class TimestampTzFromParts(Func):
+    _sql_names = ["TIMESTAMP_TZ_FROM_PARTS", "TIMESTAMPTZFROMPARTS"]
+    arg_types = {
+        **TIMESTAMP_PARTS,
+        "zone": False,
     }
 
 
@@ -7851,7 +7920,8 @@ class Merge(DML):
     arg_types = {
         "this": True,
         "using": True,
-        "on": True,
+        "on": False,
+        "using_cond": False,
         "whens": True,
         "with": False,
         "returning": False,
@@ -9353,6 +9423,26 @@ def replace_tree(
                 stack.append(new_node)
 
     return new_node
+
+
+def find_tables(expression: Expression) -> t.Set[Table]:
+    """
+    Find all tables referenced in a query.
+
+    Args:
+        expressions: The query to find the tables in.
+
+    Returns:
+        A set of all the tables.
+    """
+    from sqlglot.optimizer.scope import traverse_scope
+
+    return {
+        table
+        for scope in traverse_scope(expression)
+        for table in scope.tables
+        if table.name and table.name not in scope.cte_sources
+    }
 
 
 def column_table_names(expression: Expression, exclude: str = "") -> t.Set[str]:
