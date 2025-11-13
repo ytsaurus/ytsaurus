@@ -187,8 +187,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/another_old_list")
 
     @authors("kvk1920")
-    # TODO(danilalexeev): YT-26540.
-    @not_implemented_in_sequoia
     def test_non_recursive_attribute_set(self):
         create_user("u")
         create("map_node", "//tmp/m1")
@@ -537,13 +535,17 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         copy("//tmp/a", "//tmp/b/c", recursive=True)
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "kvk1920")
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
         with raises_yt_error("Node //tmp has no child with key \"b\""):
             copy("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = "\"Copy\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
@@ -934,13 +936,19 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         move("//tmp/a", "//tmp/b/c", recursive=True)
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "kvk1920")
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
         with raises_yt_error("Node //tmp has no child with key \"b\""):
             move("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            # NB: there is no method "move" in our system. "Move" is just a
+            # "copy" with "mode = move".
+            error = "\"Copy\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             move("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
@@ -1280,10 +1288,14 @@ class TestCypress(YTEnvSetup):
         id3 = create("file", "//tmp/t", force=True)
         assert get("//tmp/t/@id") == id3
 
-    @authors("ignat")
+    @authors("kvk1920")
     def test_create_recursive(self):
         assert not exists("//tmp/a/b/c/d")
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = "\"Create\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             create("map_node", "//tmp/a/b/c/d/@d", recursive=True)
         assert not exists("//tmp/a/b/c/d")
         create("map_node", "//tmp/a/b/c/d", recursive=True)
@@ -3787,19 +3799,24 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("already exists"):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
-    @authors("babenko")
-    # TODO(danilalexeev): YT-26540.
-    @not_implemented_in_sequoia
+    @authors("babenko", "kvk1920")
     def test_malformed_clone_src(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t1")
         copy("//tmp/m&/t1", "//tmp/t2", force=True)
         copy("//tmp/m/t1&", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        error = "has unexpected suffix"
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = 'Expected "literal" in YPath but found "slash" token "/"'
+        with raises_yt_error(error):
             copy("//tmp/m//t1", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = 'Unexpected end-of-string in YPath'
+        with raises_yt_error(error):
             copy("//tmp/m/t1/", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = '"Copy" method is not supported'
+        with raises_yt_error(error):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("kvk1920")
@@ -3942,7 +3959,6 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
-
         with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
@@ -4221,6 +4237,15 @@ class TestCypress(YTEnvSetup):
 
         tx = start_transaction()
         assert lock("//tmp/doc", tx=tx)["revision"] == revision
+
+    @authors("kvk1920")
+    def test_create_with_ampersand(self):
+        id1 = create("int64_node", "//tmp/i&")
+        with raises_yt_error("Node //tmp/i already exists"):
+            create("int64_node", "//tmp/i&")
+        assert create("int64_node", "//tmp/i&", ignore_existing=True) == id1
+        id2 = create("int64_node", "//tmp/i&", force=True)
+        assert id1 != id2
 
 
 ##################################################################

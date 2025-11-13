@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAccountsInSequoiaCopy)                                     (3117))  // babenko
     ((UnresolvedSuffixOnRequestInvolvesSequoia)                     (3118))  // danilalexeev
     ((AddSignatureKeysmithUser)                                     (3119))  // pavook
+    ((CreationWithAmpersandInPath)                                  (3120))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
