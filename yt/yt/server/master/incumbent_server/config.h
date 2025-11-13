@@ -18,10 +18,6 @@ struct TIncumbentSchedulingConfig
     //! If false, incumbent will be always scheduled to leader.
     bool UseFollowers;
 
-    //! Logical weight of the incumbent. Incumbent manager will try to
-    //! make total weight at followers as equal as possible.
-    int Weight;
-
     REGISTER_YSON_STRUCT(TIncumbentSchedulingConfig);
 
     static void Register(TRegistrar registrar);

@@ -10,9 +10,6 @@ void TIncumbentSchedulingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("use_followers", &TIncumbentSchedulingConfig::UseFollowers)
         .Default(false);
-
-    registrar.Parameter("weight", &TThis::Weight)
-        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +26,6 @@ void TIncumbentSchedulerConfig::Register(TRegistrar registrar)
 
             for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
                 incumbents[incumbentType] = New<TIncumbentSchedulingConfig>();
-                incumbents[incumbentType]->Weight = 1;
                 incumbents[incumbentType]->UseFollowers = UseFollowersIncumbents.contains(incumbentType);
             }
 
@@ -38,13 +34,18 @@ void TIncumbentSchedulerConfig::Register(TRegistrar registrar)
         .ResetOnLoad();
 
     registrar.Parameter("min_alive_followers", &TThis::MinAliveFollowers)
-        .Default(0);
+        .Default(1);
 
     registrar.Postprocessor([] (TThis* config) {
         for (auto incumbentType : TEnumTraits<EIncumbentType>::GetDomainValues()) {
             auto& incumbent = config->Incumbents[incumbentType];
             if (!incumbent) {
                 incumbent = New<TIncumbentSchedulingConfig>();
+            }
+
+            // COMPAT(h0pless): Replace with GreaterThan after 25.4.
+            if (config->MinAliveFollowers == 0) {
+                config->MinAliveFollowers = 1;
             }
         }
     });
