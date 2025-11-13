@@ -193,13 +193,78 @@ NHydra::TRevision TCypressNode::GetNativeContentRevision() const
     return NativeContentRevision_;
 }
 
+std::optional<TCypressNode::TExpirationTimeProperties::TView> TCypressNode::GetExpirationTimePropertiesView() const
+{
+    return TryGetExpirationTimeProperties()
+        .and_then([] (auto* expirationTimeProperties) {
+            return expirationTimeProperties->AsView();
+        });
+}
+
+std::optional<TInstant> TCypressNode::GetExpirationTime() const
+{
+    return TryGetExpirationTimeProperties()
+        .and_then([] (auto* expirationTimeProperties) {
+            return expirationTimeProperties->GetExpiration();
+        });
+}
+
+std::optional<NSecurityServer::TUserRawPtr> TCypressNode::GetExpirationTimeUser() const
+{
+    return TryGetExpirationTimeProperties()
+        .and_then([] (auto* expirationTimeProperties) {
+            return expirationTimeProperties->GetUser();
+        });
+}
+
+std::optional<TInstant> TCypressNode::GetExpirationTimeLastResetTime() const
+{
+    return TryGetExpirationTimeProperties()
+        .and_then([] (auto* expirationTimeProperties) {
+            return expirationTimeProperties->GetLastResetTime();
+        });
+}
+
+std::optional<TCypressNode::TExpirationTimeoutProperties::TView> TCypressNode::GetExpirationTimeoutPropertiesView() const
+{
+    return TryGetExpirationTimeoutProperties()
+        .and_then([] (auto* expirationTimeoutProperties) {
+            return expirationTimeoutProperties->AsView();
+        });
+}
+
+std::optional<TDuration> TCypressNode::GetExpirationTimeout() const
+{
+    return TryGetExpirationTimeoutProperties()
+        .and_then([] (auto* expirationTimeoutProperties) {
+            return expirationTimeoutProperties->GetExpiration();
+        });
+}
+
+std::optional<NSecurityServer::TUserRawPtr> TCypressNode::GetExpirationTimeoutUser() const
+{
+    return TryGetExpirationTimeoutProperties()
+        .and_then([] (auto* expirationTimeoutProperties) {
+            return expirationTimeoutProperties->GetUser();
+        });
+}
+
+std::optional<TInstant> TCypressNode::GetExpirationTimeoutLastResetTime() const
+{
+    return TryGetExpirationTimeoutProperties()
+        .and_then([] (auto* expirationTimeoutProperties) {
+            return expirationTimeoutProperties->GetLastResetTime();
+        });
+}
+
 TCypressNode* TCypressNode::GetEffectiveExpirationTimeNode()
 {
     TCypressNode* effectiveNode = nullptr;
     for (auto* node = this; node; node = node->GetParent()) {
-        if (auto optionalExpirationTime = node->TryGetExpirationTime()) {
+        if (auto optionalExpirationTime = node->GetExpirationTime()) {
+            auto nodeTime = *optionalExpirationTime;
             if (!effectiveNode ||
-                optionalExpirationTime < effectiveNode->TryGetExpirationTime())
+                nodeTime < (*effectiveNode->GetExpirationTime()))
             {
                 effectiveNode = node;
             }
@@ -212,9 +277,10 @@ TCypressNode* TCypressNode::GetEffectiveExpirationTimeoutNode()
 {
     TCypressNode* effectiveNode = nullptr;
     for (auto* node = this; node; node = node->GetParent()) {
-        if (auto optionalExpirationTimeout = node->TryGetExpirationTimeout()) {
+        if (auto optionalExpirationTimeout = node->GetExpirationTimeout()) {
+            auto nodeTimeout = *optionalExpirationTimeout;
             if (!effectiveNode ||
-                optionalExpirationTimeout < effectiveNode->TryGetExpirationTimeout())
+                nodeTimeout < (*effectiveNode->GetExpirationTimeout()))
             {
                 effectiveNode = node;
             }
@@ -294,8 +360,6 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     SaveWith<TUniquePtrSerializer<>>(context, LockingState_);
     SaveWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
     Save(context, LockMode_);
-    Save(context, ExpirationTime_);
-    Save(context, ExpirationTimeout_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
     Save(context, NativeContentRevision_);
@@ -308,6 +372,8 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccessCounter_);
     Save(context, Shard_);
     Save(context, Annotation_);
+    Save(context, ExpirationTimeProperties_);
+    Save(context, ExpirationTimeoutProperties_);
 
     // Save/Load functions won't work for this class because of const qualifiers on fields.
     Save(context, ImmutableSequoiaProperties_.operator bool());
@@ -328,8 +394,29 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     LoadWith<TUniquePtrSerializer<>>(context, LockingState_);
     LoadWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
     Load(context, LockMode_);
-    Load(context, ExpirationTime_);
-    Load(context, ExpirationTimeout_);
+
+    // COMPAT(koloshmet)
+    if (context.GetVersion() < EMasterReign::AuthorizedExpiration) {
+        auto expirationTime = Load<TVersionedBuiltinAttribute<TInstant>>(context);
+        auto expirationTimeout = Load<TVersionedBuiltinAttribute<TDuration>>(context);
+
+        if (!expirationTime.IsNull()) {
+            if (expirationTime.IsSet()) {
+                ExpirationTimeProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeProperties>(
+                    std::in_place, TUserPtr{}, expirationTime.Unbox()));
+            } else {
+                ExpirationTimeProperties_.Remove();
+            }
+        }
+        if (!expirationTimeout.IsNull()) {
+            if (expirationTimeout.IsSet()) {
+                ExpirationTimeoutProperties_.Set(TClonableBuiltinAttributePtr<TExpirationTimeoutProperties>(
+                    std::in_place, TUserPtr{}, expirationTimeout.Unbox()));
+            } else {
+                ExpirationTimeoutProperties_.Remove();
+            }
+        }
+    }
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     Load(context, NativeContentRevision_);
@@ -342,6 +429,12 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, AccessCounter_);
     Load(context, Shard_);
     Load(context, Annotation_);
+
+    // COMPAT(koloshmet)
+    if (context.GetVersion() >= EMasterReign::AuthorizedExpiration) {
+        Load(context, ExpirationTimeProperties_);
+        Load(context, ExpirationTimeoutProperties_);
+    }
 
     if (Load<bool>(context)) {
         auto key = Load<std::string>(context);

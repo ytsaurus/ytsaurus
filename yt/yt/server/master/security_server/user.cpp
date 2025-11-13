@@ -382,6 +382,7 @@ void TUser::InitializeCounters()
     RequestCounter_ = profiler.Counter("/user_request_count");
     RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
     RequestQueueSizeLimitGauge_ = globalProfiler.Gauge("/user_request_queue_size_limit");
+    FailedExpirationRequestCounter_ = globalProfiler.Counter("/user_failed_expiration_request_count");
 }
 
 void TUser::SetHashedPassword(std::optional<std::string> hashedPassword)
@@ -461,6 +462,11 @@ void TUser::ResetRequestQueueSize()
 {
     RequestQueueSize_ = 0;
     RequestQueueSizeSummary_.Record(RequestQueueSize_);
+}
+
+void TUser::IncrementFailedExpirationRequestCount()
+{
+    FailedExpirationRequestCounter_.Increment();
 }
 
 const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

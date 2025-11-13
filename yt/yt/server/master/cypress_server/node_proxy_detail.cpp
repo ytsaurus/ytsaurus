@@ -526,7 +526,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTime(node, std::nullopt);
+            cypressManager->SetExpirationTime(node, TRemoveExpiration{});
 
             return true;
         }
@@ -535,7 +535,35 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTimeout(node, std::nullopt);
+            cypressManager->SetExpirationTimeout(node, TRemoveExpiration{});
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
+                return false;
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTime(node, TSetExpirationResetTime{});
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
+                return false;
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTimeout(node, TSetExpirationResetTime{});
 
             return true;
         }
@@ -597,11 +625,11 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Key)
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
-        .SetPresent(node->TryGetExpirationTime().has_value())
+        .SetPresent(node->GetExpirationTime().has_value())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeout)
-        .SetPresent(node->TryGetExpirationTimeout().has_value())
+        .SetPresent(node->GetExpirationTimeout().has_value())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpiration)
@@ -636,6 +664,16 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
         .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeUser)
+        .SetPresent(node->GetExpirationTimeUser().value_or(nullptr) != nullptr)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutUser)
+        .SetPresent(node->GetExpirationTimeoutUser().value_or(nullptr) != nullptr)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeLastResetTime)
+        .SetPresent(node->GetExpirationTimeLastResetTime().has_value()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutLastResetTime)
+        .SetPresent(node->GetExpirationTimeoutLastResetTime().has_value()));
 
     if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WrongDoorSync)
@@ -731,7 +769,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ExpirationTime: {
-            auto optionalExpirationTime = node->TryGetExpirationTime();
+            auto optionalExpirationTime = node->GetExpirationTime();
             if (!optionalExpirationTime) {
                 break;
             }
@@ -741,7 +779,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ExpirationTimeout: {
-            auto optionalExpirationTimeout = node->TryGetExpirationTimeout();
+            auto optionalExpirationTimeout = node->GetExpirationTimeout();
             if (!optionalExpirationTimeout) {
                 break;
             }
@@ -759,7 +797,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 fluent.Item("time")
                     .DoMap([&] (NYTree::TFluentMap fluent) {
                         fluent
-                            .Item("value").Value(*effectiveNode->TryGetExpirationTime())
+                            .Item("value").Value(*effectiveNode->GetExpirationTime())
                             .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
                     });
             } else {
@@ -770,7 +808,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 fluent.Item("timeout")
                     .DoMap([&] (NYTree::TFluentMap fluent) {
                         fluent
-                            .Item("value").Value(*effectiveNode->TryGetExpirationTimeout())
+                            .Item("value").Value(*effectiveNode->GetExpirationTimeout())
                             .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
                     });
             } else {
@@ -898,6 +936,58 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             BuildYsonFluently(consumer)
                 .Value(node->GetTouchTime());
             return true;
+
+        case EInternedAttributeKey::ExpirationTimeUser : {
+            auto optionalExpirationTimeUser = node->GetExpirationTimeUser();
+            if (!optionalExpirationTimeUser) {
+                break;
+            }
+
+            const auto& expirationTimeUser = *optionalExpirationTimeUser;
+            if (!expirationTimeUser) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(expirationTimeUser->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutUser: {
+            auto optionalExpirationTimeoutUser = node->GetExpirationTimeoutUser();
+            if (!optionalExpirationTimeoutUser) {
+                break;
+            }
+
+            const auto& expirationTimeoutUser = *optionalExpirationTimeoutUser;
+            if (!expirationTimeoutUser) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(expirationTimeoutUser->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeLastResetTime: {
+            auto optionalLastReset = node->GetExpirationTimeLastResetTime();
+            if (!optionalLastReset) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*optionalLastReset);
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutLastResetTime: {
+            auto optionalLastReset = node->GetExpirationTimeoutLastResetTime();
+            if (!optionalLastReset) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*optionalLastReset);
+            return true;
+        }
 
         case EInternedAttributeKey::WrongDoorSync: {
             if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
@@ -1341,12 +1431,14 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 "Permission validation through this API is not supported for Sequoia nodes");
         }
 
-        auto aclNode = ConvertToNode(*SequoiaNodeEffectiveAcl_);
-        auto effectiveAcl = DeserializeAclOrThrow(aclNode, securityManager);
+        auto effectiveAclProducer = [&] {
+            auto aclNode = ConvertToNode(*SequoiaNodeEffectiveAcl_);
+            return DeserializeAclOrThrow(aclNode, securityManager);
+        };
         return securityManager->CheckPermission(
             user,
             permission,
-            effectiveAcl,
+            effectiveAclProducer,
             std::move(options));
     } else {
         return securityManager->CheckPermission(

@@ -189,6 +189,11 @@ void TRequestTracker::DecrementRequestQueueSize(TUser* user)
     user->DecrementRequestQueueSize();
 }
 
+void TRequestTracker::IncrementFailedExpirationRequestCount(TUser* user)
+{
+    user->IncrementFailedExpirationRequestCount();
+}
+
 const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();

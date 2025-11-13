@@ -894,12 +894,15 @@ private:
             return std::nullopt;
         }
 
+        auto authenticationIdentity = TryGetAuthenticationIdentity(*subrequest->RequestHeader)
+            .value_or(AuthenticationIdentity_);
+
         TSequoiaSessionPtr session;
         TMaybeUnreachableResolveResult resolveResult;
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
-                AuthenticationIdentity_,
+                std::move(authenticationIdentity),
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.

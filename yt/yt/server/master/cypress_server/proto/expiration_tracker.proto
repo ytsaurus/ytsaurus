@@ -1,0 +1,21 @@
+package NYT.NCypressServer.NProto;
+
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFailedExpirationAttempt
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required NYT.NProto.TGuid user_id = 2;
+    required int32 attempts = 3;
+}
+
+message TReqUpdateFailedExpirationAttempts
+{
+    repeated TFailedExpirationAttempt attempts = 1;
+}
