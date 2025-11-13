@@ -1096,16 +1096,23 @@ class TestQueriesYqlAuth(TestQueriesYqlAuthBase):
 class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
     @authors("ngc224")
     @pytest.mark.timeout(180)
-    def test_pragma_auth(self, query_tracker, yql_agent):
+    @pytest.mark.parametrize(
+        "secret_node_type", ["document", "string_node", "file"]
+    )
+    def test_pragma_auth(self, query_tracker, yql_agent, secret_node_type):
         def run_query(username):
             token, token_hash = issue_token(username)
 
             vault_token_path = f"//tmp/vault/{username}_token"
             create(
-                "document", vault_token_path,
-                attributes={"value": token},
+                secret_node_type, vault_token_path,
                 recursive=True,
             )
+
+            if secret_node_type == "file":
+                write_file(vault_token_path, token.encode('utf8'))
+            else:
+                set(vault_token_path, token)
 
             self._test_simple_query(
                 "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
