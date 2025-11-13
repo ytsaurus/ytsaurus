@@ -28,9 +28,6 @@ public:
 
 TEST(DistributedWriteTable, StartPingFinishSession)
 {
-    // TODO(achains): Enable after RPC support
-    SKIP_IF_RPC();
-
     TTestDistributedWriteTableFixture fixture;
 
     auto client = fixture.GetClient();
@@ -46,9 +43,6 @@ TEST(DistributedWriteTable, StartPingFinishSession)
 
 TEST(DistributedWriteTable, WriteNode)
 {
-    // TODO(achains): Enable after RPC support
-    SKIP_IF_RPC();
-
     TTestDistributedWriteTableFixture fixture;
 
     auto client = fixture.GetClient();
