@@ -79,6 +79,9 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         chunkReadOptions,
         dataSliceDescriptors);
 
+    // TODO(buyval01): Inject settings from subquerySpec to storageContext settings at tcp handler level.
+    storageContext->Settings->Execution->EnableOptimizeDistinctRead = subquerySpec.QuerySettings->Execution->EnableOptimizeDistinctRead;
+
     auto source = CreateSecondaryQuerySource(
         reader,
         std::move(prewhereReadPlan),
@@ -87,8 +90,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         storageContext->Settings,
         Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
-        std::move(statisticsCallback),
-        subquerySpec.QuerySettings->NeedOnlyDistinct);
+        std::move(statisticsCallback));
 
     return WaitFor(BIND(&GetFilteredDataSliceDescriptors, std::move(source) , std::move(reader))
         .AsyncVia(queryContext->Host->GetClickHouseWorkerInvoker())

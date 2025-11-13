@@ -180,7 +180,6 @@ public:
         TQuerySettingsPtr settings,
         TLogger logger,
         TCallback<void(const TStatistics&)> statisticsCallback,
-        bool needOnlyDistinct = false,
         TNameTablePtr nameTable = nullptr)
         : DB::ISource(
             DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
@@ -192,7 +191,6 @@ public:
         , Logger(std::move(logger))
         , StatisticsCallback_(std::move(statisticsCallback))
         , NameTable_(std::move(nameTable))
-        , NeedOnlyDistinct_(needOnlyDistinct)
     { }
 
 
@@ -368,13 +366,11 @@ protected:
     TCallback<void(const TStatistics&)> StatisticsCallback_;
     TNameTablePtr NameTable_;
 
-    bool NeedOnlyDistinct_;
-
     virtual void Initialize()
     {
         Converters_.reserve(ReadPlan_->Steps.size());
         for (const auto& step : ReadPlan_->Steps) {
-            Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, NeedOnlyDistinct_);
+            Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, Settings_->Execution->EnableOptimizeDistinctRead);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
@@ -500,9 +496,8 @@ public:
         TLogger logger,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback,
-        bool needOnlyDistinct,
         std::shared_ptr<TReaderFactory> readerFactory = nullptr)
-        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback, needOnlyDistinct)
+        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback)
         , CurrentReader_(std::move(reader))
         , ReaderFactory_(std::move(readerFactory))
         , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
@@ -513,7 +508,7 @@ public:
     DB::String getName() const override
     {
         std::string name = "SecondaryQuerySource";
-        if (NeedOnlyDistinct_) {
+        if (Settings_->Execution->EnableOptimizeDistinctRead) {
             name += " (Distinct values optimized)";
         }
         return name;
@@ -559,7 +554,7 @@ private:
             NameTable_ = CurrentReader_->GetNameTable();
             Converters_.reserve(ReadPlan_->Steps.size());
             for (const auto& step : ReadPlan_->Steps) {
-                Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, NeedOnlyDistinct_);
+                Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, Settings_->Execution->EnableOptimizeDistinctRead);
             }
 
             Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
@@ -625,7 +620,7 @@ public:
         TNameTablePtr nameTable,
         IUnversionedRowBatchPtr batch,
         std::string batchDescription = "")
-        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback, false, nameTable)
+        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback, nameTable)
         , Batch_(std::move(batch))
         , BatchDescription_(std::move(batchDescription))
     {
@@ -696,8 +691,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
     TQuerySettingsPtr querySettings,
     TLogger logger,
     TChunkReaderStatisticsPtr chunkReaderStatistics,
-    TCallback<void(const TStatistics&)> statisticsCallback,
-    bool needOnlyDistinct)
+    TCallback<void(const TStatistics&)> statisticsCallback)
 {
     return std::make_shared<TSecondaryQuerySource>(
         std::move(reader),
@@ -707,8 +701,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         std::move(querySettings),
         std::move(logger),
         std::move(chunkReaderStatistics),
-        std::move(statisticsCallback),
-        needOnlyDistinct);
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -754,6 +747,9 @@ DB::SourcePtr CreateSecondaryQuerySource(
         YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
     }
 
+    // TODO(buyval01): Inject settings from subquerySpec to storageContext settings at tcp handler level.
+    storageContext->Settings->Execution->EnableOptimizeDistinctRead = subquerySpec.QuerySettings->Execution->EnableOptimizeDistinctRead;
+
     return std::make_shared<TSecondaryQuerySource>(
         std::move(reader),
         std::move(readPlan),
@@ -763,7 +759,6 @@ DB::SourcePtr CreateSecondaryQuerySource(
         queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback),
-        subquerySpec.QuerySettings->NeedOnlyDistinct,
         std::move(readerFactory));
 }
 
