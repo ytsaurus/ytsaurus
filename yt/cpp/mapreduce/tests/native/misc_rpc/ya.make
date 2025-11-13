@@ -31,7 +31,9 @@ FORK_TESTS()
 FORK_SUBTESTS()
 SPLIT_FACTOR(2)
 
-SET(YT_CONFIG_PATCH {rpc_proxy_count=1;})
+# Dummy signature generation for distributed write API
+SET(YT_CONFIG_PATCH {rpc_proxy_count=1;rpc_proxy_config={signature_components={generation={generator={};cypress_key_writer={owner_id="test"};key_rotator={}};validation={cypress_key_reader={}}}};})
+
 INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
 END()
