@@ -12,7 +12,33 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(bulk_acl_checker_roren)
-add_subdirectory(lib)
-add_subdirectory(resource_usage_roren)
-add_subdirectory(id_to_path_mapping)
+add_executable(id_to_path_updater)
+
+
+target_link_libraries(id_to_path_updater PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  build-cow-on
+  cpp-roren-interface
+  cpp-roren-yt
+  id_to_path_mapping-id_to_path_updater-lib
+)
+
+target_allocator(id_to_path_updater
+  system_allocator
+)
+
+target_link_options(id_to_path_updater PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+target_sources(id_to_path_updater PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/microservices/id_to_path_mapping/id_to_path_updater/yt/main.cpp
+)
+
+
+vcs_info(id_to_path_updater)

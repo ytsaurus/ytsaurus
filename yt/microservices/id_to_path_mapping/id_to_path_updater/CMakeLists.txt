@@ -12,7 +12,5 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(bulk_acl_checker_roren)
 add_subdirectory(lib)
-add_subdirectory(resource_usage_roren)
-add_subdirectory(id_to_path_mapping)
+add_subdirectory(yt)

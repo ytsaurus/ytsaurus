@@ -1,0 +1,12 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+
+message TIdToPathRow
+{
+    optional string Cluster = 1 [(NYT.key_column_name) = "cluster"];
+    optional string NodeId = 2 [(NYT.key_column_name) = "node_id"];
+    optional string Path = 3 [(NYT.column_name) = "path"];
+    //optional int64 Timestamp = 4 [(NYT.column_name) = "timestamp"];
+    reserved "Timestamp";
+    reserved 4;
+}
