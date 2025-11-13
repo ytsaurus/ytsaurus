@@ -71,6 +71,8 @@ void TLocalSnapshotStoreConfig::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("use_headerless_writer", &TThis::UseHeaderlessWriter)
         .Default(false);
+    registrar.Parameter("clean_temporary_files_on_store_initialize", &TThis::CleanTemporaryFilesOnStoreInitialize)
+        .Default(true);
 
     registrar.Preprocessor([] (TThis* config) {
         config->StoreType = ESnapshotStoreType::Local;

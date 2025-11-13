@@ -720,7 +720,10 @@ private:
         YT_LOG_INFO("Preparing snapshot directory");
 
         NFS::MakeDirRecursive(path);
-        NFS::CleanTempFiles(path);
+
+        if (Config_->CleanTemporaryFilesOnStoreInitialize) {
+            NFS::CleanTempFiles(path);
+        }
 
         YT_LOG_INFO("Snapshot scan started");
 

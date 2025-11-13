@@ -215,9 +215,12 @@ private:
             config->EnablePortoResourceTracker = false;
             config->DryRun->EnableDryRun = true;
             config->DryRun->EnableHostNameValidation = false;
+
             auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
             loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
+
             config->Snapshots->Path = NFS::GetDirectoryName(".");
+            config->Snapshots->CleanTemporaryFilesOnStoreInitialize = false;
 
             if (SkipTvmServiceEnvValidationFlag_) {
                 auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();
