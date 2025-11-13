@@ -488,7 +488,7 @@ public:
         );
     }
 
-     void visitImpl(const DB::QueryTreeNodePtr& node)
+    void visitImpl(const DB::QueryTreeNodePtr& node)
     {
         if (auto* functionNode = node->as<DB::FunctionNode>()) {
             if (functionNode->isAggregateFunction()) {
@@ -595,7 +595,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPer
     DB::Scalars scalars;
     for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
         auto spec = OperandSpecs_[index];
-        if (!spec.QuerySettings->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
+        if (!spec.QuerySettings->Execution->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
             spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
         }
 
@@ -657,7 +657,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         auto spec = OperandSpecs_[index];
         spec.SubqueryIndex = subqueryIndex;
 
-        if (!spec.QuerySettings->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
+        if (!spec.QuerySettings->Execution->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
             FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
         }
 
@@ -1052,13 +1052,17 @@ void TQueryAnalyzer::ParseQuery()
     visitor.visit(QueryInfo_.query_tree);
     HasInOperator_ = visitor.HasInOperator();
 
-    TCheckSimpleDistinctVisitor simpleDistinctVisitor(selectQuery->isDistinct());
-    simpleDistinctVisitor.visit(QueryInfo_.query_tree);
-    NeedOnlyDistinct_ = simpleDistinctVisitor.IsSimpleDistinctCase();
+    const auto& settings = StorageContext_->Settings;
+
+    if (settings->Execution->EnableOptimizeDistinctRead) {
+        TCheckSimpleDistinctVisitor simpleDistinctVisitor(selectQuery->isDistinct());
+        simpleDistinctVisitor.visit(QueryInfo_.query_tree);
+        NeedOnlyDistinct_ = simpleDistinctVisitor.IsSimpleDistinctCase();
+    }
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
 
-    if (tableExpressionsStack.size() == 1 && !HasVirtualColumns_) {
+    if (settings->Execution->EnableMinMaxOptimization && tableExpressionsStack.size() == 1 && !HasVirtualColumns_) {
         TCheckMinMaxOptimizationVisitor minMaxVisitor;
         minMaxVisitor.visit(QueryInfo_.query_tree);
         EnableMinMaxOptimization_ = minMaxVisitor.EnableMinMaxOptimization();
@@ -1397,6 +1401,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     const auto& settings = StorageContext_->Settings;
 
+    auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
+
     TQueryAnalysisResult result;
 
     for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
@@ -1407,9 +1413,6 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
                 ToNamesAndTypesList(*schema, settings->Composite)));
-
-            auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-            YT_VERIFY(selectQuery);
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
@@ -1463,7 +1466,13 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             DB::ActionsDAGWithInversionPushDown invertedDAG(filterActionsDAG ? filterActionsDAG->getOutputs().front() : nullptr, getContext());
             keyCondition.emplace(invertedDAG, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
 
-            if (settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere()) {
+            bool suitableForReadRangeInferring = settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere();
+            for (int tableIndex = 0; suitableForReadRangeInferring && tableIndex < std::ssize(result.Tables.back()); ++tableIndex) {
+                const auto& table = result.Tables.back()[tableIndex];
+                suitableForReadRangeInferring = suitableForReadRangeInferring && !table->Path.HasNontrivialRanges();
+            }
+
+            if (suitableForReadRangeInferring) {
                 result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
                 YT_LOG_DEBUG("Inferred %Qv read range for %v table", result.KeyReadRanges, storage->GetTables());
             }

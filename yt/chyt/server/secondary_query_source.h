@@ -40,8 +40,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
     TQuerySettingsPtr settings,
     NLogging::TLogger logger,
     NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics,
-    TCallback<void(const TStatistics&)> statisticsCallback,
-    bool needOnlyDistinct = false);
+    TCallback<void(const TStatistics&)> statisticsCallback);
 
 DB::SourcePtr CreateSecondaryQuerySource(
     TStorageContext* storageContext,

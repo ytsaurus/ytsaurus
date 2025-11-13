@@ -15,7 +15,7 @@ public:
         const std::vector<NTableClient::TColumnSchema>& columnSchemas,
         const NTableClient::TNameTablePtr& nameTable,
         const TCompositeSettingsPtr& compositeSettings,
-        bool needOnlyDistinct);
+        bool optimizeDistinctRead);
 
     TYTToCHBlockConverter(TYTToCHBlockConverter&& other);
 
