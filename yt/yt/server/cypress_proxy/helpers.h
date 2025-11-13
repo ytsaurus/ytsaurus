@@ -80,7 +80,6 @@ bool CheckStartsWithObjectIdOrThrow(NYPath::TYPathBuf path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> TokenizeUnresolvedSuffix(NYPath::TYPathBuf unresolvedSuffix);
 NSequoiaClient::TAbsolutePath JoinNestedNodesToPath(
     const NSequoiaClient::TAbsolutePath& parentPath,
     const std::vector<std::string>& childKeys);
@@ -179,6 +178,25 @@ private:
 NYTree::IConstAttributeDictionaryPtr CalculateInheritedAttributes(
     TNodeAncestry ancestry,
     const TNodeIdToConstAttributes& inheritableAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TParsedUnresolvedSuffix
+{
+    std::vector<std::string> Parts;
+    NYPath::TTokenizer Tokenizer;
+};
+
+//! Tries to parse first #partLimit path parts and returns tokenizer pointing to
+//! first unparsed token. #unresolvedSuffix is expected to look like
+//! [&]/<literal>[&]/<literal>...
+//! Note that this function skips all ampersands.
+TParsedUnresolvedSuffix ParseUnresolvedSuffix(
+    NYPath::TYPathBuf unresolvedSuffix,
+    std::optional<int> partLimit);
+
+//! Returns |true| if #unresolvedSuffix is either "" or "&".
+bool IsEmptyUnresolvedSuffix(NYPath::TYPathBuf unresolvedSuffix);
 
 ////////////////////////////////////////////////////////////////////////////////
 

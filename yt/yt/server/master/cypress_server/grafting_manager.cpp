@@ -375,7 +375,11 @@ private:
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
-        auto req = TCypressYPathProxy::Create(request->path());
+        auto path = request->path();
+        if (!path.EndsWith("&")) {
+            path += "&";
+        }
+        auto req = TCypressYPathProxy::Create(path);
         req->CopyFrom(request->request());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

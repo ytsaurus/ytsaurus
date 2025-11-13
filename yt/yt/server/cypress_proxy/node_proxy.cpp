@@ -443,6 +443,71 @@ protected:
             })));
     }
 
+    void ValidateEmptyUnresolvedSuffix(
+        TYPathBuf unresolvedSuffix,
+        std::optional<TStringBuf> methodUnsupportedForAttributes = std::nullopt)
+    {
+        return ValidateEmptyUnresolvedSuffix(Path_, unresolvedSuffix, methodUnsupportedForAttributes);
+    }
+
+    void ValidateEmptyUnresolvedSuffix(
+        TAbsolutePathBuf path,
+        TYPathBuf unresolvedSuffix,
+        std::optional<TStringBuf> methodUnsupportedForAttributes)
+    {
+        auto [parts, tokenizer] = ParseUnresolvedSuffix(unresolvedSuffix, /*partLimit*/ 1);
+        if (!parts.empty()) {
+            ThrowNoSuchChild(path, parts.front());
+        }
+        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            if (methodUnsupportedForAttributes && tokenizer.GetType() == NYPath::ETokenType::At) {
+                ThrowMethodNotSupportedForAttributes(*methodUnsupportedForAttributes);
+            }
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+        }
+    }
+
+    std::vector<std::string> ParseUnresolvedSuffixOnNodeCreation(
+        TYPathBuf unresolvedSuffix,
+        bool recursive,
+        TStringBuf method)
+    {
+        auto [parts, tokenizer] = ParseUnresolvedSuffix(
+            unresolvedSuffix,
+            /*partLimit*/ recursive ? std::nullopt : std::optional(1));
+        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            if (!recursive && !parts.empty()) {
+                ThrowNoSuchChild(Path_, parts.front());
+            }
+            if (tokenizer.GetType() == NYPath::ETokenType::At) {
+                ThrowMethodNotSupportedForAttributes(method);
+            }
+            // Actually there is no chance for literal to be the next token in
+            // unparsed suffix.
+            // 1. in case of recursive node creation _all_ literals are parsed
+            //    so the next token cannot be literal;
+            // 2. if request is not recursive:
+            //    2.1. exactly one literal was parsed. Since unparsed suffix is
+            //         not empty "no such child" is already throwed;
+            //    2.2. no literal was parsed.
+            // Therefore, tokenizer.Expect() is used here to just throw the
+            // error about unexpected token.
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+
+            // Should never happen.
+            tokenizer.ThrowUnexpected();
+        }
+        return std::move(parts);
+    }
+
+    static std::string ParseFirstPart(TYPathBuf unresolvedSuffix)
+    {
+        NYPath::TTokenizer tokenizer(unresolvedSuffix);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        return tokenizer.GetLiteralValue();
+    }
+
     TCellTag RemoveRootstock()
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
@@ -846,11 +911,32 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
     auto targetPath = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     NYPath::TTokenizer tokenizer(targetPath);
     tokenizer.Advance();
-    tokenizer.Expect(NYPath::ETokenType::Slash);
-    tokenizer.Advance();
-    if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
+
+    auto validateTokenType = [&] (NYPath::ETokenType type) {
+        if (tokenizer.GetType() != type) {
+            THROW_ERROR_EXCEPTION(
+                "Expected %Qlv in YPath but found %v; please note that "
+                "target path for MultisetAttributes method should look like "
+                "<path-to-node>/@<optional-attribute-prefix>",
+                type,
+                MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+                    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                        builder->AppendString("end-of-string");
+                    } else {
+                        builder->AppendFormat("%Qlv token %Qv", tokenizer.GetType(), tokenizer.GetToken());
+                    }
+                }));
+        }
+    };
+
+    validateTokenType(NYPath::ETokenType::Slash);
+
+    if (tokenizer.Advance() == NYPath::ETokenType::Literal) {
         ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
     }
+
+   validateTokenType(NYPath::ETokenType::At);
 
     auto subrequests = FromProto<std::vector<TMultisetAttributesSubrequest>>(request->subrequests());
 
@@ -868,17 +954,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
 {
-    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
-    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
     auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
     context->SetRequestInfo("TargetObjectId: %v, Permission: %v",
         Id_,
         permission);
 
-    if (!unresolvedSuffixTokens.empty()) {
-        ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
-    }
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
     // Permission validation is handled by master.
     AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
@@ -901,41 +983,67 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
         vital,
         ignoreSafeMode);
 
+    auto [parts, tokenizer] = ParseUnresolvedSuffix(
+        GetRequestTargetYPath(context->GetRequestHeader()),
+        /*partLimit*/ 1);
+    if (!parts.empty()) {
+        ThrowNoSuchChild(Path_, parts.front());
+    }
+    if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+    }
+
     AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginUpload)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetUploadParams)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
     AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
 {
+    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     auto type = FromProto<EObjectType>(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto lockExisting = request->lock_existing();
@@ -945,8 +1053,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     auto hintId = FromProto<TNodeId>(request->hint_id());
 
     context->SetRequestInfo(
+        "TargetNodeId: %v, UnresolvedSuffix: %v, "
         "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
         "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, TransactionId: %v",
+        Id_,
+        unresolvedSuffix,
         type,
         ignoreExisting,
         lockExisting,
@@ -988,8 +1099,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
             type);
     }
 
-    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+    auto unresolvedSuffixTokens = ParseUnresolvedSuffixOnNodeCreation(
+        unresolvedSuffix,
+        recursive,
+        context->GetMethod());
     auto replace = unresolvedSuffixTokens.empty();
     if (replace && !force) {
         if (!ignoreExisting) {
@@ -1026,10 +1139,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), lockExisting);
         return;
-    }
-
-    if (!recursive && unresolvedSuffixTokens.size() > 1) {
-        ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
     }
 
     ValidateAddChildPermissions(
@@ -1156,12 +1265,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     // NB: Rewriting in case there were links in the original source path.
     const auto& sourceRootPath = resolvedSource->Path;
-    if (auto sourceUnresolvedSuffix = resolvedSource->UnresolvedSuffix;
-        !sourceUnresolvedSuffix.empty())
-    {
-        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(sourceUnresolvedSuffix);
-        ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
-    }
+    ValidateEmptyUnresolvedSuffix(
+        resolvedSource->UnresolvedSuffix,
+        /*methodUnsupportedForAttributes*/ context->GetMethod());
 
     // NB: From now on, all links are resolved and no path contains links
     // so we can just compare paths here.
@@ -1174,7 +1280,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     // Validate there are no duplicate or missing destination nodes.
     auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
-    auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
+    auto destinationSuffixDirectoryTokens = ParseUnresolvedSuffixOnNodeCreation(
+        unresolvedDestinationSuffix,
+        recursive,
+        context->GetMethod());
     auto replace = destinationSuffixDirectoryTokens.empty();
     if (replace && !force) {
         if (!ignoreExisting) {
@@ -1195,10 +1304,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         // TODO(danilalexeev): Lock the source node's row in Sequoia tables to ensure correct access tracking.
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), lockExisting);
         return;
-    }
-
-    if (!recursive && std::ssize(destinationSuffixDirectoryTokens) > 1) {
-        ThrowNoSuchChild(Path_, destinationSuffixDirectoryTokens[0]);
     }
 
     ValidateAddChildPermissions(replace, options.PreserveAcl);
@@ -1268,17 +1373,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 
     SequoiaSession_->ValidateTransactionPresence();
 
-    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.empty()) {
-        NYPath::TTokenizer tokenizer(unresolvedSuffix);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        tokenizer.Advance();
-        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
-            ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
-        } else {
-            ThrowMethodNotSupported(context->GetMethod());
-        }
-    }
+    ValidateEmptyUnresolvedSuffix(
+        GetRequestTargetYPath(context->GetRequestHeader()),
+        /*methodUnsupportedForAttributes*/ context->GetMethod());
 
     ValidatePermissionForThis(EPermission::Read);
 
@@ -1291,11 +1388,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Unlock)
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
 {
-    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
-    auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
-    if (!unresolvedSuffixTokens.empty()) {
-        ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
-    }
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
 
     context->SetRequestInfo(
         "Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, ClipTimestamp: %v",
@@ -1335,21 +1428,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         }),
         waitable);
 
-    if (auto unresolvedSuffix = GetRequestTargetYPath(context->RequestHeader()); !unresolvedSuffix.empty()) {
-        NYPath::TTokenizer tokenizer(unresolvedSuffix);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        tokenizer.Advance();
-        if (tokenizer.GetType() == NYPath::ETokenType::Literal) {
-            ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
-        } else {
-            ThrowMethodNotSupported(context->GetMethod());
-        }
-    }
-
-    if (!SequoiaSession_->GetCurrentCypressTransactionId()) {
-        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
-    }
+    ValidateEmptyUnresolvedSuffix(
+        GetRequestTargetYPath(context->RequestHeader()),
+        /*methodUnsupportedForAttributes*/ context->GetMethod());
 
     ValidatePermissionForThis(
         mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
@@ -1427,7 +1508,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
 
     auto inplace = request->inplace();
     auto targetPath = GetRequestTargetYPath(context->RequestHeader());
-    auto replace = targetPath.empty();
+    auto replace = IsEmptyUnresolvedSuffix(targetPath);
 
     context->SetRequestInfo(
         "Force: %v, IgnoreExisting: %v, LockExisting: %v, Replace: %v, "
@@ -1440,6 +1521,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
         preserveAcl,
         recursive,
         SequoiaSession_->GetCurrentCypressTransactionId());
+
+    auto targetDirectoryPathParts = ParseUnresolvedSuffixOnNodeCreation(
+        targetPath,
+        recursive,
+        context->GetMethod());
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1465,11 +1551,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
         return;
     }
 
-    auto targetPathDirectoryTokens = TokenizeUnresolvedSuffix(targetPath);
-    if (!recursive && std::ssize(targetPathDirectoryTokens) > 1) {
-        ThrowNoSuchChild(Path_, targetPathDirectoryTokens[0]);
-    }
-
     if (!replace && !IsSequoiaCompositeNodeType(TypeFromId(Id_))) {
         ThrowCannotHaveChildren(Path_);
     }
@@ -1486,7 +1567,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
             parentNodeId = ParentId_;
             childNodeKey = Path_.GetBaseName();
         } else {
-            childNodeKey = targetPathDirectoryTokens[0];
+            childNodeKey = targetDirectoryPathParts.front();
         }
 
         // This lock ensures that both parent node and child node won't change before AssembleTreeCopy is called.
@@ -1697,12 +1778,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
     auto rootNodeId = FromProto<TNodeId>(request->root_node_id());
 
     auto unresolvedDestinationSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
-    auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
-    auto replace = destinationSuffixDirectoryTokens.empty();
+    auto destinationSuffixPathParts = ParseUnresolvedSuffixOnNodeCreation(
+        unresolvedDestinationSuffix,
+        /*recursive*/ true,
+        context->GetMethod());
+    auto replace = destinationSuffixPathParts.empty();
     auto nodeAncestry = GetNodeAncestry(replace);
     // NB: Check for recursive creation was done during LockCopyDestination.
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
-        destinationSuffixDirectoryTokens,
+        destinationSuffixPathParts,
         NCypressProxy::CalculateInheritedAttributes(
             nodeAncestry,
             SequoiaSession_->FetchInheritableAttributes(
@@ -1787,10 +1871,15 @@ private:
             Path_,
             GetRequestTargetYPath(context->RequestHeader()),
             MakeVersionedNodeId(Id_));
+
+        bool isEmptyUnresolvedSuffix = NYPath::ETokenType::EndOfStream == ParseUnresolvedSuffix(
+            GetRequestTargetYPath(context->GetRequestHeader()),
+            /*partLimit*/ 0)
+            .Tokenizer
+            .GetType();
+
         // See #TNodeProxy::ExistsSelf.
-        if (context->GetMethod() != "Exists" ||
-            !GetRequestTargetYPath(context->GetRequestHeader()).empty())
-        {
+        if (context->GetMethod() != "Exists" || !isEmptyUnresolvedSuffix) {
             ValidatePermissionForThis(EPermission::Read);
         }
         AbortSequoiaSessionForLaterForwardingToMaster();
@@ -2232,13 +2321,9 @@ private:
         context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
-        NYPath::TTokenizer tokenizer(path);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-
         // There is no composite node type other than Sequoia map node. If we
         // have unresolved suffix it can be either attribute or non-existent child.
-        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+        ThrowNoSuchChild(Path_, ParseFirstPart(path));
     }
 
     void ListRecursive(
@@ -2254,12 +2339,8 @@ private:
         context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
-        NYPath::TTokenizer tokenizer(path);
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-
         // See |TMapLikeNodeProxy::GetRecursive|.
-        ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
+        ThrowNoSuchChild(Path_, ParseFirstPart(path));
     }
 
     void SetRecursive(
@@ -2276,7 +2357,10 @@ private:
 
         ValidatePermissionForThis(EPermission::Write);
 
-        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix("/" + path);
+        auto unresolvedSuffixTokens = ParseUnresolvedSuffixOnNodeCreation(
+            "/" + path,
+            recursive,
+            context->GetMethod());
         auto destinationPath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
         auto targetName = unresolvedSuffixTokens.back();
         unresolvedSuffixTokens.pop_back();

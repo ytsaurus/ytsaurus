@@ -422,26 +422,6 @@ bool CheckStartsWithObjectIdOrThrow(TYPathBuf path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
-{
-    constexpr auto TypicalPathTokenCount = 3;
-    std::vector<std::string> pathTokens;
-    pathTokens.reserve(TypicalPathTokenCount);
-
-    TTokenizer tokenizer(unresolvedSuffix);
-    tokenizer.Advance();
-
-    while (tokenizer.GetType() != ETokenType::EndOfStream) {
-        tokenizer.Expect(ETokenType::Slash);
-        tokenizer.Advance();
-        tokenizer.Expect(ETokenType::Literal);
-        pathTokens.push_back(tokenizer.GetLiteralValue());
-        tokenizer.Advance();
-    }
-
-    return pathTokens;
-}
-
 TAbsolutePath JoinNestedNodesToPath(
     const TAbsolutePath& parentPath,
     const std::vector<std::string>& childKeys)
@@ -737,6 +717,49 @@ IConstAttributeDictionaryPtr CalculateInheritedAttributes(
         calculator.ChangeNode(node.Path, GetOrCrash(inheritableAttributes, node.Id).Get());
     }
     return calculator.GetCurrentInheritedAttributes();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TParsedUnresolvedSuffix ParseUnresolvedSuffix(
+    TYPathBuf unresolvedSuffix,
+    std::optional<int> literalLimit)
+{
+    // Expected unresolved suffix: [&]/<literal>[&]/<literal>...
+    TTokenizer tokenizer(unresolvedSuffix);
+    std::vector<std::string> parts;
+    for (;;) {
+        tokenizer.Advance();
+        tokenizer.Skip(ETokenType::Ampersand);
+        if (tokenizer.GetType() == ETokenType::EndOfStream) {
+            break;
+        }
+        tokenizer.Expect(ETokenType::Slash);
+        if (tokenizer.Advance() == ETokenType::EndOfStream) {
+            // YPath cannot end with '/'.
+            tokenizer.ThrowUnexpected();
+        }
+        if (tokenizer.GetType() != ETokenType::Literal ||
+            (literalLimit && std::ssize(parts) == *literalLimit))
+        {
+            break;
+        }
+        parts.push_back(tokenizer.GetLiteralValue());
+    }
+
+    return {
+        .Parts = std::move(parts),
+        .Tokenizer = std::move(tokenizer),
+    };
+}
+
+
+bool IsEmptyUnresolvedSuffix(NYPath::TYPathBuf unresolvedSuffix)
+{
+    TTokenizer tokenizer(unresolvedSuffix);
+    tokenizer.Advance();
+    tokenizer.Skip(ETokenType::Ampersand);
+    return tokenizer.GetType() == ETokenType::EndOfStream;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

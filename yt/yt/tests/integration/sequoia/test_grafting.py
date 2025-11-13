@@ -30,9 +30,15 @@ class TestGrafting(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
     }
+
+    @authors("kvk1920")
+    def test_create_rootstock_over_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("rootstock", "//tmp/p", force=True)
+        assert get("//tmp/p/@type") == "scion"
 
     @authors("kvk1920", "gritukan")
     def test_cannot_create_scion(self):
