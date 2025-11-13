@@ -1792,12 +1792,6 @@ private:
         auto spec = operation->GetStrategySpec();
         auto pools = GetOperationPools(runtimeParameters);
 
-        if (pools.size() > 1 && !spec->SchedulingTagFilter.IsEmpty()) {
-            THROW_ERROR_EXCEPTION(
-                "Scheduling tag filter cannot be specified for operations "
-                "to be scheduled in multiple fair-share trees");
-        }
-
         std::vector<TFuture<void>> futures;
 
         for (const auto& [treeId, pool] : pools) {
