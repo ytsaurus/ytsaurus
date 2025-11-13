@@ -62,6 +62,7 @@ import hashlib
 
 from time import sleep, time
 from threading import Thread
+from typing import Optional
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
@@ -121,7 +122,7 @@ def with_additional_threads(func):
 ##################################################################
 
 
-def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False, extra_artifact_components=None):
+def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False, extra_artifact_components=None, copy_ytserver=None):
     yt.logger.LOGGER.setLevel(logging.DEBUG)
     artifact_components = artifact_components or {}
 
@@ -130,6 +131,9 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
 
     # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
+
+    if copy_ytserver is None:
+        copy_ytserver = not ytrecipe
 
     bin_paths = []
     for path_suffix, components in (("", artifact_components), ("extra", extra_artifact_components)):
@@ -154,7 +158,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
             path = arcadia_interop.prepare_yt_environment(
                 destination,
                 binary_root=get_build_root(),
-                copy_ytserver_all=not ytrecipe,
+                copy_ytserver_all=copy_ytserver,
                 need_suid=need_suid and not ytrecipe,
                 artifact_components=components,
             )
@@ -418,6 +422,13 @@ class YTEnvSetup(object):
     ENABLE_MULTIDAEMON = False
 
     ENABLE_LOG_COMPRESSION = True
+
+    # In most cases copying of ytserver is not necessary and slows down tests (COPY_YTSERVER = True makes tests faster).
+    # But in some cases it prevent some problems.
+    # https://ytsaurus.tech/internal/uhTGXN0x7MtRVT
+    # Option can be removed after repairing yt/yt/tests/integration/node.
+    # If COPY_YTSERVER is None, YT_OUTPUT env is checked and if it is set, ytserver is copied.
+    COPY_YTSERVER: Optional[bool] = None
 
     @classmethod
     def is_multicell(cls):
@@ -849,6 +860,7 @@ class YTEnvSetup(object):
             artifact_components=cls.ARTIFACT_COMPONENTS,
             force_create_environment=cls.FORCE_CREATE_ENVIRONMENT,
             extra_artifact_components=cls.EXTRA_ARTIFACT_COMPONENTS,
+            copy_ytserver=cls.COPY_YTSERVER,
         )
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
