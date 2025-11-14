@@ -60,7 +60,6 @@ TRANSLATE_TABLE = bytes([ASCII_LETTERS_BYTES[b % len(ASCII_LETTERS_BYTES)] for b
 
 ################################################################################
 
-
 class TestS3MediumBase(YTEnvSetup):
     # TODO(achulkov2): Switch to multidaemon?
     NUM_MASTERS = 1
@@ -296,6 +295,19 @@ class TestS3MediumBase(YTEnvSetup):
             self.clear_bucket(bucket)
 
         super(TestS3MediumBase, self).teardown_method(method)
+
+    @staticmethod
+    def dump_arrow_table_as_bytes(table: pa.Table, **kwargs) -> BytesIO:
+        buffer = BytesIO()
+        pq.write_table(table, buffer, **kwargs)
+        buffer.seek(0)
+        return buffer
+
+    @staticmethod
+    def assert_columnar_statistics(columnar_statistics, column_name, data_weight, min_value, max_value):
+        assert columnar_statistics["column_data_weights"][column_name] == data_weight
+        assert columnar_statistics["column_min_values"][column_name] == min_value
+        assert columnar_statistics["column_max_values"][column_name] == max_value
 
 
 ################################################################################
@@ -1039,12 +1051,34 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
             ]})
         sync_mount_table(INPUT_TABLE)
 
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+        create("table", "//tmp/attached", attributes={"primary_medium": self.get_s3_medium_name(), "schema": [
+            {"name": "x", "type": "int64"},
+            {"name": "y", "type": "string"},
+        ]})
+        attach_table("//tmp/attached", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+
+        def assert_columnar_statistics():
+            columnar_statistics, = get_table_columnar_statistics('["//tmp/attached";]')
+            assert columnar_statistics["chunk_row_count"] == 2
+            assert columnar_statistics["column_data_weights"]["x"] > 0
+            assert columnar_statistics["column_min_values"]["x"] == 1
+            assert columnar_statistics["column_max_values"]["x"] == 2
+            assert columnar_statistics["column_data_weights"]["y"] > 0
+            assert columnar_statistics["column_min_values"]["y"] == "a"
+            assert columnar_statistics["column_max_values"]["y"] == "b"
+
         EXPECTED_CHUNKS_AMOUNT = 2
         insert_rows(INPUT_TABLE, sorted_input[:50])
         sync_flush_table(INPUT_TABLE)
         insert_rows(INPUT_TABLE, sorted_input[50:])
         sync_flush_table(INPUT_TABLE)
         assert get(f"{INPUT_TABLE}/@chunk_count") == EXPECTED_CHUNKS_AMOUNT
+        assert_columnar_statistics()
 
         # 1 node down cases.
         node_ids = ls("//sys/offshore_node_proxies/instances")
@@ -1052,6 +1086,7 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
             with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i]):
                 partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
                 assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
+                assert_columnar_statistics()
 
         # 2 nodes down cases.
         for i in range(0, len(node_ids)):
@@ -1059,6 +1094,7 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
                 with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i, j]):
                     partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
                     assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
+                    assert_columnar_statistics()
 
 
 ################################################################################
@@ -1071,12 +1107,7 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
 
 
 class TestAttachTableBase(TestS3MediumBase):
-    @staticmethod
-    def dump_arrow_table_as_bytes(table: pa.Table, **kwargs) -> BytesIO:
-        buffer = BytesIO()
-        pq.write_table(table, buffer, **kwargs)
-        buffer.seek(0)
-        return buffer
+    pass
 
 
 ################################################################################
@@ -2144,6 +2175,19 @@ class TestAttachTable(TestAttachTableBase):
             ]))),
         ]))
 
+        if self.NUM_OFFSHORE_NODE_PROXIES:
+            min_entity = yson.YsonEntity()
+            min_entity.attributes["type"] = "min"
+            max_entity = yson.YsonEntity()
+            max_entity.attributes["type"] = "max"
+
+            columnar_statistics, = get_table_columnar_statistics('["//tmp/imported"]')
+            assert columnar_statistics["chunk_row_count"] == 5
+            self.assert_columnar_statistics(columnar_statistics, "x", data_weight=8, min_value=1, max_value=1)
+            self.assert_columnar_statistics(columnar_statistics, "y", data_weight=1, min_value="2", max_value="2")
+            self.assert_columnar_statistics(columnar_statistics, "z", data_weight=8, min_value=min_entity, max_value=max_entity)
+            self.assert_columnar_statistics(columnar_statistics, "t", data_weight=24, min_value=min_entity, max_value=max_entity)
+
     @authors("achulkov2")
     def test_json_single_file_incompatible_types(self):
         bucket = self.get_s3_medium_bucket()
@@ -2179,6 +2223,14 @@ class TestAttachTable(TestAttachTableBase):
             make_column("z.a", optional_type("double")),
             make_column("z.b", optional_type("int64")),
         ]))
+
+        if self.NUM_OFFSHORE_NODE_PROXIES:
+            columnar_statistics, = get_table_columnar_statistics('["//tmp/imported"]')
+            assert columnar_statistics["chunk_row_count"] == 4
+            self.assert_columnar_statistics(columnar_statistics, "x", data_weight=1, min_value="a", max_value="a")
+            self.assert_columnar_statistics(columnar_statistics, "y", data_weight=8, min_value=2, max_value=2)
+            self.assert_columnar_statistics(columnar_statistics, "z.a", data_weight=16, min_value=1.0, max_value=3.0)
+            self.assert_columnar_statistics(columnar_statistics, "z.b", data_weight=16, min_value=4, max_value=5)
 
     @authors("pavel-bash")
     @pytest.mark.parametrize("data", inference_test_parameters)

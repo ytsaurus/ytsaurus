@@ -250,7 +250,16 @@ public:
 protected:
     virtual std::shared_ptr<arrow::Table> GetArrowTable() const = 0;
 
-protected:
+    std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
+    {
+        return ColumnarStatistics_;
+    }
+
+    void Prepare() override
+    {
+        ColumnarStatistics_ = NArrow::ExtractColumnarStatistics(*GetArrowTable());
+    }
+
     i64 GetRowCount() const override
     {
         return GetArrowTable()->num_rows();
@@ -283,6 +292,9 @@ protected:
         dataBlockMeta->set_uncompressed_size(GetUncompressedDataSize());
         dataBlockMeta->set_block_index(0);
     }
+
+private:
+    TColumnarStatistics ColumnarStatistics_;
 };
 
 template <typename TStreamingReader>
@@ -308,9 +320,15 @@ public:
     using TArrowChunkMetaGeneratorBase::TArrowChunkMetaGeneratorBase;
 
 protected:
+    std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
+    {
+        return ColumnarStatistics_;
+    }
+
     void PrepareFromStreamingReader(std::shared_ptr<TStreamingReader> streamingReader)
     {
         Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(streamingReader->schema());
+        ColumnarStatistics_ = TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount());
         while (true) {
             std::shared_ptr<arrow::RecordBatch> batch;
             // The docs say it is safe to separate rows using this.
@@ -328,6 +346,7 @@ protected:
             // This may error as it is not as flexible as the type inference inside the batches, but we are willing to take the risk.
             // Might improve later.
             Schema_ = MergeTableSchemas(Schema_, NArrow::CreateYTTableSchemaFromArrowSchema(batch->schema()));
+            ColumnarStatistics_ += NArrow::ExtractColumnarStatistics(batch);
         }
         Blocks_.push_back({.Offset = GetUnderlyingFileSize(), .RowCount = 0});
     }
@@ -370,6 +389,9 @@ protected:
             dataBlockMeta->set_chunk_row_count(chunkRowCount += block.RowCount);
         }
     }
+
+private:
+    TColumnarStatistics ColumnarStatistics_;
 };
 
 class TJsonChunkMetaGenerator
@@ -401,6 +423,8 @@ private:
             .AsyncVia(actionQueue->GetInvoker())
             .Run())
             .ValueOrThrow()));
+
+        TSingleBlockArrowTableChunkMetaGeneratorBase::Prepare();
     }
 
     std::shared_ptr<arrow::Table> GetArrowTable() const override

@@ -1,38 +1,129 @@
 #include "columnar_statistics.h"
 
-#include <parquet/statistics.h>
+#include <yt/yt/client/arrow/schema.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+
+#include <yt/yt/library/formats/arrow_parser.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow/cpp/src/parquet/statistics.h>
 
 namespace NYT::NArrow {
 
 using namespace NTableClient;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
-    template <typename TypedStatistics, typename Mapper>
-    void AddTypedStatistics(
-        NTableClient::TColumnarStatistics* columnarStatistics,
-        int fieldIndex,
-        std::shared_ptr<parquet::Statistics> statistics,
-        Mapper mapper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnarStatisticsValueConsumer
+    : public NTableClient::IValueConsumer
+{
+public:
+    TColumnarStatisticsValueConsumer(NTableClient::TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+        , NameTable_(NTableClient::TNameTable::FromSchema(*Schema_))
+        , Statistics_(TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount()))
+    { }
+
+    const NTableClient::TNameTablePtr& GetNameTable() const override
     {
-        auto typedStatistics = std::dynamic_pointer_cast<TypedStatistics>(statistics);
-        YT_VERIFY(typedStatistics);
-        auto min = mapper(typedStatistics->min());
-        auto& fieldMin = columnarStatistics->ColumnMinValues[fieldIndex];
-        if (fieldMin.Type() == EValueType::Null || min < fieldMin) {
-            fieldMin = min;
-        }
-        auto max = mapper(typedStatistics->max());
-        auto& fieldMax = columnarStatistics->ColumnMaxValues[fieldIndex];
-        if (fieldMax.Type() == EValueType::Null || max > fieldMax) {
-            fieldMax = max;
-        }
+        return NameTable_;
     }
+
+    const NTableClient::TTableSchemaPtr& GetSchema() const override
+    {
+        return Schema_;
+    }
+
+    bool GetAllowUnknownColumns() const override
+    {
+        return true;
+    }
+
+    void OnBeginRow() override
+    { }
+
+    void OnValue(const NTableClient::TUnversionedValue& value) override
+    {
+        Builder_.AddValue(value);
+    }
+
+    void OnEndRow() override
+    {
+        Statistics_.Update({Builder_.FinishRow()});
+    }
+
+    TColumnarStatistics GetStatistics() const
+    {
+        return Statistics_;
+    }
+
+private:
+    const NTableClient::TTableSchemaPtr Schema_;
+    const NTableClient::TNameTablePtr NameTable_;
+
+    NTableClient::TUnversionedOwningRowBuilder Builder_;
+    TColumnarStatistics Statistics_;
+};
+
+template <typename TypedStatistics, typename Mapper>
+void AddTypedStatistics(
+    NTableClient::TColumnarStatistics* columnarStatistics,
+    int fieldIndex,
+    std::shared_ptr<parquet::Statistics> statistics,
+    Mapper mapper)
+{
+    auto typedStatistics = std::dynamic_pointer_cast<TypedStatistics>(statistics);
+    YT_VERIFY(typedStatistics);
+    auto min = mapper(typedStatistics->min());
+    auto& fieldMin = columnarStatistics->ColumnMinValues[fieldIndex];
+    if (fieldMin.Type() == EValueType::Null || min < fieldMin) {
+        fieldMin = min;
+    }
+    auto max = mapper(typedStatistics->max());
+    auto& fieldMax = columnarStatistics->ColumnMaxValues[fieldIndex];
+    if (fieldMax.Type() == EValueType::Null || max > fieldMax) {
+        fieldMax = max;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
+
+NTableClient::TColumnarStatistics ExtractColumnarStatistics(
+    const std::shared_ptr<arrow::RecordBatch>& batch)
+{
+    TColumnarStatisticsValueConsumer consumer(NArrow::CreateYTTableSchemaFromArrowSchema(batch->schema()));
+    PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+    return consumer.GetStatistics();
+}
+
+NTableClient::TColumnarStatistics ExtractColumnarStatistics(
+    arrow::Table& arrowTable)
+{
+    arrow::TableBatchReader batchReader(arrowTable);
+    TColumnarStatisticsValueConsumer consumer(NArrow::CreateYTTableSchemaFromArrowSchema(arrowTable.schema()));
+    while (true) {
+        std::shared_ptr<arrow::RecordBatch> batch;
+        PARQUET_THROW_NOT_OK(batchReader.ReadNext(&batch));
+
+        if (!batch) {
+            return consumer.GetStatistics();
+        }
+
+        PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+    }
+}
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
     parquet::FileMetaData& parquetFileMeta)

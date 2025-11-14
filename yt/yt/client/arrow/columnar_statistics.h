@@ -10,6 +10,12 @@ namespace NYT::NArrow {
 ////////////////////////////////////////////////////////////////////////////////
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
+    const std::shared_ptr<arrow::RecordBatch>& batch);
+
+NTableClient::TColumnarStatistics ExtractColumnarStatistics(
+    arrow::Table& arrowTable);
+
+NTableClient::TColumnarStatistics ExtractColumnarStatistics(
     parquet::FileMetaData& parquetFileMeta);
 
 ////////////////////////////////////////////////////////////////////////////////
