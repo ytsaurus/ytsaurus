@@ -88,6 +88,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropIsFinalOutput)                     (302108))
     ((MoveWaitingChunkCount)                 (302109))
     ((RemoveParentPartitionTag)              (302110))
+    ((RefactorTPartition)                    (302111))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

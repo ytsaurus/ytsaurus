@@ -146,12 +146,18 @@ std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes shape of a partition tree.
-struct TPartitionTreeSkeleton
+struct TPartitionTreeSkeletonNode
 {
-    std::vector<std::unique_ptr<TPartitionTreeSkeleton>> Children;
+    std::vector<std::unique_ptr<TPartitionTreeSkeletonNode>> Children;
 };
 
-std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor);
+struct TPartitionTreeSkeleton
+{
+    std::unique_ptr<TPartitionTreeSkeletonNode> Root;
+    int TreeDepth = 0;
+};
+
+TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

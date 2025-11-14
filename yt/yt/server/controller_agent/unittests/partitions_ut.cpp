@@ -11,7 +11,7 @@ namespace {
 using TPartition = std::vector<int>;
 using TPartitions = std::vector<TPartition>;
 
-void ListPartitions(TPartitionTreeSkeleton* tree, TPartitions* partitions, std::vector<int>* currentPath)
+void ListPartitions(TPartitionTreeSkeletonNode* tree, TPartitions* partitions, std::vector<int>* currentPath)
 {
     if (tree->Children.empty()) {
         partitions->push_back(*currentPath);
@@ -30,7 +30,8 @@ TPartitions BuildTreeAndListPartitions(int partitionCount, int maxPartitionFacto
     auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(partitionCount, maxPartitionFactor);
     TPartitions partitions;
     std::vector<int> currentPath;
-    ListPartitions(partitionTreeSkeleton.get(), &partitions, &currentPath);
+    ListPartitions(partitionTreeSkeleton.Root.get(), &partitions, &currentPath);
+    EXPECT_EQ(std::ssize(partitions.front()), partitionTreeSkeleton.TreeDepth);
 
     return partitions;
 }
