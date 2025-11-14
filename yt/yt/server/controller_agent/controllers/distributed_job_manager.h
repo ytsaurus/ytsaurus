@@ -47,6 +47,8 @@ public:
 
     int GetCookieGroupSize() const;
 
+    void InitializeCounter();
+
 private:
     struct TSecondary
     {

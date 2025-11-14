@@ -161,6 +161,12 @@ int TDistributedJobManager::GetCookieGroupSize() const
     return userJobSpec ? userJobSpec->CookieGroupSize : 1;
 }
 
+// COMPAT(pogorelov): Remove in 25.4.
+void TDistributedJobManager::InitializeCounter()
+{
+    JobCounter_ = New<TProgressCounter>();
+}
+
 bool TDistributedJobManager::IsRelevant() const
 {
     return GetCookieGroupSize() > 1;
