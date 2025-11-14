@@ -4,6 +4,7 @@ RECURSE(
     id_to_path_mapping
     resource_usage
     resource_usage_roren
+    ytmsvc_initializer
 )
 
 IF (NOT OPENSOURCE)
