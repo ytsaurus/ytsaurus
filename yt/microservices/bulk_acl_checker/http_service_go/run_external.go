@@ -55,7 +55,7 @@ func GetRouterHandler(ytClient yt.Client) http.Handler {
 func RunServer(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(fmt.Errorf("normal terminate"))
-	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")))
+	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")), ytmsvc.Must(cmd.Flags().GetString("token-env-variable")))
 	go perClusterRunner(ctx, ytClient, cmd)
 	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
 
