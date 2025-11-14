@@ -7,10 +7,13 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/config.h>
 
+#include <yt/yt/library/auth/auth.h>
+
 #include <library/cpp/getopt/last_getopt.h>
 
 #include <util/datetime/base.h>
 
+#include <util/system/env.h>
 #include <util/system/tempfile.h>
 #include <util/system/user.h>
 
@@ -153,10 +156,20 @@ std::vector<TString> GetTablesToProcess(const TString& cluster, const TString& i
     return result;
 }
 
+TString LoadIdToPathToken(TString tokenEnvVariable)
+{
+    auto ytIdToPathToken = GetEnv(tokenEnvVariable);
+    YT_VERIFY(
+        !ytIdToPathToken.empty(),
+        ::TStringBuilder() << "Token environment variable " << tokenEnvVariable.c_str() << " is not set or empty");
+    NAuth::ValidateToken(ytIdToPathToken);
+    return ytIdToPathToken;
+}
+
 int main(int argc, const char** argv)
 {
     TConfig::Get()->LogLevel = "info";
-    auto resolverConfig = NYT::New<NNet::TAddressResolverConfig>();
+    auto resolverConfig = New<NNet::TAddressResolverConfig>();
     resolverConfig->EnableIPv4 = true;
     NNet::TAddressResolver::Get()->Configure(resolverConfig);
     Initialize();
@@ -166,6 +179,7 @@ int main(int argc, const char** argv)
     TString inputDirectory;
     TString outputTable;
     TString forceCluster;
+    TString tokenEnvVariable;
     THashSet<TString> clusterFilter;
 
     auto opts = NLastGetopt::TOpts::Default();
@@ -174,8 +188,12 @@ int main(int argc, const char** argv)
     opts.AddLongOption("input-directory", "Path to directory with input tables").StoreResult(&inputDirectory).Required();
     opts.AddLongOption("output-table", "Output table").StoreResult(&outputTable).Required();
     opts.AddLongOption("force-cluster", "Force cluster name for all rows").StoreResult(&forceCluster);
+    opts.AddLongOption("token-env-variable", "Environment variable that specifies the token used when accessing YT")
+        .StoreResult(&tokenEnvVariable).DefaultValue("YT_ID_TO_PATH_TOKEN");
     opts.AddLongOption("cluster-filter", "Cluster to process").InsertTo(&clusterFilter);
     NLastGetopt::TOptsParseResult res(&opts, argc, argv);
+
+    TConfig::Get()->Token = LoadIdToPathToken(std::move(tokenEnvVariable));
 
     auto inputTables = GetTablesToProcess(cluster, inputDirectory);
     if (inputTables.empty()) {
