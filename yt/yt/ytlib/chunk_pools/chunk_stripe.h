@@ -36,10 +36,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TBoundaryKeys, BoundaryKeys);
 
-    //! This field represents correspondence of chunk stripe to chunk pool in multi chunk pool.
-    //! For example, it may represent partition index in intermediate sort or output table index in sink.
-    //! It is not used for filtering chunk blocks.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, PartitionTag);
+    //! This field represents correspondence of chunk stripe to chunk pool in multi chunk pool input.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, InputChunkPoolIndex);
 
 private:
     PHOENIX_DECLARE_TYPE(TChunkStripe, 0x20bf907f);
@@ -69,14 +67,17 @@ public:
 
     void Reserve(i64 size);
 
-    void SetPartitionTag(int partitionTag);
+    //! This field represents pool index that this stripe list has been extracted from.
+    //! NB(apollo1321): This is an abstraction leak. The pool index is an implementation detail
+    //! that shouldn't be exposed at this layer. Should be fixed in YT-26667.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, OutputChunkPoolIndex);
 
-    // Set partition tag and override data size.
-    void SetPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount);
+    // Set the partition tag that is used for filtering chunk blocks.
+    void SetFilteringPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount);
+
+    std::optional<int> GetFilteringPartitionTag() const;
 
     void AddStripe(TChunkStripePtr stripe);
-
-    std::optional<int> GetPartitionTag() const;
 
     NTableClient::TChunkStripeStatisticsVector GetPerStripeStatistics() const;
     NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;

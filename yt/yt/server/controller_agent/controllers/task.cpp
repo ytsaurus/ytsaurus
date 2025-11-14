@@ -956,9 +956,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
-        "Approximate: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, "
-        "RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
+        "Approximate: %v, FilteringPartitionTag: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
+        "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
+        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
@@ -966,7 +966,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->OutputCookie,
         joblet->InputStripeList->GetAggregateStatistics(),
         joblet->InputStripeList->IsApproximate(),
-        joblet->InputStripeList->GetPartitionTag(),
+        joblet->InputStripeList->GetFilteringPartitionTag(),
+        joblet->InputStripeList->GetOutputChunkPoolIndex(),
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
@@ -1103,14 +1104,14 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         });
 }
 
-void TTask::PropagatePartitions(
+void TTask::SetChunkPoolIndexForOutputStripes(
     const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
     const TChunkStripeListPtr& /*inputStripeList*/,
     std::vector<TChunkStripePtr>* outputStripes)
 {
     YT_VERIFY(outputStripes->size() == streamDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < std::ssize(*outputStripes); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->SetPartitionTag(streamDescriptors[stripeIndex]->PartitionTag);
+        (*outputStripes)[stripeIndex]->SetInputChunkPoolIndex(streamDescriptors[stripeIndex]->StreamChunkPoolIndex);
     }
 }
 
@@ -2150,6 +2151,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
             ApproximateSizesBoostFactor));
     }
 
+    if (joblet->InputStripeList->GetFilteringPartitionTag()) {
+        jobSpecExt->set_partition_tag(*joblet->InputStripeList->GetFilteringPartitionTag());
+    }
+
     jobSpecExt->set_job_cpu_monitor_config(ToProto(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor)));
 
     ValidateJobSizeConstraints(joblet);
@@ -2211,7 +2216,7 @@ void TTask::RegisterOutput(
         jobResultExt,
         chunkListIds,
         jobResultExt.output_boundary_keys());
-    PropagatePartitions(
+    SetChunkPoolIndexForOutputStripes(
         joblet->OutputStreamDescriptors,
         joblet->InputStripeList,
         &outputStripes);

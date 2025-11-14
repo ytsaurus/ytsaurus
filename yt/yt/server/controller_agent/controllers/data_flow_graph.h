@@ -152,7 +152,10 @@ struct TOutputStreamDescriptorBase
     int LivePreviewIndex = 0;
     TDataFlowGraph::TVertexDescriptor TargetDescriptor;
 
-    std::optional<int> PartitionTag;
+    // Chunk pool index that should be assigned to resulting chunk stripes.
+    // NB(apollo1321): This is an abstraction leak. The pool index is an implementation detail
+    // that shouldn't be exposed at this layer. Should be fixed in YT-26667.
+    std::optional<int> StreamChunkPoolIndex;
 };
 
 struct TOutputStreamDescriptor

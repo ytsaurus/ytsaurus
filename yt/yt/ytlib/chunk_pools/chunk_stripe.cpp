@@ -65,7 +65,7 @@ void TChunkStripe::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, Foreign_);
     PHOENIX_REGISTER_FIELD(5, ChunkListId_);
     PHOENIX_REGISTER_FIELD(6, BoundaryKeys_);
-    PHOENIX_REGISTER_FIELD(7, PartitionTag_);
+    PHOENIX_REGISTER_FIELD(7, InputChunkPoolIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripe);
@@ -131,14 +131,7 @@ void TChunkStripeList::Reserve(i64 size)
     Stripes_.reserve(size);
 }
 
-void TChunkStripeList::SetPartitionTag(int partitionTag)
-{
-    PartitionTag_ = partitionTag;
-    OverriddenDataWeight_.reset();
-    OverriddenRowCount_.reset();
-}
-
-void TChunkStripeList::SetPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
+void TChunkStripeList::SetFilteringPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
 {
     YT_VERIFY(dataWeight >= 0);
     YT_VERIFY(rowCount >= 0);
@@ -148,7 +141,7 @@ void TChunkStripeList::SetPartitionTag(int partitionTag, i64 dataWeight, i64 row
     OverriddenRowCount_ = rowCount;
 }
 
-std::optional<int> TChunkStripeList::GetPartitionTag() const
+std::optional<int> TChunkStripeList::GetFilteringPartitionTag() const
 {
     return PartitionTag_;
 }

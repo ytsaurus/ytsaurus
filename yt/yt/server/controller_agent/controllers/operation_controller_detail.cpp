@@ -2098,7 +2098,7 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
         // and output edges. The underlying operation must not build an output edge, as it doesn't know
         // whether the resulting vertex is shallow_auto_merge or auto_merge.
         streamDescriptor->TargetDescriptor = {};
-        streamDescriptor->PartitionTag = autoMergeTaskTableIndex++;
+        streamDescriptor->StreamChunkPoolIndex = autoMergeTaskTableIndex++;
         if (intermediateDataAccount) {
             streamDescriptor->TableWriterOptions->Account = *intermediateDataAccount;
         }
@@ -5752,7 +5752,7 @@ void TOperationControllerBase::InitializeStandardStreamDescriptors()
         descriptor->DestinationPool = GetSink();
         descriptor->LivePreviewIndex = index;
         descriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
-        descriptor->PartitionTag = index;
+        descriptor->StreamChunkPoolIndex = index;
     }
 }
 
