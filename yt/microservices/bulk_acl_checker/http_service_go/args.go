@@ -21,6 +21,7 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().StringSliceP("exclude", "e", nil, "Exclude clusters from serve")
 	rootCmd.Flags().String("snapshot-root", "//sys/admin/yt-microservices/bulk_acl_checker", "Path to ACL dumps")
 	rootCmd.Flags().String("user-root", "//sys/admin/snapshots/user_exports", "Path to user exports")
+	rootCmd.Flags().String("token-env-variable", "YT_BULK_ACL_CHECKER_TOKEN", "Environment variable that specifies the token used when accessing YT")
 
 	ytmsvc.Must0(rootCmd.Execute())
 }

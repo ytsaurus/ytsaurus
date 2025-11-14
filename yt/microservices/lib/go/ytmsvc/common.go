@@ -3,6 +3,7 @@ package ytmsvc
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -36,12 +37,13 @@ func Must2[T1, T2 any](obj1 T1, obj2 T2, err error) (T1, T2) {
 	return obj1, obj2
 }
 
-func MustNewYTClient(proxy string) yt.Client {
+func MustNewYTClient(proxy string, tokenEnvVariable string) yt.Client {
 	reqTimeout := time.Duration(1 * time.Second)
 	ytConfig := yt.Config{
 		Proxy:               proxy,
 		Logger:              Logger,
 		LightRequestTimeout: &reqTimeout,
+		Token:               TokenFromEnvVariable(tokenEnvVariable),
 	}
 	return Must(ythttp.NewClient(&ytConfig))
 }
@@ -124,4 +126,11 @@ func GetUserIP(req *http.Request) string {
 		}
 	}
 	return strings.Split(req.RemoteAddr, ":")[0]
+}
+
+func TokenFromEnvVariable(tokenEnvVariable string) string {
+	if tokenEnvVariable == "" {
+		tokenEnvVariable = "YT_TOKEN"
+	}
+	return os.Getenv(tokenEnvVariable)
 }
