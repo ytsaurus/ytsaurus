@@ -1272,10 +1272,17 @@ class YTEnvSetup(object):
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                update_inplace(config, {
-                    "set_committed_attribute_via_transaction_action": False,
-                    "commit_operation_cypress_node_changes_via_system_transaction": True,
-                })
+                for version, components in cls.ARTIFACT_COMPONENTS.items():
+                    yt_commands.print_debug(f"version = {version}, components = {components}")
+                    if "controller_agent" not in components:
+                        continue
+                    # COMPAT(kvk1920)
+                    if version == "trunk" or version >= "25_4":
+                        continue
+                    update_inplace(config, {
+                        "set_committed_attribute_via_transaction_action": False,
+                        "commit_operation_cypress_node_changes_via_system_transaction": True,
+                    })
             cls._apply_effective_config_patch(config, "DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_controller_agent_config(config, cluster_index)

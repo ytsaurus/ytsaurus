@@ -878,58 +878,11 @@ class OperationReviveBase(YTEnvSetup):
 
         assert op.get_state() == "aborted"
 
-    @authors("kvk1920")
-    def test_abort_output_tx_after_completion_tx_commit(self):
-        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
-            pytest.skip("Cypress transactions in Sequoia don't support transaction actions")
-
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-
-        update_controller_agent_config(
-            "testing_options/abort_output_transaction_after_completion_transaction_commit",
-            True,
-            wait_for_orchid=False)
-        update_controller_agent_config(
-            "set_committed_attribute_via_transaction_action",
-            False,
-            wait_for_orchid=False)
-        update_controller_agent_config(
-            "commit_operation_cypress_node_changes_via_system_transaction",
-            True,
-            wait_for_orchid=True)
-
-        self._prepare_tables()
-
-        op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
-        self._wait_for_state(op, "running")
-        op.complete(ignore_result=True)
-        # Since output transaction is aborted the whole operation should become
-        # failed (completing -> failing -> failed).
-        self._wait_for_states(op, {"completing", "failing", "failed"})
-        wait(lambda: exists(op.get_path() + "/@committed"))
-
-        # Should not crash.
-        time.sleep(3)
-
     # NB: We hope that complete finish first phase before we kill scheduler.
     # But we cannot guarantee that this happen.
     @authors("kvk1920", "ignat")
     @flaky(max_runs=3)
-    @pytest.mark.parametrize("mode", ["simple", "cypress_tx_action", "system_tx_action"])  # COMPAT(kvk1920)
-    def test_completing(self, mode):
-        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA and mode == "cypress_tx_action":
-            pytest.skip("Cypress transactions in Sequoia don't support transaction actions")
-        update_controller_agent_config(
-            "set_committed_attribute_via_transaction_action",
-            mode == "cypress_tx_action")
-        update_controller_agent_config(
-            "commit_operation_cypress_node_changes_via_system_transaction",
-            mode == "system_tx_action")
-
-        if mode == "cypress_tx_action":
-            # COMPAT(kvk1920)
-            set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", False)
-
+    def test_completing(self):
         self._prepare_tables()
 
         op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
