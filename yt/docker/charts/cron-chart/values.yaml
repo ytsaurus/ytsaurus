@@ -140,16 +140,17 @@ jobs:
     schedule: "*/15 * * * *"
     restartPolicy: Never
 
-  validate_master_snapshot:
+  process_master_snapshot:
     enabled: false
-    args:
+    jobs:
       - validate_master_snapshot
-    schedule: "0 * * * *"
-    restartPolicy: Never
-
-  export_master_snapshot:
-    enabled: false
-    args:
       - export_master_snapshot
-    schedule: "30 * * * *"
+    jobDescriptions:
+      validate_master_snapshot:
+        args: 
+          - validate_master_snapshot
+      export_master_snapshot:
+        args: 
+          - export_master_snapshot
+    schedule: "0 * * * *"
     restartPolicy: Never
