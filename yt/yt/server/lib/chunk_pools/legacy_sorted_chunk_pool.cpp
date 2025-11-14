@@ -216,9 +216,7 @@ public:
 
         auto newStripeList = New<TChunkStripeList>();
         auto legacyStripeList = JobManager_->GetStripeList(cookie);
-        if (legacyStripeList->GetPartitionTag()) {
-            newStripeList->SetPartitionTag(*legacyStripeList->GetPartitionTag());
-        }
+        newStripeList->SetOutputChunkPoolIndex(legacyStripeList->GetOutputChunkPoolIndex());
         newStripeList->SetApproximate(legacyStripeList->IsApproximate());
         for (const auto& legacyStripe : legacyStripeList->Stripes()) {
             auto newStripe = New<TChunkStripe>();

@@ -108,7 +108,7 @@ void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, IsOutputTableDynamic);
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
-    Persist(context, PartitionTag);
+    Persist(context, StreamChunkPoolIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -226,7 +226,7 @@ public:
 
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
-    virtual void PropagatePartitions(
+    virtual void SetChunkPoolIndexForOutputStripes(
         const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);

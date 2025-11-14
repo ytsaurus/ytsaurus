@@ -4747,9 +4747,9 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         auto stripe = CreateStripe({dataSlice});
         YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
         if (useMultiPool) {
-            stripe->SetPartitionTag(std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_));
-            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->GetPartitionTag();
-            stripesByPoolIndex[*stripe->GetPartitionTag()].push_back(stripe);
+            stripe->SetInputChunkPoolIndex(std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_));
+            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->GetInputChunkPoolIndex();
+            stripesByPoolIndex[*stripe->GetInputChunkPoolIndex()].push_back(stripe);
         } else {
             stripesByPoolIndex[0].push_back(stripe);
         }

@@ -323,7 +323,7 @@ private:
 
             // NB(apollo1321): Actually, this data weight is uncompressed data size here.
             // This behaviour is incorrect and should be fixed in YT-26516.
-            list->SetPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
+            list->SetFilteringPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
 
             list->SetApproximate(run.IsApproximate);
 

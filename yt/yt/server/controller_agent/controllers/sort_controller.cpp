@@ -220,7 +220,8 @@ protected:
     // is split into groups called partitions which can be processed independently
     // and during the second phase some of the partitions are processed.
     // For Sort operation partition is a group of rows forming some contiguous interval of keys.
-    // For MapReduce operation partition is a group of rows with same key hash.
+    // For MapReduce operation partition is a group of rows with the same key hash or
+    // forming some contiguous interval of keys.
     //
     // Partitions form tree in which root is a fake partition consisting of whole input data
     // and children of a partition are smaller partitions such that every row from parent partition
@@ -243,8 +244,6 @@ protected:
     // For MapReduce operations root partition task is a partition map task, and all other tasks are partition tasks.
     // For Sort operations all the tasks are partition tasks.
     //
-    // Each partition has some indices associated with it. Partition has parent partition tag equals k iff it is k-th
-    // children of its parent. Parent partition tag is not defined for root partition.
     // Partition index is an index of a partition among the partitions at the same level.
     // That is, partition is uniquely defined by its level and index.
     //
@@ -272,8 +271,6 @@ protected:
         int Level = -1;
 
         int Index = -1;
-
-        std::optional<int> ParentPartitionTag;
 
         std::vector<TIntrusivePtr<TPartition>> Children;
 
@@ -621,15 +618,15 @@ protected:
             }
         }
 
-        void PropagatePartitions(
+        void SetChunkPoolIndexForOutputStripes(
             const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
             const TChunkStripeListPtr& inputStripeList,
             std::vector<TChunkStripePtr>* outputStripes) override
         {
-            TTask::PropagatePartitions(streamDescriptors, inputStripeList, outputStripes);
+            TTask::SetChunkPoolIndexForOutputStripes(streamDescriptors, inputStripeList, outputStripes);
 
             auto& shuffleStripe = outputStripes->front();
-            shuffleStripe->SetPartitionTag(GetPartitionIndex(inputStripeList));
+            shuffleStripe->SetInputChunkPoolIndex(GetPartitionIndex(inputStripeList));
         }
 
     private:
@@ -684,7 +681,7 @@ protected:
             if (IsRoot()) {
                 return 0;
             } else {
-                return *chunkStripeList->GetPartitionTag();
+                return *chunkStripeList->GetOutputChunkPoolIndex();
             }
         }
 
@@ -731,11 +728,6 @@ protected:
 
             auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
             const auto& partition = GetInputPartitions()[partitionIndex];
-
-            auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-            if (auto parentPartitionTag = partition->ParentPartitionTag) {
-                jobSpecExt->set_partition_tag(*parentPartitionTag);
-            }
 
             auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(partition->Children.size());
@@ -1008,7 +1000,7 @@ protected:
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
             }
-            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetPartitionTag());
+            Controller_->SortedMergeTask_->AbortAllActiveJoblets(error, *stripe->GetInputChunkPoolIndex());
             // TODO(max42): maybe moving chunk mapping outside of the pool was not that great idea.
             // Let's live like this a bit, and then maybe move it inside pool.
             descriptor->DestinationPool->Reset(cookie, stripe, descriptor->ChunkMapping);
@@ -1068,12 +1060,9 @@ protected:
 
             AddSequentialInputSpec(jobSpec, joblet);
 
-            auto partitionIndex = joblet->InputStripeList->GetPartitionTag();
-            if (partitionIndex) {
-                auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-                auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
-                jobSpecExt->set_partition_tag(partitionTag);
+            if (joblet->InputStripeList->GetOutputChunkPoolIndex()) {
                 if (joblet->CookieGroupInfo.OutputIndex > 0) {
+                    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
                     jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
                 }
             }
@@ -1106,7 +1095,7 @@ protected:
                     dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
-                stripe->SetPartitionTag(Controller_->SimpleSort_ ? 0 : joblet->InputStripeList->GetPartitionTag());
+                stripe->SetInputChunkPoolIndex(Controller_->SimpleSort_ ? 0 : joblet->InputStripeList->GetOutputChunkPoolIndex());
 
                 std::optional<TMD5Hash> outputDigest;
                 if (!jobResultExt.output_digests().empty()) {
@@ -1278,7 +1267,7 @@ protected:
         {
             auto nodeId = joblet->NodeDescriptor.Id;
 
-            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+            auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             const auto& partition = Controller_->GetFinalPartition(partitionIndex);
 
             // Increase data size for this address to ensure subsequent sort jobs
@@ -1296,7 +1285,7 @@ protected:
         void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
             if (!Controller_->SimpleSort_) {
-                auto partitionIndex = *completedJob->InputStripe->GetPartitionTag();
+                auto partitionIndex = *completedJob->InputStripe->GetInputChunkPoolIndex();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 auto nodeId = completedJob->NodeDescriptor.Id;
                 partition->AddLocality(nodeId, -completedJob->DataWeight);
@@ -1322,7 +1311,7 @@ protected:
             }
 
             if (!IsFinalSort_) {
-                auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+                auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 if (partition->ChunkPoolOutput->IsCompleted()) {
                     auto error = Controller_->SortedMergeTask_->OnIntermediateSortCompleted(partitionIndex);
@@ -1689,7 +1678,7 @@ protected:
         {
             TTask::OnJobStarted(joblet);
 
-            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+            auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             InsertOrCrash(ActiveJoblets_[partitionIndex], std::move(joblet));
         }
 
@@ -1697,7 +1686,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+            auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
             if (!InvalidatedJoblets_[partitionIndex].contains(joblet)) {
                 JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
@@ -1710,7 +1699,7 @@ protected:
         {
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+            auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
@@ -1720,7 +1709,7 @@ protected:
         {
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
-            auto partitionIndex = *joblet->InputStripeList->GetPartitionTag();
+            auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
@@ -1840,13 +1829,6 @@ protected:
             jobSpec->CopyFrom(Controller_->UnorderedMergeJobSpecTemplate_);
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
-
-            auto partitionIndex = joblet->InputStripeList->GetPartitionTag();
-            if (partitionIndex) {
-                auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
-                auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-                jobSpecExt->set_partition_tag(partitionTag);
-            }
         }
 
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -2758,7 +2740,6 @@ protected:
                 auto* child = partitionTreeSkeleton->Children[childIndex].get();
                 auto treeChild = buildPartitionTree(child, level + 1, buildPartitionTree);
                 partition->Children.push_back(treeChild);
-                treeChild->ParentPartitionTag = childIndex;
             }
 
             return partition;
@@ -3000,7 +2981,6 @@ void TSortControllerBase::TPartition::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(2, Level);
     PHOENIX_REGISTER_FIELD(3, Index);
-    PHOENIX_REGISTER_FIELD(4, ParentPartitionTag);
 
     PHOENIX_REGISTER_FIELD(5, Children);
 
