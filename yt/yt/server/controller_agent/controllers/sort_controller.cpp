@@ -109,6 +109,150 @@ static const int MaxProgressBuckets = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Partitions.
+
+// Hierarchical partitions data model.
+//
+// Both Sort and MapReduce operations consist of two phases:
+// during the first phase some data (input data for Sort and Map result for MapReduce)
+// is split into groups called partitions which can be processed independently
+// and during the second phase some of the partitions are processed.
+// For Sort operation partition is a group of rows forming some contiguous interval of keys.
+// For MapReduce operation partition is a group of rows with the same key hash or
+// forming some contiguous interval of keys.
+//
+// Partitions form tree in which root is a fake partition consisting of whole input data
+// and children of a partition are smaller partitions such that every row from parent partition
+// belongs to exactly one child partition.
+// Partitions that have no children are called final. Other partitions are called intermediate.
+// Sort operation sorts each final partition independently and then joins sorted final
+// partitions in proper order.
+// MapReduce operation reduces each final partition independently and then joins reduce
+// results in proper order.
+//
+// Level of a partition is a distance from the root of partition tree to partition.
+// For example, root partition is 0 level partition. In classical MapReduce implementation
+// all the final partitions are 1 level partitions.
+// For a sake of convenience all final partitions have the same level. This level is called partition tree depth.
+//
+// Partition task of i-th level is a task which takes all the i-th level partitions as a input
+// and splits them into (i+1)-th level partitions.
+// Partition task is called final if its outputs are final partitions. Other partition tasks are called intermediate.
+// Partition task of level 0 is called root partition task.
+// For MapReduce operations root partition task is a partition map task, and all other tasks are partition tasks.
+// For Sort operations all the tasks are partition tasks.
+//
+// Partition index is an index of a partition among the partitions at the same level.
+// That is, partition is uniquely defined by its level and index.
+//
+// For Sort operation partition with smaller partition index has keys that are not greater than keys
+// of a partition (at the same level) with greater partition index.
+// Results of per-partition sorts of final partitions are joined in order of partition indices.
+
+// TODO(apollo1321): Change to class.
+struct TPartition
+    : public TRefCounted
+{
+    //! For persistence only.
+    TPartition() = default;
+
+    TPartition(
+        int level,
+        int index,
+        bool isFinal)
+        : Level_(level)
+        , Index_(index)
+        , IsFinal_(isFinal)
+    { }
+
+    DEFINE_BYVAL_RO_PROPERTY(int, Level);
+    DEFINE_BYVAL_RO_PROPERTY(int, Index);
+
+    std::vector<TIntrusivePtr<TPartition>> Children;
+
+    //! Lower key bound of this partition.
+    //! Always null for map-reduce operation.
+    TKeyBound LowerBound;
+
+    //! Is partition completed?
+    bool Completed = false;
+
+    //! Is all data corresponding to this partition in chunk pool output?
+    bool PartitioningCompleted = false;
+
+    //! Do we need to run merge tasks for this partition?
+    //! Cached value, updated by #IsSortedMergeNeeded.
+    bool CachedSortedMergeNeeded = false;
+
+    //! Does the partition consist of rows with the same key?
+    //! This field is set only in Sort operations and only in final partitions.
+    bool Maniac = false;
+
+    //! Chunk pool that moves data from this partition to children partitions.
+    IShuffleChunkPoolPtr ShuffleChunkPool;
+
+    //! Input of shuffle chunk pool wrapped into intermediate live preview adapter.
+    IPersistentChunkPoolInputPtr ShuffleChunkPoolInput;
+
+    //! Chunk pool containing data of this partition.
+    //! For root partition it is either partition pool or simple sort pool.
+    //! For non-root partitions it's an output of parent partition's shuffle pool.
+    IPersistentChunkPoolOutputPtr ChunkPoolOutput;
+
+    bool HasAssignedNode() const
+    {
+        return AssignedNodeId != InvalidNodeId;
+    }
+
+    bool IsRoot() const
+    {
+        return Level_ == 0;
+    }
+
+    bool IsFinal() const
+    {
+        return IsFinal_;
+    }
+
+    bool IsIntermediate() const
+    {
+        return !IsFinal();
+    }
+
+    //! The node assigned to this partition, #InvalidNodeId if none.
+    TNodeId AssignedNodeId = InvalidNodeId;
+
+private:
+    bool IsFinal_ = false;
+
+    PHOENIX_DECLARE_TYPE(TPartition, 0xec5290d7);
+};
+
+using TPartitionPtr = TIntrusivePtr<TPartition>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPartition::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Level_);
+    PHOENIX_REGISTER_FIELD(2, Index_);
+    PHOENIX_REGISTER_FIELD(3, Children);
+    PHOENIX_REGISTER_FIELD(4, LowerBound);
+    PHOENIX_REGISTER_FIELD(5, Completed);
+    PHOENIX_REGISTER_FIELD(6, PartitioningCompleted);
+    PHOENIX_REGISTER_FIELD(7, CachedSortedMergeNeeded);
+    PHOENIX_REGISTER_FIELD(8, Maniac);
+    PHOENIX_REGISTER_FIELD(9, AssignedNodeId);
+    PHOENIX_REGISTER_FIELD(10, ShuffleChunkPool);
+    PHOENIX_REGISTER_FIELD(11, ShuffleChunkPoolInput);
+    PHOENIX_REGISTER_FIELD(12, ChunkPoolOutput);
+    PHOENIX_REGISTER_FIELD(13, IsFinal_);
+}
+
+PHOENIX_DEFINE_TYPE(TPartition);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSortControllerBase
     : public TOperationControllerBase
 {
@@ -210,197 +354,6 @@ protected:
 
     class TUnorderedMergeTask;
     using TUnorderedMergeTaskPtr = TIntrusivePtr<TUnorderedMergeTask>;
-
-    // Partitions.
-
-    // Hierarchical partitions data model.
-    //
-    // Both Sort and MapReduce operations consist of two phases:
-    // during the first phase some data (input data for Sort and Map result for MapReduce)
-    // is split into groups called partitions which can be processed independently
-    // and during the second phase some of the partitions are processed.
-    // For Sort operation partition is a group of rows forming some contiguous interval of keys.
-    // For MapReduce operation partition is a group of rows with the same key hash or
-    // forming some contiguous interval of keys.
-    //
-    // Partitions form tree in which root is a fake partition consisting of whole input data
-    // and children of a partition are smaller partitions such that every row from parent partition
-    // belongs to exactly one child partition.
-    // Partitions that have no children are called final. Other partitions are called intermediate.
-    // Sort operation sorts each final partition independently and then joins sorted final
-    // partitions in proper order.
-    // MapReduce operation reduces each final partition independently and then joins reduce
-    // results in proper order.
-    //
-    // Level of a partition is a distance from the root of partition tree to partition.
-    // For example, root partition is 0 level partition. In classical MapReduce implementation
-    // all the final partitions are 1 level partitions.
-    // For a sake of convenience all final partitions have the same level. This level is called partition tree depth.
-    //
-    // Partition task of i-th level is a task which takes all the i-th level partitions as a input
-    // and splits them into (i+1)-th level partitions.
-    // Partition task is called final if its outputs are final partitions. Other partition tasks are called intermediate.
-    // Partition task of level 0 is called root partition task.
-    // For MapReduce operations root partition task is a partition map task, and all other tasks are partition tasks.
-    // For Sort operations all the tasks are partition tasks.
-    //
-    // Partition index is an index of a partition among the partitions at the same level.
-    // That is, partition is uniquely defined by its level and index.
-    //
-    // For Sort operation partition with smaller partition index has keys that are not greater than keys
-    // of a partition (at the same level) with greater partition index.
-    // Results of per-partition sorts of final partitions are joined in order of partition indices.
-    struct TPartition
-        : public TRefCounted
-    {
-        //! For persistence only.
-        TPartition() = default;
-
-        TPartition(
-            TSortControllerBase* controller,
-            int level,
-            int index)
-            : Controller(controller)
-            , Level(level)
-            , Index(index)
-            , Logger(controller->Logger)
-        { }
-
-        TSortControllerBase* Controller = nullptr;
-
-        int Level = -1;
-
-        int Index = -1;
-
-        std::vector<TIntrusivePtr<TPartition>> Children;
-
-        //! Lower key bound of this partition.
-        //! Always null for map-reduce operation.
-        TKeyBound LowerBound;
-
-        //! Is partition completed?
-        bool Completed = false;
-
-        //! Is all data corresponding to this partition in chunk pool output?
-        bool PartitioningCompleted = false;
-
-        //! Do we need to run merge tasks for this partition?
-        //! Cached value, updated by #IsSortedMergeNeeded.
-        bool CachedSortedMergeNeeded = false;
-
-        //! Does the partition consist of rows with the same key?
-        //! This field is set only in Sort operations and only in final partitions.
-        bool Maniac = false;
-
-        //! Chunk pool that moves data from this partition to children partitions.
-        IShuffleChunkPoolPtr ShuffleChunkPool;
-
-        //! Input of shuffle chunk pool wrapped into intermediate live preview adapter.
-        IPersistentChunkPoolInputPtr ShuffleChunkPoolInput;
-
-        //! Chunk pool containing data of this partition.
-        //! For root partition it is either partition pool or simple sort pool.
-        //! For non-root partitions it's an output of parent partition's shuffle pool.
-        IPersistentChunkPoolOutputPtr ChunkPoolOutput;
-
-        TSerializableLogger Logger;
-
-        void SetAssignedNodeId(TNodeId nodeId)
-        {
-            // Locality is defined for final partitions only.
-            YT_VERIFY(IsFinal());
-
-            if (AssignedNodeId_ != InvalidNodeId) {
-                EraseOrCrash(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_], Index);
-            }
-
-            AssignedNodeId_ = nodeId;
-
-            if (AssignedNodeId_ != InvalidNodeId) {
-                EmplaceOrCrash(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_], Index);
-            }
-        }
-
-        bool HasAssignedNode() const
-        {
-            return AssignedNodeId_ != InvalidNodeId;
-        }
-
-        void AddLocality(TNodeId nodeId, i64 delta) const
-        {
-            // Locality is defined for final partitions only.
-            YT_VERIFY(IsFinal());
-
-            auto& localityMap = Controller->PartitionsLocalityByNodeId_[nodeId];
-            localityMap[Index] += delta;
-            YT_VERIFY(localityMap[Index] >= 0);
-            if (localityMap[Index] == 0) {
-                EraseOrCrash(localityMap, Index);
-            }
-        }
-
-        bool IsRoot() const
-        {
-            return Level == 0;
-        }
-
-        bool IsFinal() const
-        {
-            return Level == Controller->PartitionTreeDepth_;
-        }
-
-        bool IsIntermediate() const
-        {
-            return !IsFinal();
-        }
-
-        //! Called when all of the partition data is in the
-        //! chunk pool output.
-        void OnPartitioningCompleted()
-        {
-            // This function can be called multiple times due the lost jobs
-            // regeneration. We are interested in the first call only.
-            if (PartitioningCompleted) {
-                return;
-            }
-
-            PartitioningCompleted = true;
-
-            if (IsIntermediate()) {
-                i64 dataWeight = ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
-
-                YT_LOG_DEBUG("Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
-                    Level,
-                    Index,
-                    dataWeight);
-            } else {
-                i64 dataWeight = ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
-                if (dataWeight == 0) {
-                    YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", Index);
-                    Controller->OnFinalPartitionCompleted(this);
-                } else {
-                    YT_LOG_DEBUG("Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
-                        Index,
-                        dataWeight);
-                    if (!Maniac && !Controller->IsSortedMergeNeeded(this)) {
-                        Controller->FinalSortTask_->RegisterPartition(this);
-                    }
-
-                    if (Maniac) {
-                        Controller->UnorderedMergeTask_->RegisterPartition(this);
-                    }
-                }
-            }
-        }
-
-    private:
-        //! The node assigned to this partition, #InvalidNodeId if none.
-        TNodeId AssignedNodeId_ = InvalidNodeId;
-
-        PHOENIX_DECLARE_TYPE(TPartition, 0xec5290d7);
-    };
-
-    using TPartitionPtr = TIntrusivePtr<TPartition>;
 
     //! Equivalent to |Partitions.size() == 1| but enables checking
     //! for simple sort when #Partitions is still being constructed.
@@ -1238,7 +1191,7 @@ protected:
         {
             YT_VERIFY(partition->IsFinal());
 
-            MultiChunkPoolOutput_->AddPoolOutput(partition->ChunkPoolOutput, partition->Index);
+            MultiChunkPoolOutput_->AddPoolOutput(partition->ChunkPoolOutput, partition->GetIndex());
             Partitions_.push_back(std::move(partition));
             Controller_->UpdateTask(this);
         }
@@ -1272,10 +1225,10 @@ protected:
 
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            partition->AddLocality(nodeId, joblet->InputStripeList->GetAggregateStatistics().DataWeight);
+            Controller_->AddLocalityToPartition(partition, nodeId, joblet->InputStripeList->GetAggregateStatistics().DataWeight);
 
             // Don't rely on static assignment anymore.
-            partition->SetAssignedNodeId(InvalidNodeId);
+            Controller_->AssignNodeIdToPartition(partition, InvalidNodeId);
 
             UpdateTask();
 
@@ -1288,7 +1241,7 @@ protected:
                 auto partitionIndex = *completedJob->InputStripe->GetInputChunkPoolIndex();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 auto nodeId = completedJob->NodeDescriptor.Id;
-                partition->AddLocality(nodeId, -completedJob->DataWeight);
+                Controller_->AddLocalityToPartition(partition, nodeId, -completedJob->DataWeight);
             }
 
             Controller_->ResetTaskLocalityDelays();
@@ -1548,7 +1501,7 @@ protected:
         {
             YT_VERIFY(partition->IsFinal());
 
-            auto partitionIndex = partition->Index;
+            auto partitionIndex = partition->GetIndex();
             auto sortedMergeChunkPool = Controller_->CreateSortedMergeChunkPool(Format("%v(%v)", GetTitle(), partitionIndex));
             EmplaceOrCrash(SortedMergeChunkPools_, partitionIndex, sortedMergeChunkPool);
             MultiChunkPool_->AddPool(std::move(sortedMergeChunkPool), partitionIndex);
@@ -1788,7 +1741,7 @@ protected:
         {
             YT_VERIFY(partition->IsFinal());
 
-            MultiChunkPoolOutput_->AddPoolOutput(partition->ChunkPoolOutput, partition->Index);
+            MultiChunkPoolOutput_->AddPoolOutput(partition->ChunkPoolOutput, partition->GetIndex());
             Partitions_.push_back(std::move(partition));
         }
 
@@ -1915,6 +1868,43 @@ protected:
         return PartitionsByLevels_.back()[partitionIndex];
     }
 
+    //! Called when all of the partition data is in the
+    //! chunk pool output.
+    void OnPartitioningCompleted(const TPartitionPtr& partition)
+    {
+        // This function can be called multiple times due the lost jobs
+        // regeneration. We are interested in the first call only.
+        if (std::exchange(partition->PartitioningCompleted, true)) {
+            return;
+        }
+
+        if (partition->IsIntermediate()) {
+            i64 dataWeight = partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
+
+            YT_LOG_DEBUG("Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
+                partition->GetLevel(),
+                partition->GetIndex(),
+                dataWeight);
+        } else {
+            i64 dataWeight = partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
+            if (dataWeight == 0) {
+                YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", partition->GetIndex());
+                OnFinalPartitionCompleted(partition);
+            } else {
+                YT_LOG_DEBUG("Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
+                    partition->GetIndex(),
+                    dataWeight);
+                if (!partition->Maniac && !IsSortedMergeNeeded(partition)) {
+                    FinalSortTask_->RegisterPartition(partition);
+                }
+
+                if (partition->Maniac) {
+                    UnorderedMergeTask_->RegisterPartition(partition);
+                }
+            }
+        }
+    }
+
     void SetupPartitioningCompletedCallbacks()
     {
         if (SimpleSort_) {
@@ -1926,7 +1916,7 @@ protected:
                 const auto& partitionPool = partition->IsRoot()
                     ? RootPartitionPool_
                     : partition->ChunkPoolOutput;
-                partitionPool->SubscribeCompleted(BIND([weakPartition = MakeWeak(partition)] {
+                partitionPool->SubscribeCompleted(BIND([this, weakPartition = MakeWeak(partition)] {
                     auto partition = weakPartition.Lock();
                     if (!partition) {
                         return;
@@ -1939,7 +1929,7 @@ protected:
                     // Partitioning of #partition data is completed,
                     // so its data can be processed.
                     for (const auto& child : partition->Children) {
-                        child->OnPartitioningCompleted();
+                        OnPartitioningCompleted(child);
                     }
                 }));
             }
@@ -2003,6 +1993,35 @@ protected:
     }
 
     // Init/finish.
+
+    void AssignNodeIdToPartition(const TPartitionPtr& partition, TNodeId nodeId)
+    {
+        // Locality is defined for final partitions only.
+        YT_VERIFY(partition->IsFinal());
+
+        if (partition->AssignedNodeId != InvalidNodeId) {
+            EraseOrCrash(AssignedPartitionsByNodeId_[partition->AssignedNodeId], partition->GetIndex());
+        }
+
+        partition->AssignedNodeId = nodeId;
+
+        if (partition->AssignedNodeId != InvalidNodeId) {
+            EmplaceOrCrash(AssignedPartitionsByNodeId_[partition->AssignedNodeId], partition->GetIndex());
+        }
+    }
+
+    void AddLocalityToPartition(const TPartitionPtr& partition, TNodeId nodeId, i64 delta)
+    {
+        // Locality is defined for final partitions only.
+        YT_VERIFY(partition->IsFinal());
+
+        auto& localityMap = PartitionsLocalityByNodeId_[nodeId];
+        localityMap[partition->GetIndex()] += delta;
+        YT_VERIFY(localityMap[partition->GetIndex()] >= 0);
+        if (localityMap[partition->GetIndex()] == 0) {
+            EraseOrCrash(localityMap, partition->GetIndex());
+        }
+    }
 
     void AssignPartitions()
     {
@@ -2077,7 +2096,7 @@ protected:
             auto node = nodeHeap.front();
             auto nodeId = node->Descriptor->Id;
 
-            partition->SetAssignedNodeId(nodeId);
+            AssignNodeIdToPartition(partition, nodeId);
 
             TTaskPtr task;
             if (partition->Maniac) {
@@ -2097,7 +2116,7 @@ protected:
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
             YT_LOG_DEBUG("Partition assigned (Index: %v, DataWeight: %v, Address: %v)",
-                partition->Index,
+                partition->GetIndex(),
                 partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal(),
                 NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses));
         }
@@ -2263,7 +2282,7 @@ protected:
         return TError();
     }
 
-    void OnFinalPartitionCompleted(TPartitionPtr partition)
+    void OnFinalPartitionCompleted(const TPartitionPtr& partition)
     {
         YT_VERIFY(partition->IsFinal());
 
@@ -2275,7 +2294,7 @@ protected:
 
         ++CompletedPartitionCount_;
 
-        YT_LOG_DEBUG("Final partition completed (PartitionIndex: %v)", partition->Index);
+        YT_LOG_DEBUG("Final partition completed (PartitionIndex: %v)", partition->GetIndex());
     }
 
     virtual bool IsSortedMergeNeeded(const TPartitionPtr& partition) const
@@ -2294,7 +2313,7 @@ protected:
             return false;
         }
 
-        YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->Index);
+        YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->GetIndex());
         partition->CachedSortedMergeNeeded = true;
         SortedMergeTask_->RegisterPartition(partition);
 
@@ -2725,16 +2744,10 @@ protected:
         YT_LOG_DEBUG("Building partition tree (FinalPartitionCount: %v, MaxPartitionFactor: %v)",
             finalPartitionCount,
             maxPartitionFactor);
-        PartitionTreeDepth_ = 0;
-        PartitionsByLevels_.resize(1);
-        auto buildPartitionTree = [&] (TPartitionTreeSkeleton* partitionTreeSkeleton, int level, auto buildPartitionTree) -> TPartitionPtr {
-            if (level > PartitionTreeDepth_) {
-                PartitionTreeDepth_ = level;
-                PartitionsByLevels_.resize(level + 1);
-            }
-
+        auto buildPartitionTree = [&] (TPartitionTreeSkeletonNode* partitionTreeSkeleton, int level, auto buildPartitionTree) -> TPartitionPtr {
             int levelPartitionIndex = std::ssize(PartitionsByLevels_[level]);
-            auto partition = New<TPartition>(this, level, levelPartitionIndex);
+            auto partition = New<TPartition>(level, levelPartitionIndex, /*isFinal*/ level == PartitionTreeDepth_);
+            YT_VERIFY(level <= PartitionTreeDepth_);
             PartitionsByLevels_[level].push_back(partition);
             for (int childIndex = 0; childIndex < std::ssize(partitionTreeSkeleton->Children); ++childIndex) {
                 auto* child = partitionTreeSkeleton->Children[childIndex].get();
@@ -2745,7 +2758,9 @@ protected:
             return partition;
         };
         auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(finalPartitionCount, maxPartitionFactor);
-        buildPartitionTree(partitionTreeSkeleton.get(), 0, buildPartitionTree);
+        PartitionTreeDepth_ = partitionTreeSkeleton.TreeDepth;
+        PartitionsByLevels_.resize(PartitionTreeDepth_ + 1);
+        buildPartitionTree(partitionTreeSkeleton.Root.get(), 0, buildPartitionTree);
     }
 
     std::vector<TPartitionKey> BuildPartitionKeysFromPivotKeys()
@@ -2876,8 +2891,8 @@ protected:
             for (const auto& partition : PartitionsByLevels_[level]) {
                 partition->LowerBound = partition->Children.front()->LowerBound;
                 YT_LOG_DEBUG("Assigned lower key bound to partition (PartitionLevel: %v, PartitionIndex: %v, KeyBound: %v",
-                    partition->Level,
-                    partition->Index,
+                    partition->GetLevel(),
+                    partition->GetIndex(),
                     partition->LowerBound);
             }
         }
@@ -2972,38 +2987,6 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSortControllerBase::TPartition::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, Controller);
-
-    PHOENIX_REGISTER_FIELD(2, Level);
-    PHOENIX_REGISTER_FIELD(3, Index);
-
-    PHOENIX_REGISTER_FIELD(5, Children);
-
-    PHOENIX_REGISTER_FIELD(6, LowerBound);
-
-    PHOENIX_REGISTER_FIELD(7, Completed);
-
-    PHOENIX_REGISTER_FIELD(8, PartitioningCompleted);
-
-    PHOENIX_REGISTER_FIELD(9, CachedSortedMergeNeeded);
-
-    PHOENIX_REGISTER_FIELD(10, Maniac);
-
-    PHOENIX_REGISTER_FIELD(11, AssignedNodeId_);
-
-    PHOENIX_REGISTER_FIELD(12, ShuffleChunkPool);
-    PHOENIX_REGISTER_FIELD(13, ShuffleChunkPoolInput);
-    PHOENIX_REGISTER_FIELD(14, ChunkPoolOutput);
-
-    PHOENIX_REGISTER_FIELD(15, Logger);
-}
-
-PHOENIX_DEFINE_TYPE(TSortControllerBase::TPartition);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3376,7 +3359,7 @@ private:
             jobSizeConstraints->GetDataWeightPerJob());
 
         if (IsSortedMergeNeeded(partition)) {
-            YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->Index);
+            YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->GetIndex());
         }
 
         // Kick-start the sort task.
