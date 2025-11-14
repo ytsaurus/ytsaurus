@@ -14,7 +14,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 const (
@@ -90,7 +90,7 @@ func traceRequest(l log.Structured) func(next http.Handler) http.Handler {
 				log.String("path", r.URL.Path),
 				log.String("query", r.Form.Encode()),
 				log.ByteString("body", body),
-				log.String("origin", lib.GetUserIP(r)),
+				log.String("origin", ytmsvc.GetUserIP(r)),
 				log.String("l7_req_id", r.Header.Get(xReqIDHTTPHeader)),
 			)
 

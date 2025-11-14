@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
@@ -22,7 +22,7 @@ type ConfigBase struct {
 	DebugHTTPAddr string `yaml:"debug_http_addr"`
 
 	// CORS settings.
-	CORS *lib.CORSConfig `yaml:"cors"`
+	CORS *ytmsvc.CORSConfig `yaml:"cors"`
 
 	// Path to the directory with resource_usage preprocessing.
 	SnapshotRoot string `yaml:"snapshot_root"`

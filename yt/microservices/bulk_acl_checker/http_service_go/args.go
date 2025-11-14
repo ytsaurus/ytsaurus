@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 func ParseArgsAndRunServer() {
@@ -22,5 +22,5 @@ func ParseArgsAndRunServer() {
 	rootCmd.Flags().String("snapshot-root", "//sys/admin/yt-microservices/bulk_acl_checker", "Path to ACL dumps")
 	rootCmd.Flags().String("user-root", "//sys/admin/snapshots/user_exports", "Path to user exports")
 
-	lib.Must0(rootCmd.Execute())
+	ytmsvc.Must0(rootCmd.Execute())
 }

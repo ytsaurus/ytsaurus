@@ -10,7 +10,7 @@ import (
 
 	"go.ytsaurus.tech/yt/go/yt"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type Subjects []string
@@ -21,7 +21,7 @@ type CompressedACL map[int]Subjects
 
 func Hash(acl CompressedACL) string {
 	var b bytes.Buffer
-	lib.Must0(gob.NewEncoder(&b).Encode(acl))
+	ytmsvc.Must0(gob.NewEncoder(&b).Encode(acl))
 	return b.String()
 }
 

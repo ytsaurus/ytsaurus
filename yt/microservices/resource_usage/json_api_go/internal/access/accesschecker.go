@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	bulkaclcheckerclient "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/client_go"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
@@ -41,7 +41,7 @@ func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user st
 		Cluster:    proxy,
 		Subject:    user,
 		Permission: "read",
-		Paths:      lib.SetToSlice(paths),
+		Paths:      ytmsvc.SetToSlice(paths),
 	}
 
 	response, err := a.aclClient.CheckACL(ctx, request)

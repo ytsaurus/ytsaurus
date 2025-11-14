@@ -1,4 +1,4 @@
-package common
+package ytmsvc
 
 import (
 	"encoding/json"

@@ -11,33 +11,33 @@ import (
 
 	"go.ytsaurus.tech/yt/go/yt"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 func createRouter(
-	infoHandler lib.HTTPHandlerE,
-	whoamiHandler lib.HTTPHandlerE,
-	servedClustersHandler lib.HTTPHandlerE,
-	checkACLHandler lib.HTTPHandlerE,
+	infoHandler ytmsvc.HTTPHandlerE,
+	whoamiHandler ytmsvc.HTTPHandlerE,
+	servedClustersHandler ytmsvc.HTTPHandlerE,
+	checkACLHandler ytmsvc.HTTPHandlerE,
 	clickHouseDictHandler http.HandlerFunc,
-	livenessHandler lib.HTTPHandlerE,
-	readinessHandler lib.HTTPHandlerE,
-	dropCacheHandler lib.HTTPHandlerE,
+	livenessHandler ytmsvc.HTTPHandlerE,
+	readinessHandler ytmsvc.HTTPHandlerE,
+	dropCacheHandler ytmsvc.HTTPHandlerE,
 	metricsHandler http.HandlerFunc,
 ) http.Handler {
 	publicAPI := func(r chi.Router) {
-		r.Post("/info", lib.FormatResponse(infoHandler))
-		r.Post("/whoami", lib.FormatResponse(whoamiHandler))
-		r.Post("/{call:served(-|_)clusters}", lib.FormatResponse(servedClustersHandler))
-		r.Post("/{call:check(-|_)acl}", lib.FormatResponse(checkACLHandler))
+		r.Post("/info", ytmsvc.FormatResponse(infoHandler))
+		r.Post("/whoami", ytmsvc.FormatResponse(whoamiHandler))
+		r.Post("/{call:served(-|_)clusters}", ytmsvc.FormatResponse(servedClustersHandler))
+		r.Post("/{call:check(-|_)acl}", ytmsvc.FormatResponse(checkACLHandler))
 		r.Post("/{call:clickhouse(-|_)dict}", clickHouseDictHandler)
 	}
 
 	r := chi.NewRouter()
 	r.Use(GetRequestLoggerMiddleware)
-	r.Get("/liveness", lib.FormatResponse(livenessHandler))
-	r.Get("/readiness", lib.FormatResponse(readinessHandler))
-	r.Post("/{call:drop(-|_)cache}", lib.FormatResponse(dropCacheHandler))
+	r.Get("/liveness", ytmsvc.FormatResponse(livenessHandler))
+	r.Get("/readiness", ytmsvc.FormatResponse(readinessHandler))
+	r.Post("/{call:drop(-|_)cache}", ytmsvc.FormatResponse(dropCacheHandler))
 	r.Route("/{api_version}", publicAPI)
 	r.Get("/metrics", metricsHandler)
 	publicAPI(r)
@@ -48,7 +48,7 @@ type AccessChecker interface {
 	CheckAccess(subject string, req *http.Request) (string, error)
 }
 
-func createCheckACLHandler(accessChecker AccessChecker) lib.HTTPHandlerE {
+func createCheckACLHandler(accessChecker AccessChecker) ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		decoder := json.NewDecoder(req.Body)
 		var reqBody bac_lib.CheckACLRequest
@@ -80,14 +80,14 @@ func GetClickHouseDictHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, httpReq *http.Request) {
 		result, err := ClickHouseCheckACL(w, httpReq)
 		if err != nil {
-			lib.WriteError(w, httpReq, err)
+			ytmsvc.WriteError(w, httpReq, err)
 			return
 		}
 		encoder := json.NewEncoder(w)
 		for _, response := range result {
 			err := encoder.Encode(response)
 			if err != nil {
-				lib.WriteError(w, httpReq, err)
+				ytmsvc.WriteError(w, httpReq, err)
 				return
 			}
 		}
