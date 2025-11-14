@@ -1269,7 +1269,10 @@ void TTask::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
 
     PHOENIX_REGISTER_FIELD(38, DistributedJobManager_,
-        .SinceVersion(ESnapshotVersion::DistributedJobManagers));
+        .SinceVersion(ESnapshotVersion::DistributedJobManagers)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->DistributedJobManager_.InitializeCounter();
+        }));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
