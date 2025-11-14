@@ -13,10 +13,10 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/metrics/prometheus"
 	"go.ytsaurus.tech/yt/go/yt"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
-func GetWhoamiHandler() lib.HTTPHandlerE {
+func GetWhoamiHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		type Response struct {
 			User string `json:"user"`
@@ -33,7 +33,7 @@ func (c *externalAccessChecker) CheckAccess(subject string, req *http.Request) (
 	return "user", nil
 }
 
-func GetCheckACLHandler() lib.HTTPHandlerE {
+func GetCheckACLHandler() ytmsvc.HTTPHandlerE {
 	checker := &externalAccessChecker{}
 	return createCheckACLHandler(checker)
 }
@@ -55,17 +55,17 @@ func GetRouterHandler(ytClient yt.Client) http.Handler {
 func RunServer(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(fmt.Errorf("normal terminate"))
-	ytClient := lib.MustNewYTClient(lib.Must(cmd.Flags().GetString("proxy")))
+	ytClient := ytmsvc.MustNewYTClient(ytmsvc.Must(cmd.Flags().GetString("proxy")))
 	go perClusterRunner(ctx, ytClient, cmd)
-	port := lib.Must(cmd.Flags().GetUint16("port"))
+	port := ytmsvc.Must(cmd.Flags().GetUint16("port"))
 
 	addr := fmt.Sprintf(":%v", port)
 	router := GetRouterHandler(ytClient)
-	lib.Must0(http.ListenAndServe(addr, router))
+	ytmsvc.Must0(http.ListenAndServe(addr, router))
 }
 
 func getHostNameForMetrics() string {
-	return lib.Must(os.Hostname())
+	return ytmsvc.Must(os.Hostname())
 }
 
 func getNewRegistry(tags map[string]string) *prometheus.Registry {

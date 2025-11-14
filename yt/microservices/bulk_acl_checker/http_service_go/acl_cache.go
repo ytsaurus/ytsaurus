@@ -18,7 +18,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type ACLDumpPart struct {
@@ -138,7 +138,7 @@ func readUserExport(ctx context.Context, ytClient yt.Client, path ypath.Path) (r
 func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster string, aclDumpPath ypath.Path, userExports ypath.Path, lastReadedTable ypath.Path) (err error) {
 	sem <- struct{}{}
 	defer func() { <-sem }()
-	ytClient := lib.MustNewYTClient(cluster)
+	ytClient := ytmsvc.MustNewYTClient(cluster)
 	var tables []string
 	if err = ytClient.ListNode(ctx, aclDumpPath, &tables, nil); err != nil {
 		return
@@ -247,13 +247,13 @@ func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string,
 }
 
 func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Command) {
-	concurrencyLevel := lib.Must(cmd.Flags().GetUint16("concurrency"))
-	includeArr := lib.Must(cmd.Flags().GetStringSlice("include"))
-	excludeArr := lib.Must(cmd.Flags().GetStringSlice("exclude"))
-	useClusterDirectory := lib.Must(cmd.Flags().GetString("proxy")) != ""
-	aclDumpPathStr := lib.Must(cmd.Flags().GetString("snapshot-root"))
+	concurrencyLevel := ytmsvc.Must(cmd.Flags().GetUint16("concurrency"))
+	includeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("include"))
+	excludeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("exclude"))
+	useClusterDirectory := ytmsvc.Must(cmd.Flags().GetString("proxy")) != ""
+	aclDumpPathStr := ytmsvc.Must(cmd.Flags().GetString("snapshot-root"))
 	aclDumpPath := ypath.Path(aclDumpPathStr)
-	userExportsPathStr := lib.Must(cmd.Flags().GetString("user-root"))
+	userExportsPathStr := ytmsvc.Must(cmd.Flags().GetString("user-root"))
 	userExportsPath := ypath.Path(userExportsPathStr)
 	sem := make(chan struct{}, concurrencyLevel)
 	runningClusters := make(map[string]context.CancelCauseFunc)
@@ -264,7 +264,7 @@ func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Comman
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			if clusters := lib.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
+			if clusters := ytmsvc.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
 				for cluster, cancelFunc := range runningClusters {
 					_, ok := clusters[cluster]
 					if !ok {
