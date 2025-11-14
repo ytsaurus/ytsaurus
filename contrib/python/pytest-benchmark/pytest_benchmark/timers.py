@@ -1,8 +1,8 @@
 from time import time as timeout_timer
 
 try:
-    from __pypy__.time import CLOCK_MONOTONIC
-    from __pypy__.time import clock_gettime
+    from __pypy__.time import CLOCK_MONOTONIC  # type: ignore
+    from __pypy__.time import clock_gettime  # type: ignore
 
     def monotonic():
         return clock_gettime(CLOCK_MONOTONIC)

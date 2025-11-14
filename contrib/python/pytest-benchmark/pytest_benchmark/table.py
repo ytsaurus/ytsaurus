@@ -115,7 +115,7 @@ class TableResults:
             tr.write_line('-' * len(labels_line), yellow=True)
             tr.write_line('')
             if self.histogram:
-                from .histogram import make_histogram
+                from .histogram import make_histogram  # noqa: PLC0415
 
                 if len(benchmarks) > 75:
                     self.logger.warning(f'Group {group!r} has too many benchmarks. Only plotting 50 benchmarks.')
@@ -126,7 +126,7 @@ class TableResults:
                 self.logger.info(f'Generated histogram: {output_file}', bold=True)
 
         tr.write_line('Legend:')
-        tr.write_line('  Outliers: 1 Standard Deviation from Mean; ' '1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.')
+        tr.write_line('  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.')
         tr.write_line('  OPS: Operations Per Second, computed as 1 / Mean')
 
 

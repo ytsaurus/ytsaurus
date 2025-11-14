@@ -1,5 +1,4 @@
 import json
-import os
 from os.path import commonpath
 from pathlib import Path
 
@@ -25,7 +24,7 @@ class FileStorage:
 
     @property
     def location(self):
-        return str(self.path.relative_to(os.getcwd()))
+        return str(self.path.relative_to(Path.cwd()))
 
     def get(self, name):
         path = self.path.joinpath(self.default_machine_id) if self.default_machine_id else self.path
@@ -43,7 +42,7 @@ class FileStorage:
             return '0001'
         for f in files:
             try:
-                return '%04i' % (int(str(f.name).split('_')[0]) + 1)
+                return f'{int(str(f.name).split("_")[0]) + 1:04}'
             except ValueError:
                 raise
 
@@ -73,7 +72,7 @@ class FileStorage:
             parts = candidate.parts
             if len(parts) > 2:
                 raise ValueError(
-                    f"{globish!r} isn't an existing file or acceptable glob. " "Expected 'platform-glob/filename-glob' or 'filename-glob'."
+                    f"{globish!r} isn't an existing file or acceptable glob. Expected 'platform-glob/filename-glob' or 'filename-glob'."
                 )
             elif len(parts) == 2:
                 platform_glob, filename_glob = parts
