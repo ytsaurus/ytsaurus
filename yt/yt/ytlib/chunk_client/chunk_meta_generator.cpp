@@ -1,30 +1,28 @@
 #include "chunk_meta_generator.h"
 
-#include <parquet/arrow/reader.h>
-#include <yt/yt/client/arrow/columnar_statistics.h>
-#include <yt/yt/client/arrow/schema.h>
-#include <yt/yt/library/erasure/public.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/client/arrow/columnar_statistics.h>
+#include <yt/yt/client/arrow/schema.h>
+#include <yt/yt/client/table_client/merge_table_schemas.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/library/erasure/public.h>
 
 #include <yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
-
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
 #include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-
 #include <contrib/libs/apache/arrow/cpp/src/arrow/json/reader.h>
 #include <contrib/libs/apache/arrow/cpp/src/arrow/csv/api.h>
-
 #include <contrib/libs/apache/arrow/cpp/src/parquet/api/reader.h>
-
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
 
 namespace NYT::NChunkClient {
 
@@ -204,9 +202,6 @@ public:
     { }
 
 protected:
-    virtual std::shared_ptr<arrow::Schema> GetArrowSchema() const = 0;
-
-protected:
     const EChunkFormat ChunkFormat_;
     const std::shared_ptr<arrow::io::RandomAccessFile> ChunkFile_;
 
@@ -235,11 +230,6 @@ protected:
     i64 GetDataWeight() const override
     {
         return GetUnderlyingFileSize();
-    }
-
-    TTableSchemaPtr GetChunkSchema() const override
-    {
-        return NArrow::CreateYTTableSchemaFromArrowSchema(GetArrowSchema());
     }
 
     TNameTablePtr GetChunkNameTable() const override
@@ -272,9 +262,9 @@ protected:
         return GetUnderlyingFileSize();
     }
 
-    std::shared_ptr<arrow::Schema> GetArrowSchema() const override
+    TTableSchemaPtr GetChunkSchema() const override
     {
-        return GetArrowTable()->schema();
+        return NArrow::CreateYTTableSchemaFromArrowSchema(GetArrowTable()->schema());
     }
 
     void FillBlocksExt(NProto::TBlocksExt& ext) override
@@ -292,6 +282,93 @@ protected:
         dataBlockMeta->set_chunk_row_count(GetRowCount());
         dataBlockMeta->set_uncompressed_size(GetUncompressedDataSize());
         dataBlockMeta->set_block_index(0);
+    }
+};
+
+template <typename TStreamingReader>
+    requires std::derived_from<TStreamingReader, arrow::RecordBatchReader> && requires(const TStreamingReader& reader) {
+        { reader.bytes_read() } -> std::same_as<int64_t>;
+    }
+class TStreamingReaderArrowTableChunkMetaGeneratorBase
+    : public TArrowChunkMetaGeneratorBase
+{
+private:
+    struct TBlock
+    {
+        i64 Offset;
+        i64 RowCount;
+    };
+
+    i64 RowCount_ = 0;
+    i64 MaxDataBlockSize_ = 0;
+    std::vector<TBlock> Blocks_;
+    TTableSchemaPtr Schema_;
+
+public:
+    using TArrowChunkMetaGeneratorBase::TArrowChunkMetaGeneratorBase;
+
+protected:
+    void PrepareFromStreamingReader(std::shared_ptr<TStreamingReader> streamingReader)
+    {
+        Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(streamingReader->schema());
+        while (true) {
+            std::shared_ptr<arrow::RecordBatch> batch;
+            // The docs say it is safe to separate rows using this.
+            // The implementation only increments `bytes_read` by header row during the initialization or by whole requested batches synchronously:
+            // https://github.com/tractoai/mirror-ytsaurus-ytsaurus/blob/d20e61aecc890ce1d9df0cc27bd29f766fc32313/contrib/libs/apache/arrow/cpp/src/arrow/csv/reader.cc#L887
+            // https://github.com/tractoai/mirror-ytsaurus-ytsaurus/blob/d20e61aecc890ce1d9df0cc27bd29f766fc32313/contrib/libs/apache/arrow/cpp/src/arrow/csv/reader.cc#L931
+            auto offset = streamingReader->bytes_read();
+            PARQUET_THROW_NOT_OK(streamingReader->ReadNext(&batch));
+            if (!batch) {
+                break;
+            }
+            RowCount_ += batch->num_rows();
+            MaxDataBlockSize_ = std::max(MaxDataBlockSize_, streamingReader->bytes_read() - offset);
+            Blocks_.push_back({.Offset = offset, .RowCount = batch->num_rows()});
+            // This may error as it is not as flexible as the type inference inside the batches, but we are willing to take the risk.
+            // Might improve later.
+            Schema_ = MergeTableSchemas(Schema_, NArrow::CreateYTTableSchemaFromArrowSchema(batch->schema()));
+        }
+        Blocks_.push_back({.Offset = GetUnderlyingFileSize(), .RowCount = 0});
+    }
+
+    i64 GetRowCount() const override
+    {
+        return RowCount_;
+    }
+
+    i64 GetMaxDataBlockSize() const override
+    {
+        return MaxDataBlockSize_;
+    }
+
+    TTableSchemaPtr GetChunkSchema() const override
+    {
+        return Schema_;
+    }
+
+    void FillBlocksExt(NProto::TBlocksExt& ext) override
+    {
+        for (size_t i = 1; i < Blocks_.size(); i++) {
+            auto& block = Blocks_[i - 1];
+            auto blockInfo = ext.add_blocks();
+            blockInfo->set_size(Blocks_[i].Offset - block.Offset);
+            blockInfo->set_offset(block.Offset);
+            blockInfo->set_checksum(NullChecksum);
+        }
+    }
+
+    void FillDataBlockMetaExt(NTableClient::NProto::TDataBlockMetaExt& ext) override
+    {
+        i64 chunkRowCount = 0;
+        for (size_t i = 1; i < Blocks_.size(); i++) {
+            auto& block = Blocks_[i - 1];
+            auto dataBlockMeta = ext.add_data_blocks();
+            dataBlockMeta->set_block_index(i - 1);
+            dataBlockMeta->set_uncompressed_size(Blocks_[i].Offset - block.Offset);
+            dataBlockMeta->set_row_count(block.RowCount);
+            dataBlockMeta->set_chunk_row_count(chunkRowCount += block.RowCount);
+        }
     }
 };
 
@@ -333,42 +410,36 @@ private:
 };
 
 class TCsvChunkMetaGenerator
-    : public TSingleBlockArrowTableChunkMetaGeneratorBase
+    : public TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow::csv::StreamingReader>
 {
 public:
     TCsvChunkMetaGenerator(std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
-        : TSingleBlockArrowTableChunkMetaGeneratorBase(
+        : TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow::csv::StreamingReader>(
             EChunkFormat::TableUnversionedArrowCsv,
             std::move(chunkFile))
     { }
 
-private:
-    std::shared_ptr<arrow::Table> ArrowTable_;
-
+protected:
     void Prepare() override
     {
-        // `TableReader::Read()` is blocking the thread executing the fiber, so we hide this in a new one.
-        // `TableReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
+        // `StreamingReader::ReadNext()` is blocking the thread executing the fiber, so we hide this in a new one.
+        // `StreamingReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
         auto actionQueue = New<TActionQueue>("TCsvChunkMetaGenerator");
-        PARQUET_ASSIGN_OR_THROW(ArrowTable_, (WaitFor(BIND(([chunkFile = ChunkFile_]() {
+        WaitFor(BIND(([this_ = MakeStrong(this), this]() {
             PARQUET_ASSIGN_OR_THROW(
-                auto csvReader,
-                arrow::csv::TableReader::Make(
+                auto streamingReader,
+                arrow::csv::StreamingReader::Make(
                     arrow::io::IOContext(arrow::default_memory_pool()),
-                    chunkFile,
+                    ChunkFile_,
                     arrow::csv::ReadOptions::Defaults(),
                     arrow::csv::ParseOptions::Defaults(),
                     arrow::csv::ConvertOptions::Defaults()));
-            return csvReader->Read();
+            // Continues the initialization in another thread, which is fine as the access is exclusive.
+            PrepareFromStreamingReader(streamingReader);
         }))
             .AsyncVia(actionQueue->GetInvoker())
             .Run())
-            .ValueOrThrow()));
-    }
-
-    std::shared_ptr<arrow::Table> GetArrowTable() const override
-    {
-        return ArrowTable_;
+            .ThrowOnError();
     }
 };
 
@@ -385,7 +456,7 @@ public:
 private:
     std::unique_ptr<parquet::arrow::FileReader> ArrowParquetFileReader_;
     std::shared_ptr<parquet::FileMetaData> ParquetFileMeta_;
-    std::shared_ptr<arrow::Schema> ArrowSchema_;
+    TTableSchemaPtr Schema_;
     std::vector<i64> RowGroupOffsets_;
     i64 MaxRowGroupSize_ = 0;
 
@@ -411,7 +482,9 @@ private:
     {
         PARQUET_THROW_NOT_OK(parquet::arrow::OpenFile(ChunkFile_, arrow::default_memory_pool(), &ArrowParquetFileReader_));
         ParquetFileMeta_ = ArrowParquetFileReader_->parquet_reader()->metadata();
-        PARQUET_THROW_NOT_OK(ArrowParquetFileReader_->GetSchema(&ArrowSchema_));
+        std::shared_ptr<arrow::Schema> arrowSchema;
+        PARQUET_THROW_NOT_OK(ArrowParquetFileReader_->GetSchema(&arrowSchema));
+        Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(arrowSchema);
 
         RowGroupOffsets_.reserve(ParquetFileMeta_->num_row_groups() + 1);
 
@@ -466,9 +539,9 @@ private:
         return MaxRowGroupSize_;
     }
 
-    std::shared_ptr<arrow::Schema> GetArrowSchema() const override
+    TTableSchemaPtr GetChunkSchema() const override
     {
-        return ArrowSchema_;
+        return Schema_;
     }
 
     void FillBlocksExt(NProto::TBlocksExt& ext) override

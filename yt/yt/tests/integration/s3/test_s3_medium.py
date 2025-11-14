@@ -2245,6 +2245,22 @@ class TestAttachTable(TestAttachTableBase):
         with pytest.raises(YtError, match="CSV parse error"):
             attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]), medium=self.get_s3_medium_name())
 
+    @authors("faucct")
+    @pytest.mark.parametrize("count,max_block_size", [
+        (1 << 15, 185_498),
+        (1 << 16, 382_106),
+        (1 << 17, 806_394),
+        (1 << 18, 1_048_573),
+        (1 << 19, 1_048_579),
+    ])
+    def test_csv_blocks(self, count, max_block_size):
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=f'c\n{'\n'.join(builtins.map(str, range(count)))}\n'.encode())
+        chunk_info, = attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]), medium=self.get_s3_medium_name())["chunk_infos"]
+
+        assert_items_equal([row["c"] for row in read_table("//tmp/imported", verbose=False)], list(range(count)))
+        assert get(f"//sys/chunks/{chunk_info["chunk_id"]}/@max_block_size") == max_block_size
+
     @authors("achulkov2_forgot_to_lock_laptop")
     def test_invalid_parquet(self):
         bucket = self.get_s3_medium_bucket()

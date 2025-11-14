@@ -494,25 +494,31 @@ void CreateArrowTableForJson(
     PARQUET_ASSIGN_OR_THROW(*table, jsonReader->Read());
 }
 
-void CreateArrowTableForCsv(
+std::shared_ptr<arrow::RecordBatchReader> CreateArrowTableForCsv(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& /*dataBlockMeta*/,
-    const TColumnarChunkMetaPtr& /*chunkMeta*/,
-    std::shared_ptr<arrow::Table>* table)
+    const TColumnarChunkMetaPtr& chunkMeta)
 {
-    PARQUET_ASSIGN_OR_THROW(auto reader, arrow::csv::TableReader::Make(
+    auto readOptions = arrow::csv::ReadOptions::Defaults();
+    for (auto& columnName : chunkMeta->ChunkSchema()->GetColumnNames()) {
+        readOptions.column_names.push_back(columnName);
+    }
+    if (readOptions.column_names.empty()) {
+        readOptions.autogenerate_column_names = true;
+    }
+    PARQUET_ASSIGN_OR_THROW(auto reader, arrow::csv::StreamingReader::Make(
         arrow::io::IOContext(arrow::default_memory_pool()),
         std::make_shared<arrow::io::BufferReader>(
             reinterpret_cast<const uint8_t*>(block.Data()),
             block.Size()),
-        arrow::csv::ReadOptions::Defaults(),
+        readOptions,
         arrow::csv::ParseOptions::Defaults(),
         arrow::csv::ConvertOptions::Defaults()
     ));
-    PARQUET_ASSIGN_OR_THROW(*table, reader->Read());
+    return reader;
 }
 
-std::shared_ptr<arrow::Table> CreateArrowTable(
+std::shared_ptr<arrow::RecordBatchReader> CreateArrowRecordBatchReader(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& dataBlockMeta,
     const TColumnarChunkMetaPtr& chunkMeta,
@@ -527,13 +533,20 @@ std::shared_ptr<arrow::Table> CreateArrowTable(
             CreateArrowTableForJson(block, dataBlockMeta, chunkMeta, &table);
             break;
         case EChunkFormat::TableUnversionedArrowCsv:
-            CreateArrowTableForCsv(block, dataBlockMeta, chunkMeta, &table);
-            break;
+            return CreateArrowTableForCsv(block, dataBlockMeta, chunkMeta);
         default:
             YT_ABORT();
     }
 
-    return table;
+    // This class makes sure that the `arrow::Table` is alive during interactions with `arrow::TableBatchReader`.
+    struct TableBatchReader
+    {
+        std::shared_ptr<arrow::Table> Table;
+        arrow::TableBatchReader Reader{*Table};
+    };
+
+    auto reader = std::make_shared<TableBatchReader>(std::move(table));
+    return std::shared_ptr<arrow::RecordBatchReader>(reader, &reader->Reader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,19 +582,17 @@ TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
     // TODO(achulkov2): Check that there are no hunk columns in the block. Or in the decoded values!
     // TODO(achulkov2): Throw when reading sorted chunks (for now).
 
-    std::shared_ptr<arrow::Table> table = CreateArrowTable(
+    auto batchReader = CreateArrowRecordBatchReader(
         Block_,
         DataBlockMeta_,
         ChunkMeta_,
         ChunkMeta_->GetChunkFormat());
 
-    arrow::TableBatchReader batchReader(*table);
-
     TCollectingValueConsumer consumer(ChunkMeta_->ChunkNameTable(), ChunkMeta_->ChunkSchema());
 
     std::shared_ptr<arrow::RecordBatch> batch;
     while (true) {
-        PARQUET_THROW_NOT_OK(batchReader.ReadNext(&batch));
+        PARQUET_THROW_NOT_OK(batchReader->ReadNext(&batch));
 
         if (!batch) {
             break;
