@@ -2,7 +2,7 @@ import sys
 import warnings
 
 from _pytest._io import TerminalWriter
-from pytest import PytestWarning
+from pytest import PytestWarning  # noqa:PT013
 
 
 class PytestBenchmarkWarning(PytestWarning):

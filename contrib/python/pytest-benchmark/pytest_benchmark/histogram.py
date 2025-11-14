@@ -49,7 +49,7 @@ def make_plot(benchmarks, title, adjustment):
     maximum = int(max(min(row['max'], row['hd15iqr']) * adjustment for row in benchmarks) + 1)
 
     try:
-        import pygaljs
+        import pygaljs  # noqa: PLC0415
     except ImportError:
         opts = {}
     else:

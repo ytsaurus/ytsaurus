@@ -6,22 +6,16 @@ import platform
 import re
 import subprocess
 import sys
-import types
 from datetime import datetime
 from datetime import timezone
 from decimal import Decimal
 from functools import partial
-from os.path import basename
-from os.path import dirname
-from os.path import exists
-from os.path import join
 from os.path import split
+from pathlib import Path
 from subprocess import CalledProcessError
 from subprocess import check_output
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
-
-from .compat import PY311
 
 TIME_UNITS = {'': 'Seconds', 'm': 'Milliseconds (ms)', 'u': 'Microseconds (us)', 'n': 'Nanoseconds (ns)'}
 ALLOWED_COLUMNS = ['min', 'max', 'mean', 'stddev', 'median', 'iqr', 'ops', 'outliers', 'rounds', 'iterations']
@@ -94,7 +88,7 @@ class Fallback:
 
 @partial(Fallback, exceptions=(IndexError, CalledProcessError, OSError))
 def get_project_name():
-    return basename(os.getcwd())
+    return Path.cwd().name
 
 
 @get_project_name.register
@@ -120,11 +114,11 @@ def get_project_name_hg():
 def in_any_parent(name, path=None):
     prev = None
     if not path:
-        path = os.getcwd()
-    while path and prev != path and not exists(join(path, name)):
+        path = Path.cwd()
+    while path and prev != path and not path.joinpath(name).exists():
         prev = path
-        path = dirname(path)
-    return exists(join(path, name))
+        path = path.parent
+    return path.joinpath(name).exists()
 
 
 def subprocess_output(cmd):
@@ -211,7 +205,7 @@ def load_timer(string):
         raise argparse.ArgumentTypeError("Value for --benchmark-timer must be in dotted form. Eg: 'module.attr'.")
     mod, attr = string.rsplit('.', 1)
     if mod == 'pep418':
-        import time
+        import time  # noqa: PLC0415
 
         return NameWrapper(getattr(time, attr))
     else:
@@ -247,9 +241,7 @@ class DifferenceRegressionCheck(RegressionCheck):
 def parse_compare_fail(
     string,
     rex=re.compile(
-        r'^(?P<field>min|max|mean|median|stddev|iqr):'
-        r'((?P<percentage>[0-9]?[0-9])%|(?P<difference>[0-9]*\.?[0-9]+([eE][-+]?['
-        r'0-9]+)?))$'
+        r'^(?P<field>min|max|mean|median|stddev|iqr):' r'((?P<percentage>[0-9]+)%|(?P<difference>[0-9]*\.?[0-9]+([eE][-+]?[' r'0-9]+)?))$'
     ),
 ):
     m = rex.match(string)
@@ -391,9 +383,9 @@ def parse_save(string):
 
 def _parse_hosts(storage_url, netrc_file):
     # load creds from netrc file
-    path = os.path.expanduser(netrc_file)
+    path = Path(netrc_file).expanduser()
     creds = None
-    if netrc_file and os.path.isfile(path):
+    if netrc_file and path.is_file():
         creds = netrc.netrc(path)
 
     # add creds to urls
@@ -434,17 +426,17 @@ def load_storage(storage, **kwargs):
         storage = 'file://' + storage
     netrc_file = kwargs.pop('netrc')  # only used by elasticsearch storage
     if storage.startswith('file://'):
-        from .storage.file import FileStorage
+        from .storage.file import FileStorage  # noqa: PLC0415
 
         return FileStorage(storage[len('file://') :], **kwargs)
     elif storage.startswith('elasticsearch+'):
-        from .storage.elasticsearch import ElasticsearchStorage
+        from .storage.elasticsearch import ElasticsearchStorage  # noqa: PLC0415
 
         # TODO update benchmark_autosave
         args = parse_elasticsearch_storage(storage[len('elasticsearch+') :], netrc_file=netrc_file)
         return ElasticsearchStorage(*args, **kwargs)
     else:
-        raise argparse.ArgumentTypeError('Storage must be in form of file://path or ' 'elasticsearch+http[s]://host1,host2/index/doctype')
+        raise argparse.ArgumentTypeError('Storage must be in form of file://path or elasticsearch+http[s]://host1,host2/index/doctype')
 
 
 def time_unit(value):
@@ -493,49 +485,16 @@ def funcname(f):
         return str(f)
 
 
-# from: https://bitbucket.org/antocuni/pypytools/src/tip/pypytools/util.py?at=default
 def clonefunc(f):
-    """Deep clone the given function to create a new one.
-
-    By default, the PyPy JIT specializes the assembler based on f.__code__:
-    clonefunc makes sure that you will get a new function with a **different**
-    __code__, so that PyPy will produce independent assembler. This is useful
-    e.g. for benchmarks and microbenchmarks, so you can make sure to compare
-    apples to apples.
-
-    Use it with caution: if abused, this might easily produce an explosion of
-    produced assembler.
     """
-    # first of all, we clone the code object
-    if not hasattr(f, '__code__'):
-        return f
-    co = f.__code__
-    args = [
-        co.co_argcount,
-        co.co_posonlyargcount,
-        co.co_kwonlyargcount,
-        co.co_nlocals,
-        co.co_stacksize,
-        co.co_flags,
-        co.co_code,
-        co.co_consts,
-        co.co_names,
-        co.co_varnames,
-        co.co_filename,
-        co.co_name,
-        co.co_firstlineno,
-        co.co_lnotab,
-        co.co_freevars,
-        co.co_cellvars,
-    ]
-    if PY311:
-        args.insert(12, co.co_qualname)
-        args.insert(15, co.co_exceptiontable)
-    co2 = types.CodeType(*args)
-    #
-    # then, we clone the function itself, using the new co2
-    f2 = types.FunctionType(co2, f.__globals__, f.__name__, f.__defaults__, f.__closure__)
-    return f2
+    This used to be a slightly improved version of clonefunc from https://github.com/antocuni/pypytools/blob/master/pypytools/util.py
+
+    It was supposed to make a copy of the function with a new code object so PyPy creates fresh JIT compilation for the given function,
+    however, it has proven difficult to maintain and to even prove that it does what it supposed to do without breaking something.
+
+    Now it simply does nothing - it returns the input function.
+    """
+    return f
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -584,7 +543,7 @@ def get_cprofile_functions(stats):
     """
     result = []
     # this assumes that you run py.test from project root dir
-    project_dir_parent = dirname(os.getcwd())
+    project_dir_parent = str(Path.cwd().parent)
 
     for function_info, run_info in stats.stats.items():
         file_path = function_info[0]

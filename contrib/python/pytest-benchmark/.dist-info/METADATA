@@ -1,50 +1,47 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: pytest-benchmark
-Version: 5.1.0
+Version: 5.2.0
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
-Home-page: https://github.com/ionelmc/pytest-benchmark
-Author: Ionel Cristian Mărieș
-Author-email: contact@ionelmc.ro
-License: BSD-2-Clause
+Author-email: Ionel Cristian Mărieș <contact@ionelmc.ro>
+License-Expression: BSD-2-Clause
+Project-URL: Sources, https://github.com/ionelmc/pytest-benchmark
 Project-URL: Documentation, https://pytest-benchmark.readthedocs.io/
 Project-URL: Changelog, https://pytest-benchmark.readthedocs.io/en/latest/changelog.html
 Project-URL: Issue Tracker, https://github.com/ionelmc/pytest-benchmark/issues
 Keywords: pytest,benchmark
 Classifier: Development Status :: 5 - Production/Stable
-Classifier: Framework :: Pytest
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: BSD License
 Classifier: Operating System :: Unix
 Classifier: Operating System :: POSIX
 Classifier: Operating System :: Microsoft :: Windows
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
-Classifier: Topic :: Software Development :: Testing
-Classifier: Topic :: System :: Benchmark
 Classifier: Topic :: Utilities
 Requires-Python: >=3.9
+Description-Content-Type: text/x-rst
 License-File: LICENSE
-License-File: AUTHORS.rst
-Requires-Dist: pytest >=8.1
+Requires-Dist: pytest>=8.1
 Requires-Dist: py-cpuinfo
-Requires-Dist: statistics ; python_version < "3.4"
-Requires-Dist: pathlib2 ; python_version < "3.4"
 Provides-Extra: aspect
-Requires-Dist: aspectlib ; extra == 'aspect'
-Provides-Extra: elasticsearch
-Requires-Dist: elasticsearch ; extra == 'elasticsearch'
+Requires-Dist: aspectlib; extra == "aspect"
 Provides-Extra: histogram
-Requires-Dist: pygal ; extra == 'histogram'
-Requires-Dist: pygaljs ; extra == 'histogram'
-Requires-Dist: setuptools ; extra == 'histogram'
+Requires-Dist: pygal; extra == "histogram"
+Requires-Dist: pygaljs; extra == "histogram"
+Requires-Dist: setuptools; extra == "histogram"
+Provides-Extra: elasticsearch
+Requires-Dist: elasticsearch; extra == "elasticsearch"
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
 
 ========
 Overview
@@ -197,6 +194,28 @@ Credits
 
 Changelog
 =========
+
+5.2.0 (2025-10-30)
+------------------
+
+* Added support for a per-round ``teardown`` function to pedantic mode.
+  Contributed Patrick Winter by `#264 <https://github.com/ionelmc/pytest-benchmark/pull/264>`_.
+* Added ``--benchmark-time-unit`` option.
+  Contributed by Tony Kuo in `#281 <https://github.com/ionelmc/pytest-benchmark/pull/281>`_.
+* Fixed deprecated hook examples in docstrings.
+  Contributed by Ali-Akber Saifee in `#284 <https://github.com/ionelmc/pytest-benchmark/pull/284>`_.
+* Changed ``--benchmark-compare-fail`` to accept percentages higher than 100%.
+  Contributed by Ben Avrahami in `#280 <https://github.com/ionelmc/pytest-benchmark/pull/280>`_.
+* Added minimal typing support.
+  Contributed by Sorin Sbarnea in `#290 <https://github.com/ionelmc/pytest-benchmark/pull/290>`_.
+* Fixed support for Python 3.9.
+  Contributed by Enno Gotthold in `#291 <https://github.com/ionelmc/pytest-benchmark/pull/291>`_.
+* Replaced the complicated and broken code of ``pytest_benchmark.utils.clonefunc`` with a simple return of the input.
+  That function was supposed to allow benchmarking with the cost of PyPy JIT included but it's a hassle to maintain.
+* Moved the instrumentation pause outside the round loops (in addition to tracing, profiling is paused too).
+  Pedantic mode will keep doing this per round (as the user manually controls the round count).
+  This is necessary because in some scenarios setting and unsetting the tracer too much will overflow an internal counter
+  (found to cause "OverflowError: events set too many times" at least on Python 3.13).
 
 5.1.0 (2024-10-30)
 ------------------

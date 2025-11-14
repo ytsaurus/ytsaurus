@@ -60,7 +60,7 @@ def add_display_options(addoption, prefix='benchmark-'):
         metavar='COL',
         type=parse_sort,
         default='min',
-        help="Column to sort on. Can be one of: 'min', 'max', 'mean', 'stddev', " "'name', 'fullname'. Default: %(default)r",
+        help="Column to sort on. Can be one of: 'min', 'max', 'mean', 'stddev', 'name', 'fullname'. Default: %(default)r",
     )
     addoption(
         f'--{prefix}group-by',
@@ -84,6 +84,13 @@ def add_display_options(addoption, prefix='benchmark-'):
         type=parse_name_format,
         default='normal',
         help="How to format names in results. Can be one of 'short', 'normal', 'long', or 'trial'. Default: %(default)r",
+    )
+    addoption(
+        f'--{prefix}time-unit',
+        metavar='COLUMN',
+        default=None,
+        choices=['ns', 'us', 'ms', 's', 'auto'],
+        help="Unit to scale the results to. Available units: 'ns', 'us', 'ms', 's'. Default: 'auto'.",
     )
 
 
@@ -110,7 +117,7 @@ def add_csv_options(addoption, prefix='benchmark-'):
         nargs='?',
         default=[],
         const=filename_prefix,
-        help='Save a csv report. If FILENAME contains' f" slashes ('/') then directories will be created. Default: {filename_prefix!r}",
+        help=f"Save a csv report. If FILENAME contains slashes ('/') then directories will be created. Default: {filename_prefix!r}",
     )
 
 
@@ -226,8 +233,7 @@ def pytest_addoption(parser):
         '--benchmark-enable',
         action='store_true',
         default=False,
-        help='Forcibly enable benchmarks. Use this option to override --benchmark-disable (in case you have it in '
-        'pytest configuration).',
+        help='Forcibly enable benchmarks. Use this option to override --benchmark-disable (in case you have it in pytest configuration).',
     )
     group.addoption('--benchmark-only', action='store_true', default=False, help='Only run benchmarks. This overrides --benchmark-skip.')
     group.addoption('--benchmark-save', metavar='NAME', type=parse_save, help="Save the current run into 'STORAGE-PATH/counter_NAME.json'.")
@@ -241,13 +247,13 @@ def pytest_addoption(parser):
     group.addoption(
         '--benchmark-save-data',
         action='store_true',
-        help='Use this to make --benchmark-save and --benchmark-autosave include all the timing data,' ' not just the stats.',
+        help='Use this to make --benchmark-save and --benchmark-autosave include all the timing data, not just the stats.',
     )
     group.addoption(
         '--benchmark-json',
         metavar='PATH',
         type=argparse.FileType('wb'),
-        help='Dump a JSON report into PATH. ' 'Note that this will include the complete data (all the timings, not just the stats).',
+        help='Dump a JSON report into PATH. Note that this will include the complete data (all the timings, not just the stats).',
     )
     group.addoption(
         '--benchmark-compare',
@@ -255,7 +261,7 @@ def pytest_addoption(parser):
         nargs='?',
         default=[],
         const=True,
-        help='Compare the current run against run NUM (or prefix of _id in elasticsearch) or the latest ' 'saved run if unspecified.',
+        help='Compare the current run against run NUM (or prefix of _id in elasticsearch) or the latest saved run if unspecified.',
     )
     group.addoption(
         '--benchmark-compare-fail',
@@ -298,20 +304,13 @@ def pytest_addoption(parser):
         help='Save cprofile dumps as FILENAME-PREFIX-test_name.prof. If FILENAME-PREFIX contains'
         f" slashes ('/') then directories will be created. Default: {cprofile_dump_prefix!r}",
     )
-    group.addoption(
-        '--benchmark-time-unit',
-        metavar='COLUMN',
-        default=None,
-        choices=['ns', 'us', 'ms', 's', 'auto'],
-        help="Unit to scale the results to. Available units: 'ns', 'us', 'ms', 's'. Default: 'auto'.",
-    )
     add_global_options(group.addoption)
     add_display_options(group.addoption)
     add_histogram_options(group.addoption)
 
 
 def pytest_addhooks(pluginmanager):
-    from . import hookspec
+    from . import hookspec  # noqa: PLC0415
 
     method = getattr(pluginmanager, 'add_hookspecs', None)
     if method is None:
@@ -389,7 +388,7 @@ def pytest_terminal_summary(terminalreporter):
 
 
 def get_cpu_info():
-    import cpuinfo
+    import cpuinfo  # noqa: PLC0415
 
     return cpuinfo.get_cpu_info() or {}
 
@@ -420,9 +419,9 @@ def pytest_benchmark_generate_machine_info():
     python_implementation = platform.python_implementation()
     python_implementation_version = platform.python_version()
     if python_implementation == 'PyPy':
-        python_implementation_version = '%d.%d.%d' % sys.pypy_version_info[:3]
+        python_implementation_version = '%d.%d.%d' % sys.pypy_version_info[:3]  # noqa:UP031
         if sys.pypy_version_info.releaselevel != 'final':
-            python_implementation_version += '-%s%d' % sys.pypy_version_info[3:]
+            python_implementation_version += '-%s%d' % sys.pypy_version_info[3:]  # noqa:UP031
     return {
         'node': platform.node(),
         'processor': platform.processor(),
