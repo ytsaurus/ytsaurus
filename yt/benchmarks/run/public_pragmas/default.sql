@@ -41,6 +41,7 @@ pragma yt.JobBlockTableContent;
 pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
 pragma CostBasedOptimizer="native";
+pragma CostBasedOptimizerVersion="1";
 pragma FilterPushdownOverJoinOptionalSide;
 pragma yt.TableContentMinAvgChunkSize="0";
 pragma yt.TemporaryCompressionCodec="zstd_1";
