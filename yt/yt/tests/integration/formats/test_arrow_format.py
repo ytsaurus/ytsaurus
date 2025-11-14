@@ -352,6 +352,56 @@ class TestArrowFormat(YTEnvSetup):
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
 
+    @authors("nadya02")
+    def test_any_arrow(self, optimize_for):
+        schema = [
+            {"name": "any_column", "type_v3": optional_type("yson")}
+        ]
+        create("table", "//tmp/table1", attributes={"schema": schema, "optimize_for": optimize_for})
+        write_table(
+            "//tmp/table1",
+            [
+                {
+                    "any_column": "firstString",
+                },
+                {
+                    "any_column": "secondString",
+                },
+            ],
+        )
+
+        arrow_dump = read_table("//tmp/table1", output_format=ARROW_FORMAT)
+
+        create("table", "//tmp/table2", attributes={"schema": schema})
+        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
+
+        assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("nadya02")
+    def test_string_and_any_arrow(self, optimize_for):
+        schema = [
+            {"name": "any_column", "type_v3": "string"}
+        ]
+        create("table", "//tmp/table1", attributes={"schema": schema, "optimize_for": optimize_for})
+        write_table(
+            "//tmp/table1",
+            [
+                {
+                    "any_column": "firstString",
+                },
+                {
+                    "any_column": "secondString",
+                },
+            ],
+        )
+
+        arrow_dump = read_table("//tmp/table1", output_format=ARROW_FORMAT)
+
+        create("table", "//tmp/table2")
+        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
+
+        assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
     @authors("max42")
     def test_write_arrow_decimal(self, optimize_for):
         schema = [
@@ -597,6 +647,35 @@ class TestMapArrowFormat(YTEnvSetup):
             assert row_batch_count > 0 and columnar_batch_count == 0
 
     @authors("nadya02")
+    def test_map_any_arrow(self, optimize_for):
+        schema = [
+            {"name": "any_column", "type_v3": optional_type("yson")}
+        ]
+        create("table", "//tmp/table1", attributes={"schema": schema, "optimize_for": optimize_for})
+        write_table(
+            "//tmp/table1",
+            [
+                {
+                    "any_column": "firstString",
+                },
+                {
+                    "any_column": "secondString",
+                },
+            ],
+        )
+
+        create("table", "//tmp/t_out")
+
+        map(
+            in_="//tmp/table1",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"mapper": {"format": ARROW_FORMAT}},
+        )
+
+        assert read_table("//tmp/table1") == read_table("//tmp/t_out")
+
+    @authors("nadya02")
     def test_map_with_arrow(self, optimize_for):
         schema = [
             {"name": "int", "type_v3": "int64"},
@@ -670,6 +749,54 @@ class TestMapArrowFormat(YTEnvSetup):
             assert row_batch_count == 0 and columnar_batch_count > 0
         else:
             assert row_batch_count > 0 and columnar_batch_count == 0
+
+    @authors("nadya02")
+    def test_map_without_schema(self, optimize_for):
+        schema = [
+            {"name": "int", "type_v3": "int64"},
+            {"name": "string", "type_v3": "string"},
+            {"name": "utf8", "type_v3": "utf8"},
+            {"name": "bool", "type_v3": "bool"},
+        ]
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": schema,
+                "optimize_for": optimize_for,
+            },
+            force=True,
+        )
+
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int": 53,
+                    "string": "foobar",
+                    "utf8": HELLO_WORLD.decode("utf-8"),
+                    "bool": True,
+                },
+                {
+                    "int": -82,
+                    "string": "aaaaa",
+                    "utf8": GOODBYE_WORLD.decode("utf-8"),
+                    "bool": False,
+                },
+            ],
+        )
+
+        create("table", "//tmp/t_out")
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"mapper": {"format": ARROW_FORMAT}},
+        )
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
     @authors("nadya02")
     def test_multi_table(self, optimize_for):
