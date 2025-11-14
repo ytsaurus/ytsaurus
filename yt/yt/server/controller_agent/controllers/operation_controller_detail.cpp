@@ -2229,8 +2229,6 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     YT_LOG_INFO("Committing output completion transaction and setting committed attribute (TransactionId: %v)",
         outputCompletionTransactionId);
 
-    auto setCommittedViaCypressTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
-
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
         TStringBuf attribute,
@@ -2254,45 +2252,24 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         GetOperationPath(OperationId_),
         IdAttributeName,
         outputCompletionTransactionId);
-    if (setCommittedViaCypressTransactionAction && OutputCompletionTransaction_) {
-        // NB: Transaction action cannot be executed on node's native cell
-        // directly because it leads to distributed transaction commit which
-        // cannot be done with prerequisites.
 
-        NNative::NProto::TReqSetAttributeOnTransactionCommit action;
-        ToProto(action.mutable_node_id(), operationCypressNodeId);
-        action.set_attribute(CommittedAttribute);
-        action.set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
+    auto proxy = CreateObjectServiceWriteProxy(Host_->GetClient());
 
-        auto transactionCoordinatorCellTag = CellTagFromId(OutputCompletionTransaction_->GetId());
-        auto connection = Client_->GetNativeConnection();
-        OutputCompletionTransaction_->AddAction(
-            connection->GetMasterCellId(transactionCoordinatorCellTag),
-            MakeTransactionActionData(action));
-    } else {
-        auto proxy = CreateObjectServiceWriteProxy(Host_->GetClient());
-
-        auto path = GetOperationPath(OperationId_) + "/@" + CommittedAttribute;
-        auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, outputCompletionTransactionId);
-        req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
-        WaitFor(proxy.Execute(req))
-            .ThrowOnError();
-    }
+    auto path = GetOperationPath(OperationId_) + "/@" + CommittedAttribute;
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, outputCompletionTransactionId);
+    req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
 
     if (OutputCompletionTransaction_) {
         // NB: Every set to `@committed` acquires lock which is promoted to
         // user's transaction on scheduler's transaction commit. To avoid this
         // we manually merge branched node and detach it from transaction.
 
-        std::optional<TTransactionId> parentTransactionId;
-        if (Config_->CommitOperationCypressNodeChangesViaSystemTransaction &&
-            !setCommittedViaCypressTransactionAction)
-        {
-            parentTransactionId = fetchAttributeAsObjectId(
-                FromObjectId(outputCompletionTransactionId),
-                ParentIdAttributeName);
-        }
+        auto parentTransactionId = fetchAttributeAsObjectId(
+            FromObjectId(outputCompletionTransactionId),
+            ParentIdAttributeName);
 
         TTransactionCommitOptions options;
         options.PrerequisiteTransactionIds.push_back(IncarnationIdToTransactionId(Host_->GetIncarnationId()));
@@ -2301,9 +2278,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
             .ThrowOnError();
         OutputCompletionTransaction_.Reset();
 
-        if (parentTransactionId) {
-            ManuallyMergeBranchedCypressNode(operationCypressNodeId, *parentTransactionId);
-        }
+        ManuallyMergeBranchedCypressNode(operationCypressNodeId, parentTransactionId);
 
         if (Config_->TestingOptions->AbortOutputTransactionAfterCompletionTransactionCommit) {
             TTransactionAbortOptions options;

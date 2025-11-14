@@ -1298,13 +1298,7 @@ struct TControllerAgentConfig
 
     THashSet<TString> NetworkProjectsAllowedForOffloading;
 
-    // COMPAT(kvk1920): Remove after all masters will be updated to 23.1.
-    bool SetCommittedAttributeViaTransactionAction;
-
     bool EnableNetworkInOperationDemand;
-
-    // COMPAT(kvk1920): Remove after all masters will be >= 23.3.
-    bool CommitOperationCypressNodeChangesViaSystemTransaction;
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
