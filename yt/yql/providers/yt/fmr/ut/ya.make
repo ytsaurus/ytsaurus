@@ -4,6 +4,8 @@ SRCS(
     yql_fmr_ut.cpp
 )
 
+SIZE(MEDIUM)
+
 PEERDIR(
     library/cpp/yson
     library/cpp/yson/node
