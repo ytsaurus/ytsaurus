@@ -49,4 +49,5 @@ type ConfigBase struct {
 	DebugLogin        string
 	BulkACLCheckerURL string
 	IncludedClusters  []*resourceusage.ClusterConfig
+	TokenEnvVariable  string
 }

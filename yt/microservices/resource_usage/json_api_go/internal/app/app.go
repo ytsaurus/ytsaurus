@@ -135,5 +135,6 @@ func (a *App) getResourceUsageConfig() *resourceusage.Config {
 		SnapshotRoot:                  ypath.Path(a.conf.SnapshotRoot),
 		ExcludedFields:                a.conf.ExcludedFields,
 		UpdateSnapshotsOnEveryRequest: a.conf.UpdateSnapshotsOnEveryRequest,
+		TokenEnvVariable:              a.conf.TokenEnvVariable,
 	}
 }
