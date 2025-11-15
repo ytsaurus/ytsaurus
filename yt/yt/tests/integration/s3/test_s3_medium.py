@@ -1181,13 +1181,38 @@ class TestAttachTable(TestAttachTableBase):
 
         attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
-        merge(in_="//tmp/imported", out="//tmp/merged")
+        merge(in_="//tmp/imported", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True})
         assert_items_equal(read_table("//tmp/merged"), records)
 
-        merge(in_="//tmp/imported{y}", out="//tmp/merged")
+        merge(in_="//tmp/imported{y}", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True})
         assert_items_equal(read_table("//tmp/merged"), [{"y": "b"}, {"y": "a"}])
 
-        merge(in_="//tmp/imported{x}", out="//tmp/merged")
+        merge(in_="//tmp/imported{x}", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True})
+        assert_items_equal(read_table("//tmp/merged"), [{"x": 1}, {"x": 2}])
+
+    @authors("faucct")
+    def test_attach_and_merge_with_columnar_statistics(self):
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
+            pytest.skip("This operation times out if no offshore node proxies are available")
+
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+        create("table", "//tmp/merged")
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+
+        merge(in_="//tmp/imported", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True, "use_columnar_statistics": True, "use_chunk_slice_statistics": False})
+        assert_items_equal(read_table("//tmp/merged"), records)
+
+        merge(in_="//tmp/imported{y}", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True, "use_columnar_statistics": True, "use_chunk_slice_statistics": False})
+        assert_items_equal(read_table("//tmp/merged"), [{"y": "b"}, {"y": "a"}])
+
+        merge(in_="//tmp/imported{x}", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True, "use_columnar_statistics": True, "use_chunk_slice_statistics": False})
         assert_items_equal(read_table("//tmp/merged"), [{"x": 1}, {"x": 2}])
 
     @authors("faucct")
