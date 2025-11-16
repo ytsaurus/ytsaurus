@@ -6,9 +6,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/timing.h>
-
-#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/net/public.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

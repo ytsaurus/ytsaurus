@@ -1,17 +1,14 @@
 #include "data_flow_graph.h"
 #include "live_preview.h"
 
-#include <yt/yt/server/controller_agent/virtual.h>
-
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
-#include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
@@ -20,18 +17,18 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <util/generic/cast.h>
+#include <yt/yt/core/misc/topological_ordering.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
-using namespace NYTree;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NLogging;
-using namespace NTableClient;
-using namespace NYson;
 using namespace NNodeTrackerClient;
 using namespace NServer;
+using namespace NTableClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +67,7 @@ TInputStreamDescriptor::TInputStreamDescriptor(TStreamDescriptorBase base)
 
 TInputStreamDescriptorPtr TInputStreamDescriptor::Clone() const
 {
-    return New<TInputStreamDescriptor>(static_cast<const TStreamDescriptorBase&>(*this));
+    return New<TInputStreamDescriptor>(*this);
 }
 
 void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
@@ -80,13 +77,9 @@ void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputStreamDescriptor::TOutputStreamDescriptor(TOutputStreamDescriptorBase base)
-    : TOutputStreamDescriptorBase(std::move(base))
-{ }
-
 TOutputStreamDescriptorPtr TOutputStreamDescriptor::Clone() const
 {
-    return New<TOutputStreamDescriptor>(static_cast<const TOutputStreamDescriptorBase&>(*this));
+    return New<TOutputStreamDescriptor>(*this);
 }
 
 void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
@@ -205,7 +198,7 @@ class TVertex
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, VertexDescriptor);
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
+    DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
     DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>());
     DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
 
@@ -298,11 +291,11 @@ private:
 
     void Initialize()
     {
-        using TEdgeMapService = NYTree::TCollectionBoundMapService<TEdgeMap>;
+        using TEdgeMapService = TCollectionBoundMapService<TEdgeMap>;
         auto edgeMapService = New<TEdgeMapService>(std::weak_ptr<TEdgeMap>(Edges_));
         edgeMapService->SetOpaque(false);
 
-        using TLivePreviewListService = NYTree::TCollectionBoundListService<TLivePreviewList>;
+        using TLivePreviewListService = TCollectionBoundListService<TLivePreviewList>;
         auto livePreviewService = New<TLivePreviewListService>(std::weak_ptr<TLivePreviewList>(LivePreviews_));
 
         auto service = New<TCompositeMapService>();
@@ -516,7 +509,7 @@ private:
 
     TNodeDirectoryPtr NodeDirectory_;
 
-    NYTree::IYPathServicePtr Service_;
+    IYPathServicePtr Service_;
 
     TSerializableLogger Logger;
 

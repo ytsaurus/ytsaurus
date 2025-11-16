@@ -104,7 +104,6 @@ public:
     virtual TVertexDescriptorList GetAllVertexDescriptors() const;
 
     const std::vector<TOutputStreamDescriptorPtr>& GetOutputStreamDescriptors() const;
-    const std::vector<TInputStreamDescriptorPtr>& GetInputStreamDescriptors() const;
 
     void SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> streamDescriptors);
 
