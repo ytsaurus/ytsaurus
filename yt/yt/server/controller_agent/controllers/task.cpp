@@ -117,11 +117,6 @@ const std::vector<TOutputStreamDescriptorPtr>& TTask::GetOutputStreamDescriptors
     return OutputStreamDescriptors_;
 }
 
-const std::vector<TInputStreamDescriptorPtr>& TTask::GetInputStreamDescriptors() const
-{
-    return InputStreamDescriptors_;
-}
-
 void TTask::SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> streamDescriptors)
 {
     InputStreamDescriptors_ = std::move(streamDescriptors);
