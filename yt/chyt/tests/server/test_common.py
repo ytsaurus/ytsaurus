@@ -2353,9 +2353,17 @@ class TestClickHouseCommon(ClickHouseTestBase):
             acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
-            clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
+            assert clique.make_query('select * from "//tmp/t"', user="u") == [{"key": 15, "value": "value2"}]
 
-            clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
+            assert clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
+
+            assert clique.make_query('select count(key) as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
+
+            # FIXME(coteeq): Should be 1.
+            # The issue with the bare `count()` is that its optimizer (quite unsurprisingly) runs
+            # before IStorageDistributed::read, so distributor had no chance to validate permissions.
+            # This is not a fundamental issue, just a current code architecture.
+            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 2}]
 
             with raises_yt_error("Cannot use ranges with row_index"):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
