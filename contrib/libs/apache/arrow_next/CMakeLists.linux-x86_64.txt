@@ -348,17 +348,11 @@ target_sources(libs-apache-arrow_next PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Tensor.fbs.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/feather.fbs.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/File.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/File.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Message.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Message.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Schema.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Schema.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/SparseTensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/SparseTensor.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Tensor.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Tensor.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/feather.fbs.h
-  ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/feather.iter.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/File.bfbs
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Message.bfbs
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/Schema.bfbs
