@@ -7,7 +7,7 @@ from yt.environment.init_queue_agent_state import run_migration, prepare_migrati
 
 from yt_commands import (alter_table_replica, authors, commit_transaction, generate_timestamp, get, get_batch_output,
                          get_driver, set, ls, wait, assert_yt_error, create, create_table_replica, sync_mount_table, insert_rows,
-                         delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
+                         delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows, retry_yt_error,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
@@ -6276,7 +6276,8 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         rows = [{"data": "x" * 30}]
-        insert_rows(queue_path, rows)
+        with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
+            insert_rows(queue_path, rows)
         sync_flush_table(queue_path)
 
         assert len(ls(export_dir)) == 0
