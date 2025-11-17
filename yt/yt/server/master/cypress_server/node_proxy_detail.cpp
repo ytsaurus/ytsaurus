@@ -2074,8 +2074,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ThrowCannotRemoveNode(sourceProxy);
     }
 
-    // The path may be invalidated by removal below; save it.
+    // The paths may be invalidated by removal below; save them.
     auto loggedSourcePath = YT_EVALUATE_FOR_ACCESS_LOG(sourceProxy->GetPath());
+    auto thisNodePath = YT_EVALUATE_FOR_ACCESS_LOG(GetPath());
 
     TNodeId clonedTrunkNodeId;
     CopyCore(
@@ -2100,7 +2101,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         loggedSourcePath,
         Transaction_,
         {{"destination_id", ToString(clonedTrunkNodeId)},
-         {"destination_path", GetPath()}},
+         {"destination_path", *thisNodePath}},
         mode == ENodeCloneMode::Move ? "Move" : "Copy");
 
     context->Reply();
