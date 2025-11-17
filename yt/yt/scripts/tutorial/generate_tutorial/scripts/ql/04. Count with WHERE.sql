@@ -1,0 +1,4 @@
+    sum(1) as count
+FROM [$nomenclature]
+WHERE first_appeared BETWEEN 1167598800000000 AND 1199134800000000
+GROUP BY 1

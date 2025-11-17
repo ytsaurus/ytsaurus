@@ -1,0 +1,21 @@
+image:
+  repository: ghcr.io/ytsaurus/tutorial
+  tag: "0.0.0"
+  pullPolicy: IfNotPresent
+
+tutorial:
+  secret:
+    name: "tutorialsecret"
+    value: "token"
+  args:
+    proxy: "your-ytsaurus.http.proxy.tech"
+    tokenEnvVariable: "YT_TOKEN"
+    ytDirectory: "//home/user/tutorial_tables"
+    nomenclatureCount: 5000
+    daysToGenerate: 14
+    desiredOrderSize: 3000
+    force: true
+    queryTrackerStage: "production"
+  replicaCount: 1
+  initJob:
+    backoffLimit: 2
