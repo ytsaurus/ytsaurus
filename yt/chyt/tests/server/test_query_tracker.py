@@ -385,7 +385,18 @@ class TestQueriesChyt(ClickHouseTestBase):
             query = """ SELECT * FROM `//tmp/t` WHERE NOT ignore(sleep(1));"""
             query = start_query("chyt", query, settings=settings)
             time.sleep(2)
-            query.abort()
+
+            retry_limit = 3
+            abort_attempt = 0
+            while abort_attempt < retry_limit:
+                try:
+                    query.abort()
+                except Exception:
+                    abort_attempt += 1
+                    time.sleep(0.3)
+                    continue
+                break
+            assert abort_attempt < retry_limit
 
             def match(row):
                 return row["initial_query_id"] == query.id and row["type"] != 'QueryStart'
