@@ -356,7 +356,7 @@ protected:
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
         bool processEmptyStripes = false,
-        const std::optional<NCrypto::TMD5Hash>& digest = std::nullopt);
+        const std::optional<NTableClient::TRowsDigest>& digest = std::nullopt);
 
     virtual void DoRegisterInGraph();
 
@@ -440,7 +440,7 @@ private:
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap_;
     std::map<TCookieAndPool, NChunkClient::TChunkId> LostIntermediateChunkCookieMap_;
-    std::map<TCookieAndPool, NCrypto::TMD5Hash> JobOutputHash_;
+    std::map<TCookieAndPool, std::pair<NTableClient::TRowsDigest, TJobId>> JobOutputRowsDigests_;
     int ReceivedDigestCount_ = 0;
 
     TSpeculativeJobManager SpeculativeJobManager_;
@@ -573,6 +573,11 @@ private:
     GetOutputCookieInfoForNextJob(const TAllocation& allocation);
 
     void ValidateJobSizeConstraints(const TJobletPtr& joblet) const;
+
+    void ValidateAndUpdateJobRowsDigest(
+        const TCookieAndPool& cookie,
+        const std::optional<NTableClient::TRowsDigest>& rowsDigest,
+        TJobId jobId);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);

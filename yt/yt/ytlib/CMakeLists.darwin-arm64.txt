@@ -62,8 +62,9 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  contrib-libs-re2
   contrib-libs-protobuf
+  contrib-libs-re2
+  contrib-libs-xxhash
   contrib-deprecated-yajl
   library-cpp-erasure
   library-cpp-iterator
@@ -533,6 +534,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_level_security.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/rows_digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_dictionary.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
@@ -1799,8 +1801,9 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  contrib-libs-re2
   contrib-libs-protobuf
+  contrib-libs-re2
+  contrib-libs-xxhash
   contrib-deprecated-yajl
   library-cpp-erasure
   library-cpp-iterator

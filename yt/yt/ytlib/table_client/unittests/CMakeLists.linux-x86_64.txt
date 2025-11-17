@@ -69,6 +69,7 @@ target_sources(unittester-ytlib-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/integer_column_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/meta_aggregating_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/null_column_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/rows_digest_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_blocks_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_chunks_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/schemaless_column_ut.cpp
