@@ -1237,15 +1237,14 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(31, UserJobMemoryMultiplier_);
     PHOENIX_REGISTER_FIELD(32, JobProxyMemoryMultiplier_);
 
-    PHOENIX_REGISTER_FIELD(33, JobOutputHash_,
+    PHOENIX_REGISTER_FIELD(33, JobOutputRowsDigests_,
         .template Serializer<
             TMapSerializer<
                 TTupleSerializer<TCookieAndPool, 2>,
-                TDefaultSerializer,
+                TTupleSerializer<std::pair<TRowsDigest, TJobId>, 2>,
                 TUnsortedTag
             >
-        >()
-        .SinceVersion(ESnapshotVersion::JobDeterminismValidation));
+        >());
 
     PHOENIX_REGISTER_FIELD(34, UnavailableNetworkBandwidthToClustersStartTime_,
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
@@ -2230,9 +2229,9 @@ void TTask::RegisterOutput(
                     dataSlice->GetSingleUnversionedChunk());
             }
 
-            std::optional<TMD5Hash> hash;
-            if (tableIndex < jobResultExt.output_digests_size()) {
-                FromProto(&hash, jobResultExt.output_digests()[tableIndex]);
+            std::optional<TRowsDigest> rowsDigest;
+            if (tableIndex < jobResultExt.output_digests_size() && jobResultExt.output_digests()[tableIndex].has_value()) {
+                rowsDigest.emplace(jobResultExt.output_digests()[tableIndex].value());
             }
 
             RegisterStripe(
@@ -2241,7 +2240,7 @@ void TTask::RegisterOutput(
                 joblet,
                 key,
                 processEmptyStripes,
-                hash);
+                rowsDigest);
         }
     }
 }
@@ -2279,7 +2278,7 @@ void TTask::RegisterStripe(
     TJobletPtr joblet,
     TChunkStripeKey key,
     bool processEmptyStripes,
-    const std::optional<TMD5Hash>& digest)
+    const std::optional<TRowsDigest>& rowsDigest)
 {
     if (stripe->DataSlices().empty() && !stripe->GetChunkListId()) {
         return;
@@ -2289,7 +2288,7 @@ void TTask::RegisterStripe(
         return;
     }
 
-    if (digest) {
+    if (rowsDigest) {
         ++ReceivedDigestCount_;
     }
 
@@ -2308,20 +2307,7 @@ void TTask::RegisterStripe(
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         TCookieAndPool outputCookie{joblet->OutputCookie, streamDescriptor->DestinationPool};
 
-        if (digest) {
-            auto digestIt = JobOutputHash_.find(outputCookie);
-            if (digestIt != JobOutputHash_.end() && digestIt->second != digest) {
-                TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
-                    TError("Restarted job produced dissimilar output; "
-                           "this may lead to inconsistent operation results; "
-                           "consider setting enable_intermediate_output_recalculation=%%false.")
-                        << TErrorAttribute("task_name", GetVertexDescriptor())
-                        << TErrorAttribute("job_id", joblet->JobId));
-            }
-            if (digestIt == JobOutputHash_.end()) {
-                JobOutputHash_.emplace(outputCookie, *digest);
-            }
-        }
+        ValidateAndUpdateJobRowsDigest(outputCookie, rowsDigest, joblet->JobId);
 
         auto lostIt = LostJobCookieMap_.find(outputCookie);
         if (lostIt == LostJobCookieMap_.end()) {
@@ -2381,6 +2367,43 @@ void TTask::RegisterStripe(
             destinationPool->AddWithKey(stripe, key);
         }
     }
+}
+
+void TTask::ValidateAndUpdateJobRowsDigest(
+    const TCookieAndPool& cookie,
+    const std::optional<TRowsDigest>& rowsDigest,
+    TJobId jobId)
+{
+    if (!rowsDigest.has_value()) {
+        return;
+    }
+
+    auto digestIt = JobOutputRowsDigests_.lower_bound(cookie);
+    if (digestIt == JobOutputRowsDigests_.end() || digestIt->first != cookie) {
+        JobOutputRowsDigests_.emplace_hint(digestIt, cookie, std::pair(*rowsDigest, jobId));
+        return;
+    }
+
+    auto [previousDigest, firstJobId] = digestIt->second;
+    if (previousDigest == *rowsDigest) {
+        YT_LOG_DEBUG(
+            "Received the same rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
+            jobId,
+            firstJobId);
+        return;
+    }
+
+    YT_LOG_DEBUG(
+        "Received dissimilar rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
+        jobId,
+        firstJobId);
+    TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
+        TError("Restarted job produced dissimilar output; "
+               "this may lead to inconsistent operation results; "
+               "consider setting enable_intermediate_output_recalculation=%%false.")
+            << TErrorAttribute("task_name", GetVertexDescriptor())
+            << TErrorAttribute("restarted_job_id", jobId)
+            << TErrorAttribute("first_job_id", firstJobId));
 }
 
 std::vector<TChunkStripePtr> TTask::BuildChunkStripes(

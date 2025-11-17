@@ -477,6 +477,7 @@ SRCS(
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
     table_client/row_level_security.cpp
+    table_client/rows_digest.cpp
     table_client/samples_fetcher.cpp
     table_client/schema_dictionary.cpp
     table_client/schema_inferer.cpp
@@ -771,8 +772,9 @@ ADDINCL(
 )
 
 PEERDIR(
-    contrib/libs/re2
     contrib/libs/protobuf
+    contrib/libs/re2
+    contrib/libs/xxhash
     contrib/deprecated/yajl
     library/cpp/erasure
     library/cpp/iterator

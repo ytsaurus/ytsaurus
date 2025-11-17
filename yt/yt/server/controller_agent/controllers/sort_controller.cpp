@@ -1050,9 +1050,9 @@ protected:
 
                 stripe->SetInputChunkPoolIndex(Controller_->SimpleSort_ ? 0 : joblet->InputStripeList->GetOutputChunkPoolIndex());
 
-                std::optional<TMD5Hash> outputDigest;
-                if (!jobResultExt.output_digests().empty()) {
-                    FromProto(&outputDigest, jobResultExt.output_digests()[0]);
+                std::optional<TRowsDigest> rowsDigest;
+                if (!jobResultExt.output_digests().empty() && jobResultExt.output_digests()[0].has_value()) {
+                    rowsDigest.emplace(jobResultExt.output_digests()[0].value());
                 }
 
                 RegisterStripe(
@@ -1061,7 +1061,7 @@ protected:
                     joblet,
                     TChunkStripeKey(),
                     /*processEmptyStripes*/ false,
-                    outputDigest);
+                    rowsDigest);
             }
 
             Controller_->CheckMergeStartThreshold();

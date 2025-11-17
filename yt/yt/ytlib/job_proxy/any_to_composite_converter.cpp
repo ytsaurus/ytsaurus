@@ -133,7 +133,7 @@ i64 TAnyToCompositeConverter::GetEncodedColumnarBatchCount() const
     return UnderlyingWriter_->GetEncodedColumnarBatchCount();
 }
 
-std::optional<TMD5Hash> TAnyToCompositeConverter::GetDigest() const
+std::optional<TRowsDigest> TAnyToCompositeConverter::GetDigest() const
 {
     return std::nullopt;
 }

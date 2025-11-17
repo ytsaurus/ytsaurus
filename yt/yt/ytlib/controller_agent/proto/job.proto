@@ -523,6 +523,11 @@ message TJobResultExt
         required NYT.NProto.TGuid output_hunk_chunk_id = 2;
     }
 
+    message TRowsDigest
+    {
+        optional uint64 value = 1;
+    }
+
     // List of output chunks produced by the job.
     // NB: Only filled when necessary.
     repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
@@ -559,11 +564,11 @@ message TJobResultExt
     optional bool has_stderr = 21;
     optional bool has_fail_context = 22;
 
-    // MD5 digest for each output table.
-    // May be empty for some tables, e.g. if the table is not intermediate.
-    repeated NYT.NCrypto.NProto.TMD5Hash output_digests = 23;
-
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 24;
+
+    repeated TRowsDigest output_digests = 25;
+
+    reserved 23;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
