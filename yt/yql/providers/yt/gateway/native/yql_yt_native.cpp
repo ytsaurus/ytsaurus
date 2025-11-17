@@ -2645,7 +2645,7 @@ private:
         if ((EYtWriteMode::Append == mode || EYtWriteMode::RenewKeepMeta == mode) && !exists) {
             mode = EYtWriteMode::Renew;
         }
-        if (isAnonymous) {Upsert          /* "upsert" */,
+        if (isAnonymous) {
             entry->DeleteAtFinalize(dstPath);
         }
 
