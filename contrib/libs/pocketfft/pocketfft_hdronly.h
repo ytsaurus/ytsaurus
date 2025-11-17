@@ -7,7 +7,7 @@ Copyright (C) 2019-2020 Peter Bell
 For the odd-sized DCT-IV transforms:
   Copyright (C) 2003, 2007-14 Matteo Frigo
   Copyright (C) 2003, 2007-14 Massachusetts Institute of Technology
-  
+
 For the prev_good_size search:
   Copyright (C) 2024 Tan Ping Liang, Peter Bell
 
@@ -217,8 +217,8 @@ template<typename T> class arr
 
   public:
     arr() : p(0), sz(0) {}
-    arr(size_t n) : p(ralloc(n)), sz(n) {}
-    arr(arr &&other)
+    explicit arr(size_t n) : p(ralloc(n)), sz(n) {}
+    arr(arr &&other) noexcept
       : p(other.p), sz(other.sz)
       { other.p=nullptr; other.sz=0; }
     ~arr() { dealloc(p); }
@@ -242,7 +242,7 @@ template<typename T> class arr
 
 template<typename T> struct cmplx {
   T r, i;
-  cmplx() {}
+  cmplx() = default;
   cmplx(T r_, T i_) : r(r_), i(i_) {}
   void Set(T r_, T i_) { r=r_; i=i_; }
   void Set(T r_) { r=r_; i=T(0); }
@@ -345,7 +345,7 @@ template<typename T> class sincos_2pibyn
       }
 
   public:
-    POCKETFFT_NOINLINE sincos_2pibyn(size_t n)
+    POCKETFFT_NOINLINE explicit sincos_2pibyn(size_t n)
       : N(n)
       {
       constexpr auto pi = 3.141592653589793238462643383279502884197L;
@@ -421,7 +421,7 @@ struct util // hack to avoid duplicate symbols
       if (sizeof(UIntT)<sizeof(std::uint64_t))
         {
         // We can try using this algorithm with 64-bit integers:
-        std::uint64_t res = good_size_cmplx_typed<std::uint64_t>(n);
+        auto res = good_size_cmplx_typed<std::uint64_t>(n);
         if (res<=std::numeric_limits<UIntT>::max())
           return static_cast<UIntT>(res);
         }
@@ -537,7 +537,7 @@ struct util // hack to avoid duplicate symbols
       if (sizeof(UIntT)<sizeof(std::uint64_t))
       {
         // We can try using this algorithm with 64-bit integers:
-        std::uint64_t res = prev_good_size_cmplx_typed<std::uint64_t>(n);
+        auto res = prev_good_size_cmplx_typed<std::uint64_t>(n);
         if (res<=std::numeric_limits<UIntT>::max())
           return static_cast<UIntT>(res);
       }
@@ -553,12 +553,12 @@ struct util // hack to avoid duplicate symbols
           UIntT x = f1175;
           while (x*2 <= n) x *= 2;
           if (x > bestfound) bestfound = x;
-          while (true) 
+          while (true)
             {
             if (x * 3 <= n) x *= 3;
             else if (x % 2 == 0) x /= 2;
             else break;
-              
+
             if (x > bestfound) bestfound = x;
             }
           }
@@ -583,7 +583,7 @@ struct util // hack to avoid duplicate symbols
       if (sizeof(UIntT)<sizeof(std::uint64_t))
       {
         // We can try using this algorithm with 64-bit integers:
-        std::uint64_t res = prev_good_size_real_typed<std::uint64_t>(n);
+        auto res = prev_good_size_real_typed<std::uint64_t>(n);
         if (res<=std::numeric_limits<UIntT>::max())
           return static_cast<UIntT>(res);
       }
@@ -597,12 +597,12 @@ struct util // hack to avoid duplicate symbols
       UIntT x = f5;
       while (x*2 <= n) x *= 2;
       if (x > bestfound) bestfound = x;
-      while (true) 
+      while (true)
         {
         if (x * 3 <= n) x *= 3;
         else if (x % 2 == 0) x /= 2;
         else break;
-      
+
         if (x > bestfound) bestfound = x;
         }
       }
@@ -708,7 +708,7 @@ class latch
     using lock_t = std::unique_lock<std::mutex>;
 
   public:
-    latch(size_t n): num_left_(n) {}
+    explicit latch(size_t n): num_left_(n) {}
 
     void count_down()
       {
@@ -763,7 +763,7 @@ template <typename T> struct aligned_allocator
   {
   using value_type = T;
   template <class U>
-  aligned_allocator(const aligned_allocator<U>&) {}
+  explicit aligned_allocator(const aligned_allocator<U>&) {}
   aligned_allocator() = default;
 
   T *allocate(size_t n)
@@ -793,14 +793,14 @@ class thread_pool
         std::atomic<size_t> &unscheduled_tasks,
         concurrent_queue<std::function<void()>> &overflow_work)
         {
-        using lock_t = std::unique_lock<std::mutex>;
+        using lock_t_inner = std::unique_lock<std::mutex>;
         bool expect_work = true;
         while (!shutdown_flag || expect_work)
           {
           std::function<void()> local_work;
           if (expect_work || unscheduled_tasks == 0)
             {
-            lock_t lock(mut);
+            lock_t_inner lock(mut);
             // Wait until there is work to be executed
             work_ready.wait(lock, [&]{ return (work || shutdown_flag); });
             local_work.swap(work);
@@ -850,12 +850,12 @@ class thread_pool
         {
         try
           {
-          auto *worker = &workers_[i];
-          worker->busy_flag.clear();
-          worker->work = nullptr;
-          worker->thread = std::thread([worker, this]
+          auto *worker_i = &workers_[i];
+          worker_i->busy_flag.clear();
+          worker_i->work = nullptr;
+          worker_i->thread = std::thread([worker_i, this]
             {
-            worker->worker_main(shutdown_, unscheduled_tasks_, overflow_work_);
+            worker_i->worker_main(shutdown_, unscheduled_tasks_, overflow_work_);
             });
           }
         catch (...)
@@ -869,12 +869,12 @@ class thread_pool
     void shutdown_locked()
       {
       shutdown_ = true;
-      for (auto &worker : workers_)
-        worker.work_ready.notify_all();
+      for (auto &worker_i : workers_)
+        worker_i.work_ready.notify_all();
 
-      for (auto &worker : workers_)
-        if (worker.thread.joinable())
-          worker.thread.join();
+      for (auto &worker_i : workers_)
+        if (worker_i.thread.joinable())
+          worker_i.thread.join();
       }
 
   public:
@@ -895,15 +895,15 @@ class thread_pool
       ++unscheduled_tasks_;
 
       // First check for any idle workers and wake those
-      for (auto &worker : workers_)
-        if (!worker.busy_flag.test_and_set())
+      for (auto &worker_i : workers_)
+        if (!worker_i.busy_flag.test_and_set())
           {
           --unscheduled_tasks_;
           {
-          lock_t lock(worker.mut);
-          worker.work = std::move(work);
+          lock_t lock_inner(worker_i.mut);
+          worker_i.work = std::move(work);
           }
-          worker.work_ready.notify_one();
+          worker_i.work_ready.notify_one();
           return;
           }
 
@@ -1152,7 +1152,7 @@ template<bool fwd, typename T> void pass4 (size_t ido, size_t l1,
 
 #define POCKETFFT_PARTSTEP5b(u1,u2,twar,twbr,twai,twbi) \
         { \
-        T ca,cb,da,db; \
+        T ca,cb; \
         ca.r=t0.r+twar*t1.r+twbr*t2.r; \
         ca.i=t0.i+twar*t1.i+twbr*t2.i; \
         cb.i=twai*t4.r twbi*t3.r; \
@@ -1695,7 +1695,7 @@ template<bool fwd, typename T> void pass_all(T c[], T0 fct) const
       }
 
   public:
-    POCKETFFT_NOINLINE cfftp(size_t length_)
+    POCKETFFT_NOINLINE explicit cfftp(size_t length_)
       : length(length_)
       {
       if (length==0) throw std::runtime_error("zero-length FFT requested");
@@ -2504,7 +2504,7 @@ template<typename T> void radbg(size_t ido, size_t ip, size_t l1,
       }
 
   public:
-    POCKETFFT_NOINLINE rfftp(size_t length_)
+    POCKETFFT_NOINLINE explicit rfftp(size_t length_)
       : length(length_)
       {
       if (length==0) throw std::runtime_error("zero-length FFT requested");
@@ -2559,7 +2559,7 @@ template<typename T0> class fftblue
       }
 
   public:
-    POCKETFFT_NOINLINE fftblue(size_t length)
+    POCKETFFT_NOINLINE explicit fftblue(size_t length)
       : n(length), n2(util::good_size_cmplx(n*2-1)), plan(n2), mem(n+n2/2+1),
         bk(mem.data()), bkf(mem.data()+n)
       {
@@ -2629,7 +2629,7 @@ template<typename T0> class pocketfft_c
     size_t len;
 
   public:
-    POCKETFFT_NOINLINE pocketfft_c(size_t length)
+    POCKETFFT_NOINLINE explicit pocketfft_c(size_t length)
       : len(length)
       {
       if (length==0) throw std::runtime_error("zero-length FFT requested");
@@ -2666,7 +2666,7 @@ template<typename T0> class pocketfft_r
     size_t len;
 
   public:
-    POCKETFFT_NOINLINE pocketfft_r(size_t length)
+    POCKETFFT_NOINLINE explicit pocketfft_r(size_t length)
       : len(length)
       {
       if (length==0) throw std::runtime_error("zero-length FFT requested");
@@ -2702,7 +2702,7 @@ template<typename T0> class T_dct1
     pocketfft_r<T0> fftplan;
 
   public:
-    POCKETFFT_NOINLINE T_dct1(size_t length)
+    POCKETFFT_NOINLINE explicit T_dct1(size_t length)
       : fftplan(2*(length-1)) {}
 
     template<typename T> POCKETFFT_NOINLINE void exec(T c[], T0 fct, bool ortho,
@@ -2733,7 +2733,7 @@ template<typename T0> class T_dst1
     pocketfft_r<T0> fftplan;
 
   public:
-    POCKETFFT_NOINLINE T_dst1(size_t length)
+    POCKETFFT_NOINLINE explicit T_dst1(size_t length)
       : fftplan(2*(length+1)) {}
 
     template<typename T> POCKETFFT_NOINLINE void exec(T c[], T0 fct,
@@ -2759,7 +2759,7 @@ template<typename T0> class T_dcst23
     std::vector<T0> twiddle;
 
   public:
-    POCKETFFT_NOINLINE T_dcst23(size_t length)
+    POCKETFFT_NOINLINE explicit T_dcst23(size_t length)
       : fftplan(length), twiddle(length)
       {
       sincos_2pibyn<T0> tw(4*length);
@@ -2833,7 +2833,7 @@ template<typename T0> class T_dcst4
     arr<cmplx<T0>> C2;
 
   public:
-    POCKETFFT_NOINLINE T_dcst4(size_t length)
+    POCKETFFT_NOINLINE explicit T_dcst4(size_t length)
       : N(length),
         fft((N&1) ? nullptr : new pocketfft_c<T0>(N/2)),
         rfft((N&1)? new pocketfft_r<T0>(N) : nullptr),
@@ -2989,8 +2989,8 @@ class arr_info
     stride_t str;
 
   public:
-    arr_info(const shape_t &shape_, const stride_t &stride_)
-      : shp(shape_), str(stride_) {}
+    arr_info(shape_t shape_, stride_t stride_)
+      : shp(std::move(shape_)), str(std::move(stride_)) {}
     size_t ndim() const { return shp.size(); }
     size_t size() const { return util::prod(shp); }
     const shape_t &shape() const { return shp; }
@@ -3107,7 +3107,7 @@ class simple_iter
     size_t rem;
 
   public:
-    simple_iter(const arr_info &arr_)
+    explicit simple_iter(const arr_info &arr_)
       : pos(arr_.ndim(), 0), arr(arr_), p(0), rem(arr_.size()) {}
     void advance()
       {

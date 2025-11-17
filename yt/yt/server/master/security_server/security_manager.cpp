@@ -2349,6 +2349,33 @@ public:
         return std::move(checker).GetResponse();
     }
 
+    TPermissionCheckResponse CheckPermission(
+        TUser* user,
+        EPermission permission,
+        TFunctionRef<TAccessControlList()> aclProducer,
+        TPermissionCheckOptions options = {}) override
+    {
+        TPermissionChecker checker(
+            this,
+            user,
+            permission,
+            &options);
+
+        if (!checker.ShouldProceed()) {
+            return std::move(checker).GetResponse();
+        }
+
+        auto acl = aclProducer();
+        for (const auto& ace : acl.Entries) {
+            checker.ProcessAce(ace, nullptr, nullptr, 0);
+            if (!checker.ShouldProceed()) {
+                break;
+            }
+        }
+
+        return std::move(checker).GetResponse();
+    }
+
     bool IsSuperuser(const TUser* user) const override
     {
         // NB: This is also useful for migration when "superusers" is initially created.
@@ -2750,6 +2777,11 @@ public:
     void DecrementRequestQueueSize(TUser* user) override
     {
         RequestTracker_->DecrementRequestQueueSize(user);
+    }
+
+    void IncrementFailedExpirationRequestCount(TUser* user) override
+    {
+        RequestTracker_->IncrementFailedExpirationRequestCount(user);
     }
 
     const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const override

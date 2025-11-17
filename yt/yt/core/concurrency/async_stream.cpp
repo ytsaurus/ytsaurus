@@ -67,6 +67,60 @@ std::unique_ptr<IInputStream> CreateSyncAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSyncZeroCopyInputStreamAdapter
+    : public IZeroCopyInput
+{
+public:
+    TSyncZeroCopyInputStreamAdapter(
+        IAsyncZeroCopyInputStreamPtr underlyingStream,
+        EWaitForStrategy strategy)
+        : UnderlyingStream_(std::move(underlyingStream))
+        , Strategy_(strategy)
+    { }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const EWaitForStrategy Strategy_;
+
+    TSharedRef Buffer_;
+    bool Eos_ = false;
+
+    size_t DoNext(const void** ptr, size_t len) override
+    {
+        if (Buffer_.Empty() && !Eos_) {
+            Buffer_ = WaitForWithStrategy(UnderlyingStream_->Read(), Strategy_)
+                .ValueOrThrow();
+            if (!Buffer_) {
+                Eos_ = true;
+            } else {
+                YT_ASSERT(!Buffer_.Empty());
+            }
+        }
+
+        if (Eos_) {
+            *ptr = nullptr;
+            return 0;
+        }
+
+        auto retLen = std::min(len, Buffer_.Size());
+        *ptr = Buffer_.Begin();
+        Buffer_ = Buffer_.Slice(retLen, Buffer_.size());
+        return retLen;
+    }
+};
+
+std::unique_ptr<IZeroCopyInput> CreateSyncAdapter(
+    IAsyncZeroCopyInputStreamPtr underlyingStream,
+    EWaitForStrategy strategy)
+{
+    YT_VERIFY(underlyingStream);
+    return std::make_unique<TSyncZeroCopyInputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAsyncInputStreamAdapter
     : public IAsyncInputStream
 {
@@ -1033,14 +1087,20 @@ namespace {
 
 void DoPipeInputToOutput(
     const auto& input,
-    const auto& output)
+    const auto& output,
+    bool copyBlocks)
 {
     while (true) {
         auto asyncBlock = input->Read();
         auto block = WaitFor(asyncBlock)
             .ValueOrThrow();
-        if (!block || block.Empty()) {
+        if (block.Empty()) {
             break;
+        }
+        if (copyBlocks) {
+            struct TPipeInputToOutputTag
+            { };
+            block = TSharedRef::MakeCopy<TPipeInputToOutputTag>(block);
         }
         WaitFor(output->Write(block))
             .ThrowOnError();
@@ -1053,14 +1113,26 @@ void PipeInputToOutput(
     const IAsyncZeroCopyInputStreamPtr& input,
     const IAsyncOutputStreamPtr& output)
 {
-    DoPipeInputToOutput(input, output);
+    DoPipeInputToOutput(
+        input,
+        output,
+        /*copyBlocks*/ false);
 }
 
 void PipeInputToOutput(
     const IAsyncZeroCopyInputStreamPtr& input,
     const IAsyncZeroCopyOutputStreamPtr& output)
 {
-    DoPipeInputToOutput(input, output);
+    // NB: When both input and output strams are zero-copy
+    // blocks need to be copied:
+    // 1) input stream only guarantees their content remains intact
+    //    until the next Read() call is made;
+    // 2) output stream relies on the passed content to be immutable
+    //    the whole time.
+    DoPipeInputToOutput(
+        input,
+        output,
+        /*copyBlocks*/ true);
 }
 
 void DrainInput(const IAsyncZeroCopyInputStreamPtr& input)

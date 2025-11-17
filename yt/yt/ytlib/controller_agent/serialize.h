@@ -85,6 +85,11 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PerTableInputQuery)                    (302105))
     ((RemoveUnusedLocalityStatistics)        (302106))
     ((RefactorChunkStripeList)               (302107))
+    ((DropIsFinalOutput)                     (302108))
+    ((MoveWaitingChunkCount)                 (302109))
+    ((RemoveParentPartitionTag)              (302110))
+    ((RefactorTPartition)                    (302111))
+    ((SimplifyStreamDescriptor)              (302112))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

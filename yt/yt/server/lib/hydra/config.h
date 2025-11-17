@@ -109,6 +109,12 @@ struct TLocalSnapshotStoreConfig
     //! Headerless writer is used to save local tablet cell snapshots.
     bool UseHeaderlessWriter;
 
+    //! On store initialization there is a cleanup of temporary files recursively under store root.
+    //! Dry run uses current directory as store root.
+    //! Therefore by default dry run removes all temporary files (that end with ::NYT::NFS::TempFileSuffix) under the current directory.
+    //! This option allows to skip the removal.
+    bool CleanTemporaryFilesOnStoreInitialize;
+
     REGISTER_YSON_STRUCT(TLocalSnapshotStoreConfig);
 
     static void Register(TRegistrar registrar);

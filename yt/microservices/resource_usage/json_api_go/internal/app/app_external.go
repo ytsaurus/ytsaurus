@@ -14,6 +14,7 @@ func (a *App) getAccessConfig() *access.Config {
 			DisableACL:        a.conf.DisableACL,
 			BulkACLCheckerURL: a.conf.BulkACLCheckerURL,
 			IncludedClusters:  a.conf.IncludedClusters,
+			TokenEnvVariable:  a.conf.TokenEnvVariable,
 		},
 		AuthCookieName: a.conf.AuthCookieName,
 	}

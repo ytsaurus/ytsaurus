@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: APScheduler
-Version: 3.11.0
+Version: 3.11.1
 Summary: In-process task scheduler with Cron-like capabilities
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License: MIT
@@ -56,6 +56,7 @@ Provides-Extra: doc
 Requires-Dist: packaging; extra == "doc"
 Requires-Dist: sphinx; extra == "doc"
 Requires-Dist: sphinx-rtd-theme>=1.3.0; extra == "doc"
+Dynamic: license-file
 
 .. image:: https://github.com/agronholm/apscheduler/workflows/Python%20codeqa/test/badge.svg?branch=3.x
   :target: https://github.com/agronholm/apscheduler/actions?query=workflow%3A%22Python+codeqa%2Ftest%22+branch%3A3.x

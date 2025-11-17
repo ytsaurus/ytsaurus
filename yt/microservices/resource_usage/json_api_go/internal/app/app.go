@@ -12,7 +12,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics"
 	"go.ytsaurus.tech/yt/go/ypath"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
@@ -50,7 +50,7 @@ func (a *App) Run(ctx context.Context) error {
 	r.Use(httpmetrics.New(a.metrics.WithPrefix("http")))
 	r.Use(timeout(a.conf.HTTPHandlerTimeout))
 	r.Use(traceRequest(a.l))
-	r.Use(lib.CORS(a.conf.CORS))
+	r.Use(ytmsvc.CORS(a.conf.CORS))
 
 	api := NewAPI(
 		a.l,
@@ -135,5 +135,6 @@ func (a *App) getResourceUsageConfig() *resourceusage.Config {
 		SnapshotRoot:                  ypath.Path(a.conf.SnapshotRoot),
 		ExcludedFields:                a.conf.ExcludedFields,
 		UpdateSnapshotsOnEveryRequest: a.conf.UpdateSnapshotsOnEveryRequest,
+		TokenEnvVariable:              a.conf.TokenEnvVariable,
 	}
 }

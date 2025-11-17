@@ -249,6 +249,8 @@ public:
     void DecrementRequestQueueSize();
     void ResetRequestQueueSize();
 
+    void IncrementFailedExpirationRequestCount();
+
     //! Sets (encrypted) password for user. Pass null removes password.
     void SetHashedPassword(std::optional<std::string> hashedPassword);
     //! Sets password salt for user. Passing null removes salt.
@@ -276,6 +278,8 @@ private:
 
     NProfiling::TSummary RequestQueueSizeSummary_;
     NProfiling::TGauge RequestQueueSizeLimitGauge_;
+
+    NProfiling::TCounter FailedExpirationRequestCounter_;
 
     void InitializeCounters();
     void UpdatePasswordRevision();

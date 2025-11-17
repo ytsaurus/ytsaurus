@@ -719,7 +719,7 @@ class TestSequoiaInternals(YTEnvSetup):
         # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
 
     @authors("danilalexeev")
-    def test_resolve_rootstock_from_object(self):
+    def test_resolve_rootstock_from_object_id(self):
         node_id = get("//@id")
         # Should not throw.
         get(f"#{node_id}/tmp")

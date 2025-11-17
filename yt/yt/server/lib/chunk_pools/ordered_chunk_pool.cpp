@@ -121,11 +121,11 @@ public:
     {
         YT_VERIFY(!Finished);
 
-        if (stripe->DataSlices.empty()) {
+        if (stripe->DataSlices().empty()) {
             return IChunkPoolInput::NullCookie;
         }
 
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
 
@@ -335,7 +335,7 @@ private:
             i64 totalDataWeight = 0;
             for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
                 const auto& stripe = Stripes_[inputCookie].GetStripe();
-                for (const auto& dataSlice : stripe->DataSlices) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
                     totalDataWeight += dataSlice->GetDataWeight();
                 }
             }
@@ -351,7 +351,7 @@ private:
                 : std::nullopt);
         for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
-            for (const auto& dataSlice : stripe->DataSlices) {
+            for (const auto& dataSlice : stripe->DataSlices()) {
                 yielder.TryYield();
                 if (IsTeleportable(dataSlice)) {
                     // NB(apollo1321): RowCountUntilJobSplit_ may be non-empty after

@@ -61,6 +61,7 @@ type ResourceUsageTable struct {
 	ExcludedFields       []string
 	ClusterSchemaCache   *lru.LRU[ypath.YPath, *schema.Schema]
 	ClusterFeaturesCache *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
+	TokenEnvVariable     string
 }
 
 type TimestampSelector struct {
@@ -86,6 +87,7 @@ type Config struct {
 	SnapshotRoot                  ypath.YPath
 	ExcludedFields                []string
 	UpdateSnapshotsOnEveryRequest bool
+	TokenEnvVariable              string
 }
 
 type Data struct {
@@ -98,6 +100,7 @@ type Cluster struct {
 	FeaturesCache       *lru.LRU[ypath.YPath, *ResourceUsageTableFeatures]
 	l                   log.Structured
 	Config              *ClusterConfig
+	TokenEnvVariable    string
 }
 
 type ClusterConfig struct {

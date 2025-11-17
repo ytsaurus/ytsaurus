@@ -10,29 +10,29 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/go/yterrors"
 	bac_lib "go.ytsaurus.tech/yt/microservices/bulk_acl_checker/lib_go"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 var logger *zap.Logger
 
-func GetLivenessHandler() lib.HTTPHandlerE {
+func GetLivenessHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		Cache.Mutex.Lock()
 		defer Cache.Mutex.Unlock()
-		return lib.ResponseStatusOK, nil
+		return ytmsvc.ResponseStatusOK, nil
 	}
 }
 
-func GetReadinessHandler() lib.HTTPHandlerE {
+func GetReadinessHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		if !Cache.IsInitialized.Load() {
 			return nil, yterrors.Err("not ready")
 		}
-		return lib.ResponseStatusOK, nil
+		return ytmsvc.ResponseStatusOK, nil
 	}
 }
 
-func GetInfoHandler() lib.HTTPHandlerE {
+func GetInfoHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		type ClusterInfo struct {
 			Version       string `json:"version"`
@@ -67,7 +67,7 @@ func GetInfoHandler() lib.HTTPHandlerE {
 	}
 }
 
-func GetServedClustersHandler() lib.HTTPHandlerE {
+func GetServedClustersHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		type Response struct {
 			Clusters []string `json:"clusters"`
@@ -107,16 +107,16 @@ func ReadClickhouseDictRequest(input io.Reader) (result []bac_lib.ClickHouseDict
 	}
 }
 
-func GetDropCacheHandler() lib.HTTPHandlerE {
+func GetDropCacheHandler() ytmsvc.HTTPHandlerE {
 	return func(w http.ResponseWriter, req *http.Request) (result any, err error) {
 		Cache.LRU.Purge()
-		return lib.ResponseStatusOK, nil
+		return ytmsvc.ResponseStatusOK, nil
 	}
 }
 
 func GetRequestLoggerMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := lib.GetRequestSomeID(r)
+		id := ytmsvc.GetRequestSomeID(r)
 		logger.Debugf("Start processing query: %s %s", id, r.URL)
 		next.ServeHTTP(w, r)
 		logger.Debugf("Finish processing query: %s %s", id, r.URL)
@@ -124,8 +124,8 @@ func GetRequestLoggerMiddleware(next http.Handler) http.Handler {
 }
 func main() {
 	//logger = ytlog.Must()
-	logger = lib.Must(zap.NewDeployLogger(log.DebugLevel))
-	lib.Logger = logger
+	logger = ytmsvc.Must(zap.NewDeployLogger(log.DebugLevel))
+	ytmsvc.Logger = logger
 	logger.Info("start")
 	ParseArgsAndRunServer()
 }

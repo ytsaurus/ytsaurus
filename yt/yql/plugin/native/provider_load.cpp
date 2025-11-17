@@ -10,6 +10,7 @@ void ExtProviderSpecific(
     const NYql::TFileStoragePtr& fileStorage)
 {
     ExtYtflow(gatewaysConfig, funcRegistry, dataProvidersInit, fileStorage);
+    ExtPq(gatewaysConfig, funcRegistry, dataProvidersInit, fileStorage);
 }
 
 } // namespace NYT::NYqlPlugin

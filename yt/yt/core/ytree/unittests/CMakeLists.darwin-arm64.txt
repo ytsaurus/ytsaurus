@@ -71,6 +71,7 @@ target_link_options(unittester-core-ytree PRIVATE
 target_sources(unittester-core-ytree PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/complex_key_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/options_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/unittests/resolver_ut.cpp

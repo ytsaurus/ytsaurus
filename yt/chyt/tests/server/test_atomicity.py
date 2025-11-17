@@ -1,5 +1,6 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
+import yt_commands
 from yt_commands import (authors, raises_yt_error, create, write_table, remove, read_table,
                          get, link, insert_rows, sync_mount_table, sync_unmount_table)
 
@@ -7,7 +8,7 @@ from yt.common import wait
 
 from yt.test_helpers import assert_items_equal
 
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 import yt.yson as yson
 
@@ -81,7 +82,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 query = "insert into `//tmp/t_out` select throwIf(a = 50, 'Generate error') from `//tmp/t_in`"
                 clique.make_query(query, settings=settings)
-            read_table("//tmp/t_out", verbose=False) == []
+            assert read_table("//tmp/t_out", verbose=False) == []
 
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`", settings=settings)
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
@@ -352,11 +353,11 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             thread.join()
 
-    @authors("gudqeit")
+    @authors("gudqeit", "kvk1920")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_concat_tables_range_function(self, table_read_lock_mode):
         create("map_node", "//tmp/test_dir")
-        for table_index in range(1, 3):
+        for table_index in range(1, 4):
             create(
                 "table",
                 "//tmp/test_dir/table_" + str(table_index),
@@ -365,20 +366,16 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             write_table("//tmp/test_dir/table_" + str(table_index), [{"i": table_index}])
 
         with Clique(1) as clique:
-            def add_table():
+            def modify_tables():
                 wait_breakpoint("concat")
 
-                extra_table = "//tmp/test_dir/table_3"
-                create(
-                    "table",
-                    extra_table,
-                    attributes={"schema": [{"name": "i", "type": "int64"}]},
-                )
-                write_table(extra_table, [{"i": 3}])
+                remove("//tmp/test_dir/table_1")
+                write_table("//tmp/test_dir/table_2", [{"i": 4}])
+                write_table("<append=%true>//tmp/test_dir/table_3", [{"i": 5}])
 
                 release_breakpoint("concat")
 
-            thread = threading.Thread(target=add_table)
+            thread = threading.Thread(target=modify_tables)
             thread.start()
 
             settings = {
@@ -389,10 +386,16 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             query = "select * from concatYtTablesRange('//tmp/test_dir', 'table_1') order by i"
 
             if table_read_lock_mode == "none":
-                assert clique.make_query(query, settings=settings) == [{"i": 1}, {"i": 2}, {"i": 3}]
-
+                # Table contents were [1], [2] and [3] before requests.
+                # The first table was removed.
+                # The second table was fully rewritten with [4].
+                # Additional row [5] was appended to the third table so its
+                # content became [3, 5].
+                # Therefore, expected result is [] + [4] + [3, 5] = [3, 4, 5]
+                # because of sort.
+                assert clique.make_query(query, settings=settings) == [{"i": 3}, {"i": 4}, {"i": 5}]
             elif table_read_lock_mode == "sync":
-                assert clique.make_query(query, settings=settings) == [{"i": 1}, {"i": 2}]
+                assert clique.make_query(query, settings=settings) == [{"i": 1}, {"i": 2}, {"i": 3}]
 
             thread.join()
 
@@ -404,19 +407,24 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             create(
                 "table",
                 "//tmp/test_dir/table_" + str(table_index),
-                attributes={"schema": [{"name": "i", "type": "int64"}]},
+                attributes={"schema": [{"name": "i", "type": "int64"}], "annotation": "A"},
             )
 
         with Clique(1) as clique:
             def edit_test_dir():
                 wait_breakpoint("list_nodes")
 
+                yt_commands.set("//tmp/test_dir/table_1/@annotation", "B")
+                # NB: set of "annotation" attribute doesn't change revision so
+                # use write_table here to make ListDir() implementation to
+                # notice node change between list and lock.
+                write_table("//tmp/test_dir/table_1", [{"i": 23}])
+                remove("//tmp/test_dir/table_2")
                 create(
                     "table",
                     "//tmp/test_dir/table_3",
                     attributes={"schema": [{"name": "i", "type": "int64"}]},
                 )
-                remove("//tmp/test_dir/table_2")
 
                 release_breakpoint("list_nodes")
 
@@ -428,20 +436,55 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 "chyt.testing.list_dirs_breakpoint": get_breakpoint_node("list_nodes"),
             }
 
-            query = "select $path from ytListNodes('//tmp/test_dir') order by $path"
+            query = "select $path, annotation from ytListNodes('//tmp/test_dir') order by $path"
 
             if table_read_lock_mode == "none":
                 expected = [
-                    {"$path": "//tmp/test_dir/table_1"},
-                    {"$path": "//tmp/test_dir/table_3"},
+                    {"$path": "//tmp/test_dir/table_1", "annotation": "A"},
+                    {"$path": "//tmp/test_dir/table_2", "annotation": "A"}
                 ]
-                assert clique.make_query(query, settings=settings) == expected
-
             elif table_read_lock_mode == "sync":
-                expected = [
-                    {"$path": "//tmp/test_dir/table_1"},
-                    {"$path": "//tmp/test_dir/table_2"},
-                ]
-                assert clique.make_query(query, settings=settings) == expected
+                # ytListNodes(D) consists of 3 steps:
+                # 1. acquire snapshot lock for map-node D;
+                # 2. execute "list" verb to get D's children with attributes;
+                # 3. acquire snapshot locks for children if needed.
+                # In Cypress, snapshot lock for map-node prolongs lifetime for
+                # its children but _not_ locks them. So children set is not
+                # changed between steps (1) and (3) but children's attributes
+                # may be changed before children are locked.
+                # In Sequoia, snapshot lock for map-node doesn't prolongs
+                # children lifetime so it's necessary to acquire lock for every
+                # children and filter out those children which were removed
+                # after fetched via "list" verb. Sequoia implementation is more
+                # consistent that Cypress one: after every child is locked
+                # child's revision is checked and attributes are re-read if
+                # there is a chance that they're obsolete.
+                if self.USE_SEQUOIA:
+                    # Attribute revisions of "table_1" was changed between
+                    # attribute fetch and lock acquisition so its annotation was
+                    # re-read. Hence, annotation in query result is actual.
+                    # "table_2" had been removed after it's listed but before
+                    # it's locked. Such situations still shouldn't cause resolve
+                    # errors during query execution.
+                    expected = [{"$path": "//tmp/test_dir/table_1", "annotation": "B"}]
+                else:
+                    # Annotation of "table_1" was changed before lock is
+                    # acquired but attributes were read before lock acquisition
+                    # to reduce number of requests to master server. It's a bit
+                    # inconsistent but this behavior has been existed for too
+                    # long so it should be ok.
+                    # "table_2" had been removed before it's locked but snapshot
+                    # lock of test_dir prolonged its lifetime.
+                    expected = [
+                        {"$path": "//tmp/test_dir/table_1", "annotation": "A"},
+                        {"$path": "//tmp/test_dir/table_2", "annotation": "A"},
+                    ]
+
+            assert clique.make_query(query, settings=settings) == expected
 
             thread.join()
+
+
+@enable_sequoia
+class TestClickHouseAtomicitySequoia(TestClickHouseAtomicity):
+    pass

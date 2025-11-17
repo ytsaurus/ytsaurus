@@ -15,6 +15,7 @@ import (
 	"go.ytsaurus.tech/yt/go/proto/core/rpc"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type cookieCredentials struct {
@@ -90,6 +91,7 @@ func (a *AccessChecker) UserAuthMiddleware(next http.Handler) http.Handler {
 			Credentials: cookieCredentials{
 				cookie: cookie,
 			},
+			Token: ytmsvc.TokenFromEnvVariable(a.conf.TokenEnvVariable),
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)

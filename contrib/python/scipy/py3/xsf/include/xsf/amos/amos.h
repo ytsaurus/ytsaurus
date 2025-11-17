@@ -94,7 +94,7 @@
 
 #include <stdlib.h>
 
-#include <complex.h>
+#include <complex>
 #include <math.h>
 #include <memory> // unique_ptr
 
@@ -2025,8 +2025,8 @@ namespace amos {
         zn = -z * ci;
         if (yy < 0.0) {
             zn = -zn;
-            csgn = conj(csgn);
-            ci = conj(ci);
+            csgn = std::conj(csgn);
+            ci = std::conj(ci);
         }
         nz = binu(zn, fnu, kode, n, cy, rl, fnul, tol, elim, alim);
         if (nz < 0) {
@@ -3440,7 +3440,7 @@ namespace amos {
         tm = std::abs(cs);
         pt = 1.0 / tm;
         s1 = pt * p2;
-        cs = conj(cs) * pt;
+        cs = std::conj(cs) * pt;
         s1 *= coef * cs;
         if ((inu <= 0) && (n <= 1)) {
             zd = z;
@@ -3455,7 +3455,7 @@ namespace amos {
         tm = std::abs(p2);
         pt = 1.0 / tm;
         p1 = pt * p1;
-        p2 = conj(p2) * pt;
+        p2 = std::conj(p2) * pt;
         pt = p1 * p2;
         s2 = s1 * (1. + (dnu + 0.5 - pt) / z);
         //
@@ -4087,7 +4087,7 @@ namespace amos {
         ap = std::abs(p2);
         p1 = 1. / ap;
         ck = std::exp(pt) * p1;
-        pt = conj(p2) * p1;
+        pt = std::conj(p2) * p1;
         cnorm = ck * pt;
         for (int i = 0; i < n; i++) {
             y[i] *= cnorm;
@@ -5169,10 +5169,10 @@ namespace amos {
         in = in % 4;
         c2 *= cip[in];
         if (yy <= 0.0) {
-            zn = conj(-zn);
-            zb = conj(zb);
+            zn = std::conj(-zn);
+            zb = std::conj(zb);
             cid = -cid;
-            c2 = conj(c2);
+            c2 = std::conj(c2);
         }
         //
         // CHECK FOR UNDERFLOW AND OVERFLOW ON FIRST MEMBER
@@ -5255,7 +5255,7 @@ namespace amos {
                 }
             }
             if (yy <= 0.0) {
-                s2 = conj(s2);
+                s2 = std::conj(s2);
             }
             j = nd - i + 1;
             s2 *= c2;
@@ -5331,7 +5331,7 @@ namespace amos {
                     in = (inu + nd - 1) % 4;
                     c2 = zar * cip[in];
                     if (yy <= 0.0) {
-                        c2 = conj(c2);
+                        c2 = std::conj(c2);
                     }
                     goto L10;
                 }
@@ -5908,8 +5908,8 @@ namespace amos {
         kk = (inu % 4) + 1;
         cs = cr1 * c2 * cip[kk - 1];
         if (yy <= 0.0) {
-            zn = conj(-zn);
-            zb = conj(zb);
+            zn = std::conj(-zn);
+            zb = std::conj(zb);
         }
         //
         // K(FNU,Z) IS COMPUTED FROM H(2,FNU,-I*Z) WHERE Z IS IN THE FIRST
@@ -6009,7 +6009,7 @@ namespace amos {
                     }
                 }
                 if (yy <= 0.0) {
-                    s2 = conj(s2);
+                    s2 = std::conj(s2);
                 }
                 cy[kdflg - 1] = s2;
                 y[i - 1] = s2 * csr[kflag - 1];
@@ -6150,7 +6150,7 @@ namespace amos {
         cs = std::complex<double>(car, -sar) * csgn;
         in = (ifn % 4) + 1;
         c2 = cip[in - 1];
-        cs *= conj(c2);
+        cs *= std::conj(c2);
         asc = bry[0];
         iuf = 0;
         kk = n;
@@ -6238,7 +6238,7 @@ namespace amos {
             }
         L250:
             if (yy <= 0.0) {
-                s2 = conj(s2);
+                s2 = std::conj(s2);
             }
             cy[kdflg - 1] = s2;
             c2 = s2;
@@ -6382,7 +6382,7 @@ namespace amos {
         } else {
             zn = -zr * std::complex<double>(0, 1);
             if (yy <= 0.) {
-                zn = conj(zn);
+                zn = std::conj(zn);
             }
             unhj(zn, gnu, 1, tol, &phi, &arg, &zeta1, &zeta2, &asum, &bsum);
             cz = zeta2 - zeta1;
@@ -6577,7 +6577,7 @@ namespace amos {
         ct = zr * (c2 + st * c1);
         act = std::abs(ct);
         rct = 1.0 / act;
-        ct = conj(ct) * rct;
+        ct = std::conj(ct) * rct;
         cinu *= ct * rct;
         y[0] = cinu * cscl;
         if (n == 1) {

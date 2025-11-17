@@ -193,6 +193,40 @@ struct rd_kafka_broker_s { /* rd_kafka_broker_t */
                 rd_atomic64_t ts_recv; /**< Timestamp of last receive */
         } rkb_c;
 
+        struct {
+                struct {
+                        int32_t connects; /**< Connection attempts,
+                                           *   successful or not. */
+                } rkb_historic_c;
+
+                struct {
+                        rd_avg_t rkb_avg_rtt;      /* Current RTT avg */
+                        rd_avg_t rkb_avg_throttle; /* Current throttle avg */
+                        rd_avg_t
+                            rkb_avg_outbuf_latency;       /**< Current latency
+                                                           *   between buf_enq0
+                                                           *   and writing to socket
+                                                           */
+                        rd_avg_t rkb_avg_fetch_latency;   /**< Current fetch
+                                                           *   latency avg */
+                        rd_avg_t rkb_avg_produce_latency; /**< Current produce
+                                                           *   latency avg */
+                } rd_avg_current;
+
+                struct {
+                        rd_avg_t rkb_avg_rtt; /**< Rolled over RTT avg */
+                        rd_avg_t
+                            rkb_avg_throttle; /**< Rolled over throttle avg */
+                        rd_avg_t rkb_avg_outbuf_latency; /**< Rolled over outbuf
+                                                          *   latency avg */
+                        rd_avg_t rkb_avg_fetch_latency;  /**< Rolled over fetch
+                                                          *   latency avg */
+                        rd_avg_t
+                            rkb_avg_produce_latency; /**< Rolled over produce
+                                                      *   latency avg */
+                } rd_avg_rollover;
+        } rkb_telemetry;
+
         int rkb_req_timeouts; /* Current value */
 
         thrd_t rkb_thread;
@@ -411,6 +445,13 @@ int16_t rd_kafka_broker_ApiVersion_supported(rd_kafka_broker_t *rkb,
                                              int16_t maxver,
                                              int *featuresp);
 
+int16_t rd_kafka_broker_ApiVersion_supported0(rd_kafka_broker_t *rkb,
+                                              int16_t ApiKey,
+                                              int16_t minver,
+                                              int16_t maxver,
+                                              int *featuresp,
+                                              rd_bool_t do_lock);
+
 rd_kafka_broker_t *rd_kafka_broker_find_by_nodeid0_fl(const char *func,
                                                       int line,
                                                       rd_kafka_t *rk,
@@ -571,6 +612,25 @@ int rd_kafka_brokers_wait_state_change_async(rd_kafka_t *rk,
                                              int stored_version,
                                              rd_kafka_enq_once_t *eonce);
 void rd_kafka_brokers_broadcast_state_change(rd_kafka_t *rk);
+
+rd_kafka_broker_t *rd_kafka_broker_random0(const char *func,
+                                           int line,
+                                           rd_kafka_t *rk,
+                                           rd_bool_t is_up,
+                                           int state,
+                                           int *filtered_cnt,
+                                           int (*filter)(rd_kafka_broker_t *rk,
+                                                         void *opaque),
+                                           void *opaque);
+
+#define rd_kafka_broker_random(rk, state, filter, opaque)                      \
+        rd_kafka_broker_random0(__FUNCTION__, __LINE__, rk, rd_false, state,   \
+                                NULL, filter, opaque)
+
+#define rd_kafka_broker_random_up(rk, filter, opaque)                          \
+        rd_kafka_broker_random0(__FUNCTION__, __LINE__, rk, rd_true,           \
+                                RD_KAFKA_BROKER_STATE_UP, NULL, filter,        \
+                                opaque)
 
 
 

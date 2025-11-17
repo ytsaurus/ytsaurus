@@ -15,3 +15,4 @@
 add_subdirectory(bulk_acl_checker_roren)
 add_subdirectory(lib)
 add_subdirectory(resource_usage_roren)
+add_subdirectory(id_to_path_mapping)

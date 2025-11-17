@@ -240,7 +240,7 @@ class BenchmarkSession:
     def display_cprofile(self, tr):
         section_displayed = False
         for group in self.groups:
-            group_name, benchmarks = group
+            _group_name, benchmarks = group
             for benchmark in benchmarks:
                 if 'cprofile' in benchmark:
                     if not section_displayed:

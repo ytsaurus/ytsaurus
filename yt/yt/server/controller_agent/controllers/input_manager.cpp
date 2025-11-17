@@ -101,6 +101,7 @@ void TInputManager::TStripeDescriptor::Persist(const TPersistenceContext& contex
     Persist(context, Stripe);
     Persist(context, Cookie);
     Persist(context, Task);
+    Persist(context, WaitingChunkCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1108,7 +1109,7 @@ void TInputManager::RegisterInputStripe(
     stripeDescriptor.Task = task;
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         for (const auto& slice : dataSlice->ChunkSlices) {
             auto inputChunk = slice->GetInputChunk();
             auto chunkId = inputChunk->GetChunkId();
@@ -1121,12 +1122,12 @@ void TInputManager::RegisterInputStripe(
             chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
             if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                ++stripe->WaitingChunkCount;
+                ++stripeDescriptor.WaitingChunkCount;
             }
         }
     }
 
-    if (stripe->WaitingChunkCount > 0) {
+    if (stripeDescriptor.WaitingChunkCount > 0) {
         task->GetChunkPoolInput()->Suspend(stripeDescriptor.Cookie);
     }
 }
@@ -1201,9 +1202,9 @@ void TInputManager::OnInputChunkAvailable(
 
     descriptor->State = EInputChunkState::Active;
 
-    for (const auto& inputStripe : descriptor->InputStripes) {
-        --inputStripe.Stripe->WaitingChunkCount;
-        if (inputStripe.Stripe->WaitingChunkCount > 0) {
+    for (auto& inputStripe : descriptor->InputStripes) {
+        --inputStripe.WaitingChunkCount;
+        if (inputStripe.WaitingChunkCount > 0) {
             continue;
         }
 
@@ -1233,10 +1234,11 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
         case EUnavailableChunkAction::Skip: {
             descriptor->State = EInputChunkState::Skipped;
             for (const auto& inputStripe : descriptor->InputStripes) {
-                inputStripe.Stripe->DataSlices.erase(
+                auto& dataSlices = inputStripe.Stripe->DataSlices();
+                dataSlices.erase(
                     std::remove_if(
-                        inputStripe.Stripe->DataSlices.begin(),
-                        inputStripe.Stripe->DataSlices.end(),
+                        dataSlices.begin(),
+                        dataSlices.end(),
                         [&] (TLegacyDataSlicePtr slice) {
                             try {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
@@ -1247,7 +1249,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                                 return true;
                             }
                         }),
-                    inputStripe.Stripe->DataSlices.end());
+                    dataSlices.end());
 
                 // Store information that chunk disappeared in the chunk mapping.
                 for (const auto& chunk : descriptor->InputChunks) {
@@ -1261,11 +1263,11 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
 
         case EUnavailableChunkAction::Wait: {
             descriptor->State = EInputChunkState::Waiting;
-            for (const auto& inputStripe : descriptor->InputStripes) {
-                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+            for (auto& inputStripe : descriptor->InputStripes) {
+                if (inputStripe.WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
-                ++inputStripe.Stripe->WaitingChunkCount;
+                ++inputStripe.WaitingChunkCount;
             }
             break;
         }

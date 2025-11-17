@@ -14,30 +14,18 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe(bool foreign)
-    : Foreign(foreign)
+    : Foreign_(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign)
-    : Foreign(foreign)
-{
-    DataSlices.emplace_back(std::move(dataSlice));
-}
-
-TChunkStripe::TChunkStripe(const std::vector<TLegacyDataSlicePtr>& dataSlices)
-{
-    DataSlices.insert(DataSlices.end(), dataSlices.begin(), dataSlices.end());
-}
-
-TChunkStripe::TChunkStripe(TChunkListId chunkListId, TBoundaryKeys boundaryKeys)
-    : ChunkListId(chunkListId)
-    , BoundaryKeys(boundaryKeys)
+TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice)
+    : DataSlices_({std::move(dataSlice)})
 { }
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
 
-    for (const auto& dataSlice : DataSlices) {
+    for (const auto& dataSlice : DataSlices_) {
         result.DataWeight += dataSlice->GetDataWeight();
         result.RowCount += dataSlice->GetRowCount();
         result.ChunkCount += dataSlice->GetChunkCount();
@@ -52,7 +40,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
 int TChunkStripe::GetChunkCount() const
 {
     int result = 0;
-    for (const auto& dataSlice : DataSlices) {
+    for (const auto& dataSlice : DataSlices_) {
         result += dataSlice->GetChunkCount();
     }
     return result;
@@ -60,31 +48,24 @@ int TChunkStripe::GetChunkCount() const
 
 int TChunkStripe::GetTableIndex() const
 {
-    YT_VERIFY(!DataSlices.empty());
-    YT_VERIFY(!DataSlices.front()->ChunkSlices.empty());
-    return DataSlices.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
+    YT_VERIFY(!DataSlices_.empty());
+    YT_VERIFY(!DataSlices_.front()->ChunkSlices.empty());
+    return DataSlices_.front()->ChunkSlices.front()->GetInputChunk()->GetTableIndex();
 }
 
 int TChunkStripe::GetInputStreamIndex() const
 {
-    YT_VERIFY(!DataSlices.empty());
-    return DataSlices.front()->GetInputStreamIndex();
+    YT_VERIFY(!DataSlices_.empty());
+    return DataSlices_.front()->GetInputStreamIndex();
 }
 
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DataSlices);
-    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount);
-    PHOENIX_REGISTER_FIELD(3, Foreign);
-    // COMPAT(apollo1321): Remove in 25.3.
-    registrar
-        .template VirtualField<4>("Solid", [] (TThis* /*this_*/, auto& context) {
-            Load<bool>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::DropSolidFromChunkStripe)();
-    PHOENIX_REGISTER_FIELD(5, ChunkListId);
-    PHOENIX_REGISTER_FIELD(6, BoundaryKeys);
-    PHOENIX_REGISTER_FIELD(7, PartitionTag);
+    PHOENIX_REGISTER_FIELD(1, DataSlices_);
+    PHOENIX_REGISTER_FIELD(3, Foreign_);
+    PHOENIX_REGISTER_FIELD(5, ChunkListId_);
+    PHOENIX_REGISTER_FIELD(6, BoundaryKeys_);
+    PHOENIX_REGISTER_FIELD(7, InputChunkPoolIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripe);
@@ -130,7 +111,7 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
 void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
 {
     Statistics_ += stripe->GetStatistics();
-    SliceCount_ += std::ssize(stripe->DataSlices);
+    SliceCount_ += std::ssize(stripe->DataSlices());
     Stripes_.push_back(std::move(stripe));
 }
 
@@ -150,14 +131,7 @@ void TChunkStripeList::Reserve(i64 size)
     Stripes_.reserve(size);
 }
 
-void TChunkStripeList::SetPartitionTag(int partitionTag)
-{
-    PartitionTag_ = partitionTag;
-    OverriddenDataWeight_.reset();
-    OverriddenRowCount_.reset();
-}
-
-void TChunkStripeList::SetPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
+void TChunkStripeList::SetFilteringPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
 {
     YT_VERIFY(dataWeight >= 0);
     YT_VERIFY(rowCount >= 0);
@@ -167,7 +141,7 @@ void TChunkStripeList::SetPartitionTag(int partitionTag, i64 dataWeight, i64 row
     OverriddenRowCount_ = rowCount;
 }
 
-std::optional<int> TChunkStripeList::GetPartitionTag() const
+std::optional<int> TChunkStripeList::GetFilteringPartitionTag() const
 {
     return PartitionTag_;
 }

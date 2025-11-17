@@ -111,6 +111,31 @@ DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSpytConnectEngineConfig
+    : public TEngineConfigBase
+{
+    std::string DefaultCluster;
+    bool UseSquashfs;
+    bool PreferIpv6;
+    std::string SparkVersion;
+    std::string SpytVersion;
+    std::string SpytConfigPath;
+    std::string SpytLaunchConfFile;
+    int GrpcPort;
+
+    TDuration TokenExpirationTimeout;
+    TDuration RefreshTokenPeriod;
+    TDuration StatusPollPeriod;
+
+    REGISTER_YSON_STRUCT(TSpytConnectEngineConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSpytConnectEngineConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueryTrackerProxyConfig
     : public NYTree::TYsonStruct
 {
@@ -142,6 +167,9 @@ struct TQueryTrackerDynamicConfig
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
     TSpytEngineConfigPtr SpytEngine;
+    TSpytConnectEngineConfigPtr SpytConnectEngine;
+
+    bool UseSpytConnectEngine;
 
     TQueryTrackerProxyConfigPtr ProxyConfig;
 

@@ -1039,7 +1039,6 @@ public:
     explicit TCypressManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::CypressManager)
         , AccessTracker_(New<TAccessTracker>(bootstrap))
-        , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
         , TypeToHandler_(std::make_unique<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>>())
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
@@ -2232,7 +2231,7 @@ public:
 
         YT_ASSERT(trunkNode->IsTrunk());
 
-        if (!trunkNode->TryGetExpirationTimeout()) {
+        if (!trunkNode->TryGetExpirationTimeoutProperties()) {
             return;
         }
 
@@ -2241,20 +2240,35 @@ public:
         }
     }
 
-    void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time) override
+    void SetExpirationTime(TCypressNode* node, TSetExpiration<TInstant> time) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
 
-        auto oldExpirationTime = node->TryGetExpirationTime();
+        auto oldExpirationTimeProperties = node->GetExpirationTimePropertiesView();
 
-        if (time) {
-            node->SetExpirationTime(*time);
-        } else {
-            node->RemoveExpirationTime();
-        }
+        Visit(time,
+            [&] (TInstant time) {
+                auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto expirationTimeProperties = TCypressNode::TExpirationTimePropertiesPtr(
+                    std::in_place, TUserPtr(user), time);
+                node->SetExpirationTimeProperties(std::move(expirationTimeProperties));
+            },
+            [&] (TSetExpirationResetTime) {
+                auto* context = GetCurrentMutationContext();
+
+                auto expirationTimeProperties = TCypressNode::TExpirationTimePropertiesPtr(
+                    std::in_place, context->GetTimestamp());
+
+                node->SetExpirationTimeProperties(std::move(expirationTimeProperties));
+            },
+            [&] (TRemoveExpiration) {
+                node->RemoveExpirationTimeProperties();
+            });
 
         if (node->IsTrunk()) {
-            ExpirationTracker_->OnNodeExpirationTimeUpdated(node, oldExpirationTime);
+            Bootstrap_->GetExpirationTracker()
+                ->OnNodeExpirationTimeUpdated(node, oldExpirationTimeProperties);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2262,43 +2276,62 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto oldExpirationTime = originatingNode->TryGetExpirationTime();
-        originatingNode->MergeExpirationTime(branchedNode);
+        auto oldExpirationTime = originatingNode->GetExpirationTimePropertiesView();
+        originatingNode->MergeExpirationTimeProperties(branchedNode);
 
 
         if (originatingNode->IsTrunk()) {
-            ExpirationTracker_->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
+            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
         }
     }
 
-    void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout) override
+    void SetExpirationTimeout(TCypressNode* node, TSetExpiration<TDuration> timeout) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
 
-        auto oldExpirationTimeout = node->TryGetExpirationTimeout();
+        auto oldExpirationTimeoutProperties = node->GetExpirationTimeoutPropertiesView();
 
-        if (timeout) {
-            node->SetExpirationTimeout(*timeout);
+        Visit(timeout,
+            [&] (TDuration timeout) {
+                auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto expirationTimeoutProperties = TCypressNode::TExpirationTimeoutPropertiesPtr(
+                    std::in_place, TUserPtr(user), timeout);
 
-            if (node->IsTrunk() && !node->GetTouchTime()) {
+                node->SetExpirationTimeoutProperties(std::move(expirationTimeoutProperties));
+
+                if (node->IsTrunk() && !node->GetTouchTime()) {
+                    auto* context = GetCurrentMutationContext();
+                    node->SetTouchTime(context->GetTimestamp());
+                }
+
+                // NB: Touch time should not be updated here. This might've been
+                // suppressed. Otherwise the node will be touched as usual (as part
+                // of Invoke).
+            },
+            [&] (TSetExpirationResetTime) {
                 auto* context = GetCurrentMutationContext();
-                YT_VERIFY(context);
-                node->SetTouchTime(context->GetTimestamp());
-            }
 
-            // NB: Touch time should not be updated here. This might've been
-            // suppressed. Otherwise the node will be touched as usual (as part
-            // of Invoke).
-        } else {
-            node->RemoveExpirationTimeout();
+                auto expirationTimeoutProperties = TCypressNode::TExpirationTimeoutPropertiesPtr(
+                    std::in_place, context->GetTimestamp());
 
-            if (node->IsTrunk()) {
-                node->SetTouchTime(TInstant::Zero());
-            }
-        }
+                node->SetExpirationTimeoutProperties(std::move(expirationTimeoutProperties));
+
+                if (node->IsTrunk()) {
+                    node->SetTouchTime(TInstant::Zero());
+                }
+            },
+            [&] (TRemoveExpiration) {
+                node->RemoveExpirationTimeoutProperties();
+
+                if (node->IsTrunk()) {
+                    node->SetTouchTime(TInstant::Zero());
+                }
+            });
 
         if (node->IsTrunk()) {
-            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node, oldExpirationTimeout);
+            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(
+                node, oldExpirationTimeoutProperties);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2306,13 +2339,14 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-        originatingNode->MergeExpirationTimeout(branchedNode);
+        auto oldExpirationTimeoutProperties = originatingNode->GetExpirationTimeoutPropertiesView();
+
+        originatingNode->MergeExpirationTimeoutProperties(branchedNode);
 
         if (originatingNode->IsTrunk()) {
             // Touching a node upon merging is not suppressible by design.
             // NB: Changing this requires tracking touch time for branched nodes.
-            if (originatingNode->TryGetExpirationTimeout()) {
+            if (originatingNode->TryGetExpirationTimeoutProperties()) {
                 auto* context = GetCurrentMutationContext();
                 YT_VERIFY(context);
                 originatingNode->SetTouchTime(context->GetTimestamp());
@@ -2323,7 +2357,8 @@ public:
         }
 
         if (originatingNode->IsTrunk()) {
-            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeout);
+            Bootstrap_->GetExpirationTracker()
+                ->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeoutProperties);
         }
     }
 
@@ -2737,7 +2772,6 @@ private:
     };
 
     const TAccessTrackerPtr AccessTracker_;
-    const TExpirationTrackerPtr ExpirationTracker_;
 
     TResolveCachePtr ResolveCache_;
 
@@ -2790,6 +2824,8 @@ private:
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
+        using NYT::Save;
+
         NodeMap_.SaveValues(context);
         LockMap_.SaveValues(context);
         ShardMap_.SaveValues(context);
@@ -2811,6 +2847,8 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        using NYT::Load;
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
@@ -2867,8 +2905,6 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
-
-        ExpirationTracker_->Clear();
 
         NodeMap_.Clear();
         LockMap_.Clear();
@@ -2956,12 +2992,12 @@ private:
                 }
             }
 
-            if (node->IsTrunk() && node->TryGetExpirationTime()) {
-                ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+            if (node->IsTrunk() && node->TryGetExpirationTimeProperties()) {
+                Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(node);
             }
 
             // COMPAT(shakurov)
-            if (node->TryGetExpirationTimeout()) {
+            if (node->TryGetExpirationTimeoutProperties()) {
                 if (node->IsTrunk() && !node->GetTouchTime()) {
                     const auto* hydraContext = GetCurrentHydraContext();
                     node->SetTouchTime(hydraContext->GetTimestamp());
@@ -2972,8 +3008,8 @@ private:
                 node->SetTouchTime(TInstant::Zero(), /*branchIsOk*/ true);
             }
 
-            if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
-                ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
+            if (node->IsTrunk() && node->TryGetExpirationTimeoutProperties()) {
+                Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(node);
             }
         }
         YT_LOG_INFO("Finished initializing nodes");
@@ -3288,22 +3324,12 @@ private:
         AccessTracker_->Start();
     }
 
-    void OnLeaderRecoveryComplete() override
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnLeaderRecoveryComplete();
-
-        ExpirationTracker_->Start();
-    }
-
     void OnStopLeading() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
-        ExpirationTracker_->Stop();
         OnStopEpoch();
     }
 
@@ -3384,7 +3410,7 @@ private:
 
         trunkNode->ResetLockingState();
 
-        ExpirationTracker_->OnNodeDestroyed(trunkNode);
+        Bootstrap_->GetExpirationTracker()->OnNodeDestroyed(trunkNode);
 
         const auto& handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
@@ -4042,7 +4068,7 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
-            if (trunkNode->TryGetExpirationTimeout() &&
+            if (trunkNode->TryGetExpirationTimeoutProperties() &&
                 !trunkNode->GetTouchTime() &&
                 trunkNode->IsNative()) // COMPAT(shakurov): remove this part.
             {
@@ -4052,7 +4078,7 @@ private:
                 auto* context = GetCurrentHydraContext();
                 trunkNode->SetTouchTime(context->GetTimestamp());
             }
-            ExpirationTracker_->OnNodeTouched(trunkNode);
+            Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
         }
     }
 
@@ -4506,13 +4532,13 @@ private:
         }
 
         // Copy expiration time.
-        auto expirationTime = sourceNode->TryGetExpirationTime();
+        auto expirationTime = sourceNode->GetExpirationTime();
         if (factory->ShouldPreserveExpirationTime() && expirationTime) {
             SetExpirationTime(clonedTrunkNode, *expirationTime);
         }
 
         // Copy expiration timeout.
-        auto expirationTimeout = sourceNode->TryGetExpirationTimeout();
+        auto expirationTimeout = sourceNode->GetExpirationTimeout();
         if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
             SetExpirationTimeout(clonedTrunkNode, *expirationTimeout);
         }
@@ -4574,12 +4600,12 @@ private:
                 continue;
             }
 
-            if (trunkNode->TryGetExpirationTimeout()) {
+            if (trunkNode->TryGetExpirationTimeoutProperties()) {
                 auto touchTime = FromProto<TInstant>(update.touch_time());
                 if (touchTime > trunkNode->GetTouchTime()) {
                     trunkNode->SetTouchTime(touchTime);
                 }
-                ExpirationTracker_->OnNodeTouched(trunkNode);
+                Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
             }
         }
     }

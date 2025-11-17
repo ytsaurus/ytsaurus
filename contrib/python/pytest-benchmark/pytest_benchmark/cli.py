@@ -3,6 +3,7 @@ from functools import partial
 
 from _pytest import pathlib
 from _pytest._io import TerminalWriter
+from _pytest.config import Config
 from _pytest.config.findpaths import locate_config
 
 from pytest_benchmark.csv import CSVResults
@@ -148,7 +149,10 @@ def main():
             histogram=first_or_value(args.histogram, False),
             name_format=NAME_FORMATTERS[args.name],
             logger=logger,
-            scale_unit=partial(hook.pytest_benchmark_scale_unit, config=None),
+            scale_unit=partial(
+                hook.pytest_benchmark_scale_unit,
+                config=Config.fromdictargs({'benchmark_time_unit': args.time_unit}, []),
+            ),
         )
         groups = hook.pytest_benchmark_group_stats(
             benchmarks=storage.load_benchmarks(*args.glob_or_file),

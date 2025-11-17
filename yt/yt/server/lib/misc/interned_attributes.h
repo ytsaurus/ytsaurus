@@ -204,7 +204,11 @@
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
+    XX(ExpirationTimeLastResetTime, expiration_time_last_reset_time) \
+    XX(ExpirationTimeUser, expiration_time_user) \
     XX(ExpirationTimeout, expiration_timeout) \
+    XX(ExpirationTimeoutLastResetTime, expiration_timeout_last_reset_time) \
+    XX(ExpirationTimeoutUser, expiration_timeout_user) \
     XX(ExportRefCounter, export_ref_counter) \
     XX(ExportedObjectCount, exported_object_count) \
     XX(ExportedObjects, exported_objects) \

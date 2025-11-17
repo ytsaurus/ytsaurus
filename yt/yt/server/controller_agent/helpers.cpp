@@ -417,7 +417,7 @@ std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor)
+TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor)
 {
     YT_VERIFY(partitionCount > 0);
     YT_VERIFY(maxPartitionFactor > 0);
@@ -438,10 +438,10 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
         YT_VERIFY(partitionCount > 0);
 
         if (partitionCount == 1 && depth == 0) {
-            return std::make_unique<TPartitionTreeSkeleton>();
+            return std::make_unique<TPartitionTreeSkeletonNode>();
         }
 
-        auto partitionTreeSkeleton = std::make_unique<TPartitionTreeSkeleton>();
+        auto partitionTreeSkeleton = std::make_unique<TPartitionTreeSkeletonNode>();
 
         int subtreeCount = std::min(maxPartitionFactor, partitionCount);
         int subtreeSize = partitionCount / subtreeCount;
@@ -457,7 +457,10 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
         }
         return partitionTreeSkeleton;
     };
-    return buildPartitionTreeSkeleton(partitionCount, partitionTreeDepth, buildPartitionTreeSkeleton);
+    return {
+        .Root = buildPartitionTreeSkeleton(partitionCount, partitionTreeDepth, buildPartitionTreeSkeleton),
+        .TreeDepth = partitionTreeDepth,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

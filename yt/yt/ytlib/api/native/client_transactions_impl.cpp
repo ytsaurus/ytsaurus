@@ -10,7 +10,6 @@ using namespace NPrerequisiteClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(kvk1920)
 TFuture<ITransactionPtr> TClient::StartNativeTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)

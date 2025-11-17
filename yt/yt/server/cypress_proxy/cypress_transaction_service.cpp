@@ -99,13 +99,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, CommitTransaction)
     {
-        auto createForwardingRequest = [] (const TCypressTransactionServiceProxy& proxy) {
-            return proxy.CommitTransaction();
-        };
-
         context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
 
-        ForwardRequestToMaster(std::move(context), createForwardingRequest);
+        ForwardRequestToMaster(std::move(context), [] (const TCypressTransactionServiceProxy& proxy) {
+            return proxy.CommitTransaction();
+        });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, AbortTransaction)

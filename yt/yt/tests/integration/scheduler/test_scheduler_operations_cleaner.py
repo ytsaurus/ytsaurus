@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, wait_no_assert, events_on_fs,
@@ -93,7 +93,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
             "enable_operation_heavy_attributes_archivation": True,
-        }
+        },
     }
 
     def setup_method(self, method):
@@ -490,3 +490,82 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0)
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+
+class TestSchedulerOperationsCleanerNoRetries(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                # Removal
+                "remove_batch_timeout": 100,
+                "remove_subbatch_size": 2,
+                "max_removal_sleep_delay": 100,
+                # Archive
+                "archive_batch_timeout": 100,
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                "max_operation_count_enqueued_for_archival": 5,
+                # General
+                "analysis_period": 100,
+                "soft_retained_operation_count": 3,
+                "clean_delay": 50,
+                "max_operation_count_per_user": 3,
+                "max_operation_age": 5000,
+
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100,
+            "enable_operation_heavy_attributes_archivation": True,
+        },
+        "cluster_connection": {
+            "cypress_proxy": {
+                "enable_exponential_retry_backoffs": False,
+                "retry_attempts": 1,
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestSchedulerOperationsCleanerNoRetries, self).setup_method(method)
+
+    def teardown_method(self, method):
+        super(TestSchedulerOperationsCleanerNoRetries, self).teardown_method(method)
+
+        # Drain archive queue
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove("//sys/operations/*")
+
+    @authors("bystrovserg")
+    def test_removal_batch_request_failed(self):
+        config = {
+            "analysis_period": 100,
+            "min_archivation_retry_sleep_delay": 100,
+            "max_archivation_retry_sleep_delay": 200,
+
+            "archive_batch_size": 1,
+            "archive_batch_timeout": 100,
+
+            "remove_batch_size": 2,
+            "remove_batch_timeout": 1000,
+            "enable_operation_archivation": False,
+            # Try remove operations every 200 ms.
+            "max_removal_sleep_delay": 200,
+        }
+
+        update_scheduler_config("operations_cleaner", config)
+
+        run_test_vanilla("sleep 1", track=True)
+
+        with Restarter(self.Env, [MASTERS_SERVICE]):
+            print_debug("Kill master")
+            # Master is dead so we wait here to make sure operations cleaner has made attempts to remove operation.
+            time.sleep(5)
+
+        # Check that orchid (and therefore scheduler) is alive.
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0)

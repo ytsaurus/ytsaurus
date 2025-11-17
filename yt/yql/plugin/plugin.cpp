@@ -29,6 +29,7 @@ TYqlPluginOptions ConvertToOptions(
         .GatewayConfig = ConvertToYsonString(config->GatewayConfig),
         .DqGatewayConfig = config->EnableDQ ? ConvertToYsonString(config->DQGatewayConfig) : TYsonString(),
         .YtflowGatewayConfig = ConvertToYsonString(config->YtflowGatewayConfig),
+        .PqGatewayConfig = ConvertToYsonString(config->PQGatewayConfig),
         .DqManagerConfig = config->EnableDQ ? ConvertToYsonString(config->DQManagerConfig) : TYsonString(),
         .FileStorageConfig = ConvertToYsonString(config->FileStorageConfig),
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),

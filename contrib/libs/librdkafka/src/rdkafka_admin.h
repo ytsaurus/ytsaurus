@@ -110,6 +110,12 @@ struct rd_kafka_AdminOptions_s {
                                           */
 
         rd_kafka_confval_t
+            match_consumer_group_types; /**< PTR: list of consumer group types
+                                         *   to query for.
+                                         *   Valid for: ListConsumerGroups.
+                                         */
+
+        rd_kafka_confval_t
             isolation_level; /**< INT:Isolation Level needed for list Offset
                               *   to query for.
                               *   Default Set to
@@ -445,6 +451,7 @@ struct rd_kafka_ConsumerGroupListing_s {
         /** Is it a simple consumer group? That means empty protocol_type. */
         rd_bool_t is_simple_consumer_group;
         rd_kafka_consumer_group_state_t state; /**< Consumer group state. */
+        rd_kafka_consumer_group_type_t type;   /**< Consumer group type. */
 };
 
 
@@ -583,6 +590,29 @@ typedef struct rd_kafka_ClusterDescription_s {
                                      * NULL if operations were not requested */
 
 } rd_kafka_ClusterDescription_t;
+
+/**@}*/
+
+/**
+ * @name ElectLeaders
+ * @{
+ */
+
+/**
+ * @struct ElectLeaders request object
+ */
+struct rd_kafka_ElectLeaders_s {
+        rd_kafka_ElectionType_t election_type; /*Election Type*/
+        rd_kafka_topic_partition_list_t
+            *partitions; /*TopicPartitions for election*/
+};
+
+/**
+ * @struct ElectLeaders result object
+ */
+typedef struct rd_kafka_ElectLeadersResult_s {
+        rd_list_t partitions; /**< Type (rd_kafka_topic_partition_result_t *) */
+} rd_kafka_ElectLeadersResult_t;
 
 /**@}*/
 

@@ -71,10 +71,7 @@ public:
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
         , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
-    {
-        // Initialize the metric to 0 (not banned) on startup.
-        BannedGauge_.Update(0.0);
-    }
+    { }
 
     IYPathServicePtr GetOrchidService() const override
     {

@@ -1971,3 +1971,154 @@ rd_kafka_metadata_new_topic_with_partition_replicas_mock(int replication_factor,
         return rd_kafka_metadata_new_topic_mock(
             topics, topic_cnt, replication_factor, num_brokers);
 }
+
+/**
+ * @brief Handle update of metadata received in the produce or fetch tags.
+ *
+ * @param rk Client instance.
+ * @param rko Metadata update operation.
+ *
+ * @locality main thread
+ * @locks none
+ *
+ * @return always RD_KAFKA_OP_RES_HANDLED
+ */
+rd_kafka_op_res_t
+rd_kafka_metadata_update_op(rd_kafka_t *rk, rd_kafka_metadata_internal_t *mdi) {
+        int i, j;
+        rd_kafka_metadata_t *md       = &mdi->metadata;
+        rd_bool_t cache_updated       = rd_false;
+        rd_kafka_secproto_t rkb_proto = rk->rk_conf.security_protocol;
+
+
+        for (i = 0; i < md->broker_cnt; i++) {
+                rd_kafka_broker_update(rk, rkb_proto, &md->brokers[i], NULL);
+        }
+
+        for (i = 0; i < md->topic_cnt; i++) {
+                struct rd_kafka_metadata_cache_entry *rkmce;
+                int32_t partition_cache_changes = 0;
+                rd_bool_t by_id =
+                    !RD_KAFKA_UUID_IS_ZERO(mdi->topics[i].topic_id);
+                rd_kafka_Uuid_t topic_id = RD_KAFKA_UUID_ZERO;
+                char *topic              = NULL;
+
+                if (by_id) {
+                        rkmce = rd_kafka_metadata_cache_find_by_id(
+                            rk, mdi->topics[i].topic_id, 1);
+                        topic_id = mdi->topics[i].topic_id;
+                } else {
+                        rkmce = rd_kafka_metadata_cache_find(
+                            rk, md->topics[i].topic, 1);
+                        topic = md->topics[i].topic;
+                }
+
+                if (!rkmce) {
+                        if (by_id) {
+                                rd_kafka_log(
+                                    rk, LOG_WARNING, "METADATAUPDATE",
+                                    "Topic id %s not found in cache",
+                                    rd_kafka_Uuid_base64str(&topic_id));
+                        } else {
+                                rd_kafka_log(rk, LOG_WARNING, "METADATAUPDATE",
+                                             "Topic %s not found in cache",
+                                             topic);
+                        }
+                        continue;
+                }
+                topic    = rkmce->rkmce_mtopic.topic;
+                topic_id = rkmce->rkmce_metadata_internal_topic.topic_id;
+
+                for (j = 0; j < md->topics[i].partition_cnt; j++) {
+                        rd_kafka_broker_t *rkb;
+                        rd_kafka_metadata_partition_t *mdp =
+                            &md->topics[i].partitions[j];
+                        ;
+                        rd_kafka_metadata_partition_internal_t *mdpi =
+                            &mdi->topics[i].partitions[j];
+                        int32_t part = mdp->id, current_leader_epoch;
+
+                        if (part >= rkmce->rkmce_mtopic.partition_cnt) {
+                                rd_kafka_log(rk, LOG_WARNING, "METADATAUPDATE",
+                                             "Partition %s(%s)[%" PRId32
+                                             "]: not found "
+                                             "in cache",
+                                             topic,
+                                             rd_kafka_Uuid_base64str(&topic_id),
+                                             part);
+
+                                continue;
+                        }
+
+                        rkb = rd_kafka_broker_find_by_nodeid(rk, mdp->leader);
+                        if (!rkb) {
+                                rd_kafka_log(rk, LOG_WARNING, "METADATAUPDATE",
+                                             "Partition %s(%s)[%" PRId32
+                                             "]: new leader"
+                                             "%" PRId32 " not found in cache",
+                                             topic,
+                                             rd_kafka_Uuid_base64str(&topic_id),
+                                             part, mdp->leader);
+                                continue;
+                        }
+
+                        current_leader_epoch =
+                            rkmce->rkmce_metadata_internal_topic
+                                .partitions[part]
+                                .leader_epoch;
+
+                        if (current_leader_epoch >= mdpi->leader_epoch) {
+                                rd_kafka_broker_destroy(rkb);
+                                rd_kafka_dbg(
+                                    rk, METADATA, "METADATAUPDATE",
+                                    "Partition %s(%s)[%" PRId32
+                                    "]: leader epoch "
+                                    "is "
+                                    "not newer %" PRId32 " >= %" PRId32,
+                                    topic, rd_kafka_Uuid_base64str(&topic_id),
+                                    part, current_leader_epoch,
+                                    mdpi->leader_epoch);
+                                continue;
+                        }
+                        partition_cache_changes++;
+
+                        /* Need to acquire the write lock to avoid dirty reads
+                         * from other threads acquiring read locks. */
+                        rd_kafka_wrlock(rk);
+                        rkmce->rkmce_metadata_internal_topic.partitions[part]
+                            .leader_epoch = mdpi->leader_epoch;
+                        rkmce->rkmce_mtopic.partitions[part].leader =
+                            mdp->leader;
+                        rd_kafka_wrunlock(rk);
+                        rd_kafka_broker_destroy(rkb);
+
+                        rd_kafka_dbg(rk, METADATA, "METADATAUPDATE",
+                                     "Partition %s(%s)[%" PRId32
+                                     "]:"
+                                     " updated with leader %" PRId32
+                                     " and epoch %" PRId32,
+                                     topic, rd_kafka_Uuid_base64str(&topic_id),
+                                     part, mdp->leader, mdpi->leader_epoch);
+                }
+
+                if (partition_cache_changes > 0) {
+                        cache_updated = rd_true;
+                        rd_kafka_topic_metadata_update2(
+                            rk->rk_internal_rkb, &rkmce->rkmce_mtopic,
+                            &rkmce->rkmce_metadata_internal_topic);
+                }
+        }
+
+        if (!cache_updated) {
+                rd_kafka_dbg(rk, METADATA, "METADATAUPDATE",
+                             "Cache was not updated");
+                return RD_KAFKA_OP_RES_HANDLED;
+        }
+
+        rd_kafka_dbg(rk, METADATA, "METADATAUPDATE",
+                     "Metadata cache updated, propagating changes");
+        rd_kafka_metadata_cache_propagate_changes(rk);
+        rd_kafka_metadata_cache_expiry_start(rk);
+
+        return RD_KAFKA_OP_RES_HANDLED;
+}

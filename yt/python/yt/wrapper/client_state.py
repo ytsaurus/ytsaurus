@@ -69,6 +69,7 @@ class ClientState(object):
         self._random_generator = SystemRandom()
         self._generate_mutation_id = None
 
+        self._created_with_pids = None  # type: typing.Optional[typing.Tuple[int, int]]
         self._telemetry = Telemetry()
 
     def _copy_init_state(self, other):
@@ -80,3 +81,10 @@ class ClientState(object):
         for attr in filter(lambda attr: not attr.startswith("__"), ClientState().__dict__):
             result[attr] = getattr(self, attr)
         return result
+
+    def __getstate__(self):
+        self_copy = dict(self.__dict__)
+        self_copy["_requests_session"] = None
+        self_copy["_requests_session_origin_id"] = None
+        self_copy["_created_with_pids"] = None
+        return self_copy

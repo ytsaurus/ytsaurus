@@ -62,6 +62,7 @@ import hashlib
 
 from time import sleep, time
 from threading import Thread
+from typing import Optional
 
 OUTPUT_PATH = None
 SANDBOX_ROOTDIR = None
@@ -121,7 +122,7 @@ def with_additional_threads(func):
 ##################################################################
 
 
-def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False, extra_artifact_components=None):
+def prepare_yatest_environment(need_suid, artifact_components=None, force_create_environment=False, extra_artifact_components=None, copy_ytserver=None):
     yt.logger.LOGGER.setLevel(logging.DEBUG)
     artifact_components = artifact_components or {}
 
@@ -130,6 +131,9 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
 
     # This env var is used for determining if we are in Devtools' ytexec environment or not.
     ytrecipe = os.environ.get("YT_OUTPUT") is not None
+
+    if copy_ytserver is None:
+        copy_ytserver = not ytrecipe
 
     bin_paths = []
     for path_suffix, components in (("", artifact_components), ("extra", extra_artifact_components)):
@@ -154,7 +158,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
             path = arcadia_interop.prepare_yt_environment(
                 destination,
                 binary_root=get_build_root(),
-                copy_ytserver_all=not ytrecipe,
+                copy_ytserver_all=copy_ytserver,
                 need_suid=need_suid and not ytrecipe,
                 artifact_components=components,
             )
@@ -418,6 +422,13 @@ class YTEnvSetup(object):
     ENABLE_MULTIDAEMON = False
 
     ENABLE_LOG_COMPRESSION = True
+
+    # In most cases copying of ytserver is not necessary and slows down tests (COPY_YTSERVER = True makes tests faster).
+    # But in some cases it prevent some problems.
+    # https://ytsaurus.tech/internal/uhTGXN0x7MtRVT
+    # Option can be removed after repairing yt/yt/tests/integration/node.
+    # If COPY_YTSERVER is None, YT_OUTPUT env is checked and if it is set, ytserver is copied.
+    COPY_YTSERVER: Optional[bool] = None
 
     @classmethod
     def is_multicell(cls):
@@ -734,6 +745,22 @@ class YTEnvSetup(object):
             **local_yt_config,
         )
 
+        if enable_tls:
+            if cls._is_ground_cluster(index) or cls.has_ground(index):
+                primary_index = index % cls.get_ground_index_offset()
+                ground_index = primary_index + cls.get_ground_index_offset()
+                yt_config.peer_alternative_host_name = cls.get_cluster_name(primary_index) + "_or_" + cls.get_cluster_name(ground_index)
+            if index < cls.get_ground_index_offset() and cls.get_param("USE_SEQUOIA", index):
+                for attr in [
+                    "internal_ca_cert",
+                    "internal_ca_cert_key",
+                    "rpc_cert",
+                    "rpc_cert_key",
+                    "rpc_client_cert",
+                    "rpc_client_cert_key",
+                ]:
+                    setattr(yt_config, attr, getattr(cls.ground_envs[index].yt_config, attr))
+
         if yt_config.jobs_environment_type == "porto" and not porto_available():
             pytest.skip("Porto is not available")
 
@@ -833,6 +860,7 @@ class YTEnvSetup(object):
             artifact_components=cls.ARTIFACT_COMPONENTS,
             force_create_environment=cls.FORCE_CREATE_ENVIRONMENT,
             extra_artifact_components=cls.EXTRA_ARTIFACT_COMPONENTS,
+            copy_ytserver=cls.COPY_YTSERVER,
         )
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
@@ -1244,10 +1272,17 @@ class YTEnvSetup(object):
                     (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
                      cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
                 assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
-                update_inplace(config, {
-                    "set_committed_attribute_via_transaction_action": False,
-                    "commit_operation_cypress_node_changes_via_system_transaction": True,
-                })
+                for version, components in cls.ARTIFACT_COMPONENTS.items():
+                    yt_commands.print_debug(f"version = {version}, components = {components}")
+                    if "controller_agent" not in components:
+                        continue
+                    # COMPAT(kvk1920)
+                    if version == "trunk" or version >= "25_4":
+                        continue
+                    update_inplace(config, {
+                        "set_committed_attribute_via_transaction_action": False,
+                        "commit_operation_cypress_node_changes_via_system_transaction": True,
+                    })
             cls._apply_effective_config_patch(config, "DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_controller_agent_config(config, cluster_index)
@@ -1726,23 +1761,32 @@ class YTEnvSetup(object):
 
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
-                paths_to_ignore = ["//sys/operations", "//sys/pools"]
+                paths_to_ignore = ["//sys/operations", "//sys/pools", "//sys/strawberry"]
 
                 non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
 
                 def sequoia_tables_empty():
+                    nodes_to_ignore = {
+                        record["node_id"] for record in yt_commands.select_rows(
+                            f"node_id from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where " + " or ".join(f"is_prefix('{p}', path)" for p in paths_to_ignore),
+                            driver=driver)}
+
                     def condition(descriptor):
                         if descriptor is DESCRIPTORS.node_id_to_path:
                             return (
                                 " where " +
-                                " and ".join([f"path != '{p}'" for p in paths_to_ignore]))
+                                " and ".join([f"not is_prefix('{p}', path)" for p in paths_to_ignore]))
                         if descriptor is DESCRIPTORS.path_to_node_id:
                             return (
                                 " where " +
                                 " and ".join([
-                                    f"path != '{yt_sequoia_helpers.mangle_sequoia_path(p)}'"
+                                    f"not is_prefix('{yt_sequoia_helpers.mangle_sequoia_path(p)}', path)"
                                     for p in paths_to_ignore
                                 ]))
+                        if descriptor is DESCRIPTORS.acls:
+                            return (
+                                " where node_id not in (" + ", ".join([f"'{n}'" for n in nodes_to_ignore]) + ")"
+                            )
                         return ""
 
                     nonlocal non_empty_tables

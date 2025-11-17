@@ -13,6 +13,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 const (
@@ -62,6 +63,7 @@ func (cluster *Cluster) GetVersionedResourceUsage(ctx context.Context, timestamp
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  cluster.Config.Proxy,
 		Logger: resourceUsageTable.l,
+		Token:  ytmsvc.TokenFromEnvVariable(cluster.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, resourceUsageTable.l.Logger(), "error creating yt client", log.Error(err))
@@ -159,6 +161,7 @@ func (cluster *Cluster) updateClusterData(ctx context.Context) {
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  cluster.Config.Proxy,
 		Logger: cluster.l,
+		Token:  ytmsvc.TokenFromEnvVariable(cluster.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, cluster.l.Logger(), "error creating yt client", log.Error(err))
@@ -211,6 +214,7 @@ func (cluster *Cluster) updateClusterData(ctx context.Context) {
 				ExcludedFields:       cluster.Config.ExcludedFields,
 				ClusterSchemaCache:   cluster.SchemasCache,
 				ClusterFeaturesCache: cluster.FeaturesCache,
+				TokenEnvVariable:     cluster.TokenEnvVariable,
 			}
 			resourceUsageTables = append(resourceUsageTables, resourceUsageTable)
 			previousSnapshotId = ""

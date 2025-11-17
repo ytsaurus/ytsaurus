@@ -8,14 +8,9 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/client/table_client/table_upload_options.h>
 
-#include <yt/yt/core/misc/topological_ordering.h>
-
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -93,8 +88,6 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Store all the fields for TStreamDescriptor in a non-refcounted
-// TStreamDescriptor base to copy all the fields in Clone() function at once.
 struct TStreamDescriptorBase
 {
     std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
@@ -104,9 +97,8 @@ struct TStreamDescriptorBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInputStreamDescriptor
-    : public TRefCounted
-    , public TStreamDescriptorBase
+struct TInputStreamDescriptor final
+    : public TStreamDescriptorBase
 {
     static TInputStreamDescriptorPtr FromOutputStreamDescriptor(
         const TOutputStreamDescriptorPtr& outputStreamDescriptor);
@@ -119,15 +111,11 @@ struct TInputStreamDescriptor
     void Persist(const TPersistenceContext& context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputStreamDescriptor)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOutputStreamDescriptorBase
+struct TOutputStreamDescriptor final
     : public TStreamDescriptorBase
 {
-    TOutputStreamDescriptorBase() = default;
-
     // Keep fields below in sync with operator =.
     NChunkPools::IPersistentChunkPoolInputPtr DestinationPool;
     // May be null if recovery info is not required.
@@ -142,7 +130,6 @@ struct TOutputStreamDescriptorBase
     // randomly.
     NObjectClient::TCellTagList CellTags;
     bool ImmediatelyUnstageChunkLists = false;
-    bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
 
     // In most situations coincides with the index of an stream descriptor,
@@ -153,23 +140,15 @@ struct TOutputStreamDescriptorBase
     int LivePreviewIndex = 0;
     TDataFlowGraph::TVertexDescriptor TargetDescriptor;
 
-    std::optional<int> PartitionTag;
-
-};
-
-struct TOutputStreamDescriptor
-    : public TRefCounted
-    , public TOutputStreamDescriptorBase
-{
-    explicit TOutputStreamDescriptor(TOutputStreamDescriptorBase base);
-    TOutputStreamDescriptor() = default;
+    // Chunk pool index that should be assigned to resulting chunk stripes.
+    // NB(apollo1321): This is an abstraction leak. The pool index is an implementation detail
+    // that shouldn't be exposed at this layer. Should be fixed in YT-26667.
+    std::optional<int> StreamChunkPoolIndex;
 
     TOutputStreamDescriptorPtr Clone() const;
 
     void Persist(const TPersistenceContext& context);
 };
-
-DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

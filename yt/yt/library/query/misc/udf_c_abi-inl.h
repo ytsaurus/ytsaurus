@@ -4,7 +4,7 @@
 #include "udf_c_abi.h"
 #endif
 
-#include "platform_specific.h"
+#include "port.h"
 
 #include <string.h>
 

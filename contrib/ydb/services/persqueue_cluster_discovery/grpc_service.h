@@ -1,11 +1,14 @@
 #pragma once
 
+#include <contrib/ydb/core/grpc_services/base/base.h>
 #include <contrib/ydb/library/actors/core/actorsystem_fwd.h>
 #include <contrib/ydb/library/actors/core/actorid.h>
 #include <contrib/ydb/public/api/grpc/draft/ydb_persqueue_v1.grpc.pb.h>
 #include <contrib/ydb/library/grpc/server/grpc_server.h>
 
 namespace NKikimr::NGRpcService {
+
+using TEvDiscoverPQClustersRequest = TGrpcRequestOperationCall<Ydb::PersQueue::ClusterDiscovery::DiscoverClustersRequest, Ydb::PersQueue::ClusterDiscovery::DiscoverClustersResponse>;
 
 class TGRpcPQClusterDiscoveryService
    : public NYdbGrpc::TGrpcServiceBase<Ydb::PersQueue::V1::ClusterDiscoveryService> {

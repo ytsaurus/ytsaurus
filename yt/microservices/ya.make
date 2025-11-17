@@ -1,8 +1,10 @@
 RECURSE(
     bulk_acl_checker
     bulk_acl_checker_roren
+    id_to_path_mapping
     resource_usage
     resource_usage_roren
+    ytmsvc_initializer
 )
 
 IF (NOT OPENSOURCE)

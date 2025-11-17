@@ -5,12 +5,13 @@ import (
 
 	"golang.org/x/xerrors"
 
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	resourceusage "go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/resource_usage"
 )
 
 const (
 	defaultHTTPHandlerTimeout = 2 * time.Minute
+	defaultTokenEnvVariable   = "YT_RESOURCE_USAGE_TOKEN"
 )
 
 type ConfigBase struct {
@@ -22,7 +23,7 @@ type ConfigBase struct {
 	DebugHTTPAddr string `yaml:"debug_http_addr"`
 
 	// CORS settings.
-	CORS *lib.CORSConfig `yaml:"cors"`
+	CORS *ytmsvc.CORSConfig `yaml:"cors"`
 
 	// Path to the directory with resource_usage preprocessing.
 	SnapshotRoot string `yaml:"snapshot_root"`
@@ -48,6 +49,10 @@ type ConfigBase struct {
 
 	// Disable ACL for testing purposes.
 	DisableACL bool `yaml:"disable_acl"`
+
+	// Environment variable that specifies the token used when accessing YT.
+	// By default, YT_RESOURCE_USAGE_TOKEN is used.
+	TokenEnvVariable string `yaml:"token_env_variable"`
 }
 
 func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
@@ -72,6 +77,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if c.HTTPHandlerTimeout == 0 {
 		c.HTTPHandlerTimeout = defaultHTTPHandlerTimeout
+	}
+
+	if c.TokenEnvVariable == "" {
+		c.TokenEnvVariable = defaultTokenEnvVariable
 	}
 
 	return nil

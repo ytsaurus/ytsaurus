@@ -36,6 +36,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   cpp-streams-zstd
   library-cpp-getopt
   yt-chyt-client
+  yt-client-arrow
   yt-library-dynamic_config
   yt-library-clickhouse_discovery
   yt-library-coredumper
@@ -68,6 +69,7 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/search_index.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_connect_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp

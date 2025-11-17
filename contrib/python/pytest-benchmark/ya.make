@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(5.1.0)
+VERSION(5.2.0)
 
 LICENSE(BSD-2-Clause)
 
@@ -48,6 +48,7 @@ RESOURCE_FILES(
     .dist-info/METADATA
     .dist-info/entry_points.txt
     .dist-info/top_level.txt
+    pytest_benchmark/py.typed
 )
 
 END()

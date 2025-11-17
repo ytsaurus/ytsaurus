@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(1.16.2)
+VERSION(1.16.3)
 
-ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.16.2.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.16.3.tar.gz)
 
 LICENSE(BSD-3-Clause)
 
@@ -2141,6 +2141,7 @@ RUN_PROGRAM(
     OUT scipy/stats/_stats_pythran.cpp
     OUTPUT_INCLUDES
     pythonic/__dispatch__/append.hpp
+    pythonic/builtins/abs.hpp
     pythonic/builtins/dict.hpp
     pythonic/builtins/getattr.hpp
     pythonic/builtins/int_.hpp
@@ -2148,11 +2149,13 @@ RUN_PROGRAM(
     pythonic/builtins/list.hpp
     pythonic/builtins/max.hpp
     pythonic/builtins/min.hpp
+    pythonic/builtins/pythran/or_.hpp
     pythonic/builtins/pythran/restrict_assign.hpp
     pythonic/builtins/range.hpp
     pythonic/builtins/tuple.hpp
     pythonic/core.hpp
     pythonic/include/__dispatch__/append.hpp
+    pythonic/include/builtins/abs.hpp
     pythonic/include/builtins/dict.hpp
     pythonic/include/builtins/getattr.hpp
     pythonic/include/builtins/int_.hpp
@@ -2160,18 +2163,29 @@ RUN_PROGRAM(
     pythonic/include/builtins/list.hpp
     pythonic/include/builtins/max.hpp
     pythonic/include/builtins/min.hpp
+    pythonic/include/builtins/pythran/or_.hpp
     pythonic/include/builtins/pythran/restrict_assign.hpp
     pythonic/include/builtins/range.hpp
     pythonic/include/builtins/tuple.hpp
+    pythonic/include/math/asin.hpp
+    pythonic/include/math/erfc.hpp
+    pythonic/include/math/exp.hpp
+    pythonic/include/math/sqrt.hpp
     pythonic/include/numpy/asarray.hpp
     pythonic/include/numpy/ceil.hpp
+    pythonic/include/numpy/concatenate.hpp
     pythonic/include/numpy/cumsum.hpp
+    pythonic/include/numpy/exp.hpp
     pythonic/include/numpy/expand_dims.hpp
     pythonic/include/numpy/float64.hpp
     pythonic/include/numpy/floor.hpp
+    pythonic/include/numpy/inf.hpp
     pythonic/include/numpy/median.hpp
     pythonic/include/numpy/nonzero.hpp
     pythonic/include/numpy/ones.hpp
+    pythonic/include/numpy/pi.hpp
+    pythonic/include/numpy/sin.hpp
+    pythonic/include/numpy/sqrt.hpp
     pythonic/include/numpy/square.hpp
     pythonic/include/numpy/sum.hpp
     pythonic/include/numpy/zeros.hpp
@@ -2180,12 +2194,14 @@ RUN_PROGRAM(
     pythonic/include/operator_/div.hpp
     pythonic/include/operator_/eq.hpp
     pythonic/include/operator_/floordiv.hpp
+    pythonic/include/operator_/ge.hpp
     pythonic/include/operator_/gt.hpp
     pythonic/include/operator_/iadd.hpp
     pythonic/include/operator_/imul.hpp
     pythonic/include/operator_/le.hpp
     pythonic/include/operator_/lt.hpp
     pythonic/include/operator_/mul.hpp
+    pythonic/include/operator_/neg.hpp
     pythonic/include/operator_/sub.hpp
     pythonic/include/types/float.hpp
     pythonic/include/types/float32.hpp
@@ -2196,15 +2212,25 @@ RUN_PROGRAM(
     pythonic/include/types/numpy_texpr.hpp
     pythonic/include/types/slice.hpp
     pythonic/include/types/str.hpp
+    pythonic/math/asin.hpp
+    pythonic/math/erfc.hpp
+    pythonic/math/exp.hpp
+    pythonic/math/sqrt.hpp
     pythonic/numpy/asarray.hpp
     pythonic/numpy/ceil.hpp
+    pythonic/numpy/concatenate.hpp
     pythonic/numpy/cumsum.hpp
+    pythonic/numpy/exp.hpp
     pythonic/numpy/expand_dims.hpp
     pythonic/numpy/float64.hpp
     pythonic/numpy/floor.hpp
+    pythonic/numpy/inf.hpp
     pythonic/numpy/median.hpp
     pythonic/numpy/nonzero.hpp
     pythonic/numpy/ones.hpp
+    pythonic/numpy/pi.hpp
+    pythonic/numpy/sin.hpp
+    pythonic/numpy/sqrt.hpp
     pythonic/numpy/square.hpp
     pythonic/numpy/sum.hpp
     pythonic/numpy/zeros.hpp
@@ -2213,12 +2239,14 @@ RUN_PROGRAM(
     pythonic/operator_/div.hpp
     pythonic/operator_/eq.hpp
     pythonic/operator_/floordiv.hpp
+    pythonic/operator_/ge.hpp
     pythonic/operator_/gt.hpp
     pythonic/operator_/iadd.hpp
     pythonic/operator_/imul.hpp
     pythonic/operator_/le.hpp
     pythonic/operator_/lt.hpp
     pythonic/operator_/mul.hpp
+    pythonic/operator_/neg.hpp
     pythonic/operator_/sub.hpp
     pythonic/python/core.hpp
     pythonic/python/exception_handler.hpp

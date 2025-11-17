@@ -15,6 +15,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yterrors"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 func (rut *ResourceUsageTable) GetFieldsDiffs(ctx context.Context, rutB *ResourceUsageTable) (intersection, onlyA, onlyB map[string]struct{}, err error) {
@@ -93,6 +94,7 @@ func (rut *ResourceUsageTable) executeSelectQueryAndProcessResults(ctx context.C
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
+		Token:  ytmsvc.TokenFromEnvVariable(rut.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error creating yt client", log.Error(err))
@@ -367,6 +369,7 @@ func (rut *ResourceUsageTable) CountRows(ctx context.Context, input countRowsInp
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
+		Token:  ytmsvc.TokenFromEnvVariable(rut.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error creating yt client", log.Error(err))
@@ -405,6 +408,7 @@ func (rut *ResourceUsageTable) GetSchema(ctx context.Context) (*schema.Schema, e
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
+		Token:  ytmsvc.TokenFromEnvVariable(rut.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error creating yt client", log.Error(err))
@@ -431,6 +435,7 @@ func (rut *ResourceUsageTable) GetFeatures(ctx context.Context) (*ResourceUsageT
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
+		Token:  ytmsvc.TokenFromEnvVariable(rut.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error creating yt client", log.Error(err))
@@ -540,6 +545,7 @@ func (rut *ResourceUsageTable) CountRowsDiff(ctx context.Context, input countRow
 	yc, err := ythttp.NewClient(&yt.Config{
 		Proxy:  rut.Proxy,
 		Logger: rut.l,
+		Token:  ytmsvc.TokenFromEnvVariable(rut.TokenEnvVariable),
 	})
 	if err != nil {
 		ctxlog.Error(ctx, rut.l.Logger(), "error creating yt client", log.Error(err))

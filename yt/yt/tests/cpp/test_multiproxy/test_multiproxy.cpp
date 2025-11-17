@@ -341,7 +341,7 @@ TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)
         };
         EXPECT_THROW_THAT(
             action(),
-            testing::HasSubstr("Error getting user info"));
+            testing::HasSubstr("No such user"));
     }
 }
 

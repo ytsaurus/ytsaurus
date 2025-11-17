@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
+#include <util/generic/function_ref.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,6 +310,13 @@ public:
         const TAccessControlList& acl,
         TPermissionCheckOptions options = {}) = 0;
 
+    //! Checks if given ACL allows access with #permission.
+    virtual TPermissionCheckResponse CheckPermission(
+        TUser* user,
+        EPermission permission,
+        TFunctionRef<TAccessControlList()> aclProducer,
+        TPermissionCheckOptions options = {}) = 0;
+
     //! Checks if given user is a member of superusers group.
     virtual bool IsSuperuser(const TUser* user) const = 0;
 
@@ -393,6 +402,9 @@ public:
 
     //! Unconditionally decrements the queue size for a given #user.
     virtual void DecrementRequestQueueSize(TUser* user) = 0;
+
+    //! Increments user_failed_expiration_request_count for a given #user.
+    virtual void IncrementFailedExpirationRequestCount(TUser* user) = 0;
 
     //! Returns the interned security tags registry.
     virtual const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const = 0;

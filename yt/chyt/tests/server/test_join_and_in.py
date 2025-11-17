@@ -1,4 +1,4 @@
-from base import ClickHouseTestBase, Clique, QueryFailedError
+from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
 from yt_commands import (create, write_table, authors, raises_yt_error, print_debug, get, create_dynamic_table,
                          insert_rows, sync_mount_table)
@@ -1018,3 +1018,13 @@ class TestJoinAndInStress(ClickHouseTestBase):
                                         char = "-" if row not in result else " "
                                         print_debug(char + " " + row)
                                     assert False
+
+
+@enable_sequoia
+class TestJoinAndInSequoia(TestJoinAndIn):
+    pass
+
+
+@enable_sequoia
+class TestJoinAndInStressSequoia(TestJoinAndInStress):
+    pass

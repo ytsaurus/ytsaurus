@@ -2049,7 +2049,7 @@ private:
                 if (tablet->IsPreloadedChunkRetentionRequired() &&
                     tablet->GetSettings().MountConfig->InMemoryMode != EInMemoryMode::None)
                 {
-                    YT_LOG_INFO("Tablet is retaining chunks (%v)",
+                    YT_LOG_INFO("Preloaded chunk data will be retained after unmount (%v)",
                         tablet->GetLoggingTag());
                     const auto& inMemoryManager = Bootstrap_->GetInMemoryManager();
                     for (const auto& [storeId, store] : tablet->StoreIdMap()) {
@@ -2384,7 +2384,9 @@ private:
             auto hunkChunk = tablet->GetHunkChunk(chunkId);
             hunkChunk->SetState(EHunkChunkState::RemovePrepared);
 
-            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+            hunkChunk->TryLock(transaction->GetId(), EObjectLockMode::Exclusive)
+                .ThrowOnError();
+
             // Probably we do not need these during prepare, but why not.
             tablet->UpdateDanglingHunkChunks(hunkChunk);
 
@@ -2403,7 +2405,9 @@ private:
                     tablet->AddHunkChunk(hunkChunk);
                 }
 
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                hunkChunk->TryLock(transaction->GetId(), EObjectLockMode::Shared)
+                    .ThrowOnError();
+
                 tablet->UpdateDanglingHunkChunks(hunkChunk);
 
                 YT_LOG_DEBUG(
@@ -2425,7 +2429,9 @@ private:
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, +1);
 
                         if (!existingReferencedHunks.contains(chunkId)) {
-                            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                            hunkChunk->TryLock(transaction->GetId(), EObjectLockMode::Shared)
+                                .ThrowOnError();
+
                             tablet->UpdateDanglingHunkChunks(hunkChunk);
                             existingReferencedHunks.insert(chunkId);
                         }

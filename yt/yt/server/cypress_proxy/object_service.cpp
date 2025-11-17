@@ -633,13 +633,11 @@ private:
             TSharedRefArray subresponseMessage(partsRange, TSharedRefArray::TMoveParts{});
 
             if (beforeSequoiaResolve) {
-                if (IsSubrequestRejectedByMaster(index, subresponseMessage)) {
+                if (RewriteSubrequestTargetIfRejectedByMaster(index, subresponseMessage)) {
                     YT_LOG_DEBUG(
                         "Subrequest was rejected by master server in favor of Sequoia "
                         "(SubrequestIndex: %v)",
                         index);
-
-                    Subrequests_[index].Target = ERequestTarget::Sequoia;
                     continue;
                 }
             } else {
@@ -675,7 +673,7 @@ private:
         }
     }
 
-    bool IsSubrequestRejectedByMaster(
+    bool RewriteSubrequestTargetIfRejectedByMaster(
         int subrequestIndex,
         const TSharedRefArray& responseMessage)
     {
@@ -690,6 +688,7 @@ private:
 
         if (involvesSequoiaError.has_value()) {
             auto& subrequest = Subrequests_[subrequestIndex];
+            subrequest.Target = ERequestTarget::Sequoia;
             RewriteSequoiaRequestTargetPath(&subrequest, *involvesSequoiaError);
         }
 
@@ -714,16 +713,11 @@ private:
 
         auto& header = *subrequest->RequestHeader;
         auto targetPath = *rootstockPath + *unresolvedSuffix;
-
-        if (targetPath == GetRequestTargetYPath(header)) {
-            return;
+        if (MaybeRewriteRequestTargetYPath(&header, targetPath)) {
+            subrequest->RequestMessage = SetRequestHeader(
+                subrequest->RequestMessage,
+                header);
         }
-
-        RewriteRequestTargetYPath(&header, targetPath);
-
-        subrequest->RequestMessage = SetRequestHeader(
-            subrequest->RequestMessage,
-            header);
     }
 
     // If resolve error occurred, patched response message and original resolve
@@ -820,7 +814,7 @@ private:
 
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
-        RewriteRequestTargetYPath(&header, newPath);
+        MaybeRewriteRequestTargetYPath(&header, newPath);
 
         // Otherwise there either were no prerequisite revisions,
         // or they were not parsed (because request will be forwarded to master).
@@ -900,12 +894,15 @@ private:
             return std::nullopt;
         }
 
+        auto authenticationIdentity = TryGetAuthenticationIdentity(*subrequest->RequestHeader)
+            .value_or(AuthenticationIdentity_);
+
         TSequoiaSessionPtr session;
         TMaybeUnreachableResolveResult resolveResult;
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
-                AuthenticationIdentity_,
+                std::move(authenticationIdentity),
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.

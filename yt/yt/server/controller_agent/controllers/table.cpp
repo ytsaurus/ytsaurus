@@ -219,7 +219,7 @@ TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIn
     descriptor->CellTags = {ExternalCellTag};
     descriptor->ImmediatelyUnstageChunkLists = false;
     descriptor->IsOutputTableDynamic = Dynamic;
-    descriptor->PartitionTag = TableIndex;
+    descriptor->StreamChunkPoolIndex = TableIndex;
 
     return descriptor;
 }

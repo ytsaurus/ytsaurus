@@ -49,7 +49,10 @@ struct TDynamicCypressManagerConfig
 
     TDuration ExpirationCheckPeriod;
     int MaxExpiredNodesRemovalsPerCommit;
+    int ExpirationAttemptLimit;
     TDuration ExpirationBackoffTime;
+    TDuration ExpirationAttemptPersistPeriod;
+    bool EnableAuthorizedExpiration;
 
     NCompression::ECodec TreeSerializationCodec;
 

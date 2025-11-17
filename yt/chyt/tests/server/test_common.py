@@ -5,7 +5,9 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
                          sync_create_cells, sync_mount_table, sync_unmount_table, insert_rows, print_debug, merge,
                          set, remove_user)
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
+from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls
 
 from yt.common import YtError, wait, parts_to_uuid
 
@@ -75,7 +77,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 for table in tables:
                     assert root + table in shown_tables
                     shown_tables.remove(root + table)
-            assert len(shown_tables) == 0
+            # NB: @opaque doesn't work in Sequoia.
+            assert len(shown_tables) == 0 if not self.USE_SEQUOIA else 1
 
             shown_tables_like_t1 = {table["name"] for table in clique.make_query("show tables like '%t1%'")}
             for root in roots:
@@ -215,7 +218,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     },
                 },
                 "settings": {
-                    "need_only_distinct": True,
+                    "execution": {"enable_distinct_read_optimization": True},
                 },
             }
         }
@@ -501,8 +504,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     },
                 },
                 "settings": {
-                    "execution": {"allow_string_min_max_optimization": True},
-                    "enable_min_max_optimization": True,
+                    "execution": {
+                        "enable_min_max_optimization": True,
+                        "allow_string_min_max_optimization": True,
+                    },
                 },
             }
         }
@@ -2324,6 +2329,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
     @authors("coteeq")
+    @not_implemented_in_sequoia
     def test_rls(self):
         with Clique(1) as clique:
             create_user("u")
@@ -2512,6 +2518,7 @@ class TestClickHouseWithMasterCache(ClickHouseTestBase):
     USE_MASTER_CACHE = True
 
     @authors("a-dyu")
+    @not_implemented_in_sequoia  # TODO(kvk1920): YT-26429.
     def test_create_and_drop_with_read_from_cache(self):
         patch = {
             "yt": {
@@ -2547,3 +2554,27 @@ class TestClickHouseWithMasterCache(ClickHouseTestBase):
                               settings=settings)
             for instance in instances:
                 assert clique.make_direct_query(instance, 'exists "//tmp/t2"') == [{"result": 1}]
+
+
+@enable_sequoia
+@enable_sequoia_acls
+class TestClickHouseCommonSequoia(TestClickHouseCommon):
+    pass
+
+
+@enable_sequoia
+@enable_sequoia_acls
+class TestClickHouseNoCacheSequoia(TestClickHouseNoCache):
+    pass
+
+
+@enable_sequoia
+@enable_sequoia_acls
+class TestCustomSettingsSequoia(TestCustomSettings):
+    pass
+
+
+@enable_sequoia
+@enable_sequoia_acls
+class TestClickHouseWithMasterCacheSequoia(TestClickHouseWithMasterCache):
+    pass

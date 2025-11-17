@@ -16,7 +16,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/yt/go/ytlog"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 	"go.ytsaurus.tech/yt/microservices/resource_usage/json_api_go/internal/app"
 )
 
@@ -30,7 +30,7 @@ func main() {
 
 	logger, stop := newLogger(*logToStderr, *logDir)
 	defer stop()
-	lib.Logger = logger
+	ytmsvc.Logger = logger
 
 	conf, err := readConfig(*configPath)
 	if err != nil {

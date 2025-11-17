@@ -32,6 +32,7 @@ public class PartitionTables
     private final DataSize dataWeightPerPartition;
     @Nullable
     private final Integer maxPartitionCount;
+    private final boolean omitInaccessibleRows;
     @Nullable
     private final Boolean adjustDataWeightPerPartition;
     @Nullable
@@ -50,6 +51,7 @@ public class PartitionTables
         this.partitionMode = Objects.requireNonNull(builder.partitionMode);
         this.dataWeightPerPartition = Objects.requireNonNull(builder.dataWeightPerPartition);
         this.maxPartitionCount = builder.maxPartitionCount;
+        this.omitInaccessibleRows = builder.omitInaccessibleRows;
         this.adjustDataWeightPerPartition = builder.adjustDataWeightPerPartition;
         this.enableKeyGuarantee = builder.enableKeyGuarantee;
         this.enableCookies = builder.enableCookies;
@@ -95,6 +97,7 @@ public class PartitionTables
         if (maxPartitionCount != null) {
             builder.setMaxPartitionCount(maxPartitionCount);
         }
+        builder.setOmitInaccessibleRows(omitInaccessibleRows);
         if (adjustDataWeightPerPartition != null) {
             builder.setAdjustDataWeightPerPartition(adjustDataWeightPerPartition);
         }
@@ -115,6 +118,7 @@ public class PartitionTables
         sb.append("Paths: ").append(Arrays.toString(paths.toArray()));
         sb.append("; PartitionMode: ").append(partitionMode.getName());
         sb.append("; DataWeightPerPartition: ").append(dataWeightPerPartition);
+        sb.append("; OmitInaccessibleRows: ").append(omitInaccessibleRows);
         if (maxPartitionCount != null) {
             sb.append("; MaxPartitionCount: ").append(maxPartitionCount);
             sb.append("; AdjustDataWeightPerPartition: ").append(adjustDataWeightPerPartition);
@@ -131,6 +135,7 @@ public class PartitionTables
                 .setFetcherConfig(fetcherConfig)
                 .setPartitionMode(partitionMode)
                 .setDataWeightPerPartition(dataWeightPerPartition)
+                .setOmitInaccessibleRows(omitInaccessibleRows)
                 .setMaxPartitionCount(maxPartitionCount)
                 .setAdjustDataWeightPerPartition(adjustDataWeightPerPartition)
                 .setEnableKeyGuarantee(enableKeyGuarantee)
@@ -158,6 +163,7 @@ public class PartitionTables
         private DataSize dataWeightPerPartition;
         @Nullable
         private Integer maxPartitionCount;
+        private boolean omitInaccessibleRows = false;
         @Nullable
         private Boolean adjustDataWeightPerPartition = true;
         @Nullable
@@ -204,6 +210,11 @@ public class PartitionTables
 
         public Builder setMaxPartitionCount(@Nullable Integer maxPartitionCount) {
             this.maxPartitionCount = maxPartitionCount;
+            return self();
+        }
+
+        public Builder setOmitInaccessibleRows(boolean omitInaccessibleRows) {
+            this.omitInaccessibleRows = omitInaccessibleRows;
             return self();
         }
 

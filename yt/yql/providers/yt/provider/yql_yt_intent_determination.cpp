@@ -117,6 +117,9 @@ public:
                 case EYtWriteMode::Flush:
                     tableDesc.Intents |= TYtTableIntent::Flush;
                     break;
+                case EYtWriteMode::Upsert:
+                    tableDesc.Intents |= TYtTableIntent::Upsert;
+                    break;
                 case EYtWriteMode::Create:
                     tableDesc.Intents |= TYtTableIntent::Create;
                     break;
@@ -263,6 +266,9 @@ public:
                 case EYtWriteMode::Flush:
                     tableDesc.Intents |= TYtTableIntent::Flush;
                     break;
+                case EYtWriteMode::Upsert:
+                    tableDesc.Intents |= TYtTableIntent::Upsert;
+                    break;
                 default:
                     ctx.AddError(TIssue(ctx.GetPosition(mode->Child(1)->Pos()), TStringBuilder() << "Unsupported "
                         << TYtPublish::CallableName() << " mode: " << mode->Child(1)->Content()));
@@ -323,6 +329,9 @@ public:
                     break;
                 case EYtWriteMode::Flush:
                     tableDesc.Intents |= TYtTableIntent::Flush;
+                    break;
+                case EYtWriteMode::Upsert:
+                    tableDesc.Intents |= TYtTableIntent::Upsert;
                     break;
                 default:
                     ctx.AddError(TIssue(ctx.GetPosition(mode->Child(1)->Pos()), TStringBuilder() << "Unsupported "

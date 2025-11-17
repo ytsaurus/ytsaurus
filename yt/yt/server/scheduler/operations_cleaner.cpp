@@ -1500,7 +1500,12 @@ private:
         if (removalStartTime + removalStuckTimeout < now) {
             StuckInRemovalOperations_.insert(request.Id);
         }
-        if (request.RemovalError->FindMatching(NYTree::EErrorCode::ResolveError) && removalStartTime + removalDropTimeout < now) {
+
+        auto isResolveError = request.RemovalError && request.RemovalError->FindMatching(NYTree::EErrorCode::ResolveError);
+
+        // RemovalError can be empty here if, for example, batch request has failed.
+        // In this case, we don't want to remove operation yet.
+        if (isResolveError && removalStartTime + removalDropTimeout < now) {
             YT_LOG_DEBUG(
                 "Operation is already removed, so we drop it from operations cleaner (OperationId: %v)",
                 request.Id);

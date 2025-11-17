@@ -1,4 +1,4 @@
-{{- range $jobName, $cronJob := (merge .Values.jobs .Values.additionalJobs) }}
+{{- range $jobName, $jobData := (merge .Values.jobs .Values.additionalJobs) }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -6,11 +6,11 @@ metadata:
   labels:
     {{- include ".labels" $ | nindent 4 }}
 spec:
-  schedule: {{ $cronJob.schedule | default $.Values.schedule | quote }}
+  schedule: {{ $jobData.schedule | default $.Values.schedule | quote }}
   successfulJobsHistoryLimit: {{ $.Values.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ $.Values.failedJobsHistoryLimit }}
   startingDeadlineSeconds: {{ $.Values.startingDeadlineSeconds }}
-  concurrencyPolicy: {{ $cronJob.concurrencyPolicy | default $.Values.concurrencyPolicy | quote }}
+  concurrencyPolicy: {{ $jobData.concurrencyPolicy | default $.Values.concurrencyPolicy | quote }}
   jobTemplate:
     spec:
       template:
@@ -22,35 +22,30 @@ spec:
           serviceAccountName: {{ include ".serviceAccountName" $ }}
           securityContext:
             {{- toYaml $.Values.podSecurityContext | nindent 12 }}
-          containers:
-          - name: {{ include ".cronJobSlug" (dict "name" $jobName) }}
-            securityContext:
-              {{- toYaml $.Values.securityContext | nindent 14 }}
-            image: {{ $.Values.image.repository }}:{{ $.Values.image.tag | default (printf "v%s" $.Chart.AppVersion) }}
-            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          {{- if and $jobData.jobs $jobData.jobDescriptions }}
+          initContainers:
+          {{- range $seqJobName := $jobData.jobs }}
+          {{- $seqJobDetails := (index $jobData.jobDescriptions $seqJobName) }}
+          - name: {{ include ".cronJobSlug" (dict "name" $seqJobName) }}
+            {{- include ".containerBody" $ | nindent 12 }}
             args:
-              {{- range $arg := $cronJob.args }}
+              {{- range $arg := $seqJobDetails.args }}
               - {{ $arg }}
               {{- end }}
-            env:
-              - name: YT_PROXY
-                value: {{ $.Values.yt.proxy | quote }}
-              - name: YT_TOKEN
-                valueFrom:
-                  secretKeyRef:
-                    {{- if not $.Values.unmanagedSecret.enabled }}
-                    key: YT_TOKEN
-                    name: {{ include ".fullname" $ }}
-                    {{- else }}
-                    key: {{ $.Values.unmanagedSecret.secretKeyRef.key }}
-                    name: {{ $.Values.unmanagedSecret.secretKeyRef.name }}
-                    {{- end }}
-            resources:
-              {{- toYaml $.Values.resources | nindent 14 }}
-            {{- with $.Values.volumeMounts }}
-            volumeMounts:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
+          {{- end }}
+          containers:
+          - name: sequence-complete-marker
+            {{- include ".containerBody" $ | nindent 12 }}
+            command: ["echo", "All sequential jobs completed successfully for {{ $jobName }}"]
+          {{- else }}
+          containers:
+          - name: {{ include ".cronJobSlug" (dict "name" $jobName) }}
+            {{- include ".containerBody" $ | nindent 12 }}
+            args:
+              {{- range $arg := $jobData.args }}
+              - {{ $arg }}
+              {{- end }}
+          {{- end }}
           {{- with $.Values.volumes }}
           volumes:
             {{- toYaml . | nindent 12 }}
@@ -67,7 +62,7 @@ spec:
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          restartPolicy: {{ $cronJob.restartPolicy }}
-  suspend: {{ not $cronJob.enabled }}
+          restartPolicy: {{ $jobData.restartPolicy }}
+  suspend: {{ not $jobData.enabled }}
 ---
 {{- end }}

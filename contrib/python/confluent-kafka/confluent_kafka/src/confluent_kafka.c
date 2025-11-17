@@ -340,7 +340,6 @@ static PyTypeObject KafkaErrorType = {
         KafkaError_new             /* tp_new */
 };
 
-
 /**
  * @brief Internal factory to create KafkaError object.
  */
@@ -408,9 +407,6 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
         ((KafkaError *)eo)->fatal = 1;
         PyErr_SetObject(KafkaException, eo);
 }
-
-
-
 
 
 /****************************************************************************
@@ -1357,6 +1353,42 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	return c_parts;
 }
 
+/**
+ * @brief Convert C rd_kafka_topic_partition_result_t to Python dict(TopicPartition, KafkaException).
+ * 
+ * @returns The new Python dict object.
+ */
+PyObject *c_topic_partition_result_to_py_dict(
+    const rd_kafka_topic_partition_result_t **partition_results,
+    size_t cnt) {
+        PyObject *result = NULL;
+        size_t i;
+
+        result = PyDict_New();
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *key;
+                PyObject *value;
+                const rd_kafka_topic_partition_t *c_topic_partition;
+                const rd_kafka_error_t *c_error;
+
+                c_topic_partition =
+                    rd_kafka_topic_partition_result_partition(partition_results[i]);
+                c_error = rd_kafka_topic_partition_result_error(partition_results[i]);
+
+                value = KafkaError_new_or_None(rd_kafka_error_code(c_error),
+                                               rd_kafka_error_string(c_error));
+                key = c_part_to_py(c_topic_partition);
+               
+                PyDict_SetItem(result, key, value);
+
+                Py_DECREF(key);
+                Py_DECREF(value);
+        }
+
+        return result;
+}
+
 #ifdef RD_KAFKA_V_HEADERS
 
 
@@ -1893,10 +1925,10 @@ static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
                 return 0;
         }
 
-        extensions[idx] = (char*)malloc(ksize);
-        strcpy(extensions[idx], k);
-        extensions[idx + 1] = (char*)malloc(vsize);
-        strcpy(extensions[idx + 1], v);
+        extensions[idx] = (char*)malloc(ksize + 1);
+        snprintf(extensions[idx], ksize + 1, "%s", k);
+        extensions[idx + 1] = (char*)malloc(vsize + 1);
+        snprintf(extensions[idx + 1], vsize + 1, "%s", v);
 
         Py_DECREF(ks);
         Py_XDECREF(ks8);

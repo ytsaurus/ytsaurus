@@ -681,7 +681,11 @@ TEST(TableIo, EmptyHosts)
 
     {
         auto tx = client->StartTransaction();
-        EXPECT_THROW(tx->CreateTableReader<NYT::TNode>(workingDir + "/table"), yexception);
+        EXPECT_THAT(
+            [&] {
+                tx->CreateTableReader<NYT::TNode>(workingDir + "/table");
+            },
+            testing::ThrowsMessage<std::exception>(testing::HasSubstr("hosts?role=ERROR")));
     }
     {
         auto tx = client->StartTransaction();
@@ -690,7 +694,7 @@ TEST(TableIo, EmptyHosts)
             writer->AddRow(TNode()("key", 0));
             writer->Finish();
         };
-        EXPECT_THROW(write(), yexception);
+        EXPECT_THAT(write, testing::ThrowsMessage<std::exception>(testing::HasSubstr("hosts?role=ERROR")));
     }
 }
 

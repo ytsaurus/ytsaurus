@@ -377,6 +377,12 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TYtflowGatewayConfig>(),
                 protobufWriterOptions));
 
+            auto* gatewayPqConfig = GatewaysConfigInitial_.MutablePq();
+            gatewayPqConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.PqGatewayConfig,
+                NYson::ReflectProtobufMessageType<NYql::TPqGatewayConfig>(),
+                protobufWriterOptions));
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,

@@ -51,8 +51,6 @@ DECLARE_REFCOUNTED_CLASS(TCombiningSamplesFetcher)
 
 DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
 DECLARE_REFCOUNTED_CLASS(TLivePreview)
-DECLARE_REFCOUNTED_STRUCT(TInputStreamDescriptor)
-DECLARE_REFCOUNTED_STRUCT(TOutputStreamDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
@@ -63,6 +61,12 @@ DECLARE_REFCOUNTED_CLASS(TJobExperimentBase)
 DECLARE_REFCOUNTED_CLASS(TSpecManager)
 
 YT_DEFINE_STRONG_TYPEDEF(TOperationIncarnation, std::string);
+
+struct TOutputStreamDescriptor;
+using TOutputStreamDescriptorPtr = TIntrusivePtr<TOutputStreamDescriptor>;
+
+struct TInputStreamDescriptor;
+using TInputStreamDescriptorPtr = TIntrusivePtr<TInputStreamDescriptor>;
 
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;

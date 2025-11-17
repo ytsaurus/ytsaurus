@@ -23,6 +23,9 @@ PEERDIR(
     library/cpp/dwarf_backtrace/registry
 )
 
+# Dummy signature generation for distributed write API
+SET(YT_CONFIG_PATCH {proxy_config={signature_components={generation={generator={};cypress_key_writer={owner_id="test"};key_rotator={}};validation={cypress_key_reader={}}}};})
+
 SIZE(MEDIUM)
 
 FORK_TESTS()

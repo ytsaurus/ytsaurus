@@ -896,6 +896,7 @@ int rd_kafka_retry_msgq(rd_kafka_msgq_t *destq,
                         int retry_max_ms) {
         rd_kafka_msgq_t retryable = RD_KAFKA_MSGQ_INITIALIZER(retryable);
         rd_kafka_msg_t *rkm, *tmp;
+        rd_ts_t now;
         int64_t jitter = rd_jitter(100 - RD_KAFKA_RETRY_JITTER_PERCENT,
                                    100 + RD_KAFKA_RETRY_JITTER_PERCENT);
         /* Scan through messages to see which ones are eligible for retry,
@@ -903,7 +904,14 @@ int rd_kafka_retry_msgq(rd_kafka_msgq_t *destq,
          * set backoff time for first message and optionally
          * increase retry count for each message.
          * Sorted insert is not necessary since the original order
-         * srcq order is maintained. */
+         * srcq order is maintained.
+         *
+         * Start timestamp for calculating backoff is common,
+         * to avoid that messages from the same batch
+         * have different backoff, as they need to be retried
+         * by reconstructing the same batch, when idempotency is
+         * enabled. */
+        now = rd_clock();
         TAILQ_FOREACH_SAFE(rkm, &srcq->rkmq_msgs, rkm_link, tmp) {
                 if (rkm->rkm_u.producer.retries + incr_retry > max_retries)
                         continue;
@@ -927,7 +935,7 @@ int rd_kafka_retry_msgq(rd_kafka_msgq_t *destq,
                         backoff = jitter * backoff * 10;
                         if (backoff > retry_max_ms * 1000)
                                 backoff = retry_max_ms * 1000;
-                        backoff = rd_clock() + backoff;
+                        backoff = now + backoff;
                 }
                 rkm->rkm_u.producer.ts_backoff = backoff;
 
@@ -1001,7 +1009,71 @@ void rd_kafka_toppar_insert_msgq(rd_kafka_toppar_t *rktp,
         rd_kafka_toppar_unlock(rktp);
 }
 
+/**
+ * @brief Purge internal fetch queue if toppar is stopped
+ * (RD_KAFKA_TOPPAR_FETCH_STOPPED) and removed from the cluster
+ * (RD_KAFKA_TOPPAR_F_REMOVE). Will be called from different places as it's
+ * removed starting from a metadata response and stopped from a rebalance or a
+ * consumer close.
+ *
+ * @remark Avoids circular dependencies in from `rktp_fetchq` ops to the same
+ * toppar that stop destroying a consumer.
+ *
+ * @locks rd_kafka_toppar_lock() MUST be held
+ */
+void rd_kafka_toppar_purge_internal_fetch_queue_maybe(rd_kafka_toppar_t *rktp) {
+        rd_kafka_q_t *rkq;
+        rkq = rktp->rktp_fetchq;
+        mtx_lock(&rkq->rkq_lock);
+        if (rktp->rktp_flags & RD_KAFKA_TOPPAR_F_REMOVE &&
+            !rktp->rktp_fetchq->rkq_fwdq) {
+                rd_kafka_op_t *rko;
+                int cnt = 0, barrier_cnt = 0, message_cnt = 0, other_cnt = 0;
 
+                /* Partition is being removed from the cluster and it's stopped,
+                 * so rktp->rktp_fetchq->rkq_fwdq is NULL.
+                 * Purge remaining operations in rktp->rktp_fetchq->rkq_q,
+                 * while holding lock, to avoid circular references */
+                rko = TAILQ_FIRST(&rkq->rkq_q);
+                while (rko) {
+                        if (rko->rko_type != RD_KAFKA_OP_BARRIER &&
+                            rko->rko_type != RD_KAFKA_OP_FETCH) {
+                                rd_kafka_log(
+                                    rktp->rktp_rkt->rkt_rk, LOG_WARNING,
+                                    "PARTDEL",
+                                    "Purging toppar fetch queue buffer op"
+                                    "with unexpected type: %s",
+                                    rd_kafka_op2str(rko->rko_type));
+                        }
+
+                        if (rko->rko_type == RD_KAFKA_OP_BARRIER)
+                                barrier_cnt++;
+                        else if (rko->rko_type == RD_KAFKA_OP_FETCH)
+                                message_cnt++;
+                        else
+                                other_cnt++;
+
+                        rko = TAILQ_NEXT(rko, rko_link);
+                        cnt++;
+                }
+
+                if (cnt) {
+                        rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, CGRP, "PARTDEL",
+                                     "Purge toppar fetch queue buffer "
+                                     "containing %d op(s) "
+                                     "(%d barrier(s), %d message(s), %d other)"
+                                     " to avoid "
+                                     "circular references",
+                                     cnt, barrier_cnt, message_cnt, other_cnt);
+                        rd_kafka_q_purge0(rktp->rktp_fetchq, rd_false);
+                } else {
+                        rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, CGRP, "PARTDEL",
+                                     "Not purging toppar fetch queue buffer."
+                                     " No ops present in the buffer.");
+                }
+        }
+        mtx_unlock(&rkq->rkq_lock);
+}
 
 /**
  * Helper method for purging queues when removing a toppar.
@@ -1351,7 +1423,7 @@ static void rd_kafka_toppar_handle_Offset(rd_kafka_t *rk,
 
         rd_kafka_toppar_lock(rktp);
         /* Drop reply from previous partition leader */
-        if (err != RD_KAFKA_RESP_ERR__DESTROY && rktp->rktp_broker != rkb)
+        if (err != RD_KAFKA_RESP_ERR__DESTROY && rktp->rktp_leader != rkb)
                 err = RD_KAFKA_RESP_ERR__OUTDATED;
         rd_kafka_toppar_unlock(rktp);
 
@@ -1541,7 +1613,7 @@ void rd_kafka_toppar_offset_request(rd_kafka_toppar_t *rktp,
         rd_kafka_assert(NULL,
                         thrd_is_current(rktp->rktp_rkt->rkt_rk->rk_thread));
 
-        rkb = rktp->rktp_broker;
+        rkb = rktp->rktp_leader;
 
         if (!backoff_ms && (!rkb || rkb->rkb_source == RD_KAFKA_INTERNAL))
                 backoff_ms = 500;

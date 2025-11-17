@@ -117,11 +117,6 @@ const std::vector<TOutputStreamDescriptorPtr>& TTask::GetOutputStreamDescriptors
     return OutputStreamDescriptors_;
 }
 
-const std::vector<TInputStreamDescriptorPtr>& TTask::GetInputStreamDescriptors() const
-{
-    return InputStreamDescriptors_;
-}
-
 void TTask::SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> streamDescriptors)
 {
     InputStreamDescriptors_ = std::move(streamDescriptors);
@@ -383,7 +378,7 @@ bool TTask::HasInputLocality() const
 
 void TTask::AddInput(TChunkStripePtr stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         // For all pools except sorted pool this simply drops key bounds (keeping them
         // in InputChunkToReadBounds_) as pools have no use for them.
         // For sorted chunk pool behavior is trickier as task adjusts the input read limits
@@ -956,9 +951,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
-        "Approximate: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, "
-        "RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
+        "Approximate: %v, FilteringPartitionTag: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
+        "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
+        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
@@ -966,7 +961,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->OutputCookie,
         joblet->InputStripeList->GetAggregateStatistics(),
         joblet->InputStripeList->IsApproximate(),
-        joblet->InputStripeList->GetPartitionTag(),
+        joblet->InputStripeList->GetFilteringPartitionTag(),
+        joblet->InputStripeList->GetOutputChunkPoolIndex(),
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
@@ -1103,14 +1099,14 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         });
 }
 
-void TTask::PropagatePartitions(
+void TTask::SetChunkPoolIndexForOutputStripes(
     const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
     const TChunkStripeListPtr& /*inputStripeList*/,
     std::vector<TChunkStripePtr>* outputStripes)
 {
     YT_VERIFY(outputStripes->size() == streamDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < std::ssize(*outputStripes); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex]->PartitionTag;
+        (*outputStripes)[stripeIndex]->SetInputChunkPoolIndex(streamDescriptors[stripeIndex]->StreamChunkPoolIndex);
     }
 }
 
@@ -1264,7 +1260,10 @@ void TTask::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
 
     PHOENIX_REGISTER_FIELD(38, DistributedJobManager_,
-        .SinceVersion(ESnapshotVersion::DistributedJobManagers));
+        .SinceVersion(ESnapshotVersion::DistributedJobManagers)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->DistributedJobManager_.InitializeCounter();
+        }));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
@@ -1744,7 +1743,7 @@ void TTask::AddParallelInputSpec(
         TaskHost_->GetOperationType());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes()) {
-        auto* inputSpec = stripe->Foreign
+        auto* inputSpec = stripe->IsForeign()
             ? jobSpecExt->add_foreign_input_table_specs()
             : jobSpecExt->add_input_table_specs();
         AddChunksToInputSpec(
@@ -1766,7 +1765,7 @@ void TTask::AddChunksToInputSpec(
 
     stripe = GetChunkMapping()->GetMappedStripe(stripe);
 
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         YT_VERIFY(!dataSlice->IsLegacy);
         AdjustOutputKeyBounds(dataSlice);
         YT_VERIFY(!dataSlice->IsLegacy);
@@ -2138,6 +2137,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
         }
     }
 
+    jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
+
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate()) {
         jobSpecExt->set_input_data_weight(static_cast<i64>(
@@ -2146,6 +2147,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
         jobSpecExt->set_input_row_count(static_cast<i64>(
             jobSpecExt->input_row_count() *
             ApproximateSizesBoostFactor));
+    }
+
+    if (joblet->InputStripeList->GetFilteringPartitionTag()) {
+        jobSpecExt->set_partition_tag(*joblet->InputStripeList->GetFilteringPartitionTag());
     }
 
     jobSpecExt->set_job_cpu_monitor_config(ToProto(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor)));
@@ -2209,7 +2214,7 @@ void TTask::RegisterOutput(
         jobResultExt,
         chunkListIds,
         jobResultExt.output_boundary_keys());
-    PropagatePartitions(
+    SetChunkPoolIndexForOutputStripes(
         joblet->OutputStreamDescriptors,
         joblet->InputStripeList,
         &outputStripes);
@@ -2218,7 +2223,7 @@ void TTask::RegisterOutput(
     for (int tableIndex = 0; tableIndex < std::ssize(streamDescriptors); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             const auto& streamDescriptor = streamDescriptors[tableIndex];
-            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
+            for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices()) {
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
                     streamDescriptor->LivePreviewIndex,
@@ -2276,11 +2281,11 @@ void TTask::RegisterStripe(
     bool processEmptyStripes,
     const std::optional<TMD5Hash>& digest)
 {
-    if (stripe->DataSlices.empty() && !stripe->ChunkListId) {
+    if (stripe->DataSlices().empty() && !stripe->GetChunkListId()) {
         return;
     }
 
-    if (stripe->DataSlices.empty() && !processEmptyStripes) {
+    if (stripe->DataSlices().empty() && !processEmptyStripes) {
         return;
     }
 
@@ -2411,7 +2416,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         dataSlice->SetInputStreamIndex(tableIndex);
         YT_VERIFY(tableIndex >= 0);
         YT_VERIFY(tableIndex < tableCount);
-        stripes[tableIndex]->DataSlices.emplace_back(std::move(dataSlice));
+        stripes[tableIndex]->DataSlices().push_back(std::move(dataSlice));
     }
     return stripes;
 }
@@ -2433,17 +2438,17 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < std::ssize(chunkTreeIds); ++tableIndex) {
-        stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
+        stripes[tableIndex]->SetChunkListId(chunkTreeIds[tableIndex]);
         if (OutputStreamDescriptors_[tableIndex]->TableWriterOptions->ReturnBoundaryKeys) {
             // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
             if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
                 !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&
                 boundaryKeysPerTable.Get(boundaryKeysIndex).sorted())
             {
-                stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
+                stripes[tableIndex]->SetBoundaryKeys(BuildBoundaryKeysFromOutputResult(
                     boundaryKeysPerTable.Get(boundaryKeysIndex),
                     OutputStreamDescriptors_[tableIndex],
-                    TaskHost_->GetRowBuffer());
+                    TaskHost_->GetRowBuffer()));
             }
             ++boundaryKeysIndex;
         }

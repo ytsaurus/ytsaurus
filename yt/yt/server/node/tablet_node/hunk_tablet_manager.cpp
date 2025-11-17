@@ -416,13 +416,15 @@ private:
             // NB: Cannot throw here since store state is transient.
             YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
 
-            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+            store->TryLock(transaction->GetId(), EObjectLockMode::Exclusive)
+                .ThrowOnError();
         }
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
             auto store = tablet->GetStore(storeId);
-            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+            store->TryLock(transaction->GetId(), EObjectLockMode::Exclusive)
+                .ThrowOnError();
         }
 
         YT_LOG_DEBUG(
@@ -598,7 +600,11 @@ private:
                 lockerTabletId);
         }
 
-        store->Lock(transaction->GetId(), EObjectLockMode::Shared);
+        if (auto error = store->TryLock(transaction->GetId(), EObjectLockMode::Shared); !error.IsOK()) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::HunkTabletStoreToggleConflict,
+                "Failed to toggle hunk tablet store")
+                << error;
+        }
 
         YT_LOG_DEBUG(
             "Hunk tablet store lock toggle prepared "

@@ -1,3 +1,4 @@
+// This engine is deprecated in favor of SpytConnectEngine
 #include "spyt_engine.h"
 
 #include "config.h"

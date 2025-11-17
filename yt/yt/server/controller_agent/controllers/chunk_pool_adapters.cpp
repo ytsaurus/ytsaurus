@@ -180,8 +180,8 @@ public:
 
     TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
-        YT_VERIFY(!stripe->DataSlices.empty());
-        for (const auto& dataSlice : stripe->DataSlices) {
+        YT_VERIFY(!stripe->DataSlices().empty());
+        for (const auto& dataSlice : stripe->DataSlices()) {
             auto chunk = dataSlice->GetSingleUnversionedChunk();
             TaskHost_->AttachToIntermediateLivePreview(chunk);
         }

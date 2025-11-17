@@ -68,6 +68,7 @@ extern "C" {
  *  - Low-level consumer
  *  - High-level balanced consumer groups with offset commits
  *  - Topic Metadata and auto creation
+ *  - Telemetry (KIP-714)
  *
  * @remark This is an experimental public API that is NOT covered by the
  *         librdkafka API or ABI stability guarantees.
@@ -165,6 +166,15 @@ rd_kafka_mock_push_request_errors_array(rd_kafka_mock_cluster_t *mcluster,
                                         int16_t ApiKey,
                                         size_t cnt,
                                         const rd_kafka_resp_err_t *errors);
+
+
+/**
+ * @brief Apply broker configuration group.initial.rebalance.delay.ms
+ *        to the whole \p mcluster.
+ */
+RD_EXPORT void rd_kafka_mock_group_initial_rebalance_delay_ms(
+    rd_kafka_mock_cluster_t *mcluster,
+    int32_t delay_ms);
 
 
 /**
@@ -447,6 +457,32 @@ rd_kafka_mock_get_requests(rd_kafka_mock_cluster_t *mcluster, size_t *cntp);
  */
 RD_EXPORT void rd_kafka_mock_clear_requests(rd_kafka_mock_cluster_t *mcluster);
 
+/**
+ * @brief Set the metrics that are expected by the broker for telemetry
+ * collection.
+ *
+ * @param metrics List of prefixes of metric names or NULL.
+ * @param metrics_cnt
+ *
+ * @note if \p metrics is NULL, no metrics will be expected by the broker. If
+ * the first elements of \p metrics is an empty string, that indicates the
+ * broker expects all metrics.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_telemetry_set_requested_metrics(rd_kafka_mock_cluster_t *mcluster,
+                                              char **metrics,
+                                              size_t metrics_cnt);
+
+
+/**
+ * @brief Set push frequency to be sent to the client for telemetry collection.
+ *        when the broker receives GetTelemetrySubscription requests.
+ *
+ * @param push_interval_ms time for push in milliseconds. Must be more than 0.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_telemetry_set_push_interval(rd_kafka_mock_cluster_t *mcluster,
+                                          int64_t push_interval_ms);
 /**@}*/
 
 #ifdef __cplusplus

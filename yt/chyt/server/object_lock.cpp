@@ -18,6 +18,7 @@ void Serialize(const TObjectLock& lock, IYsonConsumer* consumer)
         .BeginMap()
             .Item("node_id").Value(lock.NodeId)
             .Item("revision").Value(lock.Revision)
+            .OptionalItem("external_transaction_id", lock.ExternalTransactionId ? std::optional(lock.ExternalTransactionId) : std::nullopt)
         .EndMap();
 }
 
@@ -33,6 +34,7 @@ void Deserialize(TObjectLock& lock, const INodePtr& node)
 
     lock.NodeId = mapNode->GetChildValueOrThrow<NObjectClient::TObjectId>("node_id");
     lock.Revision = mapNode->GetChildValueOrThrow<NHydra::TRevision>("revision");
+    lock.ExternalTransactionId = mapNode->GetChildValueOrDefault<NTransactionClient::TTransactionId>("external_transaction_id", NTransactionClient::NullTransactionId);
 }
 
 void Deserialize(TObjectLock& lock, TYsonPullParserCursor* cursor)

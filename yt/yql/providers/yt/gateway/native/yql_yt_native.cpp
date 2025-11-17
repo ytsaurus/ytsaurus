@@ -1159,10 +1159,19 @@ public:
             TSet<TString> srcColumnGroupAlts;
             bool first = true;
             const TStructExprType* itemType = nullptr;
+
+            const auto destinationRowSpec = options.DestinationRowSpec();
+            const auto dstIsDynamic = TYtTableBaseInfo::GetMeta(publish.Publish())->IsDynamic;
+            bool srcAreSortedByDstKeys = true;
             for (auto out: publish.Input()) {
                 auto outTableWithCluster = GetOutTableWithCluster(out);
                 auto outTable = outTableWithCluster.first.Cast<TYtOutTable>();
                 src.emplace_back(outTable.Name().StringValue(), outTableWithCluster.second, !TYtOutTableInfo(outTable).Meta->SqlView.empty());
+
+                if (dstIsDynamic && !destinationRowSpec->CompareSortness(outTable.RowSpec(), /*checkUniqueFlag*/false)) {
+                    srcAreSortedByDstKeys = false;
+                }
+
                 if (first) {
                     itemType = GetSeqItemType(*outTable.Ref().GetTypeAnn()).Cast<TStructExprType>();
                     if (auto columnGroupSetting = NYql::GetSetting(outTable.Settings().Ref(), EYtSettingType::ColumnGroups)) {
@@ -1262,9 +1271,9 @@ public:
             const ui32 dstEpoch = TEpochInfo::Parse(publish.Publish().Epoch().Ref()).GetOrElse(0);
             auto execCtx = MakeExecCtx(std::move(options), session, cluster, node.Get(), &ctx);
 
-            return session->Queue_->Async([execCtx, src = std::move(src), dst, dstEpoch, isAnonymous, mode, initial, combineChunks, forceMerge, forceTransform, strOpts = std::move(strOpts)] () mutable {
+            return session->Queue_->Async([execCtx, src = std::move(src), dst, dstIsDynamic, srcAreSortedByDstKeys, dstEpoch, isAnonymous, mode, initial, combineChunks, forceMerge, forceTransform, strOpts = std::move(strOpts)] () mutable {
                 YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
-                return ExecPublish(execCtx, std::move(src), dst, dstEpoch, isAnonymous, mode, initial, combineChunks, forceMerge, forceTransform, strOpts);
+                return ExecPublish(execCtx, std::move(src), dst, dstIsDynamic, srcAreSortedByDstKeys, dstEpoch, isAnonymous, mode, initial, combineChunks, forceMerge, forceTransform, strOpts);
             })
             .Apply([nodePos] (const TFuture<void>& f) {
                 try {
@@ -2581,6 +2590,8 @@ private:
         const TExecContext<TPublishOptions>::TPtr& execCtx,
         TVector<TSrcTable>&& src,
         const TString& dst,
+        bool dstIsDynamic,
+        bool srcAreSortedByDstKeys,
         const ui32 dstEpoch,
         const bool isAnonymous,
         EYtWriteMode mode,
@@ -2597,6 +2608,10 @@ private:
         const bool isView = 1U == src.size() && src.front().IsView;
         auto cluster = execCtx->Cluster_;
         auto entry = execCtx->GetEntry();
+
+        const bool enableDynamicTablesWrite = execCtx->Options_.Config()->_EnableDynamicTablesWrite.Get(cluster).GetOrElse(false);
+        YQL_ENSURE(!dstIsDynamic || enableDynamicTablesWrite);
+
         TString tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), cluster);
         auto dstPath = NYql::TransformPath(tmpFolder, dst, isAnonymous, execCtx->Session_->UserName_);
         if (execCtx->Hidden) {
@@ -2630,7 +2645,7 @@ private:
         if ((EYtWriteMode::Append == mode || EYtWriteMode::RenewKeepMeta == mode) && !exists) {
             mode = EYtWriteMode::Renew;
         }
-        if (isAnonymous) {
+        if (isAnonymous) {Upsert          /* "upsert" */,
             entry->DeleteAtFinalize(dstPath);
         }
 
@@ -2786,14 +2801,14 @@ private:
 
         TFuture<void> res;
         forceMerge = forceMerge || AnyOf(src, [&](const auto& entry) { return entry.Cluster != execCtx->Cluster_; });
-        if (!isView && (EYtWriteMode::Flush == mode || EYtWriteMode::Append == mode || src.size() > 1 || forceMerge)) {
+        if (!isView && (EYtWriteMode::Flush == mode || EYtWriteMode::Append == mode || src.size() > 1 || forceMerge || dstIsDynamic)) {
             TFuture<bool> cacheCheck = MakeFuture<bool>(false);
             if (EYtWriteMode::Flush != mode && isAnonymous) {
                 execCtx->SetCacheItem({dstPath}, {NYT::TNode::CreateMap()}, tmpFolder);
                 cacheCheck = execCtx->LookupQueryCacheAsync();
             }
             res = cacheCheck.Apply([mode, src, execCtx, rowSpec, forceTransform,
-                                    appendToSorted, initial, entry, dstPath, dstEpoch, yqlAttrs, combineChunks,
+                                    appendToSorted, initial, entry, dstPath, dstIsDynamic, srcAreSortedByDstKeys, dstEpoch, yqlAttrs, combineChunks,
                                     dstCompressionCodec, dstErasureCodec, dstReplicationFactor, dstMedia, dstPrimaryMedium,
                                     nativeYtTypeCompatibility, publishTx, cluster,
                                     commitCheckpoint, columnGroupsSpec = std::move(columnGroupsSpec),
@@ -2812,8 +2827,9 @@ private:
                     columns.emplace_back(item.first);
                 }
 
-                TMergeOperationSpec mergeSpec;
+                TVector<TRichYPath> inputs;
                 if (appendToSorted) {
+                    YQL_ENSURE(!dstIsDynamic);
                     TRichYPath input;
                     if (initial) {
                         with_lock (entry->Lock_) {
@@ -2824,7 +2840,7 @@ private:
                     } else {
                         input = TRichYPath(dstPath).Columns(columns);
                     }
-                    mergeSpec.AddInput(input);
+                    inputs.push_back(input);
                 }
                 for (auto& s: src) {
                     auto path = TRichYPath(s.Name).Columns(columns);
@@ -2835,7 +2851,7 @@ private:
                             path.Cluster(execCtx->Clusters_->GetYtName(pathCluster));
                         }
                     }
-                    mergeSpec.AddInput(path);
+                    inputs.push_back(path);
                 }
 
                 NYT::TNode spec = execCtx->Session_->CreateSpecWithDesc();
@@ -2844,10 +2860,17 @@ private:
                     spec["additional_security_tags"] = securityTagsNode;
                 }
 
+                if (dstIsDynamic) {
+                    // Otherwise, the chunks after bulk insert will be too big.
+                    forceTransform = true;
+                    // Should be set on production clusters
+                    spec["allow_output_dynamic_tables"] = true;
+                }
+
                 auto ytDst = TRichYPath(dstPath);
-                if (EYtWriteMode::Append == mode && !appendToSorted) {
+                if ((EYtWriteMode::Append == mode && !appendToSorted) || EYtWriteMode::Upsert == mode) {
                     ytDst.Append(true);
-                } else {
+                } else if (!dstIsDynamic) {
                     NYT::TNode fullSpecYson;
                     rowSpec->FillCodecNode(fullSpecYson);
                     const auto schema = RowSpecToYTSchema(fullSpecYson, nativeYtTypeCompatibility, columnGroupsSpec);
@@ -2882,33 +2905,54 @@ private:
                         yqlAttrs.Clear();
                     }
                 }
-                mergeSpec.Output(ytDst);
-                mergeSpec.ForceTransform(forceTransform);
-                FillOperationSpec(mergeSpec, execCtx);
-
-                if (rowSpec->IsSorted()) {
-                    mergeSpec.Mode(MM_SORTED);
-                    mergeSpec.MergeBy(ToYTSortColumns(rowSpec->GetForeignSort()));
-                } else {
-                    mergeSpec.Mode(MM_ORDERED);
-                }
 
                 EYtOpProps flags = EYtOpProp::PublishedAutoMerge;
                 if (combineChunks) {
                     flags |= EYtOpProp::PublishedChunkCombine;
                 }
 
-                FillSpec(spec, *execCtx, entry, 0., Nothing(), flags);
-                CheckSpecForSecrets(spec, execCtx);
+                TFuture<void> resultFuture;
+                if (dstIsDynamic && !srcAreSortedByDstKeys) {
+                    TSortOperationSpec sortSpec;
+                    sortSpec.Inputs(inputs);
+                    sortSpec.Output(ytDst);
 
-                if (combineChunks) {
-                    mergeSpec.CombineChunks(true);
+                    sortSpec.SortBy(TSortColumns(rowSpec->SortedBy));
+                    sortSpec.SchemaInferenceMode(ESchemaInferenceMode::Auto);
+
+                    FillOperationSpec(sortSpec, execCtx);
+                    FillSpec(spec, *execCtx, entry, 0., flags);
+                    CheckSpecForSecrets(spec, execCtx);
+
+                    resultFuture = execCtx->RunOperation([publishTx, sortSpec = std::move(sortSpec), spec = std::move(spec)]() {
+                        return publishTx->Sort(sortSpec, TOperationOptions().StartOperationMode(TOperationOptions::EStartOperationMode::AsyncPrepare).CreateOutputTables(false).Spec(spec));
+                    });
+                } else {
+                    TMergeOperationSpec mergeSpec;
+                    mergeSpec.Inputs(inputs);
+                    mergeSpec.Output(ytDst);
+                    mergeSpec.ForceTransform(forceTransform);
+                    FillOperationSpec(mergeSpec, execCtx);
+
+                    if (rowSpec->IsSorted()) {
+                        mergeSpec.Mode(MM_SORTED);
+                        mergeSpec.MergeBy(ToYTSortColumns(rowSpec->GetForeignSort()));
+                    } else {
+                        mergeSpec.Mode(MM_ORDERED);
+                    }
+
+                    FillSpec(spec, *execCtx, entry, 0., Nothing(), flags);
+                    CheckSpecForSecrets(spec, execCtx);
+
+                    if (combineChunks) {
+                        mergeSpec.CombineChunks(true);
+                    }
+
+                    resultFuture = execCtx->RunOperation([publishTx, mergeSpec = std::move(mergeSpec), spec = std::move(spec)]() {
+                        return publishTx->Merge(mergeSpec, TOperationOptions().StartOperationMode(TOperationOptions::EStartOperationMode::AsyncPrepare).CreateOutputTables(false).Spec(spec));
+                    });
                 }
-
-                return execCtx->RunOperation([publishTx, mergeSpec = std::move(mergeSpec), spec = std::move(spec)]() {
-                    return publishTx->Merge(mergeSpec, TOperationOptions().StartOperationMode(TOperationOptions::EStartOperationMode::AsyncPrepare).CreateOutputTables(false).Spec(spec));
-                })
-                .Apply([execCtx](const auto& f){
+                return resultFuture.Apply([execCtx](const auto& f){
                     f.GetValue();
                     execCtx->StoreQueryCache();
                 });

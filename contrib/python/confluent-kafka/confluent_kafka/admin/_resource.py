@@ -25,6 +25,7 @@ class ResourceType(Enum):
     TOPIC = _cimpl.RESOURCE_TOPIC  #: Topic resource. Resource name is topic name.
     GROUP = _cimpl.RESOURCE_GROUP  #: Group resource. Resource name is group.id.
     BROKER = _cimpl.RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
+    TRANSACTIONAL_ID = _cimpl.RESOURCE_TRANSACTIONAL_ID  #: Transactional ID resource.
 
     def __lt__(self, other):
         if self.__class__ != other.__class__:

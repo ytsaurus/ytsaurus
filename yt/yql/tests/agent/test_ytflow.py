@@ -65,9 +65,10 @@ class TestYtflowBase(TestQueueAgentBase):
         query_text,
         output_tables_attrs, expected_output_rows
     ):
-        pipeline_path = self.PIPELINE_PATH
+        with yatest.common.network.PortManager() as port_manager:
+            pipeline_path = self.PIPELINE_PATH
 
-        query_text_header = f"""
+            query_text_header = f"""
 use primary;
 
 pragma Engine = "ytflow";
@@ -77,38 +78,42 @@ pragma Ytflow.PipelinePath = "{pipeline_path}";
 
 pragma Ytflow.YtConsumerPath = "{self.CONSUMER_PATH}";
 pragma Ytflow.YtProducerPath = "{self.PRODUCER_PATH}";
+pragma Ytflow.ControllerRpcPort = "{port_manager.get_port()}";
+pragma Ytflow.ControllerMonitoringPort = "{port_manager.get_port()}";
+pragma Ytflow.WorkerRpcPort = "{port_manager.get_port()}";
+pragma Ytflow.WorkerMonitoringPort = "{port_manager.get_port()}";
 """
 
-        input_table = self.INPUT_TABLE
-        input_table_attrs.update(dynamic=True)
-        create("table", input_table, attributes=input_table_attrs)
-        sync_mount_table(input_table)
+            input_table = self.INPUT_TABLE
+            input_table_attrs.update(dynamic=True)
+            create("table", input_table, attributes=input_table_attrs)
+            sync_mount_table(input_table)
 
-        output_tables = []
-        for index, output_table_attrs in enumerate(output_tables_attrs):
-            current_output_table = self.OUTPUT_TABLE_PATH + str(index)
-            output_table_attrs.update(dynamic=True)
-            create("table", current_output_table, attributes=output_table_attrs)
-            sync_mount_table(current_output_table)
+            output_tables = []
+            for index, output_table_attrs in enumerate(output_tables_attrs):
+                current_output_table = self.OUTPUT_TABLE_PATH + str(index)
+                output_table_attrs.update(dynamic=True)
+                create("table", current_output_table, attributes=output_table_attrs)
+                sync_mount_table(current_output_table)
 
-            output_tables.append(current_output_table)
+                output_tables.append(current_output_table)
 
-        insert_rows(input_table, input_rows)
+            insert_rows(input_table, input_rows)
 
-        query_text = '\n'.join([query_text_header, query_text])
+            query_text = '\n'.join([query_text_header, query_text])
 
-        query = start_query("yql", query_text)
-        query.track()
+            query = start_query("yql", query_text)
+            query.track()
 
-        wait_pipeline_state(
-            PipelineState.Completed, pipeline_path,
-            client=self.Env.create_client(),
-            timeout=600)
+            wait_pipeline_state(
+                PipelineState.Completed, pipeline_path,
+                client=self.Env.create_client(),
+                timeout=600)
 
-        for table, expected_rows in zip(output_tables, expected_output_rows):
-            result = list(select_rows(f"* from [{table}]"))
-            self._remove_system_columns(result)
-            assert_items_equal(result, expected_rows)
+            for table, expected_rows in zip(output_tables, expected_output_rows):
+                result = list(select_rows(f"* from [{table}]"))
+                self._remove_system_columns(result)
+                assert_items_equal(result, expected_rows)
 
     def _get_out_table_path(self, index):
         return self.OUTPUT_TABLE_PATH + str(index)

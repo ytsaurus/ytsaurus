@@ -350,7 +350,7 @@ def run():
     parser.add_argument("--attributes", default=None)
     parser.add_argument("--job-count", type=int, default=10)
     parser.add_argument("--job-cpu-limit", type=int, default=2)
-    parser.add_argument("--memory-limit-gbs", type=float, default=1.5)  # Most small clusters use 1.5 GiB
+    parser.add_argument("--memory-limit-gbs", type=float, default=3)  # Most small clusters use 3 GiB
     parser.add_argument("--job-execution-time-limit", type=int, default=90 * 60 * 1000)  # 90m
     parser.add_argument("--max-failed-job-count", type=int, default=3)
     parser.add_argument("--transaction-timeout", type=int, default=360 * 1000)

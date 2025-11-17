@@ -83,6 +83,40 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSpytConnectEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
+        .Default();
+    registrar.Parameter("use_squashfs", &TThis::UseSquashfs)
+        .Default(false);
+    registrar.Parameter("prefer_ipv6", &TThis::PreferIpv6)
+        .Default(true);
+    registrar.Parameter("spark_version", &TThis::SparkVersion)
+        .Default();
+    registrar.Parameter("spyt_version", &TThis::SpytVersion)
+        .Default();
+    registrar.Parameter("spyt_config_path", &TThis::SpytConfigPath)
+        .Default("//home/spark/conf");
+    registrar.Parameter("spyt_launch_conf_file", &TThis::SpytLaunchConfFile)
+        .Default("spark-launch-conf");
+    registrar.Parameter("grpc_port", &TThis::GrpcPort)
+        .Default(27080);
+    registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
+        .Default(TDuration::Minutes(20));
+    registrar.Parameter("refresh_token_period", &TThis::RefreshTokenPeriod)
+        .Default(TDuration::Minutes(10));
+    registrar.Parameter("status_poll_period", &TThis::StatusPollPeriod)
+        .Default(TDuration::Seconds(1));
+
+    registrar.Postprocessor([&] (TSpytConnectEngineConfig* config) {
+        if (!(config->SparkVersion.empty() || config->SparkVersion.starts_with("3.5"))) {
+            THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x is supported");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueryTrackerProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_query_file_count", &TThis::MaxQueryFileCount)
@@ -115,10 +149,14 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("spyt_engine", &TThis::SpytEngine)
         .DefaultNew();
+    registrar.Parameter("spyt_connect_engine", &TThis::SpytConnectEngine)
+        .DefaultNew();
     registrar.Parameter("mock_engine", &TThis::MockEngine)
         .DefaultNew();
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
+    registrar.Parameter("use_spyt_connect_engine", &TThis::UseSpytConnectEngine)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

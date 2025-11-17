@@ -10,7 +10,7 @@ from decimal_helpers import encode_decimal
 
 from yt_queries import start_query
 
-from base import ClickHouseTestBase, Clique
+from base import ClickHouseTestBase, Clique, enable_sequoia
 
 from yt.wrapper import yson
 
@@ -395,3 +395,8 @@ class TestQueriesChyt(ClickHouseTestBase):
             rows = [r for r in read_table(clique.query_log_table_path) if match(r)]
             print(rows)
             assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
+
+
+@enable_sequoia
+class TestQueriesChytSequoia(TestQueriesChyt):
+    pass

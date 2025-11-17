@@ -1,3 +1,4 @@
+// This engine is deprecated in favor of SpytConnectEngine
 #pragma once
 
 #include "private.h"

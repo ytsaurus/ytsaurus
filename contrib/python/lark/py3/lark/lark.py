@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .parser_frontends import ParsingFrontend
 
 from .exceptions import ConfigurationError, assert_config, UnexpectedInput
-from .utils import Serialize, SerializeMemoizer, FS, logger, TextOrSlice
+from .utils import Serialize, SerializeMemoizer, FS, logger, TextOrSlice, LarkInput
 from .load_grammar import load_grammar, FromPackageLoader, Grammar, verify_used_files, PackageResource, sha256_digest
 from .tree import Tree
 from .common import LexerConf, ParserConf, _ParserArgType, _LexerArgType
@@ -637,11 +637,11 @@ class Lark(Serialize):
         """Get information about a terminal"""
         return self._terminals_dict[name]
 
-    def parse_interactive(self, text: Optional[TextOrSlice]=None, start: Optional[str]=None) -> 'InteractiveParser':
+    def parse_interactive(self, text: Optional[LarkInput]=None, start: Optional[str]=None) -> 'InteractiveParser':
         """Start an interactive parsing session. Only works when parser='lalr'.
 
         Parameters:
-            text (TextOrSlice, optional): Text to be parsed. Required for ``resume_parse()``.
+            text (LarkInput, optional): Text to be parsed. Required for ``resume_parse()``.
             start (str, optional): Start symbol
 
         Returns:
@@ -651,12 +651,13 @@ class Lark(Serialize):
         """
         return self.parser.parse_interactive(text, start=start)
 
-    def parse(self, text: TextOrSlice, start: Optional[str]=None, on_error: 'Optional[Callable[[UnexpectedInput], bool]]'=None) -> 'ParseTree':
+    def parse(self, text: LarkInput, start: Optional[str]=None, on_error: 'Optional[Callable[[UnexpectedInput], bool]]'=None) -> 'ParseTree':
         """Parse the given text, according to the options provided.
 
         Parameters:
-            text (TextOrSlice): Text to be parsed, as `str` or `bytes`.
+            text (LarkInput): Text to be parsed, as `str` or `bytes`.
                 TextSlice may also be used, but only when lexer='basic' or 'contextual'.
+                If Lark was created with a custom lexer, this may be an object of any type.
             start (str, optional): Required if Lark was given multiple possible start symbols (using the start option).
             on_error (function, optional): if provided, will be called on UnexpectedInput error,
                 with the exception as its argument. Return true to resume parsing, or false to raise the exception.

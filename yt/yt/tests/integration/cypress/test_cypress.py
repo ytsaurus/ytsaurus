@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, with_additional_threads)
+    YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -18,7 +18,7 @@ from yt_commands import (
 
 from yt_helpers import get_current_time, profiler_factory
 
-from yt.common import YtError, YtResponseError
+from yt.common import YtError, YtResponseError, WaitFailed
 from yt.environment.helpers import assert_items_equal
 import yt.yson as yson
 
@@ -187,8 +187,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/another_old_list")
 
     @authors("kvk1920")
-    # TODO(danilalexeev): YT-26540.
-    @not_implemented_in_sequoia
     def test_non_recursive_attribute_set(self):
         create_user("u")
         create("map_node", "//tmp/m1")
@@ -537,13 +535,17 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         copy("//tmp/a", "//tmp/b/c", recursive=True)
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "kvk1920")
     def test_copy_recursive_fail(self):
         create("map_node", "//tmp/a")
         with raises_yt_error("Node //tmp has no child with key \"b\""):
             copy("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = "\"Copy\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
@@ -934,13 +936,19 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         move("//tmp/a", "//tmp/b/c", recursive=True)
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "kvk1920")
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
         with raises_yt_error("Node //tmp has no child with key \"b\""):
             move("//tmp/a", "//tmp/b/c", recursive=False)
 
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            # NB: there is no method "move" in our system. "Move" is just a
+            # "copy" with "mode = move".
+            error = "\"Copy\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             move("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
@@ -1280,10 +1288,14 @@ class TestCypress(YTEnvSetup):
         id3 = create("file", "//tmp/t", force=True)
         assert get("//tmp/t/@id") == id3
 
-    @authors("ignat")
+    @authors("kvk1920")
     def test_create_recursive(self):
         assert not exists("//tmp/a/b/c/d")
-        with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = "\"Create\" method is not supported for attributes"
+        else:
+            error = "Expected \"literal\" in YPath but found \"at\" token \"@\""
+        with raises_yt_error(error):
             create("map_node", "//tmp/a/b/c/d/@d", recursive=True)
         assert not exists("//tmp/a/b/c/d")
         create("map_node", "//tmp/a/b/c/d", recursive=True)
@@ -1979,62 +1991,354 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Cannot set \"expiration_time\" for the root"):
             set("//@expiration_time", str(get_current_time()))
 
+    @authors("koloshmet")
+    @pytest.mark.parametrize("expire_on_timeout_first", [False, True])
+    def test_expiration_user_root(self, expire_on_timeout_first):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        time_delta = 2
+        timeout = 2000
+
+        expiration_time = {"expiration_time": str(get_current_time() + timedelta(seconds=time_delta))}
+        expiration_timeout = {"expiration_timeout": timeout}
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes=expiration_timeout if expire_on_timeout_first else expiration_time,
+        )
+
+        if expire_on_timeout_first:
+            assert get("//tmp/t/@expiration_timeout_user") == "root"
+        else:
+            assert get("//tmp/t/@expiration_time_user") == "root"
+        time.sleep(3)
+        assert not exists("//tmp/t")
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("expire_on_timeout_first", [False, True])
+    def test_expiration_users(self, expire_on_timeout_first):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        time_delta = 100 if expire_on_timeout_first else 5
+        timeout = 5000 if expire_on_timeout_first else 2000
+
+        create_user("u1")
+        create_user("u2")
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=time_delta))},
+            authenticated_user="u1",
+        )
+        set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
+        set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
+        assert get("//tmp/t/@expiration_time_user") == "u1"
+        assert get("//tmp/t/@expiration_timeout_user") == "u2"
+        if expire_on_timeout_first:
+            with pytest.raises(WaitFailed):
+                wait(lambda: not exists("//tmp/t"), timeout=20, sleep_backoff=5)
+        else:
+            wait(lambda: not exists("//tmp/t"), timeout=20, sleep_backoff=5)
+
+    @authors("koloshmet")
+    def test_expiration_users_in_depth(self):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        timeout = 2500
+
+        create_user("u1")
+        create_user("u2")
+        create(
+            "map_node",
+            "//tmp/dir",
+            authenticated_user="u1",
+        )
+        create(
+            "table",
+            "//tmp/dir/t",
+            authenticated_user="u1",
+        )
+        set("//tmp/dir/@expiration_timeout", timeout, authenticated_user="u2")
+        set("//tmp/dir/t/@acl", [make_ace("deny", "u2", "remove")])
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: not exists("//tmp/dir"), timeout=20, sleep_backoff=10)
+        assert not exists("//tmp/dir/@expiration_timeout") == "u2"
+
+    @authors("koloshmet")
+    def test_expiration_users_allow(self):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        timeout = 2000
+
+        create_user("u1")
+        create_user("u2")
+        create(
+            "table",
+            "//tmp/t",
+            authenticated_user="u1",
+        )
+        set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
+        set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
+        assert get("//tmp/t/@expiration_timeout_user") == "u2"
+
+        time.sleep(5)
+        set("//tmp/t/@acl", [make_ace("allow", "u2", "remove")])
+        time.sleep(3)
+        assert not exists("//tmp/t")
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("expire_on_timeout_first", [False, True])
+    def test_drop_expiration_user(self, expire_on_timeout_first):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        time_delta = 2
+        timeout = 2000
+
+        create_user("u1")
+        create_user("u2")
+
+        create(
+            "table",
+            "//tmp/t",
+            authenticated_user="u1",
+        )
+        if expire_on_timeout_first:
+            set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
+        else:
+            set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u2")
+
+        set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
+
+        with pytest.raises(WaitFailed):
+            wait(lambda: not exists("//tmp/t"), timeout=30, sleep_backoff=5)
+
+        assert not exists("//tmp/t/@expiration_time")
+        assert not exists("//tmp/t/@expiration_time_user")
+        assert not exists("//tmp/t/@expiration_timeout")
+        assert not exists("//tmp/t/@expiration_timeout_user")
+        if expire_on_timeout_first:
+            assert not exists("//tmp/t/@expiration_time_last_reset_time")
+            assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+        else:
+            assert exists("//tmp/t/@expiration_time_last_reset_time")
+            assert not exists("//tmp/t/@expiration_timeout_last_reset_time")
+
+    @authors("koloshmet")
+    @flaky(max_runs=3)
+    def test_drop_expiration_user_with_restarts(self):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 2000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 3000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        time_delta = 2
+        final_sleep = 4 if type(self).__name__ == "TestCypress" else 10
+
+        create_user("u1")
+        create_user("u2")
+
+        create(
+            "table",
+            "//tmp/t",
+            authenticated_user="u1",
+        )
+        set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u2")
+        set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
+        time.sleep(5)
+        risen = None
+        with Restarter(self.Env, MASTERS_SERVICE):
+            risen = time.time()
+        time.sleep(max(3 - (time.time() - risen), 0))
+        assert exists("//tmp/t/@expiration_time")
+        assert exists("//tmp/t/@expiration_time_user")
+
+        time.sleep(final_sleep)
+        assert not exists("//tmp/t/@expiration_time")
+        assert not exists("//tmp/t/@expiration_time_user")
+        assert exists("//tmp/t/@expiration_time_last_reset_time")
+
+    @authors("koloshmet")
+    @pytest.mark.parametrize("expire_on_timeout_first", [False, True])
+    def test_drop_expiration_time_and_timeout_user(self, expire_on_timeout_first):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        time_delta = 6 if expire_on_timeout_first else 1
+        timeout = 1000 if expire_on_timeout_first else 3000
+
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+
+        create(
+            "table",
+            "//tmp/t",
+            authenticated_user="u1"
+        )
+
+        set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
+        set("//tmp/t/@expiration_time", str(get_current_time() + timedelta(seconds=time_delta)), authenticated_user="u3")
+
+        set("//tmp/t/@acl", [make_ace("deny", ["u2", "u3"], "remove")])
+
+        time.sleep(5)
+
+        if expire_on_timeout_first:
+            assert not exists("//tmp/t/@expiration_timeout_user")
+            assert not exists("//tmp/t/@expiration_timeout")
+            assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+            assert exists("//tmp/t/@expiration_time_user")
+            assert exists("//tmp/t/@expiration_time")
+            assert not exists("//tmp/t/@expiration_time_last_reset_time")
+        else:
+            assert not exists("//tmp/t/@expiration_time_user")
+            assert not exists("//tmp/t/@expiration_time")
+            assert exists("//tmp/t/@expiration_time_last_reset_time")
+            assert exists("//tmp/t/@expiration_timeout_user")
+            assert exists("//tmp/t/@expiration_timeout")
+            assert not exists("//tmp/t/@expiration_timeout_last_reset_time")
+
+        time.sleep(13)
+
+        assert exists("//tmp/t")
+        assert not exists("//tmp/t/@expiration_timeout_user")
+        assert not exists("//tmp/t/@expiration_timeout")
+        assert not exists("//tmp/t/@expiration_time_user")
+        assert not exists("//tmp/t/@expiration_time")
+        assert exists("//tmp/t/@expiration_time_last_reset_time")
+        assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+
+    @authors("koloshmet")
+    def test_drop_expiration_remove_user(self):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        timeout = 2000
+
+        create_user("u1")
+        create_user("u2")
+        create(
+            "table",
+            "//tmp/t",
+            authenticated_user="u1",
+        )
+        start = time.time()
+        set("//tmp/t/@expiration_timeout", timeout, authenticated_user="u2")
+        set("//tmp/t/@acl", [make_ace("deny", "u2", "remove")])
+        assert get("//tmp/t/@expiration_timeout_user") == "u2"
+
+        remove_user("u2")
+
+        assert time.time() > start + 2
+
+        assert not exists("//tmp/t/@expiration_timeout_user")
+        assert not exists("//tmp/t/@expiration_timeout")
+        assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+
     @authors("shakurov")
-    def test_expiration_time_versioning1(self):
+    @pytest.mark.parametrize("authorized", [False, True])
+    def test_expiration_time_versioning1(self, authorized):
+        auth_user1, auth_user2 = ("u1", "u2") if authorized else (None, None)
+        if authorized:
+            create_user(auth_user1)
+            create_user(auth_user2)
+
         create(
             "table",
             "//tmp/t1",
             attributes={"expiration_time": "2030-03-07T13:18:55.000000Z"},
+            authenticated_user=auth_user1,
         )
 
         tx = start_transaction()
 
-        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx)
+        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx, authenticated_user=auth_user2)
 
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
         assert get("//tmp/t1/@expiration_time", tx=tx) == "2031-03-07T13:18:55.000000Z"
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user") == auth_user1
+            assert get("//tmp/t1/@expiration_time_user", tx=tx) == auth_user2
 
         commit_transaction(tx)
 
         assert get("//tmp/t1/@expiration_time") == "2031-03-07T13:18:55.000000Z"
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user") == auth_user2
 
     @authors("shakurov")
-    def test_expiration_time_versioning2(self):
+    @pytest.mark.parametrize("authorized", [False, True])
+    def test_expiration_time_versioning2(self, authorized):
+        auth_user = "u1" if authorized else None
+        if authorized:
+            create_user(auth_user)
+
         create("table", "//tmp/t1")
 
         tx = start_transaction()
 
-        set("//tmp/t1/@expiration_time", "2030-03-07T13:18:55.000000Z", tx=tx)
+        set("//tmp/t1/@expiration_time", "2030-03-07T13:18:55.000000Z", tx=tx, authenticated_user=auth_user)
 
         assert get("//tmp/t1/@expiration_time", tx=tx) == "2030-03-07T13:18:55.000000Z"
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user", tx=tx) == auth_user
         assert not exists("//tmp/t1/@expiration_time")
 
         commit_transaction(tx)
 
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user") == auth_user
 
     @authors("shakurov")
-    def test_expiration_time_versioning3(self):
+    @pytest.mark.parametrize("authorized", [False, True])
+    def test_expiration_time_versioning3(self, authorized):
+        auth_user1, auth_user2 = ("u1", "u2") if authorized else (None, None)
+        if authorized:
+            create_user(auth_user1)
+            create_user(auth_user2)
+
         create(
             "table",
             "//tmp/t1",
             attributes={"expiration_time": "2030-03-07T13:18:55.000000Z"},
+            authenticated_user=auth_user1,
         )
 
         tx = start_transaction()
-        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx)
+        set("//tmp/t1/@expiration_time", "2031-03-07T13:18:55.000000Z", tx=tx, authenticated_user=auth_user2)
 
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
         assert get("//tmp/t1/@expiration_time", tx=tx) == "2031-03-07T13:18:55.000000Z"
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user") == auth_user1
+            assert get("//tmp/t1/@expiration_time_user", tx=tx) == auth_user2
 
         remove("//tmp/t1/@expiration_time", tx=tx)
 
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
         assert not exists("//tmp/t1/@expiration_time", tx=tx)
+        if authorized:
+            assert get("//tmp/t1/@expiration_time_user") == auth_user1
+            assert not exists("//tmp/t1/@expiration_time_user", tx=tx)
 
         commit_transaction(tx)
 
         assert not exists("//tmp/t1/@expiration_time")
+        if authorized:
+            assert not exists("//tmp/t1/@expiration_time_user")
 
     @authors("shakurov")
     def test_expiration_time_versioning4(self):
@@ -2135,6 +2439,28 @@ class TestCypress(YTEnvSetup):
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
         assert exists("//tmp/t2/@expiration_time")
+
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+
+    @authors("koloshmet")
+    @not_implemented_in_sequoia
+    def test_copy_preserve_expiration_time_authorized(self):
+        auth_user1, auth_user2 = ("u1", "u2")
+        create_user(auth_user1)
+        create_user(auth_user2)
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            authenticated_user=auth_user1,
+        )
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, authenticated_user=auth_user2)
+        assert exists("//tmp/t2/@expiration_time")
+        assert get("//tmp/t2/@expiration_time_user") == auth_user2
+
         time.sleep(2)
         assert not exists("//tmp/t1")
         assert not exists("//tmp/t2")
@@ -2148,11 +2474,32 @@ class TestCypress(YTEnvSetup):
         )
         copy("//tmp/t1", "//tmp/t2")
         assert not exists("//tmp/t2/@expiration_time")
+        assert not exists("//tmp/t2/@expiration_time_user")
         time.sleep(2)
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2")
 
-    @authors("egor-gutrov")
+    @authors("koloshmet")
+    @not_implemented_in_sequoia
+    def test_copy_dont_preserve_expiration_time_authorized(self):
+        auth_user1, auth_user2 = ("u1", "u2")
+        create_user(auth_user1)
+        create_user(auth_user2)
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            authenticated_user=auth_user1,
+        )
+        copy("//tmp/t1", "//tmp/t2", authenticated_user=auth_user2)
+        assert not exists("//tmp/t2/@expiration_time")
+        assert not exists("//tmp/t2/@expiration_time_user")
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2")
+
+    @authors("koloshmet")
     def test_copy_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2161,11 +2508,33 @@ class TestCypress(YTEnvSetup):
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_timeout=True)
         assert exists("//tmp/t2/@expiration_timeout")
+
         time.sleep(2)
         assert not exists("//tmp/t1")
         assert not exists("//tmp/t2")
 
-    @authors("egor-gutrov")
+    @authors("koloshmet")
+    @not_implemented_in_sequoia
+    def test_copy_preserve_expiration_timeout_authorized(self):
+        auth_user1, auth_user2 = ("u1", "u2")
+        create_user(auth_user1)
+        create_user(auth_user2)
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_timeout": 1000},
+            authenticated_user=auth_user1,
+        )
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_timeout=True, authenticated_user=auth_user2)
+        assert exists("//tmp/t2/@expiration_timeout")
+        assert get("//tmp/t2/@expiration_timeout_user") == auth_user2
+
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+
+    @authors("koloshmet")
     def test_copy_dont_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2174,6 +2543,26 @@ class TestCypress(YTEnvSetup):
         )
         copy("//tmp/t1", "//tmp/t2")
         assert not exists("//tmp/t2/@expiration_timeout")
+        assert not exists("//tmp/t2/@expiration_timeout_user")
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2")
+
+    @authors("koloshmet")
+    def test_copy_dont_preserve_expiration_timeout_authorized(self):
+        auth_user1, auth_user2 = ("u1", "u2")
+        create_user(auth_user1)
+        create_user(auth_user2)
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_timeout": 1000},
+            authenticated_user=auth_user1,
+        )
+        copy("//tmp/t1", "//tmp/t2", authenticated_user=auth_user2)
+        assert not exists("//tmp/t2/@expiration_timeout")
+        assert not exists("//tmp/t2/@expiration_timeout_user")
         time.sleep(2)
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2")
@@ -3787,19 +4176,24 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("already exists"):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
-    @authors("babenko")
-    # TODO(danilalexeev): YT-26540.
-    @not_implemented_in_sequoia
+    @authors("babenko", "kvk1920")
     def test_malformed_clone_src(self):
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t1")
         copy("//tmp/m&/t1", "//tmp/t2", force=True)
         copy("//tmp/m/t1&", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        error = "has unexpected suffix"
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = 'Expected "literal" in YPath but found "slash" token "/"'
+        with raises_yt_error(error):
             copy("//tmp/m//t1", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = 'Unexpected end-of-string in YPath'
+        with raises_yt_error(error):
             copy("//tmp/m/t1/", "//tmp/t2", force=True)
-        with raises_yt_error("has unexpected suffix"):
+        if self.ENABLE_TMP_ROOTSTOCK:
+            error = '"Copy" method is not supported'
+        with raises_yt_error(error):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
 
     @authors("kvk1920")
@@ -3942,7 +4336,6 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
-
         with raises_yt_error("is forbidden, use \"zlib_6\" instead"):
             create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
 
@@ -4221,6 +4614,15 @@ class TestCypress(YTEnvSetup):
 
         tx = start_transaction()
         assert lock("//tmp/doc", tx=tx)["revision"] == revision
+
+    @authors("kvk1920")
+    def test_create_with_ampersand(self):
+        id1 = create("int64_node", "//tmp/i&")
+        with raises_yt_error("Node //tmp/i already exists"):
+            create("int64_node", "//tmp/i&")
+        assert create("int64_node", "//tmp/i&", ignore_existing=True) == id1
+        id2 = create("int64_node", "//tmp/i&", force=True)
+        assert id1 != id2
 
 
 ##################################################################

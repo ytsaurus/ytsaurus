@@ -75,6 +75,8 @@ def create_response_error(underlying_error):
         error = YtCypressTransactionLockConflict(underlying_error)
     elif sample_error.is_tablet_in_intermediate_state():
         error = YtTabletIsInIntermediateState(underlying_error)
+    elif sample_error.is_hunk_tablet_store_toggle_conflict():
+        error = YtHunkTabletStoreToggleConflict(underlying_error)
     elif sample_error.is_no_such_tablet():
         error = YtNoSuchTablet(underlying_error)
     elif sample_error.is_tablet_not_mounted():
@@ -205,6 +207,11 @@ class YtNoSuchService(YtResponseError):
 
 class YtTabletIsInIntermediateState(YtResponseError):
     """Tablet is in intermediate state error"""
+    pass
+
+
+class YtHunkTabletStoreToggleConflict(YtResponseError):
+    """Hunk tablet store toggle conflict"""
     pass
 
 

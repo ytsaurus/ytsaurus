@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/flow/lib/client/public.h>
 
@@ -18,6 +19,20 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NFlow;
 using namespace NFlow::NController;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template <class TOptions>
+TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
+{
+    TFlowExecuteOptions executeOptions;
+    static_cast<TTimeoutOptions&>(executeOptions) = static_cast<const TTimeoutOptions&>(options);
+    return executeOptions;
+}
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +67,11 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
             version);
     }
 
+    if (!attributes.Contains(LeaderControllerAddressAttribute)) {
+        THROW_ERROR_EXCEPTION("Cannot discover pipeline controller because attribute %Qv is not set on pipeline. "
+            "Probably pipeline controller has never been successfully started or has been unable to publish itself",
+            LeaderControllerAddressAttribute);
+    }
     auto address = attributes.Get<TString>(LeaderControllerAddressAttribute);
 
     YT_LOG_DEBUG("Finished discovering pipeline controller leader (PipelinePath: %v, Address: %v)",
@@ -61,9 +81,8 @@ TString TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
     return address;
 }
 
-TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPath& pipelinePath)
+TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TString& address)
 {
-    auto address = DiscoverPipelineControllerLeader(pipelinePath);
     // Cannot use ChannelFactory_ here because it injects internal TVM ticket.
     auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
     TControllerServiceProxy proxy(std::move(channel));
@@ -71,20 +90,31 @@ TControllerServiceProxy TClient::CreatePipelineControllerLeaderProxy(const TYPat
     return proxy;
 }
 
+void TClient::ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission)
+{
+    NSecurityClient::TPermissionKey permissionKey{
+        .Path = pipelinePath,
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = permission,
+    };
+    WaitFor(Connection_->GetPermissionCache()->Get(permissionKey))
+        .ThrowOnError("No %v permission for pipeline %Qv", permission, pipelinePath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetPipelineSpecResult TClient::DoGetPipelineSpec(
     const NYPath::TYPath& pipelinePath,
     const TGetPipelineSpecOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.GetSpec();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "get-pipeline-spec", executeArgument, MakeFlowExecuteOptions(options));
+    auto executeResultNode = ConvertTo<IMapNodePtr>(executeResult.Result);
     return {
-        .Version = FromProto<TVersion>(rsp->version()),
-        .Spec = TYsonString(rsp->spec()),
+        .Version = executeResultNode->GetChildValueOrThrow<TVersion>("version"),
+        .Spec = ConvertToYsonString(executeResultNode->GetChildOrThrow("spec")),
     };
 }
 
@@ -93,20 +123,15 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
     const NYson::TYsonString& spec,
     const TSetPipelineSpecOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.SetSpec();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    req->set_spec(ToProto(spec));
-    req->set_force(options.Force);
-    if (options.ExpectedVersion) {
-        req->set_expected_version(ToProto(*options.ExpectedVersion));
-    }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("spec").Value(spec)
+            .Item("expected_version").Value(options.ExpectedVersion)
+            .Item("force").Value(options.Force)
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "set-pipeline-spec", executeArgument, MakeFlowExecuteOptions(options));
     return {
-        .Version = FromProto<TVersion>(rsp->version()),
+        .Version = ConvertTo<IMapNodePtr>(executeResult.Result)->GetChildValueOrThrow<TVersion>("version"),
     };
 }
 
@@ -114,16 +139,14 @@ TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
     const NYPath::TYPath& pipelinePath,
     const TGetPipelineDynamicSpecOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.GetDynamicSpec();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "get-pipeline-dynamic-spec", executeArgument, MakeFlowExecuteOptions(options));
+    auto executeResultNode = ConvertTo<IMapNodePtr>(executeResult.Result);
     return {
-        .Version = FromProto<TVersion>(rsp->version()),
-        .Spec = TYsonString(rsp->spec()),
+        .Version = executeResultNode->GetChildValueOrThrow<TVersion>("version"),
+        .Spec = ConvertToYsonString(executeResultNode->GetChildOrThrow("spec")),
     };
 }
 
@@ -132,19 +155,14 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
     const NYson::TYsonString& spec,
     const TSetPipelineDynamicSpecOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.SetDynamicSpec();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    req->set_spec(ToProto(spec));
-    if (options.ExpectedVersion) {
-        req->set_expected_version(ToProto(*options.ExpectedVersion));
-    }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("spec").Value(spec)
+            .Item("expected_version").Value(options.ExpectedVersion)
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "set-pipeline-dynamic-spec", executeArgument, MakeFlowExecuteOptions(options));
     return {
-        .Version = FromProto<TVersion>(rsp->version()),
+        .Version = ConvertTo<IMapNodePtr>(executeResult.Result)->GetChildValueOrThrow<TVersion>("version"),
     };
 }
 
@@ -152,54 +170,45 @@ void TClient::DoStartPipeline(
     const TYPath& pipelinePath,
     const TStartPipelineOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.StartPipeline();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("target_pipeline_state").Value(EPipelineState::Completed)
+        .EndMap();
+    DoFlowExecute(pipelinePath, "set-target-pipeline-state", executeArgument, MakeFlowExecuteOptions(options));
 }
 
 void TClient::DoStopPipeline(
     const TYPath& pipelinePath,
     const TStopPipelineOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.StopPipeline();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("target_pipeline_state").Value(EPipelineState::Stopped)
+        .EndMap();
+    DoFlowExecute(pipelinePath, "set-target-pipeline-state", executeArgument, MakeFlowExecuteOptions(options));
 }
 
 void TClient::DoPausePipeline(
     const TYPath& pipelinePath,
     const TPausePipelineOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.PausePipeline();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("target_pipeline_state").Value(EPipelineState::Paused)
+        .EndMap();
+    DoFlowExecute(pipelinePath, "set-target-pipeline-state", executeArgument, MakeFlowExecuteOptions(options));
 }
 
 TPipelineState TClient::DoGetPipelineState(
     const TYPath& pipelinePath,
     const TGetPipelineStateOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.GetPipelineState();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "get-pipeline-state", executeArgument, MakeFlowExecuteOptions(options));
     return {
-        .State = FromProto<EPipelineState>(rsp->state()),
+        .State = ConvertTo<IMapNodePtr>(executeResult.Result)->GetChildValueOrThrow<EPipelineState>("pipeline_state"),
     };
 }
 
@@ -208,17 +217,14 @@ TGetFlowViewResult TClient::DoGetFlowView(
     const TYPath& viewPath,
     const TGetFlowViewOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.GetFlowView();
-    if (options.Timeout) {
-        req->SetTimeout(options.Timeout);
-    }
-    req->set_path(viewPath);
-    req->set_cache(options.Cache);
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    auto executeArgument = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("path").Value(viewPath)
+            .Item("cache").Value(options.Cache)
+        .EndMap();
+    auto executeResult = DoFlowExecute(pipelinePath, "get-flow-view", executeArgument, MakeFlowExecuteOptions(options));
     return {
-        .FlowViewPart = TYsonString(rsp->flow_view_part()),
+        .FlowViewPart = executeResult.Result,
     };
 }
 
@@ -228,7 +234,45 @@ TFlowExecuteResult TClient::DoFlowExecute(
     const NYson::TYsonString& argument,
     const TFlowExecuteOptions& options)
 {
-    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    ValidatePipelinePermission(pipelinePath, EPermission::Read);
+    auto controllerAddress = DiscoverPipelineControllerLeader(pipelinePath);
+    auto proxy = CreatePipelineControllerLeaderProxy(controllerAddress);
+
+    auto executeRequest = [&](auto& req) {
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.GetCode() == NRpc::EErrorCode::TransportError) {
+            THROW_ERROR_EXCEPTION("Cannot connect to pipeline controller leader. "
+                "Probably controller is stopped or it is failing")
+                << TErrorAttribute("flow_execute_command", req->command())
+                << TErrorAttribute("pipeline_path", pipelinePath)
+                << TErrorAttribute("pipeline_controller_leader_address", controllerAddress)
+                << rspOrError;
+        }
+        return rspOrError.ValueOrThrow();
+    };
+
+    // Get and check command-specific permission.
+    {
+        // Required permission can be cached per pipeline.
+        // But this request type is rare and lighweight, so there is no need to cache it so far.
+        auto req = proxy.FlowExecute();
+        if (options.Timeout) {
+            req->SetTimeout(options.Timeout);
+        }
+        req->set_command("get-command-required-permission");
+        TYsonString argument = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("command").Value(command)
+            .EndMap();
+        req->set_argument(ToProto(argument));
+        auto rsp = executeRequest(req);
+        auto requiredPermission = ConvertTo<IMapNodePtr>(TYsonString(rsp->result()))
+            ->GetChildValueOrThrow<EPermission>("permission");
+        if (requiredPermission != EPermission::Read) {
+            ValidatePipelinePermission(pipelinePath, requiredPermission);
+        }
+    }
+
     auto req = proxy.FlowExecute();
     if (options.Timeout) {
         req->SetTimeout(options.Timeout);
@@ -237,8 +281,8 @@ TFlowExecuteResult TClient::DoFlowExecute(
     if (argument) {
         req->set_argument(ToProto(argument));
     }
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
+    req->set_user(Options_.GetAuthenticatedUser());
+    auto rsp = executeRequest(req);
     return {
         .Result = rsp->has_result() ? TYsonString(rsp->result()) : TYsonString{},
     };

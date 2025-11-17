@@ -323,7 +323,7 @@ private:
 
             auto waitStartInstant = TInstant::Now();
 
-            // NB: Because of eager commit mode we have to ensure local state has actually changed after transaction commit.
+            // NB: Because of eager commit mode we want to ensure local state has actually changed after transaction commit.
             while (TInstant::Now() - waitStartInstant < TransactionCommitTotalWaitTime) {
                 auto lockTransactionId = Tablet_->GetLockTransactionId();
                 if (lockTransactionId == transaction->GetId()) {

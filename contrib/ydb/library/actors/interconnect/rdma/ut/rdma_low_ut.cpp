@@ -6,7 +6,7 @@
 #include <contrib/ydb/library/actors/interconnect/rdma/events.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/rdma.h>
 #include <contrib/ydb/library/actors/interconnect/rdma/mem_pool.h>
-#include <contrib/ydb/library/actors/interconnect/interconnect_address.h>
+#include <contrib/ydb/library/actors/interconnect/address/interconnect_address.h>
 #include <contrib/ydb/library/actors/interconnect/poller/poller_actor.h>
 
 #include <library/cpp/testing/gtest/gtest.h>

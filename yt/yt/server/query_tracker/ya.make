@@ -17,6 +17,7 @@ SRCS(
     program.cpp
     ql_engine.cpp
     search_index.cpp
+    spyt_connect_engine.cpp
     spyt_discovery.cpp
     spyt_engine.cpp
     yql_engine.cpp
@@ -27,12 +28,14 @@ PEERDIR(
     contrib/python/pyspark/pyspark/sql/connect/proto
 
     library/cpp/yt/phdr_cache
-    
+
     library/cpp/streams/zstd
-    
+
     library/cpp/getopt
 
     yt/chyt/client
+
+    yt/yt/client/arrow
 
     yt/yt/library/dynamic_config
     yt/yt/library/clickhouse_discovery

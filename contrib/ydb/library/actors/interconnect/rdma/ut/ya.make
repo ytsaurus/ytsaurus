@@ -10,17 +10,19 @@ ELSE()
 ENDIF()
 
 SRCS(
-    allocator_ut.cpp
-    ibv_ut.cpp
-    utils.cpp
-    rdma_low_ut.cpp
+#    allocator_ut.cpp
+#    ibv_ut.cpp
+#    utils.cpp
+#    rdma_low_ut.cpp
 )
 
 PEERDIR(
     contrib/libs/ibdrv
     contrib/ydb/library/actors/core
     contrib/ydb/library/actors/interconnect
+    contrib/ydb/library/actors/interconnect/address
     contrib/ydb/library/actors/interconnect/rdma
+    contrib/ydb/library/actors/interconnect/rdma/cq_actor
     contrib/ydb/library/actors/testlib
 )
 

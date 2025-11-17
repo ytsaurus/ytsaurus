@@ -189,6 +189,7 @@ SRCS(
     cypress_server/portal_manager.cpp
     cypress_server/portal_node_map_type_handler.cpp
     cypress_server/proto/cypress_manager.proto
+    cypress_server/proto/expiration_tracker.proto
     cypress_server/proto/grafting_manager.proto
     cypress_server/proto/portal_manager.proto
     cypress_server/resolve_cache.cpp

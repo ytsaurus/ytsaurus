@@ -142,7 +142,7 @@ public:
         InputCookieToInternalCookies_.emplace_back();
         InputCookieIsSuspended_.emplace_back(false);
 
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             YT_VERIFY(!dataSlice->IsLegacy);
             // XXX
             dataSlice->GetInputStreamIndex();
@@ -316,7 +316,7 @@ public:
 
                 if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
                     YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
-                    auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices.back();
+                    auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices().back();
                     if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
                         TryTeleportChunk(dataSlice))
                     {
@@ -428,11 +428,11 @@ public:
             i64 sliceRowCount = currentDataSlice->GetRowCount();
             if (currentDataSlice->Type == EDataSourceType::UnversionedTable && sliceRowCount > rowsToAdd) {
                 auto split = currentDataSlice->SplitByRowIndex(rowsToAdd);
-                stripe->DataSlices.emplace_back(std::move(split.first));
+                stripe->DataSlices().push_back(std::move(split.first));
                 rowsToAdd = 0;
                 currentDataSlice = std::move(split.second);
             } else {
-                stripe->DataSlices.emplace_back(std::move(currentDataSlice));
+                stripe->DataSlices().push_back(std::move(currentDataSlice));
                 rowsToAdd -= sliceRowCount;
                 ++sliceIndex;
                 if (sliceIndex == std::ssize(dataSlices)) {
@@ -445,7 +445,7 @@ public:
                 rowsToAdd = rowsPerJob;
             }
         }
-        if (!stripe->DataSlices.empty()) {
+        if (!stripe->DataSlices().empty()) {
             flushStripe();
         }
         return childCookies;
@@ -670,7 +670,7 @@ private:
 
         MaxBlockSize_ = std::max(MaxBlockSize_, Stripes_.back().GetStatistics().MaxBlockSize);
 
-        GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices.size());
+        GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices().size());
 
         if (solid) {
             AddSolid(internalCookie);
@@ -678,7 +678,7 @@ private:
             Register(internalCookie);
         }
 
-        for (const auto& dataSlice : Stripes_.back().GetStripe()->DataSlices) {
+        for (const auto& dataSlice : Stripes_.back().GetStripe()->DataSlices()) {
             YT_VERIFY(dataSlice->Tag);
             auto inputCookie = *dataSlice->Tag;
 
@@ -809,7 +809,7 @@ private:
         const auto& suspendableStripe = Stripes_[stripeIndex];
 
         const auto& stripe = suspendableStripe.GetStripe();
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
@@ -842,7 +842,7 @@ private:
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
 
         auto jobStub = std::make_unique<TNewJobStub>();
-        for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+        for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices()) {
             jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
         }
         jobStub->Finalize();
@@ -855,7 +855,7 @@ private:
         const auto& suspendableStripe = Stripes_[stripeIndex];
 
         const auto& stripe = suspendableStripe.GetStripe();
-        for (const auto& dataSlice : stripe->DataSlices) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
@@ -943,7 +943,7 @@ private:
 
             addedStripeIndexes.push_back(stripeIndex);
 
-            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices()) {
                 jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
             }
         }

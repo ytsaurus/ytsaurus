@@ -34,7 +34,7 @@ void FillDataSliceDescriptors(
     const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
     const TChunkStripePtr& chunkStripe)
 {
-    for (const auto& dataSlice : chunkStripe->DataSlices) {
+    for (const auto& dataSlice : chunkStripe->DataSlices()) {
         auto& inputDataSliceDescriptor = dataSliceDescriptors.emplace_back();
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();

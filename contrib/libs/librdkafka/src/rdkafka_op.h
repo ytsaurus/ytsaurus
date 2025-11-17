@@ -39,6 +39,7 @@
 typedef struct rd_kafka_q_s rd_kafka_q_t;
 typedef struct rd_kafka_toppar_s rd_kafka_toppar_t;
 typedef struct rd_kafka_op_s rd_kafka_op_t;
+typedef struct rd_kafka_broker_s rd_kafka_broker_t;
 
 /* One-off reply queue + reply version.
  * All APIs that take a rd_kafka_replyq_t makes a copy of the
@@ -179,7 +180,15 @@ typedef enum {
         RD_KAFKA_OP_ALTERUSERSCRAMCREDENTIALS,    /* < Admin:
                                                      AlterUserScramCredentials
                                                      u.admin_request >*/
-        RD_KAFKA_OP_LISTOFFSETS, /**< Admin: ListOffsets u.admin_request >*/
+        RD_KAFKA_OP_LISTOFFSETS,     /**< Admin: ListOffsets u.admin_request >*/
+        RD_KAFKA_OP_METADATA_UPDATE, /**< Metadata update (KIP 951) **/
+        RD_KAFKA_OP_SET_TELEMETRY_BROKER, /**< Set preferred broker for
+                                               telemetry. */
+        RD_KAFKA_OP_TERMINATE_TELEMETRY,  /**< Start termination sequence for
+                                               telemetry. */
+        RD_KAFKA_OP_ELECTLEADERS,         /**< Admin:
+                                           *   ElectLeaders
+                                           *   u.admin_request */
         RD_KAFKA_OP__END
 } rd_kafka_op_type_t;
 
@@ -271,6 +280,7 @@ struct rd_kafka_admin_fanout_worker_cbs;
 
 #define RD_KAFKA_OP_TYPE_ASSERT(rko, type)                                     \
         rd_assert(((rko)->rko_type & ~RD_KAFKA_OP_FLAGMASK) == (type))
+
 
 struct rd_kafka_op_s {
         TAILQ_ENTRY(rd_kafka_op_s) rko_link;
@@ -571,6 +581,8 @@ struct rd_kafka_op_s {
                                RD_KAFKA_MOCK_CMD_BROKER_SET_RACK,
                                RD_KAFKA_MOCK_CMD_COORD_SET,
                                RD_KAFKA_MOCK_CMD_APIVERSION_SET,
+                               RD_KAFKA_MOCK_CMD_REQUESTED_METRICS_SET,
+                               RD_KAFKA_MOCK_CMD_TELEMETRY_PUSH_INTERVAL_SET,
                         } cmd;
 
                         rd_kafka_resp_err_t err; /**< Error for:
@@ -610,6 +622,8 @@ struct rd_kafka_op_s {
                                                   *    TOPIC_CREATE (repl fact)
                                                   *    PART_SET_FOLLOWER_WMARKS
                                                   *    APIVERSION_SET (maxver)
+                                                  *    REQUESTED_METRICS_SET (metrics_cnt)
+                                                  *    TELEMETRY_PUSH_INTERVAL_SET (interval)
                                                   */
                         int32_t leader_id;       /**< Leader id, for:
                                                   *   PART_PUSH_LEADER_RESPONSE
@@ -617,6 +631,8 @@ struct rd_kafka_op_s {
                         int32_t leader_epoch;    /**< Leader epoch, for:
                                                   *   PART_PUSH_LEADER_RESPONSE
                                                   */
+                        char **metrics;          /**< Metrics requested, for:
+                                                  *   REQUESTED_METRICS_SET */
                 } mock;
 
                 struct {
@@ -678,6 +694,11 @@ struct rd_kafka_op_s {
                         void *opaque;
 
                 } leaders;
+
+                struct {
+                        /** Preferred broker for telemetry. */
+                        rd_kafka_broker_t *rkb;
+                } telemetry_broker;
 
         } rko_u;
 };

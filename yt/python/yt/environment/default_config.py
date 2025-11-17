@@ -433,9 +433,6 @@ def get_controller_agent_config():
                 "duration_before_job_considered_disappeared_from_node": 1000,
                 "node_disconnection_timeout": 2000,
             },
-
-            "set_committed_attribute_via_transaction_action": False,
-            "commit_operation_cypress_node_changes_via_system_transaction": True,
         },
     }
 

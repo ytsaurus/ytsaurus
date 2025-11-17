@@ -777,6 +777,7 @@ PEERDIR(
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf
+    library/cpp/containers/absl_flat_hash
     yt/yt/library/erasure/impl
     yt/yt/library/containers
     yt/yt/library/constrained

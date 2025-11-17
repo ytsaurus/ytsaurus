@@ -2024,7 +2024,7 @@ The [Apache Kafka Implementation Proposals (KIPs)](https://cwiki.apache.org/conf
 | KIP-436 - Start time in stats                                            | 2.3.0                       | Supported                                                                                     |
 | KIP-447 - Producer scalability for EOS                                   | 2.5.0                       | Supported                                                                                     |
 | KIP-455 - AdminAPI: Replica assignment                                   | 2.4.0 (WIP)                 | Not supported                                                                                 |
-| KIP-460 - AdminAPI: electPreferredLeader                                 | 2.4.0                       | Not supported                                                                                 |
+| KIP-460 - AdminAPI: electLeaders                                         | 2.6.0                       | Supported                                                                                     |
 | KIP-464 - AdminAPI: defaults for createTopics                            | 2.4.0                       | Supported                                                                                     |
 | KIP-467 - Per-message (sort of) error codes in ProduceResponse           | 2.4.0                       | Supported                                                                                     |
 | KIP-480 - Sticky partitioner                                             | 2.4.0                       | Supported                                                                                     |
@@ -2044,17 +2044,19 @@ The [Apache Kafka Implementation Proposals (KIPs)](https://cwiki.apache.org/conf
 | KIP-559 - Make the Kafka Protocol Friendlier with L7 Proxies             | 2.5.0                       | Not supported                                                                                 |
 | KIP-568 - Explicit rebalance triggering on the Consumer                  | 2.6.0                       | Not supported                                                                                 |
 | KIP-659 - Add metadata to DescribeConfigsResponse                        | 2.6.0                       | Not supported                                                                                 |
-| KIP-580 - Exponential backoff for Kafka clients                          | 3.7.0 (WIP)                 | Supported                                                                                     |
+| KIP-580 - Exponential backoff for Kafka clients                          | 3.7.0                       | Supported                                                                                     |
 | KIP-584 - Versioning scheme for features                                 | WIP                         | Not supported                                                                                 |
 | KIP-588 - Allow producers to recover gracefully from txn timeouts        | 2.8.0 (WIP)                 | Not supported                                                                                 |
 | KIP-601 - Configurable socket connection timeout                         | 2.7.0                       | Supported                                                                                     |
 | KIP-602 - Use all resolved addresses by default                          | 2.6.0                       | Supported                                                                                     |
 | KIP-651 - Support PEM format for SSL certs and keys                      | 2.7.0                       | Supported                                                                                     |
 | KIP-654 - Aborted txns with non-flushed msgs should not be fatal         | 2.7.0                       | Supported                                                                                     |
+| KIP-714 - Client metrics and observability                               | 3.7.0                       | Supported                                                                                     |
 | KIP-735 - Increase default consumer session timeout                      | 3.0.0                       | Supported                                                                                     |
 | KIP-768 - SASL/OAUTHBEARER OIDC support                                  | 3.0                         | Supported                                                                                     |
-| KIP-881 - Rack-aware Partition Assignment for Kafka Consumers            | 3.5.0 (WIP)                 | Supported                                                                                     |
+| KIP-881 - Rack-aware Partition Assignment for Kafka Consumers            | 3.5.0                       | Supported                                                                                     |
 | KIP-848 - The Next Generation of the Consumer Rebalance Protocol         | 3.7.0 (EA)                  | Early Access                                                                                  |
+| KIP-951 - Leader discovery optimisations for the client                  | 3.7.0                       | Supported                                                                                     |
 
 
 
@@ -2068,8 +2070,8 @@ release of librdkafka.
 
 | ApiKey  | Request name                  | Kafka max  | librdkafka max |
 | ------- | ----------------------------- | ---------- | -------------- |
-| 0       | Produce                       | 10         | 8              |
-| 1       | Fetch                         | 16         | 11             |
+| 0       | Produce                       | 10         | 10             |
+| 1       | Fetch                         | 16         | 16             |
 | 2       | ListOffsets                   | 8          | 7              |
 | 3       | Metadata                      | 12         | 12             |
 | 8       | OffsetCommit                  | 9          | 9              |
@@ -2100,11 +2102,14 @@ release of librdkafka.
 | 36      | SaslAuthenticate              | 2          | 1              |
 | 37      | CreatePartitions              | 3          | 0              |
 | 42      | DeleteGroups                  | 2          | 1              |
+| 43      | ElectLeaders                  | 2          | 2              | 
 | 44      | IncrementalAlterConfigs       | 1          | 1              |
 | 47      | OffsetDelete                  | 0          | 0              |
 | 50      | DescribeUserScramCredentials  | 0          | 0              |
 | 51      | AlterUserScramCredentials     | 0          | 0              |
 | 68      | ConsumerGroupHeartbeat        | 0          | 0              |
+| 71      | GetTelemetrySubscriptions     | 0          | 0              |
+| 72      | PushTelemetry                 | 0          | 0              |
 
 # Recommendations for language binding developers
 

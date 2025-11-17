@@ -14,6 +14,10 @@ import yt.yson as yson
 
 from copy import deepcopy
 
+import os
+import threading
+
+
 _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
     "ping_ancestor_transactions": False
@@ -73,6 +77,15 @@ def make_request(command_name,
                  batch_yson_dumps=True,
                  mutation_id=None,
                  client=None):
+
+    if client:
+        client_created_with_pids = get_option("_created_with_pids", client)
+        if not client_created_with_pids:
+            client_created_with_pids = (os.getpid(), threading.get_ident())
+            set_option("_created_with_pids", client_created_with_pids, client)
+        if client_created_with_pids[0] == os.getpid() and client_created_with_pids[1] != threading.get_ident():
+            logger.debug("WARNING. Do not use one YtClient in different threads")
+
     backend = get_backend_type(client)
 
     command_params = deepcopy(get_option("COMMAND_PARAMS", client))

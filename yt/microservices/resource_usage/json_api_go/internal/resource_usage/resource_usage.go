@@ -73,6 +73,7 @@ func (ru *ResourceUsage) newCluster(clusterConfig *ClusterConfig) *Cluster {
 		l:                   clusterLogger,
 		SchemasCache:        lru.NewLRU[ypath.YPath, *schema.Schema](100*1024, nil, 0),
 		FeaturesCache:       lru.NewLRU[ypath.YPath, *ResourceUsageTableFeatures](100*1024, nil, 0),
+		TokenEnvVariable:    ru.conf.TokenEnvVariable,
 	}
 }
 

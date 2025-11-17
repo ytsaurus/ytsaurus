@@ -14,12 +14,14 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2.4.0)
+VERSION(2.6.1)
 
-ORIGINAL_SOURCE(https://github.com/confluentinc/librdkafka/archive/v2.4.0.tar.gz)
+ORIGINAL_SOURCE(https://github.com/confluentinc/librdkafka/archive/v2.6.1.tar.gz)
 
 PEERDIR(
+    contrib/libs/curl
     contrib/libs/lz4
+    contrib/libs/nanopb
     contrib/libs/openssl
     contrib/libs/sasl
     contrib/libs/xxhash
@@ -28,6 +30,7 @@ PEERDIR(
 )
 
 ADDINCL(
+    contrib/libs/librdkafka/src
     contrib/libs/lz4
     contrib/libs/sasl/include
     contrib/libs/xxhash
@@ -41,6 +44,9 @@ NO_RUNTIME()
 SRCS(
     src/cJSON.c
     src/crc32c.c
+    src/opentelemetry/common.pb.c
+    src/opentelemetry/metrics.pb.c
+    src/opentelemetry/resource.pb.c
     src/rdaddr.c
     src/rdavl.c
     src/rdbase64.c
@@ -95,6 +101,9 @@ SRCS(
     src/rdkafka_ssl.c
     src/rdkafka_sticky_assignor.c
     src/rdkafka_subscription.c
+    src/rdkafka_telemetry.c
+    src/rdkafka_telemetry_decode.c
+    src/rdkafka_telemetry_encode.c
     src/rdkafka_timer.c
     src/rdkafka_topic.c
     src/rdkafka_transport.c

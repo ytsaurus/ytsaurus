@@ -2094,12 +2094,11 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
         streamDescriptor->ChunkMapping = AutoMergeTask_->GetChunkMapping();
         streamDescriptor->ImmediatelyUnstageChunkLists = true;
         streamDescriptor->RequiresRecoveryInfo = true;
-        streamDescriptor->IsFinalOutput = false;
         // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
         // and output edges. The underlying operation must not build an output edge, as it doesn't know
         // whether the resulting vertex is shallow_auto_merge or auto_merge.
         streamDescriptor->TargetDescriptor = {};
-        streamDescriptor->PartitionTag = autoMergeTaskTableIndex++;
+        streamDescriptor->StreamChunkPoolIndex = autoMergeTaskTableIndex++;
         if (intermediateDataAccount) {
             streamDescriptor->TableWriterOptions->Account = *intermediateDataAccount;
         }
@@ -2230,8 +2229,6 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     YT_LOG_INFO("Committing output completion transaction and setting committed attribute (TransactionId: %v)",
         outputCompletionTransactionId);
 
-    auto setCommittedViaCypressTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
-
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
         TStringBuf attribute,
@@ -2255,45 +2252,24 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         GetOperationPath(OperationId_),
         IdAttributeName,
         outputCompletionTransactionId);
-    if (setCommittedViaCypressTransactionAction && OutputCompletionTransaction_) {
-        // NB: Transaction action cannot be executed on node's native cell
-        // directly because it leads to distributed transaction commit which
-        // cannot be done with prerequisites.
 
-        NNative::NProto::TReqSetAttributeOnTransactionCommit action;
-        ToProto(action.mutable_node_id(), operationCypressNodeId);
-        action.set_attribute(CommittedAttribute);
-        action.set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
+    auto proxy = CreateObjectServiceWriteProxy(Host_->GetClient());
 
-        auto transactionCoordinatorCellTag = CellTagFromId(OutputCompletionTransaction_->GetId());
-        auto connection = Client_->GetNativeConnection();
-        OutputCompletionTransaction_->AddAction(
-            connection->GetMasterCellId(transactionCoordinatorCellTag),
-            MakeTransactionActionData(action));
-    } else {
-        auto proxy = CreateObjectServiceWriteProxy(Host_->GetClient());
-
-        auto path = GetOperationPath(OperationId_) + "/@" + CommittedAttribute;
-        auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, outputCompletionTransactionId);
-        req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
-        WaitFor(proxy.Execute(req))
-            .ThrowOnError();
-    }
+    auto path = GetOperationPath(OperationId_) + "/@" + CommittedAttribute;
+    auto req = TYPathProxy::Set(path);
+    SetTransactionId(req, outputCompletionTransactionId);
+    req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
 
     if (OutputCompletionTransaction_) {
         // NB: Every set to `@committed` acquires lock which is promoted to
         // user's transaction on scheduler's transaction commit. To avoid this
         // we manually merge branched node and detach it from transaction.
 
-        std::optional<TTransactionId> parentTransactionId;
-        if (Config_->CommitOperationCypressNodeChangesViaSystemTransaction &&
-            !setCommittedViaCypressTransactionAction)
-        {
-            parentTransactionId = fetchAttributeAsObjectId(
-                FromObjectId(outputCompletionTransactionId),
-                ParentIdAttributeName);
-        }
+        auto parentTransactionId = fetchAttributeAsObjectId(
+            FromObjectId(outputCompletionTransactionId),
+            ParentIdAttributeName);
 
         TTransactionCommitOptions options;
         options.PrerequisiteTransactionIds.push_back(IncarnationIdToTransactionId(Host_->GetIncarnationId()));
@@ -2302,9 +2278,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
             .ThrowOnError();
         OutputCompletionTransaction_.Reset();
 
-        if (parentTransactionId) {
-            ManuallyMergeBranchedCypressNode(operationCypressNodeId, *parentTransactionId);
-        }
+        ManuallyMergeBranchedCypressNode(operationCypressNodeId, parentTransactionId);
 
         if (Config_->TestingOptions->AbortOutputTransactionAfterCompletionTransactionCommit) {
             TTransactionAbortOptions options;
@@ -4195,7 +4169,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
             chunkId,
             UnavailableIntermediateChunkCount_);
 
-        for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
+        for (auto& dataSlice : completedJob->InputStripe->DataSlices()) {
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
             if (inputChunk->GetChunkId() == chunkId) {
@@ -5751,10 +5725,9 @@ void TOperationControllerBase::InitializeStandardStreamDescriptors()
         const auto& descriptor = StandardStreamDescriptors_.emplace_back(
             outputTable->GetStreamDescriptorTemplate(index)->Clone());
         descriptor->DestinationPool = GetSink();
-        descriptor->IsFinalOutput = true;
         descriptor->LivePreviewIndex = index;
         descriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
-        descriptor->PartitionTag = index;
+        descriptor->StreamChunkPoolIndex = index;
     }
 }
 
@@ -8696,7 +8669,7 @@ void TOperationControllerBase::AttachToLivePreview(
     TStringBuf tableName,
     const TChunkStripePtr& stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             AttachToLivePreview(tableName, chunkSlice->GetInputChunk());
         }
@@ -8880,7 +8853,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     const TCompletedJobPtr& completedJob,
     const TChunkStripePtr& stripe)
 {
-    for (const auto& dataSlice : stripe->DataSlices) {
+    for (const auto& dataSlice : stripe->DataSlices()) {
         // NB: Intermediate slice must be trivial.
         auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
         YT_VERIFY(ChunkOriginMap_.emplace(chunkId, completedJob).second);

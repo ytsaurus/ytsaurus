@@ -18,7 +18,7 @@ import (
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
-	lib "go.ytsaurus.tech/yt/microservices/lib/go"
+	"go.ytsaurus.tech/yt/microservices/lib/go/ytmsvc"
 )
 
 type ACLDumpPart struct {
@@ -135,10 +135,10 @@ func readUserExport(ctx context.Context, ytClient yt.Client, path ypath.Path) (r
 	return
 }
 
-func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster string, aclDumpPath ypath.Path, userExports ypath.Path, lastReadedTable ypath.Path) (err error) {
+func loadFromClusterIteration(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExports ypath.Path, lastReadedTable ypath.Path) (err error) {
 	sem <- struct{}{}
 	defer func() { <-sem }()
-	ytClient := lib.MustNewYTClient(cluster)
+	ytClient := ytmsvc.MustNewYTClient(cluster, tokenEnvVariable)
 	var tables []string
 	if err = ytClient.ListNode(ctx, aclDumpPath, &tables, nil); err != nil {
 		return
@@ -222,7 +222,7 @@ func DumpToACLDump(data any) (result *ACLDump, err error) {
 	return
 }
 
-func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string, aclDumpPath ypath.Path, userExportsPath ypath.Path) {
+func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string, tokenEnvVariable string, aclDumpPath ypath.Path, userExportsPath ypath.Path) {
 	timer := time.NewTimer(0)
 	delay := time.Duration(30 * time.Second)
 	for {
@@ -235,7 +235,7 @@ func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string,
 			if currentCacheItem != nil {
 				cacheVersion = currentCacheItem.Version
 			}
-			if err := loadFromClusterIteration(ctx, sem, cluster, aclDumpPath, userExportsPath, cacheVersion); err != nil {
+			if err := loadFromClusterIteration(ctx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath, cacheVersion); err != nil {
 				logger.Errorf("cluster %s: %s", cluster, err.Error())
 				if currentCacheItem == nil {
 					Cache.Set(cluster, nil)
@@ -247,14 +247,15 @@ func loadFromClusterLoop(ctx context.Context, sem chan struct{}, cluster string,
 }
 
 func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Command) {
-	concurrencyLevel := lib.Must(cmd.Flags().GetUint16("concurrency"))
-	includeArr := lib.Must(cmd.Flags().GetStringSlice("include"))
-	excludeArr := lib.Must(cmd.Flags().GetStringSlice("exclude"))
-	useClusterDirectory := lib.Must(cmd.Flags().GetString("proxy")) != ""
-	aclDumpPathStr := lib.Must(cmd.Flags().GetString("snapshot-root"))
+	concurrencyLevel := ytmsvc.Must(cmd.Flags().GetUint16("concurrency"))
+	includeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("include"))
+	excludeArr := ytmsvc.Must(cmd.Flags().GetStringSlice("exclude"))
+	useClusterDirectory := ytmsvc.Must(cmd.Flags().GetString("proxy")) != ""
+	aclDumpPathStr := ytmsvc.Must(cmd.Flags().GetString("snapshot-root"))
 	aclDumpPath := ypath.Path(aclDumpPathStr)
-	userExportsPathStr := lib.Must(cmd.Flags().GetString("user-root"))
+	userExportsPathStr := ytmsvc.Must(cmd.Flags().GetString("user-root"))
 	userExportsPath := ypath.Path(userExportsPathStr)
+	tokenEnvVariable := ytmsvc.Must(cmd.Flags().GetString("token-env-variable"))
 	sem := make(chan struct{}, concurrencyLevel)
 	runningClusters := make(map[string]context.CancelCauseFunc)
 	timer := time.NewTimer(0)
@@ -264,7 +265,7 @@ func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Comman
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			if clusters := lib.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
+			if clusters := ytmsvc.GetClusters(ctx, ytClient, includeArr, excludeArr, useClusterDirectory); clusters != nil {
 				for cluster, cancelFunc := range runningClusters {
 					_, ok := clusters[cluster]
 					if !ok {
@@ -278,7 +279,7 @@ func perClusterRunner(ctx context.Context, ytClient yt.Client, cmd *cobra.Comman
 					if !exists {
 						clusterCtx, cancel := context.WithCancelCause(ctx)
 						runningClusters[cluster] = cancel
-						go loadFromClusterLoop(clusterCtx, sem, cluster, aclDumpPath, userExportsPath)
+						go loadFromClusterLoop(clusterCtx, sem, cluster, tokenEnvVariable, aclDumpPath, userExportsPath)
 					}
 				}
 				if Cache.IsInitialized.Load() {

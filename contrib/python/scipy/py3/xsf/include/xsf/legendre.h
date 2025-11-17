@@ -1046,17 +1046,17 @@ void lqmn(std::complex<T> z, OutputMat1 cqm, OutputMat2 cqd) {
                 cq1 = cqf;
             }
         }
+    }
 
-        cqd(0, 0) = static_cast<T>(ls) / zs;
-        for (j = 1; j <= n; j++) {
-            cqd(0, j) = ls * static_cast<T>(j) * (cqm(0, j - 1) - z * cqm(0, j)) / zs;
-        }
+    cqd(0, 0) = static_cast<T>(ls) / zs;
+    for (j = 1; j <= n; j++) {
+        cqd(0, j) = ls * static_cast<T>(j) * (cqm(0, j - 1) - z * cqm(0, j)) / zs;
+    }
 
-        for (i = 1; i <= m; i++) {
-            for (j = 0; j <= n; j++) {
-                cqd(i, j) = static_cast<T>(ls * i) * z / zs * cqm(i, j) +
-                            static_cast<T>((i + j) * (j - i + 1)) / zq * cqm(i - 1, j);
-            }
+    for (i = 1; i <= m; i++) {
+        for (j = 0; j <= n; j++) {
+            cqd(i, j) = static_cast<T>(ls * i) * z / zs * cqm(i, j) +
+                        static_cast<T>((i + j) * (j - i + 1)) / zq * cqm(i - 1, j);
         }
     }
 }

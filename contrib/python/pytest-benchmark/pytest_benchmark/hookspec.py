@@ -79,7 +79,7 @@ def pytest_benchmark_group_stats(config, benchmarks, group_by):
 
     .. sourcecode:: python
 
-        @pytest.mark.hookwrapper
+        @pytest.hookimpl(wrapper=True)
         def pytest_benchmark_group_stats(config, benchmarks, group_by):
             outcome = yield
             if group_by == "special":  # when you use --benchmark-group-by=special
@@ -105,7 +105,7 @@ def pytest_benchmark_generate_json(config, benchmarks, include_data, machine_inf
 
     .. sourcecode:: python
 
-        @pytest.mark.hookwrapper
+        @pytest.hookimpl(wrapper=True)
         def pytest_benchmark_generate_json(config, benchmarks, include_data, machine_info, commit_info):
             for bench in benchmarks:
                 bench.has_error = False

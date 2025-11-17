@@ -74,7 +74,7 @@ TEST_F(TMultiChunkPoolInputTest, TestAdd)
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
 
-    Stripes_[0]->PartitionTag = 0;
+    Stripes_[0]->SetInputChunkPoolIndex(0);
 
     EXPECT_EQ(Pool_->Add(Stripes_[0]), 0);
 }
@@ -86,7 +86,7 @@ TEST_F(TMultiChunkPoolInputTest, TestAddWithKey)
     EXPECT_CALL(*Mocks_[0], AddWithKey(Stripes_[0], key))
         .WillOnce(Return(42));
 
-    Stripes_[0]->PartitionTag = 0;
+    Stripes_[0]->SetInputChunkPoolIndex(0);
 
     EXPECT_EQ(Pool_->AddWithKey(Stripes_[0], key), 0);
 }
@@ -99,7 +99,7 @@ TEST_F(TMultiChunkPoolInputTest, TestSuspend)
     EXPECT_CALL(*Mocks_[0], Suspend(42))
         .Times(1);
 
-    Stripes_[0]->PartitionTag = 0;
+    Stripes_[0]->SetInputChunkPoolIndex(0);
 
     EXPECT_EQ(Pool_->Add(Stripes_[0]), 0);
     Pool_->Suspend(0);
@@ -113,7 +113,7 @@ TEST_F(TMultiChunkPoolInputTest, TestResume)
     EXPECT_CALL(*Mocks_[0], Resume(42))
         .Times(1);
 
-    Stripes_[0]->PartitionTag = 0;
+    Stripes_[0]->SetInputChunkPoolIndex(0);
 
     EXPECT_EQ(Pool_->Add(Stripes_[0]), 0);
     Pool_->Resume(0);
@@ -130,8 +130,8 @@ TEST_F(TMultiChunkPoolInputTest, TestReset)
     EXPECT_CALL(*Mocks_[0], Reset(42, Stripes_[1], mapping))
         .Times(1);
 
-    Stripes_[0]->PartitionTag = 0;
-    Stripes_[1]->PartitionTag = 0;
+    Stripes_[0]->SetInputChunkPoolIndex(0);
+    Stripes_[1]->SetInputChunkPoolIndex(0);
 
     EXPECT_EQ(Pool_->Add(Stripes_[0]), 0);
     Pool_->Reset(0, Stripes_[1], mapping);
@@ -175,7 +175,7 @@ TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
     }
 
     for (int index = 0; index < std::ssize(partitions); ++index) {
-        Stripes_[index]->PartitionTag = partitions[index];
+        Stripes_[index]->SetInputChunkPoolIndex(partitions[index]);
         EXPECT_EQ(Pool_->Add(Stripes_[index]), index);
     }
 }
@@ -206,7 +206,7 @@ TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
 
     for (int i = 0; i < std::ssize(cookies); i++) {
         auto [pool, cookie] = cookies[i];
-        Stripes_[i]->PartitionTag = pool;
+        Stripes_[i]->SetInputChunkPoolIndex(pool);
         EXPECT_EQ(Pool_->Add(Stripes_[i]), i);
         for (int j = 0; j <= i; j++) {
             Pool_->Suspend(j);
@@ -399,9 +399,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
     EXPECT_EQ(Pool_->GetStripeList(1), stripeList00);
     EXPECT_EQ(Pool_->GetStripeList(2), stripeList01);
 
-    EXPECT_EQ(stripeList00->GetPartitionTag(), 0);
-    EXPECT_EQ(stripeList01->GetPartitionTag(), 0);
-    EXPECT_EQ(stripeList10->GetPartitionTag(), 1);
+    EXPECT_EQ(stripeList00->GetOutputChunkPoolIndex(), 0);
+    EXPECT_EQ(stripeList01->GetOutputChunkPoolIndex(), 0);
+    EXPECT_EQ(stripeList10->GetOutputChunkPoolIndex(), 1);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)

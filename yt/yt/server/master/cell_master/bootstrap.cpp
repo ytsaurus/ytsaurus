@@ -23,6 +23,7 @@
 #include <yt/yt/server/master/chunk_server/job_tracker_service.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/expiration_tracker.h>
 #include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
 #include <yt/yt/server/master/cypress_server/sequoia_actions_executor.h>
@@ -485,6 +486,11 @@ const IGraftingManagerPtr& TBootstrap::GetGraftingManager() const
     return GraftingManager_;
 }
 
+const IExpirationTrackerPtr& TBootstrap::GetExpirationTracker() const
+{
+    return ExpirationTracker_;
+}
+
 const IHydraFacadePtr& TBootstrap::GetHydraFacade() const
 {
     return HydraFacade_;
@@ -939,6 +945,8 @@ void TBootstrap::DoInitialize()
     PortalManager_ =  CreatePortalManager(this);
 
     GraftingManager_ = CreateGraftingManager(this);
+
+    ExpirationTracker_ = CreateExpirationTracker(this);
 
     SequoiaActionsExecutor_ = CreateSequoiaActionsExecutor(this);
 

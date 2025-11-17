@@ -104,7 +104,6 @@ public:
     virtual TVertexDescriptorList GetAllVertexDescriptors() const;
 
     const std::vector<TOutputStreamDescriptorPtr>& GetOutputStreamDescriptors() const;
-    const std::vector<TInputStreamDescriptorPtr>& GetInputStreamDescriptors() const;
 
     void SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> streamDescriptors);
 
@@ -226,7 +225,7 @@ public:
 
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
-    virtual void PropagatePartitions(
+    virtual void SetChunkPoolIndexForOutputStripes(
         const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);

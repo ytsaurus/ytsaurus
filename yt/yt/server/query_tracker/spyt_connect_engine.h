@@ -1,0 +1,15 @@
+#pragma once
+
+#include "private.h"
+
+#include <yt/yt/client/api/public.h>
+
+namespace NYT::NQueryTracker {
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQueryEnginePtr CreateSpytConnectEngine(NApi::IClientPtr stateClient, NYPath::TYPath stateRoot);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueryTracker

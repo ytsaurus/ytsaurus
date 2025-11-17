@@ -10,7 +10,9 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/options.h>
+#include <yt/yt/client/object_client/public.h>
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/public.h>
 
@@ -495,6 +497,14 @@ private:
         YT_LOG_INFO("Running query via YQL plugin");
 
         std::vector<TSharedRef> wireRowsets;
+
+        TPeriodicExecutorPtr refreshTokenExecutor;
+        auto stopTokenRefresh = [&] {
+            if (refreshTokenExecutor) {
+                WaitUntilSet(refreshTokenExecutor->Stop());
+            }
+        };
+
         try {
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
@@ -515,6 +525,8 @@ private:
                 THROW_ERROR error;
             }
 
+            EraseNonYtClusters(clustersResult.Clusters);
+
             THashMap<TString, IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
                 queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
@@ -522,7 +534,7 @@ private:
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-            auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+            refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front().first;
@@ -532,53 +544,15 @@ private:
                 {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
             };
 
-            for (const auto& src : yqlRequest.secrets()) {
-                auto& dst = credentials[src.id()];
-                auto ypath = NYPath::TRichYPath(src.ypath());
-                auto cluster = ypath.GetCluster().value_or(defaultCluster);
-                if (!queryClients.contains(cluster)) {
-                    queryClients[cluster] = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
-                }
-
-                auto& queryClient = queryClients[cluster];
-                if (!Config_->InsecureSecretPathSubjects.empty()) {
-                    auto allowedReadSubjects = FetchAllowedReadSubjects(queryClient, ypath.GetPath());
-                    std::vector<std::string> insecureSubjects;
-
-                    for (const auto& subject : Config_->InsecureSecretPathSubjects) {
-                        if (allowedReadSubjects.contains(subject)) {
-                            insecureSubjects.push_back(subject);
-                        }
-                    }
-
-                    if (!insecureSubjects.empty()) {
-                        THROW_ERROR_EXCEPTION("Found insecure subjects for provided secret")
-                            << TErrorAttribute("secret_id", src.id())
-                            << TErrorAttribute("secret_path", src.ypath())
-                            << TErrorAttribute("insecure_subjects", insecureSubjects);
-                    }
-                }
-
-                dst["content"] = ConvertTo<TString>(WaitFor(queryClient->GetNode(ypath.GetPath())).ValueOrThrow());
-                if (src.has_category()) {
-                    dst["category"] = src.category();
-                }
-                if (src.has_subcategory()) {
-                    dst["subcategory"] = src.subcategory();
-                }
-            }
+            FillCredentials(
+                credentials,
+                yqlRequest.secrets(),
+                defaultCluster,
+                user,
+                queryClients);
 
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
-            auto finally = Finally([&] {
-                try {
-                    WaitUntilSet(refreshTokenExecutor->Stop());
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to stop token refresh gracefully");
-                } catch (...) {
-                    YT_ABORT();
-                }
-            });
 
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
@@ -625,6 +599,8 @@ private:
                     }
                 }
             }
+
+            stopTokenRefresh();
             response.mutable_yql_response()->Swap(&yqlResponse);
             return {response, wireRowsets};
         } catch (const std::exception& ex) {
@@ -632,6 +608,7 @@ private:
                 << TErrorAttribute("query_id", queryId)
                 << TError(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
+            stopTokenRefresh();
             THROW_ERROR error;
         }
     }
@@ -651,6 +628,8 @@ private:
                 auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                 THROW_ERROR error;
             }
+
+            EraseNonYtClusters(clustersResult.Clusters);
 
             THashMap<TString, IClientPtr> queryClients;
             for (const auto& clusterName : clustersResult.Clusters) {
@@ -714,9 +693,11 @@ private:
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
     }
 
-    THashSet<std::string> FetchAllowedReadSubjects(IClientPtr client, const TString& path)
+    THashSet<std::string> FetchAllowedReadSubjects(
+        const IClientPtr& client,
+        const TString& path)
     {
-        auto aclAttributePath = ::TStringBuilder() << path << "/@effective_acl";
+        auto aclAttributePath = Format("%v/@effective_acl", path);
 
         auto acl = ConvertTo<std::vector<TSerializableAccessControlEntry>>(
             WaitFor(client->GetNode(aclAttributePath)).ValueOrThrow());
@@ -742,6 +723,141 @@ private:
             .BeginMap()
                 .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
             .EndMap();
+    }
+
+    void EraseNonYtClusters(std::vector<std::pair<TString, TString>>& clusters) const
+    {
+        auto ytClusterNames = ClusterDirectory_->GetClusterNames();
+        THashSet<TString> presentYtClusters(ytClusterNames.begin(), ytClusterNames.end());
+        EraseIf(clusters, [&presentYtClusters](const std::pair<TString, TString>& cluster) {
+            if (!presentYtClusters.contains(cluster.first)) {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    void FillCredentials(
+        THashMap<TString, THashMap<TString, TString>>& credentials,
+        const ::google::protobuf::RepeatedPtrField<TYqlSecret>& secrets,
+        const TString& defaultCluster,
+        const TString& user,
+        THashMap<TString, IClientPtr>& queryClients)
+    {
+        for (const auto& src : secrets) {
+            auto& dst = credentials[src.id()];
+            auto ypath = NYPath::TRichYPath(src.ypath());
+            auto cluster = ypath.GetCluster().value_or(defaultCluster);
+            if (!queryClients.contains(cluster)) {
+                queryClients[cluster] = ClusterDirectory_
+                    ->GetConnectionOrThrow(cluster)
+                    ->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+            }
+
+            auto commonErrorAttributes = std::vector{
+                TErrorAttribute("secret_id", src.id()),
+                TErrorAttribute("secret_path", src.ypath())
+            };
+
+            auto& queryClient = queryClients[cluster];
+            if (!Config_->InsecureSecretPathSubjects.empty()) {
+                auto allowedReadSubjects = FetchAllowedReadSubjects(
+                    queryClient,
+                    ypath.GetPath());
+
+                std::vector<std::string> insecureSubjects;
+
+                for (const auto& subject : Config_->InsecureSecretPathSubjects) {
+                    if (allowedReadSubjects.contains(subject)) {
+                        insecureSubjects.push_back(subject);
+                    }
+                }
+
+                if (!insecureSubjects.empty()) {
+                    THROW_ERROR_EXCEPTION("Found insecure subjects for provided secret")
+                        << commonErrorAttributes
+                        << TErrorAttribute("insecure_subjects", insecureSubjects);
+                }
+            }
+
+            auto getNodeOptions = NApi::TGetNodeOptions();
+            getNodeOptions.Attributes = TAttributeFilter({"type"});
+
+            auto contentFuture = queryClient->GetNode(ypath.GetPath(), getNodeOptions)
+                .Apply(BIND([
+                    queryClient,
+                    ypath,
+                    commonErrorAttributes = std::move(commonErrorAttributes)
+                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TString> {
+                    if (!valueOrError.IsOK()) {
+                        return MakeFuture<TString>(TError("Cannot get provided secret")
+                            << commonErrorAttributes
+                            << std::vector<TError>{valueOrError});
+                    }
+
+                    const auto& ysonString = valueOrError.Value();
+                    auto node = ConvertTo<INodePtr>(ysonString);
+
+                    auto safeConvertToString = [](
+                        const TYsonString& ysonString,
+                        const std::vector<TErrorAttribute>& errorAttributes
+                    ) -> TErrorOr<TString> {
+                        constexpr std::string_view errorMessage(
+                            "Cannot convert secret value to string");
+
+                        TErrorOr<TString> valueOrError;
+
+                        try {
+                            valueOrError = ConvertTo<TString>(ysonString);
+                        } catch (const std::exception& exception) {
+                            valueOrError = TError(errorMessage)
+                                << errorAttributes
+                                << std::vector{TError(exception)};
+                        }
+
+                        return valueOrError;
+                    };
+
+                    // document nodes don't return type attribute via GetNode call
+                    if (auto type = node->Attributes().Find<NObjectClient::EObjectType>("type")) {
+                        auto errorAttributes = commonErrorAttributes;
+                        errorAttributes.push_back(TErrorAttribute("node_type", *type));
+
+                        switch (*type) {
+                        // just safety precaution in case GetNode behavior
+                        // regarding document nodes changes in future
+                        case NObjectClient::EObjectType::Document:
+                        case NObjectClient::EObjectType::StringNode:
+                            return MakeFuture(
+                                safeConvertToString(ysonString, errorAttributes));
+
+                        case NObjectClient::EObjectType::File:
+                            break;
+
+                        default:
+                            return MakeFuture<TString>(TError("Unexpected secret node type")
+                                << errorAttributes);
+                        }
+
+                        return queryClient->CreateFileReader(ypath.GetPath())
+                            .Apply(BIND([](const NApi::IFileReaderPtr& fileReader) {
+                                auto contentRef = fileReader->ReadAll();
+                                return TString(contentRef.ToStringBuf());
+                            }));
+                    }
+
+                    return MakeFuture(
+                        safeConvertToString(ysonString, commonErrorAttributes));
+                }));
+
+            dst["content"] = WaitFor(contentFuture).ValueOrThrow();
+            if (src.has_category()) {
+                dst["category"] = src.category();
+            }
+            if (src.has_subcategory()) {
+                dst["subcategory"] = src.subcategory();
+            }
+        }
     }
 };
 
