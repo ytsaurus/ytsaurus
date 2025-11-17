@@ -65,6 +65,7 @@ public:
 
     void SetTotalLimit(i64 newLimit) override;
     void SetCategoryLimit(ECategory category, i64 newLimit) override;
+    void AdjustCategoryLimit(ECategory category, i64 adjustedLimit) override;
     void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) override;
     void SetPoolRatio(const TPoolTag& poolTag, std::optional<double> newRatio) override;
     i64 GetPoolUsed(const TPoolTag& poolTag) const override;
@@ -151,6 +152,7 @@ private:
     {
         std::atomic<i64> Limit = std::numeric_limits<i64>::max();
         std::atomic<i64> Used = 0;
+        std::atomic<i64> AdjustedLimit = std::numeric_limits<i64>::max();
     };
 
     TEnumIndexedArray<ECategory, TCategory> Categories_;
@@ -267,6 +269,11 @@ public:
     void SetLimit(i64 size) override
     {
         MemoryTracker_->SetCategoryLimit(Category_, size);
+    }
+
+    void AdjustLimit(i64 adjustedLimit) override
+    {
+        MemoryTracker_->AdjustCategoryLimit(Category_, adjustedLimit);
     }
 
     i64 GetLimit() const override
@@ -461,7 +468,7 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
 
 i64 TNodeMemoryTracker::DoGetLimit(ECategory category) const
 {
-    return std::min(Categories_[category].Limit.load(), GetTotalLimit());
+    return std::min(std::min(Categories_[category].AdjustedLimit.load(), Categories_[category].Limit.load()), GetTotalLimit());
 }
 
 i64 TNodeMemoryTracker::DoGetLimit(ECategory category, const TPool* pool) const
@@ -599,6 +606,15 @@ void TNodeMemoryTracker::SetCategoryLimit(ECategory category, i64 newLimit)
     auto guard = Guard(SpinLock_);
 
     Categories_[category].Limit.store(newLimit);
+}
+
+void TNodeMemoryTracker::AdjustCategoryLimit(ECategory category, i64 adjustedLimit)
+{
+    YT_VERIFY(adjustedLimit >= 0);
+
+    auto guard = Guard(SpinLock_);
+
+    Categories_[category].AdjustedLimit.store(adjustedLimit);
 }
 
 void TNodeMemoryTracker::SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight)
@@ -1381,6 +1397,11 @@ public:
     void SetLimit(i64 size) override
     {
         Underlying_->SetLimit(size);
+    }
+
+    void AdjustLimit(i64 adjustedLimit) override
+    {
+        Underlying_->AdjustLimit(adjustedLimit);
     }
 
     i64 GetLimit() const override

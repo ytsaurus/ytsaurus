@@ -1591,6 +1591,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void AdjustLimit(i64 /*adjustedLimit*/) final
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     i64 GetLimit() const final
     {
         auto resource = ResourceHolder_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);

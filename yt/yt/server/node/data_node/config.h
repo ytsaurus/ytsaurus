@@ -1148,6 +1148,8 @@ struct TDataNodeDynamicConfig
 
     std::optional<double> FallbackTimeoutFraction;
 
+    NRpc::TOverloadControllerConfigPtr OverloadController;
+
     REGISTER_YSON_STRUCT(TDataNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

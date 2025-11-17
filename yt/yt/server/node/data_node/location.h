@@ -289,11 +289,13 @@ public:
     void ReportThrottledProbingWrite() const;
     TDiskThrottlingResult CheckWriteThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
-        bool blocksWindowShifted) const;
+        bool blocksWindowShifted,
+        bool withProbing) const;
     TDiskThrottlingResult CheckWriteThrottling(
         TChunkId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
-        bool blocksWindowShifted) const;
+        bool blocksWindowShifted,
+        bool withProbing) const;
 
     //! Reports throttled write.
     void ReportThrottledWrite() const;
