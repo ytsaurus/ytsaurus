@@ -78,7 +78,7 @@ public:
         std::string origin = Config_->Domain;
         auto sessguardIt = cookies.find(BlackboxSessguardCookieName);
         if (Config_->EnableSessguard && sessguardIt != cookies.end()) {
-            sessguard = cookieIt->second;
+            sessguard = sessguardIt->second;
             sessguardMD5 = GetMD5HexDigestUpperCase(*sessguard);;
             errorAttributes.emplace_back("sessguard_md5", sessguardMD5);
         }
