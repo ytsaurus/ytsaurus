@@ -174,7 +174,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             }
         }
 
-        if (currentNode->GetNodeType() == ENodeType::Map || currentNode->GetNodeType() == ENodeType::List) {
+        if (currentNode->GetNodeType() == ENodeType::Map) {
             if (!slashSkipped) {
                 return makeCurrentLocalObjectResult();
             }
@@ -185,22 +185,11 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             const auto& key = Tokenizer_.GetLiteralValue();
 
-            if (currentNode->GetNodeType() == ENodeType::List && IsSpecialListKey(key)) {
-                if (!options.EnablePartialResolve) {
-                    THROW_ERROR_EXCEPTION("Unexpected YPath token %Qv", key);
-                }
-                return makeCurrentLocalObjectResult();
-            }
-
             TObject* childNode;
             if (options.EnablePartialResolve) {
-                childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? FindMapNodeChild(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key)
-                    : FindListNodeChild(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
+                childNode = FindMapNodeChild(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key);
             } else {
-                childNode = currentNode->GetNodeType() == ENodeType::Map
-                    ? GetMapNodeChildOrThrow(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key)
-                    : GetListNodeChildOrThrow(cypressManager, currentNode->As<TListNode>(), GetTransaction(), key);
+                childNode = GetMapNodeChildOrThrow(cypressManager, currentNode->As<TCypressMapNode>(), GetTransaction(), key);
             }
 
             if (options.PopulateResolveCache && currentNode->GetNodeType() == ENodeType::Map) {

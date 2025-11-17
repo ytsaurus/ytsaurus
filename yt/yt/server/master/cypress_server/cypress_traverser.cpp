@@ -99,36 +99,19 @@ private:
     void PushEntry(TCypressNode* trunkNode)
     {
         auto& entry = Stack_.emplace_back(trunkNode);
-        switch (trunkNode->GetNodeType()) {
-            case ENodeType::Map: {
-                TKeyToCypressNode childMapStorage;
-                const auto& childMap = GetMapNodeChildMap(
-                    CypressManager_,
-                    trunkNode->As<TCypressMapNode>(),
-                    Transaction_.Get(),
-                    &childMapStorage);
-                entry.TrunkChildren.reserve(childMap.size());
-                for (const auto& [key, child] : childMap) {
-                    entry.TrunkChildren.emplace_back(child);
-                }
-                break;
-            }
 
-            case ENodeType::List: {
-                const auto& children = GetListNodeChildList(
-                    CypressManager_,
-                    trunkNode->As<TListNode>(),
-                    Transaction_.Get());
-                entry.TrunkChildren.reserve(children.size());
-                for (auto child : children) {
-                    entry.TrunkChildren.emplace_back(child);
-                }
-                break;
-            }
+        if (trunkNode->GetNodeType() == ENodeType::Map) {
+            TKeyToCypressNode childMapStorage;
+            const auto& childMap = GetMapNodeChildMap(
+                CypressManager_,
+                trunkNode->As<TCypressMapNode>(),
+                Transaction_.Get(),
+                &childMapStorage);
 
-            default:
-                // Do nothing.
-                break;
+            entry.TrunkChildren.reserve(childMap.size());
+            for (const auto& [key, child] : childMap) {
+                entry.TrunkChildren.emplace_back(child);
+            }
         }
     }
 
