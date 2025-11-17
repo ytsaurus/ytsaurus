@@ -958,10 +958,6 @@ extend google.protobuf.MessageOptions
     // /meta/{creation_time,uuid,name,parent_key} etc.
     optional EUpdatePolicy default_update_policy = 32015;
 
-    // This option is deprecated in favor of default_update_policy.
-    // TODO(melkov): check that this option is no more mentioned in code and delete it around 2025-07.
-    optional bool attributes_updatable_by_superuser_only = 32003;
-
     // Marks the message as transplantable to the output package under the new mixins codegen
     // scheme. This is for transition only, will be replaced by walking the graph.
     optional bool is_exported = 32004;
