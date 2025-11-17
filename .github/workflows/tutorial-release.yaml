@@ -2,8 +2,9 @@ name: Release tutorial generator
 
 on:
   push:
-    tags:
+    branches:
       - 'docker/tutorial/0\.[0-9]+\.[0-9]+'
+      - 'members/epsilond1/test-workflow-tutorial'
 
 jobs:
   release:
