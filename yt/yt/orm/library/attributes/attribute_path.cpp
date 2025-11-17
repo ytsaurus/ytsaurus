@@ -149,6 +149,42 @@ EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern,
         : EAttributePathMatchResult::None;
 }
 
+TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int length)
+{
+    int partsFound = 0;
+    NYPath::TTokenizer tokenizer(path);
+    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        auto prev = tokenizer.GetType();
+        auto next = tokenizer.Advance();
+        if (prev == NYPath::ETokenType::Slash && next == NYPath::ETokenType::Literal) {
+            auto back = tokenizer.GetSuffix();
+            tokenizer.Advance();
+            partsFound += 1;
+            if (partsFound == length) {
+                return TSplitResult{tokenizer.GetPrefix(), back};
+            }
+        } else if (prev != NYPath::ETokenType::StartOfStream && next != NYPath::ETokenType::Literal) {
+            break;
+        }
+    }
+    return TSplitResult{"", path};
+}
+
+// Split pattern by asterisk.
+TSplitResult SplitPatternByAsterisk(const NYPath::TYPath& path)
+{
+    NYPath::TTokenizer tokenizer(path);
+    while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+        auto prev = tokenizer.GetType();
+        auto prevText = tokenizer.GetPrefix();
+        auto next = tokenizer.Advance();
+        if (prev == NYPath::ETokenType::Slash && next == NYPath::ETokenType::Asterisk) {
+            return TSplitResult{prevText, tokenizer.GetSuffix()};
+        }
+    }
+    return TSplitResult(path, std::nullopt);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NAttributes

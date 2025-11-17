@@ -53,6 +53,34 @@ TEST(TAttributePathTest, MatchAttributePathToPattern)
     EXPECT_EQ(EAttributePathMatchResult::PathIsPrefix, MatchAttributePathToPattern("/spec/foo/*", "/spec"));
 }
 
+TEST(TAttributeAsteriskSplitTest, SplitPatternByAsterisk)
+{
+    EXPECT_EQ(TSplitResult("/spec", "/doozer/foo"), SplitPatternByAsterisk("/spec/*/doozer/foo"));
+    EXPECT_EQ(TSplitResult("/spec", ""), SplitPatternByAsterisk("/spec/*"));
+    EXPECT_EQ(TSplitResult("", ""), SplitPatternByAsterisk("/*"));
+
+    EXPECT_EQ(TSplitResult("", std::nullopt), SplitPatternByAsterisk(""));
+    EXPECT_EQ(TSplitResult("/", std::nullopt), SplitPatternByAsterisk("/"));
+    EXPECT_EQ(TSplitResult("/a/b/c", std::nullopt), SplitPatternByAsterisk("/a/b/c"));
+}
+
+TEST(TAttributePathRootTest, GetAttribitePathRoot)
+{
+    EXPECT_EQ(TSplitResult("/spec", "/doozer/foo"), GetAttributePathRoot("/spec/doozer/foo"));
+    EXPECT_EQ(TSplitResult("/spec/doozer", "/foo"), GetAttributePathRoot("/spec/doozer/foo", 2));
+    EXPECT_EQ(TSplitResult("/spec/doozer", "/"), GetAttributePathRoot("/spec/doozer/", 2));
+    EXPECT_EQ(TSplitResult("/spec/doozer", ""), GetAttributePathRoot("/spec/doozer", 2));
+    EXPECT_EQ(TSplitResult("/spec/doozer/foo", ""), GetAttributePathRoot("/spec/doozer/foo", 3));
+
+    EXPECT_EQ(TSplitResult("/spec", ""), GetAttributePathRoot("/spec"));
+    EXPECT_EQ(TSplitResult("", "/*/a/b"), GetAttributePathRoot("/*/a/b"));
+    EXPECT_EQ(TSplitResult("", "/a/*/b"), GetAttributePathRoot("/a/*/b", 2));
+    EXPECT_EQ(TSplitResult("/a", "/*/b"), GetAttributePathRoot("/a/*/b", 1));
+
+    EXPECT_EQ(TSplitResult("", "/"), GetAttributePathRoot("/"));
+    EXPECT_EQ(TSplitResult("", "/*/*"), GetAttributePathRoot("/*/*"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
