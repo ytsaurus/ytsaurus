@@ -136,18 +136,6 @@ std::vector<TCypressNodeRawPtr> GetMapNodeChildList(
     return GetValues(keyToChildMap);
 }
 
-const std::vector<TCypressNodeRawPtr>& GetListNodeChildList(
-    const ICypressManagerPtr& cypressManager,
-    TListNode* trunkNode,
-    NTransactionServer::TTransaction* transaction)
-{
-    YT_ASSERT(trunkNode->IsTrunk());
-
-    auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
-    auto* listNode = node->As<TListNode>();
-    return listNode->IndexToChild();
-}
-
 namespace {
 
 template <class TMapNodeImpl>
@@ -256,65 +244,6 @@ TStringBuf FindMapNodeChildKey(
     }
 
     Y_UNREACHABLE();
-}
-
-TCypressNode* FindListNodeChild(
-    const ICypressManagerPtr& /*cypressManager*/,
-    TListNode* trunkNode,
-    TTransaction* /*transaction*/,
-    TStringBuf key)
-{
-    YT_ASSERT(trunkNode->IsTrunk());
-
-    const auto& indexToChild = trunkNode->IndexToChild();
-    int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustListIndex(index, std::ssize(indexToChild));
-    if (!adjustedIndex) {
-        return nullptr;
-    }
-    return indexToChild[*adjustedIndex];
-}
-
-TCypressNode* GetListNodeChildOrThrow(
-    const ICypressManagerPtr& cypressManager,
-    TListNode* trunkNode,
-    TTransaction* transaction,
-    TStringBuf key)
-{
-    YT_ASSERT(trunkNode->IsTrunk());
-
-    const auto& indexToChild = trunkNode->IndexToChild();
-    int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustListIndex(index, std::ssize(indexToChild));
-    if (!adjustedIndex) {
-        THROW_ERROR_EXCEPTION(
-            NYTree::EErrorCode::ResolveError,
-            "%v has no child with index %v",
-            cypressManager->GetNodePath(trunkNode, transaction),
-            index);
-    }
-    return indexToChild[*adjustedIndex];
-}
-
-int FindListNodeChildIndex(
-    TListNode* parentNode,
-    TCypressNode* trunkChildNode)
-{
-    YT_ASSERT(trunkChildNode->IsTrunk());
-
-    while (true) {
-        auto it = parentNode->ChildToIndex().find(trunkChildNode);
-        if (it != parentNode->ChildToIndex().end()) {
-            return it->second;
-        }
-        auto* originator = parentNode->GetOriginator();
-        if (!originator) {
-            break;
-        }
-        parentNode = originator->As<TListNode>();
-    }
-
-    return -1;
 }
 
 THashMap<std::string, NYson::TYsonString> GetNodeAttributes(

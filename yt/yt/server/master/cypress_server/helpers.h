@@ -60,11 +60,6 @@ const TKeyToCypressNodeId& GetMapNodeChildMap(
     NTransactionServer::TTransaction* transaction,
     TKeyToCypressNodeId* storage);
 
-const std::vector<TCypressNodeRawPtr>& GetListNodeChildList(
-    const ICypressManagerPtr& cypressManager,
-    TListNode* trunkNode,
-    NTransactionServer::TTransaction* transaction);
-
 TCypressNode* FindMapNodeChild(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
@@ -85,22 +80,6 @@ TCypressNode* GetMapNodeChildOrThrow(
 
 TStringBuf FindMapNodeChildKey(
     TCypressMapNode* parentNode,
-    TCypressNode* trunkChildNode);
-
-TCypressNode* FindListNodeChild(
-    const ICypressManagerPtr& cypressManager,
-    TListNode* trunkNode,
-    NTransactionServer::TTransaction* transaction,
-    TStringBuf key);
-
-TCypressNode* GetListNodeChildOrThrow(
-    const ICypressManagerPtr& cypressManager,
-    TListNode* trunkNode,
-    NTransactionServer::TTransaction* transaction,
-    TStringBuf key);
-
-int FindListNodeChildIndex(
-    TListNode* parentNode,
     TCypressNode* trunkChildNode);
 
 THashMap<std::string, NYson::TYsonString> GetNodeAttributes(

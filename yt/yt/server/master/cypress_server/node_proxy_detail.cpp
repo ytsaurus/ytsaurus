@@ -1168,16 +1168,10 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                 return;
             }
 
-            switch (trunkChild->GetNodeType()) {
-                case ENodeType::List:
-                    VisitList(trunkChild->As<TListNode>());
-                    break;
-                case ENodeType::Map:
-                    VisitMap(trunkChild->As<TCypressMapNode>());
-                    break;
-                default:
-                    VisitOther(trunkChild);
-                    break;
+            if (trunkChild->GetNodeType() == ENodeType::Map) {
+                VisitMap(trunkChild->As<TCypressMapNode>());
+            } else {
+                VisitOther(trunkChild);
             }
         }
 
@@ -1204,20 +1198,6 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                     Writer_.OnEntity();
                     break;
             }
-        }
-
-        void VisitList(TCypressNode* node)
-        {
-            Writer_.OnBeginList();
-            const auto& childList = GetListNodeChildList(
-                CypressManager_,
-                node->As<TListNode>(),
-                Transaction_);
-            for (auto child : childList) {
-                Writer_.OnListItem();
-                VisitAny(node, child);
-            }
-            Writer_.OnEndList();
         }
 
         void VisitMap(TCypressNode* node)
@@ -3771,199 +3751,6 @@ void TSequoiaMapNodeProxy::ReplaceChild(const NYTree::INodePtr& /*oldChild*/, co
 void TSequoiaMapNodeProxy::RemoveChild(const NYTree::INodePtr& /*child*/)
 {
     YT_ABORT();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TListNodeProxy::SetRecursive(
-    const TYPath& path,
-    TReqSet* request,
-    TRspSet* response,
-    const TCtxSetPtr& context)
-{
-    context->SetRequestInfo();
-    TListNodeMixin::SetRecursive(path, request, response, context);
-}
-
-void TListNodeProxy::Clear()
-{
-    auto* impl = LockThisImpl();
-
-    // Lock children and collect impls.
-    std::vector<TCypressNode*> children;
-    for (auto trunkChild : impl->IndexToChild()) {
-        children.push_back(LockImpl(trunkChild));
-    }
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    // Detach children.
-    for (auto* child : children) {
-        DetachChild(child);
-        objectManager->UnrefObject(child->GetTrunkNode());
-    }
-
-    impl->IndexToChild().clear();
-    impl->ChildToIndex().clear();
-
-    SetModified(EModificationType::Content);
-}
-
-// TODO(h0pless): Combine GetChildCount for Sequoia and Cypress into a single method
-// when removing code related to list nodes.
-int TListNodeProxy::GetChildCount() const
-{
-    // TODO(h0pless): When removing list nodes, it'll be possible to move GetChildCount() to the base class and
-    // unify it for Cypress and Sequoia map nodes.
-    const auto* impl = GetThisImpl();
-    return impl->IndexToChild().size();
-}
-
-std::vector<INodePtr> TListNodeProxy::GetChildren() const
-{
-    std::vector<INodePtr> result;
-    const auto* impl = GetThisImpl();
-    const auto& indexToChild = impl->IndexToChild();
-    result.reserve(indexToChild.size());
-    for (auto child : indexToChild) {
-        result.push_back(GetProxy(child));
-    }
-    return result;
-}
-
-INodePtr TListNodeProxy::FindChild(int index) const
-{
-    const auto* impl = GetThisImpl();
-    const auto& indexToChild = impl->IndexToChild();
-    return index >= 0 && index < std::ssize(indexToChild) ? GetProxy(indexToChild[index]) : nullptr;
-}
-
-void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
-{
-    auto* impl = LockThisImpl();
-    auto& list = impl->IndexToChild();
-
-    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
-    auto* childImpl = LockImpl(trunkChildImpl);
-
-    if (beforeIndex < 0) {
-        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, std::ssize(list)).second);
-        list.push_back(trunkChildImpl);
-    } else {
-        // Update indices.
-        for (auto it = list.begin() + beforeIndex; it != list.end(); ++it) {
-            ++impl->ChildToIndex()[*it];
-        }
-
-        // Insert the new child.
-        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, beforeIndex).second);
-        list.insert(list.begin() + beforeIndex, trunkChildImpl);
-    }
-
-    AttachChild(childImpl);
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    objectManager->RefObject(childImpl->GetTrunkNode());
-
-    SetModified(EModificationType::Content);
-}
-
-bool TListNodeProxy::RemoveChild(int index)
-{
-    auto* impl = LockThisImpl();
-    auto& list = impl->IndexToChild();
-
-    if (index < 0 || index >= std::ssize(list)) {
-        return false;
-    }
-
-    auto trunkChildImpl = list[index];
-    auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-
-    // Update the indices.
-    for (auto it = list.begin() + index + 1; it != list.end(); ++it) {
-        --impl->ChildToIndex()[*it];
-    }
-
-    // Remove the child.
-    list.erase(list.begin() + index);
-    YT_VERIFY(impl->ChildToIndex().erase(trunkChildImpl));
-    DetachChild(childImpl);
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    objectManager->UnrefObject(childImpl->GetTrunkNode());
-
-    SetModified(EModificationType::Content);
-    return true;
-}
-
-void TListNodeProxy::RemoveChild(const INodePtr& child)
-{
-    int index = GetChildIndexOrThrow(child);
-    YT_VERIFY(RemoveChild(index));
-}
-
-void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newChild)
-{
-    if (oldChild == newChild)
-        return;
-
-    auto* impl = LockThisImpl();
-
-    auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
-    auto* oldChildImpl = LockImpl(oldTrunkChildImpl);
-
-    auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
-    auto* newChildImpl = LockImpl(newTrunkChildImpl);
-
-    auto it = impl->ChildToIndex().find(oldTrunkChildImpl);
-    YT_ASSERT(it != impl->ChildToIndex().end());
-
-    int index = it->second;
-
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-    DetachChild(oldChildImpl);
-    objectManager->UnrefObject(oldChildImpl->GetTrunkNode());
-
-    impl->IndexToChild()[index] = newTrunkChildImpl;
-    impl->ChildToIndex().erase(it);
-    YT_VERIFY(impl->ChildToIndex().emplace(newTrunkChildImpl, index).second);
-    AttachChild(newChildImpl);
-    objectManager->RefObject(newChildImpl->GetTrunkNode());
-
-    SetModified(EModificationType::Content);
-}
-
-std::optional<int> TListNodeProxy::FindChildIndex(const IConstNodePtr& child) const
-{
-    const auto* impl = GetThisImpl();
-
-    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
-
-    auto it = impl->ChildToIndex().find(trunkChildImpl);
-    return it == impl->ChildToIndex().end() ? std::nullopt : std::make_optional(it->second);
-}
-
-void TListNodeProxy::SetChildNode(
-    INodeFactory* factory,
-    const TYPath& path,
-    const INodePtr& child,
-    bool recursive)
-{
-    TListNodeMixin::SetChild(
-        factory,
-        path,
-        child,
-        recursive);
-}
-
-int TListNodeProxy::GetMaxChildCount() const
-{
-    return GetDynamicCypressManagerConfig()->MaxNodeChildCount;
-}
-
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
-    const TYPath& path,
-    const IYPathServiceContextPtr& context)
-{
-    return TListNodeMixin::ResolveRecursive(path, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
