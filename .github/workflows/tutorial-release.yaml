@@ -39,7 +39,7 @@ jobs:
 
       - name: Build And Push Docker Image
         run: |
-          ./ya make -r yt/yt/scripts/tutorial/generate_tutorial --no-src-links 
+          ./ya make -r yt/yt/scripts/tutorial/generate_tutorial --no-src-links -o $(pwd) 
           ln -s yt/yt/scripts/tutorial/generate_tutorial/data data
           ln -s yt/yt/scripts/tutorial/generate_tutorial/scripts scripts
           ln yt/yt/scripts/tutorial/generate_tutorial/generate_tutorial generate_tutorial
