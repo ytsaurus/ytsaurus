@@ -149,6 +149,16 @@ ISessionPtr TSessionManager::GetSessionOrThrow(TChunkId chunkId)
     return session;
 }
 
+void TSessionManager::AdjustMaxWriteSessions(int adjustedLimit)
+{
+    AdjustedMaxWriteSessions_ = adjustedLimit;
+}
+
+int TSessionManager::GetMaxWriteSessions()
+{
+    return std::min(Config_->MaxWriteSessions, AdjustedMaxWriteSessions_.load());
+}
+
 ISessionPtr TSessionManager::StartSession(
     TSessionId sessionId,
     const TSessionOptions& options)
@@ -171,9 +181,10 @@ ISessionPtr TSessionManager::StartSession(
     auto guard = WriterGuard(SessionMapLock_);
 
     if (!options.NbdChunkSize) {
-        if (std::ssize(SessionMap_) >= Config_->MaxWriteSessions) {
+        auto maxWriteSessions = GetMaxWriteSessions();
+        if (std::ssize(SessionMap_) >= maxWriteSessions) {
             THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
-                Config_->MaxWriteSessions);
+                maxWriteSessions);
         }
     }
 

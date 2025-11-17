@@ -156,6 +156,11 @@ public:
         Underlying_->SetCategoryLimit(category, newLimit);
     }
 
+    void AdjustCategoryLimit(ECategory category, i64 adjustedLimit) override
+    {
+        Underlying_->AdjustCategoryLimit(category, adjustedLimit);
+    }
+
     void SetPoolWeight(const TPoolTag& poolTag, std::optional<i64> newWeight) override
     {
         Underlying_->SetPoolWeight(poolTag, newWeight);

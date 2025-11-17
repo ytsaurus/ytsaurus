@@ -516,6 +516,11 @@ public:
         return LocationHealthChecker_;
     }
 
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void SetPerLocationFullHeartbeatsEnabled(bool) override
     {
         return;

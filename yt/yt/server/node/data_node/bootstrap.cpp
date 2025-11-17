@@ -38,11 +38,17 @@
 
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/concurrency/poller.h>
+
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/rpc/overload_controller.h>
 
 namespace NYT::NDataNode {
 
@@ -57,6 +63,10 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = DataNodeLogger;
+
+static const std::string BusXferThreadPoolName = "BusXfer";
+static const std::string StorageHeavyPoolName = "StorageHeavy";
+static const std::string StorageLightPoolName = "StorageLight";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +100,10 @@ public:
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+
+        OverloadController_ = NRpc::CreateOverloadController(
+            New<NRpc::TOverloadControllerConfig>(),
+            DataNodeProfiler().WithPrefix("/overload_controller"));
 
         auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 
@@ -250,7 +264,10 @@ public:
 
         RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
 
-        GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
+        InitializeOverloadController();
+
+        DataNodeService_ = CreateDataNodeService(GetConfig()->DataNode, this);
+        GetRpcServer()->RegisterService(DataNodeService_);
 
         GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
 
@@ -309,6 +326,49 @@ public:
         AllyReplicaManager_->Start();
 
         LocationHealthChecker_->Start();
+
+        OverloadController_->Start();
+    }
+
+    void AdjustMemoryLimit(IMemoryUsageTrackerPtr memoryTracker, NRpc::TCongestionState congestionState)
+    {
+        if (congestionState.CurrentWindow.has_value()) {
+            memoryTracker->AdjustLimit(*congestionState.CurrentWindow * 1_MB);
+        } else {
+            memoryTracker->AdjustLimit(std::numeric_limits<i64>::max());
+        }
+    }
+
+    void AdjustWriteSessionsLimit(TSessionManagerPtr sessionManager, NRpc::TCongestionState congestionState)
+    {
+        if (congestionState.CurrentWindow.has_value()) {
+            sessionManager->AdjustMaxWriteSessions(*congestionState.CurrentWindow);
+        } else {
+            sessionManager->AdjustMaxWriteSessions(GetConfig()->DataNode->MaxWriteSessions);
+        }
+    }
+
+    void HandleLoadAdjusted()
+    {
+        auto dataNodeServiceName = DataNodeService_->GetServiceId().ServiceName;
+        auto congestionStatePendingDiskWrite = OverloadController_->GetCongestionState(dataNodeServiceName, "PendingDiskWrite");
+        auto congestionStatePendingDiskRead = OverloadController_->GetCongestionState(dataNodeServiceName, "PendingDiskRead");
+        auto congestionStateWriteSessions = OverloadController_->GetCongestionState(dataNodeServiceName, "WriteSessions");
+
+        AdjustMemoryLimit(GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite), congestionStatePendingDiskWrite);
+        AdjustMemoryLimit(GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead), congestionStatePendingDiskRead);
+        AdjustWriteSessionsLimit(GetSessionManager(), congestionStateWriteSessions);
+    }
+
+    void InitializeOverloadController()
+    {
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
+        OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
+
+        OverloadController_->SubscribeLoadAdjusted(BIND(
+            &TBootstrap::HandleLoadAdjusted,
+            MakeWeak(this)));
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -448,6 +508,11 @@ public:
         return LocationHealthChecker_;
     }
 
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
+    {
+        return OverloadController_;
+    }
+
     void SetPerLocationFullHeartbeatsEnabled(bool value) override
     {
         MasterConnector_->SetPerLocationFullHeartbeatsEnabled(value);
@@ -502,6 +567,9 @@ private:
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 
+    NRpc::IOverloadControllerPtr OverloadController_;
+    NRpc::IServicePtr DataNodeService_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void OnDynamicConfigChanged(
@@ -539,6 +607,8 @@ private:
 
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
         JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
+
+        OverloadController_->Reconfigure(newConfig->DataNode->OverloadController);
     }
 };
 
