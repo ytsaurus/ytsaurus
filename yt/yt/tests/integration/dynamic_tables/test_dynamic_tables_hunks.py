@@ -1699,7 +1699,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
@@ -1760,7 +1760,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
@@ -1860,7 +1860,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
@@ -1902,7 +1902,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
@@ -3972,7 +3972,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
-        insert_rows("//tmp/t", rows2)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows2)
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
         sync_unmount_table("//tmp/t")
         assert read_table("//tmp/t") == rows1 + rows2
@@ -3982,7 +3982,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows3 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(20, 30)]
-        insert_rows("//tmp/t", rows3)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows3)
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2 + rows3)
         sync_unmount_table("//tmp/t")
         assert read_table("//tmp/t") == rows1 + rows2 + rows3
@@ -3995,7 +3995,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
         rows4 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(20, 30)]
-        insert_rows("//tmp/t", rows4)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows4)
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2 + rows3 + rows4)
         sync_unmount_table("//tmp/t")
         assert read_table("//tmp/t") == rows1 + rows2 + rows3 + rows4
@@ -4016,7 +4016,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         for i in range(3):
             new_rows = [{"$tablet_index": i, "key": i, "value": str(i) + "y" * 20}]
             rows += [{"key": i, "value": str(i) + "y" * 20}]
-            insert_rows("//tmp/t", new_rows)
+            self._insert_rows_with_hunk_storage("//tmp/t", new_rows)
 
         sync_unmount_table("//tmp/t")
         store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
@@ -4044,7 +4044,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
 
         new_rows = [{"key": 5, "value": str(5) + "z" * 20}]
         rows += new_rows
-        insert_rows("//tmp/t", new_rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", new_rows)
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
         sync_unmount_table("//tmp/t")
         assert read_table("//tmp/t") == rows
@@ -4254,7 +4254,7 @@ class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
         rows4 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(30, 40)]
-        insert_rows("//tmp/t", rows4)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows4)
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows3 + rows4)
         sync_unmount_table("//tmp/t")
         assert read_table("//tmp/t") == rows3 + rows4
