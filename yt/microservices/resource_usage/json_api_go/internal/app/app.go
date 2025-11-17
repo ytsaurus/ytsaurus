@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof"
 	"sync"
 	"time"
 
