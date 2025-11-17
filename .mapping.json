@@ -32,6 +32,7 @@
   ".github/workflows/python_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/python_release.yaml",
   ".github/workflows/query_tracker_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/query_tracker_release.yaml",
   ".github/workflows/strawberry_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry_release.yaml",
+  ".github/workflows/tutorial-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/tutorial-release.yaml",
   ".github/workflows/update-docs-release-notes.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/update-docs-release-notes.yaml",
   ".github/workflows/ytsaurus-ci-runner.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/ytsaurus-ci-runner.yaml",
   ".github/workflows/ytsaurus_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/ytsaurus_release.yaml",

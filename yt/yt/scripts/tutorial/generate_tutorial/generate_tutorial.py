@@ -101,7 +101,7 @@ SCHEMA_ORDERS = [
     {"name": "order_meta", "type": "any"},
 ]
 
-SCHEMA_TUTORAIL_QUERY_ID = [{"name": "query_id", "type": "string", "required": True}]
+SCHEMA_TUTORIAL_QUERY_ID = [{"name": "query_id", "type": "string", "required": True}]
 
 
 def upload_files_to_map(
@@ -124,7 +124,7 @@ def upload_files_to_map(
 
 
 def create_tables(file_names: List[str], args: argparse.Namespace, name_to_data_map: Dict[str, str]):
-    yt_client = yt.wrapper.YtClient(proxy=args.proxy)
+    yt_client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
 
     if not yt_client.exists(args.yt_directory):
         raise TutorialGenerateError(f"No such directory: {args.yt_directory}")
@@ -312,7 +312,7 @@ class GenerateOrders(yt.wrapper.TypedJob):
 
 
 def generate_data(args: argparse.Namespace):
-    client = yt.wrapper.YtClient(proxy=args.proxy)
+    client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
 
     path_to_nomenclature_table = args.yt_directory + "/nomenclature"
     path_to_prices_table = args.yt_directory + "/price"
@@ -411,7 +411,7 @@ def generate_data(args: argparse.Namespace):
 
 
 def upload_tutorials(args: argparse.Namespace):
-    client = yt.wrapper.YtClient(proxy=args.proxy)
+    client = yt.wrapper.YtClient(proxy=args.proxy, token=os.environ["YT_TOKEN"])
     path_to_query_ids_table = args.yt_directory + "/query_ids"
     if args.full_wipe_annotations:
         full_queries = client.list_queries(stage=args.stage, filter="is_tutorial")["queries"]
@@ -432,7 +432,7 @@ def upload_tutorials(args: argparse.Namespace):
         type="table",
         force=args.force,
         path=path_to_query_ids_table,
-        attributes={"schema": SCHEMA_TUTORAIL_QUERY_ID, "optimize_for": "scan"},
+        attributes={"schema": SCHEMA_TUTORIAL_QUERY_ID, "optimize_for": "scan"},
     )
 
     path_to_tables_directory = args.yt_directory
@@ -484,13 +484,13 @@ def main():
     parser.add_argument("--proxy", help="Path to YTsaurus cluster", required=True)
     parser.add_argument("--yt-directory", help="Directory for creating tables", required=True)
     parser.add_argument("--create-directory", help="Create directory if not exists", default=True)
-    parser.add_argument("--max-job-count", help="Max job count in operation", default=100)
+    parser.add_argument("--max-job-count", help="Max job count in operation", default=100, type=int)
     parser.add_argument(
-        "--nomenclature-count", help="Number of nomenclatures, defines size of dynamic table", default=10000
+        "--nomenclature-count", help="Number of nomenclatures, defines size of dynamic table", default=10000, type=int
     )
-    parser.add_argument("--days-to-generate", help="Number of days in price and orders tables", default=7)
-    parser.add_argument("--max-order-size", help="Max order size in orders table", default=200)
-    parser.add_argument("--desired-order-size", help="Desired row number per day in orders table", default=2000)
+    parser.add_argument("--days-to-generate", help="Number of days in price and orders tables", default=7, type=int)
+    parser.add_argument("--max-order-size", help="Max order size in orders table", default=200, type=int)
+    parser.add_argument("--desired-order-size", help="Desired row number per day in orders table", default=2000, type=int)
     parser.add_argument("-f", "--force", help="Ignore that YT directory isn't empty", action="store_true")
     parser.add_argument("--scripts-folder", help="Folder with queries templates", default="scripts")
     parser.add_argument(
