@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/concurrency/arcadia_interop.h>
+#include <yt/yt/library/arcadia_future_interop/interop.h>
 
-namespace NYT::NConcurrency {
+namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,4 +134,4 @@ TEST(TFutureInteropTest, ToArcadiaFutureVoid2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NConcurrency
+} // namespace NYT

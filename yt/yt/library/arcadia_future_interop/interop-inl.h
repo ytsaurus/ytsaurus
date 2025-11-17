@@ -1,15 +1,15 @@
-#ifndef ARCADIA_INTEROP_INL_H_
+#ifndef INTEROP_INL_H_
 #error "Direct inclusion of this file is not allowed, include async_batcher.h"
 // For the sake of sane code completion.
-#include "arcadia_interop.h"
+#include "interop.h"
 #endif
-#undef ARCADIA_INTEROP_INL_H_
+#undef INTEROP_INL_H_
 
 #include <yt/yt/core/actions/future.h>
 
 #include <library/cpp/threading/future/core/future.h>
 
-namespace NYT::NConcurrency {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,4 +65,4 @@ TFuture<T> FromArcadiaFuture(const ::NThreading::TFuture<T>& future)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT

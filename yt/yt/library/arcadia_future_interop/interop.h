@@ -4,7 +4,7 @@
 
 #include <library/cpp/threading/future/core/future.h>
 
-namespace NYT::NConcurrency {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,8 +16,8 @@ TFuture<T> FromArcadiaFuture(const ::NThreading::TFuture<T>& future);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NConcurrency
+} // namespace NYT
 
-#define ARCADIA_INTEROP_INL_H_
-#include "arcadia_interop-inl.h"
-#undef ARCADIA_INTEROP_INL_H_
+#define INTEROP_INL_H_
+#include "interop-inl.h"
+#undef INTEROP_INL_H_
