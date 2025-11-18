@@ -2338,7 +2338,7 @@ private:
 
         // COMPAT(gryzlov-ad)
         auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-        if (reign >= EChaosReign::DoNotSkipCommenceNewEraIfNoReplicas &&
+        if (reign < EChaosReign::DoNotSkipCommenceNewEraIfNoReplicas ||
             !replicationCard->Replicas().empty())
         {
             int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
