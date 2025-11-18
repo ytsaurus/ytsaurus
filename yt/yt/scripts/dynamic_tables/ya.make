@@ -7,6 +7,7 @@ IF (NOT OPENSOURCE)
     RECURSE(
         add_table_replica
         check_tablet_cell_snapshot_convergence
+        i_want_to_dryrun_tamed_cell
         gradual_remount
         migrate_dynamic_tables
         remount_old_tablets
