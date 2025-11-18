@@ -20,7 +20,20 @@ TAssignment::TAssignment(
     , ResourceUsage(std::move(resourceUsage))
     , Operation(operation)
     , Node(node)
+    , CreationTime(TInstant::Now())
 { }
+
+void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_address").Value(assignment.Node->Address())
+            .Item("operation_id").Value(assignment.Operation->GetId())
+            .Item("allocation_group_name").Value(assignment.AllocationGroupName)
+            .Item("resource_usage").Value(assignment.ResourceUsage.ToJobResources())
+            .Item("creation_time").Value(assignment.CreationTime)
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +138,25 @@ int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& g
     return count;
 }
 
+void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("id").Value(operation.GetId())
+            .Item("assignments").List(operation.Assignments())
+            .Item("type").Value(operation.GetType())
+            .Item("enabled").Value(operation.IsEnabled())
+            .Item("gang").Value(operation.IsGang())
+            .Item("initial_grouped_needed_resources").Value(operation.InitialGroupedNeededResources())
+            .Item("assigned_resource_usage").Value(operation.AssignedResourceUsage())
+            .Item("specified_scheduling_modules").Value(operation.SpecifiedSchedulingModules())
+            .Item("priority_module_binding_enabled").Value(operation.IsPriorityModuleBindingEnabled())
+            .Item("waiting_for_module_binding_since").Value(operation.WaitingForModuleBindingSince())
+            .Item("waiting_for_assignments_since").Value(operation.WaitingForAssignmentsSince())
+            .Item("preemptible").Value(operation.IsPreemptible())
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(std::string address)
@@ -187,6 +219,18 @@ void TNode::PreemptAssignment(const TAssignmentPtr& assignment)
 {
     RemoveAssignment(assignment);
     InsertOrCrash(PreemptedAssignments_, assignment);
+}
+
+void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("assignments").List(node.Assignments())
+            .Item("scheduling_module").Value(node.SchedulingModule())
+            .Item("assigned_resource_usage").Value(node.AssignedResourceUsage())
+            .Item("resourse_limits").Value(node.Descriptor()->ResourceLimits)
+            .Item("resourse_usage").Value(node.Descriptor()->ResourceUsage)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

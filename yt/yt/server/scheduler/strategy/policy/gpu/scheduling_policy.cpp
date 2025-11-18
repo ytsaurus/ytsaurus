@@ -104,11 +104,17 @@ public:
         auto it = GetIteratorOrCrash(Nodes_, nodeId);
         const auto& node = it->second;
         auto nodeAddress = node->Address();
+
+        PreemptAllNodeAssignments(
+            node,
+            EAllocationPreemptionReason::NodeUnschedulable,
+            "Node unregistered");
+
         Nodes_.erase(it);
 
         YT_LOG_DEBUG("Node unregistered (NodeId: %v, NodeAddress: %v)",
             nodeId,
-            node->Address());
+            nodeAddress);
     }
 
     void UpdateNodeDescriptor(TNodeId nodeId, TExecNodeDescriptorPtr descriptor) override
@@ -119,7 +125,12 @@ public:
 
         YT_VERIFY(nodeId == descriptor->Id);
 
-        auto& node = GetOrCrash(Nodes_, nodeId);
+        auto nodeIt = Nodes_.find(nodeId);
+        if (nodeIt == Nodes_.end()) {
+            YT_LOG_DEBUG("Can't update node descriptor because node is missing (NodeId: %v)", nodeId);
+            return;
+        }
+        const auto& node = nodeIt->second;
 
         YT_VERIFY(node->Address() == descriptor->GetDefaultAddress());
 
@@ -198,7 +209,15 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        EraseOrCrash(DisabledOperations_, element->GetOperationId());
+        auto it = GetIteratorOrCrash(DisabledOperations_, element->GetOperationId());
+        const auto& operation = it->second;
+
+        PreemptAllOperationAssignments(
+            operation,
+            EAllocationPreemptionReason::OperationUnregistered,
+            "Node unregistered");
+
+        DisabledOperations_.erase(it);
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
     }
@@ -227,6 +246,8 @@ public:
 
         EmplaceOrCrash(EnabledOperations_, operation->GetId(), operation);
 
+        operation->SetEnabled(true);
+
         YT_LOG_DEBUG("Operation enabled (OperationId: %v)", operation->GetId());
     }
 
@@ -234,11 +255,18 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        auto operationIt = GetIteratorOrCrash(EnabledOperations_, element->GetOperationId());
+        auto operationIt = EnabledOperations_.find(element->GetOperationId());
+        if (operationIt == EnabledOperations_.end()) {
+            YT_LOG_DEBUG("Operation was not enabled (OperationId: %v)", element->GetOperationId());
+            return;
+        }
+
         auto operation = operationIt->second;
         EnabledOperations_.erase(operationIt);
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
+
+        operation->SetEnabled(false);
 
         YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
     }
@@ -247,27 +275,27 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        // TODO(eshcherbin): (!) Implement properly.
         orchidService->AddChild("gpu_assignment_plan", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::DynamicOrchid));
 
-            BuildYsonFluently(consumer).DoMapFor(Nodes_, [] (TFluentMap fluent, const auto& item) {
-                const auto& [_, node] = item;
+            BuildYsonFluently(consumer).BeginMap()
+                .Item("nodes").DoMapFor(Nodes_, [] (TFluentMap fluent, const auto& item) {
+                    const auto& [_, node] = item;
 
-                if (node->Assignments().empty()) {
-                    return;
-                }
-
-                fluent
-                    .Item(node->Address()).DoListFor(node->Assignments(), [] (TFluentList fluent, const auto& assignment) {
+                    fluent
+                        .Item(node->Address()).Value(node);
+                })
+                .Item("operations").DoMap([&] (TFluentMap fluent) {
+                    for (const auto& [operationId, operation] : EnabledOperations_) {
                         fluent
-                            .Item().BeginMap()
-                                .Item("operation_id").Value(assignment->Operation->GetId())
-                                .Item("allocation_group_name").Value(assignment->AllocationGroupName)
-                                .Item("resource_usage").Value(assignment->ResourceUsage.ToJobResources())
-                            .EndMap();
-                    });
-            });
+                            .Item(ToString(operationId)).Value(operation);
+                    }
+                    for (const auto& [operationId, operation] : DisabledOperations_) {
+                        fluent
+                            .Item(ToString(operationId)).Value(operation);
+                    }
+                })
+            .EndMap();
         })));
     }
 
@@ -381,7 +409,7 @@ private:
 
         // Update preemptible allocations.
         if (operation->IsFullHostModuleBound()) {
-            operation->SetPreemptible(operationElement->IsDemandFullySatisfied());
+            operation->SetPreemptible(!operationElement->IsDemandFullySatisfied());
         } else {
             auto sortedAssignments = GetItems(operation->Assignments());
             // TODO(eshcherbin): Sort assignments by allocation start time.
@@ -461,6 +489,16 @@ private:
     {
         // NB(eshcherbin): Copy assignments with |GetItems|, because the set will be modified.
         for (const auto& assignment : GetItems(node->Assignments())) {
+            PreemptAssignment(assignment, preemptionReason, preemptionDescription);
+        }
+    }
+
+    void PreemptAllOperationAssignments(
+        const TOperationPtr& operation,
+        EAllocationPreemptionReason preemptionReason,
+        const std::string& preemptionDescription)
+    {
+        for (const auto& assignment : GetItems(operation->Assignments())) {
             PreemptAssignment(assignment, preemptionReason, preemptionDescription);
         }
     }

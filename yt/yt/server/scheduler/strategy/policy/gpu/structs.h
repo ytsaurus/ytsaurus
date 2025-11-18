@@ -26,6 +26,7 @@ struct TAssignment final
     const TJobResourcesWithQuota ResourceUsage;
     TOperation* const Operation;
     TNode* const Node;
+    const TInstant CreationTime;
 
     bool Preemptible = false;
     bool Preempted = false;
@@ -38,6 +39,8 @@ struct TAssignment final
         TOperation* operation,
         TNode* node);
 };
+
+void Serialize(const TAssignment& operation, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TAssignment)
 
@@ -84,6 +87,8 @@ public:
     // |InitialGroupedNeededResources| for full-host module-bound operations, which are not preemptible and have no assignments?
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
 
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
+
 public:
     TOperation(
         TOperationId id,
@@ -115,6 +120,8 @@ private:
 };
 
 using TOperationMap = THashMap<TOperationId, TOperationPtr>;
+
+void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TOperation)
 
@@ -152,6 +159,8 @@ public:
 };
 
 using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
+
+void Serialize(const TNode& node, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TNode)
 
