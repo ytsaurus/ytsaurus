@@ -13,6 +13,7 @@ spec:
   concurrencyPolicy: {{ $jobData.concurrencyPolicy | default $.Values.concurrencyPolicy | quote }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: {{ $jobData.ttlSecondsAfterFinished | default $.Values.ttlSecondsAfterFinished }}
       template:
         spec:
           {{- with $.Values.imagePullSecrets }}

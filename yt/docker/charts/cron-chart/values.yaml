@@ -68,6 +68,7 @@ affinity: {}
 successfulJobsHistoryLimit: 5
 failedJobsHistoryLimit: 25
 startingDeadlineSeconds: 3600
+ttlSecondsAfterFinished: 43200
 
 yt:
   proxy: "yt.company.com"
