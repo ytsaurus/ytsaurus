@@ -435,7 +435,10 @@ public:
         if (setReadOnly) {
             epochContext->EnteringReadOnlyMode = true;
             if (enableAutomatonReadOnlyBarrier) {
+                YT_LOG_INFO("Started waiting for automaton read only barrier");
                 auto readyToEnterReadOnlyMode = WaitForFast(DecoratedAutomaton_->GetReadyToEnterReadOnlyMode());
+                YT_LOG_INFO("Finished waiting for automaton read only barrier");
+
                 if (!readyToEnterReadOnlyMode.IsOK()) {
                     epochContext->EnteringReadOnlyMode = false;
                     YT_LOG_ALERT(readyToEnterReadOnlyMode, "Failed to become ready to enter read-only mode");
