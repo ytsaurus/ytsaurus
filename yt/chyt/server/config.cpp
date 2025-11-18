@@ -163,6 +163,12 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("enable_read_range_inferring", &TThis::EnableReadRangeInferring)
         .Default(false);
 
+    registrar.Parameter("enable_distinct_read_optimization", &TThis::EnableOptimizeDistinctRead)
+        .Default(false);
+
+    registrar.Parameter("enable_min_max_optimization", &TThis::EnableMinMaxOptimization)
+        .Default(false);
+
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
 }
@@ -270,12 +276,6 @@ void TQuerySettings::Register(TRegistrar registrar)
 
     registrar.Parameter("prewhere", &TThis::Prewhere)
         .DefaultNew();
-
-    registrar.Parameter("need_only_distinct", &TThis::NeedOnlyDistinct)
-        .Default(false);
-
-    registrar.Parameter("enable_min_max_optimization", &TThis::EnableMinMaxOptimization)
-        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableReader->GroupSize = 20_MB;

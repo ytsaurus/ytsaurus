@@ -242,6 +242,11 @@ public:
     //! This option allows you to implicitly infer the reading range from the query predicate and use it when fetching chunk specs.
     bool EnableReadRangeInferring;
 
+    //! Optimize queries with simple aggregations based on distinct values using the structure of Rle-encoded and Dictionary-encoded batches.
+    bool EnableOptimizeDistinctRead;
+
+    //! Optimize queries with simple min/max aggregation by directly reading columnar statistics of a table.
+    bool EnableMinMaxOptimization;
     //! Allow to use minmax optimization for strings (answer can be corrupted for string with max_chars).
     bool AllowStringMinMaxOptimization;
 
@@ -386,10 +391,6 @@ public:
     NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
 
     TPrewhereSettingsPtr Prewhere;
-
-    bool NeedOnlyDistinct;
-
-    bool EnableMinMaxOptimization;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 

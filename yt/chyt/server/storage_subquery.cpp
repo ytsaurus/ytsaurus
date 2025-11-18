@@ -228,7 +228,7 @@ public:
             QueryContext_->SetReadTaskCallback(context->getReadTaskCallback());
         }
 
-        if (SubquerySpec_.QuerySettings->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
+        if (SubquerySpec_.QuerySettings->Execution->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
             YT_VERIFY(readPlan->Steps.size() == 1);
             TUnversionedRowsBuilder rowsBuilder;
             auto addValues = [&rowsBuilder, &readPlan](const std::vector<TUnversionedOwningValue>& values) {

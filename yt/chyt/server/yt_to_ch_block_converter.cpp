@@ -24,8 +24,8 @@ public:
         const std::vector<TColumnSchema>& readColumnSchemas,
         const TNameTablePtr& nameTable,
         const TCompositeSettingsPtr& compositeSettings,
-        bool needOnlyDistinct)
-        : NeedOnlyDistinct_(needOnlyDistinct)
+        bool optimizeDistinctRead)
+        : OptimizeDistinctRead_(optimizeDistinctRead)
     {
         int columnCount = readColumnSchemas.size();
 
@@ -85,7 +85,7 @@ public:
                 auto id = ytColumn->Id;
                 auto columnIndex = (id < std::ssize(IdToColumnIndex_)) ? IdToColumnIndex_[id] : -1;
                 bool needConsumeNull = false;
-                if (NeedOnlyDistinct_) {
+                if (OptimizeDistinctRead_) {
                     if (ytColumn->Rle) {
                         ytColumn = ytColumn->Rle->ValueColumn;
                     }
@@ -164,7 +164,7 @@ public:
         auto block = HeaderBlock_.cloneEmpty();
         for (const auto& [columnIndex, converter] : Enumerate(ColumnConverters_)) {
             auto column = converter.FlushColumn();
-            YT_VERIFY(NeedOnlyDistinct_ || std::ssize(*column) == batch->GetRowCount());
+            YT_VERIFY(OptimizeDistinctRead_ || std::ssize(*column) == batch->GetRowCount());
             block.getByPosition(columnIndex).column = std::move(column);
         }
 
@@ -175,7 +175,7 @@ private:
     DB::Block HeaderBlock_;
     std::vector<TYTToCHColumnConverter> ColumnConverters_;
     std::vector<int> IdToColumnIndex_;
-    bool NeedOnlyDistinct_;
+    bool OptimizeDistinctRead_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,8 +184,8 @@ TYTToCHBlockConverter::TYTToCHBlockConverter(
     const std::vector<TColumnSchema>& readColumnSchemas,
     const TNameTablePtr& nameTable,
     const TCompositeSettingsPtr& compositeSettings,
-    bool needOnlyDistinct)
-    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, needOnlyDistinct))
+    bool optimizeDistinctRead)
+    : Impl_(std::make_unique<TImpl>(readColumnSchemas, nameTable, compositeSettings, optimizeDistinctRead))
 { }
 
 TYTToCHBlockConverter::TYTToCHBlockConverter(TYTToCHBlockConverter&& other) = default;

@@ -313,9 +313,12 @@ std::vector<NChunkClient::TReadRange> InferReadRange(
     std::vector<NChunkClient::TReadRange> result;
     result.reserve(rowRanges.size());
     for (const auto& rowRange : rowRanges) {
-        result.emplace_back(
-            NChunkClient::TReadLimit(KeyBoundFromLegacyRow(rowRange.first, /*isUpper*/ false, schema->GetKeyColumnCount())),
-            NChunkClient::TReadLimit(KeyBoundFromLegacyRow(rowRange.second, /*isUpper*/ true, schema->GetKeyColumnCount())));
+        auto lowerLimit = KeyBoundFromLegacyRow(rowRange.first, /*isUpper*/ false, schema->GetKeyColumnCount());
+        auto upperLimit = KeyBoundFromLegacyRow(rowRange.second, /*isUpper*/ true, schema->GetKeyColumnCount());
+        if (lowerLimit.IsUniversal() && upperLimit.IsUniversal()) {
+            continue;
+        }
+        result.emplace_back(NChunkClient::TReadLimit(lowerLimit), NChunkClient::TReadLimit(upperLimit));
     }
     return result;
 }

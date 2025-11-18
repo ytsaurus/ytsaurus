@@ -550,17 +550,6 @@ private:
         QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
 
-        SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
-        SpecTemplate_.QuerySettings = StorageContext_->Settings;
-        SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->NeedOnlyDistinct &= QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->EnableMinMaxOptimization &= QueryAnalysisResult_->EnableMinMaxOptimization;
-
-        QueryContext_->MergeRuntimeVariables(QueryAnalysisResult_->AnalysisVariables);
-        QueryContext_->SetRuntimeVariable(
-            "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
-
         QueryInput_ = FetchInput(
             StorageContext_,
             *QueryAnalysisResult_,
@@ -569,10 +558,18 @@ private:
             TClickHouseIndexBuilder(&QueryInfo_, Context_),
             QueryContext_->ReadTransactionId);
 
+        SpecTemplate_ = TSubquerySpec();
+        SpecTemplate_.InitialQuery = QueryInfo_.query->formatForLogging();
+
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = QueryInput_.DataSourceDirectory;
         SpecTemplate_.TableStatistics = std::move(QueryInput_.TableStatistics);
-        SpecTemplate_.QuerySettings->EnableMinMaxOptimization &= SpecTemplate_.TableStatistics.has_value();
+
+        SpecTemplate_.QuerySettings = StorageContext_->Settings;
+        SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
+        SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead = QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization =
+            QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sampleSize()) {
@@ -619,6 +616,20 @@ private:
             SamplingRate_ = std::nullopt;
         }
         SpecTemplate_.TableReaderConfig = tableReaderConfig;
+
+        QueryContext_->MergeRuntimeVariables(QueryAnalysisResult_->AnalysisVariables);
+
+        QueryContext_->SetRuntimeVariable(
+            "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
+
+        QueryContext_->SetRuntimeVariable(
+            "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
+        QueryContext_->SetRuntimeVariable(
+            "use_distinct_read_optimization", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);
+        QueryContext_->SetRuntimeVariable(
+            "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
+        QueryContext_->SetRuntimeVariable(
+            "use_read_range_inferring", !QueryAnalysisResult_->KeyReadRanges.empty());
     }
 
     void ChooseNodesToDistribute()
@@ -680,7 +691,7 @@ private:
                 taskCount,
                 QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
         }
-        if (SpecTemplate_.QuerySettings->EnableMinMaxOptimization) {
+        if (SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization) {
             taskCount = 1;
         }
 

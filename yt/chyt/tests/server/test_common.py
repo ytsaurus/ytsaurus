@@ -215,7 +215,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     },
                 },
                 "settings": {
-                    "need_only_distinct": True,
+                    "execution": {"enable_distinct_read_optimization": True},
                 },
             }
         }
@@ -465,8 +465,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     },
                 },
                 "settings": {
-                    "execution": {"allow_string_min_max_optimization": True},
-                    "enable_min_max_optimization": True,
+                    "execution": {
+                        "enable_min_max_optimization": True,
+                        "allow_string_min_max_optimization": True,
+                    },
                 },
             }
         }
