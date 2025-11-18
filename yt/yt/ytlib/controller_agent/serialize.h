@@ -92,6 +92,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SimplifyStreamDescriptor)              (302112))
     ((JobOutputDigestOptimization)           (302113))
     ((PrepareTmpfsVolumes)                   (302114))
+    ((DivideTPartitionIntoTwoTypes)          (302115))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
