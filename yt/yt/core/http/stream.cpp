@@ -233,7 +233,7 @@ int THttpParser::OnHeadersComplete(http_parser* parser)
      * HEAD request which may contain 'Content-Length' or 'Transfer-Encoding:
      * chunked' headers that indicate the presence of a body.
      */
-    return that->ParserType_ == HTTP_RESPONSE && that->RequestMethod_ == EMethod::Head ? 1 : 0;
+    return (that->ParserType_ == HTTP_RESPONSE && that->RequestMethod_ == EMethod::Head) ? 1 : 0;
 }
 
 int THttpParser::OnBody(http_parser* parser, const char* at, size_t length)

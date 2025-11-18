@@ -31,7 +31,7 @@ DEFINE_ENUM(EParserState,
 class THttpParser
 {
 public:
-    explicit THttpParser(http_parser_type parserType, std::optional<EMethod> requestMethod);
+    THttpParser(http_parser_type parserType, std::optional<EMethod> requestMethod);
 
     static http_parser_settings GetParserSettings();
 
