@@ -71,7 +71,7 @@ using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NObjectClient::TObjectId;
 using NObjectClient::FromObjectId;
 
-using NHiveClient::TCellDescriptorPtr;
+using NHiveClient::TConstCellDescriptorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,12 +127,12 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     auto ranges = dataSource.Ranges;
     auto keys = dataSource.Keys;
 
-    THashMap<NTabletClient::TTabletCellId, TCellDescriptorPtr> tabletCellReplicas;
+    THashMap<NTabletClient::TTabletCellId, TConstCellDescriptorPtr> tabletCellReplicas;
 
     auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
         ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
 
-        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptorPtr());
+        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TConstCellDescriptorPtr());
         auto& descriptor = insertResult.first->second;
 
         if (insertResult.second) {
