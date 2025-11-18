@@ -12,15 +12,18 @@ Is released as a docker image.
 
 **Release date:** 2025-11-05
 
+
 Maintenance release with minor enhancements
 
 - Correct reading of unsigned types (uint8, uint16, uint32) in arrow and wire formats
 
 {% endcut %}
 
+
 {% cut "**2.7.4**" %}
 
-**Release date:** 2025-11-05
+**Release date:** 2025-10-07
+
 
 Maintenance release with minor enhancements
 
@@ -28,9 +31,11 @@ Maintenance release with minor enhancements
 
 {% endcut %}
 
+
 {% cut "**2.7.3**" %}
 
 **Release date:** 2025-09-08
+
 
 Maintenance release with minor enhancements
 
@@ -39,16 +44,20 @@ Maintenance release with minor enhancements
 
 {% endcut %}
 
+
 {% cut "**2.7.2**" %}
 
 **Release date:** 2025-09-01
+
 
 Maintenance release with minor enhancements
 
 - Improving YTsaurus shuffle service integration
 - Spark connect server wrapper for SPYT
 
+
 {% endcut %}
+
 
 {% cut "**2.7.1**" %}
 
