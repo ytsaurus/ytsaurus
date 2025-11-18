@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -21,6 +22,9 @@ type ConfigBase struct {
 	HTTPHandlerTimeout time.Duration `yaml:"http_handler_timeout"`
 	// HTTP server address where metrics will be available.
 	DebugHTTPAddr string `yaml:"debug_http_addr"`
+
+	// Defines a base path (prefix) for all API routes.
+	ApiPrefix string `yaml:"api_prefix"`
 
 	// CORS settings.
 	CORS *ytmsvc.CORSConfig `yaml:"cors"`
@@ -81,6 +85,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 	if c.TokenEnvVariable == "" {
 		c.TokenEnvVariable = defaultTokenEnvVariable
+	}
+
+	if !strings.HasPrefix(c.ApiPrefix, "/") {
+		c.ApiPrefix = "/" + c.ApiPrefix
 	}
 
 	return nil

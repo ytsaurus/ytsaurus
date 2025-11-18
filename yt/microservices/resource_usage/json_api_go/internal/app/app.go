@@ -68,7 +68,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	clusterMetrics := a.metrics.WithTags(map[string]string{"api": "resource_usage"})
 	api.RegisterMetrics(clusterMetrics)
-	apiRouter.Mount("/", api.Routes())
+	apiRouter.Mount(a.conf.ApiPrefix, api.Routes())
 	api.SetReady()
 
 	server := &http.Server{
