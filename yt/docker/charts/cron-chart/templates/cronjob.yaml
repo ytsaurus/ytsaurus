@@ -31,7 +31,7 @@ spec:
             {{- include ".containerBody" $ | nindent 12 }}
             args:
               {{- range $arg := $seqJobDetails.args }}
-              - {{ $arg }}
+              - {{ $arg | quote }}
               {{- end }}
           {{- end }}
           containers:
@@ -44,7 +44,7 @@ spec:
             {{- include ".containerBody" $ | nindent 12 }}
             args:
               {{- range $arg := $jobData.args }}
-              - {{ $arg }}
+              - {{ $arg | quote }}
               {{- end }}
           {{- end }}
           {{- with $.Values.volumes }}
