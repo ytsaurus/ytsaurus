@@ -86,10 +86,10 @@ private:
         /*retryClassFunction*/ [](const std::exception&) {
             return ERetryErrorClass::LongRetry;
         },
-        /*minDelay*/ TDuration::Seconds(5),
-        /*minLongRetryDelay*/ TDuration::Seconds(5),
-        /*maxDelay*/ TDuration::Seconds(30),
-        /*maxRetries*/ 5);
+        /*minDelay*/ TDuration::Seconds(30),
+        /*minLongRetryDelay*/ TDuration::Seconds(30),
+        /*maxDelay*/ TDuration::Minutes(30),
+        /*maxRetries*/ 10);
 
     template<typename T, typename R>
     T ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const;
