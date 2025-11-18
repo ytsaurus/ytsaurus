@@ -18,6 +18,7 @@
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/misc/fs.h>
@@ -70,6 +71,8 @@ public:
         , DynamicConfigVersion_(0)
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
+        , StartProcessesThreadPool_(CreateThreadPool(64, "YqlProcessPluginStart"))
+        , StartProcessInvoker_(StartProcessesThreadPool_->GetInvoker())
         , StandbyProcessesQueue_(Config_->ProcessPluginConfig->SlotCount)
         , StandbyProcessesGauge_(profiler.Gauge("/standby_processes"))
         , ActiveProcessesGauge_(profiler.Gauge("/active_processes"))
@@ -247,6 +250,9 @@ private:
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
 
+    IThreadPoolPtr StartProcessesThreadPool_;
+    IInvokerPtr StartProcessInvoker_;
+
     std::unique_ptr<IYqlPlugin> DqControllerYqlPlugin_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ProcessesLock_);
@@ -318,8 +324,6 @@ private:
 
     void StartPluginInProcess(TYqlExecutorProcessPtr process)
     {
-        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
         int slotIndex = process->SlotIndex();
         YT_LOG_DEBUG("Starting plugin in process (SlotIndex: %v)", slotIndex);
 
@@ -384,7 +388,7 @@ private:
         YT_LOG_INFO("Starting yql plugin process (SlotIndex: %v)", slotIndex);
 
         return BIND_NO_PROPAGATE(&TProcessYqlPlugin::StartProcess, Passed(this), slotIndex)
-            .AsyncVia(Invoker_)
+            .AsyncVia(StartProcessInvoker_)
             .Run()
             .Apply(BIND_NO_PROPAGATE([this, slotIndex](const TErrorOr<TYqlExecutorProcessPtr>& result) {
                 if (!result.IsOK()) {
@@ -409,7 +413,6 @@ private:
 
     TYqlExecutorProcessPtr StartProcess(int slotIndex)
     {
-        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_LOG_DEBUG("Starting plugin process (SlotIndex: %v)", slotIndex);
         auto guard = ReaderGuard(ProcessesLock_);
         auto workingDirectory = GetSlotPath(slotIndex);
