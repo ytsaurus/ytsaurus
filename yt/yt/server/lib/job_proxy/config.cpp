@@ -324,7 +324,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment);
 
-    registrar.Parameter("addresses", &TThis::Addresses)
+    registrar.Parameter("local_addresses", &TThis::LocalAddresses)
         .Default();
 
     registrar.Parameter("local_host_name", &TThis::LocalHostName)

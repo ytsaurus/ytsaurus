@@ -153,6 +153,10 @@ void TBusConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_local_bypass", &TThis::EnableLocalBypass)
         .Default(true);
+    registrar.Parameter("verify_peer_identity", &TThis::VerifyPeerIdentity)
+        .Default(true);
+    registrar.Parameter("identity", &TThis::Identity)
+        .Default();
     registrar.Parameter("encryption_mode", &TThis::EncryptionMode)
         .Default(EEncryptionMode::Optional);
     registrar.Parameter("verification_mode", &TThis::VerificationMode)
@@ -181,6 +185,10 @@ void TBusClientConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("unix_domain_socket_path", &TThis::UnixDomainSocketPath)
         .Default();
+    registrar.Parameter("endpoint_identity", &TThis::EndpointIdentity)
+        .Default();
+    registrar.Parameter("use_address_as_default_endpoint_identity", &TThis::UseAddressAsDefaultEndpointIdentity)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->Address && !config->UnixDomainSocketPath) {
@@ -189,17 +197,23 @@ void TBusClientConfig::Register(TRegistrar registrar)
     });
 }
 
-TBusClientConfigPtr TBusClientConfig::CreateTcp(const std::string& address)
+TBusClientConfigPtr TBusClientConfig::CreateTcp(
+    const std::string& address,
+    const std::optional<std::string>& endpointIdentity)
 {
     auto config = New<TBusClientConfig>();
     config->Address = address;
+    config->EndpointIdentity = endpointIdentity;
     return config;
 }
 
-TBusClientConfigPtr TBusClientConfig::CreateUds(const std::string& socketPath)
+TBusClientConfigPtr TBusClientConfig::CreateUds(
+    const std::string& socketPath,
+    const std::optional<std::string>& endpointIdentity)
 {
     auto config = New<TBusClientConfig>();
     config->UnixDomainSocketPath = socketPath;
+    config->EndpointIdentity = endpointIdentity;
     return config;
 }
 

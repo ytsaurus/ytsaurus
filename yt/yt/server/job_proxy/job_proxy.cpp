@@ -820,7 +820,7 @@ TJobResult TJobProxy::RunJob()
             });
         SetJobProxyEnvironment(environment);
 
-        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
+        LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->LocalAddresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();

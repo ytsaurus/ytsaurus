@@ -306,6 +306,45 @@ TEST_F(TBusTest, BlackHole)
         .ThrowOnError();
 }
 
+TEST_F(TBusTest, IdentitySuccess)
+{
+    auto config = TBusServerConfig::CreateTcp(Port);
+    config->Identity = "test";
+    auto server = CreateBusServer(config);
+    server->Start(New<TEmptyBusHandler>());
+
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address, "test"));
+    EXPECT_EQ(client->GetEndpointAttributes().Get<std::string>("endpoint_identity"), "test");
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+    auto result = bus->GetReadyFuture()
+        .Get();
+    result.ThrowOnError();
+    server->Stop()
+        .Get()
+        .ThrowOnError();
+}
+
+TEST_F(TBusTest, IdentityFailed)
+{
+    // Bus server with default local hostname identity.
+    auto server = StartBusServer(New<TEmptyBusHandler>());
+
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address, "test"));
+    EXPECT_EQ(client->GetEndpointAttributes().Get<std::string>("endpoint_identity"), "test");
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+    auto result = bus->GetReadyFuture()
+        .Get();
+    EXPECT_FALSE(result.IsOK());
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        result.ThrowOnError(),
+        NYT::TErrorException,
+        "Failed to verify endpoint identity");
+
+    server->Stop()
+        .Get()
+        .ThrowOnError();
+}
+
 TEST_F(TBusTest, SendCancel)
 {
     auto handler = New<TCountingBusHandler>();

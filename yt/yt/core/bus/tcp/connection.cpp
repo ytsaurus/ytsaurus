@@ -111,6 +111,7 @@ TTcpConnection::TTcpConnection(
     const TNetworkAddress& endpointNetworkAddress,
     const std::optional<std::string>& endpointAddress,
     const std::optional<std::string>& unixDomainSocketPath,
+    const std::optional<std::string>& identity,
     IMessageHandlerPtr handler,
     IPollerPtr poller,
     IPacketTranscoderFactory* packetTranscoderFactory,
@@ -124,6 +125,7 @@ TTcpConnection::TTcpConnection(
     , EndpointNetworkAddress_(endpointNetworkAddress)
     , EndpointAddress_(endpointAddress)
     , UnixDomainSocketPath_(unixDomainSocketPath)
+    , Identity_(identity)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
     , LoggingTag_(Format("ConnectionId: %v, Endpoint: %v",
@@ -310,6 +312,9 @@ void TTcpConnection::TryEnqueueHandshake()
 
     NProto::THandshake handshake;
     ToProto(handshake.mutable_connection_id(), Id_);
+    if (Identity_) {
+        handshake.set_identity(*Identity_);
+    }
     if (ConnectionType_ == EConnectionType::Client) {
         handshake.set_multiplexing_band(ToProto(MultiplexingBand_.load()));
     }
@@ -1285,15 +1290,19 @@ bool TTcpConnection::OnHandshakePacketReceived()
         ? std::make_optional(FromProto<EMultiplexingBand>(handshake.multiplexing_band()))
         : std::nullopt;
 
+    auto peerIdentity = handshake.has_identity() ? std::make_optional(handshake.identity()) : std::nullopt;
+
     PeerAttributes_ = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("peer_connection_id").Value(FromProto<TConnectionId>(handshake.connection_id()))
+                .OptionalItem("peer_identity", peerIdentity)
                 .Item("peer_encryption_mode").Value(FromProto<EEncryptionMode>(handshake.encryption_mode()))
                 .Item("peer_verification_mode").Value(FromProto<EVerificationMode>(handshake.verification_mode()))
             .EndMap());
 
-    YT_LOG_DEBUG("Handshake received (PeerConnectionId: %v, PeerEncryptionMode: %v, PeerVerificationMode: %v, MultiplexingBand: %v)",
+    YT_LOG_DEBUG("Handshake received (PeerConnectionId: %v, PeerIdentity: %v, PeerEncryptionMode: %v, PeerVerificationMode: %v, MultiplexingBand: %v)",
         PeerAttributes_->Get<TString>("peer_connection_id"),
+        peerIdentity,
         PeerAttributes_->Get<TString>("peer_encryption_mode"),
         PeerAttributes_->Get<TString>("peer_verification_mode"),
         optionalMultiplexingBand);
@@ -1310,6 +1319,21 @@ bool TTcpConnection::OnHandshakePacketReceived()
     if (ConnectionType_ == EConnectionType::Server) {
         // Server responds to client's handshake.
         TryEnqueueHandshake();
+    } else if (auto endpointIdentity = EndpointAttributes_->Find<std::string>("endpoint_identity")) {
+        if (!peerIdentity) {
+            YT_LOG_WARNING_IF(Config_->VerifyPeerIdentity, "Cannot verify endpoint identity (EndpointIdentity: %v)",
+                *endpointIdentity);
+        } else if (*endpointIdentity != *peerIdentity) {
+            if (Config_->VerifyPeerIdentity) {
+                // Abort will attach endpoint and peer attributes to the error.
+                Abort(TError(NBus::EErrorCode::TransportError, "Failed to verify endpoint identity"));
+                return true;
+            } else {
+                YT_LOG_WARNING("Failed to verify endpoint identity (EndpointIdentity: %v, PeerIdentity: %v)",
+                    *endpointIdentity,
+                    *peerIdentity);
+            }
+        }
     }
 
     auto otherEncryptionMode = handshake.has_encryption_mode() ? FromProto<EEncryptionMode>(handshake.encryption_mode()) : EEncryptionMode::Disabled;

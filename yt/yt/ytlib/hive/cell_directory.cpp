@@ -127,10 +127,12 @@ public:
         , Logger(std::move(logger))
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
         if (NativeClusterAddresses_.contains(address)) {
-            return NativeChannelFactory_->CreateChannel(address);
+            return NativeChannelFactory_->CreateChannel(address, endpointIdentity);
         }
 
         auto it = AddressToAlienCluster_.find(address);

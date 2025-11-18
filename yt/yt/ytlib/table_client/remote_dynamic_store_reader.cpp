@@ -329,7 +329,7 @@ protected:
             }
 
             const auto& channelFactory = Client_->GetChannelFactory();
-            auto channel = channelFactory->CreateChannel(*address);
+            auto channel = channelFactory->CreateChannel(*address, descriptor->GetDefaultAddress());
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->RequestTimeout);
 

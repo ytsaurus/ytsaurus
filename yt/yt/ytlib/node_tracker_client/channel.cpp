@@ -19,18 +19,22 @@ public:
 
     IChannelPtr CreateChannel(const TNodeDescriptor& descriptor) override
     {
-        return CreateChannel(descriptor.Addresses());
+        const auto& address = descriptor.GetAddressOrThrow(Networks_);
+        return CreateChannel(address, descriptor.GetDefaultAddress());
     }
 
     IChannelPtr CreateChannel(const TAddressMap& addresses) override
     {
         const auto& address = GetAddressOrThrow(addresses, Networks_);
-        return CreateChannel(address);
+        const auto endpointIdentity = FindDefaultAddress(addresses);
+        return CreateChannel(address, endpointIdentity);
     }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        return ChannelFactory_->CreateChannel(address);
+        return ChannelFactory_->CreateChannel(address, endpointIdentity);
     }
 
 private:

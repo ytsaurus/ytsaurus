@@ -327,9 +327,6 @@ struct TClusterNodeBootstrapConfig
     //! Dry run config.
     NHydra::THydraDryRunConfigPtr DryRun;
 
-    //! Known node addresses.
-    NNodeTrackerClient::TNetworkAddressList Addresses;
-
     //! A set of tags to be assigned to this node.
     /*!
      * These tags are merged with others (e.g. provided by user and provided by master) to form

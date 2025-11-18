@@ -1345,9 +1345,6 @@ struct TControllerAgentBootstrapConfig
 {
     TControllerAgentConfigPtr ControllerAgent;
 
-    //! Known scheduler addresses.
-    NNodeTrackerClient::TNetworkAddressList Addresses;
-
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;

@@ -127,9 +127,11 @@ public:
         : UnderlyingChannelFactory_(std::move(underlyingChannelFactory))
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        return WrapGroundChannel(UnderlyingChannelFactory_->CreateChannel(address));
+        return WrapGroundChannel(UnderlyingChannelFactory_->CreateChannel(address, endpointIdentity));
     }
 
 private:

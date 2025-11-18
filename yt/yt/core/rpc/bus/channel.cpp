@@ -1336,9 +1336,11 @@ public:
         YT_VERIFY(MemoryUsageTracker_);
     }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto config = TBusClientConfig::CreateTcp(address);
+        auto config = TBusClientConfig::CreateTcp(address, endpointIdentity);
         config->Load(Config_, /*postprocess*/ true, /*setDefaults*/ false);
         auto client = CreateBusClient(
             std::move(config),
@@ -1378,9 +1380,11 @@ public:
         YT_VERIFY(MemoryUsageTracker_);
     }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto config = TBusClientConfig::CreateUds(address);
+        auto config = TBusClientConfig::CreateUds(address, endpointIdentity);
         config->Load(Config_, /*postprocess*/ true, /*setDefaults*/ false);
         auto client = CreateBusClient(
             std::move(config),

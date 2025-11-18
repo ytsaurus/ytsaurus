@@ -10,6 +10,10 @@ NNodeTrackerClient::TAddressMap GetLocalAddresses(
     const NNodeTrackerClient::TNetworkAddressList& addresses,
     int port);
 
+std::optional<std::string> FindDefaultAddress(
+    const NNodeTrackerClient::TNetworkAddressList& addresses,
+    int port);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NServer
