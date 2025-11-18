@@ -627,10 +627,13 @@ void TQueueAgent::Pass()
 
     // Filter only those queues and consumers for which our queue agent is responsible.
 
+    int skippedReplicatedTableObjects = 0;
+
     auto filterRows = [&, this] <class T>(std::vector<T>& rowList) {
         rowList.erase(std::remove_if(rowList.begin(), rowList.end(), [&, this] (const T& row) {
             // Do not perform mutating requests to replicated table objects unless flag is set.
             if (!DynamicConfig_->HandleReplicatedObjects && IsReplicatedTableObjectType(row.ObjectType)) {
+                skippedReplicatedTableObjects += 1;
                 return true;
             }
 
@@ -642,6 +645,13 @@ void TQueueAgent::Pass()
 
     filterRows(queueRows);
     filterRows(consumerRows);
+
+    if (skippedReplicatedTableObjects > 0) {
+        YT_VERIFY(!DynamicConfig_->HandleReplicatedObjects);
+        YT_LOG_DEBUG(
+            "All (chaos) replicated table objects were skipped, since \"handle_replicated_objects\" is false in queue agent dynamic config "
+            "(SkippedReplicatedTableObjectCount: %v)", skippedReplicatedTableObjects);
+    }
 
     // The remaining objects are considered leading for this queue agent.
     // Leading controllers only exist on a single queue agent, whereas follower-controllers can be present on multiple queue agents.
