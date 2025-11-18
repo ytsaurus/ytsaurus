@@ -91,6 +91,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RefactorTPartition)                    (302111))
     ((SimplifyStreamDescriptor)              (302112))
     ((JobOutputDigestOptimization)           (302113))
+    ((PrepareTmpfsVolumes)                   (302114))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

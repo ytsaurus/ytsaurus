@@ -392,16 +392,6 @@ public:
                 PrepareRootFS(
                     rootFS.RootPath,
                     userId);
-            } else {
-                YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
-
-                THashMap<TString, TString> properties;
-                properties["backend"] = "rbind";
-                properties["storage"] = NFs::CurrentWorkingDirectory();
-                auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(
-                    newPath,
-                    properties));
-                auto volumePath = HandleVolumeCreationError(volumeCreationResult);
             }
 
             launcher->SetRoot(rootFS);

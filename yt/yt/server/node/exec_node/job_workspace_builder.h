@@ -65,7 +65,7 @@ struct TJobWorkspaceBuildingResult
     IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
     std::optional<TString> DockerImageId;
-    std::vector<TString> TmpfsPaths;
+    std::vector<TTmpfsVolumeResult> TmpfsVolumes;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;
 
@@ -78,6 +78,9 @@ struct TJobWorkspaceBuilderTimePoints
 {
     std::optional<TInstant> PrepareRootVolumeStartTime;
     std::optional<TInstant> PrepareRootVolumeFinishTime;
+
+    std::optional<TInstant> PrepareTmpfsVolumesStartTime;
+    std::optional<TInstant> PrepareTmpfsVolumesFinishTime;
 
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime;
@@ -118,6 +121,8 @@ protected:
     const NLogging::TLogger& Logger;
 
     virtual TFuture<void> DoPrepareRootVolume() = 0;
+
+    virtual TFuture<void> DoPrepareTmpfsVolumes() = 0;
 
     virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
 

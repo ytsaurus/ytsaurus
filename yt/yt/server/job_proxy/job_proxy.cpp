@@ -59,6 +59,8 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
+#include <yt/yt/library/containers/porto_helpers.h>
+
 #include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
@@ -1351,6 +1353,8 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
 IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnvironmentOptions& options) const
 {
+    YT_LOG_DEBUG("Creating user job environment");
+
     auto environment = FindJobProxyEnvironment();
     YT_VERIFY(environment);
 
@@ -1424,11 +1428,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         } else {
             // Please observe the hierarchy of binds for correct mounting!
             // TODO(don-dron): Make topological sorting.
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = GetPreparationPath(),
-                .TargetPath = GetSlotPath(),
-                .ReadOnly = false,
-            });
 
             // Temporary workaround for nirvana - make tmp directories writable.
             auto tmpPath = NFS::CombinePaths(
@@ -1450,25 +1449,27 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         // Mount sandbox home to user homedir.
         {
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = NFS::CombinePaths(
-                    GetPreparationPath(),
-                    GetSandboxRelPath(ESandboxKind::Home)),
-                .TargetPath = Format("/home/yt_slot_%d", Config_->SlotIndex),
-                .ReadOnly = false,
-            });
-        }
+            const auto& source = NFS::CombinePaths(
+                GetPreparationPath(),
+                GetSandboxRelPath(ESandboxKind::Home));
+            const auto& target = Format("/home/yt_slot_%d", Config_->SlotIndex);
 
+            YT_LOG_DEBUG("Adding container bind for slot home (Source: %v, Target: %v)",
+                source,
+                target);
 
-        for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
             rootFS.Binds.push_back(TBind{
-                .SourcePath = tmpfsPath,
-                .TargetPath = AdjustPath(tmpfsPath),
+                .SourcePath = source,
+                .TargetPath = target,
                 .ReadOnly = false,
             });
         }
 
         for (const auto& bind : Config_->Binds) {
+            YT_LOG_DEBUG("Adding container bind for config binds (Source: %v, Target: %v)",
+                bind->ExternalPath,
+                bind->InternalPath);
+
             rootFS.Binds.push_back(TBind{
                 .SourcePath = bind->ExternalPath,
                 .TargetPath = bind->InternalPath,
@@ -1525,7 +1526,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
         // TODO(yuryalekseev): Remove this after tasklets move to using default place.
-        environmentOptions.Places.push_back("***");
+        environmentOptions.Places.push_back(All);
     }
 
     if (options.EnableCoreDumps) {

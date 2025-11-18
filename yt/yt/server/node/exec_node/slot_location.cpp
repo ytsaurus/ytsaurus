@@ -205,7 +205,7 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
     return JobDirectoryManager_;
 }
 
-std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
+void TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
     bool ignoreQuota,
@@ -269,75 +269,11 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
         EmplaceOrCrash(SandboxOptionsPerSlot_, slotIndex, options);
     }
 
-    std::vector<TString> result;
-
-    for (const auto& tmpfsVolume : options.TmpfsVolumes) {
-        // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-        auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, tmpfsVolume.Path));
-        auto tmpfsPathRelativeToLocation = GetPathRelativeToLocation(tmpfsPath);
-        try {
-            if (tmpfsPath != sandboxPath) {
-                // If we mount directory inside sandbox, it should not exist.
-                ValidateNotExists(tmpfsPath);
-            }
-            MakeDirRecursive(tmpfsPath);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
-                tmpfsPath,
-                sandboxPath)
-                << ex;
-        }
-
-        if (!SlotManagerStaticConfig_->EnableTmpfs) {
-            continue;
-        }
-
-        try {
-            auto properties = TJobDirectoryProperties{
-                .DiskSpaceLimit = tmpfsVolume.Size,
-                .InodeLimit = std::nullopt,
-                .UserId = userId,
-            };
-            WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
-                .ThrowOnError();
-
-            {
-                auto guard = WriterGuard(SlotsLock_);
-                EmplaceOrCrash(TmpfsPaths_, tmpfsPathRelativeToLocation);
-            }
-
-            result.push_back(tmpfsPath);
-        } catch (const std::exception& ex) {
-            // Job will be aborted.
-            auto error = TError(NExecNode::EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
-                << ex;
-            Disable(error);
-            THROW_ERROR error;
-        }
-    }
-
-    for (int i = 0; i < std::ssize(result); ++i) {
-        for (int j = 0; j < std::ssize(result); ++j) {
-            if (i == j) {
-                continue;
-            }
-            auto lhsFsPath = TFsPath(result[i]);
-            auto rhsFsPath = TFsPath(result[j]);
-            if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                THROW_ERROR_EXCEPTION("Path of tmpfs volume %v is prefix of other tmpfs volume %v",
-                    result[i],
-                    result[j]);
-            }
-        }
-    }
-
     YT_LOG_DEBUG("Sandbox directories prepared (SlotIndex: %v)",
         slotIndex);
-
-    return result;
 }
 
-TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
+TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
     bool ignoreQuota)
@@ -345,10 +281,10 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
     return BIND([=, this_ = MakeStrong(this)] {
-            for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+            for (const auto& volumeParams : options.TmpfsVolumes) {
                 // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
                 // real path without filesystem access.
-                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, tmpfsVolume.Path));
+                auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, volumeParams.Path));
                 if (tmpfsPath == sandboxPath) {
                     return true;
                 }
@@ -371,6 +307,22 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(
                 .AsyncVia(invoker)
                 .Run();
         }));
+}
+
+void TSlotLocation::TakeIntoAccountTmpfsVolumes(
+    int slotIndex,
+    const std::vector<TTmpfsVolumeParams>& volumes)
+{
+    auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+
+    for (const auto& volume : volumes) {
+        // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
+        auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        auto tmpfsPathRelativeToLocation = GetPathRelativeToLocation(tmpfsPath);
+
+        auto guard = WriterGuard(SlotsLock_);
+        EmplaceOrCrash(TmpfsPaths_, tmpfsPathRelativeToLocation);
+    }
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(

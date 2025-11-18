@@ -366,6 +366,9 @@ private:
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
 
+    std::optional<TInstant> PrepareTmpfsVolumesStartTime_;
+    std::optional<TInstant> PrepareTmpfsVolumesFinishTime_;
+
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
 
@@ -380,7 +383,7 @@ private:
     int SetupCommandCount_ = 0;
 
     std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
-    std::vector<TString> TmpfsPaths_;
+    std::vector<TTmpfsVolumeResult> TmpfsVolumes_;
 
     std::atomic<bool> UseJobInputCache_ = false;
 
