@@ -87,6 +87,10 @@
 
 #include <library/cpp/yt/string/string.h>
 
+#include <util/digest/city.h>
+
+#include <util/string/vector.h>
+
 #include <util/system/fs.h>
 
 namespace NYT::NExecNode {
@@ -440,7 +444,6 @@ struct TLayerLocationPerformanceCounters
         LayerCount = profiler.Gauge("/layer_count");
         VolumeCount = profiler.Gauge("/volume_count");
 
-        AvailableSpace = profiler.Gauge("/available_space");
         UsedSpace = profiler.Gauge("/used_space");
         AvailableSpace = profiler.Gauge("/available_space");
         TotalSpace = profiler.Gauge("/total_space");
@@ -558,6 +561,60 @@ public:
             .Run();
     }
 
+    TFuture<TVolumeMeta> CreateTmpfsVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TTmpfsVolumeParams tmpfsVolume)
+    {
+        return BIND(
+            &TLayerLocation::DoCreateTmpfsVolume,
+            MakeStrong(this),
+            tag,
+            Passed(std::move(tagSet)),
+            Passed(std::move(volumeCreateTimeGuard)),
+            Passed(std::move(tmpfsVolume)))
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
+    }
+
+    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath)
+    {
+        ValidateEnabled();
+
+        THashMap<TString, TString> volumeProperties {
+            {"backend", "rbind"},
+            {"storage", slotPath},
+        };
+
+        return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
+            auto path = NFS::CombinePaths(volume->GetPath(), "slot");
+
+            if (!NFS::Exists(path)) {
+                YT_LOG_DEBUG("Creating rbind directory (Path: %v)",
+                    path);
+
+                NFS::MakeDirRecursive(path);
+            }
+
+            YT_LOG_DEBUG("Rbinding root volume (Path: %v, SlotPath: %v)",
+                path,
+                slotPath);
+
+            // The rbind volume is destroyed when the passed in root volume is destroyed.
+            return VolumeExecutor_->CreateVolume(path, volumeProperties);
+        })
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run()
+        .Apply(BIND([volume](const TString&) {
+            // Just return the passed in volume.
+            return volume;
+        }));
+    }
+
     TFuture<TVolumeMeta> CreateOverlayVolume(
         TGuid tag,
         NProfiling::TTagSet tagSet,
@@ -602,6 +659,34 @@ public:
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run()
             .ToUncancelable();
+    }
+
+    TFuture<void> LinkVolume(
+        TGuid tag,
+        const TString& source,
+        const TString& target)
+    {
+        return BIND(
+            &TLayerLocation::DoLinkVolume,
+            MakeStrong(this),
+            tag,
+            source,
+            target)
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
+    }
+
+    TFuture<void> UnlinkVolume(
+        const TString& source,
+        const TString& target)
+    {
+        return BIND(
+            &TLayerLocation::DoUnlinkVolume,
+            MakeStrong(this),
+            source,
+            target)
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
     }
 
     std::vector<TLayerMeta> GetAllLayers() const
@@ -1545,6 +1630,32 @@ private:
             std::move(volumeProperties));
     }
 
+    TVolumeMeta DoCreateTmpfsVolume(
+        TGuid tag,
+        TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        TTmpfsVolumeParams volumeParams)
+    {
+        ValidateEnabled();
+
+        THashMap<TString, TString> volumeProperties {
+            {"backend", "tmpfs"},
+            {"user", ToString(volumeParams.UserId)},
+            {"permissions", "0777"},
+            {"space_limit", ToString(volumeParams.Size)},
+        };
+
+        TVolumeMeta volumeMeta;
+        volumeMeta.set_type(ToProto(EVolumeType::Tmpfs));
+
+        return DoCreateVolume(
+            tag,
+            std::move(tagSet),
+            std::move(volumeCreateTimeGuard),
+            std::move(volumeMeta),
+            std::move(volumeProperties));
+    }
+
     void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
@@ -1635,6 +1746,36 @@ private:
                 THROW_ERROR(error);
             }
         }
+    }
+
+    void DoLinkVolume(
+        TGuid tag,
+        const TString& source,
+        const TString& target)
+    {
+        YT_LOG_DEBUG("Linking volume (Tag: %v, Source: %v, Target: %v)",
+            tag,
+            source,
+            target);
+
+        // If target does not exist, it is created by porto.
+        WaitFor(VolumeExecutor_->LinkVolume(source, "self", target))
+            .ThrowOnError();
+    }
+
+    void DoUnlinkVolume(
+        const TString& source,
+        const TString& target)
+    {
+        YT_VERIFY(!source.empty());
+        YT_VERIFY(!target.empty());
+
+        YT_LOG_DEBUG("Unlinking volume (Source: %v, Target: %v)",
+            source,
+            target);
+
+        WaitFor(VolumeExecutor_->UnlinkVolume(source, "self", target))
+            .ThrowOnError();
     }
 };
 
@@ -2629,8 +2770,120 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNbdVolume
+class TPortoVolumeBase
     : public IVolume
+{
+public:
+    TPortoVolumeBase(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta&& volumeMeta,
+        TLayerLocationPtr location)
+        : TagSet_(std::move(tagSet))
+        , VolumeMeta_(std::move(volumeMeta))
+        , Location_(std::move(location))
+    { }
+
+    ~TPortoVolumeBase() override = default;
+
+    const TVolumeId& GetId() const override final
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const TString& GetPath() const override final
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    TFuture<void> Link(
+        TGuid tag,
+        const TString& target) override final
+    {
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+                // Targets_ is protected with guard.
+                Y_UNUSED(guard);
+
+                Targets_.push_back(target);
+
+                const auto& source = GetPath();
+                return Location_->LinkVolume(tag, source, target);
+            }));
+    }
+
+    TFuture<void> Remove() override final
+    {
+        // Use MakeWeak here since Removed is called from derived class destructors.
+        auto this_ = MakeWeak(this).Lock();
+        if (!this_) {
+            YT_LOG_DEBUG("Trying to remove already destroyed volume object.");
+            return VoidFuture;
+        }
+
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([this, this_] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+                if (RemoveFuture_) {
+                    return RemoveFuture_;
+                }
+
+                // Unlink targets prior to removing volume.
+                RemoveFuture_ = UnlinkTargets()
+                    .Apply(BIND([guard = std::move(guard), this, this_] (const TErrorOr<void>& error) {
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
+                                GetPath());
+                        } else {
+                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
+                                GetPath());
+                        }
+
+                        // Now remove the actual volume.
+                        return DoRemoveImpl();
+                }));
+
+                return RemoveFuture_;
+            }));
+    }
+
+protected:
+    //! Remove the actual volume.
+    virtual TFuture<void> DoRemoveImpl() = 0;
+
+    TFuture<void> UnlinkTargets()
+    {
+        const auto& source = GetPath();
+
+        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
+            source,
+            Targets_);
+
+        if (Targets_.empty()) {
+            return VoidFuture;
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(Targets_.size());
+        for (const auto& target : Targets_) {
+            futures.emplace_back(Location_->UnlinkVolume(source, target));
+        }
+        return AllSucceeded(std::move(futures))
+            .ToUncancelable();
+    }
+
+    const NProfiling::TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TLayerLocationPtr Location_;
+
+private:
+    TAsyncReaderWriterLock Lock_;
+    std::vector<TString> Targets_;
+    TFuture<void> RemoveFuture_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNbdVolume
+    : public TPortoVolumeBase
 {
 public:
     TNbdVolume(
@@ -2640,86 +2893,72 @@ public:
         TString nbdExportId,
         INbdServerPtr nbdServer,
         NProfiling::TTagSet tagSet)
-        : IsRootVolume_(isRootVolume)
-        , VolumeMeta_(std::move(volumeMeta))
-        , Location_(std::move(location))
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(location))
+        , IsRootVolume_(isRootVolume)
         , NbdExportId_(std::move(nbdExportId))
         , NbdServer_(std::move(nbdServer))
-        , TagSet_(std::move(tagSet))
     { }
 
-    ~TNbdVolume()
+    ~TNbdVolume() override
     {
         YT_UNUSED_FUTURE(Remove());
     }
 
-    TFuture<void> Remove() override
-    {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
-
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto& volumeId = GetId();
-        YT_LOG_DEBUG(
-            "Removing NBD volume (VolumeId: %v, ExportId: %v)",
-            volumeId,
-            NbdExportId_);
-
-        // At first remove volume, then unregister export.
-        auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND(
-            [
-                volumeId = volumeId,
-                nbdExportId = NbdExportId_,
-                nbdServer = NbdServer_,
-                volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
-            ] {
-                YT_LOG_DEBUG(
-                    "Removed NBD volume (VolumeId: %v, ExportId: %v)",
-                    volumeId,
-                    nbdExportId);
-
-                if (auto device = nbdServer->FindDevice(nbdExportId)) {
-                    nbdServer->TryUnregisterDevice(nbdExportId);
-                    return device->Finalize();
-                }
-                return VoidFuture;
-        })).ToUncancelable();
-
-        return RemoveFuture_;
-    }
-
-    const TVolumeId& GetId() const override
-    {
-        return VolumeMeta_.Id;
-    }
-
-    const TString& GetPath() const override
-    {
-        return VolumeMeta_.MountPath;
-    }
-
-    bool IsRootVolume() const override
+    bool IsRootVolume() const override final
     {
         return IsRootVolume_;
     }
 
 private:
+    TFuture<void> DoRemoveImpl() override final
+    {
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
+
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+
+        const auto volumeType = EVolumeType::Nbd;
+        const auto& volumeId = VolumeMeta_.Id;
+        const auto& volumePath = VolumeMeta_.MountPath;
+
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v, ExportId: %v)",
+            volumeType,
+            volumeId,
+            volumePath,
+            NbdExportId_);
+
+        // At first remove volume, then unregister export.
+        auto future = Location_->RemoveVolume(TagSet_, volumeId);
+        return future.Apply(BIND(
+            [
+                volumeType = volumeType,
+                volumeId = volumeId,
+                nbdExportId = NbdExportId_,
+                nbdServer = NbdServer_,
+                volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
+            ] {
+                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
+                    volumeType,
+                    volumeId);
+
+                if (auto device = nbdServer->FindDevice(nbdExportId)) {
+                    nbdServer->TryUnregisterDevice(nbdExportId);
+                    return device->Finalize();
+                }
+
+                return VoidFuture;
+        })).ToUncancelable();
+    }
+
     //! Overlayfs stores its upper/work directories in root volume.
     const bool IsRootVolume_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
     const TString NbdExportId_;
     const INbdServerPtr NbdServer_;
-    const NProfiling::TTagSet TagSet_;
-
-    TFuture<void> RemoveFuture_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNbdVolume)
@@ -2727,7 +2966,7 @@ DEFINE_REFCOUNTED_TYPE(TNbdVolume)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOverlayVolume
-    : public IVolume
+    : public TPortoVolumeBase
 {
 public:
     TOverlayVolume(
@@ -2735,9 +2974,10 @@ public:
         TVolumeMeta&& meta,
         TLayerLocationPtr location,
         std::vector<TOverlayData> overlayDataArray)
-        : TagSet_(std::move(tagSet))
-        , VolumeMeta_(std::move(meta))
-        , Location_(std::move(location))
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(meta),
+            std::move(location))
         , OverlayDataArray_(std::move(overlayDataArray))
     { }
 
@@ -2746,30 +2986,42 @@ public:
         YT_UNUSED_FUTURE(Remove());
     }
 
-    TFuture<void> Remove() override
+    bool IsRootVolume() const override final
     {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
+        return false;
+    }
 
+private:
+    TFuture<void> DoRemoveImpl() override final
+    {
         TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
             .Update(VolumeCounters().Decrement(TagSet_));
 
         TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
-        const auto& volumeId = GetId();
-        YT_LOG_DEBUG("Removing Overlay volume (VolumeId: %v)", volumeId);
+        const auto volumeType = EVolumeType::Overlay;
+        const auto& volumeId = VolumeMeta_.Id;
+        const auto& volumePath = VolumeMeta_.MountPath;
+
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
+            volumeType,
+            volumeId,
+            volumePath);
 
         // At first remove overlay volume, then remove constituent volumes and layers.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND(
+        return future.Apply(BIND(
             [
+                volumeType = volumeType,
                 volumeId = volumeId,
                 overlayDataArray = OverlayDataArray_,
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] () mutable {
-                YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
+                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
+                    volumeType,
+                    volumeId);
 
                 std::vector<TFuture<void>> futures;
                 futures.reserve(overlayDataArray.size());
@@ -2778,38 +3030,10 @@ public:
                 }
                 return AllSucceeded(std::move(futures));
         })).ToUncancelable();
-
-        return RemoveFuture_;
     }
 
-    const TVolumeId& GetId() const override
-    {
-        return VolumeMeta_.Id;
-    }
-
-    const TString& GetPath() const override
-    {
-        return VolumeMeta_.MountPath;
-    }
-
-    bool IsRootVolume() const override
-    {
-        return false;
-    }
-
-    const std::vector<TOverlayData>& GetoverlayDataArray() const
-    {
-        return OverlayDataArray_;
-    }
-
-private:
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
     // Holds volumes and layers (so that they are not destroyed) while they are needed.
     const std::vector<TOverlayData> OverlayDataArray_;
-
-    TFuture<void> RemoveFuture_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
@@ -2818,7 +3042,7 @@ DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSquashFSVolume
-    : public IVolume
+    : public TPortoVolumeBase
 {
 public:
     TSquashFSVolume(
@@ -2826,18 +3050,150 @@ public:
         TVolumeMeta&& volumeMeta,
         IVolumeArtifactPtr artifact,
         TLayerLocationPtr location)
-        : TagSet_(std::move(tagSet))
-        , VolumeMeta_(std::move(volumeMeta))
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(location))
         , Artifact_(std::move(artifact))
-        , Location_(std::move(location))
     { }
 
-    ~TSquashFSVolume()
+    ~TSquashFSVolume() override
     {
         YT_UNUSED_FUTURE(Remove());
     }
 
-    TFuture<void> Remove() override
+    bool IsRootVolume() const override final
+    {
+        return false;
+    }
+
+private:
+    TFuture<void> DoRemoveImpl() override final
+    {
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
+
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+
+        const auto volumeType = EVolumeType::SquashFS;
+        const auto& volumeId = VolumeMeta_.Id;
+        const auto& volumePath = VolumeMeta_.MountPath;
+
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
+            volumeType,
+            volumeId,
+            volumePath);
+
+        return Location_->RemoveVolume(TagSet_, volumeId)
+            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
+                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
+                    volumeType,
+                    volumeId);
+            })).ToUncancelable();
+    }
+
+    const TArtifactKey ArtifactKey_;
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr Artifact_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTmpfsVolume
+    : public TPortoVolumeBase
+{
+public:
+    TTmpfsVolume(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta&& meta,
+        TLayerLocationPtr location)
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(meta),
+            std::move(location))
+    { }
+
+    ~TTmpfsVolume() override
+    {
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+    bool IsRootVolume() const override final
+    {
+        return false;
+    }
+
+private:
+    TFuture<void> DoRemoveImpl() override final
+    {
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
+
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+
+        const auto volumeType = EVolumeType::Tmpfs;
+        const auto& volumeId = VolumeMeta_.Id;
+        const auto& volumePath = VolumeMeta_.MountPath;
+
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
+            volumeType,
+            volumeId,
+            volumePath);
+
+        return Location_->RemoveVolume(TagSet_, volumeId)
+            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
+                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
+                    volumeType,
+                    volumeId);
+            })).ToUncancelable();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleTmpfsVolume
+    : public IVolume
+{
+public:
+    TSimpleTmpfsVolume(
+        NProfiling::TTagSet tagSet,
+        const TString& path,
+        IInvokerPtr invoker,
+        bool detachUnmount)
+        : TagSet_(std::move(tagSet))
+        , Path_(path)
+        , VolumeId_(
+            [&path] {
+                auto [low, high] = CityHash128(path.c_str(), path.size());
+                return TGuid(low, high);
+            }())
+        , Invoker_(std::move(invoker))
+        , DetachUnmount_(detachUnmount)
+    { }
+
+    ~TSimpleTmpfsVolume() override
+    {
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+    TFuture<void> Link(
+        TGuid,
+        const TString&) override final
+    {
+        // Simple volume is created inside sandbox, so we don't need to link it.
+        YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
+    }
+
+    TFuture<void> Remove() override final
     {
         if (RemoveFuture_) {
             return RemoveFuture_;
@@ -2847,53 +3203,58 @@ public:
             .Update(VolumeCounters().Decrement(TagSet_));
 
         TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
-        const auto& volumeId = GetId();
-        const auto& volumePath = GetPath();
-        YT_LOG_DEBUG(
-            "Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
+        const auto volumeType = EVolumeType::Tmpfs;
+        const auto& volumeId = VolumeId_;
+        const auto& volumePath = Path_;
+
+        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
+            volumeType,
             volumeId,
             volumePath);
 
-        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-            YT_LOG_DEBUG(
-                "Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
-                volumeId,
-                volumePath);
-        })).ToUncancelable();
+        RemoveFuture_ = BIND([=, this, this_ = MakeStrong(this)] {
+            RunTool<TRemoveDirContentAsRootTool>(Path_);
+
+            auto config = New<TUmountConfig>();
+            config->Path = Path_;
+            config->Detach = DetachUnmount_;
+            RunTool<TUmountAsRootTool>(config);
+        })
+        .AsyncVia(Invoker_)
+        .Run()
+        .ToUncancelable();
 
         return RemoveFuture_;
     }
 
-    const TVolumeId& GetId() const override
+    const TVolumeId& GetId() const override final
     {
-        return VolumeMeta_.Id;
+        return VolumeId_;
     }
 
-    const TString& GetPath() const override
+    const TString& GetPath() const override final
     {
-        return VolumeMeta_.MountPath;
+        return Path_;
     }
 
-    bool IsRootVolume() const override
+    bool IsRootVolume() const override final
     {
         return false;
     }
 
 private:
     const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr Artifact_;
-    const TLayerLocationPtr Location_;
-
+    const TString Path_;
+    const TVolumeId VolumeId_;
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
     TFuture<void> RemoveFuture_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
-DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2915,6 +3276,191 @@ TFuture<void> TOverlayData::Remove()
     return GetVolume()->Remove();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleVolumeManager
+    : public IVolumeManager
+{
+public:
+    TSimpleVolumeManager(
+        IInvokerPtr invoker,
+        bool detachedTmpfsUmount)
+        : Invoker_(std::move(invoker))
+        , DetachUnmount_(detachedTmpfsUmount)
+    { }
+
+    //! Prepare root overlayfs volume.
+    TFuture<IVolumePtr> PrepareVolume(
+        const std::vector<TArtifactKey>&,
+        const TVolumePreparationOptions&,
+        const std::optional<TString>&) override
+    {
+        YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
+    }
+
+    //! Prepare tmpfs volumes.
+    TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+        const std::optional<TString>& sandboxPath,
+        const std::vector<TTmpfsVolumeParams>& volumes) override
+    {
+        YT_VERIFY(sandboxPath);
+        // Create debug tag.
+        auto tag = TGuid::Create();
+
+        std::vector<TFuture<TTmpfsVolumeResult>> futures;
+        futures.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume));
+        }
+        return AllSucceeded(std::move(futures));
+    }
+
+    TFuture<void> LinkTmpfsVolumes(
+        const TString&,
+        const std::vector<TTmpfsVolumeResult>&) override
+    {
+        YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
+    }
+
+    TFuture<void> Initialize(const std::vector<TSlotLocationConfigPtr>& locations)
+    {
+        // NB: Iterating over /proc/mounts is not reliable,
+        // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
+        // To avoid problems with undeleting tmpfs ordered by user in sandbox
+        // we always try to remove it several times.
+        for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
+            std::vector<TString> mountPaths;
+            for (const auto& location : locations) {
+                FindTmpfsMountPathsInLocation(location->Path, mountPaths);
+            }
+
+            // Sort from longest paths, to shortest.
+            std::sort(mountPaths.begin(), mountPaths.end(), [] (const TString& lhs, const TString& rhs) {
+                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+            });
+
+            auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to initialize simple volume manager")
+                    << error;
+            }
+        }
+
+        return VoidFuture;
+    }
+
+    bool IsLayerCached(const TArtifactKey&) const override
+    {
+        return false;
+    }
+
+    void BuildOrchid(NYTree::TFluentAny fluent) const override
+    {
+        fluent
+            .BeginMap()
+            .EndMap();
+    }
+
+    void ClearCaches() const override
+    { }
+
+    void MarkLayersAsNotRemovable() const override
+    { }
+
+    TFuture<void> GetVolumeReleaseEvent() override
+    {
+        return VoidFuture;
+    }
+
+    TFuture<void> DisableLayerCache(const TError&) override
+    {
+        return VoidFuture;
+    }
+
+    bool IsEnabled() const override
+    {
+        return true;
+    }
+
+    void OnDynamicConfigChanged(
+        const TVolumeManagerDynamicConfigPtr&,
+        const TVolumeManagerDynamicConfigPtr&) override
+    { }
+
+private:
+    TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
+        TGuid tag,
+        const TString& sandboxPath,
+        const TTmpfsVolumeParams& volume)
+    {
+        YT_VERIFY(sandboxPath);
+
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
+        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+
+        auto config = New<TMountTmpfsConfig>();
+        config->Path = path;
+        config->Size = volume.Size;
+        config->UserId = volume.UserId;
+
+        YT_LOG_DEBUG("Creating tmpfs volume (Tag: %v, Config: %v)",
+            tag,
+            ConvertToYsonString(config, EYsonFormat::Text));
+
+        return BIND([=, this, this_ = MakeStrong(this)] {
+            RunTool<TMountTmpfsAsRootTool>(config);
+
+            return TTmpfsVolumeResult{
+                .Path = path,
+                .Volume = New<TSimpleTmpfsVolume>(
+                    tagSet,
+                    path,
+                    Invoker_,
+                    DetachUnmount_)};
+        })
+        .AsyncVia(Invoker_)
+        .Run()
+        .ToUncancelable();
+    }
+
+    void FindTmpfsMountPathsInLocation(const TString& locationPath, std::vector<TString>& mountPaths)
+    {
+        auto mountPoints = NFS::GetMountPoints("/proc/mounts");
+        for (const auto& mountPoint : mountPoints) {
+            if (mountPoint.Path.StartsWith(locationPath + "/")) {
+                mountPaths.push_back(mountPoint.Path);
+            }
+        }
+    }
+
+    TFuture<void> CleanupTmpfsMountPaths(std::vector<TString>&& mountPaths) const
+    {
+        return BIND([mountPaths = std::move(mountPaths), detachUnmount = DetachUnmount_] {
+            for (const auto& path : mountPaths) {
+                YT_LOG_DEBUG("Removing mount point (Path: %v)",
+                    path);
+                try {
+                    // Due to bug in the kernel, this can sometimes fail with "Directory is not empty" error.
+                    // More info: https://bugzilla.redhat.com/show_bug.cgi?id=1066751
+                    RunTool<TRemoveDirContentAsRootTool>(path);
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(ex, "Failed to remove mount point (Path: %v)",
+                        path);
+                }
+
+                auto config = New<TUmountConfig>();
+                config->Path = path;
+                config->Detach = detachUnmount;
+                RunTool<TUmountAsRootTool>(config);
+            }
+        })
+        .AsyncVia(Invoker_)
+        .Run();
+    }
+
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
+};
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoVolumeManager
@@ -3010,7 +3556,8 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options) override
+        const TVolumePreparationOptions& options,
+        const std::optional<TString>& slotPath) override
     {
         YT_VERIFY(!artifactKeys.empty());
 
@@ -3133,7 +3680,7 @@ public:
 
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
-        return AllSucceeded(std::move(overlayDataFutures))
+        auto future = AllSucceeded(std::move(overlayDataFutures))
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "overlay", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
@@ -3147,6 +3694,49 @@ public:
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
             .As<IVolumePtr>();
+
+        if (!slotPath || options.UserSandboxOptions.EnableRootVolumeDiskQuota) {
+            return future;
+        }
+
+        // TODO(yuryalekseev): Remove me when slot rbind is removed.
+        return future.Apply(BIND([slotPath = *slotPath, this, this_ = MakeStrong(this)] (const IVolumePtr& volume) {
+            return RbindRootVolume(volume, slotPath);
+        }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    //! Prepare tmpfs volumes.
+    TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+        const std::optional<TString>&,
+        const std::vector<TTmpfsVolumeParams>& volumes) override
+    {
+        // Create debug tag.
+        auto tag = TGuid::Create();
+
+        std::vector<TFuture<TTmpfsVolumeResult>> futures;
+        futures.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            futures.push_back(CreateTmpfsVolume(tag, volume));
+        }
+        return AllSucceeded(std::move(futures));
+    }
+
+    TFuture<void> LinkTmpfsVolumes(
+        const TString& destinationDirectory,
+        const std::vector<TTmpfsVolumeResult>& volumes) override
+    {
+         // Create debug tag.
+        auto tag = TGuid::Create();
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            const auto& target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
+            futures.push_back(volume.Volume->Link(tag, target));
+        }
+
+        return AllSucceeded(std::move(futures))
+            .ToUncancelable();
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
@@ -3469,8 +4059,6 @@ private:
                 return errorOrVolume.Value();
             })
             .AsyncVia(GetCurrentInvoker()))
-            // This uncancelable future ensures that TOverlayData object owning the volume will be created
-            // and protects from Porto volume leak.
             .ToUncancelable()
             .As<TOverlayData>();
     }
@@ -3536,8 +4124,6 @@ private:
                     return errorOrVolume.Value();
             })
             .AsyncVia(GetCurrentInvoker()))
-            // This uncancelable future ensures that TOverlayData object owning the volume will be created
-            // and protects from Porto volume leak.
             .ToUncancelable()
             .As<TOverlayData>();
     }
@@ -3571,6 +4157,54 @@ private:
                     artifactKey,
                     artifact);
             }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+    }
+
+    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath)
+    {
+        auto location = LayerCache_->PickLocation();
+        return location->RbindRootVolume(volume, slotPath);
+    }
+
+    TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
+        TGuid tag,
+        const TTmpfsVolumeParams& volumeParams)
+    {
+        YT_LOG_INFO(
+            "Creating tmpfs volume (Tag: %v, Path: %v, Size: %v, UserId: %v)",
+            tag,
+            volumeParams.Path,
+            volumeParams.Size,
+            volumeParams.UserId);
+
+        auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+        TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+        auto location = LayerCache_->PickLocation();
+        auto future = location->CreateTmpfsVolume(
+            tag,
+            tagSet,
+            std::move(volumeCreateTimeGuard),
+            volumeParams);
+
+        return future.ApplyUnique(BIND(
+            [
+                tmpfsPath = volumeParams.Path,
+                tagSet = std::move(tagSet),
+                location = std::move(location)
+            ] (TVolumeMeta&& meta) mutable {
+                TTmpfsVolumeResult result;
+                result.Path = std::move(tmpfsPath);
+                result.Volume = New<TTmpfsVolume>(
+                        std::move(tagSet),
+                        std::move(meta),
+                        std::move(location));
+                return result;
+        }))
+        .ToUncancelable();
     }
 
     TNbdVolumePtr CreateNbdVolume(
@@ -3954,7 +4588,24 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
         std::move(memoryUsageTracker),
         bootstrap);
 
-    return volumeManager->Initialize().Apply(BIND([=] {
+    return volumeManager->Initialize()
+        .Apply(BIND([volumeManager = std::move(volumeManager)] () mutable {
+            return StaticPointerCast<IVolumeManager>(std::move(volumeManager));
+        }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
+    const std::vector<TSlotLocationConfigPtr>& locations,
+    IInvokerPtr invoker,
+    bool detachedTmpfsUmount)
+{
+    auto volumeManager = New<TSimpleVolumeManager>(
+        std::move(invoker),
+        detachedTmpfsUmount);
+
+    return volumeManager->Initialize(locations).Apply(BIND([=] {
         return static_cast<IVolumeManagerPtr>(volumeManager);
     }));
 }

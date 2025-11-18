@@ -1417,21 +1417,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("memory_limit", spec->MemoryLimit);
         }
 
-        for (int i = 0; i < std::ssize(spec->TmpfsVolumes); ++i) {
-            for (int j = 0; j < std::ssize(spec->TmpfsVolumes); ++j) {
-                if (i == j) {
-                    continue;
-                }
-
-                auto lhsFsPath = TFsPath(spec->TmpfsVolumes[i]->Path);
-                auto rhsFsPath = TFsPath(spec->TmpfsVolumes[j]->Path);
-                if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
-                        spec->TmpfsVolumes[i]->Path,
-                        spec->TmpfsVolumes[j]->Path);
-                }
-            }
+        std::vector<const TString*> tmpfsPaths;
+        tmpfsPaths.reserve(spec->TmpfsVolumes.size());
+        for (const auto& volume: spec->TmpfsVolumes) {
+            tmpfsPaths.push_back(&volume->Path);
         }
+
+        //! Check that no volume path is a prefix of another volume path.
+        ValidateTmpfsPaths(tmpfsPaths);
 
         if (spec->MemoryReserveFactor &&
             (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))

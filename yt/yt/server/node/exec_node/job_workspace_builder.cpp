@@ -82,6 +82,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
 {
     if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
         return "DoPrepareRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareTmpfsVolumes) {
+        return "DoPrepareTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
@@ -245,6 +247,7 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 
     auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>()
         .Run()
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
@@ -325,13 +328,52 @@ private:
         return VoidFuture;
     }
 
+    TFuture<void> DoPrepareTmpfsVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingTmpfsVolumes);
+
+        SetNowTime(TimePoints_.PrepareTmpfsVolumesStartTime);
+
+        const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+            return VoidFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                if (!volumeResultsOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
+                        << volumeResultsOrError;
+                }
+
+                auto& volumeResults = volumeResultsOrError.Value();
+
+                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                    MakeFormattableView(volumeResults,
+                        [] (auto* builder, const TTmpfsVolumeResult& result) {
+                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                result.Path,
+                                result.Volume->GetPath());
+                        }));
+
+                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+
+                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+            }));
+    }
+
     TFuture<void> DoPrepareGpuCheckVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("GPU check volume preparation is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingTmpfsVolumes);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
         return VoidFuture;
@@ -347,9 +389,7 @@ private:
         YT_LOG_INFO("Started preparing sandbox directories");
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
-                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
-
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
                 MakeArtifactSymlinks();
 
                 YT_LOG_INFO("Finished preparing sandbox directories");
@@ -485,11 +525,64 @@ private:
         }
     }
 
-    TFuture<void> DoPrepareGpuCheckVolume() override
+    TFuture<void> DoPrepareTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingTmpfsVolumes);
+
+        SetNowTime(TimePoints_.PrepareTmpfsVolumesStartTime);
+
+        const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+            return VoidFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                if (!volumeResultsOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
+                        << volumeResultsOrError;
+                }
+
+                auto& volumeResults = volumeResultsOrError.Value();
+
+                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                    MakeFormattableView(volumeResults,
+                        [] (auto* builder, const TTmpfsVolumeResult& result) {
+                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                result.Path,
+                                result.Volume->GetPath());
+                        }));
+
+                return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumeResults)
+                    .Apply(BIND([volumeResults = std::move(volumeResults), this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
+                        if (!error.IsOK()) {
+                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
+                                << error;
+                        }
+
+                        YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
+                            MakeFormattableView(volumeResults,
+                                [] (auto* builder, const TTmpfsVolumeResult& result) {
+                                    builder->AppendFormat("{TmpfsPath: %v}", result.Path);
+                            }));
+
+                        ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+
+                        SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+                    }));
+            }));
+    }
+
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingTmpfsVolumes);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
         const auto& slot = Context_.Slot;
@@ -549,9 +642,7 @@ private:
         bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
-                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
-
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     PrepareArtifactBinds();
                 } else {
@@ -802,13 +893,52 @@ private:
         }
     }
 
+    TFuture<void> DoPrepareTmpfsVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::PreparingTmpfsVolumes);
+
+        SetNowTime(TimePoints_.PrepareTmpfsVolumesStartTime);
+
+        const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+            return VoidFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                if (!volumeResultsOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
+                        << volumeResultsOrError;
+                }
+
+                auto& volumeResults = volumeResultsOrError.Value();
+
+                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                    MakeFormattableView(volumeResults,
+                        [] (auto* builder, const TTmpfsVolumeResult& result) {
+                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                result.Path,
+                                result.Volume->GetPath());
+                        }));
+
+                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+
+                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+            }));
+    }
+
     TFuture<void> DoPrepareGpuCheckVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
 
-        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        ValidateJobPhase(EJobPhase::PreparingTmpfsVolumes);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
         return VoidFuture;
@@ -824,9 +954,7 @@ private:
         YT_LOG_INFO("Started preparing sandbox directories");
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
-                ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
-
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
                 PrepareArtifactBinds();
 
                 YT_LOG_INFO("Finished preparing sandbox directories");

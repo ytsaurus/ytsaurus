@@ -788,6 +788,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingRootVolume:
+        case EJobPhase::PreparingTmpfsVolumes:
         case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::PreparingSandboxDirectories:
@@ -2422,6 +2423,9 @@ void TJob::RunWithWorkspaceBuilder()
             PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
             PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
 
+            PrepareTmpfsVolumesStartTime_ = timePoints.PrepareTmpfsVolumesStartTime;
+            PrepareTmpfsVolumesFinishTime_ = timePoints.PrepareTmpfsVolumesFinishTime;
+
             PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
             PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
         })
@@ -2450,8 +2454,8 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             YT_VERIFY(resultOrError.IsOK());
 
             auto& result = resultOrError.Value();
-            TmpfsPaths_ = result.TmpfsPaths;
             RootVolume_ = result.RootVolume;
+            TmpfsVolumes_ = result.TmpfsVolumes;
             GpuCheckVolume_ = result.GpuCheckVolume;
             // Workspace builder may add or replace docker image.
             DockerImage_ = result.DockerImage;
@@ -2823,6 +2827,10 @@ void TJob::Cleanup()
         }
     };
 
+    // Remove tmpfs volumes prior to root volume.
+    for (auto& volume: TmpfsVolumes_) {
+        removeVolume(volume.Volume);
+    }
     removeVolume(RootVolume_);
     removeVolume(GpuCheckVolume_);
 
@@ -3062,7 +3070,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
-    proxyInternalConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
+    for (const auto& tmpfsVolume : TmpfsVolumes_) {
+        // Pass tmpfs volume mount paths.
+        proxyInternalConfig->TmpfsManager->TmpfsPaths.push_back(tmpfsVolume.Volume->GetPath());
+    }
 
     proxyInternalConfig->MemoryTracker = New<TMemoryTrackerConfig>();
     if (UserJobSpec_) {
@@ -3360,10 +3371,11 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
-            TTmpfsVolume tmpfsVolume;
-            tmpfsVolume.Size = tmpfsVolumeProto.size();
-            tmpfsVolume.Path = tmpfsVolumeProto.path();
-            options.TmpfsVolumes.push_back(tmpfsVolume);
+            TTmpfsVolumeParams volumeParams;
+            volumeParams.Size = tmpfsVolumeProto.size();
+            volumeParams.Path = tmpfsVolumeProto.path();
+            volumeParams.UserId = GetUserSlot()->GetUserId();
+            options.TmpfsVolumes.push_back(volumeParams);
         }
 
         // COMPAT(ignat).

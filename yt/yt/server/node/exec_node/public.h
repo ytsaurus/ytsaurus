@@ -32,10 +32,13 @@ class TJobProxyResources;
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-struct TTmpfsVolume
+struct TTmpfsVolumeParams
 {
+    //! Path relative to sandbox, e.g. my_tmpfs
     TString Path;
     i64 Size;
+    //! Slot user id.
+    int UserId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +83,7 @@ struct TSandboxNbdRootVolumeData
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
-    std::vector<TTmpfsVolume> TmpfsVolumes;
+    std::vector<TTmpfsVolumeParams> TmpfsVolumes;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
     bool EnableRootVolumeDiskQuota = false;
@@ -174,7 +177,18 @@ DEFINE_ENUM(EVolumeType,
     ((Overlay)  (0))
     ((Nbd)      (1))
     ((SquashFS) (2))
+    ((Tmpfs)    (3))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTmpfsVolumeResult
+{
+    //! Tmpfs path, i.e. path relative to sandbox, e.g. my_tmpfs
+    TString Path;
+    //! Tmpfs volume.
+    IVolumePtr Volume;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -52,6 +52,9 @@ YT_DEFINE_ERROR_ENUM(
     ((NotEnoughInitializedSlots)             (1143))
     ((WaitingForJobCleanupTimeout)           (1144))
     ((InterruptionFailed)                    (1145))
+    ((SimpleVolumeManagerFailure)            (1146))
+    ((TmpfsVolumePreparationFailed)          (1147))
+    ((TmpfsVolumeLinkingFailed)              (1148))
 );
 
 DEFINE_ENUM(EJobPhase,
@@ -62,6 +65,7 @@ DEFINE_ENUM(EJobPhase,
     ((DownloadingArtifacts)         ( 10))
     ((CachingArtifacts)             ( 11))
     ((PreparingRootVolume)          ( 15))
+    ((PreparingTmpfsVolumes)        ( 16))
     ((PreparingGpuCheckVolume)      ( 20))
     ((RunningCustomPreparations)    ( 24))
     ((PreparingSandboxDirectories)  ( 25))
