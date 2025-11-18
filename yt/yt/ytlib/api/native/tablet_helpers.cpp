@@ -551,14 +551,14 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<TCellDescriptorPtr>> GroupCellDescriptorsByPeer(
+std::vector<std::vector<TConstCellDescriptorPtr>> GroupCellDescriptorsByPeer(
     const IConnectionPtr& connection,
     const std::vector<TCellId>& cellIds)
 {
     const auto& cellDirectory = connection->GetCellDirectory();
     const auto& networks = connection->GetNetworks();
 
-    std::vector<std::vector<TCellDescriptorPtr>> cellDescriptorsByPeer;
+    std::vector<std::vector<TConstCellDescriptorPtr>> cellDescriptorsByPeer;
     THashMap<std::string, int> channelIndexByAddress;
 
     for (auto cellId : cellIds) {
