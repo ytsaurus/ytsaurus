@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheroot
-Version: 11.0.0
+Version: 11.1.1
 Summary: Highly-optimized, pure-python HTTP server
 Author-email: CherryPy Team <team@cherrypy.dev>
 Project-URL: Homepage, https://cheroot.cherrypy.dev

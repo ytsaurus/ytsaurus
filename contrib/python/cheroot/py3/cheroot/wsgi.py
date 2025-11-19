@@ -39,7 +39,7 @@ class Server(server.HTTPServer):
     wsgi_version = (1, 0)
     """The version of WSGI to produce."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         bind_addr,
         wsgi_app,
