@@ -71,6 +71,7 @@ message TTimeStatistics
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;
+    optional int64 prepare_tmpfs_duration = 8;
 }
 
 // Describes the current job status.
@@ -165,6 +166,13 @@ message TNetworkProject
     required bool disable_network = 3;
 }
 
+message TGracefulShutdownSpec
+{
+    required string signal = 1;
+
+    optional int64 timeout = 2;
+}
+
 // Specification of the job which will be running in a sidecar with the main job.
 message TSidecarJobSpec
 {
@@ -180,6 +188,8 @@ message TSidecarJobSpec
     optional string docker_image = 4;
 
     required int32 restart_policy = 5; // ESidecarRestartPolicy
+
+    optional TGracefulShutdownSpec graceful_shutdown = 6;
 }
 
 // Specification for starting user code during a job.
@@ -523,6 +533,11 @@ message TJobResultExt
         required NYT.NProto.TGuid output_hunk_chunk_id = 2;
     }
 
+    message TRowsDigest
+    {
+        optional uint64 value = 1;
+    }
+
     // List of output chunks produced by the job.
     // NB: Only filled when necessary.
     repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
@@ -559,11 +574,11 @@ message TJobResultExt
     optional bool has_stderr = 21;
     optional bool has_fail_context = 22;
 
-    // MD5 digest for each output table.
-    // May be empty for some tables, e.g. if the table is not intermediate.
-    repeated NYT.NCrypto.NProto.TMD5Hash output_digests = 23;
-
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 24;
+
+    repeated TRowsDigest output_digests = 25;
+
+    reserved 23;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

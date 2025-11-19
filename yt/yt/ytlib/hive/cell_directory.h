@@ -131,13 +131,13 @@ struct ICellDirectory
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     //! Returns the descriptor for a given cell id (null if the cell is not known).
-    virtual TCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) = 0;
+    virtual TConstCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) const = 0;
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
-    virtual TCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) = 0;
+    virtual TConstCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) const = 0;
 
     //! Similar to #FindDescriptor but relies on cell tag rather than full cell id.
-    virtual TCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
+    virtual TConstCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) const = 0;
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
     virtual std::optional<std::string> FindPeerAddress(TCellId cellId, int peerId) = 0;
@@ -161,7 +161,7 @@ struct ICellDirectory
 
         struct TReconfigureRequest
         {
-            TCellDescriptorPtr NewDescriptor;
+            TConstCellDescriptorPtr NewDescriptor;
             int OldConfigVersion;
         };
         std::vector<TReconfigureRequest> ReconfigureRequests;

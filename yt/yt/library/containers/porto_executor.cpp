@@ -407,26 +407,30 @@ public:
     // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<void> LinkVolume(
         const TString& path,
-        const TString& name) override
+        const TString& name,
+        const TString& target) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoLinkVolume,
             "LinkVolume",
             path,
-            name)
+            name,
+            target)
             .ToUncancelable();
     }
 
     // This method deallocates Porto "resources", so it should be uncancellable.
     TFuture<void> UnlinkVolume(
         const TString& path,
-        const TString& name) override
+        const TString& name,
+        const TString& target) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoUnlinkVolume,
             "UnlinkVolume",
             path,
-            name)
+            name,
+            target)
             .ToUncancelable();
     }
 
@@ -979,25 +983,33 @@ private:
             [&] { return Api_->CreateVolume(volume, propertyMap); },
             "CreateVolume",
             /*idempotent*/ false);
-        VolumeSurplus_ += 1;
+
+        // TODO(yuryalekseev): Remove this check when rbind volume is removed.
+        auto it = properties.find("backend");
+        if (it == properties.end() || it->second != "rbind") {
+            VolumeSurplus_ += 1;
+        }
         return volume;
     }
 
-    void DoLinkVolume(const TString& path, const TString& container)
+    void DoLinkVolume(const TString& path, const TString& container, const TString& target)
     {
         ExecuteApiCall(
-            [&] { return Api_->LinkVolume(path, container); },
+            [&] { return Api_->LinkVolume(path, container, target); },
             "LinkVolume",
             /*idempotent*/ false);
     }
 
-    void DoUnlinkVolume(const TString& path, const TString& container)
+    void DoUnlinkVolume(const TString& path, const TString& container, const TString& target)
     {
         ExecuteApiCall(
-            [&] { return Api_->UnlinkVolume(path, container); },
+            [&] { return Api_->UnlinkVolume(path, container, target); },
             "UnlinkVolume",
             /*idempotent*/ false);
-        VolumeSurplus_ -= 1;
+
+        if (target == All) {
+            VolumeSurplus_ -= 1;
+        }
     }
 
     std::vector<TString> DoListVolumePaths()

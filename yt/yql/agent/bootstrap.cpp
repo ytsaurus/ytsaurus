@@ -293,9 +293,12 @@ void TBootstrap::OnDynamicConfigChanged(
     const TYqlAgentServerDynamicConfigPtr& oldConfig,
     const TYqlAgentServerDynamicConfigPtr& newConfig)
 {
-    TSingletonManager::Reconfigure(newConfig);
+    if (!YqlAgent_) {
+        YT_LOG_DEBUG("Yql agent is not ready to update dynconfig");
+        return;
+    }
 
-    YT_VERIFY(YqlAgent_);
+    TSingletonManager::Reconfigure(newConfig);
 
     std::vector<TFuture<void>> asyncUpdateComponents{
         BIND(

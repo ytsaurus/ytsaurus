@@ -1727,6 +1727,12 @@ private:
         // Ensure commit existence (possibly moving it from transient to persistent).
         TCommit* commit;
         try {
+            if (HydraManager_->IsEnteringReadOnlyMode() && stronglyOrdered) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot start a strongly ordered transaction commit while entering read-only mode");
+            }
+
             commit = GetOrCreatePersistentCommit(
                 transactionId,
                 mutationId,
@@ -2056,6 +2062,13 @@ private:
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = prepareTimestampClusterTag,
             };
+
+            if (HydraManager_->IsEnteringReadOnlyMode() && stronglyOrdered) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot start a strongly ordered transaction commit while entering read-only mode");
+            }
+
             // PrepareTransactionCommit validates that transaction is Active and throws if it is not.
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
@@ -2540,6 +2553,12 @@ private:
         try {
             // Any exception thrown here is caught below.
 
+            if (HydraManager_->IsEnteringReadOnlyMode() && stronglyOrdered) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot start a strongly ordered transaction commit while entering read-only mode");
+            }
+
             const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
 
             TTransactionPrepareOptions options{
@@ -2882,6 +2901,8 @@ private:
     void ClearBarriers(TError error = {})
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_LOG_DEBUG("Clearing barriers");
 
         std::vector<TPromise<void>> readyPromises;
 

@@ -26,6 +26,7 @@ using TMessageId = i64;
 struct TCellInfo;
 class TCellPeerDescriptor;
 DECLARE_REFCOUNTED_STRUCT(TCellDescriptor)
+using TConstCellDescriptorPtr = TIntrusivePtr<const TCellDescriptor>;
 
 DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)

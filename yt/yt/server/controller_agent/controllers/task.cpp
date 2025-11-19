@@ -200,7 +200,7 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
     }
 
     TCompositePendingJobCount result;
-    result.DefaultCount = DistributedJobManager_.GetCookieGroupSize() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+    result.DefaultCount = DistributedJobManager_.GetDistributedJobFactor() * GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
         ExperimentJobManager_.GetPendingJobCount() +
         DistributedJobManager_.GetPendingJobCount();
@@ -633,7 +633,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
         auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
-        result.OutputIndex = index;
+        result.DistributedGroupJobIndex = index;
     } else if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
         result.CompetitionType = EJobCompetitionType::Probing;
         result.OutputCookie = ProbingJobManager_.PeekJobCandidate();
@@ -672,7 +672,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
         auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
         result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
-        result.OutputIndex = index;
+        result.DistributedGroupJobIndex = index;
     } else if (auto previousJobCompetitionType = allocation.LastJobInfo->CompetitionType;
         previousJobCompetitionType == EJobCompetitionType::Probing)
     {
@@ -795,7 +795,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         treeIsTentative);
 
     joblet->OutputCookie = outputCookieInfo.OutputCookie;
-    joblet->CookieGroupInfo.OutputIndex = outputCookieInfo.OutputIndex;
+    joblet->DistributedGroupInfo.Index = outputCookieInfo.DistributedGroupJobIndex;
     joblet->CompetitionType = outputCookieInfo.CompetitionType;
 
     auto chunkPoolOutput = GetChunkPoolOutput();
@@ -927,7 +927,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     AddJobTypeToJoblet(joblet);
 
-    joblet->JobInterruptible = IsJobInterruptible() && joblet->CookieGroupInfo.OutputIndex == 0;
+    joblet->JobInterruptible = IsJobInterruptible() && joblet->DistributedGroupInfo.Index == 0;
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
@@ -953,7 +953,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
         "Approximate: %v, FilteringPartitionTag: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
         "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
-        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
+        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, DistributedGroupInfo: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
@@ -973,7 +973,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         media,
         lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId,
         joblet->JobInterruptible,
-        joblet->CookieGroupInfo
+        joblet->DistributedGroupInfo
     );
 
     SetStreamDescriptors(joblet);
@@ -1237,15 +1237,14 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(31, UserJobMemoryMultiplier_);
     PHOENIX_REGISTER_FIELD(32, JobProxyMemoryMultiplier_);
 
-    PHOENIX_REGISTER_FIELD(33, JobOutputHash_,
+    PHOENIX_REGISTER_FIELD(33, JobOutputRowsDigests_,
         .template Serializer<
             TMapSerializer<
                 TTupleSerializer<TCookieAndPool, 2>,
-                TDefaultSerializer,
+                TTupleSerializer<std::pair<TRowsDigest, TJobId>, 2>,
                 TUnsortedTag
             >
-        >()
-        .SinceVersion(ESnapshotVersion::JobDeterminismValidation));
+        >());
 
     PHOENIX_REGISTER_FIELD(34, UnavailableNetworkBandwidthToClustersStartTime_,
         .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
@@ -1706,7 +1705,7 @@ void TTask::AddSequentialInputSpec(
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    if (joblet->CookieGroupInfo.OutputIndex > 0) {
+    if (joblet->DistributedGroupInfo.Index > 0) {
         return;
     }
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
@@ -1734,7 +1733,7 @@ void TTask::AddParallelInputSpec(
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->CookieGroupInfo.OutputIndex > 0) {
+    if (joblet->DistributedGroupInfo.Index > 0) {
         return;
     }
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1857,7 +1856,7 @@ void TTask::AddOutputTableSpecs(
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-    if (joblet->CookieGroupInfo.OutputIndex > 0) {
+    if (joblet->DistributedGroupInfo.Index > 0) {
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             New<TDataSourceDirectory>());
@@ -2096,7 +2095,7 @@ void TTask::FinishTaskInput(const TTaskPtr& task) const
 
 void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    if (joblet->CookieGroupInfo.OutputIndex == 0) {
+    if (joblet->DistributedGroupInfo.Index == 0) {
         joblet->OutputStreamDescriptors = OutputStreamDescriptors_;
         joblet->InputStreamDescriptors = InputStreamDescriptors_;
     }
@@ -2230,9 +2229,9 @@ void TTask::RegisterOutput(
                     dataSlice->GetSingleUnversionedChunk());
             }
 
-            std::optional<TMD5Hash> hash;
-            if (tableIndex < jobResultExt.output_digests_size()) {
-                FromProto(&hash, jobResultExt.output_digests()[tableIndex]);
+            std::optional<TRowsDigest> rowsDigest;
+            if (tableIndex < jobResultExt.output_digests_size() && jobResultExt.output_digests()[tableIndex].has_value()) {
+                rowsDigest.emplace(jobResultExt.output_digests()[tableIndex].value());
             }
 
             RegisterStripe(
@@ -2241,7 +2240,7 @@ void TTask::RegisterOutput(
                 joblet,
                 key,
                 processEmptyStripes,
-                hash);
+                rowsDigest);
         }
     }
 }
@@ -2279,7 +2278,7 @@ void TTask::RegisterStripe(
     TJobletPtr joblet,
     TChunkStripeKey key,
     bool processEmptyStripes,
-    const std::optional<TMD5Hash>& digest)
+    const std::optional<TRowsDigest>& rowsDigest)
 {
     if (stripe->DataSlices().empty() && !stripe->GetChunkListId()) {
         return;
@@ -2289,7 +2288,7 @@ void TTask::RegisterStripe(
         return;
     }
 
-    if (digest) {
+    if (rowsDigest) {
         ++ReceivedDigestCount_;
     }
 
@@ -2308,20 +2307,7 @@ void TTask::RegisterStripe(
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         TCookieAndPool outputCookie{joblet->OutputCookie, streamDescriptor->DestinationPool};
 
-        if (digest) {
-            auto digestIt = JobOutputHash_.find(outputCookie);
-            if (digestIt != JobOutputHash_.end() && digestIt->second != digest) {
-                TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
-                    TError("Restarted job produced dissimilar output; "
-                           "this may lead to inconsistent operation results; "
-                           "consider setting enable_intermediate_output_recalculation=%%false.")
-                        << TErrorAttribute("task_name", GetVertexDescriptor())
-                        << TErrorAttribute("job_id", joblet->JobId));
-            }
-            if (digestIt == JobOutputHash_.end()) {
-                JobOutputHash_.emplace(outputCookie, *digest);
-            }
-        }
+        ValidateAndUpdateJobRowsDigest(outputCookie, rowsDigest, joblet->JobId);
 
         auto lostIt = LostJobCookieMap_.find(outputCookie);
         if (lostIt == LostJobCookieMap_.end()) {
@@ -2381,6 +2367,43 @@ void TTask::RegisterStripe(
             destinationPool->AddWithKey(stripe, key);
         }
     }
+}
+
+void TTask::ValidateAndUpdateJobRowsDigest(
+    const TCookieAndPool& cookie,
+    const std::optional<TRowsDigest>& rowsDigest,
+    TJobId jobId)
+{
+    if (!rowsDigest.has_value()) {
+        return;
+    }
+
+    auto digestIt = JobOutputRowsDigests_.lower_bound(cookie);
+    if (digestIt == JobOutputRowsDigests_.end() || digestIt->first != cookie) {
+        JobOutputRowsDigests_.emplace_hint(digestIt, cookie, std::pair(*rowsDigest, jobId));
+        return;
+    }
+
+    auto [previousDigest, firstJobId] = digestIt->second;
+    if (previousDigest == *rowsDigest) {
+        YT_LOG_DEBUG(
+            "Received the same rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
+            jobId,
+            firstJobId);
+        return;
+    }
+
+    YT_LOG_DEBUG(
+        "Received dissimilar rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
+        jobId,
+        firstJobId);
+    TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
+        TError("Restarted job produced dissimilar output; "
+               "this may lead to inconsistent operation results; "
+               "consider setting enable_intermediate_output_recalculation=%%false.")
+            << TErrorAttribute("task_name", GetVertexDescriptor())
+            << TErrorAttribute("restarted_job_id", jobId)
+            << TErrorAttribute("first_job_id", firstJobId));
 }
 
 std::vector<TChunkStripePtr> TTask::BuildChunkStripes(

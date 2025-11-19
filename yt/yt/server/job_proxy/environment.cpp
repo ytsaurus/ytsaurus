@@ -252,7 +252,7 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
             );
             auto jobProxy = JobProxy_.Lock();
             if (jobProxy) {
-                jobProxy->KillSidecars();
+                jobProxy->ShutdownSidecars();
             }
 
             FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
@@ -392,16 +392,6 @@ public:
                 PrepareRootFS(
                     rootFS.RootPath,
                     userId);
-            } else {
-                YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
-
-                THashMap<TString, TString> properties;
-                properties["backend"] = "rbind";
-                properties["storage"] = NFs::CurrentWorkingDirectory();
-                auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(
-                    newPath,
-                    properties));
-                auto volumePath = HandleVolumeCreationError(volumeCreationResult);
             }
 
             launcher->SetRoot(rootFS);
@@ -666,10 +656,12 @@ public:
         OnSidecarStarted();
     }
 
-    void KillSidecar() final
+    TFuture<void> ShutdownSidecar() final
     {
         SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
-        Instance_->Destroy();
+        return BIND(&TPortoSidecarEnvironment::DoShutdownSidecar, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
     }
 
     void RestartSidecar() final
@@ -684,6 +676,40 @@ public:
     }
 
 private:
+    void DoShutdownSidecar()
+    {
+        if (Spec_->GracefulShutdown) {
+            auto signal = FindSignalIdBySignalName(Spec_->GracefulShutdown->Signal);
+
+            YT_VERIFY(signal);
+
+            YT_LOG_INFO(
+                "Sending signal to sidecar (sidecar: %v, signal: %v, timeout: %v)",
+                Name_,
+                signal,
+                Spec_->GracefulShutdown->Timeout);
+
+            Instance_->Kill(*signal);
+
+            auto future = Instance_->Wait();
+            if (Spec_->GracefulShutdown->Timeout) {
+                future = future.WithTimeout(*Spec_->GracefulShutdown->Timeout);
+            }
+
+            try {
+                WaitFor(future)
+                    .ThrowOnError();
+            } catch (...) {
+                YT_LOG_INFO(
+                    "Sidecar's shutdown timeout has expired (sidecar: %v, timeout: %v)",
+                    Name_,
+                    Spec_->GracefulShutdown->Timeout);
+            }
+        }
+
+        Instance_->Destroy();
+    }
+
     void OnSidecarStarted()
     {
         SidecarFinished_ = Instance_->Wait();
@@ -817,13 +843,17 @@ public:
         }
     }
 
-    void KillSidecars() override
+    void ShutdownSidecars() override
     {
+        std::vector<TFuture<void>> futures;
+        futures.reserve(RunningSidecars_.size());
         for (const auto& sidecar : RunningSidecars_) {
             if (sidecar->IsAlive()) {
-                sidecar->KillSidecar();
+                futures.push_back(sidecar->ShutdownSidecar());
             }
         }
+
+        WaitFor(AllSet(std::move(futures))).ThrowOnError();
         RunningSidecars_.clear();
     }
 
@@ -1062,7 +1092,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void KillSidecars() override
+    void ShutdownSidecars() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -1594,7 +1624,7 @@ public:
                     restartPolicy,
                     exitValue
                 );
-                KillSidecars();
+                ShutdownSidecars();
                 FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
                     << TErrorAttribute("sidecar_name", sidecarName)
                     << TErrorAttribute("sidecar_exit_value", exitValue));
@@ -1602,7 +1632,7 @@ public:
         }
     }
 
-    void KillSidecars() override
+    void ShutdownSidecars() override
     {
         for (auto& [name, sidecar]: RunningSidecars_) {
             if (!sidecar.Process->IsFinished()) {

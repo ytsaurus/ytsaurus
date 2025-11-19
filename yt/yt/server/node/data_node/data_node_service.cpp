@@ -79,6 +79,7 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <yt/yt/core/rpc/overload_controlling_service_base.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <optional>
@@ -157,13 +158,14 @@ THashMap<std::string, std::string> MakeReadIOTags(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeService
-    : public TServiceBase
+    : public TOverloadControllingServiceBase<TServiceBase>
 {
 public:
     TDataNodeService(
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap)
-        : TServiceBase(
+        : TOverloadControllingServiceBase<TServiceBase>(
+            bootstrap->GetOverloadController(),
             bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger(),
@@ -532,7 +534,8 @@ private:
         auto throttlingResult = location->CheckWriteThrottling(
             session->GetChunkId(),
             session->GetWorkloadDescriptor(),
-            blocksWindowShifted);
+            blocksWindowShifted,
+            options.UseProbePutBlocks);
         throttlingResult.Error.ThrowOnError();
 
         TWallTimer timer;

@@ -875,7 +875,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         }
 
         if (ShouldSkipWriteThrottlingLocations()) {
-            auto diskThrottlingResult = location->CheckWriteThrottling(options.WorkloadDescriptor, true);
+            auto diskThrottlingResult = location->CheckWriteThrottling(options.WorkloadDescriptor, true, options.UseProbePutBlocks);
             if (diskThrottlingResult.Enabled || diskThrottlingResult.MemoryOvercommit) {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started because of disk throttling")

@@ -1,4 +1,5 @@
 RECURSE(
+    arcadia_future_interop
     arrow_adapter
     auth
     auth_server

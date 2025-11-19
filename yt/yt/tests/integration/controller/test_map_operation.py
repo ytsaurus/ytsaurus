@@ -1898,21 +1898,21 @@ print(json.dumps(input))
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then exit 1; fi',
-                spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then exit 1; fi',
+                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
             )
         with pytest.raises(YtError, match="echo"):
             map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
             )
         map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
-            spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+            command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+            spec={"mapper": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}},
         )
 
         res = read_table("//tmp/t2")
@@ -1928,9 +1928,9 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
-            spec={"mapper": {"cookie_group_size": 2}},
+            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
         )
-        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
+        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"])
         wait_breakpoint(job_count=2)[0]
         assert op.get_job_count("aborted") == 2
         assert read_table("//tmp/t2") == []
@@ -1948,13 +1948,14 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
-            spec={"mapper": {"cookie_group_size": 2}},
+            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
         )
         job_ids = wait_breakpoint(job_count=2)
-        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
+        print_debug("Fetched jobs: ", get_job(op.id, job_ids[0]))
+        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
         with pytest.raises(YtError, match="Error interrupting job"):
-            interrupt_job(({*job_ids} - {main_job_id}).pop())
-        interrupt_job(main_job_id)
+            interrupt_job(({*job_ids} - {distributed_group_main_job_id}).pop())
+        interrupt_job(distributed_group_main_job_id)
         release_breakpoint()
         op.track()
         assert op.get_job_count("aborted") == 0
@@ -1970,15 +1971,15 @@ print(json.dumps(input))
             command=with_breakpoint(
                 """
                 BREAKPOINT
-                if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi
+                if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi
                 """
             ),
-            spec={"mapper": {"cookie_group_size": 2}},
+            spec={"mapper": {"distributed_job_options": {"factor": 2}}},
             track=False,
         )
         job_ids = wait_breakpoint(job_count=2)
-        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
-        release_breakpoint(job_id=main_job_id)
+        distributed_group_main_job_id = get_job(op.id, job_ids[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
+        release_breakpoint(job_id=distributed_group_main_job_id)
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
@@ -1991,14 +1992,14 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint(
-                """BREAKPOINT; if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+                """BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
             ),
-            spec={"mapper": {"cookie_group_size": 2}, "max_failed_job_count": 2},
+            spec={"mapper": {"distributed_job_options": {"factor": 2}}, "max_failed_job_count": 2},
             track=False,
         )
         first_incarnation = wait_breakpoint(job_count=2)
-        main_job_id = get_job(op.id, first_incarnation[0], attributes=["main_job_id"])["main_job_id"]
-        secondary_job_id, = {*first_incarnation} - {main_job_id}
+        distributed_group_main_job_id = get_job(op.id, first_incarnation[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"]
+        secondary_job_id, = {*first_incarnation} - {distributed_group_main_job_id}
         release_breakpoint(job_id=secondary_job_id)
         wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
         wait_breakpoint(job_count=2)

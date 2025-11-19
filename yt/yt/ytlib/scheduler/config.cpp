@@ -27,6 +27,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 
@@ -1144,6 +1145,24 @@ void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGracefulShutdownSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("signal", &TThis::Signal)
+        .NonEmpty();
+
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default();
+
+    registrar.Postprocessor([] (TGracefulShutdownSpec* spec) {
+        if (!FindSignalIdBySignalName(spec->Signal)) {
+            THROW_ERROR_EXCEPTION("Unexpected signal name")
+                << TErrorAttribute("signal", spec->Signal);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSidecarJobSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("command", &TThis::Command);
@@ -1161,6 +1180,9 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("restart_policy", &TThis::RestartPolicy)
         .Default(ESidecarRestartPolicy::FailOnError);
+
+    registrar.Parameter("graceful_shutdown", &TThis::GracefulShutdown)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1190,6 +1212,14 @@ void TJobExperimentConfig::Register(TRegistrar registrar)
                 << TErrorAttribute("network_project", config->NetworkProject);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDistributedJobOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("factor", &TThis::Factor)
+        .GreaterThan(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1314,9 +1344,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
         .Default(false);
-    registrar.Parameter("cookie_group_size", &TThis::CookieGroupSize)
-        .Default(1)
-        .GreaterThan(0);
+    registrar.Parameter("distributed_job_options", &TThis::DistributedJobOptions)
+        .Default();
     registrar.Parameter("job_speculation_timeout", &TThis::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
@@ -1417,21 +1446,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("memory_limit", spec->MemoryLimit);
         }
 
-        for (int i = 0; i < std::ssize(spec->TmpfsVolumes); ++i) {
-            for (int j = 0; j < std::ssize(spec->TmpfsVolumes); ++j) {
-                if (i == j) {
-                    continue;
-                }
-
-                auto lhsFsPath = TFsPath(spec->TmpfsVolumes[i]->Path);
-                auto rhsFsPath = TFsPath(spec->TmpfsVolumes[j]->Path);
-                if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is prefix of other tmpfs volume %Qv",
-                        spec->TmpfsVolumes[i]->Path,
-                        spec->TmpfsVolumes[j]->Path);
-                }
-            }
+        std::vector<const TString*> tmpfsPaths;
+        tmpfsPaths.reserve(spec->TmpfsVolumes.size());
+        for (const auto& volume: spec->TmpfsVolumes) {
+            tmpfsPaths.push_back(&volume->Path);
         }
+
+        //! Check that no volume path is a prefix of another volume path.
+        ValidateTmpfsPaths(tmpfsPaths);
 
         if (spec->MemoryReserveFactor &&
             (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
@@ -2363,7 +2385,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
-        TStringBuf distributedTaskName;
+        TStringBuf distributedJobsTaskName;
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
@@ -2379,8 +2401,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
-            if (taskSpec->CookieGroupSize > 1) {
-                distributedTaskName = taskName;
+            if (taskSpec->DistributedJobOptions) {
+                distributedJobsTaskName = taskName;
             }
             if (taskSpec->GangOptions) {
                 taskWithGangOptionsName = taskName;
@@ -2396,14 +2418,14 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (taskWithGangOptionsName && distributedTaskName) {
+        if (taskWithGangOptionsName && distributedJobsTaskName) {
             THROW_ERROR_EXCEPTION(
-                "Operation with a non-singular \"cookie_group_size\" can not have tasks with configured \"gang_options\"")
+                "Operation with \"distributed_job_options\" can not have tasks with \"gang_options\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_options\"")
+                "Operation with \"fail_on_job_restart\" enabled can not have tasks with \"gang_options\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
 

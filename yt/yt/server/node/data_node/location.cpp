@@ -985,13 +985,14 @@ bool TChunkLocation::ShouldAlwaysThrottle() const {
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
-    bool blocksWindowShifted) const
+    bool blocksWindowShifted,
+    bool withProbing) const
 {
     bool throttled = true;
     bool memoryOvercommit = false;
     TError error;
 
-    if (WriteMemoryTracker_->IsExceeded() && blocksWindowShifted) {
+    if (!withProbing && WriteMemoryTracker_->IsExceeded() && blocksWindowShifted) {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Memory of category %Qlv exceeds memory limit",
@@ -1001,7 +1002,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write, workloadDescriptor),
         writeMemoryLimit = GetLegacyWriteMemoryLimit();
-        usedMemory > writeMemoryLimit && blocksWindowShifted)
+        !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -1012,7 +1013,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
         writeMemoryLimit = GetLegacyWriteMemoryLimit();
-        usedMemory > writeMemoryLimit && blocksWindowShifted)
+        !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
@@ -1024,7 +1025,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
     } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read) +
             GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
         memoryLimit = GetTotalMemoryLimit();
-        usedMemory > memoryLimit)
+        !withProbing && usedMemory > memoryLimit)
     {
         error = TError(
             "Location memory exceeds memory limit")
@@ -1059,9 +1060,10 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
     TChunkId chunkId,
     const TWorkloadDescriptor& workloadDescriptor,
-    bool blocksWindowShifted) const
+    bool blocksWindowShifted,
+    bool withProbing) const
 {
-    auto diskThrottlingResult = CheckWriteThrottling(workloadDescriptor, blocksWindowShifted);
+    auto diskThrottlingResult = CheckWriteThrottling(workloadDescriptor, blocksWindowShifted, withProbing);
 
     if (diskThrottlingResult.Enabled &&
         diskThrottlingResult.MemoryOvercommit &&

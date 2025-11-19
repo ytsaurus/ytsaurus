@@ -446,15 +446,15 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out=["//tmp/t_out"],
                 sort_by="line",
-                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                spec={"reducer": {"format": "dsv", "cookie_group_size": 2, "close_stdout_if_unused": True}, "ordered": ordered},
+                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"reducer": {"format": "dsv", "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
             )
         map_reduce(
             in_="//tmp/t_in",
             out=["//tmp/t_out"],
             sort_by="line",
-            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
-            spec={"reducer": {"format": "dsv", "cookie_group_size": 2, "close_stdout_if_unused": True}, "ordered": ordered},
+            reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+            spec={"reducer": {"format": "dsv", "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "ordered": ordered},
         )
         assert read_table("//tmp/t_out") == [{'line': 'some_data'}]
 
@@ -1423,14 +1423,14 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                mapper_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                mapper_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 reducer_command='cat',
                 reduce_combiner_command='cat',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
@@ -1438,13 +1438,13 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
-                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
@@ -1452,26 +1452,26 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
-                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+                reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True},
-                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
+                    "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                    "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
                     "force_reduce_combiners": True,
                 },
             )
         map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
-            reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            reducer_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
+            reduce_combiner_command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi',
             sort_by=[{"name": "key", "sort_order": "ascending"}],
             spec={
-                "mapper": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
-                "reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True},
-                "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2, "close_stdout_if_unused": True},
+                "mapper": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                "reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
+                "reduce_combiner": {"cpu_limit": 1, "distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True},
                 "force_reduce_combiners": True,
             },
         )

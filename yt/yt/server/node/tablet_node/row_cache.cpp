@@ -53,6 +53,11 @@ public:
         Underlying_->SetLimit(size);
     }
 
+    void AdjustLimit(i64 adjustedLimit) override
+    {
+        Underlying_->AdjustLimit(adjustedLimit);
+    }
+
     i64 GetUsedBytesCount()
     {
         return Size_.load();

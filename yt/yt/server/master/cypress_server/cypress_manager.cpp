@@ -302,7 +302,7 @@ public:
 
     IListNodePtr CreateList() override
     {
-        return CreateNode(EObjectType::ListNode)->AsList();
+        THROW_ERROR_EXCEPTION("List nodes cannot be created inside Cypress");
     }
 
     IEntityNodePtr CreateEntity() override
@@ -1059,7 +1059,6 @@ public:
         RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TCypressMapNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
         RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_, ELinkType::Cypress));
         RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_, ELinkType::Sequoia));
         RegisterHandler(CreateDocumentNodeTypeHandler(Bootstrap_));
@@ -1558,26 +1557,15 @@ public:
                 break;
             }
             auto* currentParentNode = GetVersionedNode(currentParentTrunkNode, transaction);
-            switch (currentParentTrunkNode->GetNodeType()) {
-                case ENodeType::Map: {
-                    auto key = FindMapNodeChildKey(currentParentNode->As<TCypressMapNode>(), currentTrunkNode);
-                    if (!key.data()) {
-                        return fallbackToId();
-                    }
-                    tokens.emplace_back(key);
-                    break;
-                }
-                case ENodeType::List: {
-                    auto index = FindListNodeChildIndex(currentParentNode->As<TListNode>(), currentTrunkNode);
-                    if (index < 0) {
-                        return fallbackToId();
-                    }
-                    tokens.emplace_back(index);
-                    break;
-                }
-                default:
-                    YT_ABORT();
+
+            YT_VERIFY(currentParentTrunkNode->GetNodeType() == ENodeType::Map);
+
+            auto key = FindMapNodeChildKey(currentParentNode->As<TCypressMapNode>(), currentTrunkNode);
+            if (!key.data()) {
+                return fallbackToId();
             }
+
+            tokens.emplace_back(key);
             currentNode = currentParentNode;
         }
 
@@ -3053,19 +3041,6 @@ private:
             }
         }
 
-        const auto& config = GetDynamicConfig();
-        if (config->AlertOnListNodeLoad) {
-            for (auto [nodeId, node] : NodeMap_) {
-                YT_LOG_FATAL_IF(
-                    node->GetType() == EObjectType::ListNode,
-                    "A list node encountered during snapshot load; list nodes are deprecated "
-                    "and the ability to load them will be removed completely in the next major version. "
-                    "Please consider removing or replacing them with document nodes (NodeId: %v, Path: %v)",
-                    nodeId,
-                    GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
-            }
-        }
-
         // COMPAT(danilalexeev): YT-21862.
         if (DropLegacyCellMapsOnSnapshotLoaded_) {
             for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
@@ -4309,40 +4284,24 @@ private:
             subtreeNodes->push_back(trunkNode);
         }
 
-        switch (trunkNode->GetNodeType()) {
-            case ENodeType::Map: {
-                auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-                TKeyToCypressNode children;
-                for (const auto* node : originators) {
-                    const auto* mapNode = node->As<TCypressMapNode>();
-                    for (const auto& [key, child] : mapNode->KeyToChild()) {
-                        if (child) {
-                            children[key] = child;
-                        } else {
-                            // NB: Erase may fail.
-                            children.erase(key);
-                        }
+        if (trunkNode->GetNodeType() == ENodeType::Map) {
+            auto originators = GetNodeReverseOriginators(transaction, trunkNode);
+            TKeyToCypressNode children;
+            for (const auto* node : originators) {
+                const auto* mapNode = node->As<TCypressMapNode>();
+                for (const auto& [key, child] : mapNode->KeyToChild()) {
+                    if (child) {
+                        children[key] = child;
+                    } else {
+                        // NB: Erase may fail.
+                        children.erase(key);
                     }
                 }
-
-                for (const auto& [key, child] : children) {
-                    ListSubtreeNodes(child, transaction, true, filter, subtreeNodes);
-                }
-
-                break;
             }
 
-            case ENodeType::List: {
-                auto* node = GetVersionedNode(trunkNode, transaction);
-                auto* listRoot = node->As<TListNode>();
-                for (auto trunkChild : listRoot->IndexToChild()) {
-                    ListSubtreeNodes(trunkChild, transaction, true, filter, subtreeNodes);
-                }
-                break;
+            for (const auto& [key, child] : children) {
+                ListSubtreeNodes(child, transaction, true, filter, subtreeNodes);
             }
-
-            default:
-                break;
         }
     }
 

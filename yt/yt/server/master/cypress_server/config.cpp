@@ -94,9 +94,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("scion_removal_period", &TThis::ScionRemovalPeriod)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("forbid_list_node_creation", &TThis::ForbidListNodeCreation)
-        .Default(true);
-
     registrar.Parameter("max_locks_per_transaction_subtree", &TThis::MaxLocksPerTransactionSubtree)
         .Default(100'000);
 
@@ -133,9 +130,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
-        .Default(true);
-
-    registrar.Parameter("alert_on_list_node_load", &TThis::AlertOnListNodeLoad)
         .Default(true);
 
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)

@@ -61,6 +61,8 @@ struct IBootstrap
     // Disk management.
     virtual const TLocationHealthCheckerPtr& GetLocationHealthChecker() const = 0;
 
+    virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
+
     // COMPAT(danilalexeev): YT-23781.
     virtual void SetPerLocationFullHeartbeatsEnabled(bool value) = 0;
 

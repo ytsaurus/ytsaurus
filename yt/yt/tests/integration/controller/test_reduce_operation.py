@@ -945,16 +945,16 @@ echo {v = 2} >&7
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
-                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo secondary; fi',
+                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo secondary; fi',
                 reduce_by=["key"],
-                spec={"reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True}, "job_count": 1},
+                spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             )
         op = reduce(
             in_="//tmp/in",
             out="//tmp/out",
-            command=with_breakpoint('if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then BREAKPOINT; cat; echo primary>&2; else echo secondary>&2; fi'),
+            command=with_breakpoint('if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then BREAKPOINT; cat; echo primary>&2; else echo secondary>&2; fi'),
             reduce_by=["key"],
-            spec={"reducer": {"cookie_group_size": 2, "close_stdout_if_unused": True}, "job_count": 1},
+            spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             track=False,
         )
         wait_breakpoint(job_count=1)

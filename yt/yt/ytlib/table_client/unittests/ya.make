@@ -17,6 +17,7 @@ SRCS(
     integer_column_ut.cpp
     meta_aggregating_writer_ut.cpp
     null_column_ut.cpp
+    rows_digest_ut.cpp
     schemaless_blocks_ut.cpp
     schemaless_chunks_ut.cpp
     schemaless_column_ut.cpp

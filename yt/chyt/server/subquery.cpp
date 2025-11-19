@@ -47,6 +47,7 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
+#include <yt/yt/ytlib/table_client/row_level_security.h>
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
@@ -755,6 +756,12 @@ private:
                     /*omittedInaccessibleColumns*/ {},
                     /*columnRenameDescriptors*/ {});
             }
+
+            dataSource->SetRlsReadSpec(
+                TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
+                    table->Schema,
+                    table->RowLevelAcl,
+                    Logger()));
 
             // We do not need to fetch anything if table was filtered by index.
             if (CanBeTrueOnTable_[tableIndex]) {

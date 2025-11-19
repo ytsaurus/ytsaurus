@@ -81,8 +81,6 @@ class TMapNodeImpl;
 using TCypressMapNode = TMapNodeImpl<TCypressNodeRawPtr>;
 using TSequoiaMapNode = TMapNodeImpl<TNodeId>;
 
-class TListNode;
-
 template <class T>
 class TScalarNode;
 using TStringNode  = TScalarNode<TString>;

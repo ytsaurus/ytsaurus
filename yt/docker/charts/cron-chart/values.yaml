@@ -68,6 +68,7 @@ affinity: {}
 successfulJobsHistoryLimit: 5
 failedJobsHistoryLimit: 25
 startingDeadlineSeconds: 3600
+ttlSecondsAfterFinished: 43200
 
 yt:
   proxy: "yt.company.com"
@@ -143,13 +144,13 @@ jobs:
   process_master_snapshot:
     enabled: false
     jobs:
-      - validate_master_snapshot
-      - export_master_snapshot
+      - validate
+      - export
     jobDescriptions:
-      validate_master_snapshot:
+      validate:
         args: 
           - validate_master_snapshot
-      export_master_snapshot:
+      export:
         args: 
           - export_master_snapshot
     schedule: "0 * * * *"

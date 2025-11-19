@@ -913,20 +913,20 @@ class TestListJobs(TestListJobsCommon):
                     "master": {
                         "job_count": 1,
                         "command": ":",
-                        "cookie_group_size": 2,
+                        "distributed_job_options": {"factor": 2},
                     },
                 },
             },
         )
         wait(lambda: len(op.list_jobs()) == 2)
         main, replica = sorted(
-            list_jobs(op.id, attributes=["job_cookie_group_index", "main_job_id"])["jobs"],
-            key=lambda job: job["job_cookie_group_index"],
+            list_jobs(op.id, attributes=["distributed_group_job_index", "distributed_group_main_job_id"])["jobs"],
+            key=lambda job: job["distributed_group_job_index"],
         )
-        assert main["main_job_id"] == main["id"]
-        assert main["job_cookie_group_index"] == 0
-        assert replica["main_job_id"] == main["id"]
-        assert replica["job_cookie_group_index"] == 1
+        assert main["distributed_group_main_job_id"] == main["id"]
+        assert main["distributed_group_job_index"] == 0
+        assert replica["distributed_group_main_job_id"] == main["id"]
+        assert replica["distributed_group_job_index"] == 1
 
     @authors("gritukan")
     def test_task_name(self):

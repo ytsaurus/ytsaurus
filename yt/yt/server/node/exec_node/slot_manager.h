@@ -227,7 +227,7 @@ private:
 
     NThreading::TAtomicObject<TError> TestContainerCreationError_;
 
-    TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
+    TAtomicIntrusivePtr<IVolumeManager> VolumeManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;

@@ -193,19 +193,6 @@ class TestCypressCommands(object):
         assert sorted(res) == sorted([yson.to_yson_type(TEST_DIR + "/dir/table",
                                                         {"row_count": 0})])
 
-        # Search in list nodes
-        yt.set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        list_node = TEST_DIR + "/list_node"
-        yt.set(list_node, ["x"])
-        yt.create("table", list_node + "/end")
-        yt.create("table", list_node + "/end")
-        assert list(yt.search(list_node, enable_batch_mode=enable_batch_mode,
-                              node_type="table")) == sorted([list_node + "/1", list_node + "/2"])
-        assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1],
-                              enable_batch_mode=enable_batch_mode)) == \
-               [list_node] + ["{0}/{1}".format(list_node, i) for i in [2, 0, 1]]
-        assert "//sys/accounts/tmp" in yt.search("//sys", node_type="account", enable_batch_mode=enable_batch_mode)
-
         yt.mkdir(TEST_DIR + "/dir_with_slash")
         yt.mkdir(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x")
         yt.set(TEST_DIR + "/dir_with_slash" + "/dir_\\\\_x" + "/@opaque", True)

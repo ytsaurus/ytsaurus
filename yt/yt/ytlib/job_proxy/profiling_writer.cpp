@@ -67,7 +67,7 @@ public:
         return Underlying_->Write(rows);
     }
 
-    std::optional<NCrypto::TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         return Underlying_->GetDigest();
     }
@@ -113,7 +113,7 @@ public:
         return Underlying_->Write(rows);
     }
 
-    std::optional<NCrypto::TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         return Underlying_->GetDigest();
     }

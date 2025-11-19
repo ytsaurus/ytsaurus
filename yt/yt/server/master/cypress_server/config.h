@@ -72,9 +72,6 @@ struct TDynamicCypressManagerConfig
 
     TDuration ScionRemovalPeriod;
 
-    // COMPAT(kvk1920)
-    bool ForbidListNodeCreation;
-
     int MaxLocksPerTransactionSubtree;
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
@@ -102,9 +99,6 @@ struct TDynamicCypressManagerConfig
 
     // COMPAT(h0pless)
     bool UseProperBranchedParentInLockCopyDestination;
-
-    // COMPAT(h0pless)
-    bool AlertOnListNodeLoad;
 
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;

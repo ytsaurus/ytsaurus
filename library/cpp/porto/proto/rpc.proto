@@ -706,6 +706,8 @@ message TContainerSpec {
     optional TUintMap net_limit = 72;          // bytes per second
     optional TUintMap net_rx_limit = 73;       // bytes per second
 
+    optional uint64 net_limit_soft = 93;       // kilobytes per seond
+
     optional TContainerVolumes volumes_required = 75;
 
     optional bool children_allowed = 92;

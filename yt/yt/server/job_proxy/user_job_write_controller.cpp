@@ -42,18 +42,18 @@
 
 namespace NYT::NJobProxy {
 
-using namespace NConcurrency;
-using namespace NYson;
-using namespace NYTree;
-using namespace NControllerAgent;
-using namespace NControllerAgent::NProto;
-using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NControllerAgent::NProto;
+using namespace NControllerAgent;
+using namespace NCrypto;
+using namespace NObjectClient;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
-using namespace NObjectClient;
 using namespace NYTree;
-using namespace NServer;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -385,7 +385,11 @@ void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
             writtenChunkSpecs.push_back(chunkSpec);
             FilterProtoExtensions(writtenChunkSpecs.back().mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
-        ToProto(jobResultExt->add_output_digests(), writer->GetDigest());
+        auto protoDigest = jobResultExt->add_output_digests();
+        if (auto digest = writer->GetDigest()) {
+            protoDigest->set_value(digest->Underlying());
+        }
+
     }
     ToProto(jobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
 }

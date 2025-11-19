@@ -49,9 +49,8 @@ struct IUserSlot
         TJobId jobId,
         TOperationId operationId) = 0;
 
-    //! Sets up quotas and tmpfs.
-    //! Returns tmpfs paths if any.
-    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(
+    //! Sets up quotas.
+    virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
         bool ignoreQuota = false) = 0;
 
@@ -95,6 +94,14 @@ struct IUserSlot
     virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
         const std::vector<TArtifactKey>& layers,
         const TVolumePreparationOptions& options) = 0;
+
+    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+        const IVolumePtr& rootVolume,
+        const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+
+    virtual TFuture<void> LinkTmpfsVolumes(
+        const IVolumePtr& rootVolume,
+        const std::vector<TTmpfsVolumeResult>& volumes) = 0;
 
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;

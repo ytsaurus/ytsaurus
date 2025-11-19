@@ -44,10 +44,17 @@ using TVolumeId = TGuid;
 struct IVolume
     : public virtual TRefCounted
 {
+    //! Get unique volume id.
     virtual const TVolumeId& GetId() const = 0;
+    //! Get absolute path to volume mount point.
     virtual const TString& GetPath() const = 0;
     //! Overlayfs stores its upper/work directories in root volume.
     virtual bool IsRootVolume() const = 0;
+    //! Link volume mount point to target.
+    virtual TFuture<void> Link(
+        TGuid tag,
+        const TString& target) = 0;
+    //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
 };
 
@@ -60,9 +67,21 @@ DEFINE_REFCOUNTED_TYPE(IVolume)
 struct IVolumeManager
     : public virtual TRefCounted
 {
+    //! Prepare root overlayfs volume.
     virtual TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options) = 0;
+        const TVolumePreparationOptions& options,
+        const std::optional<TString>& slotPath = std::nullopt) = 0;
+
+    //! Prepare tmpfs volumes.
+    virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
+        const std::optional<TString>& sandboxPath,
+        const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+
+    //! Link tmpfs volumes into destination directory.
+    virtual TFuture<void> LinkTmpfsVolumes(
+        const TString& destinationDirectory,
+        const std::vector<TTmpfsVolumeResult>& volumes) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
@@ -94,6 +113,13 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     IBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IVolumeManagerPtr> CreateSimpleVolumeManager(
+    const std::vector<TSlotLocationConfigPtr>& locations,
+    IInvokerPtr invoker,
+    bool detachedTmpfsUmount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

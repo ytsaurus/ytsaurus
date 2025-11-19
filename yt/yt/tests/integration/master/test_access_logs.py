@@ -213,6 +213,18 @@ class TestAccessLog(YTEnvSetup):
             }
         )
 
+        b_id = copy("//tmp/access_log/a", "//tmp/access_log/b", force=True)
+        log_list.append(
+            {
+                "method": "Copy",
+                "type": "table",
+                "id": a_id,
+                "path": "//tmp/access_log/a",
+                "destination_id": b_id,
+                "destination_path": "//tmp/access_log/b",
+            }
+        )
+
         ls("//tmp/access_log")
         log_list.append({"path": "//tmp/access_log", "method": "List", "type": "map_node", "id": map_node_id})
 

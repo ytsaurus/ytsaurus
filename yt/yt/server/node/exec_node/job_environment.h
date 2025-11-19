@@ -68,6 +68,9 @@ struct IJobEnvironment
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) = 0;
 
+    virtual IVolumeManagerPtr CreateVolumeManager(
+        const std::vector<TSlotLocationConfigPtr>& locations) = 0;
+
     virtual void OnDynamicConfigChanged(
         const TSlotManagerDynamicConfigPtr& oldConfig,
         const TSlotManagerDynamicConfigPtr& newConfig) = 0;

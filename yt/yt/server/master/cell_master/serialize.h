@@ -169,6 +169,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddSignatureKeysmithUser)                                     (3119))  // pavook
     ((CreationWithAmpersandInPath)                                  (3120))  // kvk1920
     ((AuthorizedExpiration)                                         (3121))  // koloshmet
+    ((RemoveListNodes)                                              (3122))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

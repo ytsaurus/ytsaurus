@@ -13,6 +13,7 @@ spec:
   concurrencyPolicy: {{ $jobData.concurrencyPolicy | default $.Values.concurrencyPolicy | quote }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: {{ $jobData.ttlSecondsAfterFinished | default $.Values.ttlSecondsAfterFinished }}
       template:
         spec:
           {{- with $.Values.imagePullSecrets }}
@@ -30,7 +31,7 @@ spec:
             {{- include ".containerBody" $ | nindent 12 }}
             args:
               {{- range $arg := $seqJobDetails.args }}
-              - {{ $arg }}
+              - {{ $arg | quote }}
               {{- end }}
           {{- end }}
           containers:
@@ -43,7 +44,7 @@ spec:
             {{- include ".containerBody" $ | nindent 12 }}
             args:
               {{- range $arg := $jobData.args }}
-              - {{ $arg }}
+              - {{ $arg | quote }}
               {{- end }}
           {{- end }}
           {{- with $.Values.volumes }}

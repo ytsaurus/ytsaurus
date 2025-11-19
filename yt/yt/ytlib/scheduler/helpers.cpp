@@ -30,6 +30,8 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <util/folder/path.h>
+
 namespace NYT::NScheduler {
 
 using namespace NApi;
@@ -839,6 +841,25 @@ void ToProto(
     }
 }
 
+void FromProto(
+    TGracefulShutdownSpec* gracefulShutdownSpec,
+    const NControllerAgent::NProto::TGracefulShutdownSpec& gracefulShutdownSpecProto)
+{
+    gracefulShutdownSpec->Signal = gracefulShutdownSpecProto.signal();
+
+    if (gracefulShutdownSpecProto.has_timeout()) {
+        gracefulShutdownSpec->Timeout = FromProto<TDuration>(gracefulShutdownSpecProto.timeout());
+    }
+}
+
+void ToProto(
+    NControllerAgent::NProto::TGracefulShutdownSpec* gracefulShutdownSpecProto,
+    const TGracefulShutdownSpec& gracefulShutdownSpec)
+{
+    gracefulShutdownSpecProto->set_signal(gracefulShutdownSpec.Signal);
+
+    YT_OPTIONAL_SET_PROTO(gracefulShutdownSpecProto, timeout, gracefulShutdownSpec.Timeout);
+}
 
 void FromProto(
     TSidecarJobSpec* sidecarJobSpec,
@@ -853,6 +874,11 @@ void FromProto(
     sidecarJobSpec->DockerImage = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, docker_image);
 
     sidecarJobSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecarJobSpecProto.restart_policy());
+
+    if (sidecarJobSpecProto.has_graceful_shutdown()) {
+        sidecarJobSpec->GracefulShutdown = New<TGracefulShutdownSpec>();
+        FromProto(&(*sidecarJobSpec->GracefulShutdown), sidecarJobSpecProto.graceful_shutdown());
+    }
 }
 
 void ToProto(
@@ -868,6 +894,33 @@ void ToProto(
     YT_OPTIONAL_TO_PROTO(sidecarJobSpecProto, docker_image, sidecarJobSpec.DockerImage);
 
     sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));
+
+    if (sidecarJobSpec.GracefulShutdown) {
+        ToProto(sidecarJobSpecProto->mutable_graceful_shutdown(), *sidecarJobSpec.GracefulShutdown);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Check that no volume path is a prefix of another volume path. Throw if check has failed.
+void ValidateTmpfsPaths(const std::vector<const TString*>& tmpfsPaths)
+{
+    for (int i = 0; i < std::ssize(tmpfsPaths); ++i) {
+        for (int j = 0; j < std::ssize(tmpfsPaths); ++j) {
+            if (i == j) {
+                continue;
+            }
+
+            auto lhsFsPath = TFsPath(*tmpfsPaths[i]);
+            auto rhsFsPath = TFsPath(*tmpfsPaths[j]);
+
+            if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
+                THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is a prefix of another tmpfs volume %Qv",
+                    *tmpfsPaths[i],
+                    *tmpfsPaths[j]);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

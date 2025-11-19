@@ -22,4 +22,6 @@ ELSE()
     )
 ENDIF()
 
+INCLUDE_TAGS(DOCS_PROTO)
+
 END()

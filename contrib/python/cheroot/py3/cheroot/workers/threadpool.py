@@ -123,7 +123,7 @@ class WorkerThread(threading.Thread):
                 level=logging.DEBUG,
             )
             self.server.interrupt = interrupt_cause
-        except BaseException as underlying_exc:  # noqa: WPS424
+        except BaseException as underlying_exc:
             # NOTE: This is the last resort logging with the last dying breath
             # NOTE: of the worker. It is only reachable when exceptions happen
             # NOTE: in the `finally` branch of the internal try/except block.
@@ -161,7 +161,7 @@ class WorkerThread(threading.Thread):
             if is_stats_enabled:
                 self.start_time = time.time()
             keep_conn_open = False
-            try:
+            try:  # noqa: WPS243 check "Found too long `finally` block: 3 > 2"
                 keep_conn_open = conn.communicate()
             except ConnectionError as connection_error:
                 keep_conn_open = False  # Drop the connection cleanly
@@ -184,7 +184,7 @@ class WorkerThread(threading.Thread):
                 raise SystemExit(
                     str(shutdown_request),
                 ) from shutdown_request
-            except BaseException as unhandled_error:  # noqa: B036, WPS424
+            except BaseException as unhandled_error:
                 # NOTE: Only a shutdown request should bubble up to the
                 # NOTE: external cleanup code. Otherwise, this thread dies.
                 # NOTE: If this were to happen, the threadpool would still
@@ -229,7 +229,7 @@ class ThreadPool:
     and stop(timeout) attributes.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         server,
         min=10,
@@ -365,7 +365,9 @@ class ThreadPool:
                 stacklevel=2,
             )
 
-        if timeout is not None:
+        if timeout is None:
+            endtime = float('inf')
+        else:
             endtime = time.time() + timeout
 
         # Must shut down threads here so the code that calls

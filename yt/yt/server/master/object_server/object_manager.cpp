@@ -367,6 +367,9 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
+    // COMPAT(h0pless): RemoveListNodes.
+    bool DropListNodeSchema_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
@@ -374,6 +377,7 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
+    void OnAfterSnapshotLoaded() override;
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
@@ -1181,6 +1185,34 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     InitSchemas();
 
     GarbageCollector_->LoadValues(context);
+
+    DropListNodeSchema_ = context.GetVersion() < EMasterReign::RemoveListNodes;
+}
+
+void TObjectManager::OnAfterSnapshotLoaded()
+{
+    auto dropSchema = [&] (EObjectType schemaType) {
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
+        if (auto* schema = SchemaMap_.Find(schemaId)) {
+            auto& acd = schema->Acd();
+            acd.SetOwner(nullptr);
+            acd.ClearEntries();
+            SchemaMap_.Remove(schemaId);
+
+            auto refCounter = schema->GetObjectRefCounter(/*flushUnrefs*/ true);
+            if (refCounter != 1) {
+                YT_LOG_ALERT("List node schema object is in use (RefCounter: %v)",
+                    refCounter);
+            }
+
+            schema->SetLifeStage(EObjectLifeStage::RemovalCommitted);
+        }
+    };
+
+    if (DropListNodeSchema_) {
+        dropSchema(EObjectType::DeprecatedListNode);
+    }
 }
 
 void TObjectManager::Clear()
@@ -1200,6 +1232,9 @@ void TObjectManager::Clear()
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
+
+
+    DropListNodeSchema_ = false;
 
     GarbageCollector_->Clear();
     MutationIdempotizer_->Clear();

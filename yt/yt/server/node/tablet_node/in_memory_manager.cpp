@@ -1136,13 +1136,13 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const std::vector<NHiveClient::TCellDescriptorPtr>& cellDescriptors,
+    const std::vector<NHiveClient::TConstCellDescriptorPtr>& cellDescriptors,
     EInMemoryMode inMemoryMode,
     const TInMemoryManagerConfigPtr& config)
 {
     THashMap<std::string, TNodeDescriptor> nodeDescriptors;
 
-    auto addCellPeers = [&] (const NHiveClient::TCellDescriptorPtr& cellDescriptor) {
+    auto addCellPeers = [&] (const NHiveClient::TConstCellDescriptorPtr& cellDescriptor) {
         for (const auto& target : cellDescriptor->Peers) {
             nodeDescriptors.emplace(target.GetDefaultAddress(), target);
         }
@@ -1219,8 +1219,9 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
     const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
 
-    std::vector<NHiveClient::TCellDescriptorPtr> cellDescriptors;
-    cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId));
+    std::vector<NHiveClient::TConstCellDescriptorPtr> cellDescriptors;
+    cellDescriptors.push_back(
+        cellDirectory->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId));
 
     {
         const auto& movementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
@@ -1229,7 +1230,8 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
         {
             // NB: May be absent in case of concurrent modification.
             if (auto cellId = movementData.SiblingServantCellId.Load()) {
-                cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(cellId));
+                cellDescriptors.push_back(
+                    cellDirectory->GetDescriptorByCellIdOrThrow(cellId));
             }
         }
     }

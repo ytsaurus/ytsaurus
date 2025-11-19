@@ -41,12 +41,16 @@ public:
 
     TFuture<void> Initialize();
 
-    //! Sets up tmpfs directories and applies disk quotas.
-    //! Returns list of tmpfs paths.
-    TFuture<std::vector<TString>> PrepareSandboxDirectories(
+    //! Apply disk quotas.
+    TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
         bool ignoreQuota);
+
+    //! Inform slot location about tmpfses to be used.
+    void TakeIntoAccountTmpfsVolumes(
+        int slotIndex,
+        const std::vector<TTmpfsVolumeParams>& TmpfsVolumes);
 
     TFuture<void> MakeSandboxCopy(
         TJobId jobId,
@@ -215,7 +219,7 @@ private:
 
     void DoRepair();
 
-    std::vector<TString> DoPrepareSandboxDirectories(
+    void DoPrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
         bool ignoreQuota,

@@ -1,3 +1,8 @@
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
 from collections.abc import Iterable
 from pathlib import Path
 

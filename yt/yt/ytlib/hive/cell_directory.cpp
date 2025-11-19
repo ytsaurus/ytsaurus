@@ -409,21 +409,21 @@ public:
         return CellIdToEntry_.find(cellId) != CellIdToEntry_.end();
     }
 
-    TCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) override
+    TConstCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) const override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);
         return it == CellIdToEntry_.end() ? nullptr : it->second.Descriptor;
     }
 
-    TCellDescriptorPtr FindDescriptorByCellTag(TCellTag cellTag) override
+    TConstCellDescriptorPtr FindDescriptorByCellTag(TCellTag cellTag) const override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellTagToEntry_.find(cellTag);
         return it == CellTagToEntry_.end() ? nullptr : it->second->Descriptor;
     }
 
-    TCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) override
+    TConstCellDescriptorPtr GetDescriptorByCellIdOrThrow(TCellId cellId) const override
     {
         auto result = FindDescriptorByCellId(cellId);
         if (!result) {
@@ -596,7 +596,7 @@ private:
             : Descriptor(New<TCellDescriptor>(descriptor))
         { }
 
-        TCellDescriptorPtr Descriptor;
+        TConstCellDescriptorPtr Descriptor;
         TEnumIndexedArray<EPeerKind, IChannelPtr> Channels;
     };
 

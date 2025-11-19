@@ -1354,6 +1354,24 @@ DEFINE_ENUM(ESidecarRestartPolicy,
     (FailOnError)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGracefulShutdownSpec
+    : public NYTree::TYsonStruct
+{
+    std::string Signal;
+
+    std::optional<TDuration> Timeout;
+
+    REGISTER_YSON_STRUCT(TGracefulShutdownSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGracefulShutdownSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSidecarJobSpec
     : public NYTree::TYsonStruct
 {
@@ -1368,12 +1386,27 @@ struct TSidecarJobSpec
 
     ESidecarRestartPolicy RestartPolicy;
 
+    TGracefulShutdownSpecPtr GracefulShutdown;
+
     REGISTER_YSON_STRUCT(TSidecarJobSpec);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDistributedJobOptions
+    : public NYTree::TYsonStruct
+{
+    int Factor;
+
+    REGISTER_YSON_STRUCT(TDistributedJobOptions);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedJobOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1467,8 +1500,7 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    //! Job replicas processing the cookie.
-    int CookieGroupSize;
+    TDistributedJobOptionsPtr DistributedJobOptions;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.

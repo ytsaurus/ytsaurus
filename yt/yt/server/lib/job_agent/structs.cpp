@@ -33,6 +33,9 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     if (PrepareRootFSDuration) {
         statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
     }
+    if (PrepareTmpfsDuration) {
+        statistics->AddSample("/time/prepare_tmpfs"_SP, PrepareTmpfsDuration->MilliSeconds());
+    }
     if (ExecDuration) {
         statistics->AddSample("/time/exec"_SP, ExecDuration->MilliSeconds());
     }
@@ -48,6 +51,7 @@ bool TTimeStatistics::IsEmpty() const
         !PrepareDuration &&
         !ArtifactsCachingDuration &&
         !PrepareRootFSDuration &&
+        !PrepareTmpfsDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
 }
@@ -65,6 +69,9 @@ void TTimeStatistics::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(6, WaitingForResourcesDuration,
         .SinceVersion(NControllerAgent::ESnapshotVersion::WaitingForResourcesDuration));
+
+    PHOENIX_REGISTER_FIELD(8, PrepareTmpfsDuration,
+        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareTmpfsVolumes));
 }
 
 void ToProto(
@@ -82,6 +89,9 @@ void ToProto(
     }
     if (timeStatistics.PrepareRootFSDuration) {
         timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
+    }
+    if (timeStatistics.PrepareTmpfsDuration) {
+        timeStatisticsProto->set_prepare_tmpfs_duration(ToProto(*timeStatistics.PrepareTmpfsDuration));
     }
     if (timeStatistics.PrepareGpuCheckFSDuration) {
         timeStatisticsProto->set_prepare_gpu_check_fs_duration(ToProto(*timeStatistics.PrepareGpuCheckFSDuration));
@@ -109,6 +119,9 @@ void FromProto(
     }
     if (timeStatisticsProto.has_prepare_root_fs_duration()) {
         timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
+    }
+    if (timeStatisticsProto.has_prepare_tmpfs_duration()) {
+        timeStatistics->PrepareTmpfsDuration = FromProto<TDuration>(timeStatisticsProto.prepare_tmpfs_duration());
     }
     if (timeStatisticsProto.has_prepare_gpu_check_fs_duration()) {
         timeStatistics->PrepareGpuCheckFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_gpu_check_fs_duration());
@@ -138,6 +151,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);
+            })
+            .DoIf(static_cast<bool>(timeStatistics.PrepareTmpfsDuration), [&] (auto fluent) {
+                fluent.Item("prepare_tmpfs").Value(*timeStatistics.PrepareTmpfsDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareGpuCheckFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_gpu_check_fs").Value(*timeStatistics.PrepareGpuCheckFSDuration);

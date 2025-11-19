@@ -28,7 +28,7 @@ public:
     TFuture<void> Flush() override;
     i64 GetEncodedRowBatchCount() const override;
     i64 GetEncodedColumnarBatchCount() const override;
-    std::optional<NCrypto::TMD5Hash> GetDigest() const override;
+    std::optional<NTableClient::TRowsDigest> GetDigest() const override;
 
 private:
     NFormats::ISchemalessFormatWriterPtr UnderlyingWriter_;

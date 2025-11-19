@@ -4,6 +4,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "partitioner.h"
+#include "rows_digest.h"
 #include "schemaless_block_writer.h"
 #include "skynet_column_evaluator.h"
 #include "table_ypath_proxy.h"
@@ -257,7 +258,7 @@ public:
         return DataWeight_;
     }
 
-    std::optional<TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         return std::nullopt;
     }
@@ -1049,6 +1050,7 @@ public:
             TChunkedMemoryPool::DefaultStartChunkSize,
             Options_->MemoryUsageTracker,
             /*allowMemoryOvercommit*/ true))
+        , RowsDigestComputer_(NameTable_)
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1210,7 +1212,7 @@ protected:
             EvaluateSkynetColumns(mutableRow, rowIndex + 1 == rows.Size());
 
             if (Options_->ComputeDigest) {
-                UpdateDigest(row);
+                RowsDigestComputer_.ProcessRow(row);
             }
 
             result.push_back(mutableRow);
@@ -1240,54 +1242,14 @@ private:
     TCompactVector<i64, TypicalColumnCount> IdValidationMarks_;
     i64 CurrentIdValidationMark_ = 1;
 
-    TMD5Hasher Hasher_;
+    TRowsDigestComputer RowsDigestComputer_;
 
-    std::optional<TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         if (!Options_->ComputeDigest) {
             return std::nullopt;
         }
-
-        return Hasher_.GetDigest();
-    }
-
-    void UpdateDigest(TUnversionedRow row)
-    {
-        std::vector<int> columnOrder(row.GetCount());
-        std::iota(columnOrder.begin(), columnOrder.end(), 0);
-        std::sort(columnOrder.begin(), columnOrder.end(), [this, &row] (int lhs, int rhs) {
-            return NameTable_->GetNameOrThrow(row[lhs].Id) < NameTable_->GetNameOrThrow(row[rhs].Id);
-        });
-
-        for (int index : columnOrder) {
-            const auto& value = row[index];
-            Hasher_.Append(NameTable_->GetName(value.Id));
-            Hasher_.Append(TRef::FromPod(value.Type));
-            switch (value.Type) {
-                case EValueType::Null:
-                    break;
-                case EValueType::Int64:
-                    Hasher_.Append(TRef::FromPod(value.Data.Int64));
-                    break;
-                case EValueType::Uint64:
-                    Hasher_.Append(TRef::FromPod(value.Data.Uint64));
-                    break;
-                case EValueType::Double:
-                    Hasher_.Append(TRef::FromPod(value.Data.Double));
-                    break;
-                case EValueType::Boolean:
-                    Hasher_.Append(TRef::FromPod(value.Data.Boolean));
-                    break;
-                case EValueType::String:
-                case EValueType::Any:
-                case EValueType::Composite:
-                    Hasher_.Append(value.AsStringBuf());
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Unexpected value type %Qlv",
-                        value.Type);
-            }
-        }
+        return RowsDigestComputer_.GetDigest();
     }
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
@@ -2694,7 +2656,7 @@ public:
         return TableUploadOptions_.TableSchema.Get();
     }
 
-    std::optional<TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         return std::nullopt;
     }
@@ -2992,7 +2954,7 @@ public:
         return TableUploadOptions_.TableSchema.Get();
     }
 
-    std::optional<TMD5Hash> GetDigest() const override
+    std::optional<TRowsDigest> GetDigest() const override
     {
         return std::nullopt;
     }

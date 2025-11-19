@@ -107,7 +107,7 @@ When the script `generate_tutorial.py` is executed, it:
 ```bash
 python generate_tutorial.py \
   --proxy ytsaurus.my_company.domain \
-  --yt-directory //home/user/tutorial_tables \
+  --yt-directory //home/tutorial_tables \
   --nomenclature-count 5000 \
   --days-to-generate 14 \
   --desired-order-size 3000 \

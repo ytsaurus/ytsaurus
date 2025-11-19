@@ -1164,6 +1164,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
         .Default();
+
+    registrar.Parameter("overload_controller", &TThis::OverloadController)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

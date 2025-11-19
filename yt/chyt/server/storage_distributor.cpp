@@ -207,6 +207,11 @@ void ValidateReadPermissions(
                 << TErrorAttribute("path", table->Path);
         }
         table->RowLevelAcl = std::move(rowLevelAcl);
+        if (table->RowLevelAcl) {
+            // Force reset row count, so ClickHouse itself won't use this as a hint for count().
+            // This will make it do a full scan, but that is exactly what we need in case of RLS.
+            table->RowCount = std::nullopt;
+        }
     }
 }
 

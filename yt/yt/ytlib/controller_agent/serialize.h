@@ -90,6 +90,9 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoveParentPartitionTag)              (302110))
     ((RefactorTPartition)                    (302111))
     ((SimplifyStreamDescriptor)              (302112))
+    ((JobOutputDigestOptimization)           (302113))
+    ((PrepareTmpfsVolumes)                   (302114))
+    ((DivideTPartitionIntoTwoTypes)          (302115))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

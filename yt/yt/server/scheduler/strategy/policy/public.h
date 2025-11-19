@@ -58,6 +58,7 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (EvictionFromSchedulingModule)
     (OperationBoundToOtherModule)
     (NodeUnschedulable)
+    (OperationUnregistered)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

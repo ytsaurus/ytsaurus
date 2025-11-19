@@ -56,6 +56,7 @@ target_link_libraries(unittester-core-ytree PUBLIC
   tools-enum_parser-enum_serialization_runtime
   yt-yt-core
   yt-core-test_framework
+  yt-yt-client
   contrib-libs-protobuf
 )
 

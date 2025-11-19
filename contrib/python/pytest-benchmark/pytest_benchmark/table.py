@@ -1,3 +1,8 @@
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
 import operator
 import sys
 from math import isinf

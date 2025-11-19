@@ -526,9 +526,9 @@ TChunkServiceProxy TClient::CreateChunkServiceWriteProxy(TCellTag cellTag)
     return TChunkServiceProxy(GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
 }
 
-NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor)
+NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptor& cellDescriptor)
 {
-    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
+    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, NHydra::EPeerKind::Leader);
     return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
 }
 
@@ -536,7 +536,7 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
-    return GetReadCellChannelOrThrow(cellDescriptor);
+    return GetReadCellChannelOrThrow(*cellDescriptor);
 }
 
 IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
@@ -586,7 +586,7 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
         cellId);
 }
 
-TCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
+TConstCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(cellId)) {

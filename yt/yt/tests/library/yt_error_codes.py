@@ -39,6 +39,7 @@ NoInSyncReplicas = 1736
 BundleIsBanned = 1739
 UniqueIndexConflict = 1741
 ChaosReplicationEraMismatch = 1742
+HunkTabletStoreToggleConflict = 1745
 RetriableArchiveError = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916

@@ -72,6 +72,16 @@ class TestCypress(YTEnvSetup):
         # should not crash
         get("//@")
 
+    @authors("h0pless")
+    def test_list_node_deprecation(self):
+        with raises_yt_error("List nodes cannot be created inside"):
+            set("//tmp/some_node", ["something", "something"])
+
+        with raises_yt_error("List nodes cannot be created inside"):
+            set("//tmp/some_node", {"my_list": []})
+
+        time.sleep(2)  # Just don't crash...
+
     @authors("panin", "ignat")
     def test_invalid_cases(self):
         # path not starting with /
@@ -158,33 +168,6 @@ class TestCypress(YTEnvSetup):
         for builtin_path in ["//tmp/@key", "//tmp/@key/inner"]:
             with raises_yt_error("Attribute \"key\" cannot be removed"):
                 remove(builtin_path, force=True)
-
-    # COMPAT(babenko): this is essentially the only remaining test
-    # involving forbid_list_node_creation
-    @authors("kvk1920")
-    @not_implemented_in_sequoia
-    def test_list_node_deprecation(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/old_list", [1, 2, "string"])
-        set("//tmp/another_old_list", [1, 2, "string"])
-
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
-        with raises_yt_error("List nodes are deprecated"):
-            set("//tmp/list", [1, 2, "some string"])
-
-        with raises_yt_error("List nodes are deprecated"):
-            create("list_node", "//tmp/list")
-
-        assert get("//tmp/old_list") == [1, 2, "string"]
-
-        copy("//tmp/old_list", "//tmp/list")
-        assert get("//tmp/list") == get("//tmp/old_list")
-
-        set("//tmp/old_list/end", 123)
-        assert get("//tmp/old_list") == [1, 2, "string", 123]
-
-        remove("//tmp/another_old_list")
-        assert not exists("//tmp/another_old_list")
 
     @authors("kvk1920")
     def test_non_recursive_attribute_set(self):

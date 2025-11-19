@@ -20,12 +20,15 @@ class Adapter(ABC):
         private_key,
         certificate_chain=None,
         ciphers=None,
+        *,
+        private_key_password=None,
     ):
-        """Set up certificates, private key ciphers and reset context."""
+        """Set up certificates, private key, ciphers and reset context."""
         self.certificate = certificate
         self.private_key = private_key
         self.certificate_chain = certificate_chain
         self.ciphers = ciphers
+        self.private_key_password = private_key_password
         self.context = None
 
     @abstractmethod

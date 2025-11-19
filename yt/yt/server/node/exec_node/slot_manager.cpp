@@ -112,7 +112,7 @@ void TSlotManager::OnPortoHealthCheckSuccess()
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
-        auto volumeManager = RootVolumeManager_.Acquire();
+        auto volumeManager = VolumeManager_.Acquire();
         if (volumeManager && !volumeManager->IsEnabled() && IsInitialized()) {
             Disable(TError(
                 EErrorCode::PortoVolumeManagerFailure,
@@ -331,7 +331,7 @@ void TSlotManager::OnDynamicConfigChanged(
         }
     }
 
-    if (auto volumeManager = RootVolumeManager_.Acquire()) {
+    if (auto volumeManager = VolumeManager_.Acquire()) {
         volumeManager->OnDynamicConfigChanged(oldConfig->VolumeManager, newConfig->VolumeManager);
     }
 
@@ -458,7 +458,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
         this,
         std::move(bestLocation),
         JobEnvironment_,
-        RootVolumeManager_.Acquire(),
+        VolumeManager_.Acquire(),
         Bootstrap_,
         NodeTag_,
         slotType,
@@ -559,7 +559,7 @@ bool TSlotManager::IsEnabled() const
         hasAliveLocations = !AliveLocations_.empty();
     }
 
-    auto volumeManager = RootVolumeManager_.Acquire();
+    auto volumeManager = VolumeManager_.Acquire();
     auto isVolumeManagerEnabled =
         JobEnvironmentType_ && JobEnvironmentType_ != NJobProxy::EJobEnvironmentType::Porto ||
         volumeManager && volumeManager->IsEnabled();
@@ -853,7 +853,7 @@ bool TSlotManager::Disable(TError error)
             TRingQueueIterableWrapper(FreeSlots_));
     }
 
-    if (auto volumeManager = RootVolumeManager_.Acquire()) {
+    if (auto volumeManager = VolumeManager_.Acquire()) {
         auto disableVolumeManagerResult = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .WithTimeout(timeout));
 
@@ -1080,7 +1080,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     auto slotManagerInfo = GetStateSnapshot();
 
-    auto rootVolumeManager = RootVolumeManager_.Acquire();
+    auto rootVolumeManager = VolumeManager_.Acquire();
 
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -1235,25 +1235,15 @@ void TSlotManager::AsyncInitialize()
     // during root volume manager initialization.
     JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
-        if (auto oldVolumeManager = RootVolumeManager_.Acquire()) {
+        if (auto oldVolumeManager = VolumeManager_.Acquire()) {
             oldVolumeManager->MarkLayersAsNotRemovable();
             oldVolumeManager->ClearCaches();
-            RootVolumeManager_.Reset();
+            VolumeManager_.Reset();
         }
-
-        auto volumeManager = WaitFor(CreatePortoVolumeManager(
-            Bootstrap_->GetConfig()->DataNode,
-            Bootstrap_->GetDynamicConfigManager(),
-            CreateVolumeArtifactCacheAdapter(Bootstrap_->GetArtifactCache()),
-            Bootstrap_->GetControlInvoker(),
-            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
-            Bootstrap_))
-                .ValueOrThrow(
-                    EErrorCode::PortoVolumeManagerFailure,
-                    "Failed to initialize volume manager");
-
-        RootVolumeManager_.Store(volumeManager);
     }
+
+    auto volumeManager = JobEnvironment_->CreateVolumeManager(StaticConfig_->Locations);
+    VolumeManager_.Store(volumeManager);
 
     NumaNodeStates_.clear();
 

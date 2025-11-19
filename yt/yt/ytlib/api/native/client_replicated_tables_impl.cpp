@@ -146,7 +146,7 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
     futures.reserve(cellDescriptorsByPeer.size());
     for (const auto& cellDescriptors : cellDescriptorsByPeer) {
-        auto channel = GetReadCellChannelOrThrow(cellDescriptors[0]);
+        auto channel = GetReadCellChannelOrThrow(*cellDescriptors[0]);
 
         TQueryServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));

@@ -26,19 +26,8 @@ func (a *AccessChecker) CheckAccess(ctx context.Context, cluster string, user st
 		paths[parentPath] = struct{}{}
 	}
 
-	var proxy string
-	for _, c := range a.conf.IncludedClusters {
-		if c.ClusterName == cluster {
-			proxy = c.Proxy
-			break
-		}
-	}
-	if proxy == "" {
-		return passContinuationToken, errors.New("cluster not found")
-	}
-
 	request := &bulkaclcheckerclient.ACLCheckRequest{
-		Cluster:    proxy,
+		Cluster:    cluster,
 		Subject:    user,
 		Permission: "read",
 		Paths:      ytmsvc.SetToSlice(paths),

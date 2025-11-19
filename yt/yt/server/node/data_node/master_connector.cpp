@@ -1412,7 +1412,7 @@ private:
         statistics->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
 
-        statistics->set_max_write_sessions(Bootstrap_->GetConfig()->DataNode->MaxWriteSessions);
+        statistics->set_max_write_sessions(sessionManager->GetMaxWriteSessions());
     }
 
     bool SkipLocationInHeartbeat(const TChunkLocationPtr& location) const

@@ -3,6 +3,8 @@ http_handler_timeout: 120000000000
 
 debug_http_addr: "[::]:81"
 
+api_prefix: "/"
+
 cors: 
   allowed_hosts: []
   allowed_host_suffixes: [".ytsaurus.tech"]

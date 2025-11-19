@@ -243,6 +243,11 @@ public:
         return Bootstrap_->GetLocationHealthChecker();
     }
 
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
+    {
+        return Bootstrap_->GetOverloadController();
+    }
+
     void SetLocationIndexesInHeartbeatsEnabled(bool value) override
     {
         MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);

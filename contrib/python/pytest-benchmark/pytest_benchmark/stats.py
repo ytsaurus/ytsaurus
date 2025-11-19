@@ -1,3 +1,8 @@
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
 import operator
 import pstats
 import statistics

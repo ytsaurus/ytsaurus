@@ -29,6 +29,12 @@ public:
 
     void Initialize();
 
+    //! Sets adjusted maximum number of concurrent balancing write sessions.
+    void AdjustMaxWriteSessions(int adjustedLimit);
+
+    //! Returns maximum number of concurrent balancing write sessions.
+    int GetMaxWriteSessions();
+
     //! Starts a new chunk upload session.
     /*!
      *  Chunk files are opened asynchronously, however the call returns immediately.
@@ -69,6 +75,8 @@ private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
     const NYTree::IYPathServicePtr OrchidService_;
+
+    std::atomic<int> AdjustedMaxWriteSessions_ = std::numeric_limits<int>::max();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TChunkId, ISessionPtr> SessionMap_;

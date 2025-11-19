@@ -407,6 +407,21 @@ public:
             directoryManager);
     }
 
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>& locations) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreateSimpleVolumeManager(
+            locations,
+            MounterThread_->GetInvoker(),
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+
+        return WaitFor(future)
+            .ValueOrThrow(
+                EErrorCode::SimpleVolumeManagerFailure,
+                "Failed to initialize volume manager");
+    }
+
 private:
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
@@ -1017,6 +1032,24 @@ private:
             directoryManager,
             Bootstrap_->GetGpuManager());
     }
+
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>&) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode,
+            Bootstrap_->GetDynamicConfigManager(),
+            CreateVolumeArtifactCacheAdapter(Bootstrap_->GetArtifactCache()),
+            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
+            Bootstrap_);
+
+        return WaitFor(future)
+                .ValueOrThrow(
+                    EErrorCode::PortoVolumeManagerFailure,
+                    "Failed to initialize volume manager");
+    }
 };
 
 #endif
@@ -1156,6 +1189,21 @@ public:
             std::move(context),
             directoryManager,
             ImageCache_);
+    }
+
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>& locations) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreateSimpleVolumeManager(
+            locations,
+            MounterThread_->GetInvoker(),
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+
+        return WaitFor(future)
+            .ValueOrThrow(
+                EErrorCode::SimpleVolumeManagerFailure,
+                "Failed to initialize volume manager");
     }
 
     TFuture<std::vector<TShellCommandResult>> RunCommands(

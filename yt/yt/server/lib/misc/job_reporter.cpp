@@ -102,8 +102,8 @@ public:
             Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
-            Report_.JobCookieGroupIndex(),
-            Report_.MainJobId(),
+            Report_.DistributedGroupJobIndex(),
+            Report_.DistributedGroupMainJobId(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
@@ -223,12 +223,12 @@ public:
         }
 
         // COMPAT(faucct)
-        if (archiveVersion >= 64) {
-            record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
-            if (Report_.MainJobId()) {
-                auto mainJobId = Report_.MainJobId().Underlying();
-                record.MainJobIdHi = mainJobId.Parts64[0];
-                record.MainJobIdLo = mainJobId.Parts64[1];
+        if (archiveVersion >= 65) {
+            record.DistributedGroupJobIndex = Report_.DistributedGroupJobIndex();
+            if (Report_.DistributedGroupMainJobId()) {
+                auto distributedGroupMainJobId = Report_.DistributedGroupMainJobId().Underlying();
+                record.DistributedGroupMainJobIdHi = distributedGroupMainJobId.Parts64[0];
+                record.DistributedGroupMainJobIdLo = distributedGroupMainJobId.Parts64[1];
             }
         }
 

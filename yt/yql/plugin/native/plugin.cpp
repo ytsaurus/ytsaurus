@@ -483,6 +483,9 @@ public:
     {
         if (DqManager_ && StartDqManager_) {
             DqManager_->Start();
+        }
+        if (DqManager_) {
+            // This pool is required for all DQ queries
             DqGatewayOffloadThreadPool_->Start(1);
         }
     }

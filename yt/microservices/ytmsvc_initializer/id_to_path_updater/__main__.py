@@ -13,7 +13,7 @@ def main() -> None:
     parser.add_argument("--primary-medium", default="default")
     parser.add_argument("--token-env-variable", default="YT_ID_TO_PATH_TOKEN")
     args = parser.parse_args()
-    client = yt.YtClient(token=os.environ[args.token_env_var], config=yt.default_config.get_config_from_env())
+    client = yt.YtClient(token=os.environ[args.token_env_variable], config=yt.default_config.get_config_from_env())
     init_id_to_path_updater(client, args.path, args.tablet_cell_bundle, args.primary_medium)
 
 

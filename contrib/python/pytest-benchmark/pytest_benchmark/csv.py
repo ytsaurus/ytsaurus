@@ -1,3 +1,8 @@
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
 import csv
 import operator
 from pathlib import Path

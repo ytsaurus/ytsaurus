@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "porto_helpers.h"
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -115,10 +117,12 @@ struct IPortoExecutor
         const THashMap<TString, TString>& properties) = 0;
     virtual TFuture<void> LinkVolume(
         const TString& path,
-        const TString& name) = 0;
+        const TString& name,
+        const TString& target) = 0;
     virtual TFuture<void> UnlinkVolume(
         const TString& path,
-        const TString& name) = 0;
+        const TString& name,
+        const TString& target = All) = 0;
     virtual TFuture<std::vector<TString>> ListVolumePaths() = 0;
     virtual TFuture<std::vector<TVolumeSpec>> GetVolumes() = 0;
 
