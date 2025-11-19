@@ -93,6 +93,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobOutputDigestOptimization)           (302113))
     ((PrepareTmpfsVolumes)                   (302114))
     ((DivideTPartitionIntoTwoTypes)          (302115))
+    ((AlwaysSetChunkPoolOutput)              (302116))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

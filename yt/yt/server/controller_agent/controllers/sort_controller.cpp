@@ -167,11 +167,6 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PartitioningCompleted, false);
 
-    bool IsRoot() const
-    {
-        return GetLevel() == 0;
-    }
-
 protected:
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionBase, 0x20b1ca1b);
 };
@@ -216,7 +211,7 @@ public:
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(CachedSortedMergeNeeded, false);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Maniac, false);
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Completed, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ReducingPartitionCompleted, false);
 
     bool HasAssignedNode() const
     {
@@ -260,7 +255,7 @@ void TFinalPartition::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, AssignedNodeId_);
     PHOENIX_REGISTER_FIELD(2, CachedSortedMergeNeeded_);
     PHOENIX_REGISTER_FIELD(3, Maniac_);
-    PHOENIX_REGISTER_FIELD(4, Completed_);
+    PHOENIX_REGISTER_FIELD(4, ReducingPartitionCompleted_);
 }
 
 PHOENIX_DEFINE_TYPE(TFinalPartition);
@@ -1483,7 +1478,7 @@ protected:
         void AbortAllActiveJoblets(const TError& error, int partitionIndex)
         {
             const auto& partition = Controller_->GetFinalPartition(partitionIndex);
-            if (partition->IsCompleted()) {
+            if (partition->IsReducingPartitionCompleted()) {
                 YT_LOG_INFO(error, "Chunk mapping has been invalidated, but the partition has already finished (PartitionIndex: %v)",
                     partitionIndex);
                 return;
@@ -1885,27 +1880,30 @@ protected:
         i64 dataWeight = partition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal();
 
         if (DynamicPointerCast<TIntermediatePartition>(partition)) {
-            YT_LOG_DEBUG("Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
+            YT_LOG_DEBUG(
+                "Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
                 partition->GetLevel(),
                 partition->GetIndex(),
                 dataWeight);
-        } else {
-            auto finalPartition = DynamicPointerCast<TFinalPartition>(partition);
-            if (dataWeight == 0) {
-                YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", partition->GetIndex());
-                OnFinalPartitionCompleted(finalPartition);
-            } else {
-                YT_LOG_DEBUG("Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
-                    partition->GetIndex(),
-                    dataWeight);
-                if (!finalPartition->IsManiac() && !IsSortedMergeNeeded(finalPartition)) {
-                    FinalSortTask_->RegisterPartition(finalPartition);
-                }
+            return;
+        }
 
-                if (finalPartition->IsManiac()) {
-                    UnorderedMergeTask_->RegisterPartition(finalPartition);
-                }
-            }
+        auto finalPartition = DynamicPointerCast<TFinalPartition>(partition);
+        if (dataWeight == 0) {
+            YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", partition->GetIndex());
+            OnFinalPartitionCompleted(finalPartition);
+            return;
+        }
+        YT_LOG_DEBUG(
+            "Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
+            partition->GetIndex(),
+            dataWeight);
+        if (!finalPartition->IsManiac() && !IsSortedMergeNeeded(finalPartition)) {
+            FinalSortTask_->RegisterPartition(finalPartition);
+        }
+
+        if (finalPartition->IsManiac()) {
+            UnorderedMergeTask_->RegisterPartition(finalPartition);
         }
     }
 
@@ -1915,31 +1913,27 @@ protected:
             return;
         }
 
-        for (const auto& partitions : PartitionsByLevels_) {
-            for (const auto& partition : partitions) {
-                const auto& partitionPool = partition->IsRoot()
-                    ? RootPartitionPool_
-                    : partition->ChunkPoolOutput();
-                partitionPool->SubscribeCompleted(BIND([this, weakPartition = MakeWeak(partition)] {
-                    auto partition = weakPartition.Lock();
-                    if (!partition) {
-                        return;
-                    }
+        for (const auto& partition : PartitionsByLevels_ |
+            std::views::take(std::ssize(PartitionsByLevels_) - 1) |
+            std::views::join)
+        {
+            partition->ChunkPoolOutput()->SubscribeCompleted(BIND([this, weakPartition = MakeWeak(partition)] {
+                auto partition = weakPartition.Lock();
+                if (!partition) {
+                    return;
+                }
 
-                    auto intermediatePartition = DynamicPointerCast<TIntermediatePartition>(partition);
-                    if (!intermediatePartition) {
-                        return;
-                    }
+                auto intermediatePartition = DynamicPointerCast<TIntermediatePartition>(partition);
+                YT_VERIFY(intermediatePartition);
 
-                    intermediatePartition->ShuffleChunkPoolInput()->Finish();
+                intermediatePartition->ShuffleChunkPoolInput()->Finish();
 
-                    // Partitioning of #partition data is completed,
-                    // so its data can be processed.
-                    for (const auto& child : intermediatePartition->Children()) {
-                        OnPartitioningCompleted(child);
-                    }
-                }));
-            }
+                // Partitioning of #partition data is completed,
+                // so its data can be processed.
+                for (const auto& child : intermediatePartition->Children()) {
+                    OnPartitioningCompleted(child);
+                }
+            }));
         }
     }
 
@@ -2286,11 +2280,11 @@ protected:
 
     void OnFinalPartitionCompleted(const TFinalPartitionPtr& partition)
     {
-        if (partition->IsCompleted()) {
+        if (partition->IsReducingPartitionCompleted()) {
             return;
         }
 
-        partition->SetCompleted(true);
+        partition->SetReducingPartitionCompleted(true);
 
         ++CompletedPartitionCount_;
 
@@ -3267,6 +3261,8 @@ private:
         // NB: Here we register tasks in order of descending priority.
         PreparePartitionTasks();
 
+        PartitionsByLevels_[0][0]->ChunkPoolOutput() = RootPartitionPool_;
+
         PrepareSortTasks();
 
         PrepareSimpleSortTask();
@@ -4210,6 +4206,8 @@ private:
 
         // NB: Here we register tasks in order of descending priority.
         PreparePartitionTasks();
+
+        PartitionsByLevels_[0][0]->ChunkPoolOutput() = RootPartitionPool_;
 
         PrepareSortTasks();
 
