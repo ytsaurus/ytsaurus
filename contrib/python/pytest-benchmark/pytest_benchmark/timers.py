@@ -1,3 +1,8 @@
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
 from time import time as timeout_timer
 
 try:

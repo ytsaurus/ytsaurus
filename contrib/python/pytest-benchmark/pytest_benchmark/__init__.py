@@ -1,1 +1,6 @@
-__version__ = '5.2.0'
+"""
+..
+  PYTEST_DONT_REWRITE
+"""
+
+__version__ = '5.2.1'
