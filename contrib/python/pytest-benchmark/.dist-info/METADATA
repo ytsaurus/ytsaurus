@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: pytest-benchmark
-Version: 5.2.0
+Version: 5.2.1
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
 Author-email: Ionel Cristian Mărieș <contact@ionelmc.ro>
 License-Expression: BSD-2-Clause
@@ -195,6 +195,12 @@ Credits
 Changelog
 =========
 
+5.2.1 (2025-11-04)
+------------------
+
+* Add markers so pytest doesn't try to assert-rewrite the plugin internals
+  (fixes those ``pytest.PytestAssertRewriteWarning: Module already imported so cannot be rewritten; pytest_benchmark`` warnings).
+
 5.2.0 (2025-10-30)
 ------------------
 
@@ -205,7 +211,7 @@ Changelog
 * Fixed deprecated hook examples in docstrings.
   Contributed by Ali-Akber Saifee in `#284 <https://github.com/ionelmc/pytest-benchmark/pull/284>`_.
 * Changed ``--benchmark-compare-fail`` to accept percentages higher than 100%.
-  Contributed by Ben Avrahami in `#280 <https://github.com/ionelmc/pytest-benchmark/pull/280>`_.
+  Contributed by Ben Avrahami in `#290 <https://github.com/ionelmc/pytest-benchmark/pull/280>`_.
 * Added minimal typing support.
   Contributed by Sorin Sbarnea in `#290 <https://github.com/ionelmc/pytest-benchmark/pull/290>`_.
 * Fixed support for Python 3.9.
