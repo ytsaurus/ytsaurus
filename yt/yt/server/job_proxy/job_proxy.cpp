@@ -573,7 +573,7 @@ void TJobProxy::DoRun()
     }
 
     if (GetJobSpecHelper()->HasSidecars()) {
-        FindJobProxyEnvironment()->KillSidecars();
+        FindJobProxyEnvironment()->ShutdownSidecars();
     }
 
     {

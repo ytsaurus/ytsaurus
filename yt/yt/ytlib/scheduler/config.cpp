@@ -27,6 +27,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 
@@ -1144,6 +1145,24 @@ void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGracefulShutdownSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("signal", &TThis::Signal)
+        .NonEmpty();
+
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default();
+
+    registrar.Postprocessor([] (TGracefulShutdownSpec* spec) {
+        if (!FindSignalIdBySignalName(spec->Signal)) {
+            THROW_ERROR_EXCEPTION("Unexpected signal name")
+                << TErrorAttribute("signal", spec->Signal);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSidecarJobSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("command", &TThis::Command);
@@ -1161,6 +1180,9 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("restart_policy", &TThis::RestartPolicy)
         .Default(ESidecarRestartPolicy::FailOnError);
+
+    registrar.Parameter("graceful_shutdown", &TThis::GracefulShutdown)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

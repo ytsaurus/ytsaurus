@@ -1354,6 +1354,24 @@ DEFINE_ENUM(ESidecarRestartPolicy,
     (FailOnError)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGracefulShutdownSpec
+    : public NYTree::TYsonStruct
+{
+    std::string Signal;
+
+    std::optional<TDuration> Timeout;
+
+    REGISTER_YSON_STRUCT(TGracefulShutdownSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGracefulShutdownSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSidecarJobSpec
     : public NYTree::TYsonStruct
 {
@@ -1367,6 +1385,8 @@ struct TSidecarJobSpec
     std::optional<TString> DockerImage;
 
     ESidecarRestartPolicy RestartPolicy;
+
+    TGracefulShutdownSpecPtr GracefulShutdown;
 
     REGISTER_YSON_STRUCT(TSidecarJobSpec);
 

@@ -112,7 +112,7 @@ public:
         std::function<void(TError)> failedSidecarCallback);
 
     virtual void StartSidecar() = 0;
-    virtual void KillSidecar() = 0;
+    virtual TFuture<void> ShutdownSidecar() = 0;
     virtual void RestartSidecar() = 0;
     virtual bool IsAlive() = 0;
 
@@ -225,7 +225,7 @@ struct IJobProxyEnvironment
     virtual bool UseExecFromLayer() const = 0;
 
     virtual void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) = 0;
-    virtual void KillSidecars() = 0;
+    virtual void ShutdownSidecars() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
