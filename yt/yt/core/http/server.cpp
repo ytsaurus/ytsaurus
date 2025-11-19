@@ -292,6 +292,7 @@ private:
             connection->GetRemoteAddress(),
             GetCurrentInvoker(),
             EMessageType::Request,
+            /*requestMethod*/ std::nullopt,
             Config_);
 
         if (Config_->IsHttps) {
