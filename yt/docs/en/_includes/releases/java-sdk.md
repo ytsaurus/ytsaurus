@@ -8,6 +8,28 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.11**" %}
+
+**Release date:** 2025-10-23
+
+
+### Features
+* Add `execute` method to `MultiYTsaurusClient`.
+* Support `YPath` empty root designator for operation spec.
+* Support `PatchOperationSpec` method.
+* Add API for distributed reading: `createTablePartitionReader`.
+* Add `PullQueue` method.
+* Implement a pretty-print mode for YSON text serialization.
+* Add API for distributed writing: `startDistributedWriteSession`, `writeTableFragment`, `finishDistributedWriteSession`.
+* Support listener (`RpcClientListener`) for tracking bytes sent by the client.
+* Add `sortOrder` flag to `ListQueries`.
+
+### Fixes
+* Fix `OperationContext.getTableIndex()` when using `ReducerWithKey`.
+
+{% endcut %}
+
+
 {% cut "**1.2.10**" %}
 
 **Release date:** 2025-07-17
