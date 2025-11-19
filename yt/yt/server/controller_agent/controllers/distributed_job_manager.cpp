@@ -68,28 +68,28 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
     if (!IsRelevant()) {
         return;
     }
-    if (joblet->CookieGroupInfo.OutputIndex == 0) {
+    if (joblet->DistributedGroupInfo.Index == 0) {
         auto mainJobId = joblet->JobId;
         auto it = TryEmplaceOrCrash(CookieToGroup_, joblet->OutputCookie);
         auto& group = it->second;
 
         YT_LOG_DEBUG("Distributed job group created (MainJobId: %v, OutputCookie: %v)", mainJobId, joblet->OutputCookie);
 
-        for (int i = 1; i < GetCookieGroupSize(); i++) {
+        for (int i = 1; i < GetDistributedJobFactor(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
             guard.SetCategory(EProgressCategory::Pending);
             group.Secondaries.push_back({.ProgressCounterGuard = std::move(guard)});
         }
         group.MainJobId = mainJobId;
-        joblet->CookieGroupInfo.MainJobId = mainJobId;
-        group.Pending = GetCookieGroupSize() - 1;
+        joblet->DistributedGroupInfo.MainJobId = mainJobId;
+        group.Pending = GetDistributedJobFactor() - 1;
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& group = GetOrCrash(CookieToGroup_, joblet->OutputCookie);
-        auto& secondary = group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1];
+        auto& secondary = group.Secondaries[joblet->DistributedGroupInfo.Index - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
-        joblet->CookieGroupInfo.MainJobId = group.MainJobId;
+        joblet->DistributedGroupInfo.MainJobId = group.MainJobId;
         --group.Pending;
         if (!group.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
@@ -107,7 +107,7 @@ void TDistributedJobManager::OnOperationRevived()
     auto cookieToGroupCopy = CookieToGroup_;
     for (auto& [cookie, group] : cookieToGroupCopy) {
         if (group.Pending) {
-            Task_->GetTaskHost()->AbortJob(group.MainJobId, EAbortReason::CookieGroupDisbanded);
+            Task_->GetTaskHost()->AbortJob(group.MainJobId, EAbortReason::DistributedJobGroupDisbanded);
         }
     }
 }
@@ -121,8 +121,8 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
     auto groupIt = CookieToGroup_.find(joblet->OutputCookie);
     if (groupIt != CookieToGroup_.end()) {
         auto& group = groupIt->second;
-        if (joblet->CookieGroupInfo.OutputIndex != 0) {
-            group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+        if (joblet->DistributedGroupInfo.Index != 0) {
+            group.Secondaries[joblet->DistributedGroupInfo.Index - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         } else {
             YT_LOG_DEBUG("Distributed job group completed (MainJobId: %v, OutputCookie: %v)", group.MainJobId, joblet->OutputCookie);
 
@@ -150,15 +150,14 @@ TProgressCounterPtr TDistributedJobManager::GetProgressCounter() const
     return JobCounter_;
 }
 
-int TDistributedJobManager::GetCookieGroupSize() const
+int TDistributedJobManager::GetDistributedJobFactor() const
 {
     // COMPAT(pogorelov): Remove in 25.4.
     if (!Task_) {
         return 1;
     }
-
     auto userJobSpec = Task_->GetUserJobSpec();
-    return userJobSpec ? userJobSpec->CookieGroupSize : 1;
+    return userJobSpec && userJobSpec->DistributedJobOptions ? userJobSpec->DistributedJobOptions->Factor : 1;
 }
 
 // COMPAT(pogorelov): Remove in 25.4.
@@ -169,7 +168,7 @@ void TDistributedJobManager::InitializeCounter()
 
 bool TDistributedJobManager::IsRelevant() const
 {
-    return GetCookieGroupSize() > 1;
+    return GetDistributedJobFactor() > 1;
 }
 
 bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
@@ -182,11 +181,11 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
     auto groupIt = CookieToGroup_.find(joblet->OutputCookie);
     if (groupIt != CookieToGroup_.end()) {
         auto& group = groupIt->second;
-        Task_->GetTaskHost()->AsyncAbortJob(group.MainJobId, EAbortReason::CookieGroupDisbanded);
+        Task_->GetTaskHost()->AsyncAbortJob(group.MainJobId, EAbortReason::DistributedJobGroupDisbanded);
         for (auto& secondary : group.Secondaries) {
             if (secondary.JobId) {
-                Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::CookieGroupDisbanded);
-                secondary.ProgressCounterGuard.OnAborted(EAbortReason::CookieGroupDisbanded);
+                Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::DistributedJobGroupDisbanded);
+                secondary.ProgressCounterGuard.OnAborted(EAbortReason::DistributedJobGroupDisbanded);
             } else {
                 secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
             }

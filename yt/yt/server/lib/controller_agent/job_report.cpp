@@ -39,15 +39,15 @@ TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::JobCookieGroupIndex(ui64 jobCookie)
+TControllerJobReport TControllerJobReport::DistributedGroupJobIndex(ui64 index)
 {
-    JobCookieGroupIndex_ = jobCookie;
+    DistributedGroupJobIndex_ = index;
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::MainJobId(TJobId mainJobId)
+TControllerJobReport TControllerJobReport::DistributedGroupMainJobId(TJobId distributedGroupMainJobId)
 {
-    MainJobId_ = mainJobId;
+    DistributedGroupMainJobId_ = distributedGroupMainJobId;
     return std::move(*this);
 }
 
