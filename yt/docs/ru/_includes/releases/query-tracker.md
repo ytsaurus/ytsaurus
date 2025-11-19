@@ -8,6 +8,30 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.0.11**" %}
+
+**Release date:** 2025-09-08
+
+
+**Features**
+- Added "sort_order" flag for list_queries API
+- Added the "assigned_engine" meta for YQL queries.
+- Made YQL queries timeout configurable
+- Supported YQL language versions in QT cli\sdk.
+https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
+- Supported returning AST of YQL queries in get_query cli\sdk 
+
+**Improvements**
+- Improved mechanics of additional secrets in YQL queries
+
+**Fixes**
+- Fixed read YQL results with yson fields by reference.
+
+**NB!** Most new features available only with proxy version 24.2\25.1 and later
+
+{% endcut %}
+
+
 {% cut "**0.0.10**" %}
 
 **Release date:** 2025-06-23
@@ -142,7 +166,7 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 **NB:**
 - Compatible only with operator version [0.6.0](https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.6.0) and later
 - Compatible only with proxies version [23.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.0) and later
-- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker/about#access-control) section containing information about the new query access control.
+- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker#access-control) section containing information about the new query access control.
 
 **New related issues:**
 - [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
