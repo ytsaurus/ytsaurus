@@ -54,6 +54,7 @@ import socket
 import sys
 import threading
 import time
+from warnings import warn as _warn
 
 
 try:
@@ -293,12 +294,17 @@ class pyOpenSSLAdapter(Adapter):
     ciphers = None
     """The ciphers list of TLS."""
 
+    private_key_password = None
+    """Optional passphrase for password protected private key."""
+
     def __init__(
         self,
         certificate,
         private_key,
         certificate_chain=None,
         ciphers=None,
+        *,
+        private_key_password=None,
     ):
         """Initialize OpenSSL Adapter instance."""
         if SSL is None:
@@ -309,6 +315,7 @@ class pyOpenSSLAdapter(Adapter):
             private_key,
             certificate_chain,
             ciphers,
+            private_key_password=private_key_password,
         )
 
         self._environ = None
@@ -328,6 +335,31 @@ class pyOpenSSLAdapter(Adapter):
         # closing so we can't reliably access protocol/client cert for the env
         return sock, self._environ.copy()
 
+    def _password_callback(
+        self,
+        password_max_length,
+        _verify_twice,
+        password,
+        /,
+    ):
+        """Pass a passphrase to password protected private key."""
+        b_password = b''  # returning a falsy value communicates an error
+        if isinstance(password, str):
+            b_password = password.encode('utf-8')
+        elif isinstance(password, bytes):
+            b_password = password
+
+        password_length = len(b_password)
+        if password_length > password_max_length:
+            _warn(
+                f'User-provided password is {password_length} bytes long and will '
+                f'be truncated since it exceeds the maximum of {password_max_length}.',
+                UserWarning,
+                stacklevel=1,
+            )
+
+        return b_password
+
     def get_context(self):
         """Return an ``SSL.Context`` from self attributes.
 
@@ -335,6 +367,7 @@ class pyOpenSSLAdapter(Adapter):
         """
         # See https://code.activestate.com/recipes/442473/
         c = SSL.Context(SSL.SSLv23_METHOD)
+        c.set_passwd_cb(self._password_callback, self.private_key_password)
         c.use_privatekey_file(self.private_key)
         if self.certificate_chain:
             c.load_verify_locations(self.certificate_chain)

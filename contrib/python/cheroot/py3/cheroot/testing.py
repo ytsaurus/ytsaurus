@@ -86,14 +86,14 @@ def thread_and_native_server():
 
 
 @pytest.fixture
-def wsgi_server(thread_and_wsgi_server):  # noqa: WPS442
+def wsgi_server(thread_and_wsgi_server):
     """Set up and tear down a Cheroot WSGI server instance."""
     _server_thread, srv = thread_and_wsgi_server
     return srv
 
 
 @pytest.fixture
-def native_server(thread_and_native_server):  # noqa: WPS442
+def native_server(thread_and_native_server):
     """Set up and tear down a Cheroot HTTP server instance."""
     _server_thread, srv = thread_and_native_server
     return srv
@@ -116,7 +116,7 @@ class _TestClient:
         )
         return conn_cls(name)
 
-    def request(
+    def request(  # pylint: disable=too-many-positional-arguments
         self,
         uri,
         method='GET',

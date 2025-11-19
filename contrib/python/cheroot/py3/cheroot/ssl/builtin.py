@@ -76,10 +76,20 @@ def _loopback_for_cert_thread(context, server):
             ssl_sock.send(b'0000')
 
 
-def _loopback_for_cert(certificate, private_key, certificate_chain):
+def _loopback_for_cert(
+    certificate,
+    private_key,
+    certificate_chain,
+    *,
+    private_key_password=None,
+):
     """Create a loopback connection to parse a cert with a private key."""
     context = ssl.create_default_context(cafile=certificate_chain)
-    context.load_cert_chain(certificate, private_key)
+    context.load_cert_chain(
+        certificate,
+        private_key,
+        password=private_key_password,
+    )
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
 
@@ -112,7 +122,13 @@ def _loopback_for_cert(certificate, private_key, certificate_chain):
         server.close()
 
 
-def _parse_cert(certificate, private_key, certificate_chain):
+def _parse_cert(
+    certificate,
+    private_key,
+    certificate_chain,
+    *,
+    private_key_password=None,
+):
     """Parse a certificate."""
     # loopback_for_cert uses socket.socketpair which was only
     # introduced in Python 3.0 for *nix and 3.5 for Windows
@@ -120,7 +136,12 @@ def _parse_cert(certificate, private_key, certificate_chain):
     # it also requires a private key either in its own file
     # or combined with the cert (SSLError)
     with suppress(AttributeError, ssl.SSLError, OSError):
-        return _loopback_for_cert(certificate, private_key, certificate_chain)
+        return _loopback_for_cert(
+            certificate,
+            private_key,
+            certificate_chain,
+            private_key_password=private_key_password,
+        )
 
     # KLUDGE: using an undocumented, private, test method to parse a cert
     # unfortunately, it is the only built-in way without a connection
@@ -152,6 +173,9 @@ class BuiltinSSLAdapter(Adapter):
 
     ciphers = None
     """The ciphers list of SSL."""
+
+    private_key_password = None
+    """Optional passphrase for password protected private key."""
 
     # from mod_ssl/pkg.sslmod/ssl_engine_vars.c ssl_var_lookup_ssl_cert
     CERT_KEY_TO_ENV = {
@@ -208,6 +232,8 @@ class BuiltinSSLAdapter(Adapter):
         private_key,
         certificate_chain=None,
         ciphers=None,
+        *,
+        private_key_password=None,
     ):
         """Set up context in addition to base class properties if available."""
         if ssl is None:
@@ -218,19 +244,29 @@ class BuiltinSSLAdapter(Adapter):
             private_key,
             certificate_chain,
             ciphers,
+            private_key_password=private_key_password,
         )
 
         self.context = ssl.create_default_context(
             purpose=ssl.Purpose.CLIENT_AUTH,
             cafile=certificate_chain,
         )
-        self.context.load_cert_chain(certificate, private_key)
+        self.context.load_cert_chain(
+            certificate,
+            private_key,
+            password=private_key_password,
+        )
         if self.ciphers is not None:
             self.context.set_ciphers(ciphers)
 
         self._server_env = self._make_env_cert_dict(
             'SSL_SERVER',
-            _parse_cert(certificate, private_key, self.certificate_chain),
+            _parse_cert(
+                certificate,
+                private_key,
+                self.certificate_chain,
+                private_key_password=private_key_password,
+            ),
         )
         if not self._server_env:
             return
