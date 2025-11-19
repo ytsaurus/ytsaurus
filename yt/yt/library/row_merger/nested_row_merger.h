@@ -32,8 +32,8 @@ TNestedColumnsSchema GetNestedColumnsSchema(NTableClient::TTableSchemaPtr tableS
 
 TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds);
 
-const TNestedKeyColumn* GetNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId);
-const TNestedValueColumn* GetNestedColumnById(TRange<TNestedValueColumn> keyColumns, ui16 columnId);
+const TNestedKeyColumn* FindNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId);
+const TNestedValueColumn* FindNestedColumnById(TRange<TNestedValueColumn> keyColumns, ui16 columnId);
 
 int UnpackNestedValuesList(std::vector<NTableClient::TUnversionedValue>* parsedValues, TStringBuf data, NTableClient::EValueType listItemType);
 
