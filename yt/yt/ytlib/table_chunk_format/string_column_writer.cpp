@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/memory/chunked_output_stream.h>
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
@@ -39,7 +41,7 @@ protected:
     std::vector<TStringBuf> Values_;
 
     i64 DictionaryByteSize_;
-    THashMap<TStringBuf, ui32> Dictionary_;
+    absl::flat_hash_map<TStringBuf, ui32> Dictionary_;
 
     TStringColumnWriterBase(const TColumnSchema& columnSchema, IMemoryUsageTrackerPtr memoryUsageTracker)
         : Hunk_(columnSchema.MaxInlineHunkSize().has_value())
