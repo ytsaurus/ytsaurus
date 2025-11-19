@@ -1,5 +1,6 @@
 #ifndef COMPACT_MAP_INL_H_
 #error "Direct inclusion of this file is not allowed, include compact_map.h"
+// For the sake of sane code completion.
 #include "compact_map.h"
 #endif
 

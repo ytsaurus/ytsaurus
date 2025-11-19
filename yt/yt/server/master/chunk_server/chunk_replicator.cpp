@@ -573,32 +573,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     TCompactMediumMap<THashSet<const THost*>> replicasHosts;
-=======
-    TMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
-    TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
->>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
-=======
-    TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
-    TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
->>>>>>> 79614a97641 (address comments)
     // TODO(gritukan): YT-16557.
     TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
-<<<<<<< HEAD
-<<<<<<< HEAD
     TCompactMediumMap<TAugmentedStoredChunkReplicaPtr> unsafelyPlacedSealedReplicas;
-=======
-    TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
->>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
-=======
-    TCompactMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
->>>>>>> 79614a97641 (address comments)
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TCompactMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
@@ -693,19 +675,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         }
     }
 
-<<<<<<< HEAD
     auto allMediaTransient = true;
     auto allMediaDataPartsOnly = true;
     TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
-=======
-    bool allMediaTransient = true;
-    bool allMediaDataPartsOnly = true;
-<<<<<<< HEAD
-    TMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
->>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
-=======
-    TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
->>>>>>> 79614a97641 (address comments)
     TMediumSet activeMedia;
 
     for (const auto& entry : chunkReplication) {
@@ -1192,21 +1164,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
     }
 
-<<<<<<< HEAD
     auto precarious = true;
     auto allMediaTransient = true;
-    TCompactVector<int, MaxMediumCount> mediaOnWhichLost;
+    TMediumSet mediaOnWhichLost;
     auto hasMediumOnWhichPresent = false;
     auto hasMediumOnWhichUnderreplicated = false;
     auto hasMediumOnWhichSealedMissing = false;
-=======
-    bool precarious = true;
-    bool allMediaTransient = true;
-    std::vector<int> mediaOnWhichLost;
-    bool hasMediumOnWhichPresent = false;
-    bool hasMediumOnWhichUnderreplicated = false;
-    bool hasMediumOnWhichSealedMissing = false;
->>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
 
     auto replication = GetChunkAggregatedReplication(chunk, replicas);
     for (auto entry : replication) {
@@ -1270,7 +1233,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
 
         if (Any(mediumStatistics.Status & EChunkStatus::Lost)) {
-            mediaOnWhichLost.push_back(mediumIndex);
+            mediaOnWhichLost.insert(mediumIndex);
         } else {
             hasMediumOnWhichPresent = true;
             precarious = precarious && mediumTransient;
@@ -1394,7 +1357,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     bool hasSealedReplicas,
     bool precarious,
     bool allMediaTransient,
-    const std::vector<int>& mediaOnWhichLost,
+    const TMediumSet& mediaOnWhichLost,
     bool hasMediumOnWhichPresent,
     bool hasMediumOnWhichUnderreplicated,
     bool hasMediumOnWhichSealedMissing)
