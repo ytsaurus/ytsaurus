@@ -240,6 +240,14 @@ void ToProto(
     const TAllocationInfoToRequest& allocationInfoToRequest);
 
 void FromProto(
+    TGracefulShutdownSpec* gracefulShutdownSpec,
+    const NControllerAgent::NProto::TGracefulShutdownSpec& gracefulShutdownSpecProto);
+
+void ToProto(
+    NControllerAgent::NProto::TGracefulShutdownSpec* gracefulShutdownSpecProto,
+    const TGracefulShutdownSpec& gracefulShutdownSpec);
+
+void FromProto(
     TSidecarJobSpec* sidecarJobSpec,
     const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto);
 

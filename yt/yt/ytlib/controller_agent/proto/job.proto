@@ -166,6 +166,13 @@ message TNetworkProject
     required bool disable_network = 3;
 }
 
+message TGracefulShutdownSpec
+{
+    required string signal = 1;
+
+    optional int64 timeout = 2;
+}
+
 // Specification of the job which will be running in a sidecar with the main job.
 message TSidecarJobSpec
 {
@@ -181,6 +188,8 @@ message TSidecarJobSpec
     optional string docker_image = 4;
 
     required int32 restart_policy = 5; // ESidecarRestartPolicy
+
+    optional TGracefulShutdownSpec graceful_shutdown = 6;
 }
 
 // Specification for starting user code during a job.

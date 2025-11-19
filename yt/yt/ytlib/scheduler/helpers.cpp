@@ -841,6 +841,25 @@ void ToProto(
     }
 }
 
+void FromProto(
+    TGracefulShutdownSpec* gracefulShutdownSpec,
+    const NControllerAgent::NProto::TGracefulShutdownSpec& gracefulShutdownSpecProto)
+{
+    gracefulShutdownSpec->Signal = gracefulShutdownSpecProto.signal();
+
+    if (gracefulShutdownSpecProto.has_timeout()) {
+        gracefulShutdownSpec->Timeout = FromProto<TDuration>(gracefulShutdownSpecProto.timeout());
+    }
+}
+
+void ToProto(
+    NControllerAgent::NProto::TGracefulShutdownSpec* gracefulShutdownSpecProto,
+    const TGracefulShutdownSpec& gracefulShutdownSpec)
+{
+    gracefulShutdownSpecProto->set_signal(gracefulShutdownSpec.Signal);
+
+    YT_OPTIONAL_SET_PROTO(gracefulShutdownSpecProto, timeout, gracefulShutdownSpec.Timeout);
+}
 
 void FromProto(
     TSidecarJobSpec* sidecarJobSpec,
@@ -855,6 +874,11 @@ void FromProto(
     sidecarJobSpec->DockerImage = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, docker_image);
 
     sidecarJobSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecarJobSpecProto.restart_policy());
+
+    if (sidecarJobSpecProto.has_graceful_shutdown()) {
+        sidecarJobSpec->GracefulShutdown = New<TGracefulShutdownSpec>();
+        FromProto(&(*sidecarJobSpec->GracefulShutdown), sidecarJobSpecProto.graceful_shutdown());
+    }
 }
 
 void ToProto(
@@ -870,6 +894,10 @@ void ToProto(
     YT_OPTIONAL_TO_PROTO(sidecarJobSpecProto, docker_image, sidecarJobSpec.DockerImage);
 
     sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));
+
+    if (sidecarJobSpec.GracefulShutdown) {
+        ToProto(sidecarJobSpecProto->mutable_graceful_shutdown(), *sidecarJobSpec.GracefulShutdown);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3796,6 +3796,58 @@ fi
         print(output_table_contents)
         assert read_table(output_table) == [{"secret": "sidecar"}]
 
+    @authors("krasovav")
+    def test_signal_shutdown(self):
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = " ; ".join(
+            [
+                "trap '" + events_on_fs().notify_event_cmd("signal_traped"),
+                "sleep 10",
+                events_on_fs().notify_event_cmd("signal_processed"),
+                "' SIGUSR1",
+                events_on_fs().notify_event_cmd("sidecar_job_started"),
+                events_on_fs().wait_event_cmd("unreachable_event"),
+            ]
+        )
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": master_command,
+                        "docker_image": self.get_docker_image(),
+                        "sidecars": {
+                            "sidecar": {
+                                "command": sidecar_command,
+                                "docker_image": self.get_docker_image(),
+                                "graceful_shutdown": {
+                                    "signal": "SIGUSR1",
+                                    "timeout": 1000
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        )
+
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
+
+        events_on_fs().notify_event("finish")
+
+        events_on_fs().wait_event("signal_traped", timeout=datetime.timedelta(1000))
+        wait(lambda: op.get_job_count("completed") == 1)
+        assert not events_on_fs().check_event("signal_processed")
+
 
 class TestPortoSidecar(SidecarVanillaBase):
     USE_PORTO = True
