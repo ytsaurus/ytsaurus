@@ -8,6 +8,7 @@
 
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 #include <library/cpp/yt/compact_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_map.h>
 
 namespace NYT::NChunkClient {
 
@@ -120,29 +121,50 @@ constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;
 constexpr int DefaultIntermediateDataReplicationFactor = 2;
 
-//! Maximum allowed number of real media objects on a cluster.
-//! NB: The bound on medium indexes for actual master media
-//! objects is *not* equal to this value. Be very careful.
+//! Medium index layout. Numbers denote indexes, |X| marks sentinel slots.
+/*
+ *   Non-sentinel media slots (MaxMediumCount allowed entries)    Sentinel-only slots
+ *                        ∨ ∨ ∨                                         ∨ ∨ ∨
+ *                              GenericMediumIndex=126                                   MediumIndexBound
+ *   0                          ∨                                                        ∨
+ *   |--------------------------XX---------------------------|---------------------------|
+ *                               ^                           ^
+ *                               AllMediaIndex=127           RealMediumIndexBound
+ *                              ^^
+ *                              Legacy sentinels embedded into the real range for compatibility
+ *
+ * “Real” media correspond to actual master medium objects. Sentinels are special indexes
+ * that do not have associated medium objects and are used for special purposes across APIs.
+ * Because GenericMediumIndex/AllMediaIndex sit inside the real range, |RealMediumIndexBound|
+ * exceeds the plain count limit by 2, to keep room for |MaxMediumCount| real media.
+ */
+//! Maximum allowed number of real (non-sentinel) media objects on a cluster.
+//! NB: The bound on medium *indexes* for associated master media objects is *not* equal to this value.
+//! See the diagram above for clarification.
 constexpr int MaxMediumCount = 64000;
-//! The average reasonable number of media on a cluster.
+//! The typical number of media on a cluster.
 //! Used for initializing compact containers.
 constexpr int TypicalMediumCount = 4;
-//! The actual upper bound on medium indexes of real media, accounting for
-//! historical sentinels |GenericMediumIndex| and |AllMediaIndex|.
-//! NB: This value is *not* equal to |MaxMediumCount|. Be very careful.
+//! Upper bound on medium indexes associated with real (non-sentinel) media.
+//! NB: This value is intentionally |MaxMediumCount + 2| to account for the two in-range sentinels.
 constexpr int RealMediumIndexBound = MaxMediumCount + 2;
 //! All valid medium indexes (including sentinels) are in range |[0, MediumIndexBound)|.
-//! A small amount of room is reserved for sentinels.
+//! The tail |[RealMediumIndexBound, MediumIndexBound)| is reserved for future sentinels.
 constexpr int MediumIndexBound = MaxMediumCount + 100;
 
-//! Returns a list of all sentinel medium indexes: |GenericMediumIndex|, |AllMediaIndex| and |[RealMediumIndexBound, MediumIndexBound)|.
+//! Returns a list of all sentinel medium indexes: |GenericMediumIndex|, |AllMediaIndex| and
+//! every reserved slot in |[RealMediumIndexBound, MediumIndexBound)|.
 std::vector<int> GetSentinelMediumIndexes();
-//! Returns true if |mediumIndex| is a valid medium index: in range |[0, RealMediumIndexBound)|
-//! and not equal to any of the reserved sentinel values (see |IsSentinelMediumIndex|).
+//! Returns true if |mediumIndex| is a valid medium index for a master medium object,
+//! i.e. it falls in range |[0, RealMediumIndexBound)| and is not equal to any of the
+//! reserved sentinel values (see |IsSentinelMediumIndex|).
 bool IsValidRealMediumIndex(int mediumIndex);
 
 template <typename T>
 using TMediumMap = THashMap<int, T>;
+
+template <typename T>
+using TCompactMediumMap = TCompactMap<int, T, TypicalMediumCount>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*

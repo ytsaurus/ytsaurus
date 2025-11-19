@@ -67,31 +67,36 @@ std::vector<int> ShuffleWithDefaults(TTestBalancer& balancer, std::vector<int> c
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         *winner = 0;
-        balancer.AddWeightWithDefault(*winner, 100);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 100);
     }
     {
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         *winner = 1;
-        balancer.AddWeightWithDefault(*winner, 80);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 80);
     }
     {
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         *winner = 2;
-        balancer.AddWeightWithDefault(*winner, 90);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 90);
     }
     {
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         *winner = 3;
-        balancer.AddWeightWithDefault(*winner, 60);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 60);
     }
     {
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         *winner = 4;
-        balancer.AddWeightWithDefault(*winner, 70);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 70);
     }
 
     // Now the picture should be the following:
@@ -149,7 +154,8 @@ TEST(TMaxMinBalancerTest, Lazy)
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
         EXPECT_EQ(e, *winner);
-        balancer.AddWeightWithDefault(*winner, 1000); // Just to shift to the back of the queue.
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 1000); // Just to shift to the back of the queue.
     }
 
     Sleep(sleepInterval);
@@ -157,7 +163,8 @@ TEST(TMaxMinBalancerTest, Lazy)
     {
         auto winner = balancer.ChooseRangeWinner(contenderRange);
         EXPECT_TRUE(winner);
-        balancer.AddWeightWithDefault(*winner, 10);
+        balancer.TryAddContender(*winner);
+        balancer.AddWeight(*winner, 10);
     }
 
     auto& contenders = balancer.PeekContenders();

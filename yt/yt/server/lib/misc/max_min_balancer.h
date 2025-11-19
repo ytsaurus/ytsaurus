@@ -32,9 +32,9 @@ namespace NYT::NServer {
  *  over the weight type, #ChooseRangeWinner can be used to choose among a range
  *  of potential contenders possibly not added to the balancer.
  *
- *  To increase the contender's weight, use #AddWeight() for elements known to exist
- *  and #AddWeightWithDefault() otherwise. Same restrictions on #defaultWeight apply to
- *  the latter method.
+ *  To increase the contender's weight, use #AddWeight() for elements known to exist.
+ *  #TryAddContender() may be used to initialalize contenders before increasing their weight.
+ *  This is useful in a lazy initialization setting.
  *
  *  Not thread safe.
  */
@@ -45,6 +45,7 @@ public:
     TDecayingMaxMinBalancer(W decayFactor, TDuration decayInterval);
 
     void AddContender(T contender, W initialWeight = W());
+    bool TryAddContender(T contender, W initialWeight = W());
 
     //! Selects winner between added contenders.
     //! Returns null if there aren't any contenders.
@@ -69,10 +70,6 @@ public:
 
     //! Increase weight of existing contender.
     void AddWeight(T winner, W extraWeight);
-    //! If contender is not present, it is initialized with #defaultWeight before
-    //! performing the requested increment.
-    //! NB: Same note about #defaultWeight applies as for #ChooseRangeWinner().
-    void AddWeightWithDefault(T winner, W extraWeight, W defaultWeight = W());
 
     void ResetWeights();
 

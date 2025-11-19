@@ -511,13 +511,13 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
     TouchChunkInRepairQueues(chunk);
 }
 
-TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
+TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TStoredChunkReplicaList& replicas)
 {
     VerifyPersistentStateRead();
 
-    TMediumMap<EChunkStatus> result;
+    TCompactMediumMap<EChunkStatus> result;
 
     auto statistics = ComputeChunkStatistics(chunk, replicas);
 
@@ -574,6 +574,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     TCompactMediumMap<THashSet<const THost*>> replicasHosts;
@@ -581,21 +582,29 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
 >>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
+=======
+    TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
+    TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+>>>>>>> 79614a97641 (address comments)
     // TODO(gritukan): YT-16557.
-    TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
+    TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
+<<<<<<< HEAD
 <<<<<<< HEAD
     TCompactMediumMap<TAugmentedStoredChunkReplicaPtr> unsafelyPlacedSealedReplicas;
 =======
     TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
 >>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
+=======
+    TCompactMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
+>>>>>>> 79614a97641 (address comments)
     // An arbitrary replica that violates consistent placement requirements - per medium.
-    TMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
+    TCompactMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
-    TMediumMap<int> replicaCount;
-    TMediumMap<int> decommissionedReplicaCount;
-    TMediumMap<int> temporarilyUnavailableReplicaCount;
+    TCompactMediumMap<int> replicaCount;
+    TCompactMediumMap<int> decommissionedReplicaCount;
+    TCompactMediumMap<int> temporarilyUnavailableReplicaCount;
 
     NErasure::TPartIndexSet replicaIndexes;
 
@@ -691,8 +700,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 =======
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
+<<<<<<< HEAD
     TMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
 >>>>>>> ce7a0627b45 (Increase MaxMediumCount from 120 to 64000)
+=======
+    TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
+>>>>>>> 79614a97641 (address comments)
     TMediumSet activeMedia;
 
     for (const auto& entry : chunkReplication) {
@@ -773,7 +786,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     return result;
 }
 
-TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
+TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
     const TChunk* chunk,
     const TStoredChunkReplicaList& replicas)
 {
@@ -787,7 +800,7 @@ TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    TMediumMap<TNodeList> result;
+    TCompactMediumMap<TNodeList> result;
     auto chunkReplication = GetChunkAggregatedReplication(chunk, replicas);
     for (const auto& entry : chunkReplication) {
         auto mediumPolicy = entry.Policy();
@@ -938,7 +951,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::ICodec* codec,
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
-    const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+    const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
     const TMediumSet& activeMedia,
     const NErasure::TPartIndexSet& replicaIndexes,
     bool totallySealed)
@@ -1655,14 +1668,13 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Replication job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, IsPullReplicationJob: %v, TargetMediumIndex: %v, TargetMediumName: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, IsPullReplicationJob: %v, TargetMediumName: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndex,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
         isPullReplicationJob,
-        targetMediumIndex,
         targetMedium->GetName());
 
     if (targetNode) {
@@ -1854,7 +1866,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
         repairQueue == EChunkRepairQueue::Decommissioned);
     context->ScheduleJob(job);
 
-    ChunkRepairQueueBalancer(repairQueue).AddWeightWithDefault(
+    auto& chunkRepairQueueBalancer = ChunkRepairQueueBalancer(repairQueue);
+
+    chunkRepairQueueBalancer.TryAddContender(mediumIndex);
+    chunkRepairQueueBalancer.AddWeight(
         mediumIndex,
         job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
 

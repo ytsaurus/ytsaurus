@@ -24,6 +24,12 @@ void TDecayingMaxMinBalancer<T, W>::AddContender(T contender, W initialWeight)
 }
 
 template <typename T, typename W>
+bool TDecayingMaxMinBalancer<T, W>::TryAddContender(T contender, W initialWeight)
+{
+    return ContenderToWeight_.emplace(contender, initialWeight).second;
+}
+
+template <typename T, typename W>
 std::optional<T> TDecayingMaxMinBalancer<T, W>::ChooseWinner()
 {
     if (ContenderToWeight_.empty()) {
@@ -84,20 +90,6 @@ void TDecayingMaxMinBalancer<T, W>::AddWeight(T winner, W extraWeight)
     MaybeDecay();
 
     auto it = ContenderToWeight_.find(winner);
-    YT_VERIFY(it != ContenderToWeight_.end());
-
-    it->second += extraWeight;
-}
-
-template <typename T, typename W>
-void TDecayingMaxMinBalancer<T, W>::AddWeightWithDefault(T winner, W extraWeight, W defaultWeight)
-{
-    MaybeDecay();
-
-    auto it = ContenderToWeight_.find(winner);
-    if (it == ContenderToWeight_.end()) {
-        it = ContenderToWeight_.emplace(winner, defaultWeight).first;
-    }
     YT_VERIFY(it != ContenderToWeight_.end());
 
     it->second += extraWeight;
