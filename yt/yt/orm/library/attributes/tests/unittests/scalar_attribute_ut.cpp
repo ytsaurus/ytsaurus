@@ -395,7 +395,7 @@ class TSetAttributeTest
     : public testing::TestWithParam<bool>
 {
 public:
-    // NB! Processing values related to the root of protobuf maps is unimplemented.
+    // NB: Processing values related to the root of protobuf maps is unimplemented.
     // Tests on maps should not rely on yson to wire string conversion.
     // TODO(grigminakov): Add support for maps and then move this helper function to common library.
     void BuildWireStringFromNodePtr(
@@ -439,7 +439,7 @@ public:
                 break;
             }
             case NYTree::ENodeType::Entity: {
-                // NB! Empty wire string represents entity.
+                // NB: Empty wire string represents entity.
                 break;
             }
             case NYTree::ENodeType::Uint64: {

@@ -35,7 +35,7 @@ private:
 
 // Non-owning view of concatenated serialized protobuf message parts.
 //
-// NB! The `N` template parameter of TCompactVector
+// NB: The `N` template parameter of TCompactVector
 // is intentionally equal to 1 for two reasons:
 // 1) In most cases TWireString represents single protobuf message.
 // 2) The size of TWireStringPart is exactly equal to the size of vector internals.
@@ -83,7 +83,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Returns whether parsing was successful.
-// NB! Caller should guarantee that provided element type refers to appropriate
+// NB: Caller should guarantee that provided element type refers to appropriate
 // cpp type (e.g. FieldDescriptor::TYPE_UINT32 is valid argument for ParseUint(32|64), but not others).
 bool ParseUint32(ui32* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
 bool ParseUint64(ui64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
