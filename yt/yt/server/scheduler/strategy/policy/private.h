@@ -26,7 +26,7 @@ DEFINE_ENUM(EOperationSchedulingPriority,
 using TOperationElementsBySchedulingPriority = TEnumIndexedArray<EOperationSchedulingPriority, TNonOwningOperationElementList>;
 
 using TOperationCountByPreemptionPriority = TEnumIndexedArray<EOperationPreemptionPriority, int>;
-using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
+using TOperationPreemptionPriorityParameters = std::tuple<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool, /*defaultGpuFullHostPreemptionEnabled*/ bool>;
 using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemptionPriorityParameters, TOperationCountByPreemptionPriority>;
 
 ////////////////////////////////////////////////////////////////////////////////

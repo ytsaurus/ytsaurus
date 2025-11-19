@@ -713,11 +713,13 @@ class TestPoolMetrics(YTEnvSetup):
         for scope, expected_counts in expected_counts_per_scope.items():
             for priority, count in expected_counts.items():
                 for ssd_enabled in ["true", "false"]:
-                    wait(lambda: operation_count_by_preemption_priority_gauge.get(tags={
-                        "scope": scope,
-                        "ssd_priority_preemption_enabled": ssd_enabled,
-                        "priority": priority,
-                    }) == count)
+                    for gpu_enabled in ["true", "false"]:
+                        wait(lambda: operation_count_by_preemption_priority_gauge.get(tags={
+                            "scope": scope,
+                            "ssd_priority_preemption_enabled": ssd_enabled,
+                            "default_gpu_full_host_preemption_enabled": gpu_enabled,
+                            "priority": priority,
+                        }) == count)
 
     @authors("eshcherbin")
     def test_specified_resource_limits(self):

@@ -44,10 +44,12 @@ DEFINE_ENUM(EDeactivationReason,
     (IsNotEligibleForPreemptiveScheduling)
     (IsNotEligibleForSsdAggressivelyPreemptiveScheduling)
     (IsNotEligibleForSsdPreemptiveScheduling)
+    (IsNotEligibleForDefaultGpuFullHostPreemptiveScheduling)
     (ScheduleAllocationFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
     (ResourceLimitsExceeded)
+    (FairShareLimitsExceeded)
     (SaturatedInTentativeTree)
     (OperationDisabled)
     (BadPacking)
@@ -269,6 +271,24 @@ DEFINE_REFCOUNTED_TYPE(TStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStrategyDefaultGpuFullHostPreemptionConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    double MaxPreemptionPenalty;
+
+    TDuration Timeout;
+
+    REGISTER_YSON_STRUCT(TStrategyDefaultGpuFullHostPreemptionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStrategyDefaultGpuFullHostPreemptionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBatchOperationSchedulingConfig
     : public NYTree::TYsonStruct
 {
@@ -454,6 +474,7 @@ struct TStrategyTreeConfig
     TJobResourcesConfigPtr RequiredResourceLimitsForRemoteCopy;
 
     TStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
+    TStrategyDefaultGpuFullHostPreemptionConfigPtr DefaultGpuFullHostPreemption;
 
     //! Enables profiling of scheduled and preempted resources in strategy.
     bool EnableScheduledAndPreemptedResourcesProfiling;

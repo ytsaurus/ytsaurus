@@ -291,6 +291,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(ISchedulingHeartbeatContextPtr, SchedulingHeartbeatContext);
     DEFINE_BYREF_RO_PROPERTY(TPoolTreeSnapshotPtr, TreeSnapshot);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SsdPriorityPreemptionEnabled);
+    DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(DefaultGpuFullHostPreemptionEnabled);
 
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
     DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
@@ -327,6 +328,7 @@ public:
     bool ScheduleAllocationInTest(TPoolTreeOperationElement* element, bool ignorePacking);
 
     int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
+    bool CanUseDefaultGpuFullHostPreemption(const std::vector<TAllocationWithPreemptionInfo>& allocationInfos) const;
 
     void AnalyzePreemptibleAllocations(
         EOperationPreemptionPriority targetOperationPreemptionPriority,

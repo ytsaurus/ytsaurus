@@ -39,6 +39,7 @@ public:
         const TResourceTreeElementPtr& element,
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        const std::optional<TJobResources>& additionalLocalResourceLimits,
         TJobResources* availableResourceLimitsOutput);
     void CommitHierarchicalResourceUsage(
         const TResourceTreeElementPtr& element,

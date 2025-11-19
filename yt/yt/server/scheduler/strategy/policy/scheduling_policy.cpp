@@ -166,7 +166,9 @@ EOperationPreemptionPriority GetOperationPreemptionPriority(
     const TPoolTreeOperationElement* operationElement,
     EOperationPreemptionPriorityScope scope,
     bool ssdPriorityPreemptionEnabled,
-    const THashSet<int>& ssdPriorityPreemptionMedia)
+    const THashSet<int>& ssdPriorityPreemptionMedia,
+    bool defaultGpuFullHostPreemptionEnabled,
+    TInstant now)
 {
     if (!operationElement->IsSchedulable()) {
         return EOperationPreemptionPriority::None;
@@ -187,14 +189,26 @@ EOperationPreemptionPriority GetOperationPreemptionPriority(
             YT_ABORT();
     }
 
+    bool isEligibleForDefaultGpuFullHostPreemption = defaultGpuFullHostPreemptionEnabled &&
+        operationElement->IsDefaultGpuFullHost() &&
+        operationElement->PersistentAttributes().BelowFairShareSince.has_value() &&
+        *operationElement->PersistentAttributes().BelowFairShareSince +
+            operationElement->TreeConfig()->DefaultGpuFullHostPreemption->Timeout < now;
+
     bool isEligibleForSsdPriorityPreemption = ssdPriorityPreemptionEnabled &&
         IsEligibleForSsdPriorityPreemption(operationElement->DiskRequestMedia(), ssdPriorityPreemptionMedia);
     if (isEligibleForAggressivePreemption) {
+        if (isEligibleForDefaultGpuFullHostPreemption) {
+            return EOperationPreemptionPriority::DefaultGpuFullHost;
+        }
         return isEligibleForSsdPriorityPreemption
             ? EOperationPreemptionPriority::SsdAggressive
             : EOperationPreemptionPriority::Aggressive;
     }
     if (isEligibleForPreemption) {
+        if (isEligibleForDefaultGpuFullHostPreemption) {
+            return EOperationPreemptionPriority::DefaultGpuFullHost;
+        }
         return isEligibleForSsdPriorityPreemption
             ? EOperationPreemptionPriority::SsdNormal
             : EOperationPreemptionPriority::Normal;
@@ -897,6 +911,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
     , TreeSnapshot_(std::move(treeSnapshot))
     , SsdPriorityPreemptionEnabled_(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->Enable &&
         SchedulingHeartbeatContext_->CanSchedule(TreeSnapshot_->TreeConfig()->SsdPriorityPreemption->NodeTagFilter))
+    , DefaultGpuFullHostPreemptionEnabled_(TreeSnapshot_->TreeConfig()->DefaultGpuFullHostPreemption->Enable)
     , SchedulingInfoLoggingEnabled_(schedulingInfoLoggingEnabled)
     , SchedulingDeadline_(SchedulingHeartbeatContext_->GetNow() + DurationToCpuDuration(TreeSnapshot_->ControllerConfig()->ScheduleAllocationsTimeout))
     , NodeSchedulingSegment_(nodeState->SchedulingSegment)
@@ -905,6 +920,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
         TOperationPreemptionPriorityParameters{
             TreeSnapshot_->TreeConfig()->SchedulingPreemptionPriorityScope,
             SsdPriorityPreemptionEnabled_,
+            DefaultGpuFullHostPreemptionEnabled_,
         }))
     , SsdPriorityPreemptionMedia_(TreeSnapshot_->SchedulingPolicyState()->SsdPriorityPreemptionMedia())
     , DynamicAttributesListSnapshot_(TreeSnapshot_->SchedulingPolicyState()->GetDynamicAttributesListSnapshot())
@@ -1015,6 +1031,36 @@ int TScheduleAllocationsContext::GetOperationWithPreemptionPriorityCount(EOperat
     return OperationCountByPreemptionPriority_[priority];
 }
 
+bool TScheduleAllocationsContext::CanUseDefaultGpuFullHostPreemption(const std::vector<TAllocationWithPreemptionInfo>& allocationInfos) const
+{
+    if (std::ssize(allocationInfos) == 1) {
+        const auto& [allocation, preemptionStatus, operationElement] = allocationInfos[0];
+        if (operationElement->IsDefaultGpuFullHost() && preemptionStatus != EAllocationPreemptionStatus::Preemptible) {
+            YT_LOG_DEBUG(
+                "Skipping GPU full host preemption for node because there is another full host operation(AllocationId: %v, OperationId: %v)",
+                allocation->GetId(),
+                operationElement->GetOperationId());
+            return false;
+        }
+    }
+
+    double nonPreemptibleProgressPenalty = 0;
+    for (const auto& allocationInfo : allocationInfos) {
+        auto allocationPreemptionLevel = GetAllocationPreemptionLevel(allocationInfo);
+        if (allocationPreemptionLevel < EAllocationPreemptionLevel::Preemptible) {
+            const auto& allocation = allocationInfo.Allocation;
+            nonPreemptibleProgressPenalty += allocation->GetPreemptibleProgressDuration().Seconds() * allocation->ResourceUsage().GetGpu();
+        }
+    }
+
+    double maxPreemptionPenalty = TreeSnapshot_->TreeConfig()->DefaultGpuFullHostPreemption->MaxPreemptionPenalty;
+    YT_LOG_DEBUG(
+        "Checking progress loss penalty for GPU full host mapper (NonPreemptibleProgressPenalty: %v, MaxPreemptionPenalty: %v)",
+        nonPreemptibleProgressPenalty,
+        maxPreemptionPenalty);
+    return nonPreemptibleProgressPenalty <= maxPreemptionPenalty;
+}
+
 void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     EOperationPreemptionPriority targetOperationPreemptionPriority,
     EAllocationPreemptionLevel minAllocationPreemptionLevel,
@@ -1031,6 +1077,12 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     NProfiling::TWallTimer timer;
 
     auto allocationInfos = CollectRunningAllocationsWithPreemptionInfo(SchedulingHeartbeatContext_, TreeSnapshot_);
+    if (GetStageType() == EAllocationSchedulingStage::PreemptiveDefaultGpuFullHost &&
+        !CanUseDefaultGpuFullHostPreemption(allocationInfos))
+    {
+        return;
+    }
+
     for (const auto& allocationInfo : allocationInfos) {
         const auto& [allocation, preemptionStatus, operationElement] = allocationInfo;
 
@@ -1162,6 +1214,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 return EAllocationPreemptionReason::AggressivePreemption;
             case EOperationPreemptionPriority::SsdAggressive:
                 return EAllocationPreemptionReason::SsdAggressivePreemption;
+            case EOperationPreemptionPriority::DefaultGpuFullHost:
+                return EAllocationPreemptionReason::DefaultGpuFullHostPreemption;
             default:
                 YT_ABORT();
         }
@@ -1942,16 +1996,27 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     }
 
     TJobResources availableResourceLimits;
+
+    std::optional<TJobResources> fairShareLimits;
+    if (element->IsDefaultGpuFullHost()) {
+        fairShareLimits = element->GetTotalResourceLimits() *
+            (element->Attributes().GetFairShare().Total + TResourceVector::Epsilon());
+    }
     auto increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(
         minNeededResources,
         allowLimitsOvercommit,
+        fairShareLimits,
         &availableResourceLimits);
 
-    if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
-        return EDeactivationReason::ResourceLimitsExceeded;
-    }
-    if (increaseResult == EResourceTreeIncreaseResult::ElementIsNotAlive) {
-        return EDeactivationReason::IsNotAlive;
+    switch (increaseResult) {
+        case EResourceTreeIncreaseResult::ResourceLimitExceeded:
+            return EDeactivationReason::ResourceLimitsExceeded;
+        case EResourceTreeIncreaseResult::AdditionalResourceLimitExceeded:
+            return EDeactivationReason::FairShareLimitsExceeded;
+        case EResourceTreeIncreaseResult::ElementIsNotAlive:
+            return EDeactivationReason::IsNotAlive;
+        case EResourceTreeIncreaseResult::Success:
+            break;
     }
 
     element->OnScheduleAllocationStarted(SchedulingHeartbeatContext_);
@@ -2070,11 +2135,14 @@ EOperationPreemptionPriority TScheduleAllocationsContext::GetOperationPreemption
     const TPoolTreeOperationElement* operationElement,
     EOperationPreemptionPriorityScope scope) const
 {
+    bool defaultGpuFullHostPreemptionEnabled = GetStageType() == EAllocationSchedulingStage::PreemptiveDefaultGpuFullHost;
     return NPolicy::GetOperationPreemptionPriority(
         operationElement,
         scope,
         SsdPriorityPreemptionEnabled_,
-        SsdPriorityPreemptionMedia_);
+        SsdPriorityPreemptionMedia_,
+        defaultGpuFullHostPreemptionEnabled,
+        TreeSnapshot_->GetNow());
 }
 
 bool TScheduleAllocationsContext::CheckForDeactivation(
@@ -2104,6 +2172,8 @@ bool TScheduleAllocationsContext::CheckForDeactivation(
                     return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
                 case EOperationPreemptionPriority::SsdAggressive:
                     return EDeactivationReason::IsNotEligibleForSsdAggressivelyPreemptiveScheduling;
+                case  EOperationPreemptionPriority::DefaultGpuFullHost:
+                    return EDeactivationReason::IsNotEligibleForDefaultGpuFullHostPreemptiveScheduling;
                 default:
                     YT_ABORT();
             }
@@ -3573,6 +3643,15 @@ TPreemptiveStageWithParametersList TSchedulingPolicy::BuildPreemptiveSchedulingS
             .ForcePreemptionAttempt = true,
         });
 
+    if (context->IsDefaultGpuFullHostPreemptionEnabled()) {
+        stages.emplace_back(
+            EAllocationSchedulingStage::PreemptiveDefaultGpuFullHost,
+            TPreemptiveSchedulingParameters{
+                .TargetOperationPreemptionPriority = EOperationPreemptionPriority::DefaultGpuFullHost,
+                .MinAllocationPreemptionLevel = EAllocationPreemptionLevel::SsdNonPreemptible,
+            });
+    }
+
     return stages;
 }
 
@@ -4061,13 +4140,17 @@ void TSchedulingPolicy::CountOperationsByPreemptionPriority(
     for (const auto& [_, element] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
         for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
             for (bool ssdPriorityPreemptionEnabled : {false, true}) {
-                TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled};
-                auto priority = NPolicy::GetOperationPreemptionPriority(
-                    element,
-                    scope,
-                    ssdPriorityPreemptionEnabled,
-                    postUpdateContext->SsdPriorityPreemptionMedia);
-                ++operationCountsByPreemptionPriorityParameters[parameters][priority];
+                for (bool defaultGpuFullHostPreemptionEnabled : {false, true}) {
+                    TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled, defaultGpuFullHostPreemptionEnabled};
+                    auto priority = NPolicy::GetOperationPreemptionPriority(
+                        element,
+                        scope,
+                        ssdPriorityPreemptionEnabled,
+                        postUpdateContext->SsdPriorityPreemptionMedia,
+                        defaultGpuFullHostPreemptionEnabled,
+                        fairSharePostUpdateContext->Now);
+                    ++operationCountsByPreemptionPriorityParameters[parameters][priority];
+                }
             }
         }
     }
@@ -4076,12 +4159,15 @@ void TSchedulingPolicy::CountOperationsByPreemptionPriority(
     for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
         TWithTagGuard scopeTagGuard(&sensorBuffer, "scope", FormatEnum(scope));
         for (bool ssdPriorityPreemptionEnabled : {false, true}) {
-            TWithTagGuard ssdTagGuard(&sensorBuffer, "ssd_priority_preemption_enabled", std::string(FormatBool(ssdPriorityPreemptionEnabled)));
-            TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled};
-            const auto& operationCountByPreemptionPriority = operationCountsByPreemptionPriorityParameters[parameters];
-            for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
-                TWithTagGuard priorityTagGuard(&sensorBuffer, "priority", FormatEnum(priority));
-                sensorBuffer.AddGauge(/*name*/ "", operationCountByPreemptionPriority[priority]);
+            for (bool defaultGpuFullHostPreemptionEnabled : {false, true}) {
+                TWithTagGuard ssdTagGuard(&sensorBuffer, "ssd_priority_preemption_enabled", std::string(FormatBool(ssdPriorityPreemptionEnabled)));
+                TWithTagGuard gpuTagGuard(&sensorBuffer, "default_gpu_full_host_preemption_enabled", std::string(FormatBool(defaultGpuFullHostPreemptionEnabled)));
+                TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled, defaultGpuFullHostPreemptionEnabled};
+                const auto& operationCountByPreemptionPriority = operationCountsByPreemptionPriorityParameters[parameters];
+                for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
+                    TWithTagGuard priorityTagGuard(&sensorBuffer, "priority", FormatEnum(priority));
+                    sensorBuffer.AddGauge(/*name*/ "", operationCountByPreemptionPriority[priority]);
+                }
             }
         }
     }

@@ -10,12 +10,12 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
-    ls, get, set, remove, exists, create_pool, create_pool_tree,
+    ls, get, create, set, write_table, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config, abort_job,
     update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    print_debug)
+    print_debug, map)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
@@ -2396,3 +2396,346 @@ class TestNetworkPriority(YTEnvSetup):
 
     def get_node_address(self, node_id):
         return "localhost:" + str(self.Env.configs["node"][node_id]["rpc_port"])
+
+
+class TestDefaultGpuFullHostPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 20,
+                "user_slots": 20,
+            },
+        }
+    }
+
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        update_pool_tree_config("default", {
+            "main_resource": "gpu",
+            "fair_share_starvation_timeout": 1000,
+            "default_gpu_full_host_preemption": {
+                "enable": True,
+                "max_preemption_penalty": 200.0,
+                "timeout": 5000,
+            }
+        })
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "initialization_timeout": 10000,
+            "manage_period": 100,
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": [TestDefaultGpuFullHostPreemption.DATA_CENTER],
+            "enable_detailed_logs": True,
+        })
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        wait(
+            lambda: get(
+                scheduler_orchid_default_pool_tree_config_path()
+                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+            )
+            == 1000
+        )
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [
+                make_batch_request("set", path=get_persistent_node_segment_states_path(), input={}),
+            ]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        create_data_center(TestDefaultGpuFullHostPreemption.DATA_CENTER)
+        create_rack(TestDefaultGpuFullHostPreemption.RACK)
+        set("//sys/racks/{}/@data_center".format(TestDefaultGpuFullHostPreemption.RACK), TestDefaultGpuFullHostPreemption.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@rack".format(node), TestDefaultGpuFullHostPreemption.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestDefaultGpuFullHostPreemption.DATA_CENTER)
+
+    @authors("severovv")
+    def test_preemption_basic(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 16}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_ops = []
+        for node in nodes:
+            op = run_sleeping_vanilla(
+                job_count=2,
+                task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+                pool="pool1",
+                spec={"scheduling_tag_filter": node}
+            )
+            small_ops.append(op)
+        wait(lambda: all(op.get_running_jobs() for op in small_ops))
+
+        update_pool_tree_config_option("default", "default_gpu_full_host_preemption/max_preemption_penalty", 0.0)
+        full_host_op = run_test_vanilla(
+            "sleep 10",
+            job_count=2,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"pool": "pool2", "scheduling_segment": "default"}
+        )
+        time.sleep(5)
+        assert len(full_host_op.get_running_jobs()) == 0
+
+        update_pool_tree_config_option("default", "default_gpu_full_host_preemption/max_preemption_penalty", 100.0)
+        wait(lambda: full_host_op.get_running_jobs())
+
+    @authors("severovv")
+    def test_preemption_timeout(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 16}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_ops = []
+        for node in nodes:
+            op = run_sleeping_vanilla(
+                job_count=2,
+                task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+                pool="pool1",
+                spec={"scheduling_tag_filter": node}
+            )
+            small_ops.append(op)
+        wait(lambda: all(op.get_running_jobs() for op in small_ops))
+
+        update_pool_tree_config_option("default", "default_gpu_full_host_preemption/max_preemption_penalty", 1000.0)
+        update_pool_tree_config_option("default", "default_gpu_full_host_preemption/timeout", 1000000)
+        full_host_op = run_test_vanilla(
+            "sleep 10",
+            job_count=2,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"pool": "pool2", "scheduling_segment": "default"}
+        )
+        time.sleep(5)
+        assert len(full_host_op.get_running_jobs()) == 0
+
+        update_pool_tree_config_option("default", "default_gpu_full_host_preemption/timeout", 100)
+        wait(lambda: full_host_op.get_running_jobs())
+
+    @authors("severovv")
+    def test_preemption_priority(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 16}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=False)
+        create_pool("pool3", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_ops = []
+        for node in nodes[:-1]:
+            op = run_sleeping_vanilla(
+                job_count=2,
+                task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+                pool="pool1",
+                spec={"scheduling_tag_filter": node}
+            )
+            small_ops.append(op)
+
+        preemptible_op = run_sleeping_vanilla(
+            job_count=2,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            pool="pool2",
+            spec={"scheduling_tag_filter": nodes[-1]}
+        )
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+
+        wait(lambda: all(op.get_running_jobs() for op in small_ops))
+        wait(lambda: preemptible_op.get_running_jobs())
+
+        big_mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={"pool": "pool3", "job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}, "scheduling_segment": "default"},
+            track=False,
+        )
+        wait(lambda: big_mapper.get_running_jobs())
+        for op in small_ops:
+            assert len(op.get_running_jobs()) == 2
+        assert len(preemptible_op.get_running_jobs()) == 0
+
+    @authors("severovv")
+    def test_self_preemption(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 8}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 8}}, wait_for_orchid=False)
+        create_pool("pool3", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_ops = []
+        for node in nodes[:2]:
+            op = run_sleeping_vanilla(
+                job_count=2,
+                task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+                pool="pool1",
+                spec={"scheduling_tag_filter": node}
+            )
+            small_ops.append(op)
+        wait(lambda: all(op.get_running_jobs() for op in small_ops))
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        other_mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={"pool": "pool2", "job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}, "scheduling_segment": "default"},
+            track=False,
+        )
+        wait(lambda: len(other_mapper.get_running_jobs()) > 0)
+        assert all(len(job.get_running_jobs()) == 2 for job in small_ops)
+
+        big_mapper = map(
+            command="sleep 10; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={"pool": "pool3", "job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}, "scheduling_segment": "default"},
+            track=False,
+        )
+        wait(lambda: big_mapper.get_running_jobs())
+        assert len(other_mapper.get_running_jobs()) > 0
+
+    @authors("severovv")
+    def test_low_fair_share(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 20}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 4}})
+        op = run_sleeping_vanilla(
+            job_count=5,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            pool="pool1",
+        )
+        wait(lambda: op.get_running_jobs())
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+
+        big_mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={"pool": "pool2", "job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}, "scheduling_segment": "default"},
+            track=False,
+        )
+
+        deactivations = scheduler_orchid_operation_path(big_mapper.id) + "/deactivation_reasons/fair_share_limits_exceeded"
+        wait(lambda: get(deactivations, default=0) > 0)
+        assert len(big_mapper.get_running_jobs()) == 0
+
+    @authors("severovv")
+    def test_other_segment_preemption(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 8}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 8}}, wait_for_orchid=False)
+        create_pool("pool3", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_ops = []
+        for node in nodes[:2]:
+            op = run_sleeping_vanilla(
+                job_count=2,
+                task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+                pool="pool1",
+                spec={"scheduling_tag_filter": node}
+            )
+            small_ops.append(op)
+        wait(lambda: all(op.get_running_jobs() for op in small_ops))
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        large_gpu_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"pool": "pool2", "job_count": 1},
+            track=False,
+        )
+        wait(lambda: len(large_gpu_op.get_running_jobs()) > 0)
+        assert all(len(job.get_running_jobs()) == 2 for job in small_ops)
+
+        big_mapper = map(
+            command="sleep 10; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={"pool": "pool3", "job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}, "scheduling_segment": "default"},
+            track=False,
+        )
+        wait(lambda: big_mapper.get_running_jobs())
+        assert len(large_gpu_op.get_running_jobs()) > 0
+
+    @authors("severovv")
+    def test_segments_rebalancing(self):
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"gpu": 16}}, wait_for_orchid=False)
+        create_pool("pool2", attributes={"strong_guarantee_resources": {"gpu": 0}}, wait_for_orchid=False)
+        create_pool("pool3", attributes={"strong_guarantee_resources": {"gpu": 8}})
+
+        nodes = list(ls("//sys/cluster_nodes"))
+        small_op = run_sleeping_vanilla(
+            job_count=2,
+            pool="pool1",
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={"scheduling_tag_filter": nodes[0]},
+            track=False,
+        )
+        wait(lambda: len(small_op.get_running_jobs()) == 2)
+
+        large_gpu_op = run_sleeping_vanilla(
+            job_count=2,
+            pool="pool2",
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_segment": "large_gpu"},
+            track=False,
+        )
+        wait(lambda: len(large_gpu_op.get_running_jobs()) == 2)
+
+        real_job = run_sleeping_vanilla(
+            job_count=1,
+            pool="pool3",
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_segment": "default"},
+            track=False,
+        )
+        wait(lambda: len(real_job.get_running_jobs()) == 1)
+        assert len(small_op.get_running_jobs()) == 2
+        assert len(large_gpu_op.get_running_jobs()) == 1

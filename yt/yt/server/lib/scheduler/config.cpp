@@ -332,6 +332,20 @@ void TStrategySsdPriorityPreemptionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStrategyDefaultGpuFullHostPreemptionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("max_preemption_penalty", &TThis::MaxPreemptionPenalty)
+        .Default(0);
+
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default(TDuration::Seconds(120));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBatchOperationSchedulingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("batch_size", &TThis::BatchSize)
@@ -590,6 +604,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .DefaultCtor(&GetDefaultRequiredResourceLimitsForRemoteCopy);
 
     registrar.Parameter("ssd_priority_preemption", &TThis::SsdPriorityPreemption)
+        .DefaultNew();
+
+    registrar.Parameter("default_gpu_full_host_preemption", &TThis::DefaultGpuFullHostPreemption)
         .DefaultNew();
 
     registrar.Parameter("enable_scheduled_and_preempted_resources_profiling", &TThis::EnableScheduledAndPreemptedResourcesProfiling)

@@ -8,6 +8,7 @@ namespace NYT::NScheduler::NStrategy {
 
 TPoolTreeSnapshot::TPoolTreeSnapshot(
     TTreeSnapshotId id,
+    TInstant now,
     TPoolTreeRootElementPtr rootElement,
     TNonOwningOperationElementMap enabledOperationIdToElement,
     TNonOwningOperationElementMap disabledOperationIdToElement,
@@ -20,6 +21,7 @@ TPoolTreeSnapshot::TPoolTreeSnapshot(
     NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
     TJobResourcesByTagFilter resourceLimitsByTagFilter)
     : Id_(id)
+    , Now_(now)
     , RootElement_(std::move(rootElement))
     , EnabledOperationMap_(std::move(enabledOperationIdToElement))
     , DisabledOperationMap_(std::move(disabledOperationIdToElement))

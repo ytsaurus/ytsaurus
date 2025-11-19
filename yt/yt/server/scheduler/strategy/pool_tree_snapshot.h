@@ -17,6 +17,7 @@ class TPoolTreeSnapshot
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, Now);
 
     DEFINE_BYREF_RO_PROPERTY(TPoolTreeRootElementPtr, RootElement);
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap);
@@ -33,6 +34,7 @@ class TPoolTreeSnapshot
 public:
     TPoolTreeSnapshot(
         TTreeSnapshotId id,
+        TInstant now,
         TPoolTreeRootElementPtr rootElement,
         TNonOwningOperationElementMap enabledOperationIdToElement,
         TNonOwningOperationElementMap disabledOperationIdToElement,
