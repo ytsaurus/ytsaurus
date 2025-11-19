@@ -659,11 +659,11 @@ public:
 
             // TODO(lukyan): Support column filter for nested columns.
 
-            if (GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+            if (FindNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
                 continue;
             }
 
-            if (GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+            if (FindNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
                 continue;
             }
 

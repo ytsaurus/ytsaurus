@@ -172,11 +172,11 @@ TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& neste
 {
     bool hasNestedColumns = false;
     for (auto id : columnIds) {
-        if (GetNestedColumnById(nestedSchema.KeyColumns, id)) {
+        if (FindNestedColumnById(nestedSchema.KeyColumns, id)) {
             hasNestedColumns = true;
         }
 
-        if (GetNestedColumnById(nestedSchema.ValueColumns, id)) {
+        if (FindNestedColumnById(nestedSchema.ValueColumns, id)) {
             hasNestedColumns = true;
         }
     }
@@ -197,7 +197,7 @@ TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& neste
     return result;
 }
 
-const TNestedKeyColumn* GetNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId)
+const TNestedKeyColumn* FindNestedColumnById(TRange<TNestedKeyColumn> keyColumns, ui16 columnId)
 {
     auto foundIt = BinarySearch(keyColumns.begin(), keyColumns.end(), [&] (const auto* it) {
         return it->Id < columnId;
@@ -210,7 +210,7 @@ const TNestedKeyColumn* GetNestedColumnById(TRange<TNestedKeyColumn> keyColumns,
     return nullptr;
 }
 
-const TNestedValueColumn* GetNestedColumnById(TRange<TNestedValueColumn> keyColumns, ui16 columnId)
+const TNestedValueColumn* FindNestedColumnById(TRange<TNestedValueColumn> keyColumns, ui16 columnId)
 {
     auto foundIt = BinarySearch(keyColumns.begin(), keyColumns.end(), [&] (const auto* it) {
         return it->Id < columnId;
