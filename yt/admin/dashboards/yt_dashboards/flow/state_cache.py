@@ -7,10 +7,9 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, add_common_dashboard_parameters
+from .common import create_dashboard
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.taggable import NotEquals
@@ -163,14 +162,8 @@ def build_global_cache():
 
 
 def build_flow_state_cache():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_job_cache())
-    d.add(build_global_cache())
+    def fill(d):
+        d.add(build_job_cache())
+        d.add(build_global_cache())
 
-    d.set_title("[YT Flow] State cache")
-    add_common_dashboard_parameters(d)
-
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("state-cache", fill)

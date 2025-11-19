@@ -8,16 +8,14 @@
 from ..common.sensors import FlowController, FlowWorker
 
 from .common import (
-    build_versions,
+    create_dashboard,
     build_resource_usage,
-    add_common_dashboard_parameters,
 )
 
 from .computation import ComputationCellGenerator
 from .controller import add_partitions_by_current_job_status_cell, add_controller_failed_iterations_cell
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
@@ -171,22 +169,16 @@ def build_logging():
 
 
 def build_flow_general():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_resource_usage("controller", add_component_to_title=True))
-    d.add(build_resource_usage("worker", add_component_to_title=True))
-    d.add(build_flow_status())
-    d.add(build_lags())
-    d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
-    d.add(build_epoch_timings())
-    d.add(COMPUTATION_CELL_GENERATOR.build_resources_rowset())
-    d.add(COMPUTATION_CELL_GENERATOR.build_partition_aggregates_rowset())
-    d.add(COMPUTATION_CELL_GENERATOR.build_partition_store_operations_rowset())
-    d.add(build_logging())
+    def fill(d):
+        d.add(build_resource_usage("controller", add_component_to_title=True))
+        d.add(build_resource_usage("worker", add_component_to_title=True))
+        d.add(build_flow_status())
+        d.add(build_lags())
+        d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
+        d.add(build_epoch_timings())
+        d.add(COMPUTATION_CELL_GENERATOR.build_resources_rowset())
+        d.add(COMPUTATION_CELL_GENERATOR.build_partition_aggregates_rowset())
+        d.add(COMPUTATION_CELL_GENERATOR.build_partition_store_operations_rowset())
+        d.add(build_logging())
 
-    d.set_title("[YT Flow] Pipeline general")
-    add_common_dashboard_parameters(d)
-
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("general", fill)

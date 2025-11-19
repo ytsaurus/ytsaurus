@@ -467,6 +467,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             result["parametrization"] = {
                 "parameters": self.dashboard_parameters_to_dict(dashboard.parameters)
             }
+        if dashboard.monitoring_links is not None:
+            result["links"] = dashboard.monitoring_links
 
         return result
 

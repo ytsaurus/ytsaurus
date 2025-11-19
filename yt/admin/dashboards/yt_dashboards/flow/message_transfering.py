@@ -7,11 +7,10 @@
 
 from ..common.sensors import FlowWorker
 
-from .common import build_versions, add_common_dashboard_parameters
+from .common import create_dashboard
 from .computation import ComputationCellGenerator
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor
 
@@ -118,15 +117,9 @@ def build_buffers():
 
 
 def build_flow_message_transfering():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
-    d.add(build_buffers())
-    d.add(build_message_distributor())
+    def fill(d):
+        d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
+        d.add(build_buffers())
+        d.add(build_message_distributor())
 
-    d.set_title("[YT Flow] Pipeline message transfering")
-    add_common_dashboard_parameters(d)
-
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("message-transfering", fill)
