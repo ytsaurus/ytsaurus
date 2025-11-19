@@ -42,8 +42,8 @@ DEPENDENCY_MANAGEMENT(
     contrib/java/com/fasterxml/jackson/core/jackson-core/2.11.3
     contrib/java/com/fasterxml/jackson/core/jackson-databind/2.11.3
     contrib/java/junit/junit/4.13
-    contrib/java/org/apache/logging/log4j/log4j-core/2.13.1
-    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.13.1
+    contrib/java/org/apache/logging/log4j/log4j-core/2.25.0
+    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.25.1
     contrib/java/org/hamcrest/hamcrest/2.2
 )
 
