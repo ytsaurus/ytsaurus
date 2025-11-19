@@ -8,6 +8,49 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.27.0**" %}
+
+**Release date:** 2025-09-22
+
+
+#### Major changes
+* Add support for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/525
+* Introduce cypress patches by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/531
+* Nvidia GPU support: nvidia-container-runtime & entrypoint for jobs container with GpuAgent by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/547
+* Add discovery servers into master config by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/549
+* Fix master update pipeline by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/552
+* Support CHYT's server in http-proxies by @epsilond1 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/553
+* strawberry: add option for logging into stderr by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/555
+* Add options for reconciler concurrency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/560
+* Add bundle controller to operator by @ifsmirnov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562
+
+#### Minor changes
+* Use golang 1.24 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/538
+* Fix go tool execution from other directories by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/539
+* Upgrade tools by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/540
+* update canonized files by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/541
+* add missing canondata files by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/542
+* Get or guess cluster domain only once at start by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/543
+* Fix cypress patch updating logic by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/546
+* Update sample configs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/548
+* Upgrade ginkgo to v2.25.3 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/551
+* test/e2e: check map operation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/550
+* test/e2e: check native transport certificates rotation by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/554
+* Add timbertruck canon test by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/557
+* Update dependencies by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/558
+* Drop legacy operation spec option by @Kontakter in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
+* By default run upto 1 reconciles concurrently by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/561
+
+#### New Contributors
+* @epsilond1 made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/553
+* @Kontakter made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
+* @ifsmirnov made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.26.0...release/0.27.0
+
+{% endcut %}
+
+
 {% cut "**0.26.0**" %}
 
 **Release date:** 2025-08-20
