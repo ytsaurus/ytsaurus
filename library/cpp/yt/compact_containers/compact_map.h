@@ -14,8 +14,10 @@ namespace NYT {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! A flat map that keeps up to N elements inline in a sorted TCompactVector,
-//! then transparently upgrades to std::map for larger sizes.
-//! Any modifying operation may invalidate all iterators.
+//! like TCompactFlatMap, but, unlike TCompactFlatMap, transparently falls back
+//! to std::map storage when the size exceeds N.
+//!
+//! Be very careful, any modifying operation may invalidate all iterators.
 template <
     class TKey,
     class TValue,

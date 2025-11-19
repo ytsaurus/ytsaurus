@@ -325,7 +325,7 @@ private:
         bool hasSealedReplicas,
         bool precarious,
         bool allMediaTransient,
-        const std::vector<int>& mediaOnWhichLost,
+        const TMediumSet& mediaOnWhichLost,
         bool hasMediumOnWhichPresent,
         bool hasMediumOnWhichUnderreplicated,
         bool hasMediumOnWhichSealedMissing);

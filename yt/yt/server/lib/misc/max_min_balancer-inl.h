@@ -20,7 +20,7 @@ TDecayingMaxMinBalancer<T, W>::TDecayingMaxMinBalancer(
 template <typename T, typename W>
 void TDecayingMaxMinBalancer<T, W>::AddContender(T contender, W initialWeight)
 {
-    YT_ASSERT(ContenderToWeight_.emplace(contender, initialWeight).second);
+    YT_ASSERT(TryAddContender(contender, initialWeight));
 }
 
 template <typename T, typename W>
