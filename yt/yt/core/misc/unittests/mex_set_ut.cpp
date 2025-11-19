@@ -47,9 +47,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMexSetTest, Stress)
+TEST(TMexIntSetTest, Stress)
 {
-    TMexSet mexSet;
+    TMexIntSet mexSet;
     TSlowMexSet slowMexSet;
 
     std::mt19937 rng(1543);
@@ -78,9 +78,9 @@ TEST(TMexSetTest, Stress)
     }
 }
 
-TEST(TMexSetTest, Empty)
+TEST(TMexIntSetTest, Empty)
 {
-    TMexSet mexSet;
+    TMexIntSet mexSet;
 
     EXPECT_EQ(0, mexSet.GetMex());
     EXPECT_FALSE(mexSet.Contains(0));
@@ -91,8 +91,8 @@ TEST(TMexSetTest, Empty)
     EXPECT_FALSE(mexSet.Erase(100500));
 }
 
-TEST(TMexSetTest, InsertNonZeroFirstKeepsMexZero) {
-    TMexSet m;
+TEST(TMexIntSetTest, InsertNonZeroFirstKeepsMexZero) {
+    TMexIntSet m;
 
     EXPECT_TRUE(m.Insert(10));
     EXPECT_EQ(m.GetMex(), 0);
@@ -100,8 +100,8 @@ TEST(TMexSetTest, InsertNonZeroFirstKeepsMexZero) {
     EXPECT_FALSE(m.Insert(10));
 }
 
-TEST(TMexSetTest, MexAdvancementAndLeftIntervalExtension) {
-    TMexSet m;
+TEST(TMexIntSetTest, MexAdvancementAndLeftIntervalExtension) {
+    TMexIntSet m;
 
     for (int i = 0; i < 10; ++i) {
         EXPECT_TRUE(m.Insert(i));
@@ -109,8 +109,8 @@ TEST(TMexSetTest, MexAdvancementAndLeftIntervalExtension) {
     }
 }
 
-TEST(TMexSetTest, ExtendLeftIntervalToTheRight) {
-    TMexSet m;
+TEST(TMexIntSetTest, ExtendLeftIntervalToTheRight) {
+    TMexIntSet m;
 
     EXPECT_TRUE(m.Insert(0));
     EXPECT_EQ(m.GetMex(), 1);
@@ -126,8 +126,8 @@ TEST(TMexSetTest, ExtendLeftIntervalToTheRight) {
     EXPECT_EQ(m.GetMex(), 4);
 }
 
-TEST(TMexSetTest, MergeBothSides) {
-    TMexSet m;
+TEST(TMexIntSetTest, MergeBothSides) {
+    TMexIntSet m;
 
     // Left interval: [0, 2).
     EXPECT_TRUE(m.Insert(0));
@@ -144,8 +144,8 @@ TEST(TMexSetTest, MergeBothSides) {
     EXPECT_EQ(m.GetMex(), 5);
 }
 
-TEST(TMexSetTest, EraseRightEdge) {
-    TMexSet m;
+TEST(TMexIntSetTest, EraseRightEdge) {
+    TMexIntSet m;
 
     EXPECT_TRUE(m.Insert(2));
     EXPECT_TRUE(m.Insert(3));
@@ -159,8 +159,8 @@ TEST(TMexSetTest, EraseRightEdge) {
     EXPECT_EQ(m.GetMex(), 0);
 }
 
-TEST(TMexSetTest, EraseLeftEdge) {
-    TMexSet m;
+TEST(TMexIntSetTest, EraseLeftEdge) {
+    TMexIntSet m;
 
     EXPECT_TRUE(m.Insert(2));
     EXPECT_TRUE(m.Insert(3));
@@ -174,8 +174,8 @@ TEST(TMexSetTest, EraseLeftEdge) {
     EXPECT_EQ(m.GetMex(), 0);
 }
 
-TEST(TMexSetTest, IntervalSplit) {
-    TMexSet m;
+TEST(TMexIntSetTest, IntervalSplit) {
+    TMexIntSet m;
     for (int v = 0; v < 5; ++v) {
         EXPECT_TRUE(m.Insert(v));
     }
@@ -189,16 +189,16 @@ TEST(TMexSetTest, IntervalSplit) {
     EXPECT_TRUE(m.Contains(3));
 }
 
-TEST(TMexSetTest, EraseSingleElementInterval) {
-    TMexSet m;
+TEST(TMexIntSetTest, EraseSingleElementInterval) {
+    TMexIntSet m;
     m.Insert(5);
     EXPECT_TRUE(m.Erase(5));
     EXPECT_FALSE(m.Contains(5));
     EXPECT_EQ(m.GetMex(), 0);
 }
 
-TEST(TMexSetTest, InsertAboveMex) {
-    TMexSet m;
+TEST(TMexIntSetTest, InsertAboveMex) {
+    TMexIntSet m;
 
     for (int v : {0,1,2,4,5}) {
         EXPECT_TRUE(m.Insert(v));
@@ -212,8 +212,8 @@ TEST(TMexSetTest, InsertAboveMex) {
     EXPECT_EQ(m.GetMex(), 6);
 }
 
-TEST(TMexSetTest, Clear) {
-    TMexSet m;
+TEST(TMexIntSetTest, Clear) {
+    TMexIntSet m;
 
     for (int v = 0; v < 7; ++v) {
         EXPECT_TRUE(m.Insert(v));

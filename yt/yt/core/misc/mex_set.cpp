@@ -1,35 +1,12 @@
 #include "mex_set.h"
 
+#include <library/cpp/yt/error/error.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// This could have been a privavte class helper, but we are fooled by const-ness issues.
-// Patiently waiting for deducing this in C++23 to end this madness.
-template <class TMap>
-auto FindAdjacentIntervals(TMap& intervals, int value) -> std::pair<decltype(intervals.begin()), decltype(intervals.begin())>
-{
-    auto rightIt = intervals.upper_bound(value);
-    auto leftIt = intervals.end();
-
-    if (rightIt != intervals.begin()) {
-        leftIt = std::prev(rightIt);
-    }
-
-    return {leftIt, rightIt};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TMexSet::Insert(int value)
+bool TMexIntSet::Insert(int value)
 {
     ValidateBounds(value);
 
@@ -52,7 +29,7 @@ bool TMexSet::Insert(int value)
     }
 
     if (leftAdjacent && rightAdjacent) {
-        // Merge both intervals.
+        // Merge intervals.
         leftIt->second = rightIt->second;
         Intervals_.erase(rightIt);
     } else if (leftAdjacent) {
@@ -62,16 +39,16 @@ bool TMexSet::Insert(int value)
         // Extend right interval to the left.
         auto newRight = rightIt->second;
         Intervals_.erase(rightIt);
-        Intervals_[value] = newRight;
+        Intervals_.emplace(value, newRight);
     } else {
         // Create a new interval.
-        Intervals_[value] = value + 1;
+        Intervals_.emplace(value, value + 1);
     }
 
     return true;
 }
 
-bool TMexSet::Erase(int value)
+bool TMexIntSet::Erase(int value)
 {
     ValidateBounds(value);
 
@@ -106,7 +83,7 @@ bool TMexSet::Erase(int value)
     return true;
 }
 
-bool TMexSet::Contains(int value) const
+bool TMexIntSet::Contains(int value) const
 {
     ValidateBounds(value);
 
@@ -114,21 +91,38 @@ bool TMexSet::Contains(int value) const
     return leftIt != Intervals_.end() && leftIt->second > value;
 }
 
-void TMexSet::Clear()
+void TMexIntSet::Clear()
 {
     Intervals_.clear();
     Mex_ = 0;
 }
 
-int TMexSet::GetMex() const
+int TMexIntSet::GetMex() const
 {
     return Mex_;
 }
 
-void TMexSet::ValidateBounds(int value)
+void TMexIntSet::ValidateBounds(int value)
 {
-    YT_VERIFY(value >= 0);
-    YT_VERIFY(value < std::numeric_limits<int>::max());
+    if (value < 0 || value == std::numeric_limits<int>::max()) {
+        THROW_ERROR_EXCEPTION(
+            "Value %v is out of bounds for TMexIntSet, must be in the range [0, %v)",
+            value,
+            std::numeric_limits<int>::max());
+    }
+}
+
+template <class TMap>
+auto TMexIntSet::FindAdjacentIntervals(TMap& intervals, int value) -> std::pair<decltype(intervals.begin()), decltype(intervals.begin())>
+{
+    auto rightIt = intervals.upper_bound(value);
+    auto leftIt = intervals.end();
+
+    if (rightIt != intervals.begin()) {
+        leftIt = std::prev(rightIt);
+    }
+
+    return {leftIt, rightIt};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
