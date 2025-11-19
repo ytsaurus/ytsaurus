@@ -464,10 +464,18 @@ public:
     {
         YT_LOG_INFO("Started preparing artifacts");
 
-        if (UserJobEnvironment_->HasRootFS() && Config_->EnableRootVolumeDiskQuota) {
-            RunTool<TCreateDirectoryAsRootTool>(CombinePaths(
+        if (UserJobEnvironment_->HasRootFS()) {
+            YT_VERIFY(Config_->RootPath);
+
+            auto sandboxPath = CombinePaths(
                 *Config_->RootPath,
-                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User))));
+                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
+
+            if (!NFS::Exists(sandboxPath)) {
+                YT_LOG_DEBUG("Creating sandbox path (Path: %v)",
+                    sandboxPath);
+                RunTool<TCreateDirectoryAsRootTool>(sandboxPath);
+            }
         }
 
         // Prepare user artifacts.
@@ -515,26 +523,14 @@ public:
             GetSandboxRelPath(ESandboxKind::User));
         auto artifactPath = CombinePaths(sandboxPath, artifactName);
 
-        auto canCopyToRootFS = [&] (const TString& artifactPath) {
-            if (!Config_->EnableRootVolumeDiskQuota) {
-                return false;
-            }
-
-            for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
-                if (artifactPath.StartsWith(tmpfsPath)) {
-                    return false;
-                }
-            }
-
-            return true;
-        };
-
-        if (UserJobEnvironment_->HasRootFS() && canCopyToRootFS(artifactPath)) {
+        if (UserJobEnvironment_->HasRootFS()) {
+            YT_VERIFY(Config_->RootPath);
             auto sandboxPath = CombinePaths(
                 *Config_->RootPath,
                 Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
             artifactPath = CombinePaths(sandboxPath, artifactName);
-            YT_LOG_INFO("Copy artifact directly to rootFS (ArtifactPath %v)", artifactPath);
+            YT_LOG_INFO("Copy artifact directly to rootFS (ArtifactPath %v)",
+                artifactPath);
         }
 
         auto onError = [&] (const TError& error) {
