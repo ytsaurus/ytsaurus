@@ -19,7 +19,6 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:3.25.5")
-    api(project(":yql:essentials:providers:common:proto"))
 
     protobuf(files(buildProtoDir))
 }
@@ -34,7 +33,7 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
-        include("yt/yql/providers/ytflow/integration/proto/yt.proto")
+        include("yql/essentials/utils/fetch/proto/fetch_config.proto")
     }
     into(buildProtoDir)
 }

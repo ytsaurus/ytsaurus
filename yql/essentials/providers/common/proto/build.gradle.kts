@@ -19,7 +19,8 @@ java {
 
 dependencies {
     api("com.google.protobuf:protobuf-java:3.25.5")
-    api(project(":yql:essentials:providers:common:proto"))
+    api(project(":yql:essentials:protos"))
+    api(project(":yql:essentials:utils:fetch:proto"))
 
     protobuf(files(buildProtoDir))
 }
@@ -34,7 +35,8 @@ protobuf {
 
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
-        include("yt/yql/providers/ytflow/integration/proto/yt.proto")
+        include("yql/essentials/providers/common/proto/gateways_config.proto")
+        include("yql/essentials/providers/common/proto/udf_resolver.proto")
     }
     into(buildProtoDir)
 }
