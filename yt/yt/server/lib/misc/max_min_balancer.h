@@ -44,7 +44,11 @@ class TDecayingMaxMinBalancer
 public:
     TDecayingMaxMinBalancer(W decayFactor, TDuration decayInterval);
 
+    //! Adds a contender with an initial weight.
+    //! Contender must not be already added.
     void AddContender(T contender, W initialWeight = W());
+    //! Tries to add a contender with an initial weight.
+    //! Returns true if the contender was added, false if it was already present.
     bool TryAddContender(T contender, W initialWeight = W());
 
     //! Selects winner between added contenders.
