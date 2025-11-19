@@ -19,8 +19,8 @@ PEERDIR(
 # Added automatically to remove dependency on default contrib versions
 DEPENDENCY_MANAGEMENT(
     contrib/java/junit/junit/4.13
-    contrib/java/org/apache/logging/log4j/log4j-core/2.13.1
-    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.13.1
+    contrib/java/org/apache/logging/log4j/log4j-core/2.25.0
+    contrib/java/org/apache/logging/log4j/log4j-slf4j-impl/2.25.1
 )
 
 LINT(extended)
