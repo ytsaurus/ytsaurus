@@ -113,7 +113,7 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TMediumMap<EChunkStatus> ComputeChunkStatuses(
+    TCompactMediumMap<EChunkStatus> ComputeChunkStatuses(
         TChunk* chunk,
         const TStoredChunkReplicaList& replicas);
     ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(
@@ -181,7 +181,7 @@ private:
 
     struct TChunkStatistics
     {
-        TMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
+        TCompactMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
@@ -348,7 +348,7 @@ private:
         NErasure::ICodec* codec,
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
-        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
         const TMediumSet& activeMedia,
         const NErasure::TPartIndexSet& replicaIndexes,
         bool totallySealed);
@@ -412,7 +412,7 @@ private:
     TMediumMap<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
     NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
-    TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
+    TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
         const TChunk* chunk,
         const TStoredChunkReplicaList& replicas);
 

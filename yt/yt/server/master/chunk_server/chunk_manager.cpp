@@ -216,18 +216,18 @@ struct TChunkToLinkedListNode
 //! Initializes itself with all sentinels. Required because history has left us with
 //! sentinels inside the valid medium index range.
 class TUsedMediumIndexSet
-    : public TMexSet
+    : public TMexIntSet
 {
 public:
     TUsedMediumIndexSet()
-        : TMexSet()
+        : TMexIntSet()
     {
         FillSentinels();
     }
 
     void Clear()
     {
-        TMexSet::Clear();
+        TMexIntSet::Clear();
         FillSentinels();
     }
 
@@ -2168,7 +2168,7 @@ public:
         }
 
         if (hintIndex && !IsValidRealMediumIndex(*hintIndex)) {
-            THROW_ERROR_EXCEPTION("Requested medium index %v is not allowed for actual media objects",
+            THROW_ERROR_EXCEPTION("Requested medium index %v is not allowed for real media objects",
                 *hintIndex);
         }
 
