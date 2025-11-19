@@ -3,7 +3,7 @@ kind: Ytsaurus
 metadata:
   name: minisaurus
 spec:
-  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-24.1.0-relwithdebinfo
+  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-25.2.1-relwithdebinfo
 
   discovery:
     instanceCount: 1
@@ -150,15 +150,15 @@ spec:
     resources:
       limits:
         memory: 100Mi
-    image: ghcr.io/ytsaurus/strawberry:0.0.12
+    image: ghcr.io/ytsaurus/strawberry:0.0.15
 
   tabletNodes:
     - instanceCount: 1
 
   yqlAgents:
     instanceCount: 1
-    image: ghcr.io/ytsaurus/query-tracker:0.0.8
+    image: ghcr.io/ytsaurus/query-tracker:0.0.11
 
   queryTrackers:
     instanceCount: 1
-    image: ghcr.io/ytsaurus/query-tracker:0.0.8
+    image: ghcr.io/ytsaurus/query-tracker:0.0.11
