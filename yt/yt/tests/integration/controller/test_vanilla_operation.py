@@ -471,33 +471,33 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("faucct")
     def test_distributed(self):
         op = run_test_vanilla(
-            with_breakpoint("echo YT_JOB_COOKIE_GROUP_INDEX $YT_JOB_COOKIE_GROUP_INDEX 1>&2; env 1>&2; BREAKPOINT"),
-            task_patch={"cookie_group_size": 2}, job_count=1,
+            with_breakpoint("echo YT_DISTRIBUTED_GROUP_JOB_INDEX $YT_DISTRIBUTED_GROUP_JOB_INDEX 1>&2; env 1>&2; BREAKPOINT"),
+            task_patch={"distributed_job_options": {"factor": 2}}, job_count=1,
         )
         job_ids = wait_breakpoint(job_count=2)
-        main_job_id = list_jobs(op.id, attributes=["main_job_id"])["jobs"][0]["main_job_id"]
+        distributed_group_main_job_id = list_jobs(op.id, attributes=["distributed_group_main_job_id"])["jobs"][0]["distributed_group_main_job_id"]
 
         jobs = [
-            get_job(op.id, job_id, attributes=["job_id", "job_cookie_group_index", "main_job_id"])
+            get_job(op.id, job_id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"])
             for job_id in job_ids
         ]
-        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
-        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
-        assert main_job_id == jobs[0]["job_id"]
-        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+        jobs = sorted(jobs, key=lambda job: job["distributed_group_job_index"])
+        assert [0, 1] == [job["distributed_group_job_index"] for job in jobs]
+        assert distributed_group_main_job_id == jobs[0]["job_id"]
+        assert {distributed_group_main_job_id} == {job["distributed_group_main_job_id"] for job in jobs}
 
         jobs = list_jobs(
-            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
-            main_job_id=main_job_id,
+            op.id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"],
+            distributed_group_main_job_id=distributed_group_main_job_id,
         )["jobs"]
-        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
-        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
-        assert main_job_id == jobs[0]["id"]
-        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+        jobs = sorted(jobs, key=lambda job: job["distributed_group_job_index"])
+        assert [0, 1] == [job["distributed_group_job_index"] for job in jobs]
+        assert distributed_group_main_job_id == jobs[0]["id"]
+        assert {distributed_group_main_job_id} == {job["distributed_group_main_job_id"] for job in jobs}
 
         assert [] == list_jobs(
-            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
-            main_job_id=(set(job_ids) - {main_job_id}).pop(),
+            op.id, attributes=["job_id", "distributed_group_job_index", "distributed_group_main_job_id"],
+            distributed_group_main_job_id=(set(job_ids) - {distributed_group_main_job_id}).pop(),
         )["jobs"]
 
         release_breakpoint()
@@ -514,8 +514,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_count": 1,
                             "output_table_paths": ["//tmp/t"],
                             "format": "yson",
-                            "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
-                            "cookie_group_size": 2,
+                            "command": """if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
+                            "distributed_job_options": {"factor": 2},
                             "close_stdout_if_unused": True,
                         },
                     },
@@ -528,8 +528,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                         "job_count": 1,
                         "output_table_paths": ["//tmp/t"],
                         "format": "yson",
-                        "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then echo '{a=1}'; fi""",
-                        "cookie_group_size": 2,
+                        "command": """if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then echo '{a=1}'; fi""",
+                        "distributed_job_options": {"factor": 2},
                         "close_stdout_if_unused": True,
                     },
                 }
@@ -936,7 +936,7 @@ class TestVanillaOperationRevival(YTEnvSetup):
         # Will not start jobs while sleeping_op is running.
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
-            task_patch={"cookie_group_size": 3},
+            task_patch={"distributed_job_options": {"factor": 3}},
             spec={"pool": "fake_pool"},
         )
 
@@ -2024,8 +2024,8 @@ class TestGangOperations(YTEnvSetup):
         assert restarted_job_profiler.get_job_count_delta() == 0
 
     @authors("faucct")
-    def test_gang_operation_with_cookie_group_size(self):
-        with pytest.raises(YtError, match='Operation with a non-singular "cookie_group_size" can not have tasks with configured "gang_options"'):
+    def test_gang_operation_with_distributed_job_options(self):
+        with pytest.raises(YtError, match='Operation with "distributed_job_options" can not have tasks with "gang_options"'):
             vanilla(
                 track=False,
                 spec={
@@ -2034,7 +2034,7 @@ class TestGangOperations(YTEnvSetup):
                             "job_count": 1,
                             "command": ";",
                             "gang_options": {},
-                            "cookie_group_size": 2,
+                            "distributed_job_options": {"factor": 2},
                         },
                     },
                 },

@@ -1397,6 +1397,19 @@ DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDistributedJobOptions
+    : public NYTree::TYsonStruct
+{
+    int Factor;
+
+    REGISTER_YSON_STRUCT(TDistributedJobOptions);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedJobOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
@@ -1487,8 +1500,7 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    //! Job replicas processing the cookie.
-    int CookieGroupSize;
+    TDistributedJobOptionsPtr DistributedJobOptions;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
