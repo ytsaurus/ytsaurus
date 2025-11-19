@@ -271,6 +271,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     const TResourceTreeElementPtr& element,
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    const std::optional<TJobResources>& additionalLocalResourceLimits,
     TJobResources* availableResourceLimitsOutput)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -294,8 +295,13 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
 
     {
         TJobResources localAvailableResourceLimits;
-        if (!element->IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(delta, allowLimitsOvercommit, &localAvailableResourceLimits)) {
-            return EResourceTreeIncreaseResult::ResourceLimitExceeded;
+        auto precommitResult = element->IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+            delta,
+            allowLimitsOvercommit,
+            additionalLocalResourceLimits,
+            &localAvailableResourceLimits);
+        if (precommitResult != EResourceTreeIncreaseResult::Success) {
+            return precommitResult;
         }
         availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
     }
@@ -303,7 +309,8 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     TResourceTreeElement* currentElement = element->Parent_.Get();
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
-        if (!currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, allowLimitsOvercommit, &localAvailableResourceLimits)) {
+        auto precommitResult = currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, allowLimitsOvercommit, &localAvailableResourceLimits);
+        if (precommitResult != EResourceTreeIncreaseResult::Success) {
             failedParent = currentElement;
             break;
         }
