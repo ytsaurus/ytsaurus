@@ -198,6 +198,7 @@ class Dashboard(Taggable):
         self.serializer_options = {}
         self.dashboard_tags = []
         self.permissions: list[Permission] = []
+        self.monitoring_links = None
 
     def value(self, key, value):
         self.has_set_values = True
@@ -266,3 +267,6 @@ class Dashboard(Taggable):
 
     def add_permission(self, permission: Literal["read", "use"], path: str, cluster: str = "$cluster", ignore_paths: list[str] | None = None):
         self.permissions.append(Permission(permission, path, cluster, ignore_paths))
+
+    def set_monitoring_links(self, links):
+        self.monitoring_links = links

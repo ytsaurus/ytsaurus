@@ -7,10 +7,9 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, add_common_dashboard_parameters
+from .common import create_dashboard
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import EmptyCell
 from yt_dashboard_generator.taggable import NotEquals
@@ -67,14 +66,8 @@ def build_late_messages():
 
 
 def build_flow_event_time():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_lags())
-    d.add(build_late_messages())
+    def fill(d):
+        d.add(build_lags())
+        d.add(build_late_messages())
 
-    d.set_title("[YT Flow] Pipeline event time & watermarks")
-    add_common_dashboard_parameters(d)
-
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("event-time", fill)

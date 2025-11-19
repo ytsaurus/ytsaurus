@@ -8,15 +8,13 @@
 from ..common.sensors import FlowController, FlowWorker
 
 from .common import (
-    build_versions,
+    create_dashboard,
     build_resource_usage,
     build_extra_cpu,
-    add_common_dashboard_parameters,
     build_yt_rpc,
 )
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
@@ -211,20 +209,14 @@ def build_watermark_heuristics():
 
 
 def build_flow_controller():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_resource_usage("controller", add_component_to_title=False))
-    d.add(build_flow_layout())
-    d.add(build_flow_layout_mutations())
-    d.add(build_controller_iterations())
-    d.add(build_heartbeats())
-    d.add(build_watermark_heuristics())
-    d.add(build_extra_cpu("controller"))
-    d.add(build_yt_rpc("controller"))
+    def fill(d):
+        d.add(build_resource_usage("controller", add_component_to_title=False))
+        d.add(build_flow_layout())
+        d.add(build_flow_layout_mutations())
+        d.add(build_controller_iterations())
+        d.add(build_heartbeats())
+        d.add(build_watermark_heuristics())
+        d.add(build_extra_cpu("controller"))
+        d.add(build_yt_rpc("controller"))
 
-    d.set_title("[YT Flow] Pipeline controller")
-    add_common_dashboard_parameters(d)
-
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("controller", fill)

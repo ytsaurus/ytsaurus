@@ -7,10 +7,9 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, add_common_dashboard_parameters, build_text_row
+from .common import create_dashboard, build_text_row
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import Text, EmptyCell
 
@@ -84,16 +83,12 @@ def build_diagnostics():
 
 
 def build_flow_diagnostics():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_text_row(
-        "# If you see values &ge; 0, something is wrong\n"
-        "Values on graphs have no physical meaning. Consider anything &ge; 0 as lit warning.\n\n"
-        "[Diagnostic documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"
-    ))
-    d.add(build_diagnostics())
+    def fill(d):
+        d.add(build_text_row(
+            "# If you see values &ge; 0, something is wrong\n"
+            "Values on graphs have no physical meaning. Consider anything &ge; 0 as lit warning.\n\n"
+            "[Diagnostic documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"
+        ))
+        d.add(build_diagnostics())
 
-    d.set_title("[YT Flow] Pipeline diagnostics")
-    add_common_dashboard_parameters(d)
-
-    return d.value("project", TemplateTag("project")).value("cluster", TemplateTag("cluster"))
+    return create_dashboard("diagnostics", fill)
