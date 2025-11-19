@@ -73,7 +73,7 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
         }
         TStringStream parameterSchema;
         TYsonWriter consumer(&parameterSchema);
-        parameter->WriteTypeSchema(ysonStruct.Get(), &consumer, {});
+        parameter->WriteTypeSchema(&consumer, {});
         consumer.Flush();
         auto logicalType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(parameterSchema.Str())).LogicalType;
         auto [type, required] = CastToV1Type(logicalType);
