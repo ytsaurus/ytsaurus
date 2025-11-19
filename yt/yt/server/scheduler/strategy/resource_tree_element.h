@@ -76,14 +76,15 @@ private:
     // NB: Any resource usage changes are forbidden after alive is set to false.
     std::atomic<bool> Alive_ = true;
 
-    bool IncreaseLocalResourceUsagePrecommitWithCheck(
+    EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
         TJobResources* availableResourceLimitsOutput);
 
-    bool IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+    EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        const std::optional<TJobResources>& additionalLocalResourceLimits,
         TJobResources* availableResourceLimitsOutput);
 
     bool IncreaseLocalResourceUsagePrecommit(

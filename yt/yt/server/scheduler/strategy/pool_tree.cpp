@@ -1898,6 +1898,7 @@ private:
         auto schedulingPolicyState = SchedulingPolicy_->CreateSnapshotState(&schedulingPolicyPostUpdateContext);
         auto treeSnapshot = New<TPoolTreeSnapshot>(
             treeSnapshotId,
+            now,
             std::move(rootElement),
             std::move(fairShareUpdateResult.EnabledOperationIdToElement),
             std::move(fairShareUpdateResult.DisabledOperationIdToElement),

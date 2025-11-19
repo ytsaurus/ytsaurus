@@ -866,6 +866,7 @@ protected:
         auto schedulingPolicyState = SchedulingPolicy_->CreateSnapshotState(&schedulingPolicyPostUpdateContext);
         return New<TPoolTreeSnapshot>(
             TTreeSnapshotId::Create(),
+            now,
             rootElement,
             std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
