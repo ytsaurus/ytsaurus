@@ -153,7 +153,7 @@ func (c *Client) GetPrimaryMasters(ctx context.Context) (PrimaryMasterMap, error
 
 		s, err := c.GetHydraState(ctx, m.Path)
 		if err != nil {
-			c.l.Warn("error retrieving hydra state", log.Error(err))
+			c.l.Debug("error retrieving hydra state", log.Error(err))
 		} else {
 			m.HydraState = s
 		}
@@ -212,7 +212,7 @@ func (c *Client) GetSecondaryMasters(ctx context.Context) (SecondaryMasterMap, e
 
 		s, err := c.GetHydraState(ctx, m.Path)
 		if err != nil {
-			c.l.Warn("error retrieving hydra state", log.Error(err))
+			c.l.Debug("error retrieving hydra state", log.Error(err))
 		} else {
 			m.HydraState = s
 		}
@@ -265,7 +265,7 @@ func (c *Client) GetTimestampProviders(ctx context.Context) (TimestampProviderMa
 
 		s, err := c.GetHydraState(ctx, p.Path)
 		if err != nil {
-			c.l.Warn("error retrieving hydra state", log.Error(err))
+			c.l.Debug("error retrieving hydra state", log.Error(err))
 		} else {
 			p.HydraState = s
 		}
