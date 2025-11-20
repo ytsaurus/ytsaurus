@@ -2327,7 +2327,7 @@ def add_show_default_config_parser(add_parser):
 def detect_porto_layer(**kwargs):
     if not yt.config["proxy"]["url"]:
         raise yt.YtError("Missed '--proxy' flag")
-    layers = yt.spec_builders.BaseLayerDetector._get_default_layer(yt, layer_type="porto")
+    layers = yt.spec_builders.BaseLayerDetector._get_default_layer(None, layer_type="porto")
     print_to_output(", ".join(layers) if layers else "-")
 
 
