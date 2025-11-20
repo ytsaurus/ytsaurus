@@ -455,6 +455,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
             THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
         }
+
+        if (config->Enable && !config->EnableSequoiaChunkRefresh) {
+            THROW_ERROR_EXCEPTION("Cannot enable Sequoia chunk replicas without enabling Sequoia chunk refresh");
+        }
     });
 }
 
