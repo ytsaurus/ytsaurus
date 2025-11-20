@@ -9,12 +9,23 @@ from ...taggable import SystemFields, NotEquals, SensorTemplate
 
 import lark
 
+from dataclasses import dataclass
 import enum
+import logging
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 ##################################################################
 
 GrafanaTag = BackendTag.make_new("GrafanaTag")
+
+
+@dataclass
+class PrometheusDiscoverValues:
+    label: str
+    match: str
 
 
 class GrafanaSystemTags(enum.Enum):
@@ -22,7 +33,7 @@ class GrafanaSystemTags(enum.Enum):
 
 
 class GrafanaTextboxDashboardParameter:
-    def __init__(self, default_value=None, default_for_ui=None):
+    def __init__(self, default_value=None, default_for_ui=None, discover_values: PrometheusDiscoverValues | None = None):
         self.dict = {
             "type": "textbox",
         }
@@ -42,6 +53,11 @@ class GrafanaTextboxDashboardParameter:
             })
         if default_for_ui is not None:
             self.dict["default_for_ui"] = default_for_ui
+        if discover_values is not None:
+            self.dict["discover_values"] = {
+                "label": discover_values.label,
+                "match": discover_values.match,
+            }
 
 
 ##################################################################
@@ -73,7 +89,7 @@ class GrafanaProxy():
         try:
             current = self.fetch_dashboard(dashboard_id)
             current_dashboard = current["dashboard"]
-            print("Current version:", current_dashboard["version"])
+            logger.info("Current version: %s", current_dashboard["version"])
         except BaseException:
             current = {}
             current_dashboard = {}
@@ -385,7 +401,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 series_list.append(series_info)
                 ref_id_counter += 1
         except NotImplementedError as e:
-            print(e)
+            logger.warning(e)
             return {
                 "type": "text",
                 "options": {
@@ -458,10 +474,10 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                                 "value": cell.yaxis_to_label[SystemFields.RightAxis]
                             })
 
-        if cell.display_legend is not None:
-            if "hideFrom" not in custom_settings:
-                custom_settings["hideFrom"] = {}
-            custom_settings["hideFrom"]["legend"] = not cell.display_legend
+        # By default, the legend in grafana is displayed.
+        if "hideFrom" not in custom_settings:
+            custom_settings["hideFrom"] = {}
+        custom_settings["hideFrom"]["legend"] = not cell.display_legend
 
         return content
 
@@ -475,19 +491,20 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
         max_len = max(len(row) for row in rows)
         width = self.BOARD_WIDTH // max_len
 
-        row_header = {
-            "gridPos": {
-                "h": 1,
-                "w": self.BOARD_WIDTH,
-                "x": 0,
-                "y": self.vertical_offset
-            },
-            "type": "row",
-        }
-        if rowset.name is not None:
-            row_header["title"] = rowset.name
-        self.panels.append(row_header)
-        self.vertical_offset += 1
+        if rowset.expandable:
+            row_header = {
+                "gridPos": {
+                    "h": 1,
+                    "w": self.BOARD_WIDTH,
+                    "x": 0,
+                    "y": self.vertical_offset
+                },
+                "type": "row",
+            }
+            if rowset.name is not None:
+                row_header["title"] = rowset.name
+            self.panels.append(row_header)
+            self.vertical_offset += 1
 
         def _get_grid_pos(i, x_shift, height):
             return dict(x=x_shift + i * width, y=self.vertical_offset, w=width, h=height)

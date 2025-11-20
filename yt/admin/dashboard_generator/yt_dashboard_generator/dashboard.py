@@ -90,7 +90,7 @@ class Row(Taggable):
         cells = [cell.serialize(begin_values, end_values, serializer) for cell in self.cells]
         return serializer.on_row(self, cells)
 
-    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None, skip_cell=False):
+    def cell(self, title, sensor, yaxis_label=None, display_legend=False, description=None, colors=None, skip_cell=False):
         if skip_cell:
             return self
         self.cells.append(Cell(
@@ -142,6 +142,7 @@ class Rowset(Taggable):
         self.rows = []
         self.cell_per_row = None
         self.name = name
+        self.expandable = False
 
     def set_cell_per_row(self, value):
         self.cell_per_row = value
@@ -157,9 +158,10 @@ class Rowset(Taggable):
             self.begin_values.append((key, value))
         return self
 
-    def row(self, height=None):
+    def row(self, height=None, expandable=False):
         assert not self.end_values, \
             "Tags can be added to the rowset only at the beginning or at the end"
+        self.expandable = expandable
         self.rows.append(Row(self, height=height))
         return self.rows[-1]
 

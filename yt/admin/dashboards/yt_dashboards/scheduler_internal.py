@@ -24,7 +24,7 @@ from .common.sensors import (
 from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.sensor import Sensor
+from yt_dashboard_generator.sensor import MultiSensor, Sensor
 from yt_dashboard_generator.taggable import SystemFields, NotEquals, ContainerTemplate, SensorTemplate
 
 ##################################################################
@@ -91,7 +91,7 @@ def _build_scheduling_statistics(d):
             .cell("Preemptive preschedule job attempts", Scheduler("yt.scheduler.preschedule_job_count.rate")
                 .stack(True)
                 .value("tree", SCHEDULER_DASHBOARD_DEFAULT_TREE)
-                .value("scheduling_stage", NotEquals("non_preemptive|regular*"))
+                .value("scheduling_stage", NotEquals("non_preemptive|regular*|"))
                 .legend_format("{{scheduling_stage}}"))
             .cell("Operation satisfaction distribution", SchedulerPools("yt.scheduler.pools.operation_satisfaction_distribution")
                 .value("tree", SCHEDULER_DASHBOARD_DEFAULT_TREE)
@@ -106,8 +106,11 @@ def _build_logging(d):
         .stack(False)
         .all(yt_host)
         .row()
-            .cell("Scheduler Logging", SchedulerInternal("yt.logging.enqueued_events.rate|yt.logging.dropped_events.rate")
-                .legend_format("{}, {}".format(ContainerTemplate, SensorTemplate)))
+            .cell("Scheduler Logging",
+                MultiSensor(
+                    SchedulerInternal("yt.logging.enqueued_events.rate").legend_format("{}, {}".format(ContainerTemplate, "yt.logging.enqueued_events.rate")),
+                    SchedulerInternal("yt.logging.dropped_events.rate").legend_format("{}, {}".format(ContainerTemplate, "yt.logging.dropped_events.rate")),
+                ))
             .cell("Controller Agent Logging", CAInternal("yt.logging.enqueued_events.rate")
                 .container_legend_format())
     )
@@ -139,11 +142,14 @@ def _build_aborted_job_statistics(d, backend):
                 .aggr("job_type", "tree")
                 .value("abort_reason", "!preemption")
                 .legend_format("{{abort_reason}}"))
-            .cell("Aborted vs completed job time", SchedulerPools("yt.scheduler.pools.metrics.total_time_aborted.rate|yt.scheduler.pools.metrics.total_time_completed.rate")
+            .cell("Aborted vs completed job time",
+                MultiSensor(
+                    SchedulerPools("yt.scheduler.pools.metrics.total_time_aborted.rate").legend_format("aborted"),
+                    SchedulerPools("yt.scheduler.pools.metrics.total_time_completed.rate").legend_format("completed"),
+                )
                 .stack(True)
                 .value("tree", SCHEDULER_DASHBOARD_DEFAULT_TREE)
-                .value("pool", "<Root>")
-                .sensor_legend_format())
+                .value("pool", "<Root>"))
     )
 
 

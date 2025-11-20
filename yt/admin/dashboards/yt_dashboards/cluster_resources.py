@@ -41,7 +41,7 @@ from yt_dashboard_generator.sensor import Sensor, MultiSensor
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.taggable import SystemFields, NotEquals
 
-from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter, PrometheusDiscoverValues
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 
@@ -158,7 +158,11 @@ def build_cluster_resources(has_node_monitor):
     d.add_parameter(
         "tree",
         "Pool tree",
-        GrafanaTextboxDashboardParameter(CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE),
+        GrafanaTextboxDashboardParameter(
+            CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE,
+            default_for_ui=CLUSTER_RESOURCES_DASHBOARD_DEFAULT_TREE,
+            discover_values=PrometheusDiscoverValues("tree", "{cluster=~\"$cluster\"}"),
+        ),
         backends=["grafana"],
     )
 

@@ -113,6 +113,12 @@ class Taggable(ABC):
     def legend_format(self, value):
         return self.value(SystemFields.LegendFormat, value)
 
+    def host_container_legend_format(self, value=None):
+        formatted_value = "{} {}".format("{{host}}", ContainerTemplate)
+        if value is not None:
+            formatted_value = "{} {}".format(value, formatted_value)
+        return self.value(SystemFields.LegendFormat, formatted_value)
+
     def container_legend_format(self):
         return self.value(SystemFields.LegendFormat, ContainerTemplate)
 
