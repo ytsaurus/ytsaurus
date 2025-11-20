@@ -821,7 +821,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::Fill(TExprBase node, TE
         .Input()
             .Add()
                 .Operation<TYtFill>()
-                    .World(ApplySyncListToWorld(ctx.NewWorld(write.Pos()), syncList, ctx))
+                    .World(ApplySyncListToWorld(write.World().Ptr(), syncList, ctx))
                     .DataSink(write.DataSink())
                     .Content(MakeJobLambdaNoArg(cleanup.Cast(), ctx))
                     .Output()
