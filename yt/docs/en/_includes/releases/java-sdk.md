@@ -12,8 +12,7 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Release date:** 2025-10-23
 
-
-### Features
+#### Features
 * Add `execute` method to `MultiYTsaurusClient`.
 * Support `YPath` empty root designator for operation spec.
 * Support `PatchOperationSpec` method.
@@ -24,7 +23,7 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 * Support listener (`RpcClientListener`) for tracking bytes sent by the client.
 * Add `sortOrder` flag to `ListQueries`.
 
-### Fixes
+#### Fixes
 * Fix `OperationContext.getTableIndex()` when using `ReducerWithKey`.
 
 {% endcut %}
