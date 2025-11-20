@@ -20,7 +20,7 @@ def action_queue_utilization(sensor_cls):
 
 cpu_usage = (lambda thread: MultiSensor(
     MonitoringExpr(TabNodeCpu("yt.resource_tracker.thread_count")).top_max(1).alias("Limit"),
-    MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu")) / 100)
+    MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu")).host_container_legend_format() / 100)
     .value("thread", thread))
 
 

@@ -11,8 +11,8 @@ from ..common.sensors import *
 
 def build_user_disk():
     reader_stats = MultiSensor(
-        NodeTablet("yt.tablet_node.{}.chunk_reader_statistics.{}.rate"),
-        NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate"))
+        NodeTablet("yt.tablet_node.{}.chunk_reader_statistics.{}.rate").host_container_legend_format(),
+        NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate").host_container_legend_format("hunks"))
 
     return (Rowset()
             .aggr("table_tag", "table_path", "user")
@@ -41,7 +41,7 @@ def build_user_disk():
 
 
 def build_user_background_disk():
-    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate")
+    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}}")
 
     return (Rowset()
             .all("#AB", "method", "medium")
@@ -59,7 +59,7 @@ def build_user_background_disk():
 
 def build_user_caches():
     usage = TabNode("{}.hit_weight.rate")
-    misses = TabNode("yt.{}_node.{}.missed_weight.rate")
+    misses = TabNode("yt.{}_node.{}.missed_weight.rate").host_container_legend_format()
     return (Rowset()
             .stack(False)
             .top()
@@ -67,13 +67,20 @@ def build_user_caches():
             .row()
                 .cell(
                     "Versioned chunk meta cache hit weight rate",
-                    NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.hit_weight.rate").aggr("hit_type"))
+                    NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.hit_weight.rate").aggr("hit_type").host_container_legend_format())
                 .cell("Versioned chunk meta cache miss weight rate", misses("tablet", "versioned_chunk_meta_cache"))
             .row()
                 .cell(
                     "Block cache hit weight rate",
-                    usage("yt.data_node.block_cache.*compressed_data").aggr("hit_type"))
-                .cell("Block cache miss weight rate", misses("data", "block_cache.*compressed_data"))
+                    MultiSensor(
+                        usage("yt.data_node.block_cache.compressed_data").aggr("hit_type").host_container_legend_format("compressed"),
+                        usage("yt.data_node.block_cache.uncompressed_data").aggr("hit_type").host_container_legend_format("uncompressed")),
+                    )
+                .cell("Block cache miss weight rate",
+                    MultiSensor(
+                        misses("data", "block_cache.compressed_data").host_container_legend_format("compressed"),
+                        misses("data", "block_cache.uncompressed_data").host_container_legend_format("uncompressed"))
+                    )
             .row()
                 .cell("Block cache memory", TabNode("yt.cluster_node.memory_usage.used")
                     .value("category", "block_cache"))

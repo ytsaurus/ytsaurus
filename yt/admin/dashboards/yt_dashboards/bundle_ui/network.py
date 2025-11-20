@@ -12,7 +12,7 @@ from ..common.sensors import *
 
 def build_tablet_network():
     reader_stats = NodeTablet(
-        "yt.tablet_node.{}.chunk_reader_statistics.{}.rate")
+        "yt.tablet_node.{}.chunk_reader_statistics.{}.rate").host_container_legend_format()
 
     # TODO: show per-user lines with host=Aggr and per-host with host=!Aggr.
     return (Rowset()
@@ -101,7 +101,8 @@ def build_lookup_select_ack_time():
         .value("yt_service", "QueryService")
         .aggr("user")
         .stack(False)
-        .top())
+        .top()
+        .host_container_legend_format())
     return (Rowset()
         .row()
             .cell("Table lookup (QueryService::Multiread) RPC acknowledge time", s.value("method", "Multiread"))
@@ -115,7 +116,8 @@ def build_rpc_message_size_stats_per_host(
     s = (sensor_class("yt.rpc.{}.{{}}.rate".format(client_or_server))
          .aggr("method", "yt_service", "user", "recognized")
          .stack(False)
-         .top())
+         .top()
+         .host_container_legend_format())
     if name_suffix:
         name_suffix = " " + name_suffix
     return (Rowset()
