@@ -25,6 +25,9 @@ struct TNativeAuthenticationManagerConfig
     //! If true, then service tickets are allowed to be sent.
     bool EnableSubmission;
 
+    //! If true, then service tickets are verified in shadow mode, and a warning is emitted on failure.
+    bool WarnOnUnauthenticated;
+
     REGISTER_YSON_STRUCT(TNativeAuthenticationManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -39,6 +42,7 @@ struct TNativeAuthenticationManagerDynamicConfig
 {
     std::optional<bool> EnableValidation;
     std::optional<bool> EnableSubmission;
+    std::optional<bool> WarnOnUnauthenticated;
 
     REGISTER_YSON_STRUCT(TNativeAuthenticationManagerDynamicConfig);
 
