@@ -164,6 +164,13 @@ public:
     //! Returns registered chunks per location. Empty locations are omitted.
     TPerLocationChunkMap GetPerLocationChunks();
 
+    //! Iterates over all registered chunks and checks that their cell tags are from existing master cell tags.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    void CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const;
+
     //! Physically removes or move to trash the location chunk. This method called with registering in location actions.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.

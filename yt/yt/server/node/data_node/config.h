@@ -474,6 +474,8 @@ struct TMasterConnectorDynamicConfig
     //! Retrying channel for location full heartbeats.
     NRpc::TRetryingChannelConfigPtr FullHeartbeatSessionRetryingChannel;
 
+    bool CheckChunksCellTagsBeforeHeartbeats;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
