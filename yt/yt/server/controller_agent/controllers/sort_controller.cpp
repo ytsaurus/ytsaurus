@@ -446,8 +446,8 @@ protected:
             : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
             , Level_(level)
-            , ChunkPoolInput_(chunkPoolInput)
-            , ChunkPoolOutput_(chunkPoolOutput)
+            , ChunkPoolInput_(std::move(chunkPoolInput))
+            , ChunkPoolOutput_(std::move(chunkPoolOutput))
         {
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter_);
 
@@ -1302,7 +1302,7 @@ protected:
             , Partition_(std::move(partition))
             , ChunkPool_(CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
-                    .JobSizeConstraints = jobSizeConstraints,
+                    .JobSizeConstraints = std::move(jobSizeConstraints),
                     .RowBuffer = controller->RowBuffer_,
                     .Logger = Logger().WithTag("Name: SimpleSort"),
                 },
@@ -2703,7 +2703,7 @@ protected:
         };
 
         auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(finalPartitionCount, maxPartitionFactor);
-        PartitionTreeDepth_ = partitionTreeSkeleton.TreeDepth;
+        PartitionTreeDepth_ = partitionTreeSkeleton.Depth;
         PartitionsByLevels_.resize(PartitionTreeDepth_ + 1);
         buildPartitionTree(partitionTreeSkeleton.Root.get(), 0, buildPartitionTree);
     }
