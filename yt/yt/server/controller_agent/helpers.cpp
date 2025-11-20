@@ -459,7 +459,7 @@ TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPar
     };
     return {
         .Root = buildPartitionTreeSkeleton(partitionCount, partitionTreeDepth, buildPartitionTreeSkeleton),
-        .TreeDepth = partitionTreeDepth,
+        .Depth = partitionTreeDepth,
     };
 }
 

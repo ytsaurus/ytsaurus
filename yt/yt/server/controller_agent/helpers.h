@@ -154,7 +154,7 @@ struct TPartitionTreeSkeletonNode
 struct TPartitionTreeSkeleton
 {
     std::unique_ptr<TPartitionTreeSkeletonNode> Root;
-    int TreeDepth = 0;
+    int Depth = 0;
 };
 
 TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor);
