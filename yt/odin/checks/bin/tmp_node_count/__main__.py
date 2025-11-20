@@ -14,7 +14,8 @@ def check_node_count(yt_client, path, count_threshold, cluster_name, logger, sta
             return states.UNAVAILABLE_STATE, \
                 f"{path}/@count:{count} -ge threshold:{count_threshold} {check_link}"
     else:
-        return states.PARTIALLY_AVAILABLE_STATE, f"Wrapper file path do not exist: {path}"
+        logger.info(f"{path} does not exist")
+        return states.FULLY_AVAILABLE_STATE, f"Wrapper file path does not exist: {path}"
     logger.info(f"{path}/@count:{count} -lt threshold:{count_threshold}")
     return states.FULLY_AVAILABLE_STATE, \
         f"{path}/@count:{count} -lt threshold:{count_threshold}"
