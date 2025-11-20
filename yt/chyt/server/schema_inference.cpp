@@ -10,6 +10,9 @@
 #include <yt/yt/client/complex_types/merge_complex_types.h>
 
 namespace NYT::NClickHouseServer {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NComplexTypes;
 using namespace NTableClient;
@@ -198,6 +201,10 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
     return TColumnSchema(std::move(columnName), std::move(commonType), commonSortOrder);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TTableSchemaPtr InferCommonTableSchema(
     const std::vector<TTablePtr>& tables,
