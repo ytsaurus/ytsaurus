@@ -29,7 +29,7 @@ target_link_libraries(tools-import_table-lib PUBLIC
   yt-library-s3
   cpp-yson-node
   library-cpp-getopt
-  libs-apache-arrow
+  libs-apache-arrow_next
 )
 
 target_sources(tools-import_table-lib PRIVATE

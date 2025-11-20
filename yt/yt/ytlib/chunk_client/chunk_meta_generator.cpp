@@ -16,13 +16,11 @@
 
 #include <yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/json/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/csv/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/api/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/json/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
 
 namespace NYT::NChunkClient {
 
@@ -196,14 +194,14 @@ class TArrowChunkMetaGeneratorBase
 public:
     TArrowChunkMetaGeneratorBase(
         EChunkFormat chunkFormat,
-        std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
+        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
         : ChunkFormat_(chunkFormat)
         , ChunkFile_(std::move(chunkFile))
     { }
 
 protected:
     const EChunkFormat ChunkFormat_;
-    const std::shared_ptr<arrow::io::RandomAccessFile> ChunkFile_;
+    const std::shared_ptr<arrow20::io::RandomAccessFile> ChunkFile_;
 
     EChunkFormat GetChunkFormat() const override
     {
@@ -239,7 +237,7 @@ protected:
 };
 
 // TODO(achulkov2): Separate logic for single-block formats and formats convertible
-// to arrow::Table objects into two separate bases, since they are not really related.
+// to arrow20::Table objects into two separate bases, since they are not really related.
 
 class TSingleBlockArrowTableChunkMetaGeneratorBase
     : public TArrowChunkMetaGeneratorBase
@@ -248,7 +246,7 @@ public:
     using TArrowChunkMetaGeneratorBase::TArrowChunkMetaGeneratorBase;
 
 protected:
-    virtual std::shared_ptr<arrow::Table> GetArrowTable() const = 0;
+    virtual std::shared_ptr<arrow20::Table> GetArrowTable() const = 0;
 
     std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
     {
@@ -298,7 +296,7 @@ private:
 };
 
 template <typename TStreamingReader>
-    requires std::derived_from<TStreamingReader, arrow::RecordBatchReader> && requires(const TStreamingReader& reader) {
+    requires std::derived_from<TStreamingReader, arrow20::RecordBatchReader> && requires(const TStreamingReader& reader) {
         { reader.bytes_read() } -> std::same_as<int64_t>;
     }
 class TStreamingReaderArrowTableChunkMetaGeneratorBase
@@ -330,7 +328,7 @@ protected:
         Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(streamingReader->schema());
         ColumnarStatistics_ = TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount());
         while (true) {
-            std::shared_ptr<arrow::RecordBatch> batch;
+            std::shared_ptr<arrow20::RecordBatch> batch;
             // The docs say it is safe to separate rows using this.
             // The implementation only increments `bytes_read` by header row during the initialization or by whole requested batches synchronously:
             // https://github.com/tractoai/mirror-ytsaurus-ytsaurus/blob/d20e61aecc890ce1d9df0cc27bd29f766fc32313/contrib/libs/apache/arrow/cpp/src/arrow/csv/reader.cc#L887
@@ -398,14 +396,14 @@ class TJsonChunkMetaGenerator
     : public TSingleBlockArrowTableChunkMetaGeneratorBase
 {
 public:
-    TJsonChunkMetaGenerator(std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
+    TJsonChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
         : TSingleBlockArrowTableChunkMetaGeneratorBase(
             EChunkFormat::TableUnversionedArrowJsonLines,
             std::move(chunkFile))
     { }
 
 private:
-    std::shared_ptr<arrow::Table> ArrowTable_;
+    std::shared_ptr<arrow20::Table> ArrowTable_;
 
     void Prepare() override
     {
@@ -413,11 +411,11 @@ private:
         // `TableReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
         auto actionQueue = New<TActionQueue>("TJsonChunkMetaGenerator");
         PARQUET_ASSIGN_OR_THROW(ArrowTable_, (WaitFor(BIND(([chunkFile = ChunkFile_]() {
-            PARQUET_ASSIGN_OR_THROW(auto jsonReader, arrow::json::TableReader::Make(
-                arrow::default_memory_pool(),
+            PARQUET_ASSIGN_OR_THROW(auto jsonReader, arrow20::json::TableReader::Make(
+                arrow20::default_memory_pool(),
                 chunkFile,
-                arrow::json::ReadOptions::Defaults(),
-                arrow::json::ParseOptions::Defaults()));
+                arrow20::json::ReadOptions::Defaults(),
+                arrow20::json::ParseOptions::Defaults()));
             return jsonReader->Read();
         }))
             .AsyncVia(actionQueue->GetInvoker())
@@ -427,18 +425,18 @@ private:
         TSingleBlockArrowTableChunkMetaGeneratorBase::Prepare();
     }
 
-    std::shared_ptr<arrow::Table> GetArrowTable() const override
+    std::shared_ptr<arrow20::Table> GetArrowTable() const override
     {
         return ArrowTable_;
     }
 };
 
 class TCsvChunkMetaGenerator
-    : public TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow::csv::StreamingReader>
+    : public TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow20::csv::StreamingReader>
 {
 public:
-    TCsvChunkMetaGenerator(std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
-        : TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow::csv::StreamingReader>(
+    TCsvChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
+        : TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow20::csv::StreamingReader>(
             EChunkFormat::TableUnversionedArrowCsv,
             std::move(chunkFile))
     { }
@@ -452,12 +450,12 @@ protected:
         WaitFor(BIND(([this_ = MakeStrong(this), this]() {
             PARQUET_ASSIGN_OR_THROW(
                 auto streamingReader,
-                arrow::csv::StreamingReader::Make(
-                    arrow::io::IOContext(arrow::default_memory_pool()),
+                arrow20::csv::StreamingReader::Make(
+                    arrow20::io::IOContext(arrow20::default_memory_pool()),
                     ChunkFile_,
-                    arrow::csv::ReadOptions::Defaults(),
-                    arrow::csv::ParseOptions::Defaults(),
-                    arrow::csv::ConvertOptions::Defaults()));
+                    arrow20::csv::ReadOptions::Defaults(),
+                    arrow20::csv::ParseOptions::Defaults(),
+                    arrow20::csv::ConvertOptions::Defaults()));
             // Continues the initialization in another thread, which is fine as the access is exclusive.
             PrepareFromStreamingReader(streamingReader);
         }))
@@ -471,15 +469,15 @@ class TParquetChunkMetaGenerator
     : public TArrowChunkMetaGeneratorBase
 {
 public:
-    TParquetChunkMetaGenerator(std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
+    TParquetChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
         : TArrowChunkMetaGeneratorBase(
             EChunkFormat::TableUnversionedArrowParquet,
             std::move(chunkFile))
     { }
 
 private:
-    std::unique_ptr<parquet::arrow::FileReader> ArrowParquetFileReader_;
-    std::shared_ptr<parquet::FileMetaData> ParquetFileMeta_;
+    std::unique_ptr<parquet20::arrow20::FileReader> ArrowParquetFileReader_;
+    std::shared_ptr<parquet20::FileMetaData> ParquetFileMeta_;
     TTableSchemaPtr Schema_;
     std::vector<i64> RowGroupOffsets_;
     i64 MaxRowGroupSize_ = 0;
@@ -504,9 +502,9 @@ private:
 
     void Prepare() override
     {
-        PARQUET_THROW_NOT_OK(parquet::arrow::OpenFile(ChunkFile_, arrow::default_memory_pool(), &ArrowParquetFileReader_));
+        PARQUET_ASSIGN_OR_THROW(ArrowParquetFileReader_, parquet20::arrow20::OpenFile(ChunkFile_, arrow20::default_memory_pool()));
         ParquetFileMeta_ = ArrowParquetFileReader_->parquet_reader()->metadata();
-        std::shared_ptr<arrow::Schema> arrowSchema;
+        std::shared_ptr<arrow20::Schema> arrowSchema;
         PARQUET_THROW_NOT_OK(ArrowParquetFileReader_->GetSchema(&arrowSchema));
         Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(arrowSchema);
 
@@ -617,7 +615,7 @@ private:
 
 ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
     EChunkFormat chunkFormat,
-    const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile)
+    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile)
 {
     switch (chunkFormat) {
         case EChunkFormat::TableUnversionedArrowJsonLines:

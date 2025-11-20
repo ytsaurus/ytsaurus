@@ -28,7 +28,7 @@ target_link_libraries(cpp-integration-test-rpc-api PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
-  libs-apache-arrow
+  libs-apache-arrow_next
 )
 
 target_allocator(cpp-integration-test-rpc-api

@@ -39,15 +39,15 @@
 
 #include <util/system/env.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 namespace NYT::NTools::NImporter {
 namespace {
@@ -126,17 +126,17 @@ std::vector<std::string> ReadStringFromTable(const NYT::IClientPtr& client, cons
 
 TString GenerateIntegerParquet(const std::vector<int64_t>& data)
 {
-    auto* pool = arrow::default_memory_pool();
-    arrow::Int64Builder i64builder(pool);
+    auto* pool = arrow20::default_memory_pool();
+    arrow20::Int64Builder i64builder(pool);
     NArrow::ThrowOnError(i64builder.AppendValues(data));
-    std::shared_ptr<arrow::Array> i64array;
+    std::shared_ptr<arrow20::Array> i64array;
     NArrow::ThrowOnError(i64builder.Finish(&i64array));
 
-    auto schema = arrow::schema({arrow::field("int64", arrow::int64())});
-    auto table = arrow::Table::Make(schema, {i64array});
+    auto schema = arrow20::schema({arrow20::field("int64", arrow20::int64())});
+    auto table = arrow20::Table::Make(schema, {i64array});
 
-    auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-    NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
+    auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
+    NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
     return TString(buffer->ToString());
 }
@@ -151,42 +151,42 @@ struct MultiTypeData
 
 TString GenerateMultiTypesParquet(const MultiTypeData& data)
 {
-    auto* pool = arrow::default_memory_pool();
+    auto* pool = arrow20::default_memory_pool();
 
     // Build integer data.
-    arrow::Int64Builder i64builder(pool);
+    arrow20::Int64Builder i64builder(pool);
     NArrow::ThrowOnError(i64builder.AppendValues(data.IntegerData));
-    std::shared_ptr<arrow::Array> i64Array;
+    std::shared_ptr<arrow20::Array> i64Array;
     NArrow::ThrowOnError(i64builder.Finish(&i64Array));
 
     // Build double data.
-    arrow::DoubleBuilder doubleBuilder(pool);
+    arrow20::DoubleBuilder doubleBuilder(pool);
     NArrow::ThrowOnError(doubleBuilder.AppendValues(data.FloatData));
-    std::shared_ptr<arrow::Array> doubleArray;
+    std::shared_ptr<arrow20::Array> doubleArray;
     NArrow::ThrowOnError(doubleBuilder.Finish(&doubleArray));
 
     // Build boolean data.
-    arrow::BooleanBuilder booleanBuilder(pool);
+    arrow20::BooleanBuilder booleanBuilder(pool);
     NArrow::ThrowOnError(booleanBuilder.AppendValues(data.BooleanData));
-    std::shared_ptr<arrow::Array> booleanArray;
+    std::shared_ptr<arrow20::Array> booleanArray;
     NArrow::ThrowOnError(booleanBuilder.Finish(&booleanArray));
 
     // Build string data.
-    arrow::BinaryBuilder binaryBuilder(pool);
+    arrow20::BinaryBuilder binaryBuilder(pool);
     NArrow::ThrowOnError(binaryBuilder.AppendValues(data.StringData));
-    std::shared_ptr<arrow::Array> binaryArray;
+    std::shared_ptr<arrow20::Array> binaryArray;
     NArrow::ThrowOnError(binaryBuilder.Finish(&binaryArray));
 
-    auto schema = arrow::schema({
-        arrow::field("int64", arrow::int64()),
-        arrow::field("double", arrow::float64()),
-        arrow::field("bool", arrow::boolean()),
-        arrow::field("string", arrow::binary())
+    auto schema = arrow20::schema({
+        arrow20::field("int64", arrow20::int64()),
+        arrow20::field("double", arrow20::float64()),
+        arrow20::field("bool", arrow20::boolean()),
+        arrow20::field("string", arrow20::binary())
     });
 
-    auto table = arrow::Table::Make(schema, {i64Array, doubleArray, booleanArray, binaryArray});
-    auto outputStream = arrow::io::BufferOutputStream::Create().ValueOrDie();
-    NArrow::ThrowOnError(parquet::arrow::WriteTable(*table, pool, outputStream, ChunkSize));
+    auto table = arrow20::Table::Make(schema, {i64Array, doubleArray, booleanArray, binaryArray});
+    auto outputStream = arrow20::io::BufferOutputStream::Create().ValueOrDie();
+    NArrow::ThrowOnError(parquet20::arrow20::WriteTable(*table, pool, outputStream, ChunkSize));
     auto buffer = outputStream->Finish().ValueOrDie();
     return TString(buffer->ToString());
 }

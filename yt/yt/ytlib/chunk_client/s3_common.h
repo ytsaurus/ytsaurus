@@ -23,10 +23,10 @@ public:
 
     TS3ArrowRandomAccessFile(const NS3::TObjectDescriptor& object, NS3::IClientPtr client);
 
-    arrow::Result<int64_t> GetSize() override;
+    arrow20::Result<int64_t> GetSize() override;
 
     //! NB: Context switch.
-    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
+    arrow20::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
 
 private:
     const TString Bucket_;

@@ -4,13 +4,17 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/buffered.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/compressed.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/file.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/interfaces.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 namespace NYT::NArrow {
 
@@ -19,7 +23,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TParquetAdapter
-    : public arrow::io::RandomAccessFile
+    : public arrow20::io::RandomAccessFile
 {
 public:
     TParquetAdapter(const TString* metadata, i64 startMetadataOffset, std::shared_ptr<IInputStream> reader)
@@ -28,12 +32,12 @@ public:
         , Reader_(std::move(reader))
     { }
 
-    arrow::Result<int64_t> GetSize() override
+    arrow20::Result<int64_t> GetSize() override
     {
         return Metadata_->size() + StartMetadataOffset_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nbytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nbytes, void* out) override
     {
         if (FilePosition_ < StartMetadataOffset_) {
             auto bytesRead = Reader_->Load(out, nbytes);
@@ -48,9 +52,9 @@ public:
         return nbytes;
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nbytes) override
     {
-        auto bufferResult = arrow::AllocateResizableBuffer(nbytes);
+        auto bufferResult = arrow20::AllocateResizableBuffer(nbytes);
         ThrowOnError(bufferResult.status());
         auto buffer = std::move(*bufferResult);
 
@@ -64,13 +68,13 @@ public:
         return buffer;
     }
 
-    arrow::Status Seek(int64_t position) override
+    arrow20::Status Seek(int64_t position) override
     {
         if (position >= StartMetadataOffset_) {
             FilePosition_ = position;
         } else {
             if (position < ReaderPosition_) {
-                return arrow::Status::Invalid(Format("Position %v is less than current reader position %v", position, ReaderPosition_));
+                return arrow20::Status::Invalid(Format("Position %v is less than current reader position %v", position, ReaderPosition_));
             }
             if (position > ReaderPosition_) {
                 auto lenSkip = position - ReaderPosition_;
@@ -78,7 +82,7 @@ public:
                     auto res = Reader_->Skip(lenSkip);
                     lenSkip -= res;
                     if (res == 0) {
-                        return arrow::Status::Invalid("Unexpected end of input stream");
+                        return arrow20::Status::Invalid("Unexpected end of input stream");
                     }
                 }
             }
@@ -86,18 +90,18 @@ public:
             FilePosition_ = position;
         }
 
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return FilePosition_;
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         Closed_ = true;
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     bool closed() const override
@@ -119,7 +123,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status)
+void ThrowOnError(const arrow20::Status& status)
 {
     if (!status.ok()) {
         THROW_ERROR_EXCEPTION("Arrow error occurred: %Qv", status.message());
@@ -128,7 +132,7 @@ void ThrowOnError(const arrow::Status& status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::io::RandomAccessFile> CreateParquetAdapter(
+std::shared_ptr<arrow20::io::RandomAccessFile> CreateParquetAdapter(
     const TString* metadata,
     i64 startMetadataOffset,
     std::shared_ptr<IInputStream> reader)
@@ -136,56 +140,56 @@ std::shared_ptr<arrow::io::RandomAccessFile> CreateParquetAdapter(
     return std::make_shared<TParquetAdapter>(metadata, startMetadataOffset, std::move(reader));
 }
 
-std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex)
+std::shared_ptr<arrow20::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex)
 {
     auto inputStream = CreateParquetAdapter(metadata, startIndex);
-    auto pool = arrow::default_memory_pool();
+    auto pool = arrow20::default_memory_pool();
 
-    auto parquetFileReader = parquet::ParquetFileReader::Open(inputStream);
+    auto parquetFileReader = parquet20::ParquetFileReader::Open(inputStream);
 
-    std::unique_ptr<parquet::arrow::FileReader> arrowFileReader;
-    ThrowOnError(parquet::arrow::FileReader::Make(
+    std::unique_ptr<parquet20::arrow20::FileReader> arrowFileReader;
+    ThrowOnError(parquet20::arrow20::FileReader::Make(
             pool,
             std::move(parquetFileReader),
-            parquet::ArrowReaderProperties(),
+            parquet20::ArrowReaderProperties(),
             &arrowFileReader));
 
-    std::shared_ptr<arrow::Schema> arrowSchema;
+    std::shared_ptr<arrow20::Schema> arrowSchema;
     ThrowOnError(arrowFileReader->GetSchema(&arrowSchema));
     return arrowSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-arrow::Status TStatlessArrowRandomAccessFileBase::Seek(int64_t position)
+arrow20::Status TStatlessArrowRandomAccessFileBase::Seek(int64_t position)
 {
     FilePosition_ = position;
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
-arrow::Result<int64_t> TStatlessArrowRandomAccessFileBase::Tell() const
+arrow20::Result<int64_t> TStatlessArrowRandomAccessFileBase::Tell() const
 {
     return FilePosition_;
 }
 
-arrow::Result<int64_t> TStatlessArrowRandomAccessFileBase::Read(int64_t nbytes, void* out)
+arrow20::Result<int64_t> TStatlessArrowRandomAccessFileBase::Read(int64_t nbytes, void* out)
 {
     ARROW_ASSIGN_OR_RAISE(auto bytesRead, ReadAt(FilePosition_, nbytes, out));
     FilePosition_ += bytesRead;
     return bytesRead;
 }
 
-arrow::Result<std::shared_ptr<arrow::Buffer>> TStatlessArrowRandomAccessFileBase::Read(int64_t nbytes)
+arrow20::Result<std::shared_ptr<arrow20::Buffer>> TStatlessArrowRandomAccessFileBase::Read(int64_t nbytes)
 {
     ARROW_ASSIGN_OR_RAISE(auto buffer, ReadAt(FilePosition_, nbytes));
     FilePosition_ += buffer->size();
     return buffer;
 }
 
-arrow::Status TStatlessArrowRandomAccessFileBase::Close()
+arrow20::Status TStatlessArrowRandomAccessFileBase::Close()
 {
     Closed_.store(true);
-    return arrow::Status::OK();
+    return arrow20::Status::OK();
 }
 
 bool TStatlessArrowRandomAccessFileBase::closed() const
@@ -193,9 +197,9 @@ bool TStatlessArrowRandomAccessFileBase::closed() const
     return Closed_.load();
 }
 
-arrow::Result<std::shared_ptr<arrow::Buffer>> TStatlessArrowRandomAccessFileBase::ReadAt(int64_t position, int64_t nbytes)
+arrow20::Result<std::shared_ptr<arrow20::Buffer>> TStatlessArrowRandomAccessFileBase::ReadAt(int64_t position, int64_t nbytes)
 {
-    auto bufferResult = arrow::AllocateResizableBuffer(nbytes);
+    auto bufferResult = arrow20::AllocateResizableBuffer(nbytes);
     ARROW_ASSIGN_OR_RAISE(auto buffer, bufferResult);
 
     ARROW_ASSIGN_OR_RAISE(auto bytesRead, ReadAt(position, nbytes, buffer->mutable_data()));
@@ -221,15 +225,15 @@ TCompositeBufferArrowRandomAccessFile::TCompositeBufferArrowRandomAccessFile(con
     }));
 }
 
-arrow::Result<int64_t> TCompositeBufferArrowRandomAccessFile::GetSize()
+arrow20::Result<int64_t> TCompositeBufferArrowRandomAccessFile::GetSize()
 {
     return FileSize_;
 }
 
-arrow::Result<int64_t> TCompositeBufferArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
+arrow20::Result<int64_t> TCompositeBufferArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
 {
     if (position < 0 || position + nbytes > FileSize_) {
-        return arrow::Status::IOError(Format(
+        return arrow20::Status::IOError(Format(
             "Cannot read %v bytes at position %v from file of size %v", nbytes, position, FileSize_));
     }
 
@@ -241,7 +245,7 @@ arrow::Result<int64_t> TCompositeBufferArrowRandomAccessFile::ReadAt(int64_t pos
         }
     }
 
-    return arrow::Status::IOError(Format("Requested read range [%v-%v) does not fall into any buffer", position, position + nbytes));
+    return arrow20::Status::IOError(Format("Requested read range [%v-%v) does not fall into any buffer", position, position + nbytes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

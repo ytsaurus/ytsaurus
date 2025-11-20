@@ -40,7 +40,7 @@ PEERDIR(
     yt/yt/library/formats
     yt/yt/library/named_value
 
-    contrib/libs/apache/arrow
+    contrib/libs/apache/arrow_next
 )
 
 RESOURCE(

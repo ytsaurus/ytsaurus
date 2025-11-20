@@ -30,7 +30,7 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
   tools-import_table-lib
   mapreduce-tests-gtest_main
   mapreduce-tests-yt_unittest_lib
-  libs-apache-arrow
+  libs-apache-arrow_next
 )
 
 target_allocator(yt-yt-tools-import_table-unittests

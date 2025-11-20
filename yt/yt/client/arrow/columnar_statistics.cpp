@@ -11,8 +11,8 @@
 
 #include <yt/yt/library/formats/arrow_parser.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/table.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/statistics.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/statistics.h>
 
 namespace NYT::NArrow {
 
@@ -79,7 +79,7 @@ template <typename TypedStatistics, typename Mapper>
 void AddTypedStatistics(
     NTableClient::TColumnarStatistics* columnarStatistics,
     int fieldIndex,
-    std::shared_ptr<parquet::Statistics> statistics,
+    std::shared_ptr<parquet20::Statistics> statistics,
     Mapper mapper)
 {
     auto typedStatistics = std::dynamic_pointer_cast<TypedStatistics>(statistics);
@@ -101,7 +101,7 @@ void AddTypedStatistics(
 } // namespace
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
-    const std::shared_ptr<arrow::RecordBatch>& batch)
+    const std::shared_ptr<arrow20::RecordBatch>& batch)
 {
     TColumnarStatisticsValueConsumer consumer(NArrow::CreateYTTableSchemaFromArrowSchema(batch->schema()));
     PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
@@ -109,12 +109,12 @@ NTableClient::TColumnarStatistics ExtractColumnarStatistics(
 }
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
-    arrow::Table& arrowTable)
+    arrow20::Table& arrowTable)
 {
-    arrow::TableBatchReader batchReader(arrowTable);
+    arrow20::TableBatchReader batchReader(arrowTable);
     TColumnarStatisticsValueConsumer consumer(NArrow::CreateYTTableSchemaFromArrowSchema(arrowTable.schema()));
     while (true) {
-        std::shared_ptr<arrow::RecordBatch> batch;
+        std::shared_ptr<arrow20::RecordBatch> batch;
         PARQUET_THROW_NOT_OK(batchReader.ReadNext(&batch));
 
         if (!batch) {
@@ -126,7 +126,7 @@ NTableClient::TColumnarStatistics ExtractColumnarStatistics(
 }
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
-    parquet::FileMetaData& parquetFileMeta)
+    parquet20::FileMetaData& parquetFileMeta)
 {
     auto columnarStatistics = NTableClient::TColumnarStatistics::MakeEmpty(
         parquetFileMeta.schema()->group_node()->field_count(),
@@ -150,31 +150,31 @@ NTableClient::TColumnarStatistics ExtractColumnarStatistics(
 
                     if (statistics->HasMinMax()) {
                         switch (columnChunk->type()) {
-                            case parquet::Type::BOOLEAN:
-                                AddTypedStatistics<parquet::BoolStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedBooleanValue(v); });
+                            case parquet20::Type::BOOLEAN:
+                                AddTypedStatistics<parquet20::BoolStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedBooleanValue(v); });
                                 break;
-                            case parquet::Type::INT32:
-                                AddTypedStatistics<parquet::Int32Statistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedInt64Value(v); });
+                            case parquet20::Type::INT32:
+                                AddTypedStatistics<parquet20::Int32Statistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedInt64Value(v); });
                                 break;
-                            case parquet::Type::INT64:
-                                AddTypedStatistics<parquet::Int64Statistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedInt64Value(v); });
+                            case parquet20::Type::INT64:
+                                AddTypedStatistics<parquet20::Int64Statistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedInt64Value(v); });
                                 break;
-                            case parquet::Type::FLOAT:
-                                AddTypedStatistics<parquet::FloatStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedDoubleValue(v); });
+                            case parquet20::Type::FLOAT:
+                                AddTypedStatistics<parquet20::FloatStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedDoubleValue(v); });
                                 break;
-                            case parquet::Type::DOUBLE:
-                                AddTypedStatistics<parquet::DoubleStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedDoubleValue(v); });
+                            case parquet20::Type::DOUBLE:
+                                AddTypedStatistics<parquet20::DoubleStatistics>(&columnarStatistics, fieldIndex, statistics, [](auto v) { return MakeUnversionedDoubleValue(v); });
                                 break;
-                            case parquet::Type::BYTE_ARRAY:
-                                AddTypedStatistics<parquet::ByteArrayStatistics>(
+                            case parquet20::Type::BYTE_ARRAY:
+                                AddTypedStatistics<parquet20::ByteArrayStatistics>(
                                     &columnarStatistics, fieldIndex, statistics,
-                                    [](const parquet::ByteArray& v) {
+                                    [](const parquet20::ByteArray& v) {
                                         return MakeUnversionedStringValue(TStringBuf(reinterpret_cast<const char*>(v.ptr), v.len));
                                     });
                                 break;
-                            case parquet::Type::INT96:
-                            case parquet::Type::FIXED_LEN_BYTE_ARRAY:
-                            case parquet::Type::UNDEFINED:
+                            case parquet20::Type::INT96:
+                            case parquet20::Type::FIXED_LEN_BYTE_ARRAY:
+                            case parquet20::Type::UNDEFINED:
                                 break;
                         }
                     }

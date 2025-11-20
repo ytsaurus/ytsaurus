@@ -34,10 +34,10 @@
 
 #include <util/system/env.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
@@ -432,33 +432,33 @@ public:
 
             auto parquetAdapter = NArrow::CreateParquetAdapter(&metadata, startIndex, stream);
 
-            auto* pool = arrow::default_memory_pool();
+            auto* pool = arrow20::default_memory_pool();
 
-            std::unique_ptr<parquet::arrow::FileReader> arrowFileReader;
+            std::unique_ptr<parquet20::arrow20::FileReader> arrowFileReader;
 
-            NArrow::ThrowOnError(parquet::arrow::FileReader::Make(
+            NArrow::ThrowOnError(parquet20::arrow20::FileReader::Make(
                 pool,
-                parquet::ParquetFileReader::Open(parquetAdapter),
-                parquet::ArrowReaderProperties{},
+                parquet20::ParquetFileReader::Open(parquetAdapter),
+                parquet20::ArrowReaderProperties{},
                 &arrowFileReader));
 
             auto numRowGroups = arrowFileReader->num_row_groups();
 
             TArrowOutputStream outputStream(&output);
 
-            std::shared_ptr<arrow::Schema> arrowSchema;
+            std::shared_ptr<arrow20::Schema> arrowSchema;
             NArrow::ThrowOnError(arrowFileReader->GetSchema(&arrowSchema));
 
-            auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&outputStream, arrowSchema);
+            auto recordBatchWriterOrError = arrow20::ipc::MakeStreamWriter(&outputStream, arrowSchema);
             NArrow::ThrowOnError(recordBatchWriterOrError.status());
             auto recordBatchWriter = recordBatchWriterOrError.ValueOrDie();
             for (int rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++) {
                 std::vector<int> rowGroup = {rowGroupIndex};
 
-                std::shared_ptr<arrow::Table> table;
+                std::shared_ptr<arrow20::Table> table;
                 NArrow::ThrowOnError(arrowFileReader->ReadRowGroups(rowGroup, &table));
-                arrow::TableBatchReader tableBatchReader(*table);
-                std::shared_ptr<arrow::RecordBatch> batch;
+                arrow20::TableBatchReader tableBatchReader(*table);
+                std::shared_ptr<arrow20::RecordBatch> batch;
                 NArrow::ThrowOnError(tableBatchReader.ReadNext(&batch));
 
                 while (batch) {
@@ -512,34 +512,34 @@ private:
     };
 
     class TArrowOutputStream
-        : public arrow::io::OutputStream
+        : public arrow20::io::OutputStream
     {
     public:
         TArrowOutputStream(IOutputStream* outputStream)
             : OutputStream_(outputStream)
         { }
 
-        arrow::Status Write(const void* data, int64_t nbytes) override
+        arrow20::Status Write(const void* data, int64_t nbytes) override
         {
             Position_ += nbytes;
             OutputStream_->Write(data, nbytes);
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Flush() override
+        arrow20::Status Flush() override
         {
             OutputStream_->Flush();
             Position_ = 0;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Status Close() override
+        arrow20::Status Close() override
         {
             IsClosed_ = true;
-            return arrow::Status::OK();
+            return arrow20::Status::OK();
         }
 
-        arrow::Result<int64_t> Tell() const override
+        arrow20::Result<int64_t> Tell() const override
         {
             return Position_;
         }

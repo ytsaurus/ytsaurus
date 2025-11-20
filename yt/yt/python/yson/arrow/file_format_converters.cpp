@@ -3,19 +3,19 @@
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/compute/cast.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/compute/cast.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/file.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/api.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/writer.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/adapter.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/adapters/orc/adapter_util.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/adapters/orc/util.h>
 
 #include <contrib/libs/apache/orc/c++/include/orc/OrcFile.hh>
 
@@ -25,7 +25,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status) {
+void ThrowOnError(const arrow20::Status& status) {
     if (!status.ok()) {
         throw Py::TypeError(status.message());
     }
@@ -35,8 +35,8 @@ void ThrowOnError(const arrow::Status& status) {
 
 struct IFormatWriter
 {
-    virtual arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) = 0;
-    virtual arrow::Status Close() = 0;
+    virtual arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) = 0;
+    virtual arrow20::Status Close() = 0;
     virtual ~IFormatWriter() = default;
 };
 
@@ -44,31 +44,35 @@ class TParquetWriter
     : public IFormatWriter
 {
 public:
-    TParquetWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+    TParquetWriter(const arrow20::Schema& schema, const std::string& outputFilePath)
     {
-        auto outputFileOrError = arrow::io::FileOutputStream::Open(outputFilePath);
+        auto outputFileOrError = arrow20::io::FileOutputStream::Open(outputFilePath);
         if (!outputFileOrError.ok()) {
             throw Py::TypeError(outputFileOrError.status().message());
         }
         auto outputFile = outputFileOrError.ValueOrDie();
 
         auto properties =
-            parquet::WriterProperties::Builder().compression(arrow::Compression::SNAPPY)->build();
+            parquet20::WriterProperties::Builder().compression(arrow20::Compression::SNAPPY)->build();
 
-        ThrowOnError(parquet::arrow::FileWriter::Open(
+        auto writerOrError = parquet20::arrow20::FileWriter::Open(
             schema,
-            arrow::default_memory_pool(),
+            arrow20::default_memory_pool(),
             outputFile,
-            properties,
-            &Writer_));
+            properties);
+
+        if (!writerOrError.ok()) {
+            throw Py::TypeError(writerOrError.status().message());
+        }
+        Writer_ = std::move(writerOrError.ValueOrDie());
     }
 
-    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
     {
         return Writer_->WriteTable(table, chunkSize);
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         return Writer_->Close();
     }
@@ -76,23 +80,23 @@ public:
     ~TParquetWriter() = default;
 
 private:
-    std::unique_ptr<parquet::arrow::FileWriter> Writer_;
+    std::unique_ptr<parquet20::arrow20::FileWriter> Writer_;
 };
 
 class TOrcWriter
     : public IFormatWriter
 {
 public:
-    TOrcWriter(const arrow::Schema& schema, const std::string& outputFilePath)
+    TOrcWriter(const arrow20::Schema& schema, const std::string& outputFilePath)
         : OutputStream_(liborc::writeLocalFile(outputFilePath))
     {
-        auto orcSchemaOrError = arrow::adapters::orc::GetOrcType(schema);
+        auto orcSchemaOrError = arrow20::adapters::orc::GetOrcType(schema);
         ThrowOnError(orcSchemaOrError.status());
         OrcSchema_ = std::move(orcSchemaOrError.ValueOrDie());
         Writer_ = liborc::createWriter(*OrcSchema_, OutputStream_.get(), liborc::WriterOptions{});
     }
 
-    arrow::Status WriteTable(const arrow::Table& table, int64_t chunkSize) override
+    arrow20::Status WriteTable(const arrow20::Table& table, int64_t chunkSize) override
     {
         const int columnCount = table.num_columns();
         i64 rowCount = table.num_rows();
@@ -102,11 +106,11 @@ public:
 
         auto batch = Writer_->createRowBatch(chunkSize);
 
-        auto* root = arrow::internal::checked_cast<liborc::StructVectorBatch*>(batch.get());
+        auto* root = arrow20::internal::checked_cast<liborc::StructVectorBatch*>(batch.get());
 
         while (rowCount > 0) {
             for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-                ThrowOnError(arrow::adapters::orc::WriteBatch(
+                ThrowOnError(arrow20::adapters::orc::WriteBatch(
                     *(table.column(columnIndex)),
                     chunkSize,
                     &chunkOffsets[columnIndex],
@@ -118,13 +122,13 @@ public:
             batch->clear();
             rowCount -= chunkSize;
         }
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
         Writer_->close();
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     ~TOrcWriter() = default;
@@ -138,7 +142,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPipeForRecordBatchStreamReader
-    : public arrow::io::InputStream
+    : public arrow20::io::InputStream
 {
 public:
     TPipeForRecordBatchStreamReader(IInputStream* reader)
@@ -147,9 +151,9 @@ public:
         IsFinished_ = !Reader_->ReadChar(PreviousElement_);
     }
 
-    arrow::Status Close() override
+    arrow20::Status Close() override
     {
-        return arrow::Status::OK();
+        return arrow20::Status::OK();
     }
 
     bool closed() const override
@@ -157,22 +161,22 @@ public:
         return false;
     }
 
-    arrow::Result<int64_t> Tell() const override
+    arrow20::Result<int64_t> Tell() const override
     {
         return Position_;
     }
 
-    arrow::Result<int64_t> Read(int64_t nBytes, void* out) override
+    arrow20::Result<int64_t> Read(int64_t nBytes, void* out) override
     {
         return DoLoad(out, nBytes);
     }
 
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nBytes) override
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t nBytes) override
     {
         std::string buffer;
         buffer.resize(nBytes);
         buffer.resize(DoLoad(buffer.data(), buffer.size()));
-        return arrow::Buffer::FromString(buffer);
+        return arrow20::Buffer::FromString(buffer);
     }
 
     bool IsFinished() const
@@ -203,13 +207,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::Array> ConvertDictionaryToDense(const arrow::Array& array)
+std::shared_ptr<arrow20::Array> ConvertDictionaryToDense(const arrow20::Array& array)
 {
-    const arrow::DictionaryType& dictType =
-        static_cast<const arrow::DictionaryType&>(*array.type());
+    const arrow20::DictionaryType& dictType =
+        static_cast<const arrow20::DictionaryType&>(*array.type());
 
     auto castOutputOrError =
-        arrow::compute::Cast(array.data(), dictType.value_type(), arrow::compute::CastOptions());
+        arrow20::compute::Cast(array.data(), dictType.value_type(), arrow20::compute::CastOptions());
 
     if (!castOutputOrError.ok()) {
         throw Py::TypeError(castOutputOrError.status().message());
@@ -219,32 +223,32 @@ std::shared_ptr<arrow::Array> ConvertDictionaryToDense(const arrow::Array& array
     return castOutput.make_array();
 }
 
-std::shared_ptr<arrow::Schema> ConvertDictionarySchema(const std::shared_ptr<arrow::Schema>& schema)
+std::shared_ptr<arrow20::Schema> ConvertDictionarySchema(const std::shared_ptr<arrow20::Schema>& schema)
 {
     if (schema == nullptr) {
         return nullptr;
     }
-    std::vector<std::shared_ptr<arrow::Field>> fields;
+    std::vector<std::shared_ptr<arrow20::Field>> fields;
     for (auto&& field : schema->fields()) {
-        if (field->type()->id() == arrow::Type::DICTIONARY) {
-            auto& dictionaryType = static_cast<const arrow::DictionaryType&>(*field->type());
+        if (field->type()->id() == arrow20::Type::DICTIONARY) {
+            auto& dictionaryType = static_cast<const arrow20::DictionaryType&>(*field->type());
             fields.emplace_back(field->WithType(dictionaryType.value_type()));
         } else {
             fields.emplace_back(field);
         }
     }
-    return std::make_shared<arrow::Schema>(fields);
+    return std::make_shared<arrow20::Schema>(fields);
 }
 
-std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(const std::shared_ptr<arrow::RecordBatch>& data) {
+std::shared_ptr<arrow20::RecordBatch> ConvertDictionaryArrays(const std::shared_ptr<arrow20::RecordBatch>& data) {
     if (data == nullptr) {
         return nullptr;
     }
-    std::vector<std::shared_ptr<arrow::Field>> fields;
+    std::vector<std::shared_ptr<arrow20::Field>> fields;
     bool hasDict = false;
     for (auto&& field : data->schema()->fields()) {
-        if (field->type()->id() == arrow::Type::DICTIONARY) {
-            auto& dictionaryType = static_cast<const arrow::DictionaryType&>(*field->type());
+        if (field->type()->id() == arrow20::Type::DICTIONARY) {
+            auto& dictionaryType = static_cast<const arrow20::DictionaryType&>(*field->type());
             fields.emplace_back(field->WithType(dictionaryType.value_type()));
             hasDict = true;
         } else {
@@ -254,26 +258,26 @@ std::shared_ptr<arrow::RecordBatch> ConvertDictionaryArrays(const std::shared_pt
     if (!hasDict) {
         return data;
     }
-    std::vector<std::shared_ptr<arrow::Array>> columns;
+    std::vector<std::shared_ptr<arrow20::Array>> columns;
     for (auto&& column : data->columns()) {
-        if (column->type_id() == arrow::Type::DICTIONARY) {
+        if (column->type_id() == arrow20::Type::DICTIONARY) {
             columns.emplace_back(ConvertDictionaryToDense(*column));
         } else {
             columns.emplace_back(column);
         }
     }
-    std::shared_ptr<arrow::Schema> schema = std::make_shared<arrow::Schema>(fields);
-    return arrow::RecordBatch::Make(schema, data->num_rows(), columns);
+    std::shared_ptr<arrow20::Schema> schema = std::make_shared<arrow20::Schema>(fields);
+    return arrow20::RecordBatch::Make(schema, data->num_rows(), columns);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::ipc::RecordBatchStreamReader> GetNextBatchReader(TPipeForRecordBatchStreamReader& pipe)
+std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> GetNextBatchReader(TPipeForRecordBatchStreamReader& pipe)
 {
     if (pipe.IsFinished()) {
         return nullptr;
     }
-    auto batchReaderOrError = arrow::ipc::RecordBatchStreamReader::Open(&pipe);
+    auto batchReaderOrError = arrow20::ipc::RecordBatchStreamReader::Open(&pipe);
     if (!batchReaderOrError.ok()) {
         throw Py::TypeError(batchReaderOrError.status().message());
     }
@@ -281,7 +285,7 @@ std::shared_ptr<arrow::ipc::RecordBatchStreamReader> GetNextBatchReader(TPipeFor
     return batchReaderOrError.ValueOrDie();
 }
 
-std::shared_ptr<arrow::RecordBatch> GetNextBatch(const std::shared_ptr<arrow::ipc::RecordBatchStreamReader>& batchReader)
+std::shared_ptr<arrow20::RecordBatch> GetNextBatch(const std::shared_ptr<arrow20::ipc::RecordBatchStreamReader>& batchReader)
 {
     auto batchOrError = batchReader->Next();
     if (!batchOrError.ok()) {
@@ -298,12 +302,12 @@ void DumpFile(
     EFileFormat format)
 {
     TPipeForRecordBatchStreamReader pipe(stream);
-    std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe);
+    std::shared_ptr<arrow20::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe);
     if (!batchReader) {
         return;
     }
 
-    std::unique_ptr<parquet::arrow::FileWriter> writer;
+    std::unique_ptr<parquet20::arrow20::FileWriter> writer;
 
     auto schema = ConvertDictionarySchema(batchReader->schema());
     std::unique_ptr<IFormatWriter> formatWriter;
@@ -319,7 +323,7 @@ void DumpFile(
         auto batch = GetNextBatch(batchReader);
 
         while (batch != nullptr) {
-            auto tableOrError = arrow::Table::FromRecordBatches(batch->schema(), {batch});
+            auto tableOrError = arrow20::Table::FromRecordBatches(batch->schema(), {batch});
 
             if (!tableOrError.ok()) {
                 throw Py::TypeError(tableOrError.status().message());

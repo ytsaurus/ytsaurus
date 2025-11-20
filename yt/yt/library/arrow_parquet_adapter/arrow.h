@@ -6,7 +6,7 @@
 
 #include <util/stream/input.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/interfaces.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/interfaces.h>
 
 // TODO(achulkov2): Rename this library arrow_parquet_adapter -> arrow_adapter. Maybe separate into different files.
 
@@ -14,16 +14,16 @@ namespace NYT::NArrow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowOnError(const arrow::Status& status);
+void ThrowOnError(const arrow20::Status& status);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<arrow::io::RandomAccessFile> CreateParquetAdapter(
+std::shared_ptr<arrow20::io::RandomAccessFile> CreateParquetAdapter(
     const TString* metadata,
     i64 startMetadataOffset,
     std::shared_ptr<IInputStream> reader = nullptr);
 
-std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex);
+std::shared_ptr<arrow20::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,24 +37,24 @@ std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TStrin
 //!
 //! Descendants of this class should override GetSize and a single ReadAt method.
 class TStatlessArrowRandomAccessFileBase
-    : public arrow::io::RandomAccessFile
+    : public arrow20::io::RandomAccessFile
 {
 public:
     //! Descendants of this class must implement the two methods below.
-    arrow::Result<int64_t> GetSize() override = 0;
-    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override = 0;
+    arrow20::Result<int64_t> GetSize() override = 0;
+    arrow20::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override = 0;
 
     //! Implemented via the ReadAt method above.
-    arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position, int64_t nbytes) override;
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> ReadAt(int64_t position, int64_t nbytes) override;
     
-    arrow::Status Seek(int64_t /*position*/) override;
-    arrow::Result<int64_t> Tell() const override;
+    arrow20::Status Seek(int64_t /*position*/) override;
+    arrow20::Result<int64_t> Tell() const override;
 
-    arrow::Result<int64_t> Read(int64_t /*nbytes*/, void* /*out*/) override;
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t /*nbytes*/) override;
+    arrow20::Result<int64_t> Read(int64_t /*nbytes*/, void* /*out*/) override;
+    arrow20::Result<std::shared_ptr<arrow20::Buffer>> Read(int64_t /*nbytes*/) override;
 
     //! These methods have legit implementations. Override them if you need to.
-    arrow::Status Close() override;
+    arrow20::Status Close() override;
     bool closed() const override;
 
 protected:
@@ -80,9 +80,9 @@ public:
 
     TCompositeBufferArrowRandomAccessFile(const std::vector<TBufferDescriptor>& buffers, i64 fileSize);
 
-    arrow::Result<int64_t> GetSize() override;
+    arrow20::Result<int64_t> GetSize() override;
 
-    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
+    arrow20::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
 
 private:
     std::vector<TBufferDescriptor> Buffers_;

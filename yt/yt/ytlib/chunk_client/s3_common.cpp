@@ -1,7 +1,7 @@
 #include "s3_common.h"
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/buffer.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/buffer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 
 
 namespace NYT::NChunkClient {
@@ -28,15 +28,15 @@ TS3ArrowRandomAccessFile::TS3ArrowRandomAccessFile(const NS3::TObjectDescriptor&
     : TS3ArrowRandomAccessFile(object.Bucket(), object.Key(), std::move(client))
 { }
 
-arrow::Result<int64_t> TS3ArrowRandomAccessFile::GetSize()
+arrow20::Result<int64_t> TS3ArrowRandomAccessFile::GetSize()
 {
     return FileSize_;
 }
 
-arrow::Result<int64_t> TS3ArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
+arrow20::Result<int64_t> TS3ArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
 {
     if (position < 0 || position > FileSize_) {
-        return arrow::Status::Invalid(Format("Read position %v is out of file bounds [0, %v)", position, FileSize_));
+        return arrow20::Status::Invalid(Format("Read position %v is out of file bounds [0, %v)", position, FileSize_));
     }
 
     nbytes = std::min(nbytes, FileSize_ - position);

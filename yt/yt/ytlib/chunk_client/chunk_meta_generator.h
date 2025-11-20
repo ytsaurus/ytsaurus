@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/s3/client.h>
 
-#include <arrow/io/interfaces.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/interfaces.h>
 
 namespace NYT::NChunkClient {
 
@@ -42,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(ITableChunkMetaGenerator)
 
 ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
     EChunkFormat chunkFormat,
-    const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile);
+    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile);
 
 ////////////////////////////////////////////////////////////////////////////
 
