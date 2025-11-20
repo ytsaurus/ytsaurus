@@ -97,7 +97,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     public TReqReadTable.Builder writeTo(TReqReadTable.Builder builder) {
         builder.setUnordered(unordered);
         builder.setOmitInaccessibleColumns(omitInaccessibleColumns);
-        builder.setOmitInaccessibleColumns(omitInaccessibleRows);
+        builder.setOmitInaccessibleRows(omitInaccessibleRows);
         builder.setPath(ByteString.copyFromUtf8(getPath()));
         if (config != null) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
