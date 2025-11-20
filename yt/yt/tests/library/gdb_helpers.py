@@ -8,10 +8,13 @@ def _check_ptrace_scope():
     global PTRACE_SCOPE_CHECK_RESULT_CACHED
     if PTRACE_SCOPE_CHECK_RESULT_CACHED is not None:
         return PTRACE_SCOPE_CHECK_RESULT_CACHED
-    ptrace_scope_file = open("/proc/sys/kernel/yama/ptrace_scope", 'r')
     try:
-        content = ptrace_scope_file.read()
-        result = content.strip() == "0"
+        with open("/proc/sys/kernel/yama/ptrace_scope", 'r') as ptrace_scope_file:
+            content = ptrace_scope_file.read()
+            result = content.strip() == "0"
+    except FileNotFoundError:
+        print_debug("No /proc/sys/kernel/yama/ptrace_scope, assuming no YAMA and ptrace_scope=0.")
+        result = True
     except IOError:
         print_debug("Cannot read /proc/sys/kernel/yama/ptrace_scope, assuming old-fashioned Linux value of 0.")
         result = True
