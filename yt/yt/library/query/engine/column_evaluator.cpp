@@ -28,6 +28,8 @@ constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void Init(const TRowBufferPtr&, TValue* value, NWebAssembly::IWebAssemblyCompartment*)
 {
     *value = MakeUnversionedNullValue();
@@ -153,6 +155,8 @@ TCGAggregateImage MakeBuiltinAggregate(const std::string& name, EValueType wireT
 
     return {std::move(callbacks), /*compartment*/ nullptr};
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

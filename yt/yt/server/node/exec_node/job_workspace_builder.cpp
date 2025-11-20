@@ -364,7 +364,7 @@ private:
                 ResultHolder_.TmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            }));
+            }).AsyncVia(Invoker_));
     }
 
     TFuture<void> DoPrepareGpuCheckVolume() override
@@ -574,8 +574,8 @@ private:
                         ResultHolder_.TmpfsVolumes = std::move(volumeResults);
 
                         SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-                    }));
-            }));
+                    }).AsyncVia(Invoker_));
+            }).AsyncVia(Invoker_));
     }
 
     TFuture<void> DoPrepareGpuCheckVolume() override
@@ -929,7 +929,7 @@ private:
                 ResultHolder_.TmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            }));
+            }).AsyncVia(Invoker_));
     }
 
     TFuture<void> DoPrepareGpuCheckVolume() override

@@ -12,7 +12,7 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table, alter_table, get_tablet_errors,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
-    get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id, retry_yt_error,
+    get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id,
     set_node_banned, sorted_dicts)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
@@ -252,6 +252,17 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
 @pytest.mark.enabled_multidaemon
 class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+
+    def _insert_rows_with_hunk_storage(self, path, rows, require_sync_replica=True, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                insert_rows(path, rows, require_sync_replica=require_sync_replica)
+                return
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                    raise e
 
     @authors("savrus")
     def test_replicated_table_must_be_dynamic(self):
@@ -827,12 +838,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_enable_table_replica(replica_id)
 
-        with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-            insert_rows(
-                "//tmp/t",
-                [{"key": 1, "value1": "test", "value2": 123}],
-                require_sync_replica=False,
-            )
+        self._insert_rows_with_hunk_storage(
+            "//tmp/t",
+            [{"key": 1, "value1": "test", "value2": 123}],
+            require_sync_replica=False)
 
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
@@ -847,8 +856,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             ]
         )
 
-        with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-            insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}], require_sync_replica=False)
+        self._insert_rows_with_hunk_storage(
+            "//tmp/t",
+            [{"key": 1, "value1": "new_test"}],
+            require_sync_replica=False)
+
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)[-1]
             == {
@@ -860,8 +872,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             }
         )
 
-        with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-            insert_rows("//tmp/t", [{"key": 1, "value2": 456}], require_sync_replica=False)
+        self._insert_rows_with_hunk_storage(
+            "//tmp/t",
+            [{"key": 1, "value2": 456}],
+            require_sync_replica=False)
+
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)[-1]
             == {
@@ -1337,8 +1352,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert before_ts1 == before_ts2
 
-            with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-                insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
+            self._insert_rows_with_hunk_storage(
+                "//tmp/t",
+                [{"key": 1, "value1": "test", "value2": 123}])
             assert _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver)) == {
                 "$tablet_index": 0,
                 "$row_index": before_index1,
@@ -1357,8 +1373,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 }
             )
 
-            with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-                insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}])
+            self._insert_rows_with_hunk_storage(
+                "//tmp/t",
+                [{"key": 1, "value1": "new_test"}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {
                 "$tablet_index": 0,
                 "$row_index": before_index1 + 1,
@@ -1377,8 +1394,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 }
             )
 
-            with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-                insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
+            self._insert_rows_with_hunk_storage(
+                "//tmp/t",
+                [{"key": 1, "value2": 456}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {
                 "$tablet_index": 0,
                 "$row_index": before_index1 + 2,

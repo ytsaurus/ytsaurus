@@ -343,6 +343,6 @@ webservice:
 metrics:
   enable: true
   serviceMonitor:
-    enable: false
+    enable: true
     labels:
       release: kube-prom

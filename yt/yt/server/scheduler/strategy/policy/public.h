@@ -35,6 +35,7 @@ DEFINE_ENUM(EAllocationSchedulingStage,
     (PreemptiveAggressive)
     (PreemptiveSsdNormal)
     (PreemptiveSsdAggressive)
+    (PreemptiveDefaultGpuFullHost)
 );
 
 DEFINE_ENUM(EOperationPreemptionPriority,
@@ -43,6 +44,7 @@ DEFINE_ENUM(EOperationPreemptionPriority,
     (Aggressive)
     (SsdNormal)
     (SsdAggressive)
+    (DefaultGpuFullHost)
 );
 
 DEFINE_ENUM(EAllocationPreemptionReason,
@@ -50,6 +52,7 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (AggressivePreemption)
     (SsdPreemption)
     (SsdAggressivePreemption)
+    (DefaultGpuFullHostPreemption)
     (GracefulPreemption)
     (ResourceOvercommit)
     (ResourceLimitsViolated)

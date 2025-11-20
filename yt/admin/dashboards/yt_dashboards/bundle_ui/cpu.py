@@ -25,12 +25,12 @@ def build_total_cpu(has_porto):
                 skip_cell=not has_porto)
             .cell(
                 "Node CPU usage (all threads)",
-                MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu").aggr("thread")).top() / 100)
+                MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu").aggr("thread")).top().host_container_legend_format() / 100)
         .row()
             .top()
             .cell(
                 "CPU wait (all threads)",
-                MonitoringExpr(TabNodeCpu("yt.resource_tracker.cpu_wait").aggr("thread")) / 100)
+                MonitoringExpr(TabNodeCpu("yt.resource_tracker.cpu_wait").aggr("thread")).host_container_legend_format() / 100)
             .cell(
                 "CPU throttled",
                 MonitoringExpr(TabNodePorto("yt.porto.cpu.throttled").value("container_category", "pod")) / 100,

@@ -252,7 +252,7 @@ TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
     return ResourceUsagePrecommit_;
 }
 
-bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
+EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
     TJobResources* availableResourceLimitsOutput)
@@ -261,44 +261,59 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     *availableResourceLimitsOutput = TJobResources::Infinite();
 
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
-        return true;
+        return EResourceTreeIncreaseResult::Success;
     }
 
     auto guard = WriterGuard(ResourceUsageLock_);
 
-    return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(delta, allowLimitsOvercommit, availableResourceLimitsOutput);
+    return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+        delta,
+        allowLimitsOvercommit,
+        /*additionalLocalResourceLimits*/ std::nullopt,
+        availableResourceLimitsOutput);
 }
 
-bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    const std::optional<TJobResources>& additionalLocalResourceLimits,
     TJobResources* availableResourceLimitsOutput)
 {
     if (!Alive_) {
-        return false;
+        return EResourceTreeIncreaseResult::ElementIsNotAlive;
     }
 
     YT_ASSERT(availableResourceLimitsOutput);
     *availableResourceLimitsOutput = TJobResources::Infinite();
+    auto resourceDiscount = allowLimitsOvercommit
+        ? SpecifiedResourceLimitsOvercommitTolerance_
+        : TJobResources();
 
-    if (SpecifiedResourceLimits_) {
-        auto resourceDiscount = allowLimitsOvercommit
-            ? SpecifiedResourceLimitsOvercommitTolerance_
-            : TJobResources();
+    auto checkLimits = [&] (const std::optional<TJobResources>& limits) {
+        if (!limits) {
+            return true;
+        }
         auto availableResourceLimits = ComputeAvailableResources(
-            *SpecifiedResourceLimits_,
+            *limits,
             ResourceUsage_ + ResourceUsagePrecommit_,
             resourceDiscount);
         if (!Dominates(availableResourceLimits, delta)) {
             return false;
         }
+        *availableResourceLimitsOutput = Min(*availableResourceLimitsOutput, availableResourceLimits);
+        return true;
+    };
 
-        *availableResourceLimitsOutput = availableResourceLimits;
+    if (!checkLimits(SpecifiedResourceLimits_)) {
+        return EResourceTreeIncreaseResult::ResourceLimitExceeded;
+    }
+    if (!checkLimits(additionalLocalResourceLimits)) {
+        return EResourceTreeIncreaseResult::AdditionalResourceLimitExceeded;
     }
 
     ResourceUsagePrecommit_ += delta;
 
-    return true;
+    return EResourceTreeIncreaseResult::Success;
 }
 
 TWriterGuard<TPaddedReaderWriterSpinLock> TResourceTreeElement::AcquireWriteLock()

@@ -7,10 +7,9 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, add_common_dashboard_parameters
+from .common import create_dashboard
 
-from yt_dashboard_generator.dashboard import Dashboard, Rowset
-from yt_dashboard_generator.specific_tags.tags import TemplateTag
+from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
@@ -331,19 +330,14 @@ def build_epoch_timings():
 
 
 def build_flow_computation():
-    d = Dashboard()
-    d.add(build_versions())
-    d.add(build_epoch_timings())
-    d.add(GENERATOR.build_message_rate_rowset())
-    d.add(GENERATOR.build_resources_rowset())
-    d.add(GENERATOR.build_partition_aggregates_rowset())
-    d.add(GENERATOR.build_partition_store_operations_rowset())
-    d.add(GENERATOR.build_processed_message_rate_rowset())
+    def fill(d):
+        d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringLabelDashboardParameter("", "computation_id", "-"))
 
-    d.set_title("[YT Flow] Pipeline computation")
-    add_common_dashboard_parameters(d)
-    d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringLabelDashboardParameter("", "computation_id", "-"))
+        d.add(build_epoch_timings())
+        d.add(GENERATOR.build_message_rate_rowset())
+        d.add(GENERATOR.build_resources_rowset())
+        d.add(GENERATOR.build_partition_aggregates_rowset())
+        d.add(GENERATOR.build_partition_store_operations_rowset())
+        d.add(GENERATOR.build_processed_message_rate_rowset())
 
-    return (d
-        .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+    return create_dashboard("computation", fill)

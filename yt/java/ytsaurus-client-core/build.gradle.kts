@@ -25,8 +25,8 @@ dependencies {
     api("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("com.google.protobuf:protobuf-java:3.25.5")
     testImplementation("junit:junit:4.13")
-    testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
-    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.25.0")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.25.1")
 }
 
 tasks.test {

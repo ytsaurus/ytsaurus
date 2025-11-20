@@ -122,6 +122,9 @@
 #include <util/random/random.h>
 
 namespace NYT::NApi::NNative {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChaosClient;
 using namespace NChunkClient;
@@ -151,11 +154,12 @@ constexpr size_t ExplainQueryMemoryLimit = 3_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TQueryPreparer)
+constexpr TSchemaUpdateEnabledFeatures SchemaUpdateEnabledFeatures{
+    .EnableStaticTableDropColumn = true,
+    .EnableDynamicTableDropColumn = true,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 template <class TReq>
 void SetDynamicTableCypressRequestFullPath(TReq* /*req*/, const TYPath& /*fullPath*/)
@@ -303,15 +307,6 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
         << TErrorAttribute("key", ToOwningKey(row));
 }
 
-
-TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
-{
-    return TSchemaUpdateEnabledFeatures{
-        .EnableStaticTableDropColumn = true,
-        .EnableDynamicTableDropColumn = true,
-    };
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 ReserveMemory(
@@ -415,8 +410,6 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
     return tabletInfos;
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryPreparer
@@ -514,7 +507,7 @@ private:
                 ValidateTableSchemaUpdateInternal(
                     *it->second,
                     *tableInfo->Schemas[ETableSchemaKind::Primary],
-                    GetSchemaUpdateEnabledFeatures(),
+                    SchemaUpdateEnabledFeatures,
                     true,
                     false);
             } catch (const std::exception& ex) {
@@ -537,9 +530,9 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryPreparer)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     const TYPath& path,
@@ -1055,7 +1048,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
             *schema,
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             /*isTableDynamic*/ true,
             /*isTableEmpty*/ false,
             /*allowAlterKeyColumnToAny*/ false,
@@ -1615,6 +1608,10 @@ TDuration TClient::CheckPermissionsForQuery(
     return timer.GetElapsedTime();
 }
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config)
 {
     TQueryOptions queryOptions;
@@ -1694,6 +1691,10 @@ void PreheatCache(NAst::TQuery* query, const ITableMountCachePtr& mountCache)
         /*allowMissingIndex*/ true)))
         .ValueOrThrow();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TSelectRowsResult TClient::DoSelectRowsOnce(
     const std::string& queryString,
@@ -2629,7 +2630,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
         ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
             *tableInfo->Schemas[ETableSchemaKind::Primary],
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             true,
             false);
     }
@@ -3216,6 +3217,8 @@ TSyncAlienCellsResult TClient::DoSyncAlienCells(
     };
 }
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletPullRowsSession
@@ -3486,6 +3489,10 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 TPullRowsResult TClient::DoPullRows(
     const TYPath& path,
     const TPullRowsOptions& options)
@@ -3501,7 +3508,7 @@ TPullRowsResult TClient::DoPullRows(
         ValidateTableSchemaUpdateInternal(
             *tableInfo->Schemas[ETableSchemaKind::Primary],
             *options.TableSchema,
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             true,
             false);
     }

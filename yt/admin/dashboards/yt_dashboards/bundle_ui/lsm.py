@@ -42,19 +42,25 @@ an additional factor of 1 to write amplification). Normal values are around 2-5.
         .stack(False)
         .top()
         .row()
-            .cell("Running compactions", NodeTablet("yt.tablet_node.store_compactor.running_compactions"))
-            .cell("Running partitionings", NodeTablet("yt.tablet_node.store_compactor.running_partitionings"))
+            .cell("Running compactions",
+                  NodeTablet("yt.tablet_node.store_compactor.running_compactions")
+                  .host_container_legend_format())
+            .cell("Running partitionings",
+                  NodeTablet("yt.tablet_node.store_compactor.running_partitionings")
+                  .host_container_legend_format())
         .row()
-            .cell(
-                "Compaction queue size",
-                NodeTablet("yt.tablet_node.store_compactor.feasible_compactions"),
-                description=queue_size_hint)
-            .cell(
-                "Partitioning queue size",
-                NodeTablet("yt.tablet_node.store_compactor.feasible_partitionings"),
-                description=queue_size_hint)
+            .cell("Compaction queue size",
+                  NodeTablet("yt.tablet_node.store_compactor.feasible_compactions")
+                  .host_container_legend_format(),
+                  description=queue_size_hint)
+            .cell("Partitioning queue size",
+                  NodeTablet("yt.tablet_node.store_compactor.feasible_partitionings")
+                  .host_container_legend_format(),
+                  description=queue_size_hint)
         .row()
-            .cell("Running flushes", NodeTablet("yt.tablet_node.store_flusher.running_store_flushes"))
+            .cell("Running flushes",
+                  NodeTablet("yt.tablet_node.store_flusher.running_store_flushes")
+                  .host_container_legend_format())
             .cell(
                 "LSM write amplification", (
                     (lsm_dw.value("activity", "compaction|partitioning").series_sum("cluster"))
@@ -67,7 +73,7 @@ an additional factor of 1 to write amplification). Normal values are around 2-5.
             .cell(
                 "Max overlapping store count (per node)",
                 NodeTablet("yt.tablet_node.tablet.overlapping_store_count.max")
-                    .aggr("table_path", "table_tag"))
+                    .aggr("table_path", "table_tag").host_container_legend_format())
             .cell(
                 "Max overlapping store count (per table)",
                 MultiSensor(osc("table_path"), osc("table_tag")).top(False))

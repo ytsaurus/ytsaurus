@@ -53,7 +53,7 @@ template <class T, class... Ts>
 concept CStaticPredicate = (requires {
     { T{}.template operator()<Ts>() } -> std::same_as<bool>;
 
-    // NB! Ad-hoc way to check that predicate can be evaluated in compile-time.
+    // NB: Ad-hoc way to check that predicate can be evaluated in compile-time.
     { std::conditional_t<T{}.template operator()<Ts>(), int, double>{} };
 } && ...);
 

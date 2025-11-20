@@ -13,31 +13,116 @@ from yt_dashboard_generator.backends.monitoring import (
     MonitoringTextDashboardParameter,
 )
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
-from yt_dashboard_generator.dashboard import Rowset
+from yt_dashboard_generator.dashboard import Dashboard, Rowset
+from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor, Text
 
+import dataclasses
+import urllib.parse
+
 from textwrap import dedent
+from typing import Callable
+
+@dataclasses.dataclass
+class DashboardMeta:
+    short_name: str
+    name: str
+    title: str
+
+
+def get_dashboards_meta():
+    dashboards = {}
+    for short_name in [
+        "general",
+        "diagnostics",
+        "event-time",
+        "controller",
+        "worker",
+        "computation",
+        "message-transfering",
+        "state-cache"
+    ]:
+        dashboards[short_name] = DashboardMeta(
+            short_name=short_name,
+            name=f"ytsaurus-flow-{short_name}",
+            title=short_name.replace('-', ' ').capitalize(),
+        )
+    return dashboards
+
+
+DASHBOARDS_META = get_dashboards_meta()
+
+
+def build_dashboard_links(dashboard_short_name: str):
+    assert dashboard_short_name in DASHBOARDS_META, f"Unknown dashboard {dashboard_short_name}"
+
+    return [
+        {
+            "group": {
+                "items": [
+                    {
+                        "link": {
+                            "title": meta.title,
+                            "openInNewTab": False,
+                            "dashboard": {
+                                "dashboardName": meta.name,
+                                "parameters": {
+                                    "project": "{{project}}",
+                                    "cluster": "{{cluster}}",
+                                    "pipeline_cluster": "{{pipeline_cluster}}",
+                                    "pipeline_path": "{{pipeline_path}}"
+                                },
+                                "applyTimeRange": True,
+                                "projectId": "yt",
+                            },
+                        },
+                    }
+                    for meta in DASHBOARDS_META.values()
+                ],
+                "title": "Dashboards",
+            },
+        },
+        {
+            "group": {
+                "items": [
+                    {
+                        "link": {
+                            "title": "This dashboard documentation",
+                            "openInNewTab": False,
+                            "url": f"https://yt.yandex-team.ru/docs/flow/release/ui#{dashboard_short_name}-dashboard",
+                        },
+                    },
+                    {
+                        "link": {
+                            "title": "Flow documentation",
+                            "openInNewTab": False,
+                            "url": "https://yt.yandex-team.ru/docs/flow/about",
+                        },
+                    },
+                ],
+                "title": "Documentation",
+            },
+        },
+        {
+            "link": {
+                "title": "Tracing",
+                "openInNewTab": False,
+                "url": "https://monitoring.yandex-team.ru/projects/yt/traces?query=%7Bproject%20%3D%20%22{{project}}%22%2C%20service%20%3D%20%22{{cluster}}%22%7D",
+            },
+        }
+    ]
 
 
 def build_versions():
     spec_version_change_query_transformation = "sign(derivative({query}))"
 
-    def make_url(dashboard):
-        return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/ytsaurus-flow-{dashboard}"
+    def make_url(name):
+        return (f"https://monitoring.yandex-team.ru/projects/yt/dashboards/{name}"
             "?p[project]={{project}}&p[cluster]={{cluster}}")
 
     description_rows = ["&#128196; [Diagnosis and problem solving documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"] + [
-        f"&#128200; [{dashboard.replace('-', ' ').capitalize()} dashboard]({make_url(dashboard)})"
-        for dashboard in [
-            "general",
-            "diagnostics",
-            "event-time",
-            "controller",
-            "worker",
-            "computation",
-            "message-transfering",
-            "state-cache"
-        ]
+        f"&#128200; [{dashboard_meta.title} dashboard]({make_url(dashboard_meta.name)})"
+        for dashboard_meta in DASHBOARDS_META.values()
     ]
     description_text = "\n".join(description_rows)
 
@@ -225,3 +310,19 @@ def add_common_dashboard_parameters(dashboard):
     )
     dashboard.add_parameter("pipeline_cluster", "Pipeline cluster", MonitoringTextDashboardParameter(default_value="-"))
     dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))
+
+
+def create_dashboard(short_name: str, filler: Callable[Dashboard, None]):
+    d = Dashboard()
+    d.set_title(f"[YT Flow] {DASHBOARDS_META[short_name].title}")
+    d.set_monitoring_links(build_dashboard_links(short_name))
+    add_common_dashboard_parameters(d)
+
+    d.add(build_versions())
+
+    filler(d)
+
+    d.value("project", TemplateTag("project"))
+    d.value("cluster", TemplateTag("cluster"))
+
+    return d

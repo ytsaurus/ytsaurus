@@ -12,7 +12,6 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Release date:** 2025-10-23
 
-
 #### Features
 * Add `execute` method to `MultiYTsaurusClient`.
 * Support `YPath` empty root designator for operation spec.

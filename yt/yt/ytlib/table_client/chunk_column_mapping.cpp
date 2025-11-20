@@ -7,10 +7,9 @@
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerSchema)
 {
@@ -72,6 +71,8 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
