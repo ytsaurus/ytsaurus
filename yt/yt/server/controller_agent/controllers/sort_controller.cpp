@@ -65,8 +65,6 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <library/cpp/yt/misc/numeric_helpers.h>
-
 #include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -364,10 +362,6 @@ protected:
     class TUnorderedMergeTask;
     using TUnorderedMergeTaskPtr = TIntrusivePtr<TUnorderedMergeTask>;
 
-    //! Equivalent to |Partitions.size() == 1| but enables checking
-    //! for simple sort when #Partitions is still being constructed.
-    bool SimpleSort_ = false;
-
     //! PartitionsByLevels[level][index] is a partition with corresponding
     //! level and index.
     std::vector<std::vector<TPartitionBasePtr>> PartitionsByLevels_;
@@ -412,9 +406,6 @@ protected:
     IJobSizeConstraintsPtr RootPartitionPoolJobSizeConstraints_;
     IPartitioningParametersEvaluatorPtr PartitioningParametersEvaluator_;
 
-    IPersistentChunkPoolPtr RootPartitionPool_;
-    IPersistentChunkPoolPtr SimpleSortPool_;
-
     //! i-th element is a multi chunk pool built over the inputs of i-th level partitions' shuffle chunk pools.
     std::vector<IMultiChunkPoolInputPtr> ShuffleMultiChunkPoolInputs_;
 
@@ -424,6 +415,7 @@ protected:
     //! i-th element is a partition task of i-th level.
     std::vector<TPartitionTaskPtr> PartitionTasks_;
 
+    //! Non-null only for sort operation when |Partitions.size() == 1|.
     TSimpleSortTaskPtr SimpleSortTask_;
 
     TSortTaskPtr IntermediateSortTask_;
@@ -448,15 +440,15 @@ protected:
         TPartitionTask(
             TSortControllerBase* controller,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-            int level)
+            int level,
+            IPersistentChunkPoolInputPtr chunkPoolInput,
+            IPersistentChunkPoolOutputPtr chunkPoolOutput)
             : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
             , Level_(level)
+            , ChunkPoolInput_(chunkPoolInput)
+            , ChunkPoolOutput_(chunkPoolOutput)
         {
-            if (!IsRoot()) {
-                ShuffleMultiChunkOutput_ = Controller_->CreateLevelMultiChunkPoolOutput(Level_);
-            }
-
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter_);
 
             const auto& inputPartitions = Controller_->PartitionsByLevels_[Level_];
@@ -540,20 +532,12 @@ protected:
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            if (IsRoot()) {
-                return Controller_->RootPartitionPool_;
-            } else {
-                return Controller_->ShuffleMultiChunkPoolInputs_[Level_ - 1];
-            }
+            return ChunkPoolInput_;
         }
 
         IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            if (IsRoot()) {
-                return Controller_->RootPartitionPool_;
-            } else {
-                return ShuffleMultiChunkOutput_;
-            }
+            return ChunkPoolOutput_;
         }
 
         TInputChunkMappingPtr GetChunkMapping() const override
@@ -600,7 +584,8 @@ protected:
 
         int Level_ = -1;
 
-        IMultiChunkPoolOutputPtr ShuffleMultiChunkOutput_;
+        IPersistentChunkPoolInputPtr ChunkPoolInput_;
+        IPersistentChunkPoolOutputPtr ChunkPoolOutput_;
 
         //! Partition index -> wire partition lower key bound prefixes.
         std::vector<std::optional<TString>> WirePartitionLowerBoundPrefixes_;
@@ -718,7 +703,7 @@ protected:
 
             if (IsIntermediate()) {
                 Controller_->UpdateTask(GetNextPartitionTask().Get());
-            } else if (Controller_->SimpleSort_) {
+            } else if (Controller_->SimpleSortTask_) {
                 Controller_->UpdateTask(Controller_->SimpleSortTask_.Get());
             } else {
                 Controller_->UpdateTask(Controller_->UnorderedMergeTask_.Get());
@@ -989,7 +974,7 @@ protected:
     protected:
         TExtendedJobResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
-            if (Controller_->SimpleSort_) {
+            if (Controller_->SimpleSortTask_) {
                 return Controller_->GetSimpleSortResources(stat);
             } else {
                 return Controller_->GetPartitionSortResources(IsFinalSort_, stat);
@@ -1054,7 +1039,7 @@ protected:
                     dataSlice->SetInputStreamIndex(inputStreamIndex);
                 }
 
-                stripe->SetInputChunkPoolIndex(Controller_->SimpleSort_ ? 0 : joblet->InputStripeList->GetOutputChunkPoolIndex());
+                stripe->SetInputChunkPoolIndex(Controller_->SimpleSortTask_ ? 0 : joblet->InputStripeList->GetOutputChunkPoolIndex());
 
                 std::optional<TRowsDigest> rowsDigest;
                 if (!jobResultExt.output_digests().empty() && jobResultExt.output_digests()[0].has_value()) {
@@ -1084,7 +1069,7 @@ protected:
             TTask::OnJobLost(completedJob, chunkId);
 
             Controller_->UpdateTask(this);
-            if (!Controller_->SimpleSort_) {
+            if (!Controller_->SimpleSortTask_) {
                 Controller_->UpdateTask(Controller_->GetFinalPartitionTask().Get());
             }
         }
@@ -1241,7 +1226,7 @@ protected:
 
         void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
-            if (!Controller_->SimpleSort_) {
+            if (!Controller_->SimpleSortTask_) {
                 auto partitionIndex = *completedJob->InputStripe->GetInputChunkPoolIndex();
                 const auto& partition = Controller_->GetFinalPartition(partitionIndex);
                 auto nodeId = completedJob->NodeDescriptor.Id;
@@ -1308,13 +1293,20 @@ protected:
             TSortControllerBase* controller,
             TFinalPartitionPtr partition,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-            std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+            IJobSizeConstraintsPtr jobSizeConstraints)
             : TSortTaskBase(
                 controller,
                 std::move(outputStreamDescriptors),
-                std::move(inputStreamDescriptors),
+                /*inputStreamDescriptors*/ {},
                 /*isFinalSort*/ true)
             , Partition_(std::move(partition))
+            , ChunkPool_(CreateUnorderedChunkPool(
+                TUnorderedChunkPoolOptions{
+                    .JobSizeConstraints = jobSizeConstraints,
+                    .RowBuffer = controller->RowBuffer_,
+                    .Logger = Logger().WithTag("Name: SimpleSort"),
+                },
+                controller->GetInputStreamDirectory()))
         {
             GetChunkPoolOutput()->GetDataWeightCounter()->AddParent(Controller_->SortDataWeightCounter_);
         }
@@ -1333,12 +1325,12 @@ protected:
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            return Controller_->SimpleSortPool_;
+            return ChunkPool_;
         }
 
         IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            return Controller_->SimpleSortPool_;
+            return ChunkPool_;
         }
 
         void OnTaskCompleted() override
@@ -1346,11 +1338,7 @@ protected:
             TSortTaskBase::OnTaskCompleted();
 
             YT_VERIFY(Controller_->PartitionsByLevels_.back().size() == 1);
-
-            if (Controller_->SortedMergeTask_) {
-                Controller_->SortedMergeTask_->Finalize();
-            }
-
+            Controller_->SortedMergeTask_->Finalize();
             if (IsFinalSort_) {
                 Controller_->OnFinalPartitionCompleted(Partition_);
             }
@@ -1384,6 +1372,7 @@ protected:
 
     private:
         TFinalPartitionPtr Partition_;
+        IPersistentChunkPoolPtr ChunkPool_;
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSimpleSortTask, 0xb32d4f02);
     };
@@ -1423,7 +1412,7 @@ protected:
             }
 
             return
-                Controller_->SimpleSort_
+                Controller_->SimpleSortTask_
                 ? Controller_->Spec_->SimpleMergeLocalityTimeout
                 : Controller_->Spec_->MergeLocalityTimeout;
         }
@@ -1834,11 +1823,6 @@ protected:
 
     // Partition tree helpers.
 
-    const TPartitionTaskPtr& GetRootPartitionTask() const
-    {
-        return PartitionTasks_.front();
-    }
-
     const TPartitionTaskPtr& GetFinalPartitionTask() const
     {
         return PartitionTasks_.back();
@@ -1856,13 +1840,14 @@ protected:
             });
     }
 
-    TIntermediatePartitionPtr GetRootPartition() const
-    {
-        return DynamicPointerCast<TIntermediatePartition>(PartitionsByLevels_[0][0]);
-    }
-
     TFinalPartitionPtr GetFinalPartition(int partitionIndex) const
     {
+        if (SimpleSortTask_) {
+            YT_VERIFY(PartitionTreeDepth_ == 0);
+            YT_VERIFY(std::ssize(PartitionsByLevels_) == 1);
+            YT_VERIFY(std::ssize(PartitionsByLevels_[0]) == 1);
+            return DynamicPointerCast<TFinalPartition>(PartitionsByLevels_[0][0]);
+        }
         YT_VERIFY(std::ssize(PartitionsByLevels_) == PartitionTreeDepth_ + 1);
         return DynamicPointerCast<TFinalPartition>(PartitionsByLevels_.back()[partitionIndex]);
     }
@@ -1909,10 +1894,7 @@ protected:
 
     void SetupPartitioningCompletedCallbacks()
     {
-        if (SimpleSort_) {
-            return;
-        }
-
+        YT_VERIFY(!SimpleSortTask_);
         for (const auto& partition : PartitionsByLevels_ |
             std::views::take(std::ssize(PartitionsByLevels_) - 1) |
             std::views::join)
@@ -1955,9 +1937,7 @@ protected:
 
     void PrepareSortTasks()
     {
-        if (SimpleSort_) {
-            return;
-        }
+        YT_VERIFY(!SimpleSortTask_);
 
         IntermediateSortTask_ = New<TSortTask>(
             this,
@@ -1983,7 +1963,7 @@ protected:
     void PrepareSortedMergeTask()
     {
         auto SortedMergeInputStreamDescriptors = BuildInputStreamDescriptorsFromOutputStreamDescriptors(
-            SimpleSort_
+            SimpleSortTask_
             ? SimpleSortTask_->GetOutputStreamDescriptors()
             : IntermediateSortTask_->GetOutputStreamDescriptors());
 
@@ -2093,16 +2073,17 @@ protected:
 
             AssignNodeIdToPartition(partition, nodeId);
 
-            TTaskPtr task;
-            if (partition->IsManiac()) {
-                task = UnorderedMergeTask_;
-            } else if (SimpleSort_) {
-                task = SimpleSortTask_;
-            } else if (IsSortedMergeNeeded(partition)) {
-                task = IntermediateSortTask_;
-            } else {
-                task = FinalSortTask_;
-            }
+            auto task = [&] () -> TTaskPtr {
+                if (partition->IsManiac()) {
+                    return UnorderedMergeTask_;
+                } else if (SimpleSortTask_) {
+                    return SimpleSortTask_;
+                } else if (IsSortedMergeNeeded(partition)) {
+                    return IntermediateSortTask_;
+                } else {
+                    return FinalSortTask_;
+                }
+            }();
 
             UpdateTask(task.Get());
 
@@ -2129,40 +2110,39 @@ protected:
         YT_LOG_DEBUG("Partitions assigned");
     }
 
-    void InitPartitionPool(
-        IJobSizeConstraintsPtr jobSizeConstraints,
+    IPersistentChunkPoolPtr CreateRootPartitionPool(
         TJobSizeAdjusterConfigPtr jobSizeAdjusterConfig,
-        bool ordered)
+        bool ordered) const
     {
+        YT_VERIFY(RootPartitionPoolJobSizeConstraints_);
+
         if (ordered) {
-            TOrderedChunkPoolOptions options;
-            options.JobSizeConstraints = std::move(jobSizeConstraints);
-            options.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
-            options.EnablePeriodicYielder = true;
-            options.ShouldSliceByRowIndices = true;
-            options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
-            options.Logger = Logger().WithTag("Name: RootPartition");
-
-            RootPartitionPool_ = CreateOrderedChunkPool(
-                std::move(options),
+           return CreateOrderedChunkPool(
+                TOrderedChunkPoolOptions{
+                    .MaxTotalSliceCount = Config_->MaxTotalSliceCount,
+                    .JobSizeConstraints = RootPartitionPoolJobSizeConstraints_,
+                    .EnablePeriodicYielder = true,
+                    .ShouldSliceByRowIndices = true,
+                    .Logger = Logger().WithTag("Name: RootPartition"),
+                    .JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig),
+                },
                 IntermediateInputStreamDirectory);
-        } else {
-            TUnorderedChunkPoolOptions options;
-            options.RowBuffer = RowBuffer_;
-            options.JobSizeConstraints = std::move(jobSizeConstraints);
-            options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
-            options.Logger = Logger().WithTag("Name: RootPartition");
-
-            RootPartitionPool_ = CreateUnorderedChunkPool(
-                std::move(options),
-                GetInputStreamDirectory());
         }
 
-        RootPartitionPool_->GetDataWeightCounter()->AddParent(SortDataWeightCounter_);
+        return CreateUnorderedChunkPool(
+            TUnorderedChunkPoolOptions{
+                .JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig),
+                .JobSizeConstraints = RootPartitionPoolJobSizeConstraints_,
+                .RowBuffer = RowBuffer_,
+                .Logger = Logger().WithTag("Name: RootPartition"),
+            },
+            GetInputStreamDirectory());
     }
 
     void CreateShufflePools()
     {
+        YT_VERIFY(!SimpleSortTask_);
+
         ShuffleMultiChunkPoolInputs_.reserve(PartitionTreeDepth_);
         ShuffleMultiInputChunkMappings_.reserve(PartitionTreeDepth_);
         for (int level = 0; level < PartitionTreeDepth_; ++level) {
@@ -2199,18 +2179,6 @@ protected:
         }
     }
 
-    void InitSimpleSortPool(IJobSizeConstraintsPtr jobSizeConstraints)
-    {
-        TUnorderedChunkPoolOptions options;
-        options.RowBuffer = RowBuffer_;
-        options.JobSizeConstraints = std::move(jobSizeConstraints);
-        options.Logger = Logger().WithTag("Name: SimpleSort");
-
-        SimpleSortPool_ = CreateUnorderedChunkPool(
-            std::move(options),
-            GetInputStreamDirectory());
-    }
-
     bool IsCompleted() const override
     {
         return CompletedPartitionCount_ == std::ssize(GetFinalPartitions());
@@ -2243,7 +2211,7 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
 
-            if (IsRowCountPreserved() && !(SimpleSort_ && isNontrivialInput) && !IsSamplingEnabled() && !InputHasDynamicStores()) {
+            if (IsRowCountPreserved() && !(SimpleSortTask_ && isNontrivialInput) && !IsSamplingEnabled() && !InputHasDynamicStores()) {
                 // We don't check row count for simple sort if nontrivial read limits are specified,
                 // since input row count can be estimated inaccurate.
                 i64 totalInputRowCount = 0;
@@ -2309,7 +2277,7 @@ protected:
         partition->SetCachedSortedMergeNeeded(true);
         SortedMergeTask_->RegisterPartition(partition);
 
-        if (SimpleSort_) {
+        if (SimpleSortTask_) {
             SimpleSortTask_->OnSortedMergeNeeded();
         } else {
             IntermediateSortTask_->RegisterPartition(partition);
@@ -2320,10 +2288,10 @@ protected:
     void CheckSortStartThreshold()
     {
         if (!SortStartThresholdReached_) {
-            if (SimpleSort_) {
+            if (SimpleSortTask_) {
                 SortStartThresholdReached_ = true;
             } else if (IsSamplingEnabled() && PartitionTreeDepth_ == 1) {
-                if (GetRootPartitionTask()->IsCompleted()) {
+                if (PartitionTasks_.front()->IsCompleted()) {
                     SortStartThresholdReached_ = true;
                 }
             } else if (GetFinalPartitionTask()->GetChunkPoolInput()->IsFinished()) {
@@ -2344,45 +2312,19 @@ protected:
 
     bool IsShuffleCompleted() const
     {
+        YT_VERIFY(!SimpleSortTask_);
+
         if (UnorderedMergeTask_ && !UnorderedMergeTask_->IsCompleted()) {
             return false;
         }
 
-        if (SimpleSortTask_ && !SimpleSortTask_->IsCompleted()) {
-            return false;
-        }
-
-        if (IntermediateSortTask_ && !IntermediateSortTask_->IsCompleted()) {
-            return false;
-        }
-
-        if (FinalSortTask_ && !FinalSortTask_->IsCompleted()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    int AdjustPartitionCountToWriterBufferSize(
-        int partitionCount,
-        int partitionJobCount,
-        TChunkWriterConfigPtr config) const
-    {
-        i64 dataWeightAfterPartition = 1 + static_cast<i64>(EstimatedInputStatistics_->DataWeight * Spec_->MapSelectivityFactor);
-        partitionJobCount = std::max<i64>(partitionJobCount, 1);
-        i64 bufferSize = std::min(config->MaxBufferSize, DivCeil<i64>(dataWeightAfterPartition, partitionJobCount));
-        i64 partitionBufferSize = bufferSize / partitionCount;
-        if (partitionBufferSize < Options_->MinUncompressedBlockSize) {
-            return std::max(bufferSize / Options_->MinUncompressedBlockSize, (i64)1);
-        } else {
-            return partitionCount;
-        }
+        return IntermediateSortTask_->IsCompleted() && FinalSortTask_->IsCompleted();
     }
 
     void CheckMergeStartThreshold()
     {
         if (!MergeStartThresholdReached_) {
-            if (!SimpleSort_) {
+            if (!SimpleSortTask_) {
                 if (!GetFinalPartitionTask()->IsCompleted()) {
                     return;
                 }
@@ -2733,9 +2675,12 @@ protected:
 
     void BuildPartitionTree(int finalPartitionCount, int maxPartitionFactor)
     {
+        YT_VERIFY(!SimpleSortTask_);
+
         YT_LOG_DEBUG("Building partition tree (FinalPartitionCount: %v, MaxPartitionFactor: %v)",
             finalPartitionCount,
             maxPartitionFactor);
+
         auto buildPartitionTree = [&] (TPartitionTreeSkeletonNode* partitionTreeSkeleton, int level, auto buildPartitionTree) -> TPartitionBasePtr {
             YT_VERIFY(level <= PartitionTreeDepth_);
             int levelPartitionIndex = std::ssize(PartitionsByLevels_[level]);
@@ -2756,6 +2701,7 @@ protected:
 
             return partition;
         };
+
         auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(finalPartitionCount, maxPartitionFactor);
         PartitionTreeDepth_ = partitionTreeSkeleton.TreeDepth;
         PartitionsByLevels_.resize(PartitionTreeDepth_ + 1);
@@ -2870,6 +2816,8 @@ protected:
     // TODO(apollo1321): Enable maniac partitions for map-reduce operations.
     void AssignPartitionKeysToPartitions(const std::vector<TPartitionKey>& partitionKeys, bool setManiac)
     {
+        YT_VERIFY(!SimpleSortTask_);
+
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
         finalPartitions[0]->LowerBound() = TKeyBound::MakeUniversal(/*isUpper*/ false);
@@ -2934,7 +2882,6 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(11, TotalOutputRowCount_);
 
-    PHOENIX_REGISTER_FIELD(12, SimpleSort_);
     PHOENIX_REGISTER_FIELD(13, PartitionsByLevels_);
     PHOENIX_REGISTER_FIELD(14, PartitionTreeDepth_);
     PHOENIX_REGISTER_FIELD(15, PartitionCount_);
@@ -2958,8 +2905,6 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(30, UnorderedMergeJobIOConfig_);
 
     PHOENIX_REGISTER_FIELD(31, RootPartitionPoolJobSizeConstraints_);
-    PHOENIX_REGISTER_FIELD(32, RootPartitionPool_);
-    PHOENIX_REGISTER_FIELD(33, SimpleSortPool_);
 
     PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs_);
     PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings_);
@@ -2982,7 +2927,9 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(44, SwitchedToSlowIntermediateMedium_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        this_->SetupPartitioningCompletedCallbacks();
+        if (!this_->SimpleSortTask_) {
+            this_->SetupPartitioningCompletedCallbacks();
+        }
     });
 }
 
@@ -2997,11 +2944,8 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Controller_);
     PHOENIX_REGISTER_FIELD(2, DataBalancer_);
     PHOENIX_REGISTER_FIELD(3, Level_);
-    PHOENIX_REGISTER_FIELD(4, ShuffleMultiChunkOutput_);
-    registrar.template VirtualField<5>("WirePartitionKeys_", [] (TThis* /*this_*/, auto& context) {
-        Load<std::vector<std::optional<TString>>>(context);
-    })
-        .BeforeVersion(ESnapshotVersion::DropLegacyWirePartitionKeys)();
+    PHOENIX_REGISTER_FIELD(4, ChunkPoolInput_);
+    PHOENIX_REGISTER_FIELD(5, ChunkPoolOutput_);
     PHOENIX_REGISTER_FIELD(6, WirePartitionLowerBoundPrefixes_);
     PHOENIX_REGISTER_FIELD(7, PartitionLowerBoundInclusivenesses_);
 
@@ -3046,6 +2990,7 @@ void TSortControllerBase::TSimpleSortTask::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TSortTaskBase>();
 
     PHOENIX_REGISTER_FIELD(1, Partition_);
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSimpleSortTask);
@@ -3243,50 +3188,35 @@ private:
         PartitionCount_ = partitionKeys.size() + 1;
         MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(PartitionCount_);
 
-        SimpleSort_ = (PartitionCount_ == 1);
-
-        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v, SimpleSort: %v)",
+        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v)",
             PartitionCount_,
-            MaxPartitionFactor_,
-            SimpleSort_);
-
-        BuildPartitionTree(PartitionCount_, MaxPartitionFactor_);
-
-        AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ true);
-
-        CreateShufflePools();
+            MaxPartitionFactor_);
 
         CreateSortedMergeTask();
 
-        // NB: Here we register tasks in order of descending priority.
-        PreparePartitionTasks();
+        if (PartitionCount_ == 1) {
+            PrepareSimpleSortTask();
+        } else {
+            BuildPartitionTree(PartitionCount_, MaxPartitionFactor_);
+            AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ true);
 
-        PartitionsByLevels_[0][0]->ChunkPoolOutput() = RootPartitionPool_;
+            CreateShufflePools();
 
-        PrepareSortTasks();
+            PreparePartitionTasks();
+            PrepareSortTasks();
+            PrepareUnorderedMergeTask();
 
-        PrepareSimpleSortTask();
-
-        PrepareUnorderedMergeTask();
+            SetupPartitioningCompletedCallbacks();
+        }
 
         PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
-
-        SetupPartitioningCompletedCallbacks();
     }
 
     void PreparePartitionTasks()
     {
-        if (SimpleSort_) {
-            return;
-        }
-
-        InitPartitionPool(
-            RootPartitionPoolJobSizeConstraints_,
-            /*jobSizeAdjusterConfig*/ nullptr,
-            /*ordered*/ false);
-
+        YT_VERIFY(!SimpleSortTask_);
         PartitionTasks_.resize(PartitionTreeDepth_);
         for (int partitionTaskLevel = PartitionTreeDepth_ - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
             auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
@@ -3298,12 +3228,27 @@ private:
                 shuffleStreamDescriptor->TargetDescriptor = PartitionTasks_[partitionTaskLevel + 1]->GetVertexDescriptor();
             }
 
-            PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
-                this,
-                /*outputStreamDescriptors*/ std::vector<TOutputStreamDescriptorPtr>{shuffleStreamDescriptor},
-                partitionTaskLevel);
+            auto createPartitionTask = [&, this_ = this] (auto chunkPoolInput, auto chunkPoolOutput) {
+                return New<TPartitionTask>(
+                    this_,
+                    /*outputStreamDescriptors*/ std::vector<TOutputStreamDescriptorPtr>{shuffleStreamDescriptor},
+                    partitionTaskLevel,
+                    std::move(chunkPoolInput),
+                    std::move(chunkPoolOutput));
+            };
+
+            if (partitionTaskLevel == 0) {
+                auto chunkPool = CreateRootPartitionPool(/*jobSizeAdjusterConfig*/ nullptr, /*ordered*/ false);
+                auto chunkPoolOutput = chunkPool;
+                PartitionTasks_[partitionTaskLevel] = createPartitionTask(std::move(chunkPool), std::move(chunkPoolOutput));;
+            } else {
+                PartitionTasks_[partitionTaskLevel] = createPartitionTask(
+                    ShuffleMultiChunkPoolInputs_[partitionTaskLevel - 1],
+                    CreateLevelMultiChunkPoolOutput(partitionTaskLevel));
+            }
         }
 
+        PartitionsByLevels_[0][0]->ChunkPoolOutput() = PartitionTasks_.front()->GetChunkPoolOutput();
 
         for (int partitionTaskLevel = 0; partitionTaskLevel < PartitionTreeDepth_; ++partitionTaskLevel) {
             RegisterTask(PartitionTasks_[partitionTaskLevel]);
@@ -3326,9 +3271,7 @@ private:
 
     void PrepareSimpleSortTask()
     {
-        if (!SimpleSort_) {
-            return;
-        }
+        PartitionsByLevels_.emplace_back(std::vector<TPartitionBasePtr>{New<TFinalPartition>(/*level*/ 0, /*index*/ 0)});
 
         const auto& partition = GetFinalPartition(0);
 
@@ -3340,17 +3283,17 @@ private:
             EstimatedInputStatistics_->DataWeight,
             EstimatedInputStatistics_->CompressedDataSize);
 
-        InitSimpleSortPool(jobSizeConstraints);
-
         SimpleSortTask_ = New<TSimpleSortTask>(
             this,
-            partition.Get(),
-            GetFinalStreamDescriptors(),
-            std::vector<TInputStreamDescriptorPtr>{});
+            partition,
+            /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
+            jobSizeConstraints);
+
+        partition->ChunkPoolOutput() = SimpleSortTask_->GetChunkPoolOutput();
+
         SimpleSortTask_->SetupJobCounters();
         RegisterTask(SimpleSortTask_);
 
-        partition->ChunkPoolOutput() = SimpleSortPool_;
         SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         ProcessInputs(SimpleSortTask_, jobSizeConstraints);
 
@@ -3371,9 +3314,7 @@ private:
 
     void PrepareUnorderedMergeTask()
     {
-        if (SimpleSort_) {
-            return;
-        }
+        YT_VERIFY(!SimpleSortTask_);
 
         UnorderedMergeTask_ = New<TUnorderedMergeTask>(
             this,
@@ -3432,12 +3373,12 @@ private:
 
     EJobType GetIntermediateSortJobType() const override
     {
-        return SimpleSort_ ? EJobType::SimpleSort : EJobType::IntermediateSort;
+        return SimpleSortTask_ ? EJobType::SimpleSort : EJobType::IntermediateSort;
     }
 
     EJobType GetFinalSortJobType() const override
     {
-        return SimpleSort_ ? EJobType::SimpleSort : EJobType::FinalSort;
+        return SimpleSortTask_ ? EJobType::SimpleSort : EJobType::FinalSort;
     }
 
     EJobType GetSortedMergeJobType() const override
@@ -3504,7 +3445,7 @@ private:
         {
             auto* jobSpecExt = sortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
 
-            if (SimpleSort_) {
+            if (SimpleSortTask_) {
                 jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->PartitionJobIO))));
                 SetProtoExtension<TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
@@ -4201,16 +4142,10 @@ private:
             MaxPartitionFactor_);
 
         CreateShufflePools();
-
         CreateSortedMergeTask();
 
-        // NB: Here we register tasks in order of descending priority.
         PreparePartitionTasks();
-
-        PartitionsByLevels_[0][0]->ChunkPoolOutput() = RootPartitionPool_;
-
         PrepareSortTasks();
-
         PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
@@ -4220,20 +4155,8 @@ private:
 
     void PreparePartitionTasks()
     {
-        bool useJobSizeAdjuster = Spec_->Ordered
-            ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
-            : Config_->EnablePartitionMapJobSizeAdjustment;
-
-        InitPartitionPool(
-            RootPartitionPoolJobSizeConstraints_,
-            useJobSizeAdjuster
-                ? Options_->PartitionJobSizeAdjuster
-                : nullptr,
-            Spec_->Ordered);
-
         PartitionTasks_.resize(PartitionTreeDepth_);
         for (int partitionTaskLevel = PartitionTreeDepth_ - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
-            std::vector<TOutputStreamDescriptorPtr> partitionStreamDescriptors;
             // Primary stream descriptor for shuffled output of the mapper.
             auto shuffleStreamDescriptor = GetIntermediateStreamDescriptorTemplate()->Clone();
             shuffleStreamDescriptor->DestinationPool = ShuffleMultiChunkPoolInputs_[partitionTaskLevel];
@@ -4249,19 +4172,42 @@ private:
                 Spec_->EnableIntermediateOutputRecalculation &&
                 Spec_->HasNontrivialMapper();
 
-            partitionStreamDescriptors.emplace_back(std::move(shuffleStreamDescriptor));
+            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors{std::move(shuffleStreamDescriptor)};
 
             if (partitionTaskLevel == 0) {
-                partitionStreamDescriptors.insert(
-                    partitionStreamDescriptors.end(),
+                outputStreamDescriptors.insert(
+                    outputStreamDescriptors.end(),
                     MapperSinkEdges_.begin(),
                     MapperSinkEdges_.end());
+
+                bool useJobSizeAdjuster = Spec_->Ordered
+                    ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
+                    : Config_->EnablePartitionMapJobSizeAdjustment;
+
+                auto chunkPool = CreateRootPartitionPool(
+                    useJobSizeAdjuster
+                        ? Options_->PartitionJobSizeAdjuster
+                        : nullptr,
+                    Spec_->Ordered);
+
+                auto chunkPoolOutput = chunkPool;
+                PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
+                    this,
+                    /*outputStreamDescriptors*/ std::move(outputStreamDescriptors),
+                    partitionTaskLevel,
+                    std::move(chunkPool),
+                    std::move(chunkPoolOutput));
+            } else {
+                PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
+                    this,
+                    /*outputStreamDescriptors*/ std::move(outputStreamDescriptors),
+                    partitionTaskLevel,
+                    ShuffleMultiChunkPoolInputs_[partitionTaskLevel - 1],
+                    CreateLevelMultiChunkPoolOutput(partitionTaskLevel));
             }
-            PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
-                this,
-                /*outputStreamDescriptors*/ partitionStreamDescriptors,
-                partitionTaskLevel);
         }
+
+        PartitionsByLevels_[0][0]->ChunkPoolOutput() = PartitionTasks_.front()->GetChunkPoolOutput();
 
         for (int partitionTaskLevel = 0; partitionTaskLevel < PartitionTreeDepth_; ++partitionTaskLevel) {
             RegisterTask(PartitionTasks_[partitionTaskLevel]);
