@@ -14,6 +14,7 @@
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
+#include <library/cpp/yt/compact_containers/compact_map.h>
 #include <library/cpp/yt/compact_containers/compact_set.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
@@ -1144,6 +1145,12 @@ struct TSorterSelector<TCompactFlatMap<K, V, N>, C, TSortedTag>
     using TSorter = TCollectionSorter<TCompactFlatMap<K, V, N>, TKeySorterComparer<C>>;
 };
 
+template <class K, class V, size_t N, class C>
+struct TSorterSelector<TCompactMap<K, V, N>, C, TSortedTag>
+{
+    using TSorter = TCollectionSorter<TCompactMap<K, V, N>, TKeySorterComparer<C>>;
+};
+
 template <class C, class... T>
 struct TSorterSelector<std::unordered_multimap<T...>, C, TSortedTag>
 {
@@ -1951,6 +1958,12 @@ struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
 
 template <class K, class V, size_t N, class C>
 struct TSerializerTraits<TCompactFlatMap<K, V, N>, C, void>
+{
+    using TSerializer = TMapSerializer<>;
+};
+
+template <class K, class V, size_t N, class C>
+struct TSerializerTraits<TCompactMap<K, V, N>, C, void>
 {
     using TSerializer = TMapSerializer<>;
 };
