@@ -1,15 +1,20 @@
-from yt_env_setup import YTEnvSetup, update_inplace
+from yt_env_setup import NODES_SERVICE, Restarter, YTEnvSetup, update_inplace
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
 from yt.environment.default_config import get_dynamic_node_config
 
 from yt_commands import (
-    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
+    authors, create_dynamic_table, get_cell_tag, get_driver, get_singular_chunk_id, insert_rows, map_reduce, sync_create_cells,
     read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionWithRemoteClustersBaseChecks
 
+from os import listdir
+from os.path import isfile, join
+import zstandard as zstd
+
+import io
 import time
 import pytest
 import builtins
@@ -424,6 +429,54 @@ class TestMasterCellDynamicPropagationDuringNodeRegistration(MasterCellAdditionB
         # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.
         self.Env.start_nodes()
+
+
+class TestNodeRestartAfterCellAddition(MasterCellAdditionBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_NODES = 4
+
+    DELTA_NODE_CONFIG = {
+        "exec_node_is_not_data_node": True,
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
+    }
+
+    @authors("grphil")
+    def test_node_restart_after_cell_addition(self):
+        self.execute_checks_with_cell_addition(downtime=False)
+        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
+        write_table("//tmp/t", [{"a" : "b"}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+            wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 0)
+        wait(lambda: chunk_id not in get("//sys/lost_chunks"))
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) > 0)
+
+        def log_contains_text(logs_path, text):
+            node_files = [join(logs_path, f) for f in listdir(logs_path) if "node" in f and ".log.zst" in f and isfile(join(logs_path, f))]
+
+            for file_path in node_files:
+                with open(file_path, "rb") as log_file:
+                    decompressor = zstd.ZstdDecompressor()
+                    binary_reader = decompressor.stream_reader(log_file, read_size=8192)
+                    text_stream = io.TextIOWrapper(binary_reader, encoding='utf-8')
+                    for line in text_stream:
+                        if text in line:
+                            return True
+
+            return False
+
+        wait(lambda: log_contains_text(self.path_to_run + "/logs", "Chunk from unknown master was scanned"))
+        wait(lambda: log_contains_text(self.path_to_run + "/logs", "Chunks cell tags are checked (InvalidCells: 0, InvalidChunkCount: 0)"))
 
 
 ##################################################################

@@ -784,6 +784,31 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
     return result;
 }
 
+void TChunkStore::CheckAllChunksHaveValidCellTags(THashSet<NObjectClient::TCellTag> masterCellTags) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    THashMap<NObjectClient::TCellTag, int> invalidCellTagToChunkCount;
+
+    {
+        auto guard = ReaderGuard(ChunkMapLock_);
+        for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+            auto chunkCellTag = CellTagFromId(chunkEntry.Chunk->GetId());
+            if (!masterCellTags.contains(chunkCellTag)) {
+                invalidCellTagToChunkCount[chunkCellTag]++;
+            }
+        }
+    }
+
+    int totalInvalidChunkCount = 0;
+    for (auto [cellTag, count] : invalidCellTagToChunkCount) {
+        totalInvalidChunkCount += count;
+        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)", cellTag, count);
+    }
+
+    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)", invalidCellTagToChunkCount.size(), totalInvalidChunkCount);
+}
+
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
