@@ -68,7 +68,7 @@ public:
         return TAsyncLockWriterGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 if (std::exchange(State_, EState::Initializing) != EState::Uninitialized) {
-                    YT_LOG_WARNING("Creating not uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v",
+                    YT_LOG_WARNING("Creating not uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
                         ChunkId_,
                         ChunkPath_,
                         ChunkSize_,
@@ -111,7 +111,7 @@ public:
         return TAsyncLockWriterGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 if (std::exchange(State_, EState::Finalizing) != EState::Initialized) {
-                    YT_LOG_WARNING("Destroying not initialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v",
+                    YT_LOG_WARNING("Destroying not initialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
                         ChunkId_,
                         ChunkPath_,
                         ChunkSize_,
@@ -144,7 +144,7 @@ public:
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
                 if (State_ != EState::Initialized) {
-                    YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v",
+                    YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v)",
                         ChunkId_,
                         ChunkPath_,
                         ChunkSize_,
@@ -201,7 +201,7 @@ public:
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
                 if (State_ != EState::Initialized) {
-                    YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v",
+                    YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v)",
                         ChunkId_,
                         ChunkPath_,
                         ChunkSize_,
@@ -266,7 +266,7 @@ private:
     const IThroughputThrottlerPtr WriteThrottler_;
 
     EState State_ = EState::Uninitialized;
-    // This lock is needed to create and destory NBD chunk with exclusive access.
+    // This lock is needed to create and destroy NBD chunk with exclusive access.
     TAsyncReaderWriterLock Lock_;
 };
 
