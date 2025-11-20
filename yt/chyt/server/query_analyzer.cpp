@@ -616,10 +616,9 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPer
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
     return {
-        std::move(secondaryQueryAst),
-        std::move(scalars),
-        /*TotalRowsToRead*/ 0,
-        /*TotalBytesToRead*/0};
+        .Query = std::move(secondaryQueryAst),
+        .Scalars = std::move(scalars),
+    };
 }
 
 TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
@@ -712,8 +711,6 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     return {
         .Query = std::move(secondaryQueryAst),
         .Scalars = std::move(scalars),
-        .TotalRowsToRead = static_cast<ui64>(totalRowCount),
-        .TotalBytesToRead = static_cast<ui64>(totalDataWeight),
     };
 }
 
