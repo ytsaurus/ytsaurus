@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_helpers import profiler_factory
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, are_items_equal
 import yt.yson as yson
 
 import pytest
@@ -1414,7 +1414,7 @@ class TestChunkServerMulticell(TestChunkServer):
             cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
 
             for cell_index in cell_indicies:
-                assert_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes)
+                wait(lambda: are_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes))
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 12})
         write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
@@ -1437,6 +1437,7 @@ class TestChunkServerMulticell(TestChunkServer):
 
         check_owning_nodes(chunk_id, ["//tmp/t", "//home/t", "//tmp/t1"])
         check_owning_nodes(chunk_list_id, chunk_list_owning_nodes)
+        remove("//home/t")
 
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
