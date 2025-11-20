@@ -480,9 +480,32 @@ public:
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas};
-        return DoGetSequoiaReplicas(chunkIds, columnFilter, timestamp, [] (const NRecords::TChunkReplicas& replicaRecord) {
-            return replicaRecord.StoredReplicas;
-        });
+        return DoGetSequoiaReplicas(
+            chunkIds,
+            columnFilter,
+            timestamp,
+            nullptr,
+            [] (const NRecords::TChunkReplicas& replicaRecord) {
+                return replicaRecord.StoredReplicas;
+            });
+    }
+
+    TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds,
+        ISequoiaTransactionPtr transaction) const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
+        TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas};
+        return DoGetSequoiaReplicas(
+            chunkIds,
+            columnFilter,
+            TTimestamp(), // We do not need timestamp for transaction requests.
+            transaction,
+            [] (const NRecords::TChunkReplicas& replicaRecord) {
+                return replicaRecord.StoredReplicas;
+            });
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
@@ -721,6 +744,7 @@ private:
         const std::vector<TChunkId>& chunkIds,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
+        ISequoiaTransactionPtr transaction,
         const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -733,14 +757,17 @@ private:
             keys.push_back(chunkReplicasKey);
         }
 
-        const auto& config = GetDynamicConfig();
-        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+        TFuture<std::vector<std::optional<NRecords::TChunkReplicas>>> replicaRecordsFuture;
+        if (!transaction) {
+            replicaRecordsFuture = Bootstrap_
+                ->GetSequoiaClient()
+                ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter, timestamp);
+        } else {
+            replicaRecordsFuture = transaction->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter);
+        }
 
-        return Bootstrap_
-            ->GetSequoiaClient()
-            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter, timestamp)
-            .Apply(BIND([extractReplicas, retriableErrorCodes] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
-                ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
+        return replicaRecordsFuture
+            .Apply(BIND([extractReplicas] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
                 const auto& replicas = replicaRecordsOrError.ValueOrThrow();
                 return ParseReplicas(replicas, extractReplicas);
             })
@@ -753,9 +780,14 @@ private:
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         TColumnFilter columnFilter{idMapping.ChunkId, idMapping.LastSeenReplicas};
-        return DoGetSequoiaReplicas({chunkId}, columnFilter, NTransactionClient::SyncLastCommittedTimestamp, [] (const NRecords::TChunkReplicas& replicaRecord) {
-            return replicaRecord.LastSeenReplicas;
-        });
+        return DoGetSequoiaReplicas(
+            {chunkId},
+            columnFilter,
+            NTransactionClient::SyncLastCommittedTimestamp,
+            /*transaction*/ nullptr, []
+            (const NRecords::TChunkReplicas& replicaRecord) {
+                return replicaRecord.LastSeenReplicas;
+            });
     }
 };
 

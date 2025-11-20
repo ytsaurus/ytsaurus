@@ -52,7 +52,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
     NUM_NODES = 9
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
@@ -75,6 +75,8 @@ class TestSequoiaReplicas(YTEnvSetup):
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
                 "fetch_replicas_from_sequoia": True,
                 "validate_sequoia_replicas_fetch": True,
             },
@@ -126,6 +128,24 @@ class TestSequoiaReplicas(YTEnvSetup):
     def teardown_method(self, method):
         wait(sequoia_tables_empty)
         super(TestSequoiaReplicas, self).teardown_method(method)
+
+    @authors("grphil")
+    def test_table_created_and_removed(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        create("table", "//tmp/t", attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        write_table("//tmp/t", [{"x": 1}])
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
+        assert len(rows) == 1
+        assert len(rows[0]["stored_replicas"]) == 3
+
+        remove("//tmp/t")
+
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
@@ -233,6 +253,52 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         wait(self._is_purgatory_empty)
         wait(no_destroyed_replicas)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
+
+    @authors("grphil")
+    @pytest.mark.parametrize("purgatory_enabled_during_restart", [True, False])
+    def test_dead_chunks_are_removed(self, purgatory_enabled_during_restart):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+
+        write_table("//tmp/t", [{"x": 1}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", False)
+        with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
+            remove("//tmp/t")
+            wait(lambda: not exists("#{}".format(chunk_id)))
+            wait(lambda: not self._is_purgatory_empty())
+            wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
+
+            def check_chunk_replica():
+                chunk_replicas = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
+                if len(chunk_replicas) != 1:
+                    return False
+                return len(chunk_replicas[0]["stored_replicas"]) == 0
+
+            wait(check_chunk_replica)
+
+            if purgatory_enabled_during_restart:
+                set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
+                wait(self._is_purgatory_empty)
+                wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+                set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", False)
+
+        if (isinstance(self, TestOnlySequoiaReplicas)):
+            wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+            wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+
+        wait(lambda: not self._is_purgatory_empty())
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
+
+        wait(self._is_purgatory_empty)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
     def test_replication(self):
@@ -424,6 +490,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
                 "fetch_replicas_from_sequoia": True,
                 "store_sequoia_replicas_on_master": False,
                 "processed_removed_sequoia_replicas_on_master": False,
@@ -528,6 +596,8 @@ class TestSequoiaReplicasLocationReplacementInHeartbeats(TestSequoiaReplicas):
             },
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
                 "fetch_replicas_from_sequoia": True,
                 "use_location_replacement_for_location_full_heartbeat": True
             }

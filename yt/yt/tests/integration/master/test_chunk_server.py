@@ -1232,9 +1232,11 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             },
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
+                "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
-                "enable": True
             }
         },
     }
@@ -1255,6 +1257,7 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "enable_sequoia_chunk_refresh": True,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "store_sequoia_replicas_on_master": False,
