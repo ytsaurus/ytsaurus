@@ -390,7 +390,7 @@ class TestDryRunGpuSchedulingPolicy(YTEnvSetup):
             task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
             job_count=1,
             track=False,
-            spec={"testing": {"delay_inside_materialize": 50}},
+            spec={"testing": {"delay_inside_materialize": 100}},
         )
         op2 = run_sleeping_vanilla(
             task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
@@ -601,7 +601,7 @@ class TestDryRunGpuSchedulingPolicy(YTEnvSetup):
                     "enable_gpu_layers": False,
                 },
                 "testing": {
-                    "delay_inside_materialize": 50,
+                    "delay_inside_materialize": 100,
                 },
             },
         )
