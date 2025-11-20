@@ -1,4 +1,5 @@
-from helpers import get_object_attribute_cache_config, get_schema_from_description
+from helpers import (get_object_attribute_cache_config, get_schema_from_description,
+                     get_breakpoint_node, release_breakpoint, wait_breakpoint)
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
                          get_table_columnar_statistics, set_node_banned, ls, abort_transaction, remove, read_table,
@@ -2405,6 +2406,50 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 ON t1.val = t3.val
             '''
             assert clique.make_query(query) == [{"res": 4}]
+
+    @authors("buyval01")
+    def test_source_throttling(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rowset = [{"a": i} for i in range(5)]
+        chunk_count = 3
+        for _ in range(chunk_count):
+            write_table("<append=%true>//tmp/t", rowset)
+
+        bp_name = "long_read"
+
+        class breakpoint:
+            def __init__(self, bp_name):
+                self.thread: threading.Thread = None
+                self.bp_name: str = bp_name
+
+            # Sleep for 10 seconds on first use ISource::generate to give an estimate of total time over 30 seconds.
+            @staticmethod
+            def hang_first_block_reading(bp_name):
+                wait_breakpoint(bp_name)
+                time.sleep(10)
+                release_breakpoint(bp_name)
+
+            def __enter__(self):
+                self.thread = threading.Thread(target=breakpoint.hang_first_block_reading, args=(self.bp_name,))
+                self.thread.start()
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                self.thread.join()
+                remove(get_breakpoint_node(self.bp_name), recursive=True)
+
+        patch = {"yt": {"settings": {"testing": {"source_generate_call_breakpoint": get_breakpoint_node(bp_name)}}}}
+        with Clique(1, config_patch=patch) as clique:
+            query = "select a from '//tmp/t'"
+            expected_result = rowset * chunk_count
+
+            settings = {"max_estimated_execution_time": 15}
+            with breakpoint(bp_name):
+                assert_items_equal(clique.make_query(query, settings=settings), expected_result)
+
+            settings["chyt.execution.disable_reading_time_estimation"] = 0
+            with breakpoint(bp_name):
+                with raises_yt_error("TOO_SLOW"):
+                    clique.make_query(query, settings=settings)
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):
