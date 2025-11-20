@@ -15,6 +15,8 @@ void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_submission", &TThis::EnableSubmission)
         .Default(true);
+    registrar.Parameter("warn_on_unauthenticated", &TThis::WarnOnUnauthenticated)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableValidation && !config->EnableSubmission) {
@@ -30,6 +32,8 @@ void TNativeAuthenticationManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_validation", &TThis::EnableValidation)
         .Default();
     registrar.Parameter("enable_submission", &TThis::EnableSubmission)
+        .Default();
+    registrar.Parameter("warn_on_unauthenticated", &TThis::WarnOnUnauthenticated)
         .Default();
 }
 

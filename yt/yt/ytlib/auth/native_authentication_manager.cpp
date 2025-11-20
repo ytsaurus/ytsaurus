@@ -35,6 +35,7 @@ void TNativeAuthenticationManager::Configure(const TNativeAuthenticationManagerC
     TvmService_.Store(CreateTvmService(config->TvmService));
     EnableValidation_.store(config->EnableValidation);
     EnableSubmission_.store(config->EnableSubmission);
+    WarnOnUnauthenticated_.store(config->WarnOnUnauthenticated);
 }
 
 void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManagerDynamicConfigPtr& config)
@@ -44,6 +45,9 @@ void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManage
     }
     if (config->EnableSubmission) {
         EnableSubmission_.store(*config->EnableSubmission);
+    }
+    if (config->WarnOnUnauthenticated) {
+        WarnOnUnauthenticated_.store(*config->WarnOnUnauthenticated);
     }
     if (EnableValidation_.load() && !EnableSubmission_.load()) {
         YT_LOG_WARNING("Disabling ticket validation automatically when submission is disabled");
@@ -69,6 +73,11 @@ bool TNativeAuthenticationManager::IsValidationEnabled() const
 bool TNativeAuthenticationManager::IsSubmissionEnabled() const
 {
     return EnableSubmission_.load(std::memory_order::relaxed);
+}
+
+bool TNativeAuthenticationManager::WarnOnUnauthenticated() const
+{
+    return WarnOnUnauthenticated_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
