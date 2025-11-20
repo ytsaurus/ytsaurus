@@ -391,12 +391,15 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                     target["legendFormat"] = value
 
                 targets.append(target)
+                sensor_stack_override = other_tags.get(SystemFields.SensorStackOverride, None)
+
                 series_info = {
                     "refId": target["refId"],
                     "axis": axis,
                     "unit": unit,
                     "min": min_value,
                     "max": max_value,
+                    "sensor_stack_override": sensor_stack_override,
                 }
                 series_list.append(series_info)
                 ref_id_counter += 1
@@ -429,6 +432,20 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                 properties.append({"id": "min", "value": series_info["min"]})
             if series_info["max"] is not None:
                 properties.append({"id": "max", "value": series_info["max"]})
+
+            if series_info["sensor_stack_override"] is not None:
+                stack_mode = "normal" if series_info["sensor_stack_override"] else "none"
+                properties.append({
+                    "id": "custom.stacking",
+                    "value": {
+                        "mode": stack_mode
+                    }
+                })
+                if not series_info["sensor_stack_override"]:
+                    properties.append({
+                        "id": "custom.fillOpacity",
+                        "value": 0,
+                    })
 
             if properties:
                 override = {
