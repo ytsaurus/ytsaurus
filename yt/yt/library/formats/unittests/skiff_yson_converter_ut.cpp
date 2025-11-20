@@ -20,6 +20,8 @@
 namespace NYT::NFormats {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NTableClient;
 using namespace NSkiff;
 using namespace NYson;
@@ -617,9 +619,12 @@ public:
         } else {
             std::vector<TStructField> fields;
             for (size_t i = 0; i < elements.size(); ++i) {
-                fields.push_back({Format("field%v", i), elements[i]});
+                fields.push_back({
+                    .Name = Format("field%v", i),
+                    .Type = elements[i],
+                });
             }
-            return VariantStructLogicalType(fields);
+            return VariantStructLogicalType(std::move(fields));
         }
     }
 
