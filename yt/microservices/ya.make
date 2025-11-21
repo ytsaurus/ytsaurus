@@ -17,6 +17,7 @@ IF (NOT OPENSOURCE)
         grant_permissions
         hermes
         id_to_path_mapping
+        job_log_viewer
         klacalka
         lib
         ml
