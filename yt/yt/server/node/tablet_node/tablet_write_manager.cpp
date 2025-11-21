@@ -1416,7 +1416,7 @@ private:
                 writeLogIndex,
                 onAfterSnapshotLoaded);
 
-            auto *tablet = rowRef.StoreManager->GetTablet();
+            auto* tablet = rowRef.StoreManager->GetTablet();
             Host_->OnTabletRowUnlocked(tablet);
         }
 

@@ -17,7 +17,7 @@ constexpr int DefaultMinConcurrency = 5;
 using TOverlappingReaderKeyComparer = std::function<int(NTableClient::TUnversionedValueRange, NTableClient::TUnversionedValueRange)>;
 
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
-    const std::vector<NTableClient::TLegacyOwningKey>& boundaries,
+    std::vector<NTableClient::TLegacyOwningKey> boundaries,
     std::unique_ptr<NRowMerger::TSchemafulRowMerger> rowMerger,
     std::function<NTableClient::IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
