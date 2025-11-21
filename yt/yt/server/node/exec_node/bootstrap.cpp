@@ -493,6 +493,7 @@ private:
         newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
         newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
         newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
+        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NRpc::NGrpc::TDispatcherConfig>());
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
