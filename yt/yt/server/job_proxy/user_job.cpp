@@ -718,8 +718,7 @@ private:
         return UserJobEnvironment_->SpawnUserProcess(
             ExecProgramName,
             {"--config", Host_->AdjustPath(GetExecutorConfigPath())},
-            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)),
-            UserId_);
+            CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
     }
 
     void InitShellManager()

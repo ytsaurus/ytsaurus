@@ -180,8 +180,7 @@ struct IUserJobEnvironment
     virtual TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory,
-        std::optional<int> userId) = 0;
+        const TString& workingDirectory) = 0;
 
     virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
 
