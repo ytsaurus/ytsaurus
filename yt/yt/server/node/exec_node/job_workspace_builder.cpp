@@ -6,6 +6,9 @@
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
 #include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -517,8 +520,12 @@ private:
 
                     ResultHolder_.RootVolume = volumeOrError.Value();
 
+                    CreateVitalDirectories(
+                        ResultHolder_.RootVolume,
+                        Context_.UserSandboxOptions.UserId);
+
                     SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-                }));
+                }).AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
             return VoidFuture;
@@ -1040,6 +1047,56 @@ TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
         std::move(context),
         std::move(directoryManager),
         std::move(imageCache));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId)
+{
+    YT_VERIFY(rootVolume);
+    const auto& rootVolumeMountPath = rootVolume->GetPath();
+    YT_VERIFY(NFS::Exists(rootVolumeMountPath));
+
+    auto rootConfig = New<NTools::TRootDirectoryConfig>();
+    rootConfig->SlotPath = rootVolumeMountPath;
+    rootConfig->UserId = userId;
+    rootConfig->Permissions = 0777;
+
+    // NB: Paths are relative and ordered in the creation sequence. Must create directory before its subdirectory.
+    static const TString directoryPaths[] = {
+        "slot",
+        "slot/sandbox",
+        "slot/tmp",
+        "var",
+        "var/tmp",
+    };
+
+    auto& Logger = ExecNodeLogger();
+    YT_LOG_DEBUG("Creating directories in root volume (RootPath: %v, Directories: %v)",
+        rootVolumeMountPath,
+        directoryPaths);
+
+    for (const auto& directoryPath : directoryPaths) {
+        auto directory = New<NTools::TDirectoryConfig>();
+        directory->Path = NFS::CombinePaths(
+            rootVolumeMountPath,
+            directoryPath);
+        directory->UserId = userId;
+        directory->Permissions = 0777;
+        directory->RemoveIfExists = false;
+        rootConfig->Directories.push_back(std::move(directory));
+    }
+
+    auto directoryBuilderConfig = New<NTools::TDirectoryBuilderConfig>();
+    directoryBuilderConfig->NodeUid = userId;
+    directoryBuilderConfig->NeedRoot = true;
+    directoryBuilderConfig->RootDirectoryConfigs.push_back(std::move(rootConfig));
+
+    RunTool<NTools::TRootDirectoryBuilderTool>(directoryBuilderConfig);
+
+    YT_LOG_DEBUG("Created directories in root volume (RootPath: %v, Directories: %v)",
+        rootVolumeMountPath,
+        directoryPaths);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
