@@ -105,9 +105,9 @@ public:
         AddHandler({TYtFill::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleFill));
         AddHandler({TYtTouch::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleTouch));
         AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateTable));
-        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop<true>));
+        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateView));
-        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop<false>));
+        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCommit));
         AddHandler({TYtPublish::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandlePublish));
         AddHandler({TYtEquiJoin::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleEquiJoin));
@@ -1900,9 +1900,7 @@ private:
         return TStatus::Ok;
     }
 
-    template<bool TableOrView>
     TStatus HandleDrop(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        using callable = std::conditional_t<TableOrView, TYtDropTable, TYtDropView>;
         if (!EnsureArgsCount(*input, 3, ctx)) {
             return TStatus::Error;
         }
@@ -1911,7 +1909,7 @@ private:
             return TStatus::Error;
         }
 
-        const auto table = input->ChildPtr(callable::idx_Table);
+        const auto table = input->ChildPtr(TYtIsolatedOpBase::idx_Table);
         if (!EnsureCallable(*table, ctx)) {
             return TStatus::Error;
         }
@@ -1920,11 +1918,11 @@ private:
                 << " callable, but got " << table->Content()));
             return TStatus::Error;
         }
-        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(callable::idx_DataSink)), TYtTable(table), ctx)) {
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtIsolatedOpBase::idx_DataSink)), TYtTable(table), ctx)) {
             return TStatus::Error;
         }
 
-        const callable drop(input);
+        const TYtIsolatedOpBase drop(input);
         if (!TYtTableInfo::HasSubstAnonymousLabel(drop.Table())) {
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
 
@@ -1939,7 +1937,8 @@ private:
             const TYtTableInfo tableInfo(drop.Table());
             YQL_ENSURE(tableInfo.Meta);
 
-            if constexpr (TableOrView) {
+            const bool isTable = drop.Ref().IsCallable(TYtDropTable::CallableName());
+            if (isTable) {
                 if (tableInfo.Meta->IsDynamic) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
                         "Drop of dynamic table " << tableInfo.Name.Quote() << " is not supported"));
@@ -1953,9 +1952,9 @@ private:
                 }
             }
 
-            if (tableInfo.Meta->SqlView.empty() != TableOrView) {
+            if (tableInfo.Meta->SqlView.empty() != isTable) {
                 ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder()
-                    << "Drop of " << tableInfo.Name.Quote() << ' ' << (TableOrView ? "view" : "table") << " is not supported."));
+                    << "Drop of " << tableInfo.Name.Quote() << ' ' << (isTable ? "view" : "table") << " is not supported."));
                 return TStatus::Error;
             }
 
@@ -1972,7 +1971,7 @@ private:
                 }
                 else if (nextMetadata->DoesExist) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
-                        (TableOrView ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction."));
+                        (isTable ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction."));
                     return TStatus::Error;
                 }
             }
@@ -2024,10 +2023,6 @@ private:
         }
 
         const TYtCreateView create(input);
-        if (!EnsureListType(create.Compiled().Ref(), ctx)) {
-            return TStatus::Error;
-        }
-
         const auto rowType = create.Compiled().Ref().GetTypeAnn()->Cast<TListExprType>()->GetItemType();
         if (!(EnsurePersistableType(create.Compiled().Pos(), *rowType, ctx) && EnsureStructType(create.Compiled().Pos(), *rowType, ctx))) {
             return TStatus::Error;

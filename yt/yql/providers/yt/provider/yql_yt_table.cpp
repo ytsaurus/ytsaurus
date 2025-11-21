@@ -907,7 +907,7 @@ bool TYtTableInfo::HasSubstAnonymousLabel(NNodes::TExprBase node) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder, TString sqlView, const NNodes::TMaybeNode<NNodes::TExprBase>& settings) {
+TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder, TString sqlView) {
     RowSpec = MakeIntrusive<TYqlRowSpecInfo>();
     RowSpec->SetType(type, nativeYtTypeFlags);
     RowSpec->SetColumnOrder(columnOrder);
@@ -917,8 +917,6 @@ TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeF
     Meta->DoesExist = true;
     Meta->YqlCompatibleScheme = true;
     Meta->SqlView = sqlView;;
-
-    Settings = settings;
 
     IsTemp = true;
 }
@@ -983,7 +981,7 @@ bool TYtOutTableInfo::Validate(const TExprNode& node, TExprContext& ctx) {
         return false;                                                                    \
     }
 
-    VALIDATE_OPT_FIELD(TYtOutTable::idx_RowSpec, TYqlRowSpec)
+    VALIDATE_REQ_FIELD(TYtOutTable::idx_RowSpec, TYqlRowSpec)
     VALIDATE_REQ_FIELD(TYtOutTable::idx_Meta, TYtMeta)
     VALIDATE_OPT_FIELD(TYtOutTable::idx_Stat, TYtStat)
 

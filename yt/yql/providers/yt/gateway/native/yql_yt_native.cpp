@@ -1029,9 +1029,9 @@ public:
             } else if (auto op = opBase.Maybe<TYtTouch>()) {
                 future = DoTouch(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtDropTable>()) {
-                future = DoDrop<true>(op.Cast(), execCtx);
+                future = DoDrop(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtDropView>()) {
-                future = DoDrop<false>(op.Cast(), execCtx);
+                future = DoDrop(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtStatOut>()) {
                 future = DoStatOut(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtDqProcessWrite>()) {
@@ -5175,8 +5175,7 @@ private:
         });
     }
 
-    template<bool TableOrView>
-    TFuture<void> DoDrop(std::conditional_t<TableOrView, TYtDropTable, TYtDropView> drop, const TExecContext<TRunOptions>::TPtr& execCtx) {
+    TFuture<void> DoDrop(TYtIsolatedOpBase drop, const TExecContext<TRunOptions>::TPtr& execCtx) {
         TString tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), execCtx->Cluster_);
         auto table = drop.Table();
         bool isAnonymous = NYql::HasSetting(table.Settings().Ref(), EYtSettingType::Anonymous);

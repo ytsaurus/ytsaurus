@@ -31,10 +31,10 @@ public:
         // Handle callables for already parsed/optimized AST
         AddHandler({TYtReadTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleReadTable));
         AddHandler({TYtReadTableScheme::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleReadTableScheme));
-        AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<true, false>));
-        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<false, false>));
-        AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<true, true>));
-        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop<false, true>));
+        AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop));
+        AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop));
+        AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop));
+        AddHandler({TYtDropView::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleCreateDrop));
         AddHandler({TYtPublish::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandlePublish));
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtIntentDeterminationTransformer::HandleOperation));
@@ -213,12 +213,8 @@ public:
         return TStatus::Ok;
     }
 
-    template<bool CreateOrDrop, bool ViewOrTable>
     TStatus HandleCreateDrop(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        const std::conditional_t<CreateOrDrop,
-            std::conditional_t<ViewOrTable, TYtCreateView, TYtCreateTable>,
-            std::conditional_t<ViewOrTable, TYtDropView, TYtDropTable>
-        > node(input);
+        const TYtIsolatedOpBase node(input);
         const TYtTableInfo tableInfo(node.Table(), false);
         const auto& cluster = node.DataSink().Cluster().StringValue();
         auto& tableDesc = State_->TablesData->GetOrAddTable(cluster, tableInfo.Name, tableInfo.Epoch);
@@ -227,8 +223,13 @@ public:
             tableDesc.IsAnonymous = true;
             RegisterAnonymouseTable(cluster, tableInfo.Name);
         }
-        tableDesc.Intents |= CreateOrDrop ? TYtTableIntent::Create : TYtTableIntent::Drop;
-        if constexpr (ViewOrTable) {
+        if (input->IsCallable({TYtCreateTable::CallableName(), TYtCreateView::CallableName()})) {
+            tableDesc.Intents |= TYtTableIntent::Create;
+        }
+        if (input->IsCallable({TYtDropTable::CallableName(), TYtDropView::CallableName()})) {
+            tableDesc.Intents |= TYtTableIntent::Drop;
+        }
+        if (input->IsCallable({TYtCreateView::CallableName(), TYtDropView::CallableName()})) {
             tableDesc.Intents |= TYtTableIntent::View;
         }
 

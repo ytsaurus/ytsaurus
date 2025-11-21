@@ -305,9 +305,9 @@ public:
             if (const auto features = NYql::GetSetting(*settings, EYtSettingType::Features)) {
                 for (auto i = 0U; i < features->Tail().ChildrenSize(); ++i) {
                     if (const auto feature = features->Tail().Child(i); feature->IsList()) {
-                        if (feature->Head().IsAtom("__query_text"))
+                        if (feature->Head().IsAtom({"query_text", "__query_text"}))
                             children[3U] = feature->TailPtr();
-                        else if (feature->Head().IsAtom("__query_ast"))
+                        else if (feature->Head().IsAtom({"query_ast", "__query_ast"}))
                             children[4U] = feature->TailPtr();
                         else {
                             ctx.AddError(TIssue(ctx.GetPosition(feature->Pos()), "Unexpected feature."));
