@@ -204,7 +204,7 @@ private:
 
     void BalancerIteration();
     void TryBalancerIteration();
-    void BalanceBundle(const TBundleStatePtr& bundleState);
+    void BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot);
     IListNodePtr FetchNodeStatistics() const;
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
@@ -213,26 +213,24 @@ private:
 
     TEventTimer& GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const;
 
-    void BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState);
-    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState);
-    bool TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
+    void BalanceViaMove(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
+    void BalanceViaMoveInMemory(const TBundleSnapshotPtr& bundleSnapshot);
+    void BalanceViaMoveOrdinary(const TBundleSnapshotPtr& bundleSnapshot);
+    bool TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
     void BalanceViaMoveParameterized(
-        const TBundleStatePtr& bundleState,
+        const TBundleSnapshotPtr& bundleSnapshot,
         const TGroupName& groupName,
         const TTabletBalancingGroupConfigPtr& groupConfig);
     void BalanceReplicasViaMoveParameterized(
-        const TBundleStatePtr& bundleState,
+        const TBundleSnapshotPtr& bundleSnapshot,
         const TGroupName& groupName,
         const TTabletBalancingGroupConfigPtr& groupConfig);
-    bool TryBalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceReplicasViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    bool TryBalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
+    void BalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
+    void BalanceReplicasViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
 
-    void ExecuteReshardIteration(
-        const IReshardIterationPtr& reshardIteration,
-        const TBundleStatePtr& bundleState);
+    void ExecuteReshardIteration(const IReshardIterationPtr& reshardIteration);
     void ExecuteMoveIteration(const IMoveIterationPtr& moveIteration);
 
     THashSet<TGroupName> GetBalancingGroups(const TTabletCellBundlePtr& bundleState) const;
@@ -242,18 +240,25 @@ private:
 
     std::vector<std::string> UpdateBundleList();
     bool HasUntrackedUnfinishedActions(
-        const TBundleStatePtr& bundleState,
+        const std::string& bundleName,
         const IAttributeDictionary* attributes) const;
 
     bool DidBundleBalancingTimeHappen(
-        const TTabletCellBundlePtr& bundle,
+        const TBundleTabletBalancerConfigPtr& config,
         const TGlobalGroupTag& groupTag,
         const TTimeFormula& groupSchedule) const;
-    bool IsEligibleForBalancing(const TTabletCellBundlePtr& bundle) const;
-    bool IsMoveReplicaBalancingRequired(const TBundleStatePtr& bundleState) const;
-    bool IsReshardReplicaBalancingRequired(const TBundleStatePtr& bundleState) const;
+    bool IsBundleEligibleForBalancing(
+        const TBundleTabletBalancerConfigPtr& config,
+        const std::string& name) const;
+    THashSet<TGroupName> GetGroupsForMoveBalancing(const std::string& bundleName) const;
+    THashSet<TGroupName> GetGroupsForReshardBalancing(
+        const std::string& bundleName,
+        const TBundleTabletBalancerConfigPtr& config) const;
 
-    TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
+    TTimeFormula GetBundleSchedule(
+        const TBundleTabletBalancerConfigPtr& config,
+        const std::string& bundleName,
+        const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
 
@@ -274,9 +279,7 @@ private:
     std::vector<TReshardDescriptor> PickPivotsForDescriptors(
         TReshardDescriptorIt begin,
         TReshardDescriptorIt end,
-        const IReshardIterationPtr& reshardIteration,
-        const TBundleStatePtr& bundleState,
-        TGlobalGroupTag groupTag);
+        const IReshardIterationPtr& reshardIteration);
 
     TTableParameterizedMetricTrackerPtr GetParameterizedMetricTracker(const TGlobalGroupTag& groupTag);
     void UpdateCancelledBundleIterationCounter(const std::string& bundleName);
@@ -354,6 +357,7 @@ void TTabletBalancer::Stop()
     IsActive_.clear();
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
+
     ActionManager_->Stop();
     ClusterStateProvider_->Stop();
 
@@ -407,7 +411,7 @@ void TTabletBalancer::BalancerIteration()
 
     auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
-        if (!bundle->GetBundle()->Config) {
+        if (!bundle->GetConfig()) {
             YT_LOG_ERROR(
                 "Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
@@ -430,78 +434,43 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!IsEligibleForBalancing(bundle->GetBundle())) {
+        if (!IsBundleEligibleForBalancing(bundle->GetConfig(), bundleName)) {
             YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
             continue;
         }
 
-        YT_LOG_INFO("Started fetching (BundleName: %v)", bundleName);
+        YT_LOG_INFO("Started getting bundle snapshot (BundleName: %v)", bundleName);
 
-        if (auto result = WaitFor(bundle->UpdateState(
-                dynamicConfig->FetchTabletCellsFromSecondaryMasters,
-                IterationIndex_));
-            !result.IsOK())
-        {
-            YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
+        auto bundleSnapshotOrError = WaitFor(bundle->GetBundleSnapshot(
+            dynamicConfig,
+            nodeList,
+            GetGroupsForMoveBalancing(bundleName),
+            GetGroupsForReshardBalancing(bundleName, bundle->GetConfig()),
+            allowedReplicaClusters,
+            IterationIndex_));
 
-            SaveRetryableBundleError(bundleName, TError(
-                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
-                "Failed to update meta registry")
-                << result);
+        if (!bundleSnapshotOrError.IsOK()) {
+            YT_LOG_ERROR(bundleSnapshotOrError, "Failed to get bundle state (BundleName: %v)", bundleName);
+            SaveRetryableBundleError(bundleName, bundleSnapshotOrError);
             continue;
         }
 
-        if (auto result = WaitFor(bundle->FetchStatistics(
-                nodeList,
-                dynamicConfig->UseStatisticsReporter,
-                dynamicConfig->StatisticsTablePath));
-            !result.IsOK())
-        {
-            YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
-
-            SaveRetryableBundleError(bundleName, TError(
-                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
-                "Fetch statistics failed")
-                << result);
-            continue;
-        }
-
+        const auto& bundleSnapshot = bundleSnapshotOrError.ValueOrThrow();
         RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
 
-        bundle->SetLastReplicaBalancingFetchFailed(false);
-
-        auto isdReshardReplicaBalancingRequired = IsReshardReplicaBalancingRequired(bundle);
-        auto idMoveReplicaBalancingRequired = IsMoveReplicaBalancingRequired(bundle);
-
-        if (isdReshardReplicaBalancingRequired || idMoveReplicaBalancingRequired) {
-            if (!dynamicConfig->UseStatisticsReporter) {
-                YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled (BundleName: %v)", bundleName);
-
-                SaveRetryableBundleError(bundleName, TError(
-                    NTabletBalancer::EErrorCode::StatisticsFetchFailed,
-                    "Replica statistics fetch failed. Please enable statistics reporter"));
-            } else {
-                auto result = WaitFor(bundle->FetchReplicaStatistics(
-                    allowedReplicaClusters,
-                    isdReshardReplicaBalancingRequired,
-                    idMoveReplicaBalancingRequired));
-
-                if (!result.IsOK()) {
-                    bundle->SetLastReplicaBalancingFetchFailed(true);
-                    YT_LOG_ERROR(result, "Replica statistics fetch failed (BundleName: %v)", bundleName);
-
-                    SaveRetryableBundleError(bundleName, TError(
-                        NTabletBalancer::EErrorCode::StatisticsFetchFailed,
-                        "Replica statistics fetch failed")
-                        << result);
-                }
-            }
+        if (!bundleSnapshot->NonFatalError.IsOK()) {
+            YT_LOG_ERROR(bundleSnapshot->NonFatalError,
+                "Non-fatal error occurred when fetching bundle state (BundleName: %v)",
+                bundleName);
+            SaveRetryableBundleError(bundleName, bundleSnapshot->NonFatalError);
         }
 
+        YT_LOG_INFO("Finished getting bundle snapshot (BundleName: %v)", bundleName);
+
         YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
-        BalanceBundle(bundle);
+        BalanceBundle(bundleSnapshot);
         YT_LOG_INFO("Bundle balancing iteration finished (BundleName: %v)", bundleName);
 
         if (!ActionManager_->HasPendingActions(bundleName)) {
@@ -535,25 +504,25 @@ void TTabletBalancer::TryBalancerIteration()
     }
 }
 
-void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
+void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
 {
-    const auto& bundleName = bundle->GetBundle()->Name;
-    auto groups = GetBalancingGroups(bundle->GetBundle());
+    const auto& bundleName = bundleSnapshot->Bundle->Name;
+    auto groups = GetBalancingGroups(bundleSnapshot->Bundle);
 
     for (const auto& groupName : groups) {
-        const auto& groupConfig = GetOrCrash(bundle->GetBundle()->Config->Groups, groupName);
+        const auto& groupConfig = GetOrCrash(bundleSnapshot->Bundle->Config->Groups, groupName);
         TGlobalGroupTag groupTag(bundleName, groupName);
 
         if (auto it = GroupsToMoveOnNextIteration_.find(groupTag); it != GroupsToMoveOnNextIteration_.end()) {
             switch (groupConfig->Type) {
                 case EBalancingType::Legacy:
                     GroupsToMoveOnNextIteration_.erase(it);
-                    BalanceViaMove(bundle, groupName);
+                    BalanceViaMove(bundleSnapshot, groupName);
                     break;
 
                 case EBalancingType::Parameterized:
                     if (ParameterizedBalancingScheduler_.IsBalancingAllowed(groupTag)) {
-                        auto finishedWithoutRetryableError = TryBalanceViaMoveParameterized(bundle, groupName);
+                        auto finishedWithoutRetryableError = TryBalanceViaMoveParameterized(bundleSnapshot, groupName);
                         if (finishedWithoutRetryableError) {
                             GroupsToMoveOnNextIteration_.erase(it);
                         }
@@ -565,16 +534,16 @@ void TTabletBalancer::BalanceBundle(const TBundleStatePtr& bundle)
                     }
                     break;
             }
-        } else if (DidBundleBalancingTimeHappen(bundle->GetBundle(), groupTag, groupConfig->Schedule)) {
+        } else if (DidBundleBalancingTimeHappen(bundleSnapshot->Bundle->Config, groupTag, groupConfig->Schedule)) {
             if (groupConfig->Type == EBalancingType::Parameterized) {
-                auto finishedWithoutRetryableError = TryBalanceViaReshardParameterized(bundle, groupName);
+                auto finishedWithoutRetryableError = TryBalanceViaReshardParameterized(bundleSnapshot, groupName);
                 if (!finishedWithoutRetryableError) {
                     continue;
                 }
             }
 
             GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
-            BalanceViaReshard(bundle, groupName);
+            BalanceViaReshard(bundleSnapshot, groupName);
         } else {
             YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
                 bundleName,
@@ -591,7 +560,7 @@ bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) con
     return dynamicConfig->Enable &&
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (dynamicConfig->EnableEverywhere ||
-         bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
+         bundleState->GetConfig()->EnableStandaloneTabletBalancer);
 }
 
 bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
@@ -707,8 +676,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
         newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
 
-    YT_LOG_DEBUG(
-        "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
+    YT_LOG_DEBUG("Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
@@ -827,7 +795,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
                 Bootstrap_->GetClusterName()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
         it->second->SetHasUntrackedUnfinishedActions(
-            HasUntrackedUnfinishedActions(it->second, &bundle->Attributes()));
+            HasUntrackedUnfinishedActions(name, &bundle->Attributes()));
 
         if (isNew) {
             newBundles.push_back(name);
@@ -842,14 +810,14 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
             continue;
         }
 
-        TableRegistry_->RemoveBundle(it->second->GetBundle());
+        it->second->RemoveSelfFromRegistry();
         Bundles_.erase(it++);
     }
     return newBundles;
 }
 
 bool TTabletBalancer::HasUntrackedUnfinishedActions(
-    const TBundleStatePtr& bundleState,
+    const std::string& bundleName,
     const IAttributeDictionary* attributes) const
 {
     auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
@@ -860,7 +828,7 @@ bool TTabletBalancer::HasUntrackedUnfinishedActions(
         }
 
         auto actionId = ConvertTo<TTabletActionId>(actionMapNode->FindChild("tablet_action_id"));
-        if (!ActionManager_->IsKnownAction(bundleState->GetBundle()->Name, actionId)) {
+        if (!ActionManager_->IsKnownAction(bundleName, actionId)) {
             return true;
         }
     }
@@ -868,11 +836,11 @@ bool TTabletBalancer::HasUntrackedUnfinishedActions(
 }
 
 bool TTabletBalancer::DidBundleBalancingTimeHappen(
-    const TTabletCellBundlePtr& bundle,
+    const TBundleTabletBalancerConfigPtr& config,
     const TGlobalGroupTag& groupTag,
     const TTimeFormula& groupSchedule) const
 {
-    auto formula = GetBundleSchedule(bundle, groupSchedule);
+    auto formula = GetBundleSchedule(config, groupTag.first, groupSchedule);
 
     try {
         if (Config_->Period >= MinBalanceFrequency) {
@@ -907,7 +875,7 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             "Failed to evaluate tablet balancer schedule formula (BundleName: %v, Group: %v)",
             groupTag.first,
             groupTag.second);
-        SaveFatalBundleError(bundle->Name, TError(
+        SaveFatalBundleError(groupTag.first, TError(
             NTabletBalancer::EErrorCode::ScheduleFormulaEvaluationFailed,
             "Failed to evaluate tablet balancer schedule formula for group %Qv",
             groupTag.second)
@@ -917,156 +885,142 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
 }
 
 TTimeFormula TTabletBalancer::GetBundleSchedule(
-    const TTabletCellBundlePtr& bundle,
+    const TBundleTabletBalancerConfigPtr& config,
+    const std::string& bundleName,
     const TTimeFormula& groupSchedule) const
 {
     if (!groupSchedule.IsEmpty()) {
         YT_LOG_DEBUG("Using group balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
-            bundle->Name,
+            bundleName,
             groupSchedule.GetFormula());
         return groupSchedule;
     }
-    const auto& local = bundle->Config->TabletBalancerSchedule;
+    const auto& local = config->TabletBalancerSchedule;
     if (!local.IsEmpty()) {
         YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
-            bundle->Name,
+            bundleName,
             local.GetFormula());
         return local;
     }
     auto formula = DynamicConfig_.Acquire()->Schedule;
     YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
-        bundle->Name,
+        bundleName,
         formula.GetFormula());
     return formula;
 }
 
-bool TTabletBalancer::IsEligibleForBalancing(const TTabletCellBundlePtr& bundle) const
+bool TTabletBalancer::IsBundleEligibleForBalancing(
+    const TBundleTabletBalancerConfigPtr& config,
+    const std::string& name) const
 {
     for (const auto& [bundleName, _] : GroupsToMoveOnNextIteration_) {
-        if (bundle->Name == bundleName) {
+        if (name == bundleName) {
             return true;
         }
     }
 
-    for (const auto& [groupName, config] : bundle->Config->Groups) {
-        if (DidBundleBalancingTimeHappen(bundle, {bundle->Name, groupName}, config->Schedule)) {
+    for (const auto& [groupName, groupConfig] : config->Groups) {
+        if (DidBundleBalancingTimeHappen(config, {name, groupName}, groupConfig->Schedule)) {
             return true;
         }
     }
     return false;
 }
 
-bool TTabletBalancer::IsMoveReplicaBalancingRequired(const TBundleStatePtr& bundleState) const
+THashSet<TGroupName> TTabletBalancer::GetGroupsForMoveBalancing(const std::string& bundleName) const
 {
     THashSet<TGroupName> groupNames;
-    for (const auto& [bundleName, groupName] : GroupsToMoveOnNextIteration_) {
-        if (bundleState->GetBundle()->Name == bundleName) {
+    for (const auto& [currentBundleName, groupName] : GroupsToMoveOnNextIteration_) {
+        if (currentBundleName == bundleName) {
             EmplaceOrCrash(groupNames, groupName);
         }
     }
-
-    if (groupNames.empty()) {
-        return false;
-    }
-
-    return bundleState->IsReplicaBalancingEnabled(
-        groupNames,
-        [] (const TTableTabletBalancerConfigPtr& config) {
-            return config->EnableAutoTabletMove;
-        });
+    return groupNames;
 }
 
-bool TTabletBalancer::IsReshardReplicaBalancingRequired(const TBundleStatePtr& bundleState) const
+THashSet<TGroupName> TTabletBalancer::GetGroupsForReshardBalancing(
+    const std::string& bundleName,
+    const TBundleTabletBalancerConfigPtr& config) const
 {
-    const auto& bundle = bundleState->GetBundle();
     THashSet<TGroupName> groupNames;
-    for (const auto& [groupName, config] : bundle->Config->Groups) {
-        if (DidBundleBalancingTimeHappen(bundle, {bundle->Name, groupName}, config->Schedule)) {
+    for (const auto& [groupName, groupConfig] : config->Groups) {
+        if (DidBundleBalancingTimeHappen(config, {bundleName, groupName}, groupConfig->Schedule)) {
             EmplaceOrCrash(groupNames, groupName);
         }
     }
-
-    if (groupNames.empty()) {
-        return false;
-    }
-
-    return bundleState->IsReplicaBalancingEnabled(
-        groupNames,
-        [] (const TTableTabletBalancerConfigPtr& config) {
-            return config->EnableAutoReshard;
-        });
+    return groupNames;
 }
 
-void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
+void TTabletBalancer::BalanceViaMoveInMemory(const TBundleSnapshotPtr& bundleSnapshot)
 {
     ExecuteMoveIteration(CreateInMemoryMoveIteration(
-        bundleState,
-        GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyInMemoryGroupName),
+        bundleSnapshot,
+        GetOrCrash(bundleSnapshot->Bundle->Config->Groups, LegacyInMemoryGroupName),
         DynamicConfig_.Acquire()));
 }
 
-void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
+void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleSnapshotPtr& bundleSnapshot)
 {
     ExecuteMoveIteration(CreateOrdinaryMoveIteration(
-        bundleState,
-        GetOrCrash(bundleState->GetBundle()->Config->Groups, LegacyOrdinaryGroupName),
+        bundleSnapshot,
+        GetOrCrash(bundleSnapshot->Bundle->Config->Groups, LegacyOrdinaryGroupName),
         DynamicConfig_.Acquire()));
 }
 
 void TTabletBalancer::BalanceViaMoveParameterized(
-    const TBundleStatePtr& bundleState,
+    const TBundleSnapshotPtr& bundleSnapshot,
     const TGroupName& groupName,
     const TTabletBalancingGroupConfigPtr& groupConfig)
 {
     ExecuteMoveIteration(CreateParameterizedMoveIteration(
         groupName,
-        bundleState,
-        GetParameterizedMetricTracker({bundleState->GetBundle()->Name, groupName}),
+        bundleSnapshot,
+        GetParameterizedMetricTracker({bundleSnapshot->Bundle->Name, groupName}),
         groupConfig,
         DynamicConfig_.Acquire()));
 }
 
-void TTabletBalancer::BalanceReplicasViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::BalanceReplicasViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
     ExecuteReshardIteration(CreateReplicaReshardIteration(
-        bundleState->GetBundle()->Name,
+        bundleSnapshot,
         groupName,
         DynamicConfig_.Acquire(),
-        Bootstrap_->GetClusterName()), bundleState);
+        Bootstrap_->GetClusterName()));
 }
 
 void TTabletBalancer::BalanceReplicasViaMoveParameterized(
-    const TBundleStatePtr& bundleState,
+    const TBundleSnapshotPtr& bundleSnapshot,
     const TGroupName& groupName,
     const TTabletBalancingGroupConfigPtr& groupConfig)
 {
     ExecuteMoveIteration(CreateReplicaMoveIteration(
         groupName,
-        bundleState,
-        GetParameterizedMetricTracker({bundleState->GetBundle()->Name, groupName}),
+        bundleSnapshot,
+        GetParameterizedMetricTracker({bundleSnapshot->Bundle->Name, groupName}),
         groupConfig,
         DynamicConfig_.Acquire(),
         Bootstrap_->GetClusterName()));
 }
 
-void TTabletBalancer::BalanceViaReshardParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::BalanceViaReshardParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
     ExecuteReshardIteration(CreateParameterizedReshardIteration(
-        bundleState->GetBundle()->Name,
+        bundleSnapshot,
         groupName,
-        DynamicConfig_.Acquire()), bundleState);
+        DynamicConfig_.Acquire()));
 }
 
-bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
-    const auto bundle = bundleState->GetBundle();
+    const auto bundle = bundleSnapshot->Bundle;
     const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
 
     try {
         if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
-            BalanceReplicasViaMoveParameterized(bundleState, groupName, groupConfig);
+            BalanceReplicasViaMoveParameterized(bundleSnapshot, groupName, groupConfig);
         } else {
-            BalanceViaMoveParameterized(bundleState, groupName, groupConfig);
+            BalanceViaMoveParameterized(bundleSnapshot, groupName, groupConfig);
         }
     } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex,
@@ -1097,10 +1051,10 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
 }
 
 bool TTabletBalancer::TryBalanceViaReshardParameterized(
-    const TBundleStatePtr& bundleState,
+    const TBundleSnapshotPtr& bundleSnapshot,
     const TGroupName& groupName)
 {
-    const auto bundle = bundleState->GetBundle();
+    const auto bundle = bundleSnapshot->Bundle;
     TEventTimerGuard timer(GetProfilingTimer(
         {bundle->Name, groupName},
         EBalancingMode::ParameterizedReshard));
@@ -1108,9 +1062,9 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
     const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
     try {
         if (!groupConfig->Parameterized->ReplicaClusters.empty()) {
-            BalanceReplicasViaReshard(bundleState, groupName);
+            BalanceReplicasViaReshard(bundleSnapshot, groupName);
         } else {
-            BalanceViaReshardParameterized(bundleState, groupName);
+            BalanceViaReshardParameterized(bundleSnapshot, groupName);
         }
     } catch (const TErrorException& ex) {
         YT_LOG_ERROR(ex,
@@ -1140,27 +1094,25 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
     return true;
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::BalanceViaMove(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
     if (groupName == LegacyOrdinaryGroupName) {
-        BalanceViaMoveOrdinary(bundleState);
+        BalanceViaMoveOrdinary(bundleSnapshot);
     } else if (groupName == LegacyInMemoryGroupName) {
-        BalanceViaMoveInMemory(bundleState);
+        BalanceViaMoveInMemory(bundleSnapshot);
     } else {
         YT_LOG_ERROR("Trying to balance a non-legacy group with "
             "legacy algorithm (BundleName: %v, Group: %v)",
-            bundleState->GetBundle()->Name,
+            bundleSnapshot->Bundle->Name,
             groupName);
     }
 }
 
-void TTabletBalancer::ExecuteReshardIteration(
-    const IReshardIterationPtr& reshardIteration,
-    const TBundleStatePtr& bundleState)
+void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshardIteration)
 {
     reshardIteration->StartIteration();
 
-    auto groupConfig = GetOrCrash(bundleState->GetBundle()->Config->Groups, reshardIteration->GetGroupName());
+    auto groupConfig = GetOrCrash(reshardIteration->GetBundle()->Config->Groups, reshardIteration->GetGroupName());
     if (!groupConfig->EnableReshard) {
         YT_LOG_DEBUG("Balancing tablets via reshard is disabled (BundleName: %v, Group: %v)",
             reshardIteration->GetBundleName(),
@@ -1172,13 +1124,10 @@ void TTabletBalancer::ExecuteReshardIteration(
         return;
     }
 
-    reshardIteration->Prepare(bundleState, groupConfig, TableRegistry_);
+    reshardIteration->Prepare(groupConfig, TableRegistry_);
 
-    auto tables = reshardIteration->GetTablesToReshard(bundleState->GetBundle());
+    auto tables = reshardIteration->GetTablesToReshard(reshardIteration->GetBundle());
     Shuffle(tables.begin(), tables.end());
-
-    int actionCount = 0;
-    auto groupTag = TGlobalGroupTag(reshardIteration->GetBundleName(), reshardIteration->GetGroupName());
 
     std::vector<TReshardDescriptor> descriptors;
     for (const auto& table : tables) {
@@ -1219,23 +1168,26 @@ void TTabletBalancer::ExecuteReshardIteration(
     }
 
     auto saveLimitExceededError = [&] (const TReshardDescriptor& descriptor, auto limit) {
-        SaveFatalBundleError(groupTag.first, TError(
+        SaveFatalBundleError(reshardIteration->GetBundleName(), TError(
             NTabletBalancer::EErrorCode::GroupActionLimitExceeded,
             "Group %Qv has exceeded the limit for creating actions. "
             "Failed to schedule reshard action",
-            groupTag.second)
+            reshardIteration->GetGroupName())
             << TErrorAttribute("limit", limit));
 
         YT_LOG_DEBUG("Group has exceeded the limit for creating actions. "
             "Will not schedule reshard actions anymore "
             "(Group: %v, Limit: %v, CorrelationId: %v, BundleName: %v)",
-            groupTag.second,
+            reshardIteration->GetGroupName(),
             limit,
             descriptor.CorrelationId,
-            groupTag.first);
+            reshardIteration->GetBundleName());
     };
 
+    int actionCount = 0;
+    auto groupTag = TGlobalGroupTag(reshardIteration->GetBundleName(), reshardIteration->GetGroupName());
     bool actionLimitExceeded = false;
+
     for (auto [beginIt, endIt] : descriptorRanges) {
         if (actionLimitExceeded) {
             break;
@@ -1249,12 +1201,10 @@ void TTabletBalancer::ExecuteReshardIteration(
         auto limitedDescriptors = PickPivotsForDescriptors(
             beginIt,
             endIt,
-            reshardIteration,
-            bundleState,
-            groupTag);
+            reshardIteration);
 
         for (const auto& descriptor : limitedDescriptors) {
-            auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptor.Tablets[0]);
+            auto firstTablet = GetOrCrash(reshardIteration->GetBundle()->Tablets, descriptor.Tablets[0]);
             auto* table = firstTablet->Table;
             auto firstTabletIndex = firstTablet->Index;
             auto lastTabletIndex = firstTabletIndex + std::ssize(descriptor.Tablets) - 1;
@@ -1325,7 +1275,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
                 break;
             }
 
-            auto tablet = GetOrCrash(moveIteration->GetBundle()->Tablets(), descriptor.TabletId);
+            auto tablet = GetOrCrash(moveIteration->GetBundle()->Tablets, descriptor.TabletId);
 
             moveIteration->UpdateProfilingCounters(
                 TableRegistry_->GetProfilingCounters(tablet->Table, moveIteration->GetGroupName()));
@@ -1351,17 +1301,15 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
 std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     TReshardDescriptorIt begin,
     TReshardDescriptorIt end,
-    const IReshardIterationPtr& reshardIteration,
-    const TBundleStatePtr& bundleState,
-    TGlobalGroupTag groupTag)
+    const IReshardIterationPtr& reshardIteration)
 {
-    bool pickPivotKeys = reshardIteration->IsPickPivotKeysEnabled(bundleState->GetBundle()->Config);
+    bool pickPivotKeys = reshardIteration->IsPickPivotKeysEnabled();
     if (!pickPivotKeys) {
         return {begin, end};
     }
 
     bool enableVerboseLogging = reshardIteration->GetDynamicConfig()->EnableReshardVerboseLogging ||
-        bundleState->GetBundle()->Config->EnableVerboseLogging;
+        reshardIteration->GetBundle()->Config->EnableVerboseLogging;
 
     std::vector<TFuture<std::vector<TLegacyOwningKey>>> futures;
     std::vector<TReshardDescriptor> descriptors;
@@ -1369,7 +1317,7 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     std::vector<const TTablet*> firstTablets;
     for (auto descriptorIt = begin; descriptorIt < end; ++descriptorIt) {
         if (pickPivotKeys) {
-            auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptorIt->Tablets[0]);
+            auto firstTablet = GetOrCrash(reshardIteration->GetBundle()->Tablets, descriptorIt->Tablets[0]);
             auto future = PickReshardPivotKeysIfNeeded(
                 descriptorIt,
                 firstTablet->Table,
@@ -1390,15 +1338,15 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     }
 
     YT_LOG_DEBUG("Pick pivot keys started (BundleName: %v, Group: %v, DescriptorsToPickCount: %v)",
-        groupTag.first,
-        groupTag.second,
+        reshardIteration->GetBundleName(),
+        reshardIteration->GetGroupName(),
         std::ssize(descriptorsToPick));
 
     auto responses = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
 
     YT_LOG_DEBUG("Pick pivot keys finished (BundleName: %v, Group: %v)",
-        groupTag.first,
-        groupTag.second);
+        reshardIteration->GetBundleName(),
+        reshardIteration->GetGroupName());
 
     for (int index = 0; index < std::ssize(descriptorsToPick); ++index) {
         auto descriptorIt = descriptorsToPick[index];
@@ -1446,16 +1394,16 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     return descriptors;
 }
 
-void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName)
+void TTabletBalancer::BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
     TEventTimerGuard timer(GetProfilingTimer(
-        {bundleState->GetBundle()->Name, groupName},
+        {bundleSnapshot->Bundle->Name, groupName},
         EBalancingMode::Reshard));
 
     ExecuteReshardIteration(CreateSizeReshardIteration(
-        bundleState->GetBundle()->Name,
+        bundleSnapshot,
         groupName,
-        DynamicConfig_.Acquire()), bundleState);
+        DynamicConfig_.Acquire()));
 }
 
 void TTabletBalancer::SaveFatalBundleError(const std::string& bundleName, TError error) const

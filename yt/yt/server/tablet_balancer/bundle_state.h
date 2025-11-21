@@ -32,21 +32,28 @@ struct TBundleProfilingCounters
 
 DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)
 
+// It is not an actual copy so far. Table objects will be reused during next fetch iteration
+// and list of tablets, pivot keys and so on will be changed.
+struct TBundleSnapshot final
+{
+    TTabletCellBundlePtr Bundle;
+    bool ReplicaBalancingFetchFailed = false;
+    std::vector<std::string> PerformanceCountersKeys;
+    TError NonFatalError;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleSnapshot)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBundleState
     : public TRefCounted
 {
 public:
-    using TTabletMap = THashMap<TTabletId, TTabletPtr>;
     using TPerClusterPerformanceCountersTableSchemas = THashMap<TClusterName, NQueryClient::TTableSchemaPtr>;
 
-    DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, PerformanceCountersKeys);
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaBalancingFetchFailed, false);
 
 public:
     TBundleState(
@@ -61,23 +68,21 @@ public:
     void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes);
 
     bool IsParameterizedBalancingEnabled() const;
-    bool IsReplicaBalancingEnabled(
-        const THashSet<TGroupName>& groupNames,
-        std::function<bool(const TTableTabletBalancerConfigPtr&)> isBalancingEnabled) const;
-
-    TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
-    TFuture<void> FetchStatistics(
+    TFuture<TBundleSnapshotPtr> GetBundleSnapshot(
+        const TTabletBalancerDynamicConfigPtr& dynamicConfig,
         const NYTree::IListNodePtr& nodeStatistics,
-        bool useStatisticsReporter,
-        const NYPath::TYPath& statisticsTablePath);
-    TFuture<void> FetchReplicaStatistics(
+        const THashSet<TGroupName>& groupsForMoveBalancing,
+        const THashSet<TGroupName>& groupsForReshardBalancing,
         const THashSet<std::string>& allowedReplicaClusters,
-        bool fetchReshard,
-        bool fetchMove);
+        int iterationIndex);
+
+    TBundleTabletBalancerConfigPtr GetConfig() const;
 
     TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
         const TString& groupName);
+
+    void RemoveSelfFromRegistry();
 
 private:
     struct TTabletCellInfo
@@ -124,10 +129,14 @@ private:
     const TTableRegistryPtr TableRegistry_;
     const std::string SelfClusterName_;
 
+    TTabletCellBundlePtr Bundle_;
+
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;
 
-    void DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
+    std::vector<std::string> PerformanceCountersKeys_;
+
+    void UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
 
     THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells(
         const NObjectClient::TCellTagList& cellTags) const;
@@ -142,12 +151,20 @@ private:
         TTabletCellId cellId,
         const NYTree::IAttributeDictionaryPtr& attributes) const;
 
-    void DoFetchStatistics(
+    TBundleSnapshotPtr DoGetBundleSnapshot(
+        const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+        const NYTree::IListNodePtr& nodeStatistics,
+        const THashSet<TGroupName>& groupsForMoveBalancing,
+        const THashSet<TGroupName>& groupsForReshardBalancing,
+        const THashSet<std::string>& allowedReplicaClusters,
+        int iterationIndex);
+
+    void FetchStatistics(
         const NYTree::IListNodePtr& nodeStatistics,
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
 
-    void DoFetchReplicaStatistics(
+    void FetchReplicaStatistics(
         const THashSet<std::string>& allowedReplicaClusters,
         bool fetchReshard,
         bool fetchMove);
@@ -180,6 +197,9 @@ private:
 
     bool IsTableBalancingEnabled(const TTableSettings& table) const;
     bool IsReplicaBalancingEnabled(const TTableSettings& table) const;
+    bool IsReplicaBalancingEnabled(
+        const THashSet<TGroupName>& groupNames,
+        std::function<bool(const TTableTabletBalancerConfigPtr&)> isBalancingEnabled) const;
     bool HasReplicaBalancingGroups() const;
 
     TTableProfilingCounters InitializeProfilingCounters(

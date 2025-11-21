@@ -13,7 +13,6 @@ struct IReshardIteration
 {
     virtual void StartIteration() const = 0;
     virtual void Prepare(
-        const TBundleStatePtr& bundleState,
         const TTabletBalancingGroupConfigPtr& groupConfig,
         const TTableRegistryPtr& tableRegistry) = 0;
     virtual void FinishIteration(int actionCount) const = 0;
@@ -32,10 +31,11 @@ struct IReshardIteration
 
     virtual bool IsTableBalancingEnabled(const TTablePtr& /*table*/) const = 0;
 
-    virtual bool IsPickPivotKeysEnabled(const TBundleTabletBalancerConfigPtr& /*bundleConfig*/) const = 0;
+    virtual bool IsPickPivotKeysEnabled() const = 0;
 
     virtual const std::string& GetBundleName() const = 0;
     virtual const TString& GetGroupName() const = 0;
+    virtual const TTabletCellBundlePtr GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
 };
 
@@ -44,17 +44,17 @@ DEFINE_REFCOUNTED_TYPE(IReshardIteration)
 ////////////////////////////////////////////////////////////////////////////////
 
 IReshardIterationPtr CreateSizeReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateReplicaReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
     std::string clusterName);
