@@ -602,37 +602,42 @@ TTableSchemaPtr TFrontQuery::GetTableSchema(bool castToQLType) const
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExpressionPrinter
-    : TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
+    : public TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>
 {
     using TBase = TAbstractExpressionPrinter<TExpressionPrinter, TConstExpressionPtr>;
-    TExpressionPrinter(TStringBuilderBase* builder, bool omitValues)
-        : TBase(builder, omitValues)
+    TExpressionPrinter(TStringBuilderBase* builder, TInferNameOptions options)
+        : TBase(builder, options)
     { }
 };
 
-std::string InferName(TConstExpressionPtr expr, bool omitValues)
+std::string InferName(TConstExpressionPtr expr, const TInferNameOptions& options)
 {
     if (!expr) {
         return std::string();
     }
     TStringBuilder builder;
-    TExpressionPrinter expressionPrinter(&builder, omitValues);
+    TExpressionPrinter expressionPrinter(&builder, options);
     expressionPrinter.Visit(expr);
     return builder.Flush();
 }
 
-std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
+std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options)
 {
-    auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-        builder->AppendString(InferName(item.Expression, options.OmitValues));
-        if (!options.OmitAliases) {
-            builder->AppendFormat(" AS %v", item.Name);
-        }
+    auto afterGroupByOptions = options;
+    afterGroupByOptions.GroupClause = query->GroupClause;
+
+    auto makeNamedItemFormatter = [&] (const TInferNameOptions& options) {
+        return [=] (TStringBuilderBase* builder, const TNamedItem& item) {
+            builder->AppendString(InferName(item.Expression, options));
+            if (!options.OmitAliases) {
+                builder->AppendFormat(" AS %v", item.Name);
+            }
+        };
     };
 
     auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
         builder->AppendFormat("%v %v",
-            InferName(item.Expression, options.OmitValues),
+            InferName(item.Expression, afterGroupByOptions),
             item.Descending ? "DESC" : "ASC");
     };
 
@@ -640,7 +645,7 @@ std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     std::string str;
 
     if (query->ProjectClause) {
-        str = JoinToString(query->ProjectClause->Projections, namedItemFormatter);
+        str = JoinToString(query->ProjectClause->Projections, makeNamedItemFormatter(afterGroupByOptions));
     } else {
         str = "*";
     }
@@ -652,7 +657,7 @@ std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
             if (!joinClause->ArrayExpressions.empty()) {
                 std::vector<std::string> arrayExpressions;
                 for (const auto& expression : joinClause->ArrayExpressions) {
-                    arrayExpressions.push_back(InferName(expression, options.OmitValues));
+                    arrayExpressions.push_back(InferName(expression, options));
                 }
                 clauses.push_back(Format(
                     "%v ARRAY JOIN %v",
@@ -661,34 +666,37 @@ std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
             } else {
                 std::vector<std::string> selfJoinEquation;
                 for (const auto& equation : joinClause->SelfEquations) {
-                    selfJoinEquation.push_back(InferName(equation.Expression, options.OmitValues));
+                    selfJoinEquation.push_back(InferName(equation.Expression, options));
                 }
                 std::vector<std::string> foreignJoinEquation;
                 for (const auto& equation : joinClause->ForeignEquations) {
-                    foreignJoinEquation.push_back(InferName(equation, options.OmitValues));
+                    foreignJoinEquation.push_back(InferName(equation, options));
                 }
 
                 clauses.push_back(Format(
-                    "%v JOIN[common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
+                    "%v JOIN [common prefix: %v, foreign prefix: %v] ON (%v) = (%v)",
                     joinClause->IsLeft ? "LEFT" : "INNER",
                     joinClause->CommonKeyPrefix,
                     joinClause->ForeignKeyPrefix,
                     JoinToString(selfJoinEquation),
                     JoinToString(foreignJoinEquation)));
 
-                if (joinClause->Predicate && !options.OmitJoinPredicate) {
-                    clauses.push_back("AND " + InferName(joinClause->Predicate, options.OmitValues));
+                if (joinClause->Predicate) {
+                    clauses.push_back("AND " + InferName(joinClause->Predicate, options));
                 }
             }
         }
 
         if (derivedQuery->WhereClause) {
-            clauses.push_back(std::string("WHERE ") + InferName(derivedQuery->WhereClause, options.OmitValues));
+            clauses.push_back(std::string("WHERE ") + InferName(derivedQuery->WhereClause, options));
         }
     }
 
     if (query->GroupClause) {
-        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v, aggregates: %v] %v",
+        auto groupByFormatOptions = options;
+        groupByFormatOptions.OmitAliases = true;
+        auto namedItemFormatter = makeNamedItemFormatter(groupByFormatOptions);
+        clauses.push_back(Format("GROUP BY [common prefix: %v, disjoint: %v, aggregates: %v] %v",
             query->GroupClause->CommonPrefixWithPrimaryKey,
             query->UseDisjointGroupBy,
             MakeFormattableView(query->GroupClause->AggregateItems, [] (auto* builder, const auto& item) {
@@ -701,7 +709,7 @@ std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     }
 
     if (query->HavingClause) {
-        clauses.push_back(std::string("HAVING ") + InferName(query->HavingClause, options.OmitValues));
+        clauses.push_back(std::string("HAVING ") + InferName(query->HavingClause, afterGroupByOptions));
         if (query->GroupClause->TotalsMode == ETotalsMode::AfterHaving) {
             clauses.push_back("WITH TOTALS");
         }
@@ -712,7 +720,9 @@ std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     }
 
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        clauses.push_back(std::string("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
+        if (query->Offset != 0) {
+            clauses.push_back(std::string("OFFSET ") + (options.OmitValues ? "?" : ToString(query->Offset)));
+        }
         clauses.push_back(std::string("LIMIT ") + (options.OmitValues ? "?" : ToString(query->Limit)));
     }
 
