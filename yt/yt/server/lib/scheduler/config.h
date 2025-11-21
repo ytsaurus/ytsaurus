@@ -310,6 +310,8 @@ struct TTreeTestingOptions
 {
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
+    TDelayConfigPtr DelayInsidePoolPermissionsValidation;
+
     std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
     std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
     std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;

@@ -3199,10 +3199,13 @@ private:
 
     void FinishOperation(const TOperationPtr& operation)
     {
+        TForbidContextSwitchGuard guard;
+
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
             UnregisterOperation(operation);
         }
+
         operation->Cancel(TError("Operation finished"));
     }
 

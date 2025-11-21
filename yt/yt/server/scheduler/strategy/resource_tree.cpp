@@ -3,6 +3,8 @@
 #include "private.h"
 #include "resource_tree_element.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/core/utilex/random.h>
 
 namespace NYT::NScheduler::NStrategy {
@@ -133,9 +135,7 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
             FormatResources(usage),
             FormatResources(usagePrecommit));
 
-        if (ResourceTreeReleaseResourcesRandomDelay_) {
-            Sleep(RandomDuration(*ResourceTreeReleaseResourcesRandomDelay_));
-        }
+        MaybeDelay(ResourceTreeReleaseResourcesRandomDelay_, EDelayType::Sync);
 
         DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit, /*enableDetailedLogs*/ true);
         DoIncreaseHierarchicalResourceUsage(element->Parent_, -usage);
@@ -259,9 +259,8 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     auto* current = element->Parent_.Get();
     while (current) {
-        if (ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_) {
-            Sleep(RandomDuration(*ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_));
-        }
+        MaybeDelay(ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_, EDelayType::Sync);
+
         YT_VERIFY(increaseLocalResourceUsagePrecommit(current, delta));
         current = current->Parent_.Get();
     }
@@ -324,7 +323,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         while (currentElement != failedParent) {
             if (ResourceTreeRevertResourceUsagePrecommitRandomDelay_) {
                 // NB: under RWLock only synchronous sleep is allowed.
-                Sleep(RandomDuration(*ResourceTreeRevertResourceUsagePrecommitRandomDelay_));
+                Delay(RandomDuration(*ResourceTreeRevertResourceUsagePrecommitRandomDelay_), EDelayType::Sync);
             }
             YT_VERIFY(currentElement->IncreaseLocalResourceUsagePrecommit(-delta));
             currentElement = currentElement->Parent_.Get();
@@ -466,9 +465,7 @@ void TResourceTree::InitializeResourceUsageFor(
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-    if (ResourceTreeInitializeResourceUsageDelay_) {
-        Sleep(*ResourceTreeInitializeResourceUsageDelay_);
-    }
+    MaybeDelay(ResourceTreeInitializeResourceUsageDelay_, EDelayType::Sync);
 
     // This method called from Control thread with list of descendant operations elements.
     // All changes of tree structure performed from Control thread, thus we guarantee that

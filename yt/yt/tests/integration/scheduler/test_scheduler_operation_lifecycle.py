@@ -8,11 +8,11 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
-    create, ls, get,
+    create, ls, get, update_pool_tree_config_option,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
     start_transaction, abort_transaction,
     lookup_rows, read_table, write_table, map, reduce, sort,
-    run_test_vanilla, run_sleeping_vanilla,
+    run_test_vanilla, run_sleeping_vanilla, execute_command,
     suspend_op, resume_op, abort_op, update_op_parameters,
     abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
@@ -2131,7 +2131,8 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
                 },
                 "pool": "my_pool",
             },
-            authenticated_user="author")
+            authenticated_user="author",
+        )
 
         with pytest.raises(YtError):
             update_op_parameters(
@@ -2143,7 +2144,8 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
                         }
                     }
                 },
-                authenticated_user="user")
+                authenticated_user="user",
+            )
 
         with pytest.raises(YtError):
             update_op_parameters(
@@ -2151,7 +2153,8 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
                 parameters={
                     "pool": "your_pool",
                 },
-                authenticated_user="manager")
+                authenticated_user="manager",
+            )
 
         update_op_parameters(
             op.id,
@@ -2162,7 +2165,8 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
                     }
                 }
             },
-            authenticated_user="manager")
+            authenticated_user="manager",
+        )
 
         suspend_op(op.id, authenticated_user="manager")
         resume_op(op.id, authenticated_user="manager")
@@ -2176,3 +2180,48 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
         update_scheduler_config("operation_actions_allowed_for_pool_managers", ["abort"])
 
         abort_op(op.id, authenticated_user="manager")
+
+    @authors("eshcherbin")
+    def test_race_with_operation_deregistration(self):
+        update_scheduler_config("operation_actions_allowed_for_pool_managers", ["abort"])
+
+        create_pool("pool")
+
+        create_user("user")
+        create_user("manager")
+
+        set(
+            "//sys/pool_trees/default/pool/@acl",
+            [make_ace("allow", "manager", ["manage"])],
+        )
+
+        op = run_sleeping_vanilla(
+            spec={"pool": "pool"},
+            authenticated_user="user",
+        )
+        op.wait_for_state("running")
+
+        update_pool_tree_config_option("default", "testing_options", {
+            "delay_inside_pool_permissions_validation": {
+                "duration": 3000,
+                "type": "async",
+            },
+        })
+
+        response = execute_command(
+            "abort_op",
+            parameters={
+                "operation_id": op.id,
+                "authenticated_user": "manager",
+            },
+            return_response=True,
+        )
+
+        time.sleep(0.2)
+
+        update_pool_tree_config_option("default", "testing_options", {}, strict_value_validation=True)
+
+        op.abort()
+
+        response.wait()
+        print_debug(str(response.error()))
