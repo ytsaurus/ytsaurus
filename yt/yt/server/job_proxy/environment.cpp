@@ -368,8 +368,7 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory,
-        std::optional<int> userId) override
+        const TString& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -383,18 +382,7 @@ public:
         launcher->SetUser(portoUser);
 
         if (Options_.RootFS) {
-            auto rootFS = *Options_.RootFS;
-            auto newPath = NFS::CombinePaths(rootFS.RootPath, "slot");
-
-            if (Options_.EnableRootVolumeDiskQuota) {
-                YT_LOG_INFO("Prepare rootFS for binds (Path: %v)", newPath);
-
-                PrepareRootFS(
-                    rootFS.RootPath,
-                    userId);
-            }
-
-            launcher->SetRoot(rootFS);
+            launcher->SetRoot(*Options_.RootFS);
         }
 
         std::vector<TDevice> devices;
@@ -581,49 +569,6 @@ private:
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
-
-    void PrepareRootFS(
-        const TString& rootPath,
-        std::optional<int> userId)
-    {
-        int nodeUid = getuid();
-
-        auto rootConfig = New<TRootDirectoryConfig>();
-        rootConfig->SlotPath = rootPath;
-        rootConfig->UserId = nodeUid;
-        rootConfig->Permissions = 0777;
-
-        // TODO(artemagafonov): Decide which directories need to be created here.
-        // NB: Paths are relative and ordered in the creation sequence. Must create directory before its subdirectory.
-        static const std::vector<TString> directoryPaths{
-            "slot",
-            "slot/sandbox",
-            "slot/tmp",
-            "tmp",
-            "var",
-            "var/tmp",
-        };
-
-        for (const auto& directoryPath : directoryPaths) {
-            auto directory = New<TDirectoryConfig>();
-
-            directory->Path = NFS::CombinePaths(
-                rootPath,
-                directoryPath);
-            directory->UserId = userId;
-            directory->Permissions = 0777;
-            directory->RemoveIfExists = false;
-
-            rootConfig->Directories.push_back(std::move(directory));
-        }
-
-        auto directoryBuilderConfig = New<TDirectoryBuilderConfig>();
-        directoryBuilderConfig->NodeUid = nodeUid;
-        directoryBuilderConfig->NeedRoot = true;
-        directoryBuilderConfig->RootDirectoryConfigs.push_back(std::move(rootConfig));
-
-        RunTool<TRootDirectoryBuilderTool>(directoryBuilderConfig);
-    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)
@@ -943,8 +888,7 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory,
-        std::optional<int> /*userId*/) override
+        const TString& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -1232,8 +1176,7 @@ public:
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
-        const TString& workingDirectory,
-        std::optional<int> /*userId*/) override
+        const TString& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
