@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +105,46 @@ void TBindConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("read_only", &TThis::ReadOnly)
         .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TEnvironmentVariableConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name)
+        .NonEmpty();
+    registrar.Parameter("environment_variable", &TThis::EnvironmentVariable)
+        .Default();
+    registrar.Parameter("file_name", &TThis::FileName)
+        .Default();
+    registrar.Parameter("value", &TThis::Value)
+        .Default();
+    registrar.Parameter("forward_to_user_job", &TThis::ForwardToUserJob)
+        .Alias("export")
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(config->Value && config->FileName,
+            "Cannot specify both \"value\" and \"file_name\"");
+        THROW_ERROR_EXCEPTION_UNLESS(config->EnvironmentVariable || config->FileName || config->Value,
+            "Must specify at least one of \"environment_variable\", \"file_name\", or \"value\"");
+    });
+}
+
+TString TEnvironmentVariableConfig::LoadValue() const
+{
+    if (EnvironmentVariable) {
+        if (auto value = TryGetEnv(*EnvironmentVariable)) {
+            return *std::move(value);
+        }
+    }
+    if (Value) {
+        return *Value;
+    }
+    if (FileName) {
+        return TFileInput(*FileName).ReadAll();
+    }
+    THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", EnvironmentVariable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,6 +398,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);
+
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
 
     registrar.Parameter("tvm_bridge_connection", &TThis::TvmBridgeConnection)
         .Default();

@@ -77,12 +77,12 @@ target_link_libraries(yt-core-test_framework.global PUBLIC
 
 target_sources(yt-core-test_framework.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/framework.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/core/test_framework/d4a5b19d4329d53a598bbfeba1a46e15.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/test_framework/bfbc2f48095040480eacdd42dba4fd39.cpp
 )
 
 
 resources(yt-core-test_framework.global
-  ${PROJECT_BINARY_DIR}/yt/yt/core/test_framework/d4a5b19d4329d53a598bbfeba1a46e15.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/core/test_framework/bfbc2f48095040480eacdd42dba4fd39.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/ca.pem
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/ca_ec.pem
@@ -93,6 +93,12 @@ resources(yt-core-test_framework.global
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/key.pem
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/key_ec.pem
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/key_with_ip_in_san.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/rpc_ca.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/rpc_server_cert.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/rpc_server_key.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/rpc_client_cert.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/rpc_client_key.pem
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/testdata/generate.sh
   KEYS
   /testdata/ca.pem
   /testdata/ca_ec.pem
@@ -103,5 +109,11 @@ resources(yt-core-test_framework.global
   /testdata/key.pem
   /testdata/key_ec.pem
   /testdata/key_with_ip_in_san.pem
+  /testdata/rpc_ca.pem
+  /testdata/rpc_server_cert.pem
+  /testdata/rpc_server_key.pem
+  /testdata/rpc_client_cert.pem
+  /testdata/rpc_client_key.pem
+  /testdata/generate.sh
   OPTS
 )
