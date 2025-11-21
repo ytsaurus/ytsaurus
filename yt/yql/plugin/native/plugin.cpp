@@ -343,7 +343,7 @@ public:
             auto& logger = NYql::NLog::YqlLogger();
 
             logger.SetDefaultPriority(ELogPriority::TLOG_DEBUG);
-            for (int i = 0; i < NYql::NLog::EComponentHelpers::ToInt(NYql::NLog::EComponent::MaxValue); ++i) {
+            for (int i = 0; i < NYql::NLog::TComponentHelpers::ToInt(NYql::NLog::EComponent::MaxValue); ++i) {
                 logger.SetComponentLevel((NYql::NLog::EComponent)i, NYql::NLog::ELevel::DEBUG);
             }
 
