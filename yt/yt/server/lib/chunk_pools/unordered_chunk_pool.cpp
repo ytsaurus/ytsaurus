@@ -555,14 +555,6 @@ private:
         return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
     };
 
-    // XXX(max42): looks like this comment became obsolete even
-    // before I got into this company.
-    //! Convert data slice into a list of chunk stripes for further
-    //! processing. Each stripe receives exactly one chunk. The
-    //! resulting stripes are of approximately equal size. The size
-    //! per stripe is either |maxSliceDataSize| or |TotalEstimateInputDataSize / jobCount|,
-    //! whichever is smaller. If the resulting list contains less than
-    //! |jobCount| stripes then |jobCount| is decreased appropriately.
     void AddDataSlice(const TLegacyDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
     {
         dataSlice->Tag = inputCookie;
