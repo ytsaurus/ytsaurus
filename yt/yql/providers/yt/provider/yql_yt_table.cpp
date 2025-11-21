@@ -631,7 +631,9 @@ NYT::TNode TYtTableBaseInfo::GetCodecSpecNode(const NCommon::TStructMemberMapper
 
 NYT::TNode TYtTableBaseInfo::GetAttrSpecNode(ui64 nativeTypeCompatibility, bool rowSpecCompactForm) const {
     NYT::TNode res = NYT::TNode::CreateMap();
-    if (RowSpec) {
+    if (Meta && Meta->SqlView) {
+        res[YqlTypeAttribute] = "view";
+    } else if (RowSpec) {
         RowSpec->FillAttrNode(res[YqlRowSpecAttribute], nativeTypeCompatibility, rowSpecCompactForm);
     }
     return res;
@@ -905,7 +907,7 @@ bool TYtTableInfo::HasSubstAnonymousLabel(NNodes::TExprBase node) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder) {
+TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder, TString sqlView) {
     RowSpec = MakeIntrusive<TYqlRowSpecInfo>();
     RowSpec->SetType(type, nativeYtTypeFlags);
     RowSpec->SetColumnOrder(columnOrder);
@@ -914,6 +916,7 @@ TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeF
     Meta->CanWrite = true;
     Meta->DoesExist = true;
     Meta->YqlCompatibleScheme = true;
+    Meta->SqlView = sqlView;;
 
     IsTemp = true;
 }
@@ -989,7 +992,7 @@ bool TYtOutTableInfo::Validate(const TExprNode& node, TExprContext& ctx) {
         return false;
     }
 
-    if (!ValidateSettings(*node.Child(TYtOutTable::idx_Settings), EYtSettingType::UniqueBy | EYtSettingType::OpHash | EYtSettingType::ColumnGroups, ctx)) {
+    if (!ValidateSettings(*node.Child(TYtOutTable::idx_Settings), EYtSettingType::UniqueBy | EYtSettingType::OpHash | EYtSettingType::ColumnGroups | EYtSettingType::View, ctx)) {
         return false;
     }
 
@@ -1021,10 +1024,15 @@ void TYtOutTableInfo::Parse(TExprBase node) {
 TExprBase TYtOutTableInfo::ToExprNode(TExprContext& ctx, const TPositionHandle& pos) const {
     auto tableBuilder = Build<TYtOutTable>(ctx, pos);
     tableBuilder.Name().Value(Name).Build();
-    YQL_ENSURE(RowSpec);
-    tableBuilder.RowSpec(RowSpec->ToExprNode(ctx, pos));
+
+    if (RowSpec)
+        tableBuilder.RowSpec(RowSpec->ToExprNode(ctx, pos));
+    else
+        tableBuilder.RowSpec<TCoVoid>().Build();
+
     YQL_ENSURE(Meta);
     tableBuilder.Meta(Meta->ToExprNode(ctx, pos));
+
     if (Stat) {
         tableBuilder.Stat(Stat->ToExprNode(ctx, pos));
     } else {
