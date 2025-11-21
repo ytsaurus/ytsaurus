@@ -77,8 +77,13 @@ void Delay(TDuration delay, EDelayType delayType)
         case EDelayType::Sync:
             Sleep(delay);
             break;
-        default:
-            YT_ABORT();
+    }
+}
+
+void MaybeDelay(std::optional<TDuration> maybeDelay, EDelayType delayType)
+{
+    if (maybeDelay) {
+        Delay(*maybeDelay, delayType);
     }
 }
 
@@ -89,6 +94,7 @@ void MaybeDelay(const TDelayConfigPtr& delayConfig, const TLogger* logger)
             const auto& Logger = *logger;
             YT_LOG_DEBUG("Making test delay (Duration: %v, Type: %v)", delayConfig->Duration, delayConfig->Type);
         }
+
         Delay(delayConfig->Duration, delayConfig->Type);
     }
 }
