@@ -4180,9 +4180,7 @@ private:
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
         }
-        if (request->has_expression_builder_version()) {
-            options.ExpressionBuilderVersion = request->expression_builder_version();
-        }
+        options.ExpressionBuilderVersion = YT_OPTIONAL_FROM_PROTO(*request, expression_builder_version);
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
         }
