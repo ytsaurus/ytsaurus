@@ -749,6 +749,7 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedInitialMinNeededAllocationResources);
     DEFINE_BYREF_RO_PROPERTY(bool, ScheduleAllocationBackoffCheckEnabled, false);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, DiskRequestMedia);
@@ -919,6 +920,7 @@ public:
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        const std::optional<TJobResources>& additionalLocalResourceLimits = std::nullopt,
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
@@ -934,6 +936,7 @@ public:
 
     bool IsGang() const;
     bool IsSingleAllocationVanillaOperation() const;
+    bool IsDefaultGpuFullHost() const;
 
     TDuration GetEffectiveAllocationPreemptionTimeout() const;
     TDuration GetEffectiveAllocationGracefulPreemptionTimeout() const;

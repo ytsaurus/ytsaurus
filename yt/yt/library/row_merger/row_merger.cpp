@@ -67,13 +67,13 @@ TSchemafulRowMerger::TSchemafulRowMerger(
             continue;
         }
 
-        if (GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+        if (FindNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
             AggregateColumnIds_.push_back(columnId);
             hasNestedColumns = true;
             continue;
         }
 
-        if (GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+        if (FindNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
             AggregateColumnIds_.push_back(columnId);
             hasNestedColumns = true;
             continue;
@@ -253,12 +253,12 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             }
         }
 
-        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+        if (const auto* ptr = FindNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
             NestedKeyColumns_[ptr - NestedColumnsSchema_.KeyColumns.data()] = {it, itEnd};
             continue;
         }
 
-        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+        if (const auto* ptr = FindNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
             NestedValueColumns_[ptr - NestedColumnsSchema_.ValueColumns.data()] = {it, itEnd};
             continue;
         }

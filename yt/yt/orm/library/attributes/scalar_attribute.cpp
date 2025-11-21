@@ -267,7 +267,7 @@ protected:
                         std::move(keyMessage),
                         key,
                         EVisitReason::Manual,
-                        // NB! Poison pill for map processing. Error code `MissingKey` is processed
+                        // NB: Poison pill for map processing. Error code `MissingKey` is processed
                         // according to missing field policy. Error message is not provided intentionally.
                         TError(EErrorCode::MissingKey, ""));
                 }

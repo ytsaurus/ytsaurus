@@ -159,7 +159,7 @@ void UnpackRepeatedField(TWireString& target, TWireStringPart packedPart, WireFo
             break;
         }
         default:
-            // NB! Only packable types could be unpacked.
+            // NB: Only packable types could be unpacked.
             // See (https://protobuf.dev/programming-guides/encoding/#packed) for details.
             YT_ABORT();
     }
@@ -405,7 +405,7 @@ struct TProtoVisitorTraits<TUnpackedWireString>
         Y_UNUSED(fieldDescriptor);
         Y_UNUSED(index);
 
-        // NB! Wire string is immutable.
+        // NB: Wire string is immutable.
         YT_ABORT();
     }
 
@@ -418,7 +418,7 @@ struct TProtoVisitorTraits<TUnpackedWireString>
         Y_UNUSED(fieldDescriptor);
         Y_UNUSED(keyMessage);
 
-        // NB! Wire string is immutable.
+        // NB: Wire string is immutable.
         YT_ABORT();
     }
 

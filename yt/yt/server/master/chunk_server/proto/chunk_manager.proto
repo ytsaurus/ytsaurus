@@ -61,6 +61,13 @@ message TReqRemoveDeadSequoiaChunkReplicas
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqTopUpSequoiaChunkPurgatory
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqUnstageExpiredChunks
 {
     repeated NYT.NProto.TGuid chunk_ids = 1;

@@ -496,6 +496,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
         .DefaultNew();
+    registrar.Parameter("check_chunks_cell_tags_before_heartbeats", &TThis::CheckChunksCellTagsBeforeHeartbeats)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,7 +44,7 @@ class BaseLayerDetector:
                     return ("ubuntu", ubuntu_codename, (python_major, python_minor))
                 else:
                     return ("ubuntu", ubuntu_codename, None)
-        return None
+        return (distro.id().lower(), None, None)
 
     @classmethod
     def _get_default_layer(cls, client, layer_type):
@@ -85,10 +85,8 @@ class BaseLayerDetector:
 
         os, os_codename, python_version = cls._detect_os_env()
         registry_path = get_config(client)["base_layers_registry_path"]
+        layer_path = []
         if os == "ubuntu":
-
-            layer_path = []
-
             # get base layer from registry
             if yt.exists(registry_path, client=client):
                 matched = None
@@ -132,6 +130,8 @@ class BaseLayerDetector:
                     layer_path = None
 
             logger.debug("Guessed base layer \"%s\"", layer_path)
+        else:
+            logger.debug("Can't guess baase layer for local OS \"%s\"", os)
 
         return layer_path
 

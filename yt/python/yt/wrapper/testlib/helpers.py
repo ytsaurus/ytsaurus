@@ -28,7 +28,8 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, List
+from unittest.mock import patch
 try:
     import collections.abc as collections_abc
 except ImportError:
@@ -279,6 +280,32 @@ def random_string(length):
 
 
 @contextmanager
+def log_http_request(
+    commands: Optional[List[str]] = None,
+):
+    # from yt.wrapper.http_helpers import HTTPRequestRetrier
+
+    retrier_action_orig = yt.http_helpers.HTTPRequestRetrier.action
+    stat = []
+
+    def retrier_action_wrapper(this, *args, **kwargs):
+        if this.url and "/api/" in this.url:
+            command_name = this.url.split("/")[-1]
+            if not commands or command_name in commands:
+                stat.append(
+                    {
+                        "command_name": command_name,
+                        "params": this.params,
+                        "headers": this.headers,
+                    }
+                )
+        return retrier_action_orig(this, *args, **kwargs)
+
+    with patch.object(yt.http_helpers.HTTPRequestRetrier, "action", retrier_action_wrapper):
+        yield stat
+
+
+@contextmanager
 def inject_http_error(
     client,
     filter_url: Optional[str] = None,
@@ -337,9 +364,8 @@ def inject_http_error(
 
         return reqeust_session_send_orig(*args, **kwargs)
 
-    client._requests_session.send = send_wrapper
-    yield cnt
-    client._requests_session.send = reqeust_session_send_orig
+    with patch.object(client._requests_session, "send", send_wrapper):
+        yield cnt
 
 
 class CustomAuthTest(TokenAuth):

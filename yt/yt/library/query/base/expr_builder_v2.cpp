@@ -1271,7 +1271,10 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
             // shortest arrays are prolonged with nulls.
             logicalType = NTableClient::OptionalLogicalType(std::move(logicalType));
         }
-        resultFields.push_back(NTableClient::TStructField{name, logicalType});
+        resultFields.push_back(NTableClient::TStructField{
+            .Name = name,
+            .Type = std::move(logicalType),
+        });
     }
 
     auto resultType = ListLogicalType(StructLogicalType(resultFields));

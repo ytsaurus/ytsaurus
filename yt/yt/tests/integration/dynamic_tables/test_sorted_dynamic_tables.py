@@ -6,7 +6,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists,
     create_tablet_cell_bundle, start_transaction, abort_transaction, commit_transaction, lock,
-    insert_rows, select_rows, lookup_rows, delete_rows, retry_yt_error,
+    insert_rows, select_rows, lookup_rows, delete_rows,
     lock_rows, alter_table, read_table, write_table, remount_table,
     generate_timestamp, wait_for_cells, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
@@ -229,9 +229,17 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/custom_runtime_data", default=None) == runtime_data)
 
-    def _insert_rows_with_hunk_storage(self, path, rows):
-        with retry_yt_error(codes=[yt_error_codes.HunkTabletStoreToggleConflict]):
-            insert_rows(path, rows)
+    def _insert_rows_with_hunk_storage(self, path, rows, retry_count=100):
+        iteration = 0
+        while iteration < retry_count:
+            iteration += 1
+            try:
+                insert_rows(path, rows)
+                return
+            except YtError as e:
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                    raise e
+
 
 ##################################################################
 

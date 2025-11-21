@@ -570,15 +570,22 @@ ISchedulingPolicyPtr CreateSchedulingPolicy(
     const std::string& treeId,
     const TStrategyTreeConfigPtr& config)
 {
-    if (IsGpuPoolTree(config) && config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::DryRun) {
-        return New<TSchedulingPolicy>(
-            std::move(host),
-            strategyHost,
-            treeId,
-            config->GpuSchedulingPolicy);
-    }
+    const auto& Logger = GetLogger(treeId);
 
-    return New<TNoopSchedulingPolicy>(treeId);
+    switch (config->GpuSchedulingPolicy->Mode) {
+        case EGpuSchedulingPolicyMode::Noop:
+            return New<TNoopSchedulingPolicy>(treeId);
+        case EGpuSchedulingPolicyMode::DryRun: {
+            YT_LOG_WARNING_UNLESS(IsGpuPoolTree(config),
+                "GPU scheduling policy configured for a non-GPU pool tree");
+
+            return New<TSchedulingPolicy>(
+                std::move(host),
+                strategyHost,
+                treeId,
+                config->GpuSchedulingPolicy);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

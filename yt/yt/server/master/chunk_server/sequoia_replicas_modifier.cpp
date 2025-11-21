@@ -58,7 +58,6 @@ public:
         : Profile_(profile)
         , TransactionType_(transactionType)
         , Bootstrap_(bootstrap)
-        , EnableChunkRefresh_(config->EnableChunkRefresh)
         , EnableSequoiaChunkRefresh_(config->SequoiaChunkReplicas->EnableSequoiaChunkRefresh)
         , ProcessRemovedSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->ProcessRemovedSequoiaReplicasOnMaster)
         , StoreSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->StoreSequoiaReplicasOnMaster)
@@ -103,7 +102,6 @@ private:
     NProfiling::TWallTimer Timer_;
     TBootstrap* const Bootstrap_;
 
-    bool EnableChunkRefresh_;
     bool EnableSequoiaChunkRefresh_;
     bool ProcessRemovedSequoiaReplicasOnMaster_;
     bool StoreSequoiaReplicasOnMaster_;
@@ -111,7 +109,6 @@ private:
     std::vector<TErrorCode> RetriableErrorCodes_;
 
     TNodeId NodeId_;
-    THashSet<TChunkId> DeadChunkIds_;
 
     struct TReplicaList
     {
@@ -150,7 +147,6 @@ private:
     {
         Transaction_ = transaction;
         NodeId_ = FromProto<TNodeId>(Request_->node_id());
-        DeadChunkIds_ = FromProto<THashSet<TChunkId>>(Request_->dead_chunk_ids());
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::StartTransaction].Add(Timer_.GetElapsedTime());
         Timer_.Restart();
@@ -164,15 +160,6 @@ private:
         auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
         auto chunkId = chunkIdWithIndex.Id;
         auto locationIndex = FromProto<TChunkLocationIndex>(chunkInfo.location_index());
-
-        if (DeadChunkIds_.contains(chunkId)) {
-            YT_LOG_TRACE("Skip %v of Sequoia replica, the chunk is dead (ChunkId: %v, ReplicaIndex: %v, LocationIndex: %v)",
-                chunkAdded ? "addition" : "removal",
-                chunkId,
-                chunkIdWithIndex.ReplicaIndex,
-                locationIndex);
-            return;
-        }
 
         if (chunkInfo.caused_by_medium_change()) {
             ChunksWithMediumChange_.insert(chunkId);
@@ -397,7 +384,7 @@ private:
                 };
                 Transaction_->DeleteRow(locationReplicaKey);
             }
-            if (EnableSequoiaChunkRefresh_ && EnableChunkRefresh_) {
+            if (EnableSequoiaChunkRefresh_) {
                 NRecords::TChunkRefreshQueue refreshQueueEntry{
                     .TabletIndex = GetChunkShardIndex(chunkId),
                     .ChunkId = chunkId,
@@ -407,7 +394,7 @@ private:
             }
         }
 
-        if (EnableSequoiaChunkRefresh_ && EnableChunkRefresh_) {
+        if (EnableSequoiaChunkRefresh_) {
             for (auto chunkId : ChunksWithMediumChange_) {
                 NRecords::TChunkRefreshQueue refreshQueueEntry{
                     .TabletIndex = GetChunkShardIndex(chunkId),
@@ -419,29 +406,14 @@ private:
         }
 
         // If we do not need replicas on master, we can make request more lightweight.
-        if (EnableSequoiaChunkRefresh_ && ClearMasterRequest_) {
+        if (ClearMasterRequest_) {
             if (!StoreSequoiaReplicasOnMaster_) {
-                std::vector<TChunkAddInfo> deadAddedChunks;
-                for (const auto& chunkInfo : Request_->added_chunks()) {
-                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                    auto chunkId = chunkIdWithIndex.Id;
-
-                    if (DeadChunkIds_.contains(chunkId)) {
-                        deadAddedChunks.push_back(chunkInfo);
-                    }
-                }
                 Request_->mutable_added_chunks()->Clear();
-                for (const auto& chunkInfo : deadAddedChunks) {
-                    *Request_->add_added_chunks() = chunkInfo;
-                }
             }
             if (!ProcessRemovedSequoiaReplicasOnMaster_ && Request_->caused_by_node_disposal()) {
                 Request_->mutable_removed_chunks()->Clear();
             }
         }
-
-        Request_->set_enable_chunk_refresh(EnableChunkRefresh_);
-        Request_->set_enable_sequoia_chunk_refresh(EnableSequoiaChunkRefresh_);
 
         Transaction_->AddTransactionAction(
             Bootstrap_->GetCellTag(),

@@ -4,6 +4,7 @@ from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import DuplicateTag
+from yt_dashboards.jobs_monitor import BYTES_LABEL
 
 from .resources import memory_guarantee, container_memory_usage
 
@@ -12,9 +13,9 @@ from ..common.sensors import *
 ##################################################################
 
 
-def build_user_memory():
+def build_user_memory(has_cgroup):
     memory_usage = (lambda category: MultiSensor(
-            TabNode("yt.cluster_node.memory_usage.used").value("category", category),
+            TabNode("yt.cluster_node.memory_usage.used").value("category", category).host_container_legend_format(),
             MonitoringExpr(TabNode("yt.cluster_node.memory_usage.limit")).series_max().alias("Limit"))
         .value("category", category))
 
@@ -37,26 +38,30 @@ dynamic memory almost always means that write throughput is too large.
                         .all("category")).alias("{{category}}"))
                 # There will be too many sensors for host=*
                 .aggr(DuplicateTag(MonitoringTag("host")))
-                .top(False))
-            .cell("", EmptyCell())
+                .top(False),
+                yaxis_label=BYTES_LABEL)
+            .cell("", EmptyCell(), yaxis_label=BYTES_LABEL, skip_cell=not has_cgroup)
         .row()
             .cell(
                 "Tablet dynamic memory",
                 memory_usage("tablet_dynamic"),
-                description=tablet_dynamic_hint)
-            .cell("Tablet static memory", memory_usage("tablet_static"))
+                description=tablet_dynamic_hint,
+                yaxis_label=BYTES_LABEL)
+            .cell("Tablet static memory", memory_usage("tablet_static"), yaxis_label=BYTES_LABEL)
         .row()
-            .cell("Query memory usage", memory_usage("query"))
-            .cell("Tracked memory usage", TabNode("yt.cluster_node.memory_usage.total_used"))
+            .cell("Query memory usage", memory_usage("query"), yaxis_label=BYTES_LABEL)
+            .cell("Tracked memory usage", TabNode("yt.cluster_node.memory_usage.total_used").host_container_legend_format(), yaxis_label=BYTES_LABEL)
         .row()
-            .cell("Process memory usage (rss)", TabNodeMemory("yt.resource_tracker.memory_usage.rss"))
+            .cell("Process memory usage (rss)", TabNodeMemory("yt.resource_tracker.memory_usage.rss").host_container_legend_format(), yaxis_label=BYTES_LABEL)
             .cell("Container (cgroup) memory usage", MultiSensor(
                 TabNodeMemory("yt.memory.cgroup.rss"),
-                MonitoringExpr(TabNodeMemory("yt.memory.cgroup.memory_limit")).series_max().alias("limit")))
+                MonitoringExpr(TabNodeMemory("yt.memory.cgroup.memory_limit")).series_max().alias("limit")),
+                yaxis_label=BYTES_LABEL,
+                skip_cell=not has_cgroup)
         .row()
-            .cell("Row cache size", memory_usage("lookup_rows_cache"))
-            .cell("", EmptyCell())
-        ).owner
+            .cell("Row cache size", memory_usage("lookup_rows_cache"), yaxis_label=BYTES_LABEL)
+            .cell("", EmptyCell(), yaxis_label=BYTES_LABEL, skip_cell=not has_cgroup)
+        ).owner.unit("UNIT_BYTES_SI")
 
 
 def build_reserved_memory():
@@ -87,7 +92,7 @@ by the process.
         .stack(False)
         .min(0)
         .row()
-            .cell("Reserved memory usage",  MultiSensor(reserved_limit, reserved_usage))
+            .cell("Reserved memory usage",  MultiSensor(reserved_limit, reserved_usage), yaxis_label=BYTES_LABEL)
             .cell(
                 "Footprint and Fragmentation",
                 MultiSensor(
@@ -97,5 +102,6 @@ by the process.
                         .alias("fragmentation {{container}}"))
                     .top(1)
                     .stack(True),
-                description=fragmentation_description)
-        ).owner
+                description=fragmentation_description,
+                yaxis_label=BYTES_LABEL)
+        ).owner.unit("UNIT_BYTES_SI")

@@ -1858,6 +1858,7 @@ void TPoolTreeOperationElement::InitializeUpdate(TInstant now)
     PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
     GroupedNeededResources_ = Controller_->GetGroupedNeededResources();
     AggregatedMinNeededAllocationResources_ = Controller_->GetAggregatedMinNeededAllocationResources();
+    AggregatedInitialMinNeededAllocationResources_ = Controller_->GetAggregatedInitialMinNeededAllocationResources();
     ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
@@ -2142,6 +2143,13 @@ bool TPoolTreeOperationElement::IsGang() const
     return Spec_->IsGang;
 }
 
+bool TPoolTreeOperationElement::IsDefaultGpuFullHost() const
+{
+    return Spec_->SchedulingSegment.value_or(ESchedulingSegment::Default) == ESchedulingSegment::Default &&
+        AggregatedInitialMinNeededAllocationResources_.GetGpu() == FullHostGpuAllocationGpuDemand;
+}
+
+
 void TPoolTreeOperationElement::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
     if (Parent_->IsEnabledChild(this)) {
@@ -2268,12 +2276,14 @@ TJobResources TPoolTreeOperationElement::GetAggregatedInitialMinNeededResources(
 EResourceTreeIncreaseResult TPoolTreeOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    const std::optional<TJobResources>& additionalLocalResourceLimits,
     TJobResources* availableResourceLimitsOutput)
 {
     return TreeElementHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
         ResourceTreeElement_,
         delta,
         allowLimitsOvercommit,
+        additionalLocalResourceLimits,
         availableResourceLimitsOutput);
 }
 

@@ -1,6 +1,7 @@
 from .conftest import authors
 
 from yt.wrapper.driver import get_api_version
+from yt.wrapper.testlib.helpers import log_http_request, inject_http_error
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
@@ -193,59 +194,70 @@ class TestQueueCommands(object):
         self._create_queue(queue)
         self._create_producer(producer)
 
-        session_info = yt.create_queue_producer_session(producer, queue, session_id)
+        client = yt.YtClient(config=yt.config.config)
+
+        session_info = client.create_queue_producer_session(producer, queue, session_id)
         assert session_info["epoch"] == 0
         assert session_info["sequence_number"] == -1
 
-        push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 0}])
+        with log_http_request(commands=["push_queue_producer"]) as stat:
+            with inject_http_error(client, filter_url='/push_queue_producer', interrupt_from=0, interrupt_till=999, interrupt_every=2, raise_connection_reset=True) as cnt:
+                push_result = client.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 0}])
+        if client.config["backend"] == "http":
+            assert cnt.filtered_total_calls == 2
+            assert cnt.filtered_raises == 1
+            assert stat[0]["command_name"] == "push_queue_producer"
+            assert stat[0]["params"]["mutation_id"], "mutation_id is present"
+            assert stat[0]["params"]["mutation_id"] == stat[1]["params"]["mutation_id"], "Retry wihth same mutation_id"
+
         assert push_result["last_sequence_number"] == 0
         assert push_result["skipped_row_count"] == 0
 
-        push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foobar", "$sequence_number": 0}, {"data": "bar", "$sequence_number": 2}])
+        push_result = client.push_queue_producer(producer, queue, session_id, 0, [{"data": "foobar", "$sequence_number": 0}, {"data": "bar", "$sequence_number": 2}])
         assert push_result["last_sequence_number"] == 2
         assert push_result["skipped_row_count"] == 1
 
-        assert list(yt.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
+        assert list(client.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
 
-        with yt.Transaction(type="tablet"):
-            push_result = yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 2}, {"data": "baz", "$sequence_number": 3}])
+        with client.Transaction(type="tablet"):
+            push_result = client.push_queue_producer(producer, queue, session_id, 0, [{"data": "foo", "$sequence_number": 2}, {"data": "baz", "$sequence_number": 3}])
             assert push_result["last_sequence_number"] == 3
             assert push_result["skipped_row_count"] == 1
 
             # It's not committed yet.
-            assert list(yt.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
+            assert list(client.select_rows(f"data from [{queue}]")) == [{"data": "foo"}, {"data": "bar"}]
 
-        assert list(yt.select_rows(f"data from [{queue}]")) == [
+        assert list(client.select_rows(f"data from [{queue}]")) == [
             {"data": "foo"},
             {"data": "bar"},
             {"data": "baz"},
         ]
 
-        session_info = yt.create_queue_producer_session(producer, queue, session_id)
+        session_info = client.create_queue_producer_session(producer, queue, session_id)
         assert session_info["epoch"] == 1
         assert session_info["sequence_number"] == 3
 
         with pytest.raises(yt.YtResponseError):
-            yt.push_queue_producer(producer, queue, session_id, 0, [{"data": "abc", "$sequence_number": 4}])
+            client.push_queue_producer(producer, queue, session_id, 0, [{"data": "abc", "$sequence_number": 4}])
 
-        assert list(yt.select_rows(f"data from [{queue}]")) == [
+        assert list(client.select_rows(f"data from [{queue}]")) == [
             {"data": "foo"},
             {"data": "bar"},
             {"data": "baz"},
         ]
 
-        push_result = yt.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])
+        push_result = client.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])
         assert push_result["last_sequence_number"] == 4
         assert push_result["skipped_row_count"] == 0
 
-        assert list(yt.select_rows(f"data from [{queue}]")) == [
+        assert list(client.select_rows(f"data from [{queue}]")) == [
             {"data": "foo"},
             {"data": "bar"},
             {"data": "baz"},
             {"data": "abc"},
         ]
 
-        yt.remove_queue_producer_session(producer, queue, session_id)
+        client.remove_queue_producer_session(producer, queue, session_id)
 
         with pytest.raises(yt.YtResponseError, match="Unknown queue producer session"):
-            yt.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])
+            client.push_queue_producer(producer, queue, session_id, 1, [{"data": "abc", "$sequence_number": 4}])

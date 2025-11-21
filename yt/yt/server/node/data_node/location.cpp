@@ -1862,11 +1862,9 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(TChunkId chunkId)
 
     auto chunkMasterCellTag = CellTagFromId(chunkId);
     if (!masterCellTags.contains(chunkMasterCellTag)) {
-        YT_LOG_ALERT("Chunk from unknown master was scanned (ChunkId: %v, MasterCellTag: %v)",
+        YT_LOG_DEBUG("Chunk from unknown master was scanned (ChunkId: %v, MasterCellTag: %v)",
             chunkId,
             chunkMasterCellTag);
-
-        return std::nullopt;
     }
 
     switch (chunkType) {
