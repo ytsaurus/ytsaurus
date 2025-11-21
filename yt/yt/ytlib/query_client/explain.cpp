@@ -157,7 +157,7 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnord
     }
 
     fluent
-        .Item("where_expression").Value(InferName(predicate, true))
+        .Item("where_expression").Value(InferName(predicate, {.OmitValues = true}))
         .Item("joins").BeginList()
             .DoFor(groupedJoins, [] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
                 fluent.Item().BeginList().

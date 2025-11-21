@@ -190,8 +190,6 @@ private:
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,
-            .OmitAliases = true,
-            .OmitJoinPredicate = true,
             .OmitOffsetAndLimit = !considerLimit,
         });
 
