@@ -85,8 +85,6 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
-#include <yt/yt/core/misc/tls_cache.h>
-
 #include <yt/yt/core/rpc/overload_controlling_service_base.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -311,11 +309,11 @@ private:
     {
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
-        auto definitelyNotInMemory = (inMemoryMode == EInMemoryMode::None) || (ext.has_has_hunk_columns() && ext.has_hunk_columns());
-        auto definitelyInMemory = (inMemoryMode != EInMemoryMode::None) && (ext.has_has_hunk_columns() && !ext.has_hunk_columns());
+        bool definitelyNotInMemory = (inMemoryMode == EInMemoryMode::None) || (ext.has_has_hunk_columns() && ext.has_hunk_columns());
+        bool definitelyInMemory = (inMemoryMode != EInMemoryMode::None) && (ext.has_has_hunk_columns() && !ext.has_hunk_columns());
 
-        auto useQueryPoolForLookups = UseQueryPoolForLookups_.load();
-        auto useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
+        bool useQueryPoolForLookups = UseQueryPoolForLookups_.load();
+        bool useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
 
         if ((definitelyNotInMemory && useQueryPoolForLookups) ||
             (definitelyInMemory && useQueryPoolForInMemoryLookups))
@@ -465,7 +463,7 @@ private:
             request->ByteSizeLong());
 
         // Grab the invoker provided by GetExecuteInvoker.
-        auto invoker = GetCurrentInvoker();
+        auto* invoker = GetCurrentInvoker();
 
         ExecuteRequestWithRetries<void>(
             Config_->MaxQueryRetries,
@@ -692,7 +690,7 @@ private:
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
         TServiceProfilerGuard profilerGuard;
-        auto identity = NRpc::GetCurrentAuthenticationIdentity();
+        const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
         auto currentProfilingUser = GetProfilingUser(identity);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
@@ -729,7 +727,7 @@ private:
                     static_cast<NChaosClient::TReplicationProgress>(*replicationProgress),
                     upperTimestamp);
 
-                auto serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
+                auto* serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
                 profilerGuard.Start(serviceCounters->PullRows);
 
                 if (pullerTabletId) {
@@ -764,7 +762,7 @@ private:
                     chunkReadOptions,
                     startReplicationRowIndex);
 
-                auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(currentProfilingUser);
+                auto* counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(currentProfilingUser);
 
                 if (startRowIndex) {
                     result = ReadReplicationBatch(
@@ -944,7 +942,7 @@ private:
             return;
         }
 
-        auto profilingCounters = tabletSnapshot->TableProfiler->GetRemoteDynamicStoreReadCounters(GetCurrentProfilingUser());
+        auto* profilingCounters = tabletSnapshot->TableProfiler->GetRemoteDynamicStoreReadCounters(GetCurrentProfilingUser());
 
         TWallTimer wallTimer;
         i64 sessionRowCount = 0;
@@ -1223,7 +1221,7 @@ private:
         }
     }
 
-    std::vector<TSharedRef> GatherSamples(
+    static std::vector<TSharedRef> GatherSamples(
         const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
         const TLegacyOwningKey& lowerBound,
         const TLegacyOwningKey& upperBound,
@@ -1271,8 +1269,8 @@ private:
                 tryEmitSample(partition->PivotKey, span);
             }
 
-            auto firstIt = std::lower_bound(samples.begin(), samples.end(), lowerBound);
-            auto lastIt = std::lower_bound(samples.begin(), samples.end(), upperBound);
+            const auto* firstIt = std::lower_bound(samples.begin(), samples.end(), lowerBound);
+            const auto* lastIt = std::lower_bound(samples.begin(), samples.end(), upperBound);
             while (firstIt < lastIt) {
                 tryEmitSample(*firstIt++, span);
             }
@@ -1301,7 +1299,7 @@ private:
 
             auto tabletId = FromProto<TTabletId>(subrequest.tablet_id());
             auto cellId = FromProto<TCellId>(subrequest.cell_id());
-            auto tableIndex = subrequest.table_index();
+            int tableIndex = subrequest.table_index();
 
             try {
                 NTabletNode::TTabletSnapshotPtr tabletSnapshot;
@@ -1423,14 +1421,14 @@ private:
                     {
                         const auto& partitions = tabletSnapshot->PartitionList;
 
-                        auto firstIt = std::lower_bound(
+                        const auto* firstIt = std::lower_bound(
                             partitions.begin(),
                             partitions.end(),
                             lowerBound,
                             [&] (const TPartitionSnapshotPtr& lhs, TLegacyKey rhs) {
                                 return lhs->NextPivotKey <= rhs;
                             });
-                        auto lastIt = std::lower_bound(
+                        const auto* lastIt = std::lower_bound(
                             partitions.begin(),
                             partitions.end(),
                             upperBound,
@@ -1438,7 +1436,7 @@ private:
                                 return lhs->PivotKey < rhs;
                             });
 
-                        for (auto it = firstIt; it != lastIt; ++it) {
+                        for (const auto* it = firstIt; it != lastIt; ++it) {
                             for (const auto& store : (*it)->Stores) {
                                 addStore(store);
                             }
@@ -1452,7 +1450,7 @@ private:
                             upperBound,
                             subrequest.data_size_between_samples());
                         struct TFetchTabletStoresTag {};
-                        auto mergedRef = MergeRefsToRef<TFetchTabletStoresTag>(std::move(samples));
+                        auto mergedRef = MergeRefsToRef<TFetchTabletStoresTag>(samples);
                         response->Attachments().back() = std::move(mergedRef);
                     }
                 }
@@ -1544,7 +1542,7 @@ private:
         TServiceProfilerGuard profilerGuard;
 
         auto profilingUser = GetCurrentProfilingUser();
-        auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(profilingUser);
+        auto* counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(profilingUser);
         profilerGuard.Start(counters->FetchTableRows);
 
         if (!orderedStores.empty()) {
@@ -1554,7 +1552,7 @@ private:
             // [3....][11...][23....][30...]
             // For rowIndex = 3-10 we want to read from store 0, for 11-22 from store 1, etc.
             // For rowIndex < 3 we want to read from store 0.
-            auto desiredStoreIt = std::upper_bound(
+            const auto* desiredStoreIt = std::upper_bound(
                 orderedStores.begin(),
                 orderedStores.end(),
                 rowIndex,
@@ -1754,7 +1752,7 @@ private:
         // For T > 37 we want to return indexes [38, +inf) and no store information.
         //
         // Since timestamps are not guaranteed to be monotonous, we have to use a linear search.
-        auto desiredStoreIt = std::find_if(
+        const auto* desiredStoreIt = std::find_if(
             storeSnapshots.begin(),
             storeSnapshots.end(),
             [&timestamp] (const TStoreSnapshot& store) {

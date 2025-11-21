@@ -31,9 +31,9 @@ bool IsConstant(const TExpressionPtr expr)
     if (expr->As<TLiteralExpression>()) {
         return true;
     }
-    if (auto *function = expr->As<TFunctionExpression>()) {
+    if (auto* function = expr->As<TFunctionExpression>()) {
         bool constantArguments = true;
-        for (const auto arguments : function->Arguments) {
+        for (auto* arguments : function->Arguments) {
             constantArguments &= IsConstant(arguments);
         }
         return constantArguments;
