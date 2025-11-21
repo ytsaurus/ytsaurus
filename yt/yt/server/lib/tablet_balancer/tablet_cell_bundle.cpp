@@ -1,5 +1,6 @@
 #include "tablet_cell_bundle.h"
 
+#include "config.h"
 #include "private.h"
 #include "tablet_cell.h"
 
@@ -34,6 +35,27 @@ TTabletCellBundle::TTabletCellBundle(TString name)
     : Name(std::move(name))
 { }
 
+TTabletCellBundlePtr TTabletCellBundle::DeepCopy() const
+{
+    auto bundle = New<TTabletCellBundle>(Name);
+    bundle->Config = Config;
+
+    // Fake deep for now. Applying move tablet action may change cell->Statistics.MemorySize
+    bundle->TabletCells = TabletCells;
+
+    // Fake deep for now. New bundle fetch may change it
+    bundle->Tables = Tables;
+
+    // Fake deep for now. Applying move tablet action may change tablet->Cell
+    bundle->Tablets = Tablets;
+
+    bundle->NodeStatistics = NodeStatistics;
+    bundle->PerformanceCountersTableSchema = PerformanceCountersTableSchema;
+    bundle->PerClusterPerformanceCountersTableSchemas = PerClusterPerformanceCountersTableSchemas;
+
+    return bundle;
+}
+
 void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
@@ -43,6 +65,7 @@ void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr nod
         value.MemoryLimit = *limit;
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer
