@@ -2462,62 +2462,45 @@ protected:
         std::vector<i64> Completed;
     };
 
-    static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
+    TPartitionProgress ComputeFinalPartitionProgressByDataWeight() const
     {
-        if (std::ssize(values) < maxBuckets) {
-            return values;
-        }
-
-        std::vector<i64> result(maxBuckets);
-        for (int i = 0; i < maxBuckets; ++i) {
-            int lo = static_cast<int>(i * values.size() / maxBuckets);
-            int hi = static_cast<int>((i + 1) * values.size() / maxBuckets);
-            i64 sum = 0;
-            for (int j = lo; j < hi; ++j) {
-                sum += values[j];
-            }
-            result[i] = sum * values.size() / (hi - lo) / maxBuckets;
-        }
-
-        return result;
-    }
-
-    TPartitionProgress ComputeFinalPartitionProgress() const
-    {
-        TPartitionProgress result;
-        std::vector<i64> sizes(GetFinalPartitions().size());
-
         const auto& finalPartitions = GetFinalPartitions();
-        {
-            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput()) {
-                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
-                } else {
-                    sizes[i] = 0;
-                }
+        int partitionCount = std::ssize(finalPartitions);
+        int bucketCount = std::min(partitionCount, MaxProgressBuckets);
+
+        TPartitionProgress result;
+        result.Total.resize(bucketCount);
+        result.Running.resize(bucketCount);
+        result.Completed.resize(bucketCount);
+
+        auto partitionIt = finalPartitions.begin();
+        int partitionIndex = 0;
+        int lo = 0;
+
+        for (int i = 0; i < bucketCount; ++i) {
+            int hi = static_cast<int>((i + 1) * partitionCount / bucketCount);
+
+            i64 totalSum = 0;
+            i64 runningSum = 0;
+            i64 completedSum = 0;
+
+            while (partitionIndex < hi) {
+                const auto& counter = (*partitionIt)->ChunkPoolOutput()->GetDataWeightCounter();
+                totalSum += counter->GetTotal();
+                runningSum += counter->GetRunning();
+                completedSum += counter->GetCompletedTotal();
+
+                ++partitionIt;
+                ++partitionIndex;
             }
-            result.Total = AggregateValues(sizes, MaxProgressBuckets);
+
+            result.Total[i] = totalSum * partitionCount / (hi - lo) / bucketCount;
+            result.Running[i] = runningSum * partitionCount / (hi - lo) / bucketCount;
+            result.Completed[i] = completedSum * partitionCount / (hi - lo) / bucketCount;
+
+            lo = hi;
         }
-        {
-            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput()) {
-                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetRunning();
-                } else {
-                    sizes[i] = 0;
-                }
-            }
-            result.Running = AggregateValues(sizes, MaxProgressBuckets);
-        }
-        {
-            for (int i = 0; i < std::ssize(finalPartitions); ++i) {
-                if (const auto& chunkPoolOutput = GetFinalPartitions()[i]->ChunkPoolOutput()) {
-                    sizes[i] = chunkPoolOutput->GetDataWeightCounter()->GetCompletedTotal();
-                } else {
-                    sizes[i] = 0;
-                }
-            }
-            result.Completed = AggregateValues(sizes, MaxProgressBuckets);
-        }
+
         return result;
     }
 
@@ -2543,7 +2526,7 @@ protected:
 
     void BuildPartitionsProgressYson(TFluentMap fluent) const
     {
-        auto progress = ComputeFinalPartitionProgress();
+        auto progress = ComputeFinalPartitionProgressByDataWeight();
         auto sizeHistogram = ComputeFinalPartitionSizeHistogram();
 
         fluent
