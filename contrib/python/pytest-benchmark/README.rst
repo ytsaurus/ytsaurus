@@ -40,9 +40,9 @@ Overview
 .. |supported-implementations| image:: https://img.shields.io/pypi/implementation/pytest-benchmark.svg
     :alt: Supported implementations
     :target: https://pypi.org/project/pytest-benchmark
-.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.2.1.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.2.2.svg
     :alt: Commits since latest release
-    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.2.1...master
+    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.2.2...master
 
 .. end-badges
 
