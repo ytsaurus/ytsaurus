@@ -2,13 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(6.0)
+VERSION(6.1)
 
 LICENSE(ZPL-2.1)
-
-PEERDIR(
-    contrib/python/setuptools
-)
 
 NO_LINT()
 
