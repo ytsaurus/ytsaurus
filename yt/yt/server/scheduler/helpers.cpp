@@ -339,6 +339,11 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
 
+        {"job/cpu/cumulative_reserve", "Amount of CPU reserved for job execution multiplied by time in milliseconds", "core*ms"},
+        {"job/vcpu/cumulative_reserve", "Amount of vCPU reserved for job execution multiplied by time in milliseconds", "core*ms"},
+        {"job/memory/cumulative_reserve", "Amount of memory reserved for job execution (in gibibytes) multiplied by time in milliseconds", "GiB*ms"},
+        {"job/gpu/cumulative_reserve", "Amount of GPU reserved for job execution multiplied by time in milliseconds", "pieces*ms"},
+
         {"codec/cpu/decode/*", "Time spent on decompressing data", "ms"},
         {"codec/cpu/encode/*/*", "Time spent on compressing data", "ms"},
 
