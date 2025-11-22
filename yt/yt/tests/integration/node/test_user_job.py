@@ -20,6 +20,7 @@ from yt_commands import (
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs,
     assert_statistics, assert_statistics_v2, extract_statistic_v2,
+    OperationStatisticsViewer,
     heal_exec_node,
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
@@ -4193,6 +4194,9 @@ class TestGpuStatistics(YTEnvSetup):
             job_type="task",
         ))
 
+        undescribed = OperationStatisticsViewer().get_undescribed(op.get_statistics())
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
+
 
 ##################################################################
 
@@ -4219,7 +4223,17 @@ class TestCriJobStatistics(YTEnvSetup):
             },
         )
 
-        assert op.get_statistics()["job"]["memory"]["rss"][0]["summary"]["max"] > 200 * 1000 * 1000
+        statistics = op.get_statistics()
+
+        viewer = OperationStatisticsViewer()
+
+        undescribed = viewer.get_undescribed(statistics)
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
+
+        for tag, path, value in viewer.walk_statistics(statistics):
+            print_debug("Operation statistics", tag, path, value)
+
+        assert extract_statistic_v2(statistics, "job.memory.rss", summary_type="max") > 200 * 1000 * 1000
 
 
 ##################################################################
@@ -4612,6 +4626,9 @@ class TestJobStatistics(YTEnvSetup):
         )
 
         statistics = op.get_statistics()
+
+        undescribed = OperationStatisticsViewer().get_undescribed(statistics)
+        assert not undescribed, f"Undescribed operation statistics: {undescribed}"
 
         def get_statistics(key, output):
             return extract_statistic_v2(statistics, f"chunk_writer_statistics.{output}.{key}")
