@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/fs.h>

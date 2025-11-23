@@ -26,6 +26,7 @@
 
 #include <yt/yt/core/net/config.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/library/signals/signal_registry.h>

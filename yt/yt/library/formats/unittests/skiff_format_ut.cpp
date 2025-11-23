@@ -28,6 +28,9 @@
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 namespace NYT {
 
 namespace {

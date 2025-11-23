@@ -6,6 +6,7 @@
 #include <yt/yt/library/formats/yamred_dsv_writer.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <util/string/vector.h>
 

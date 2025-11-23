@@ -22,6 +22,7 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/proc.h>

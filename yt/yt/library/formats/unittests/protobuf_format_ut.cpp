@@ -7,6 +7,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 #include <yt/yt/core/json/json_parser.h>
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/fluent.h>
