@@ -13,7 +13,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TProxy, FramingOutputStream)
+TEST(TProxyTest, FramingOutputStream)
 {
     constexpr char DataFrameTag = '\x01';
     constexpr char KeepAliveFrameTag = '\x02';

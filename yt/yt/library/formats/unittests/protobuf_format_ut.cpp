@@ -688,7 +688,7 @@ TTableSchemaPtr BuildEmbeddedSchema()
     return schema;
 }
 
-TEST(TProtobufFormat, TestConfigParsingEmbedded) {
+TEST(TProtobufFormatTest, TestConfigParsingEmbedded) {
     auto config = BuildEmbeddedConfig(EComplexTypeMode::Positional, EProtoFormatType::Structured);
     auto schema = BuildEmbeddedSchema();
 
@@ -696,7 +696,7 @@ TEST(TProtobufFormat, TestConfigParsingEmbedded) {
         ParseAndValidateConfig(config->Attributes().ToMap(), {schema}));
 }
 
-TEST(TProtobufFormat, TestConfigParsing)
+TEST(TProtobufFormatTest, TestConfigParsing)
 {
     // Empty config.
     EXPECT_THROW_WITH_SUBSTRING(
@@ -989,7 +989,7 @@ TEST(TProtobufFormat, TestConfigParsing)
         "\"field_number\" is required");
 }
 
-TEST(TProtobufFormat, TestParseBigZigZag)
+TEST(TProtobufFormatTest, TestParseBigZigZag)
 {
     constexpr i32 value = Min<i32>();
     TMessage message;
@@ -999,7 +999,7 @@ TEST(TProtobufFormat, TestParseBigZigZag)
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int32")), value);
 }
 
-TEST(TProtobufFormat, TestParseEnumerationString)
+TEST(TProtobufFormatTest, TestParseEnumerationString)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     {
@@ -1028,7 +1028,7 @@ TEST(TProtobufFormat, TestParseEnumerationString)
     }
 }
 
-TEST(TProtobufFormat, TestParseWrongEnumeration)
+TEST(TProtobufFormatTest, TestParseWrongEnumeration)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap());
     TMessage message;
@@ -1037,7 +1037,7 @@ TEST(TProtobufFormat, TestParseWrongEnumeration)
     EXPECT_ANY_THROW(ParseRows(message, config));
 }
 
-TEST(TProtobufFormat, TestParseEnumerationInt)
+TEST(TProtobufFormatTest, TestParseEnumerationInt)
 {
     TCollectingValueConsumer rowCollector;
 
@@ -1098,7 +1098,7 @@ TEST(TProtobufFormat, TestParseEnumerationInt)
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(4, "Enum")), 100500);
 }
 
-TEST(TProtobufFormat, TestParseRandomGarbage)
+TEST(TProtobufFormatTest, TestParseRandomGarbage)
 {
     // Check that we never crash.
 
@@ -1119,7 +1119,7 @@ TEST(TProtobufFormat, TestParseRandomGarbage)
     }
 }
 
-TEST(TProtobufFormat, TestParseZeroColumns)
+TEST(TProtobufFormatTest, TestParseZeroColumns)
 {
     auto config = BuildYsonNodeFluently()
         .BeginMap()
@@ -1151,7 +1151,7 @@ TEST(TProtobufFormat, TestParseZeroColumns)
     EXPECT_EQ(static_cast<int>(rowCollector.GetRow(1).GetCount()), 0);
 }
 
-TEST(TProtobufFormat, TestWriteEnumerationString)
+TEST(TProtobufFormatTest, TestWriteEnumerationString)
 {
     auto config = CreateAllFieldsConfig(EProtoFormatType::Structured);
 
@@ -1205,7 +1205,7 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     }
 }
 
-TEST(TProtobufFormat, TestWriteEnumerationInt)
+TEST(TProtobufFormatTest, TestWriteEnumerationInt)
 {
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
@@ -1320,7 +1320,7 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
 }
 
 
-TEST(TProtobufFormat, TestWriteZeroColumns)
+TEST(TProtobufFormatTest, TestWriteZeroColumns)
 {
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
@@ -1364,7 +1364,7 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
     ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
 }
 
-TEST(TProtobufFormat, TestTabletIndex)
+TEST(TProtobufFormatTest, TestTabletIndex)
 {
     auto config = ConvertTo<TProtobufFormatConfigPtr>(BuildYsonNodeFluently()
         .BeginMap()
@@ -1440,7 +1440,7 @@ TEST(TProtobufFormat, TestTabletIndex)
     }
 }
 
-TEST(TProtobufFormat, TestContext)
+TEST(TProtobufFormatTest, TestContext)
 {
     auto config = BuildYsonNodeFluently()
         .BeginMap()
@@ -3233,7 +3233,7 @@ TEST_P(TProtobufFormatSeveralTables, Parse)
     }
 }
 
-TEST(TProtobufFormat, SchemaConfigMismatch)
+TEST(TProtobufFormatTest, SchemaConfigMismatch)
 {
     auto createParser = [] (const TTableSchemaPtr& schema, const INodePtr& configNode) {
         TCollectingValueConsumer rowCollector(schema);
@@ -3617,7 +3617,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createWriter(schema_variant_with_int, config_with_oneof));
 }
 
-TEST(TProtobufFormat, MultipleOtherColumns)
+TEST(TProtobufFormatTest, MultipleOtherColumns)
 {
     auto nameTable = New<TNameTable>();
 

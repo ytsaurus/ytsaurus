@@ -14,7 +14,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(ErasureChunkFragmentReadController, StressTest)
+TEST(TErasureChunkFragmentReadControllerTest, StressTest)
 {
     constexpr int Iterations = 50000;
     constexpr int Blocks = 5;

@@ -12,7 +12,7 @@ TOperationId MakeOperationId(ui64 p0, ui64 p1)
     return TOperationId(TGuid(p0, p1));
 }
 
-TEST(TJobMonitoringIndexManager, Simple)
+TEST(TJobMonitoringIndexManagerTest, Simple)
 {
     TJobMonitoringIndexManager manager(5);
     ASSERT_EQ(manager.GetMaxSize(), 5);
@@ -67,7 +67,7 @@ TEST(TJobMonitoringIndexManager, Simple)
     ASSERT_EQ(manager.GetSize(), 2);
 }
 
-TEST(TJobMonitoringIndexManager, Large)
+TEST(TJobMonitoringIndexManagerTest, Large)
 {
     constexpr int Count = 10000;
     TJobMonitoringIndexManager manager(Count);

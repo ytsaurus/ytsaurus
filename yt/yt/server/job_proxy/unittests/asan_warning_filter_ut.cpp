@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TAsanWarningFilter, SkipsWarning)
+TEST(TAsanWarningFilterTest, SkipsWarning)
 {
     const TStringBuf message =
         "==777==WARNING: ASan is ignoring requested __asan_handle_no_return: "
@@ -25,7 +25,7 @@ TEST(TAsanWarningFilter, SkipsWarning)
     ASSERT_EQ(output.Str(), "NON-WARNING");
 }
 
-TEST(TAsanWarningFilter, RetainsNonWarning)
+TEST(TAsanWarningFilterTest, RetainsNonWarning)
 {
     const TStringBuf message =
         "xxx"

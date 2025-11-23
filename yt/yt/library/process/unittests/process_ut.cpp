@@ -87,7 +87,7 @@ TEST(TProcessTest, StdOut)
     EXPECT_GT(sz, 0UL);
 }
 
-TEST(TSimpleProcess, GetCommandLine1)
+TEST(TSimpleProcessTest, GetCommandLine1)
 {
     auto p = New<TSimpleProcess>("/bin/bash");
     EXPECT_EQ("/bin/bash", p->GetCommandLine());
@@ -97,7 +97,7 @@ TEST(TSimpleProcess, GetCommandLine1)
     EXPECT_EQ("/bin/bash -c \"exit 0\"", p->GetCommandLine());
 }
 
-TEST(TProcessBase, GetCommandLine2)
+TEST(TProcessBaseTest, GetCommandLine2)
 {
     auto p = New<TSimpleProcess>("/bin/bash");
     EXPECT_EQ("/bin/bash", p->GetCommandLine());
