@@ -2078,6 +2078,23 @@ def add_get_job_stderr_parser(add_parser):
     parser.add_argument("--stderr-type", choices=("user_job_stderr", "gpu_check_stderr"), help="return stderr of specified type")
 
 
+@copy_docstring_from(yt.list_job_traces)
+def list_job_traces(**kwargs):
+    result = yt.list_job_traces(**kwargs)
+    if kwargs.get("format") is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_list_job_traces_parser(add_parser):
+    parser = add_parser("list-job-traces", list_job_traces)
+    operation_id_args(parser, dest="operation_id")
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--per-process", action="store_true", help="get traces info about each process")
+    parser.add_argument("--limit", type=int, help="maximum number of traces to return")
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.get_job_trace)
 def get_job_trace(**kwargs):
     write_silently(chunk_iter_stream(yt.get_job_trace(**kwargs), yt.config["read_buffer_size"]))
@@ -3110,6 +3127,7 @@ def _prepare_parser():
     add_get_job_trace_parser(add_parser)
     add_get_job_spec_parser(add_parser)
     add_get_job_parser(add_parser)
+    add_list_job_traces_parser(add_parser)
 
     add_set_user_password_parser(add_parser)
     add_issue_token_parser(add_parser)

@@ -67,6 +67,16 @@ class ListJobsType(TypedDict, total=False):
     continuation_token: Any
 
 
+class ListJobTracesType(TypedDict, total=False):
+    class JobTraceType(TypedDict, total=False):
+        trace_id: str
+        progress: str
+        health: str
+        process_trace_metas: Dict[str, str]
+
+    traces: List[JobTraceType]
+
+
 class JobSpecType(TypedDict, total=False):
     type: int
     version: int
@@ -178,8 +188,30 @@ def get_job_stderr(operation_id: str, job_id: str, stderr_type: Optional[str] = 
         client=client)
 
 
+def list_job_traces(
+    operation_id: str,
+    job_id: str,
+    per_process : Optional[bool] = None,
+    limit : Optional[int] = None,
+    format=None,
+    client=None
+) -> ListJobTracesType:
+    """List traces of the specified job."""
+    params = {"operation_id": operation_id, "job_id": job_id}
+    set_param(params, "per_process", per_process)
+    set_param(params, "limit", limit)
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
+    return make_formatted_request(
+        "list_job_traces",
+        params=params,
+        format=format,
+        client=client,
+        timeout=timeout)
+
+
 def get_job_trace(operation_id: str, job_id: str,
-                  trace_id=None, from_time=None, to_time=None, client=None):
+                  trace_id: Optional[str] = None, from_time=None, to_time=None, client=None):
     """Get traces of the specified job."""
     params = {"operation_id": operation_id, "job_id": job_id}
     set_param(params, "trace_id", trace_id)

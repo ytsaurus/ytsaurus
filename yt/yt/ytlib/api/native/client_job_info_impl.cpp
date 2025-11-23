@@ -11,6 +11,7 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/job_tracker_client/helpers.h>
+#include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
@@ -51,6 +52,7 @@
 #include <yt/yt/ytlib/scheduler/records/job_spec.record.h>
 #include <yt/ytlib/scheduler/records/job_trace_event.record.h>
 #include <yt/ytlib/scheduler/records/job_profile.record.h>
+#include <yt/ytlib/scheduler/records/job_trace.record.h>
 
 #include <yt/yt/client/chunk_client/config.h>
 
@@ -1283,14 +1285,7 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
     auto deadline = timeout.ToDeadLine();
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
@@ -1341,14 +1336,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobTrace(
 
     auto batchSize = Connection_->GetConfig()->GetJobTraceBatchSize;
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     ValidateOperationAccess(
         operationId,
@@ -1456,14 +1444,7 @@ TSharedRef TClient::DoGetJobFailContext(
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
     auto deadline = timeout.ToDeadLine();
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
@@ -1478,6 +1459,173 @@ TSharedRef TClient::DoGetJobFailContext(
         "Job fail context is not found")
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobTraceMeta BuildJobTraceMeta(
+    const TListJobTracesOptions& options,
+    TJobTraceId traceId,
+    const THashMap<int, EJobTraceState>& pidToTraceState)
+{
+    TJobTraceMeta trace;
+    trace.TraceId = traceId;
+
+    bool isRunning = std::ranges::any_of(
+        pidToTraceState,
+        [] (const auto& entry) { return entry.second == EJobTraceState::Started; }
+    );
+
+    bool isComplete = std::ranges::none_of(
+        pidToTraceState,
+        [] (const auto& entry) {
+            return entry.second == EJobTraceState::Dropped || entry.second == EJobTraceState::Orphaned;
+        }
+    );
+
+    trace.Progress = isRunning ? EJobTraceProgress::InProgress : EJobTraceProgress::Finished;
+    trace.Health = isComplete ? EJobTraceHealth::Healthy : EJobTraceHealth::Unhealthy;
+
+    if (options.PerProcess && *options.PerProcess) {
+        for (const auto& [pid, state] : pidToTraceState) {
+            trace.ProcessTraceMetas.emplace(pid, TProcessTraceMeta{state});
+        }
+    }
+
+    return trace;
+}
+
+void TClient::UpdateJobTracesWithJobState(
+    TOperationId operationId,
+    TJobId jobId,
+    std::vector<TJobTraceMeta>* jobTraces)
+{
+    EJobState jobState;
+
+    try {
+        TGetJobOptions options;
+        options.Attributes = {"state"};
+        auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
+            .ValueOrThrow();
+        auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
+        jobState = jobYsonMap->GetChildValueOrThrow<EJobState>("state");
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Failed to fetch state from job. Skipping job trace update (OperationId: %v, JobId: %v)",
+            operationId,
+            jobId);
+        return;
+    }
+
+    if (IsJobFinished(jobState)) {
+        for (auto& trace : *jobTraces) {
+            if (trace.Progress == EJobTraceProgress::InProgress) {
+                trace.Progress = EJobTraceProgress::Finished;
+                trace.Health = EJobTraceHealth::Unhealthy;
+            }
+        }
+    }
+}
+
+std::vector<TJobTraceMeta> ParseJobTraces(
+    const TListJobTracesOptions& options,
+    const std::vector<NRecords::TJobTrace>& records)
+{
+    if (records.empty()) {
+        return {};
+    }
+    std::vector<TJobTraceMeta> jobTraces;
+
+    auto processingTraceId = TJobTraceId(TGuid(records[0].Key.TraceIdHi, records[0].Key.TraceIdLo));
+    THashMap<int, EJobTraceState> pidToTraceState;
+
+    for (const auto& record : records) {
+        auto traceId = TJobTraceId(TGuid(record.Key.TraceIdHi, record.Key.TraceIdLo));
+
+        if (traceId != processingTraceId) {
+            jobTraces.push_back(BuildJobTraceMeta(options, processingTraceId, pidToTraceState));
+            pidToTraceState.clear();
+            processingTraceId = traceId;
+        }
+        pidToTraceState.emplace(record.Key.ProcessId, ParseEnum<EJobTraceState>(record.State));
+    }
+
+    jobTraces.push_back(BuildJobTraceMeta(options, processingTraceId, pidToTraceState));
+    return jobTraces;
+}
+
+TFuture<std::vector<TJobTraceMeta>> TClient::DoListJobTracesFromArchive(
+    int archiveVersion,
+    TOperationId operationId,
+    TJobId jobId,
+    TInstant deadline,
+    const TListJobTracesOptions& options)
+{
+    // COMPAT(bystrovserg)
+    if (archiveVersion < 63) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedArchiveVersion, "Job trace meta is not supported in current archive version")
+            << TErrorAttribute("current_archive_version", archiveVersion)
+            << TErrorAttribute("required_archive_version", 63);
+    }
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(GetOperationsArchiveJobTracesPath());
+
+    builder.AddSelectExpression("operation_id_hi");
+    builder.AddSelectExpression("operation_id_lo");
+    builder.AddSelectExpression("job_id_hi");
+    builder.AddSelectExpression("job_id_lo");
+    builder.AddSelectExpression("trace_id_hi");
+    builder.AddSelectExpression("trace_id_lo");
+    builder.AddSelectExpression("process_id");
+    builder.AddSelectExpression("state");
+
+    builder.AddWhereConjunct(Format(
+        "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+        operationId.Underlying().Parts64[0],
+        operationId.Underlying().Parts64[1]));
+
+    builder.AddWhereConjunct(Format(
+        "(job_id_hi, job_id_lo) = (%vu, %vu)",
+        jobId.Underlying().Parts64[0],
+        jobId.Underlying().Parts64[1]));
+
+    builder.AddOrderByExpression("trace_id_hi, trace_id_lo");
+
+    builder.SetLimit(options.Limit);
+
+    auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND(
+        [options = options, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
+        auto idMapping = NRecords::TJobTrace::TRecordDescriptor::TPartialIdMapping(result.Rowset->GetNameTable());
+        auto records = ToRecords<NRecords::TJobTrace>(result.Rowset->GetRows(), idMapping);
+        return ParseJobTraces(options, records);
+    }));
+}
+
+std::vector<TJobTraceMeta> TClient::DoListJobTraces(
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+    const NJobTrackerClient::TJobId jobId,
+    const TListJobTracesOptions& options)
+{
+    auto maybeVersion = TryGetOperationsArchiveVersion();
+    if (!maybeVersion) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobArchiveUnavailable,
+            "Job archive is unavailable");
+    }
+
+    auto version = *maybeVersion;
+
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
+
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
+
+    auto tracesFuture = DoListJobTracesFromArchive(version, operationId, jobId, deadline, options);
+    auto jobTraces = WaitFor(tracesFuture).ValueOrThrow();
+    UpdateJobTracesWithJobState(operationId, jobId, &jobTraces);
+    return jobTraces;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2550,14 +2698,7 @@ TListJobsResult TClient::DoListJobs(
     auto timeout = optionsResult.Timeout.value_or(Connection_->GetConfig()->DefaultListJobsTimeout);
     auto deadline = timeout.ToDeadLine();
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, optionsResult, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
         ValidateOperationAccess(operationId, NullJobId, EPermissionSet(EPermission::Read));
@@ -2871,14 +3012,7 @@ TYsonString TClient::DoGetJob(
     const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
     ValidateRequestedAttributes(attributes);
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
         ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
