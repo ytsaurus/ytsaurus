@@ -29,7 +29,7 @@ $ kubectl apply -f cluster_v1_chyt.yaml -n <namespace>
 chyt.cluster.ytsaurus.tech/mychyt created
 ```
 
-После этого k8s оператор запустит несколько init job, которые запишут в Кипарис необходимые файлы.
+После этого k8s оператор запустит несколько Init Job, которые запишут в Кипарис необходимые файлы.
 
 ```bash
 $ kubectl get chyt
