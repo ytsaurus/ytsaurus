@@ -166,6 +166,14 @@ public:
             .ValueOrThrow();
     }
 
+    ~TSinkToStaticTable()
+    {
+        if (Finished_) {
+            return;
+        }
+        onFinish();
+    }
+
     DB::String getName() const override
     {
         return "SinkToStaticTable";
@@ -173,6 +181,7 @@ public:
 
     void onFinish() override
     {
+        Finished_ = true;
         YT_LOG_INFO("Closing writer");
         WaitFor(Writer_->Close())
             .ThrowOnError();
@@ -183,6 +192,7 @@ public:
 
 private:
     IUnversionedWriterPtr Writer_;
+    bool Finished_ = false;
 
     void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
