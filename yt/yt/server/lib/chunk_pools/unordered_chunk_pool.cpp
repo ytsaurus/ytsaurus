@@ -766,10 +766,12 @@ private:
                     FreeCompressedDataSizeCounter_->GetPending(),
                     GetAdjustedCompressedDataSizePerJob());
 
+            i64 pendingJobCountByDataSliceCount = DivCeil(std::ssize(FreeStripes_), JobSizeConstraints_->GetMaxDataSlicesPerJob()) - blockedJobCount;
+
             pendingJobCount = std::max({
                 pendingJobCountByDataWeight,
                 pendingJobCountByCompressedDataSize,
-                std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount,
+                pendingJobCountByDataSliceCount,
             });
 
             if (blockedJobCount > 0) {

@@ -1359,14 +1359,11 @@ protected:
             const TAllocation& allocation) override
         {
             auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation);
-
-            // NB(gritukan): In some weird cases unordered chunk pool can estimate total
-            // number of jobs as 1 after pool creation and >1 after first cookie extraction.
-            // For example, this might happen if there is a few data but many slices in the pool.
-            // That's why we can understand that simple sort required sorted merge only after first
-            // job start.
-            Controller_->IsSortedMergeNeeded(Partition_);
-
+            if (IsFinal()) {
+                YT_VERIFY(Partition_->ChunkPoolOutput()->GetJobCounter()->GetTotal() == 1);
+            } else {
+                YT_VERIFY(Partition_->ChunkPoolOutput()->GetJobCounter()->GetTotal() > 1);
+            }
             return cookie;
         }
 
