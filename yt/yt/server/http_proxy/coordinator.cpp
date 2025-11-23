@@ -20,6 +20,7 @@
 #include <yt/yt/client/api/rpc_proxy/address_helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <yt/yt/core/http/helpers.h>
 

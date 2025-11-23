@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 namespace NYT::NHydra {
 

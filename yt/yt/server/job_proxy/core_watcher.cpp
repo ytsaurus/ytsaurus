@@ -16,6 +16,7 @@
 #include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <yt/yt/core/logging/log.h>
 
