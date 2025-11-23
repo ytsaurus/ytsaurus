@@ -52,6 +52,8 @@ struct TBlackboxServiceConfig
     TDuration BackoffTimeout;
     bool UseLowercaseLogin;
 
+    bool UsePostRequests;
+
     REGISTER_YSON_STRUCT(TBlackboxServiceConfig);
 
     static void Register(TRegistrar registrar);
