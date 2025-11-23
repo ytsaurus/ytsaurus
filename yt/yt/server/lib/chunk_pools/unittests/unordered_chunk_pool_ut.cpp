@@ -1087,10 +1087,10 @@ protected:
         }
         auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes();
         YT_VERIFY(std::ssize(stripes) == 1);
-        auto dataSlices = stripes.front()->DataSlices();
-        YT_VERIFY(std::ssize(dataSlices) == 1);
-        auto chunk = dataSlices.front()->GetSingleUnversionedChunk();
-        FreeChunksToCookie_.erase(dataSlices.front()->GetSingleUnversionedChunk());
+        const auto& dataSlices = stripes.front()->DataSlices();
+        for (const auto& dataSlice : dataSlices) {
+            FreeChunksToCookie_.erase(dataSlice->GetSingleUnversionedChunk());
+        }
         return cookie;
     }
 
@@ -1314,6 +1314,149 @@ TEST_F(TUnorderedChunkPoolCountersTest, CountersWithSuspendedChunksExplicitJobCo
 
     EXPECT_EQ(std::ssize(stripeLists), 5);
 
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(
+    TUnorderedChunkPoolCountersTest,
+    CheckJobCountWhenJobsAreLimitedByMaxDataSlices,
+    ValuesIn({
+        std::pair(0, 0),
+        std::pair(1, 1),
+        std::pair(9, 1),
+        std::pair(10, 1),
+        std::pair(11, 2),
+        std::pair(15, 2),
+        std::pair(19, 2),
+        std::pair(20, 2),
+        std::pair(21, 3),
+        std::pair(90, 9),
+        std::pair(91, 10),
+        std::pair(100, 10),
+        std::pair(101, 11),
+    }),
+    std::pair<int, int>)
+{
+    auto [sliceCount, expectedJobCount] = GetParam();
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 10;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+
+    for (int i = 0; i < sliceCount; ++i) {
+        AddChunk(1_MB);
+
+        int jobCount = DivCeil(i + 1, MaxDataSlicesPerJob_);
+
+        CheckJobCounter({
+            .Total = jobCount,
+            .Pending = jobCount - 1,
+            .Blocked = 1,
+        });
+    }
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = expectedJobCount, .Pending = expectedJobCount});
+
+    for (int i = 0; i < expectedJobCount; ++i) {
+        ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+        CheckJobCounter({
+            .Total = expectedJobCount,
+            .Pending = expectedJobCount - i - 1,
+            .Running = i + 1
+        });
+    }
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = expectedJobCount, .Running = expectedJobCount});
+
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), expectedJobCount);
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, ExtractedJobsThatLimitedByMaxDataSlicesFromUnfinishedPool)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 2;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+    for (int i = 0; i < MaxDataSlicesPerJob_; ++i) {
+        AddChunk(1_MB);
+        CheckJobCounter({.Total = 1, .Blocked = 1});
+    }
+    AddChunk(1_MB);
+
+    CheckJobCounter({.Total = 2, .Pending = 1, .Blocked = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Blocked = 1, .Running = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Running = 2});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 3, .Blocked = 1, .Running = 2});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 3, .Running = 3});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 4, .Blocked = 1, .Running = 3});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 4, .Blocked = 1, .Running = 3});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 4, .Pending = 1, .Running = 3});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 4, .Running = 4});
+
+    auto stripeLists = GetAllStripeLists();
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, SingleRunningJobCounterRemainsAfterFinishingPool)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 2;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 1, .Blocked = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 1, .Running = 1});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 1, .Running = 1});
+
+    auto stripeLists = GetAllStripeLists();
     CheckEverything(stripeLists);
 }
 
