@@ -31,7 +31,7 @@ struct TMultiplyByTwo
 
 REGISTER_TOOL(TMultiplyByTwo)
 
-TEST(TTools, MultiplyByTwo)
+TEST(TToolsTest, MultiplyByTwo)
 {
     auto result = RunToolInProcess<TMultiplyByTwo>(2);
     EXPECT_EQ(4, result);
@@ -45,7 +45,7 @@ struct TStringToVoid
 
 REGISTER_TOOL(TStringToVoid)
 
-TEST(TTools, ToVoid)
+TEST(TToolsTest, ToVoid)
 {
     RunToolInProcess<TStringToVoid>("Hello world");
 }
@@ -60,7 +60,7 @@ struct TFaulty
 
 REGISTER_TOOL(TFaulty)
 
-TEST(TTools, Faulty)
+TEST(TToolsTest, Faulty)
 {
     try {
         RunToolInProcess<TFaulty>(0);

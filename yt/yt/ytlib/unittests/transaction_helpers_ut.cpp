@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TransactionSignatureGenerator, Simple)
+TEST(TransactionSignatureGeneratorTest, Simple)
 {
     TTransactionSignatureGenerator generator(/*targetSignature*/ 0xfe);
     generator.RegisterRequest();

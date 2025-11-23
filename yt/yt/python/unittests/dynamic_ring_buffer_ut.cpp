@@ -26,7 +26,7 @@ TString Extract(TDynamicRingBuffer& ringBuffer, size_t count)
     return AsString(std::move(buf));
 }
 
-TEST(TDynamicRingBuffer, Simple)
+TEST(TDynamicRingBufferTest, Simple)
 {
     TDynamicRingBuffer buffer;
 
@@ -52,7 +52,7 @@ TEST(TDynamicRingBuffer, Simple)
     EXPECT_TRUE(buffer.Empty());
 }
 
-TEST(TDynamicRingBuffer, Ring)
+TEST(TDynamicRingBufferTest, Ring)
 {
     TDynamicRingBuffer buffer;
 

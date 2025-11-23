@@ -14,7 +14,7 @@ using namespace NAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestParseQuery, Sample)
+TEST(TTestParseQueryTest, Sample)
 {
     ParseQueryString("path[10]=0");
 
@@ -25,7 +25,7 @@ TEST(TTestParseQuery, Sample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestUserAgentDetection, Wrapper)
+TEST(TTestUserAgentDetectionTest, Wrapper)
 {
     auto version = DetectPythonWrapper("");
     EXPECT_FALSE(version);
@@ -48,7 +48,7 @@ TEST(TTestUserAgentDetection, Wrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestCsrfToken, Sample)
+TEST(TTestCsrfTokenTest, Sample)
 {
     auto now = TInstant::Now();
     auto token = SignCsrfToken("prime", "abcd", now);
