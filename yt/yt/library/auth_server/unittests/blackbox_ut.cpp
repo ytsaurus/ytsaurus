@@ -50,6 +50,7 @@ protected:
         config->RequestTimeout = TDuration::Seconds(10);
         config->AttemptTimeout = TDuration::Seconds(10);
         config->BackoffTimeout = TDuration::Seconds(10);
+        config->UsePostRequests = true;
         return config;
     }
 
@@ -95,6 +96,7 @@ TEST_F(TBlackboxTest, FailOnBadHost)
     auto config = CreateBlackboxServiceConfig();
     config->Host = "lokalhozd";
     config->Port = 1;
+    config->UsePostRequests = true;
     auto service = CreateBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
@@ -174,7 +176,7 @@ TEST_F(TBlackboxTest, FailOnTvmException)
 TEST_F(TBlackboxTest, Success)
 {
     SetCallback([&] (TClientRequest* request) {
-        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello&foo=bar&spam=ham"));
+        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/blackbox?method=hello"));
         auto header = request->Input().Headers().FindHeader(NHttp::NHeaders::ServiceTicketHeaderName);
         EXPECT_NE(nullptr, header);
         EXPECT_EQ("blackbox_ticket", header->Value());
@@ -220,6 +222,7 @@ TEST_F(TBlackboxTest, RetriesErrors)
     config->BackoffTimeout = TDuration::MilliSeconds(0);
     config->AttemptTimeout = TDuration::Seconds(30);
     config->RequestTimeout = TDuration::Seconds(30);
+    config->UsePostRequests = true;
     auto service = CreateBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(result.IsOK());

@@ -13,7 +13,7 @@ namespace NYT::NAuth {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Abstracts away Blackbox.
-//! See https://doc.yandex-team.ru/blackbox/ for API reference.
+//! See http://ytsaurus.tech/internal/Fy6c-dDZ7NJGmi for API reference.
 struct IBlackboxService
     : public virtual TRefCounted
 {
