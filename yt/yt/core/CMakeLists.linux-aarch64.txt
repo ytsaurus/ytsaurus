@@ -293,10 +293,11 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/utilex/random.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/stack.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/token.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/tokenizer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/trie.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/async_consumer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/async_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/attribute_consumer.cpp

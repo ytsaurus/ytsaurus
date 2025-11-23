@@ -48,6 +48,7 @@ target_link_options(unittester-core-ypath PRIVATE
 
 target_sources(unittester-core-ypath PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/unittests/tokenizer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ypath/unittests/trie_ut.cpp
 )
 
 
