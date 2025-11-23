@@ -13,7 +13,7 @@ from typing import Any, BinaryIO, Callable, Dict, Iterable, List, Literal, Mappi
 from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
-from .job_commands import GetJobJobType, JobSpecType, ListJobsType
+from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
 from .operation_commands import GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
@@ -1144,7 +1144,7 @@ class YtClient(ClientState):
     def get_job_trace(
             self,
             operation_id: str, job_id: str,
-            trace_id=None, from_time=None, to_time=None):
+            trace_id: Optional[str] = None, from_time=None, to_time=None):
         """
         Get traces of the specified job.
         """
@@ -1581,6 +1581,18 @@ class YtClient(ClientState):
             max_size=max_size, format=format, absolute=absolute, attributes=attributes, sort=sort,
             read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
             suppress_upstream_sync=suppress_upstream_sync)
+
+    def list_job_traces(
+            self,
+            operation_id: str, job_id: str,
+            per_process: Optional[bool] = None, limit: Optional[int] = None, format=None) -> ListJobTracesType:
+        """
+        List traces of the specified job.
+        """
+        return client_api.list_job_traces(
+            operation_id, job_id,
+            client=self,
+            per_process=per_process, limit=limit, format=format)
 
     def list_jobs(
             self,

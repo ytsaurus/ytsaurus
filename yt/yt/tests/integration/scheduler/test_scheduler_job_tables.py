@@ -11,7 +11,7 @@ from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     concatenate, create, ls, get, create_account, read_table, write_table,
     map, reduce, map_reduce, vanilla, run_test_vanilla,
-    select_rows, list_jobs, get_job, get_job_trace, clean_operations, sync_create_cells,
+    select_rows, list_jobs, get_job, get_job_trace, list_job_traces, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
     lookup_rows, print_debug, set)
 
@@ -2014,6 +2014,103 @@ class TestJobTraceEvents(YTEnvSetup):
         wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 3)
         wait(lambda: self._get_trace_state(op.id, job_id, trace_id)[0] == "started")
         release_breakpoint()
+
+    @authors("bystrovserg")
+    def test_list_job_traces(self):
+        trace_id1 = generate_uuid()
+        trace_id2 = generate_uuid()
+        trace_id3 = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=trace_id1) \
+            .add_events(pid=1, count=2) \
+            .start_trace(pid=2, trace_id=trace_id1) \
+            .add_events(pid=2, count=3) \
+            .drop_trace(pid=1, trace_id=trace_id1) \
+            .end_trace(pid=2, trace_id=trace_id1) \
+            .add_complete_trace(pid=1, count=2, trace_id=trace_id2) \
+            .start_trace(pid=1, trace_id=trace_id3) \
+            .add_events(pid=1, count=1) \
+            .breakpoint() \
+            .end_trace(pid=1, trace_id=trace_id3)
+
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        job_id = wait_breakpoint()[0]
+
+        def check_traces(use_per_process):
+            if use_per_process:
+                traces = list_job_traces(op.id, job_id, per_process=False)
+            else:
+                traces = list_job_traces(op.id, job_id)
+
+            assert len(traces) == 3
+            trace_ids = {trace["trace_id"] for trace in traces}
+            assert trace_ids == {trace_id1, trace_id2, trace_id3}
+
+            trace1 = next((t for t in traces if t["trace_id"] == trace_id1), None)
+            trace2 = next((t for t in traces if t["trace_id"] == trace_id2), None)
+            trace3 = next((t for t in traces if t["trace_id"] == trace_id3), None)
+
+            assert trace1 is not None, f"Trace {trace_id1} not found"
+            assert trace2 is not None, f"Trace {trace_id2} not found"
+            assert trace3 is not None, f"Trace {trace_id3} not found"
+
+            assert trace1["trace_id"] == trace_id1
+            assert trace1["progress"] == "finished"
+            assert trace1["health"] == "unhealthy"
+            assert "process_trace_metas" not in trace1
+
+            assert trace2["trace_id"] == trace_id2
+            assert trace2["progress"] == "finished"
+            assert trace2["health"] == "healthy"
+            assert "process_trace_metas" not in trace2
+
+            assert trace3["trace_id"] == trace_id3
+            assert trace3["progress"] == "in_progress"
+            assert trace3["health"] == "healthy"
+            assert "process_trace_metas" not in trace3
+
+        wait_no_assert(lambda: check_traces(False))
+        wait_no_assert(lambda: check_traces(True))
+
+        @wait_no_assert
+        def check_traces_with_per_process():
+            traces_with_per_process = list_job_traces(op.id, job_id, per_process=True)
+            assert len(traces_with_per_process) == 3
+
+            trace1_per = next((t for t in traces_with_per_process if t["trace_id"] == trace_id1), None)
+            trace2_per = next((t for t in traces_with_per_process if t["trace_id"] == trace_id2), None)
+            trace3_per = next((t for t in traces_with_per_process if t["trace_id"] == trace_id3), None)
+
+            assert "process_trace_metas" in trace1_per
+            assert trace1_per["process_trace_metas"]["1"]["state"] == "dropped"
+            assert trace1_per["process_trace_metas"]["2"]["state"] == "finished"
+
+            assert "process_trace_metas" in trace2_per
+            assert trace2_per["process_trace_metas"]["1"]["state"] == "finished"
+
+            assert "process_trace_metas" in trace3_per
+            assert trace3_per["process_trace_metas"]["1"]["state"] == "started"
+
+        @wait_no_assert
+        def check_limit_traces():
+            assert len(list_job_traces(op.id, job_id, limit=1)) == 1
+            assert len(list_job_traces(op.id, job_id)) == 3
+
+    @authors("bystrovserg")
+    def test_list_job_traces_no_final_event(self):
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=generate_uuid()) \
+            .add_events(pid=1, count=2)
+
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+        wait(lambda: len(list_job_traces(op.id, job_id)) == 1)
+
+        op.abort()
+
+        wait(lambda: list_job_traces(op.id, job_id)[0]["progress"] == "finished")
+        wait(lambda: list_job_traces(op.id, job_id)[0]["health"] == "unhealthy")
 
 
 ##################################################################
