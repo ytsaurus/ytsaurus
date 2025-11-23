@@ -1694,10 +1694,16 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     }
 
     const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequisitionRegistry);
+    auto requisitionIter = requisition.ActiveEntriesBegin();
+    if (requisitionIter == requisition.ActiveEntriesEnd()) {
+        // The chunk seems to be unused.
+        return false;
+    }
+
     TChunkIdWithIndexes chunkIdWithIndexes(
         jobInfo.OutputChunkId,
         GenericChunkReplicaIndex,
-        requisition.begin()->MediumIndex);
+        requisitionIter->MediumIndex);
     int targetCount = erasureCodec == NErasure::ECodec::None
         ? outputChunk->GetAggregatedReplicationFactor(
             chunkIdWithIndexes.MediumIndex,

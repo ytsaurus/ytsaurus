@@ -370,8 +370,7 @@ public:
         TClusterResources sourceResourceUsage,
         TAccount* clonedAccount) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->ValidateObjectLifeStage(clonedAccount);
+        ValidateObjectActive(clonedAccount);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(clonedAccount, EPermission::Use);

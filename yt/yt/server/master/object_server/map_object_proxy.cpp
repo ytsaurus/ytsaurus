@@ -215,8 +215,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
 {
     auto* impl = TBase::GetThisImpl();
 
-    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
-    objectManager->ValidateObjectLifeStage(impl);
+    ValidateObjectActive(impl);
 
     auto* childImpl = childProxy->GetThisImpl();
     if (childImpl->IsRoot()) {
@@ -613,8 +612,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
     }
     if (impl->IsBeingCreated()) {
         THROW_ERROR_EXCEPTION(
-            NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "Invalid life stage during object removal")
+            NObjectClient::EErrorCode::InactiveObjectLifeStage,
+            "Inactive life stage during object removal")
             << TErrorAttribute("life_stage", impl->GetLifeStage())
             << TErrorAttribute("id", impl->GetId());
     }

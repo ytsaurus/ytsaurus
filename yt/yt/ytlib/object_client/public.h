@@ -45,6 +45,8 @@ DEFINE_ENUM(EMasterFeature,
 // Removal also needs two-phase (and even more!) locking since otherwise a primary master
 // is unable to command the destruction of an object to its secondaries without risking
 // that some secondary still holds a reference to the object.
+//
+// The items are sorted chronologically.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
      // Creation workflow
      ((CreationStarted)         (0))

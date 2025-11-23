@@ -5350,7 +5350,7 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
             if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
                 error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
                 error.FindMatching(NYTree::EErrorCode::ResolveError) ||
-                error.FindMatching(NObjectClient::EErrorCode::InvalidObjectLifeStage))
+                error.FindMatching(NObjectClient::EErrorCode::InactiveObjectLifeStage))
             {
                 DoFailOperation(
                     TError("Failed to update account usage lease")

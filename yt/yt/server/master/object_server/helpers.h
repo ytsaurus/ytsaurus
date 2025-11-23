@@ -30,6 +30,8 @@ TYPathRewrite MakeYPathRewrite(
 
 void ValidateFolderId(const std::string& folderId);
 
+void ThrowInactiveLifeStage(const TObject* object);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer

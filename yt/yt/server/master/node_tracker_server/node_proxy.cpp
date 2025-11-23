@@ -780,9 +780,8 @@ private:
             THROW_ERROR_EXCEPTION("Cannot remove node since it is not offline");
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto location : node->ChunkLocations()) {
-            objectManager->ValidateObjectLifeStage(location);
+            ValidateObjectActive(location);
         }
     }
 

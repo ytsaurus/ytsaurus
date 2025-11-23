@@ -233,7 +233,7 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto requisition = ComputeAggregatedRequisition(registry);
-    if (requisition.GetEntryCount() == 0) {
+    if (requisition.GetAllEntryCount() == 0) {
         // This doesn't mean the chunk is no longer needed; this may be a
         // temporary contingency. The aggregated requisition should never
         // be made empty as this may confuse the replicator.

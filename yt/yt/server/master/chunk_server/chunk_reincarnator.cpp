@@ -1879,9 +1879,11 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
         const auto& requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
-        return std::all_of(requisition.begin(), requisition.end(), [] (const TRequisitionEntry& entry) {
-            return entry.Account->GetEnableChunkReincarnation();
-        });
+        return std::ranges::all_of(
+            requisition.ActiveEntries(),
+            [] (const TRequisitionEntry& entry) {
+                return entry.Account->GetEnableChunkReincarnation();
+            });
     }
 
     void HydraCheckExportedChunkReincarnation(
@@ -2181,8 +2183,13 @@ private:
             }
 
             const auto& requisition = requisitionRegistry->GetRequisition(requisitionIndex);
-            YT_VERIFY(requisition.GetEntryCount() > 0);
-            const auto& requisitionEntry = *requisition.begin();
+            auto requisitionIter = requisition.ActiveEntriesBegin();
+            if (requisitionIter == requisition.ActiveEntriesEnd()) {
+                // Relevant account is being removed; the requisition is effectively empty.
+                continue;
+            }
+
+            const auto& requisitionEntry = *requisitionIter;
             auto mediumIndex = requisitionEntry.MediumIndex;
             const auto& account = requisitionEntry.Account;
             auto replicationFactor = requisitionEntry.ReplicationPolicy.GetReplicationFactor();

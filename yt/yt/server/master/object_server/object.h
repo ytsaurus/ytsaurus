@@ -303,6 +303,10 @@ struct TObjectIdComparer
 
 TObjectId GetObjectId(const TObject* object);
 bool IsObjectAlive(const TObject* object);
+//! Returns true iff the object is alive and is in "active" life stage, i.e. it
+//! has been fully created and isn't being destroyed at the moment.
+bool IsObjectActive(const TObject* object);
+void ValidateObjectActive(const TObject* object);
 
 template <class TObjectPtrs>
 std::vector<TObjectId> ToObjectIds(
@@ -330,7 +334,7 @@ struct TObjectIdFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitializeMasterStateThread(
+void InitializeMasterThreadState(
     NCellMaster::TBootstrap* bootstrap,
     TEpochContextPtr epochContext,
     bool isAutomatonThread);
@@ -469,6 +473,9 @@ private:
 
 template <class T, class C>
 bool IsObjectAlive(const TObjectPtr<T, C>& ptr);
+
+template <class T, class C>
+bool IsObjectActive(const TObjectPtr<T, C>& ptr);
 
 template <class T, class C>
 TObjectId GetObjectId(const TObjectPtr<T, C>& ptr);

@@ -474,7 +474,6 @@ public:
             }
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto locationUuid : chunkLocationUuids) {
             if (auto* existingLocation = FindChunkLocationByUuid(locationUuid)) {
                 if (!IsObjectAlive(existingLocation)) {
@@ -486,7 +485,7 @@ public:
                         address,
                         locationUuid);
                 } else {
-                    objectManager->ValidateObjectLifeStage(existingLocation);
+                    ValidateObjectActive(existingLocation);
                     if (auto existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
                         if (existingNode->GetDefaultAddress() != address) {
                             THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is another cluster node %Qv with the same location uuid %v",
