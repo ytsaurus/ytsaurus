@@ -88,7 +88,7 @@ public:
             GetAutomatonThreadBuckets(),
             {
                 .ThreadInitializer = BIND([bootstrap = Bootstrap_, epochContext = EpochContext_] {
-                    NObjectServer::InitializeMasterStateThread(
+                    NObjectServer::InitializeMasterThreadState(
                         bootstrap,
                         epochContext,
                         /*isAutomatonThread*/ true);

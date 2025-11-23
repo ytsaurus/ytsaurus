@@ -310,6 +310,7 @@ void TRequisitionEntry::Load(NCellMaster::TLoadContext& context)
 
 void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TStringBuf /*spec*/)
 {
+    // NB: entry.Account is not necessarily active or even alive.
     return builder->AppendFormat(
         "{AccountId: %v, MediumIndex: %v, ReplicationPolicy: %v, Committed: %v}",
         entry.Account->GetId(),
@@ -320,10 +321,80 @@ void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TS
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkRequisition::TActiveEntriesConstIterator::TActiveEntriesConstIterator(
+    TChunkRequisition::TEntries::const_iterator underlying,
+    TChunkRequisition::TEntries::const_iterator underlyingEnd)
+    : Underlying_(std::move(underlying))
+    , UnderlyingEnd_(std::move(underlyingEnd))
+{
+    SkipToNextActiveEntry();
+}
+
+TChunkRequisition::TActiveEntriesConstIterator& TChunkRequisition::TActiveEntriesConstIterator::operator++()
+{
+    YT_ASSERT(Underlying_ != UnderlyingEnd_);
+    ++Underlying_;
+    SkipToNextActiveEntry();
+
+    return *this;
+}
+
+TChunkRequisition::TActiveEntriesConstIterator TChunkRequisition::TActiveEntriesConstIterator::operator++(int)
+{
+    auto result = *this;
+    operator++();
+    return result;
+}
+
+void TChunkRequisition::TActiveEntriesConstIterator::SkipToNextActiveEntry()
+{
+    for ( ; Underlying_ != UnderlyingEnd_; ++Underlying_) {
+        if (IsObjectActive(Underlying_->Account)) {
+            break;
+        }
+    }
+}
+
+TChunkRequisition::TActiveEntriesConstIterator::reference TChunkRequisition::TActiveEntriesConstIterator::operator*() const
+{
+    YT_ASSERT(Underlying_ != UnderlyingEnd_);
+    return *Underlying_;
+}
+
+TChunkRequisition::TActiveEntriesConstIterator::pointer TChunkRequisition::TActiveEntriesConstIterator::operator->() const
+{
+    return &operator*();
+}
+
+bool TChunkRequisition::TActiveEntriesConstIterator::operator==(const TActiveEntriesConstIterator& rhs) const
+{
+    YT_ASSERT(UnderlyingEnd_ == rhs.UnderlyingEnd_);
+    return Underlying_ == rhs.Underlying_;
+}
+
+bool TChunkRequisition::TActiveEntriesConstIterator::operator==(const TActiveEntriesEndConstIterator& /*rhs*/) const
+{
+    return Underlying_ == UnderlyingEnd_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TChunkRequisition::TActiveEntriesEndConstIterator::operator==(const TActiveEntriesEndConstIterator& /*rhs*/) const
+{
+    return true;
+}
+
+bool TChunkRequisition::TActiveEntriesEndConstIterator::operator==(const TActiveEntriesConstIterator& rhs) const
+{
+    return rhs.operator==(*this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisition, const TChunkRequisition& requisition)
 {
     protoRequisition->set_vital(requisition.GetVital());
-    for (const auto& entry : requisition) {
+    for (const auto& entry : requisition.AllEntries()) {
         auto* protoEntry = protoRequisition->add_entries();
         ToProto(protoEntry->mutable_account_id(), entry.Account->GetId());
         protoEntry->set_medium_index(entry.MediumIndex);
@@ -344,7 +415,7 @@ void FromProto(
         auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
 
         // NB: An account may be removed between replicator sending a requisition and chunk manager receiving it.
-        if (!IsObjectAlive(account)) {
+        if (!IsObjectActive(account)) {
             continue;
         }
 
@@ -530,7 +601,7 @@ void FormatValue(TStringBuilderBase* builder, const TChunkRequisition& requisiti
         "{Vital: %v, Entries: {%v}}",
         requisition.GetVital(),
         MakeFormattableView(
-            requisition,
+            requisition.AllEntries(),
             [] (TStringBuilderBase* builder, const TRequisitionEntry& entry) {
                 FormatValue(builder, entry);
             }));
@@ -543,13 +614,9 @@ TSerializableChunkRequisition::TSerializableChunkRequisition(
     const TChunkRequisition& requisition,
     const IChunkManagerPtr& chunkManager)
 {
-    Entries_.reserve(requisition.GetEntryCount());
-    for (const auto& entry : requisition) {
+    Entries_.reserve(requisition.GetAllEntryCount()); // An upper bound.
+    for (const auto& entry : requisition.ActiveEntries()) {
         auto account = entry.Account;
-        if (!IsObjectAlive(account)) {
-            continue;
-        }
-
         auto* medium = chunkManager->GetMediumByIndex(entry.MediumIndex);
 
         Entries_.push_back(TEntry{account->GetName(), medium->GetName(), entry.ReplicationPolicy, entry.Committed});
@@ -752,7 +819,9 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     YT_VERIFY(IndexToItem_.emplace(index, item).second);
     YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);
 
-    for (const auto& entry : requisition) {
+    // Since requisitions are sometimes created by aggregating other requisitions,
+    // there's no guarantee that accounts are alive (not to mention active).
+    for (const auto& entry : requisition.AllEntries()) {
         objectManager->WeakRefObject(entry.Account);
     }
 
@@ -779,7 +848,7 @@ void TChunkRequisitionRegistry::Erase(
     YT_VERIFY(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
 
-    for (const auto& entry : requisition) {
+    for (const auto& entry : requisition.AllEntries()) {
         objectManager->WeakUnrefObject(entry.Account);
     }
 }

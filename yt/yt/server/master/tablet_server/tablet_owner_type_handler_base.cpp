@@ -104,8 +104,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoMaterializeNode(
     using NYT::Load;
 
     if (auto bundle = Load<TTabletCellBundleRawPtr>(*context)) {
-        const auto& objectManager = this->GetBootstrap()->GetObjectManager();
-        objectManager->ValidateObjectLifeStage(bundle);
+        ValidateObjectActive(bundle);
         tabletManager->SetTabletCellBundle(node, bundle);
     }
 

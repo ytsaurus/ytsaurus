@@ -404,7 +404,7 @@ private:
     std::function<void()> MakeLocalReadThreadInitializer()
     {
         return [bootstrap = Bootstrap_, epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext()] {
-            NObjectServer::InitializeMasterStateThread(
+            NObjectServer::InitializeMasterThreadState(
                 bootstrap,
                 epochContext,
                 /*isAutomatonThread*/ false);

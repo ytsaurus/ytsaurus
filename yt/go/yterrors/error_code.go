@@ -170,7 +170,7 @@ const (
 	CodeAlreadyPresentInGroup                                 ErrorCode = 908
 	CodeIrreversibleAclModification                           ErrorCode = 909
 	CodePrerequisiteCheckFailed                               ErrorCode = 1000
-	CodeInvalidObjectLifeStage                                ErrorCode = 1001
+	CodeInactiveObjectLifeStage                               ErrorCode = 1001
 	CodeCrossCellAdditionalPath                               ErrorCode = 1002
 	CodeCrossCellRevisionPrerequisitePath                     ErrorCode = 1003
 	CodeForwardedRequestFailed                                ErrorCode = 1004
@@ -756,8 +756,8 @@ func (e ErrorCode) String() string {
 		return "IrreversibleAclModification"
 	case CodePrerequisiteCheckFailed:
 		return "PrerequisiteCheckFailed"
-	case CodeInvalidObjectLifeStage:
-		return "InvalidObjectLifeStage"
+	case CodeInactiveObjectLifeStage:
+		return "InactiveObjectLifeStage"
 	case CodeCrossCellAdditionalPath:
 		return "CrossCellAdditionalPath"
 	case CodeCrossCellRevisionPrerequisitePath:

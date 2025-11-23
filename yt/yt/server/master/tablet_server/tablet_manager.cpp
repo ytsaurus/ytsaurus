@@ -1861,8 +1861,7 @@ public:
         ValidateNodeCloneMode(trunkSourceNode, mode);
 
         if (const auto& cellBundle = trunkSourceNode->TabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle.Get());
+            ValidateObjectActive(cellBundle.Get());
         }
 
         ValidateResourceUsageIncrease(
@@ -1880,8 +1879,7 @@ public:
 
         auto* trunkSourceNode = sourceNode->GetTrunkNode();
         if (const auto& cellBundle = trunkSourceNode->TabletCellBundle()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle.Get());
+            ValidateObjectActive(cellBundle.Get());
         }
 
         if (IsTableType(sourceNode->GetType())) {
@@ -2457,8 +2455,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            ValidateObjectActive(cellBundle);
         }
 
         return cellBundle;
@@ -2475,8 +2472,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            ValidateObjectActive(cellBundle);
         }
 
         return cellBundle;
@@ -2864,10 +2860,7 @@ private:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return objectManager->IsObjectLifeStageValid(bundle)
-                ? bundle
-                : nullptr;
+            return IsObjectActive(bundle) ? bundle : nullptr;
         } else {
             return bundle;
         }
