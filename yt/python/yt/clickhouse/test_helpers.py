@@ -52,7 +52,6 @@ def get_logging_config():
 def get_clickhouse_server_config():
     return {
         "logging": get_logging_config(),
-        "solomon_exporter": {"enable_core_profiling_compatibility": True},
         "address_resolver": {"localhost_fqdn": "localhost"},
         "validate_operation_access": False,
         "user": "root",
@@ -101,7 +100,6 @@ def get_log_tailer_config(mock_tvm_id=None, inject_secret=False):
             },
         },
         "logging": get_logging_config(),
-        "solomon_exporter": {"enable_core_profiling_compatibility": True},
     }
     if mock_tvm_id is not None:
         config["native_authentication_manager"] = {
