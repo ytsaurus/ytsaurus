@@ -369,7 +369,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentType,
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentType, TJobEnvironmentConfigBase,
     ((Base)         (TJobEnvironmentConfigBase))
     ((Simple)     (TSimpleJobEnvironmentConfig))
     ((Porto)       (TPortoJobEnvironmentConfig))
