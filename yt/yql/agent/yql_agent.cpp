@@ -313,7 +313,7 @@ public:
         // due to python udf loading
         using TSignature = void(TYqlPluginOptions);
         auto coroutine = TCoroutine<TSignature>(
-            BIND([this, bootstrap, maxVersionStringBuf, singletonsConfigDefaultLogging](
+            BIND([this, bootstrap, singletonsConfigDefaultLogging](
                 TCoroutine<TSignature>& /*self*/,
                 TYqlPluginOptions options
             ) {
@@ -322,7 +322,7 @@ public:
                         Config_,
                         singletonsConfigDefaultLogging,
                         bootstrap->GetClusterConnectionConfig(),
-                        TString(maxVersionStringBuf),
+                        TString(MaxSupportedYqlVersion_),
                         YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                     : CreateBridgeYqlPlugin(std::move(options));
             }),
