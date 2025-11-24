@@ -2258,7 +2258,7 @@ public:
         if (permission == EPermission::FullRead) {
             if (options.Columns) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot specify columns for %v permission check",
+                    "Cannot specify columns for %Qlv permission check",
                     permission)
                     << TErrorAttribute("columns", options.Columns);
             }
