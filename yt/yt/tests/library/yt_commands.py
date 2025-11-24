@@ -635,6 +635,12 @@ def get_job_trace(operation_id, job_id, **kwargs):
     return execute_command("get_job_trace", kwargs)
 
 
+def list_job_traces(operation_id, job_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    return execute_command("list_job_traces", kwargs, parse_yson=True)
+
+
 def get_job_stderr_paged(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id

@@ -1536,6 +1536,18 @@ class YtClient(ClientState):
             read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
             suppress_upstream_sync=suppress_upstream_sync)
 
+    def list_job_traces(
+            self,
+            operation_id, job_id,
+            per_process=None, limit=None, format=None):
+        """
+        List traces of the specified job.
+        """
+        return client_api.list_job_traces(
+            operation_id, job_id,
+            client=self,
+            per_process=per_process, limit=limit, format=format)
+
     def list_jobs(
             self,
             operation_id,

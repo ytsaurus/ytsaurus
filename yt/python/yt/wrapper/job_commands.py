@@ -84,6 +84,22 @@ def get_job_stderr(operation_id, job_id, client=None):
         client=client)
 
 
+def list_job_traces(operation_id, job_id,
+                    per_process=None, limit=None, format=None, client=None):
+    """List traces of the specified job."""
+    params = {"operation_id": operation_id, "job_id": job_id}
+    set_param(params, "per_process", per_process)
+    set_param(params, "limit", limit)
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
+    return make_formatted_request(
+        "list_job_traces",
+        params=params,
+        format=format,
+        client=client,
+        timeout=timeout)
+
+
 def get_job_trace(operation_id, job_id,
                   trace_id=None, from_time=None, to_time=None, client=None):
     """Get traces of the specified job."""

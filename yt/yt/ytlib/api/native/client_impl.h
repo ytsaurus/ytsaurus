@@ -652,6 +652,11 @@ public: \
     IMPLEMENT_METHOD(TListOperationsResult, ListOperations, (
         const TListOperationsOptions& options),
         (options))
+    IMPLEMENT_METHOD(std::vector<TJobTraceMeta>, ListJobTraces, (
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        const NScheduler::TJobId jobId,
+        const TListJobTracesOptions& options),
+        (operationIdOrAlias, jobId, options))
     IMPLEMENT_METHOD(TListJobsResult, ListJobs, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListJobsOptions& options),
@@ -1357,6 +1362,11 @@ private:
         TInstant deadline,
         const TGetOperationOptions& options);
 
+    NScheduler::TOperationId ParseOperationIdOrAlias(
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        const TMasterReadOptions& options,
+        TInstant deadline);
+
     NScheduler::TOperationId ResolveOperationAlias(
         const TString& alias,
         const TMasterReadOptions& options,
@@ -1414,6 +1424,11 @@ private:
 
     // Returns zero id if operation is missing in corresponding table.
     NScheduler::TOperationId TryGetOperationId(NScheduler::TJobId jobId);
+
+    void UpdateJobTracesWithJobState(
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        std::vector<TJobTraceMeta>* jobTraces);
 
     void ValidateOperationAccess(
         NScheduler::TJobId jobId,
@@ -1474,6 +1489,13 @@ private:
         NQueryClient::TQueryBuilder* builder,
         const THashSet<TString>& attributes,
         int archiveVersion);
+
+    TFuture<std::vector<TJobTraceMeta>> DoListJobTracesFromArchive(
+        int archiveVersion,
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        TInstant deadline,
+        const TListJobTracesOptions& options);
 
     // Retrieve:
     // 1) Filtered finished jobs (with limit).
