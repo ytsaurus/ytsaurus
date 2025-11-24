@@ -7,6 +7,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 namespace NYT::NFormats {
 namespace {

@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 #include <yt/yt/library/formats/format.h>
 
 #include <library/cpp/yt/memory/range.h>

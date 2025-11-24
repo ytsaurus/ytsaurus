@@ -187,9 +187,7 @@ public:
             Unregister(cookie);
             const auto& statistics = suspendableStripe.GetStatistics();
             FreeDataWeightCounter_->AddSuspended(statistics.DataWeight);
-            if (FreeCompressedDataSizeCounter_) {
-                FreeCompressedDataSizeCounter_->AddSuspended(statistics.CompressedDataSize);
-            }
+            FreeCompressedDataSizeCounter_->AddSuspended(statistics.CompressedDataSize);
             FreeRowCounter_->AddSuspended(statistics.RowCount);
         }
 
@@ -217,12 +215,13 @@ public:
         if (!ExtractedStripes_.contains(cookie)) {
             Register(cookie);
             const auto& statistics = suspendableStripe.GetStatistics();
+
             FreeDataWeightCounter_->AddSuspended(-statistics.DataWeight);
             YT_VERIFY(FreeDataWeightCounter_->GetSuspended() >= 0);
-            if (FreeCompressedDataSizeCounter_) {
-                FreeCompressedDataSizeCounter_->AddSuspended(-statistics.CompressedDataSize);
-                YT_VERIFY(FreeCompressedDataSizeCounter_->GetSuspended() >= 0);
-            }
+
+            FreeCompressedDataSizeCounter_->AddSuspended(-statistics.CompressedDataSize);
+            YT_VERIFY(FreeCompressedDataSizeCounter_->GetSuspended() >= 0);
+
             FreeRowCounter_->AddSuspended(-statistics.RowCount);
             YT_VERIFY(FreeRowCounter_->GetSuspended() >= 0);
         }
@@ -555,14 +554,6 @@ private:
         return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
     };
 
-    // XXX(max42): looks like this comment became obsolete even
-    // before I got into this company.
-    //! Convert data slice into a list of chunk stripes for further
-    //! processing. Each stripe receives exactly one chunk. The
-    //! resulting stripes are of approximately equal size. The size
-    //! per stripe is either |maxSliceDataSize| or |TotalEstimateInputDataSize / jobCount|,
-    //! whichever is smaller. If the resulting list contains less than
-    //! |jobCount| stripes then |jobCount| is decreased appropriately.
     void AddDataSlice(const TLegacyDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
     {
         dataSlice->Tag = inputCookie;
@@ -767,15 +758,20 @@ private:
                     : sizeLeft / sizePerJob;
             };
 
-            i64 pendingJobCountByDataWeight = computePendingJobCount(FreeDataWeightCounter_->GetPending(), GetAdjustedDataWeightPerJob());
-            i64 pendingJobCountByCompressedDataSize = FreeCompressedDataSizeCounter_
-                ? computePendingJobCount(FreeCompressedDataSizeCounter_->GetPending(), GetAdjustedCompressedDataSizePerJob())
-                : 0;
+            i64 pendingJobCountByDataWeight = computePendingJobCount(
+                    FreeDataWeightCounter_->GetPending(),
+                    GetAdjustedDataWeightPerJob());
+
+            i64 pendingJobCountByCompressedDataSize = computePendingJobCount(
+                    FreeCompressedDataSizeCounter_->GetPending(),
+                    GetAdjustedCompressedDataSizePerJob());
+
+            i64 pendingJobCountByDataSliceCount = DivCeil(std::ssize(FreeStripes_), JobSizeConstraints_->GetMaxDataSlicesPerJob()) - blockedJobCount;
 
             pendingJobCount = std::max({
                 pendingJobCountByDataWeight,
                 pendingJobCountByCompressedDataSize,
-                std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount,
+                pendingJobCountByDataSliceCount,
             });
 
             if (blockedJobCount > 0) {
@@ -826,10 +822,7 @@ private:
 
         const auto& statistics = suspendableStripe.GetStatistics();
         FreeDataWeightCounter_->AddPending(statistics.DataWeight);
-        if (FreeCompressedDataSizeCounter_) {
-            // NB(apollo1321): statistics.CompressedDataSize may be zero for dynamic tables.
-            FreeCompressedDataSizeCounter_->AddPending(statistics.CompressedDataSize);
-        }
+        FreeCompressedDataSizeCounter_->AddPending(statistics.CompressedDataSize);
         FreeRowCounter_->AddPending(statistics.RowCount);
 
         YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
@@ -872,12 +865,13 @@ private:
         }
 
         const auto& statistics = suspendableStripe.GetStatistics();
+
         FreeDataWeightCounter_->AddPending(-statistics.DataWeight);
         YT_VERIFY(FreeDataWeightCounter_->GetPending() >= 0);
-        if (FreeCompressedDataSizeCounter_) {
-            FreeCompressedDataSizeCounter_->AddPending(-statistics.CompressedDataSize);
-            YT_VERIFY(FreeCompressedDataSizeCounter_->GetPending() >= 0);
-        }
+
+        FreeCompressedDataSizeCounter_->AddPending(-statistics.CompressedDataSize);
+        YT_VERIFY(FreeCompressedDataSizeCounter_->GetPending() >= 0);
+
         FreeRowCounter_->AddPending(-statistics.RowCount);
         YT_VERIFY(FreeRowCounter_->GetPending() >= 0);
 
@@ -1039,9 +1033,7 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
 
     PHOENIX_REGISTER_DELETED_FIELD(23, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldUnorderedChunkPoolSlicing);
-    PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_,
-        // COMPAT(apollo1321): Make FreeCompressedDataSizeCounter_ non-null in 25.2.
-        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob));
+    PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

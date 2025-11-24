@@ -1130,12 +1130,14 @@ private:
         preparedJobs.emplace_back().SetIsBarrier(true);
 
         i64 actualSegmentSliceCount = 0;
+        i64 barrierCount = 0;
         for (auto& preparedJob : preparedJobs) {
             periodicYielder.TryYield();
             actualSegmentSliceCount += preparedJob.GetSliceCount();
 
             if (preparedJob.GetIsBarrier()) {
                 Jobs_.emplace_back(std::move(preparedJob));
+                ++barrierCount;
             } else {
                 AddJob(preparedJob);
             }
@@ -1146,7 +1148,7 @@ private:
 
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
-        YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
+        YT_LOG_DEBUG("Jobs created (JobCount: %v, BarrierCount: %v)", std::ssize(Jobs_) - barrierCount, barrierCount);
     }
 };
 

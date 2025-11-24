@@ -334,5 +334,51 @@ TEST(TTypingTest, TypeInference)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TFingerprintTest, GroupByReferencesAreResolved)
+{
+    StrictMock<TPrepareCallbacksMock> prepareMock;
+    EXPECT_CALL(prepareMock, GetInitialSplit("//table"))
+        .WillOnce(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::Int64},
+            {"b", EValueType::Int64},
+        }))));
+    auto query = ParseAndPreparePlanFragment(
+        &prepareMock,
+        "SELECT x + 4 as k, b + 5 as l, sum(a % 3) as m FROM [//table] "
+        "GROUP BY a / 2 as x, b + 3 as b HAVING k != 4 ORDER BY m + 5 LIMIT 1")->Query;
+
+    auto fingerprint = InferName(query, TInferNameOptions{.OmitValues = true});
+
+    EXPECT_EQ(fingerprint, "SELECT a / ? + ? AS k, b + ? + ? AS l, sum(a % ?) AS m "
+        "GROUP BY [common prefix: 0, disjoint: False, aggregates: [sum]] a / ?, b + ? "
+        "HAVING a / ? + ? != ? ORDER BY sum(a % ?) + ? ASC LIMIT ?");
+}
+
+TEST(TFingerprintTest, NestedDataSubqueries)
+{
+    if (DefaultExpressionBuilderVersion != 2) {
+        return;
+    }
+
+    StrictMock<TPrepareCallbacksMock> prepareMock;
+    EXPECT_CALL(prepareMock, GetInitialSplit("//table"))
+        .WillOnce(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::Int64},
+            {"b", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }))));
+
+    auto query = ParseAndPreparePlanFragment(
+        &prepareMock,
+        "SELECT first(try_get_int64((SELECT sum(i + 1) + 2 as x FROM (b as i) GROUP BY 3), '/0/x')) + 4 as nested FROM [//table] GROUP BY 5")->Query;
+
+    auto fingerprint = InferName(query, TInferNameOptions{.OmitValues = true});
+
+    EXPECT_EQ(fingerprint, "SELECT first(try_get_int64(to_any(("
+        "SELECT sum(i + ?) + ? AS x FROM (b AS i) GROUP BY [common prefix: 0, aggregates: [sum]] ?"
+        ")), ?)) + ? AS nested GROUP BY [common prefix: 0, disjoint: False, aggregates: [first]] ?");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient

@@ -170,6 +170,8 @@ DEFINE_ENUM(EMasterReign,
     ((CreationWithAmpersandInPath)                                  (3120))  // kvk1920
     ((AuthorizedExpiration)                                         (3121))  // koloshmet
     ((RemoveListNodes)                                              (3122))  // h0pless
+    ((ChangeSequoiaChunkPurgatory)                                  (3123))  // grphil
+    ((ChunkRequisitionActiveEntries)                                (3124))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

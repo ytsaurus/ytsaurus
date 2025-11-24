@@ -24,6 +24,7 @@ struct TTabletCellBundle final
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
     THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
+    THashMap<TTabletId, TTabletPtr> Tablets;
 
     NTableClient::TTableSchemaPtr PerformanceCountersTableSchema;
     THashMap<TClusterName, NTableClient::TTableSchemaPtr> PerClusterPerformanceCountersTableSchemas;
@@ -31,6 +32,7 @@ struct TTabletCellBundle final
     TTabletCellBundle(TString name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
+    TTabletCellBundlePtr DeepCopy() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellBundle)

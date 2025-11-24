@@ -29,7 +29,7 @@ from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringTag, MonitoringLabelDashboardParameter
-from yt_dashboard_generator.backends.grafana import GrafanaTag, GrafanaTextboxDashboardParameter
+from yt_dashboard_generator.backends.grafana import GrafanaTag, GrafanaTextboxDashboardParameter, PrometheusDiscoverValues
 from yt_dashboard_generator.sensor import MultiSensor, Text, EmptyCell
 
 import string
@@ -162,11 +162,11 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
     full_node_count = node_count("full")
     with_alerts_node_count = node_count("with_alerts")
     job_rates = (MultiSensor(
-            Master("yt.chunk_server.jobs_aborted.rate").legend_format("{{host}} {{container}} aborted"),
-            Master("yt.chunk_server.jobs_completed.rate").legend_format("{{host}} {{container}} completed"),
-            Master("yt.chunk_server.jobs_failed.rate").legend_format("{{host}} {{container}} failed"),
-            Master("yt.chunk_server.jobs_started.rate").legend_format("{{host}} {{container}} started"),
-            Master("yt.chunk_server.misscheduled_jobs.rate").legend_format("{{host}} {{container}} misscheduled"))
+            Master("yt.chunk_server.jobs_aborted.rate").host_container_legend_format("aborted"),
+            Master("yt.chunk_server.jobs_completed.rate").host_container_legend_format("completed"),
+            Master("yt.chunk_server.jobs_failed.rate").host_container_legend_format("failed"),
+            Master("yt.chunk_server.jobs_started.rate").host_container_legend_format("started"),
+            Master("yt.chunk_server.misscheduled_jobs.rate").host_container_legend_format("misscheduled"))
             .stack(False)
             .aggr(MonitoringTag("host"))
             .aggr("cell_tag")
@@ -176,7 +176,7 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
         .aggr(MonitoringTag("host"))
         .aggr("cell_tag")
         .all("job_type")
-        .legend_format("{{host}} {{container}} {{job_type}}"))
+        .host_container_legend_format("{{job_type}}"))
     chunk_locations_being_disposed = (Master("yt.node_tracker.chunk_locations_being_disposed")
         .stack(False)
         .all(MonitoringTag("host"))
@@ -197,7 +197,7 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
         .all(MonitoringTag("host"))
         .all("cell_tag"))
 
-    rowset = Rowset().legend_format("{{host}} {{container}}")
+    rowset = Rowset().host_container_legend_format()
 
     def _get_cell_roles(title, sensor):
         cells = []
@@ -279,24 +279,27 @@ def build_master_global(has_portal_cells, has_chunk_cells):
     return d
 
 def build_local_rowset():
-    rowset = Rowset().legend_format("{{host}} {{container}}")
+    rowset = Rowset().host_container_legend_format()
 
     automaton_action_queue_cumulative_time = (MasterCpu("yt.action_queue.time.cumulative.rate")
         .stack(True)
         .all(MonitoringTag("host"))
         .value("thread", "Automaton")
         .all("bucket")
-        .all("queue"))
+        .all("queue")
+        .host_container_legend_format("{{bucket}}"))
     hydra_cumulative_mutation_time = (Master("yt.hydra.cumulative_mutation_time.rate")
         .stack(True)
         .all(MonitoringTag("host"))
         .all("type")
-        .all("cell_id"))
+        .all("cell_id")
+        .host_container_legend_format("{{type}}"))
     user_requests = (Master("yt.security.user_{}_{}.rate")
         .stack(False)
         .top()
         .all(MonitoringTag("host"))
-        .all("user"))
+        .all("user")
+        .host_container_legend_format("{{user}}"))
     user_read_request_rate = user_requests("read", "request_count")
     user_write_request_rate = user_requests("write", "request_count")
     user_read_time = user_requests("read", "time")
@@ -322,8 +325,11 @@ def build_local_rowset():
         .all("method")
         .all("cell_tag"))
     job_rates = (MultiSensor(
-        Master("yt.chunk_server.jobs_*.rate"),
-        Master("yt.chunk_server.misscheduled_jobs.rate"))
+        *[
+            Master("yt.chunk_server.jobs_{}.rate".format(job_type)).host_container_legend_format("{} {{{{job_type}}}}".format(job_type))
+            for job_type in ["aborted", "completed", "failed", "started"]
+        ],
+        Master("yt.chunk_server.misscheduled_jobs.rate").host_container_legend_format("misscheduled {{job_type}}"))
             .stack(False)
             .all(MonitoringTag("host"))
             .all("cell_tag")
@@ -386,7 +392,11 @@ def build_master_local():
         backends=["monitoring"],
     )
     d.add_parameter(
-        "pod", "Pod", GrafanaTextboxDashboardParameter(MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER), backends=["grafana"]
+        "pod", "Pod", GrafanaTextboxDashboardParameter(
+            MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER,
+            default_for_ui=MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER,
+            discover_values=PrometheusDiscoverValues("pod", "{cluster=~\"$cluster\", service=~\"yt-master\"}")),
+            backends=["grafana"],
     )
 
     d.value(MonitoringTag("container"), TemplateTag("container"))
@@ -767,7 +777,10 @@ def build_master_accounts():
     dashboard.add_parameter(
         "left_medium",
         "Left medium",
-        GrafanaTextboxDashboardParameter("default"),
+        GrafanaTextboxDashboardParameter(
+            "default",
+            discover_values=PrometheusDiscoverValues("medium", "{cluster=~\"$cluster\", service=~\"yt-master\", account=~\"$account\"}"),
+        ),
         backends=["grafana"],
     )
 
@@ -780,7 +793,10 @@ def build_master_accounts():
     dashboard.add_parameter(
         "right_medium",
         "Right medium",
-        GrafanaTextboxDashboardParameter("ssd_blobs"),
+        GrafanaTextboxDashboardParameter(
+            "ssd_blobs",
+            discover_values=PrometheusDiscoverValues("medium", "{cluster=~\"$cluster\", service=~\"yt-master\", account=~\"$account\"}"),
+        ),
         backends=["grafana"],
     )
 

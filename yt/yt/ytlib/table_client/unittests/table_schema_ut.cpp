@@ -13,6 +13,8 @@
 namespace NYT::NTableClient {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYson;
 using namespace NYTree;
 
@@ -21,6 +23,8 @@ using namespace NYTree;
 class TTableSchemaTest
     : public ::testing::Test
 { };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
 {

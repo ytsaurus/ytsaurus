@@ -1884,8 +1884,8 @@ private:
                 continue;
             }
 
-            for (const auto& requisition : chunk->GetAggregatedRequisition(requisitionRegistry)) {
-                referenceAccount(chunkSchema.Get(), requisition.Account);
+            for (const auto& entry : chunk->GetAggregatedRequisition(requisitionRegistry).AllEntries()) {
+                referenceAccount(chunkSchema.Get(), entry.Account);
             }
         }
 

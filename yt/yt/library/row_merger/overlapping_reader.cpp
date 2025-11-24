@@ -95,7 +95,7 @@ private:
     class TSessionComparer
     {
     public:
-        TSessionComparer(const TOverlappingReaderKeyComparer& keyComparer)
+        explicit TSessionComparer(const TOverlappingReaderKeyComparer& keyComparer)
             : KeyComparer_(keyComparer)
         { }
 
@@ -433,14 +433,14 @@ class TSchemafulOverlappingRangeReader
 {
 public:
     static ISchemafulUnversionedReaderPtr Create(
-        const std::vector<TLegacyOwningKey>& boundaries,
+        std::vector<TLegacyOwningKey> boundaries,
         std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
     {
         auto this_ = New<TSchemafulOverlappingRangeReader>(
-            boundaries,
+            std::move(boundaries),
             std::move(rowMerger),
             std::move(readerFactory),
             std::move(keyComparer),
@@ -507,14 +507,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
-    const std::vector<TLegacyOwningKey>& boundaries,
+    std::vector<TLegacyOwningKey> boundaries,
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency)
 {
     return TSchemafulOverlappingRangeReader::Create(
-        boundaries,
+        std::move(boundaries),
         std::move(rowMerger),
         std::move(readerFactory),
         std::move(keyComparer),

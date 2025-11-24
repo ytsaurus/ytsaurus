@@ -614,6 +614,13 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
+    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const override
+    {
+        VerifyEnabled();
+
+        return Location_->CreateVitalDirectories(rootVolume, userId);
+    }
+
 private:
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;

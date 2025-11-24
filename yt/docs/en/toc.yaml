@@ -441,7 +441,7 @@ items:
      items:
        - name: Cluster components
          href: admin-guide/components.md
-       - name: Installating
+       - name: Install
          items:
            - name: YTsaurus
              href: admin-guide/install-ytsaurus.md
@@ -453,6 +453,8 @@ items:
              href: admin-guide/install-cron.md
            - name: Odin
              href: admin-guide/install-odin.md
+           - name: Tutorial
+             href: admin-guide/install-tutorial.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description

@@ -31,7 +31,7 @@ TPartitions BuildTreeAndListPartitions(int partitionCount, int maxPartitionFacto
     TPartitions partitions;
     std::vector<int> currentPath;
     ListPartitions(partitionTreeSkeleton.Root.get(), &partitions, &currentPath);
-    EXPECT_EQ(std::ssize(partitions.front()), partitionTreeSkeleton.TreeDepth);
+    EXPECT_EQ(std::ssize(partitions.front()), partitionTreeSkeleton.Depth);
 
     return partitions;
 }

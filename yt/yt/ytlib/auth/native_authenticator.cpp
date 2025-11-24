@@ -42,21 +42,59 @@ public:
     TFuture<NRpc::TAuthenticationResult> AsyncAuthenticate(
         const TAuthenticationContext& context) override
     {
-        if (!NeedsAuthentication(context)) {
+        auto error = TryAuthenticate(context);
+        if (error.IsOK()) {
             return MakeResult(context);
+        } else if (NeedsAuthentication(context))
+            return MakeFuture<NRpc::TAuthenticationResult>(std::move(error));
+        else {
+            YT_VERIFY(WarnOnUnauthenticated(context));
+            return MakeResult(context, std::move(error));
+        }
+    }
+
+private:
+    TNativeAuthenticationManager* const AuthenticationManager_;
+    const ITvmServicePtr TvmService_;
+    const std::function<bool(TTvmId)> SourceValidator_;
+
+    bool NeedsAuthentication(const TAuthenticationContext& context) const
+    {
+        return !context.IsLocal && TvmService_ && AuthenticationManager_->IsValidationEnabled();
+    }
+
+    bool WarnOnUnauthenticated(const TAuthenticationContext& context) const
+    {
+        return !context.IsLocal && TvmService_ && AuthenticationManager_->WarnOnUnauthenticated();
+    }
+
+    TFuture<NRpc::TAuthenticationResult> MakeResult(const TAuthenticationContext& context, TError warning = TError())
+    {
+        NRpc::TAuthenticationResult result{
+            .User = context.Header->has_user() ? context.Header->user() : RootUserName,
+            .Realm = "native",
+            .Warning = std::move(warning),
+        };
+        return MakeFuture<NRpc::TAuthenticationResult>(std::move(result));
+    }
+
+    TError TryAuthenticate(const TAuthenticationContext& context)
+    {
+        if (!NeedsAuthentication(context) && !WarnOnUnauthenticated(context)) {
+            return TError();
         }
 
         if (!context.Header->HasExtension(TCredentialsExt::credentials_ext)) {
-            return MakeFuture<NRpc::TAuthenticationResult>(TError(
+            return TError(
                 NRpc::EErrorCode::AuthenticationError,
-                "Request is missing credentials"));
+                "Request is missing credentials");
         }
 
         const auto& ext = context.Header->GetExtension(TCredentialsExt::credentials_ext);
         if (!ext.has_service_ticket()) {
-            return MakeFuture<NRpc::TAuthenticationResult>(TError(
+            return TError(
                 NRpc::EErrorCode::AuthenticationError,
-                "Request is missing credentials"));
+                "Request is missing credentials");
         }
 
         try {
@@ -68,33 +106,13 @@ public:
                     "Source TVM id %v is rejected", ticket.TvmId);
             }
 
-            return MakeResult(context);
+            return TError();
         } catch (const std::exception& ex) {
-            return MakeFuture<NRpc::TAuthenticationResult>(TError(
+            return TError(
                 NRpc::EErrorCode::AuthenticationError,
                 "Error validating service ticket")
-                << ex);
+                << ex;
         }
-    }
-
-private:
-    TNativeAuthenticationManager* AuthenticationManager_;
-    const ITvmServicePtr TvmService_;
-    const std::function<bool(TTvmId)> SourceValidator_;
-
-    bool NeedsAuthentication(const TAuthenticationContext& context) const
-    {
-        return !context.IsLocal && TvmService_ && AuthenticationManager_->IsValidationEnabled();
-    }
-
-    TFuture<NRpc::TAuthenticationResult> MakeResult(const TAuthenticationContext& context)
-    {
-        NRpc::TAuthenticationResult result{
-            .User = context.Header->has_user() ? context.Header->user() : RootUserName,
-            .Realm = "native",
-            .UserTicket = "",
-        };
-        return MakeFuture<NRpc::TAuthenticationResult>(std::move(result));
     }
 };
 

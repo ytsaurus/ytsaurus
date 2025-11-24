@@ -52,6 +52,8 @@ DECLARE_REFCOUNTED_CLASS(TTableRegistry)
 DECLARE_REFCOUNTED_STRUCT(IReshardIteration)
 DECLARE_REFCOUNTED_STRUCT(IMoveIteration)
 
+DECLARE_REFCOUNTED_STRUCT(TBundleSnapshot)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

@@ -37,6 +37,7 @@ struct TQueryEngineDynamicConfig
     TCodegenCacheDynamicConfigPtr CodegenCache;
     std::optional<EStatisticsAggregation> StatisticsAggregation;
     std::optional<bool> UseOrderByInJoinSubqueries;
+    std::optional<int> ExpressionBuilderVersion;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

@@ -20,4 +20,4 @@ metadata:
       content: 'Maxim Efremov'
 ---
 
-{% include [Installating YTsaurus](../_includes/admin-guide/install-ytsaurus.md) %}
+{% include [Install YTsaurus](../_includes/admin-guide/install-ytsaurus.md) %}

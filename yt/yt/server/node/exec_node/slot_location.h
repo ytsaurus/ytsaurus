@@ -134,6 +134,8 @@ public:
 
     void OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config);
 
+    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const;
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;

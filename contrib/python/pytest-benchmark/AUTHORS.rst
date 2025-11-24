@@ -41,3 +41,4 @@ Authors
 * Ben Avrahami - https://github.com/bentheiii
 * Sorin Sbarnea - https://github.com/ssbarnea
 * Enno Gotthold - https://github.com/SchoolGuy
+* Thomas B. Brunner - https://github.com/thomasbbrunner

@@ -11,14 +11,18 @@ import (
 
 // New returns synchronous stderr logger configured with YT defaults.
 func New() (*logzap.Logger, error) {
+	return logzap.New(NewConfig())
+}
+
+// NewConfig returns synchronous stderr logger's config configured with YT defaults.
+func NewConfig() zap.Config {
 	conf := zap.NewProductionConfig()
 	conf.Level.SetLevel(zap.DebugLevel)
 	conf.Sampling = nil
 	conf.DisableStacktrace = true
 	conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	conf.OutputPaths = []string{"stderr"}
-
-	return logzap.New(conf)
+	return conf
 }
 
 // Must does the same as New but panics on error.
@@ -64,6 +68,18 @@ func WithMinFreeSpace(space float64) Option {
 
 // NewSelfrotate returns logger configured with YT defaults.
 func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop func(), err error) {
+	core, stop, err := NewSelfrotateCore(logPath, options...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO(prime@): make callerSkip from library/go/core/log public.
+	zl := zap.New(core, zap.AddCallerSkip(1), zap.AddCaller())
+	return &logzap.Logger{L: zl}, stop, nil
+}
+
+// NewSelfrotateCore returns logger's core configured with YT defaults.
+func NewSelfrotateCore(logPath string, options ...Option) (*asynczap.Core, func(), error) {
 	rotateOptions := defaultRotationOptions
 	rotateOptions.Name = logPath
 
@@ -87,12 +103,10 @@ func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop fu
 
 	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, level, asynczap.Options{})
 
-	stop = func() {
+	stop := func() {
 		core.Stop()
 		_ = w.Close()
 	}
 
-	// TODO(prime@): make callerSkip from library/go/core/log public.
-	zl := zap.New(core, zap.AddCallerSkip(1), zap.AddCaller())
-	return &logzap.Logger{L: zl}, stop, nil
+	return core, stop, nil
 }

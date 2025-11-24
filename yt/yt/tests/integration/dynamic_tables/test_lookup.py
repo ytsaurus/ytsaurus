@@ -2552,6 +2552,8 @@ class TestLookupSequoia(TestLookup):
         "chunk_manager": {
             "sequoia_chunk_replicas": {
                 "enable": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
             }

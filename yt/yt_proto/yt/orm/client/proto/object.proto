@@ -686,6 +686,7 @@ message TReferenceOption
         RM_DISABLED = 0;
         RM_REMOVE_ONLY = 3;
         RM_BUILDING = 1;
+        RM_PRE_ENABLED = 4;
         RM_ENABLED = 2;
     }
 

@@ -52,7 +52,7 @@ def _build_resource_usage(d):
             #     .legend_format("Cumulative Usage"),
         )
 
-    d.add(Rowset().row(height=2).cell("", Title("Resources", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=3).cell("", Title("Resources", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .row()
             .stack(False)
@@ -67,11 +67,11 @@ def _build_resource_usage(d):
 **Usage**: model resource consumption of the operation from scheduler's point of view. Represents the number of resources that are reserved for the operation. Actual resource consumption may differ.<EOLN>
 **Configured Limit**: maximum amount of resources given to the operation that is specified in its specification and can be changed by updating runtime parameters.
 """
-    d.add(Rowset().row(height=4).cell("", Text(DESCRIPTION)))
+    d.add(Rowset().row(height=5).cell("", Text(DESCRIPTION)))
 
 
 def _build_cluster_share(d):
-    d.add(Rowset().row(height=2).cell("", Title("Detailed Resource Distribution", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=3).cell("", Title("Detailed Resource Distribution", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
         .row()
@@ -122,7 +122,7 @@ def _build_cluster_share(d):
 **Usage**, **Demand**, **Fair share**: share of the cluster that is used, demanded or should be given to the pool. For example, 1.0 or 100% corresponds to the total amount of resources in the cluster.<EOLN>
 **Fair Share** can be split into three parts: strong guarantee, integral guarantee and free resources, which are distributed between pools in proportion to their weights.<EOLN>
 """
-    d.add(Rowset().row(height=3).cell("", Text(DESCRIPTION)))
+    d.add(Rowset().row(height=4).cell("", Text(DESCRIPTION)))
 
 
 def _build_job_metrics(d, os_documentation):

@@ -25,7 +25,7 @@ struct TContainerB
 
 } // namespace
 
-TEST(TTypeToValueMap, DefaultConstructible)
+TEST(TTypeToValueMapTest, DefaultConstructible)
 {
     struct TKeyA { };
     struct TKeyB { };
@@ -39,7 +39,7 @@ TEST(TTypeToValueMap, DefaultConstructible)
     EXPECT_EQ(map.Get<TKeyB>(), 10);
 }
 
-TEST(TTypeToValueMap, NotDefaultConstructible)
+TEST(TTypeToValueMapTest, NotDefaultConstructible)
 {
     struct TKeyA { };
     struct TKeyB { };
@@ -57,7 +57,7 @@ TEST(TTypeToValueMap, NotDefaultConstructible)
     EXPECT_EQ(map.Get<TKeyB>(), 10);
 }
 
-TEST(TTypeToTemplateValueMap, DefaultConstructible)
+TEST(TTypeToTemplateValueMapTest, DefaultConstructible)
 {
     using TKeys = TTypes<int, TString>;
 
@@ -69,7 +69,7 @@ TEST(TTypeToTemplateValueMap, DefaultConstructible)
     EXPECT_EQ(map.Get<TString>(), TContainerA<TString>({"one", "two", "three"}));
 }
 
-TEST(TTypeToTemplateValueMap, NotDefaultConstructible)
+TEST(TTypeToTemplateValueMapTest, NotDefaultConstructible)
 {
     using TKeys = TTypes<int, TString>;
 

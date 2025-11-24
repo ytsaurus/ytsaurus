@@ -122,6 +122,9 @@
 #include <util/random/random.h>
 
 namespace NYT::NApi::NNative {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChaosClient;
 using namespace NChunkClient;
@@ -151,11 +154,12 @@ constexpr size_t ExplainQueryMemoryLimit = 3_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TQueryPreparer)
+constexpr TSchemaUpdateEnabledFeatures SchemaUpdateEnabledFeatures{
+    .EnableStaticTableDropColumn = true,
+    .EnableDynamicTableDropColumn = true,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 template <class TReq>
 void SetDynamicTableCypressRequestFullPath(TReq* /*req*/, const TYPath& /*fullPath*/)
@@ -303,15 +307,6 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
         << TErrorAttribute("key", ToOwningKey(row));
 }
 
-
-TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
-{
-    return TSchemaUpdateEnabledFeatures{
-        .EnableStaticTableDropColumn = true,
-        .EnableDynamicTableDropColumn = true,
-    };
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 ReserveMemory(
@@ -415,8 +410,6 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
     return tabletInfos;
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryPreparer
@@ -514,7 +507,7 @@ private:
                 ValidateTableSchemaUpdateInternal(
                     *it->second,
                     *tableInfo->Schemas[ETableSchemaKind::Primary],
-                    GetSchemaUpdateEnabledFeatures(),
+                    SchemaUpdateEnabledFeatures,
                     true,
                     false);
             } catch (const std::exception& ex) {
@@ -537,9 +530,9 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryPreparer)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     const TYPath& path,
@@ -1055,7 +1048,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
             *schema,
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             /*isTableDynamic*/ true,
             /*isTableEmpty*/ false,
             /*allowAlterKeyColumnToAny*/ false,
@@ -1615,19 +1608,21 @@ TDuration TClient::CheckPermissionsForQuery(
     return timer.GetElapsedTime();
 }
 
-TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config)
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config, const TQueryEngineDynamicConfigPtr& queryConfig)
 {
     TQueryOptions queryOptions;
 
     auto useOrderByInJoinSubqueriesDefault = false;
     auto statisticsAggregationDefault = EStatisticsAggregation::None;
-    if (auto singletonDynamicConfig = TSingletonManager::GetDynamicConfig()) {
-        auto queryEngineConfig = singletonDynamicConfig->GetSingletonConfig<NQueryClient::TQueryEngineDynamicConfig>();
-
-        useOrderByInJoinSubqueriesDefault = queryEngineConfig->UseOrderByInJoinSubqueries.value_or(
+    if (queryConfig) {
+        useOrderByInJoinSubqueriesDefault = queryConfig->UseOrderByInJoinSubqueries.value_or(
             useOrderByInJoinSubqueriesDefault);
 
-        statisticsAggregationDefault = queryEngineConfig->StatisticsAggregation.value_or(
+        statisticsAggregationDefault = queryConfig->StatisticsAggregation.value_or(
             statisticsAggregationDefault);
     }
 
@@ -1695,6 +1690,10 @@ void PreheatCache(NAst::TQuery* query, const ITableMountCachePtr& mountCache)
         .ValueOrThrow();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 TSelectRowsResult TClient::DoSelectRowsOnce(
     const std::string& queryString,
     const TSelectRowsOptions& options)
@@ -1752,7 +1751,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             }));
     }
 
-    auto queryOptions = GetQueryOptions(options, dynamicConfig);
+    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+    auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
+    auto queryOptions = GetQueryOptions(options, dynamicConfig, queryEngineConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
@@ -1774,7 +1775,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion,
+        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion);
     const auto& query = fragment->Query;
@@ -1875,6 +1876,8 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
 
     auto dynamicConfig = GetNativeConnection()->GetConfig();
+    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+    auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
 
     TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
 
@@ -1926,7 +1929,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion,
+        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion);
 
@@ -2629,7 +2632,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
         ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
             *tableInfo->Schemas[ETableSchemaKind::Primary],
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             true,
             false);
     }
@@ -3216,6 +3219,8 @@ TSyncAlienCellsResult TClient::DoSyncAlienCells(
     };
 }
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletPullRowsSession
@@ -3486,6 +3491,10 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 TPullRowsResult TClient::DoPullRows(
     const TYPath& path,
     const TPullRowsOptions& options)
@@ -3501,7 +3510,7 @@ TPullRowsResult TClient::DoPullRows(
         ValidateTableSchemaUpdateInternal(
             *tableInfo->Schemas[ETableSchemaKind::Primary],
             *options.TableSchema,
-            GetSchemaUpdateEnabledFeatures(),
+            SchemaUpdateEnabledFeatures,
             true,
             false);
     }

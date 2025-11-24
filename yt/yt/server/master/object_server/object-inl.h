@@ -741,6 +741,12 @@ inline bool IsObjectAlive(const TObjectPtr<T, C>& ptr)
 }
 
 template <class T, class C>
+inline bool IsObjectActive(const TObjectPtr<T, C>& ptr)
+{
+    return IsObjectActive(ptr.Get());
+}
+
+template <class T, class C>
 inline TObjectId GetObjectId(const TObjectPtr<T, C>& ptr)
 {
     return GetObjectId(ptr.Get());

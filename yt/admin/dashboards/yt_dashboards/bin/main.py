@@ -142,8 +142,12 @@ dashboards = {
     },
     "bundle-ui-memory": {
         "func": build_bundle_ui_memory,
-        "monitoring": {},
-        "grafana": {},
+        "monitoring": {
+            "args": [True]
+        },
+        "grafana": {
+            "args": [False]
+        },
     },
     "bundle-ui-network": {
         "func": build_bundle_ui_network,

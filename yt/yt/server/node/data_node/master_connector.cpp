@@ -34,6 +34,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
@@ -568,28 +569,26 @@ public:
 
     void ScheduleHeartbeat() override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (!Initialized_) {
-            YT_LOG_WARNING("Master connector is not initialized");
-            return;
-        }
-
-        const auto& controlInvoker = Bootstrap_->GetControlInvoker();
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            auto* cellTagData = GetCellTagData(cellTag);
-            // Out-of-band heartbeats are best effort, so we do not execute them if node is not online.
-            if (cellTagData->ChunksDelta->State != EMasterConnectorState::Online) {
-                continue;
+        auto doScheduleHeartbeat = [this, this_ = MakeStrong(this)] {
+            if (!Initialized_) {
+                YT_LOG_WARNING("Master connector is not initialized");
+                return;
             }
 
-            controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag] {
-                if (auto strongThis = weakThis.Lock()) {
-                    ScheduleOutOfBandMasterHeartbeats({cellTag});
+            const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+            for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+                auto* cellTagData = GetCellTagData(cellTag);
+                // Out-of-band heartbeats are best effort, so we do not execute them if node is not online.
+                if (cellTagData->ChunksDelta->State != EMasterConnectorState::Online) {
+                    continue;
                 }
-            }));
-        }
+
+                ScheduleOutOfBandMasterHeartbeats({cellTag});
+            }
+        };
+
+        const auto& controlInvoker = Bootstrap_->GetControlInvoker();
+        controlInvoker->Invoke(BIND(doScheduleHeartbeat));
     }
 
     void ScheduleJobHeartbeat(const std::string& jobTrackerAddress) override
@@ -803,7 +802,6 @@ private:
     {
         std::unique_ptr<TChunksDelta> ChunksDelta = std::make_unique<TChunksDelta>();
     };
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerCellTagDataLock_);
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
 
     struct TPerJobTrackerData
@@ -960,9 +958,24 @@ private:
         HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+        auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
+        for (auto cellTag : masterCellTags) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Registered;
+        }
+
+        // TODO(grphil): YT-26685 load master cell tags after initial registration request from node. This check should be executed there as well
+        if (GetDynamicConfig()->CheckChunksCellTagsBeforeHeartbeats) {
+           YT_UNUSED_FUTURE(
+                BIND([this, this_ = MakeStrong(this), masterCellTags] {
+                    auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
+                    if (!syncResultOrError.IsOK()) {
+                        YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
+                    }
+
+                    Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
+                }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run());
         }
     }
 
@@ -973,7 +986,6 @@ private:
         auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
         auto cellTagData = std::make_unique<TPerCellTagData>();
         {
-            auto guard = WriterGuard(PerCellTagDataLock_);
             EmplaceOrCrash(PerCellTagData_, cellTag, std::move(cellTagData));
         }
 
@@ -1149,6 +1161,8 @@ private:
     // COMPAT(danilalexeev): YT-23781.
     void ClearChunksDeltaForCell(TCellTag cellTag)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         auto* delta = GetChunksDelta(cellTag);
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
@@ -1513,16 +1527,27 @@ private:
 
     TPerCellTagData* GetCellTagData(TCellTag cellTag)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        auto guard = ReaderGuard(PerCellTagDataLock_);
         // Nothing is ever deleted from PerCellTagData_, therefore it is safe to return raw pointer.
         return GetOrCrash(PerCellTagData_, cellTag).get();
     }
 
+    TPerCellTagData* FindCellTagData(TCellTag cellTag)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (auto it = PerCellTagData_.find(cellTag); it != PerCellTagData_.end()) {
+            // Nothing is ever deleted from PerCellTagData_, therefore it is safe to return raw pointer.
+            return it->second.get();
+        }
+
+        return nullptr;
+    }
+
     TChunksDelta* GetChunksDelta(TCellTag cellTag)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* cellTagData = GetCellTagData(cellTag);
         // Nothing is ever deleted from ChunksDelta, therefore it is safe to return raw pointer.
@@ -1546,9 +1571,21 @@ private:
 
     TChunksDelta* GetChunksDelta(TObjectId id)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return GetChunksDelta(CellTagFromId(id));
+    }
+
+    TChunksDelta* FindChunksDelta(TObjectId id)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto* cellTagData = FindCellTagData(CellTagFromId(id));
+        if (cellTagData) {
+            return cellTagData->ChunksDelta.get();
+        }
+
+        return nullptr;
     }
 
     void OnChunkAdded(const IChunkPtr& chunk)
@@ -1559,7 +1596,14 @@ private:
             return;
         }
 
-        auto* delta = GetChunksDelta(chunk->GetId());
+        auto* delta = FindChunksDelta(chunk->GetId());
+        if (!delta) {
+            YT_LOG_ALERT("Chunk from unknown cell was added (ChunkId: %v, LocationId: %v, CellTag: %v)",
+                chunk->GetId(),
+                chunk->GetLocation()->GetId(),
+                CellTagFromId(chunk->GetId()));
+            return;
+        }
         delta->RemovedSinceLastSuccess.erase(chunk);
         delta->AddedSinceLastSuccess.insert(chunk);
 
@@ -1576,6 +1620,7 @@ private:
             return;
         }
 
+        // Chunk removal can be triggered only by master, so the chunks delta should already exist.
         auto* delta = GetChunksDelta(chunk->GetId());
         delta->AddedSinceLastSuccess.erase(chunk);
         delta->RemovedSinceLastSuccess.insert(chunk);
@@ -1590,7 +1635,14 @@ private:
     // TODO(kvk1920): Do not send every replica.
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
     {
-        auto* delta = GetChunksDelta(chunk->GetId());
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        auto* delta = FindChunksDelta(chunk->GetId());
+        if (!delta) {
+            // OnChunkMediumChanged is called for chunks during node initialization, and the chunk cell may not be discovered yet.
+            // When the cell will be discovered, we will send full heartbeat for it containing all chunks,
+            // So for now we can ignore any actions with this chunk.
+            return;
+        }
         delta->ChangedMediumSinceLastSuccess.emplace(chunk, mediumIndex);
     }
 

@@ -318,18 +318,26 @@ void TTypeBuilder::OnPg(TStringBuf /*name*/, TStringBuf /*category*/)
 
 void TTypeBuilder::Push(TLogicalTypePtr type)
 {
-    if (const auto item = std::get_if<TItemType>(&ItemsStack_.top())) {
-        *item = std::move(type);
-    } else if (const auto elements = std::get_if<TElements>(&ItemsStack_.top())) {
-        elements->emplace_back(std::move(type));
-    } else if (const auto members = std::get_if<TMembers>(&ItemsStack_.top())) {
-        members->emplace_back(MemberNames_.top(), std::move(type));
-        MemberNames_.pop();
-    } else if (const auto items = std::get_if<TKeyAndPayload>(&ItemsStack_.top())) {
-        items->Set(std::move(type));
-    } else if (const auto tagged = std::get_if<TTagAndType>(&ItemsStack_.top())) {
-        tagged->second = std::move(type);
-    }
+    Visit(ItemsStack_.top(),
+        [&] (TItemType& itemType) {
+            itemType = std::move(type);
+        },
+        [&] (TElements& elements) {
+            elements.emplace_back(std::move(type));
+        },
+        [&] (TMembers& members) {
+            members.push_back({
+                .Name = MemberNames_.top(),
+                .Type = std::move(type),
+            });
+            MemberNames_.pop();
+        },
+        [&] (TKeyAndPayload& keyAndPayload) {
+            keyAndPayload.Set(std::move(type));
+        },
+        [&] (TTagAndType& tagAndType) {
+            tagAndType.second = std::move(type);
+        });
 }
 
 void TTypeBuilder::TKeyAndPayload::Set(TItemType type)

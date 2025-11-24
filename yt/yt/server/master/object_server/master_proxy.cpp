@@ -304,7 +304,6 @@ private:
 
         if (populateUserDirectory) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
             auto* protoUserDirectory = response->mutable_user_directory();
 
             static auto toProtoSubject = [] (
@@ -339,14 +338,14 @@ private:
             };
 
             for (auto [_, user] : securityManager->Users()) {
-                if (!IsObjectAlive(user) || !objectManager->IsObjectLifeStageValid(user)) {
+                if (!IsObjectActive(user)) {
                     continue;
                 }
                 toProtoUser(protoUserDirectory->add_users(), user);
             }
 
             for (auto [_, group] : securityManager->Groups()) {
-                if (!IsObjectAlive(group) || !objectManager->IsObjectLifeStageValid(group)) {
+                if (!IsObjectActive(group)) {
                     continue;
                 }
                 toProtoSubject(protoUserDirectory->add_groups(), group);
@@ -619,9 +618,8 @@ private:
         TAccount* account = nullptr;
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         if (newAccountId) {
-            account = securityManager->GetAccountOrThrow(newAccountId, /*activeLifeStageOnly*/ true);
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(account);
+            account = securityManager->GetAccountOrThrow(newAccountId, /*activeLifeStageOnly*/ false);
+            ValidateObjectActive(account);
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();

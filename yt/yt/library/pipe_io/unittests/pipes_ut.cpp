@@ -32,7 +32,7 @@ using namespace NNet;
 //! NB: You can't set size smaller than that of a page.
 constexpr int SmallPipeCapacity = 4096;
 
-TEST(TPipeIOHolder, CanInstantiate)
+TEST(TPipeIOHolderTest, CanInstantiate)
 {
     auto pipe = TPipeFactory().Create();
 

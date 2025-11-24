@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(StaticQueue, PushPop)
+TEST(TStaticQueueTest, PushPop)
 {
     TStaticQueue queue(10);
 
@@ -53,7 +53,7 @@ TEST(StaticQueue, PushPop)
     ASSERT_FALSE(queue.TryPop(readBacktrace));
 }
 
-TEST(StaticQueue, Overflow)
+TEST(TStaticQueueTest, Overflow)
 {
     TStaticQueue queue(10);
 

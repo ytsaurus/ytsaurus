@@ -312,7 +312,8 @@ def remove_queue_producer_session(producer_path, queue_path, session_id, format=
     return make_formatted_request("remove_queue_producer_session", params, format, client=client)
 
 
-def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stream, user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None, client=None):
+def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stream, user_meta=None, input_format=None,
+                        raw=None, output_format=None, require_sync_replica=None, client=None):
     """Push rows to queue via queue producer.
     :param producer_path: path to queue producer table.
     :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`

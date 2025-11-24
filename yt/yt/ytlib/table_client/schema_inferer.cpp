@@ -6,6 +6,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,6 +95,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 
 std::unique_ptr<IOutputSchemaInferer> CreateSchemaCompatibilityChecker(
     const NYPath::TYPath& outputPath,

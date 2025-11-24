@@ -505,7 +505,7 @@ private:
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
                 options)
-                .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
@@ -517,8 +517,12 @@ private:
 
                     ResultHolder_.RootVolume = volumeOrError.Value();
 
+                    slot->CreateVitalDirectories(
+                        ResultHolder_.RootVolume,
+                        Context_.UserSandboxOptions.UserId);
+
                     SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-                }));
+                }).AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
             return VoidFuture;

@@ -8,7 +8,7 @@ from ..common.sensors import *
 
 
 def build_user_load():
-    top_rate = NodeTablet("yt.tablet_node.{}.{}.rate")
+    top_rate = NodeTablet("yt.tablet_node.{}.{}.rate").legend_format("{{user}}")
 
     return (Rowset()
         .aggr(MonitoringTag("host"), "table_tag", "table_path")
@@ -49,6 +49,6 @@ def build_max_lookup_select_execute_time_per_host():
         .top()
         .stack(False)
         .row()
-            .cell("Table lookup max duration", NodeTablet("yt.tablet_node.multiread.request_duration.max"))
-            .cell("Table select max duration", NodeTablet("yt.tablet_node.execute.request_duration.max"))
+            .cell("Table lookup max duration", NodeTablet("yt.tablet_node.multiread.request_duration.max").host_container_legend_format())
+            .cell("Table select max duration", NodeTablet("yt.tablet_node.execute.request_duration.max").host_container_legend_format())
         ).owner

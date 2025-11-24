@@ -423,6 +423,20 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
     return operations.begin()->second;
 }
 
+TOperationId TClient::ParseOperationIdOrAlias(
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TMasterReadOptions& options,
+    TInstant deadline)
+{
+    return Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            return id;
+        },
+        [&] (const TString& alias) {
+            return ResolveOperationAlias(alias, options, deadline);
+        });
+}
+
 TOperationId TClient::ResolveOperationAlias(
     const TString& alias,
     const TMasterReadOptions& options,
@@ -942,14 +956,7 @@ std::vector<TOperationEvent> TClient::DoListOperationEvents(
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationEventsTimeout);
     auto deadline = timeout.ToDeadLine();
 
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
 
     NQueryClient::TQueryBuilder builder;
     builder.SetSource(GetOperationsArchiveOperationEventsPath());

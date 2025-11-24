@@ -8,7 +8,7 @@ Odin is a service that provides qualitative monitoring of a {{producer-name}} cl
 
 Before proceeding, you should have:
 
-* Helm 3.x
+* Helm 3.x;
 * a running {{product-name}} cluster and the address of its HTTP proxy (`http_proxy`);
 * a dedicated service user `robot-odin` with an issued token (see [Token Management](../../user-guide/storage/auth.md#token-management)).
 
@@ -67,7 +67,7 @@ webservice:
 
 > Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace. Use `kubectl get svc -A | grep http-proxies` to confirm your actual service name.
 
-By default, an init job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
+By default, an Init Job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
 
 Odin can expose metrics in Prometheus format. Services for monitoring are created by default (you can disable them by setting `metrics.enable`). By default, a ServiceMonitor is not created, but you can enable it by setting `metrics.serviceMonitor.enable`. For more details, see the [Monitoring](../../admin-guide/monitoring.md) section.
 
@@ -80,7 +80,7 @@ helm install odin oci://ghcr.io/ytsaurus/odin-chart \
     -n <namespace>
 ```
 
-The Helm chart first runs an init job to create the required table for Odin’s state in the cluster, and then deploys two Deployments — one with Odin itself and one with its web service.
+The Helm chart first runs an Init Job to create the required table for Odin’s state in the cluster, and then deploys two Deployments — one with Odin itself and one with its web service.
 
 ## Post-Installation Checks
 
@@ -117,7 +117,7 @@ sort_result:
   config: {...}
 ```
 
-- `enable: true` — the check is included in the final configuration and executed by Odin.
+- `enable: true` — the check is included in the final configuration and executed by Odin;
 - `enable: false` — the check is skipped (not included in `checks/config.json`).
 
 > Some checks also support an internal `config.enable` flag.
@@ -169,19 +169,19 @@ helm uninstall odin -n <namespace>
 
 ## Common Issues and Troubleshooting
 
-* **Invalid `proxy` address:** connection/authentication errors in Odin logs. Check service DNS name, namespace, and availability of {{product-name}} HTTP proxy.
-* **Token issues:** 401/403 errors in Odin logs. Verify that the environment variable points to the correct secret key and that ACLs are properly granted to `robot-odin`.
-* **Insufficient ACLs:** `create/remove/mount` operations fail. Recheck ACLs for `//sys` and/or required directories/tables.
+* **Invalid `proxy` address:** connection/authentication errors in Odin logs. Check service DNS name, namespace, and availability of {{product-name}} HTTP proxy;
+* **Token issues:** 401/403 errors in Odin logs. Verify that the environment variable points to the correct secret key and that ACLs are properly granted to `robot-odin`;
+* **Insufficient ACLs:** `create/remove/mount` operations fail. Recheck ACLs for `//sys` and/or required directories/tables;
 * **Service port conflict:** when exposing via Ingress/NodePort, ensure port `9002` is available and corresponding resources exist.
 
 ## Quick Token Self-Check (outside Helm)
 
 ```bash
-curl -sS -H "Authorization: OAuth $YT_TOKEN"   http://http-proxies.default.svc.cluster.local/api/v3/list?path=// | jq .
+curl -sS -H "Authorization: OAuth $YT_TOKEN" http://http-proxies.default.svc.cluster.local/auth/whoami
 ```
 
 ## Security Notes
 
-* Follow the principle of least privilege when assigning rights to `robot-odin`; create dedicated ACLs for target paths when necessary.
+* Follow the principle of least privilege when assigning rights to `robot-odin`; create dedicated ACLs for target paths when necessary;
 * Rotate tokens according to your internal policies and update secrets promptly (via `kubectl apply -f` or `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`).
 

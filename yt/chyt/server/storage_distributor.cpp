@@ -460,7 +460,7 @@ public:
                 });
             }
 
-            QueryContext_->AddSecondaryQueryId(remoteQueryId, secondaryQuery.TotalRowsToRead, secondaryQuery.TotalBytesToRead);
+            QueryContext_->AddSecondaryQueryId(remoteQueryId);
 
             Pipes_.emplace_back(std::move(pipe));
         }

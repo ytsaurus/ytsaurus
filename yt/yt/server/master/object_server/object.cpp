@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/master/cypress_server/node.h>
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <util/generic/algorithm.h>
@@ -26,15 +28,14 @@ namespace NYT::NObjectServer {
 using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NSequoiaServer;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
 constinit const auto Logger = ObjectServerLogger;
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +160,47 @@ static_assert(IsPowerOf2(EpochRefCounterShardCount), "EpochRefCounterShardCount 
 std::array<TEpochRefCounterShard, EpochRefCounterShardCount> EpochRefCounterShards;
 
 } // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsObjectActive(const TObject* object)
+{
+    if (!IsObjectAlive(object)) {
+        return false;
+    }
+
+    // This is a highly selective fast-path.
+    if (object->GetLifeStage() == EObjectLifeStage::CreationCommitted) {
+        return true;
+    }
+
+    if (IsHiveMutation()) {
+        return true;
+    }
+
+    if (object->IsForeign() &&
+        object->GetLifeStage() == EObjectLifeStage::CreationPreCommitted)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void ValidateObjectActive(const TObject* object)
+{
+    YT_LOG_ALERT_AND_THROW_UNLESS(IsObjectAlive(object),
+        "Object is not alive while validating its life stage (ObjectId: %v)",
+        GetObjectId(object));
+
+    if (!IsObjectActive(object)) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InactiveObjectLifeStage,
+            "%v cannot be used since it is in %Qlv life stage",
+            object->GetCapitalizedObjectName(),
+            object->GetLifeStage());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -529,7 +571,7 @@ void TEphemeralObjectPtrContext::Unref(TObject* object)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void InitializeMasterStateThread(
+void InitializeMasterThreadState(
     NCellMaster::TBootstrap* bootstrap,
     TEpochContextPtr epochContext,
     bool isAutomatonThread)

@@ -761,6 +761,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperationEvents));
 
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobTraces));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInput)
             .SetStreamingEnabled(true)
@@ -3535,6 +3536,39 @@ private:
         HandleInputStreamingRequest(context, jobTraceReader);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListJobTraces)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TListJobTracesOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_per_process()) {
+            options.PerProcess = request->per_process();
+        }
+
+        options.Limit = request->limit();
+
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, PerProcess: %v, Limit: %v",
+            operationIdOrAlias,
+            jobId,
+            options.PerProcess,
+            options.Limit);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ListJobTraces(operationIdOrAlias, jobId, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_traces(), result);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobFailContext)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -4180,9 +4214,7 @@ private:
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
         }
-        if (request->has_expression_builder_version()) {
-            options.ExpressionBuilderVersion = request->expression_builder_version();
-        }
+        options.ExpressionBuilderVersion = YT_OPTIONAL_FROM_PROTO(*request, expression_builder_version);
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
         }

@@ -353,7 +353,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         chart["id"] = self._generate_id()
         chart["title"] = cell.title
 
-        if cell.display_legend is not None:
+        # By default, the legend in monium is not displayed.
+        if cell.display_legend:
             chart["displayLegend"] = cell.display_legend
 
         if cell.description is not None:

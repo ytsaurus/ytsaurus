@@ -190,7 +190,6 @@ public:
             SubquerySpec_.DataSliceDescriptors.size(),
             columnNames);
 
-        YT_LOG_INFO("Creating table readers");
         DB::Pipes pipes;
 
         IGranuleFilterPtr granuleMinMaxFilter;
@@ -276,16 +275,7 @@ public:
             }
             pipes.emplace_back(sourcePtr);
 
-            i64 rowCount = 0;
-            i64 dataWeight = 0;
-            int dataSliceCount = 0;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
-                for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                    rowCount += chunkSpec.row_count_override();
-                    dataWeight += chunkSpec.data_weight_override();
-                }
-                ++dataSliceCount;
-
                 if (SubquerySpec_.DataSourceDirectory->DataSources().front()->GetType() == EDataSourceType::UnversionedTable) {
                     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                         if (FromProto<TTabletId>(chunkSpec.tablet_id()) != NullTabletId) {
@@ -299,13 +289,11 @@ public:
                     }
                 }
             }
+
             YT_LOG_DEBUG(
-                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v)",
                 threadIndex,
-                enableInputSpecsPulling,
-                rowCount,
-                dataWeight,
-                dataSliceCount);
+                enableInputSpecsPulling);
 
             TStringBuilder debugString;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {

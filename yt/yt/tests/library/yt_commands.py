@@ -635,6 +635,12 @@ def get_job_trace(operation_id, job_id, **kwargs):
     return execute_command("get_job_trace", kwargs)
 
 
+def list_job_traces(operation_id, job_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    kwargs["job_id"] = job_id
+    return execute_command("list_job_traces", kwargs, parse_yson=True)
+
+
 def get_job_stderr_paged(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
     kwargs["job_id"] = job_id
@@ -3614,11 +3620,14 @@ def update_scheduler_config(path, value, wait_for_orchid=True):
         wait(lambda: is_subdict(value, get(orchid_path, default=None)))
 
 
-def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
+def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True, strict_value_validation=False):
     set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
     if wait_for_orchid:
         path = yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)
-        wait(lambda: is_subdict(value, get(path, default=None)))
+        if strict_value_validation:
+            wait(lambda: get(path, default=None) == value)
+        else:
+            wait(lambda: is_subdict(value, get(path, default=None)))
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):

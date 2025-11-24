@@ -13,7 +13,7 @@ Y_NO_INLINE void* GetIP()
     return __builtin_return_address(0);
 }
 
-TEST(Symbolize, EmptyProfile)
+TEST(TSymbolizeTest, EmptyProfile)
 {
     NProto::Profile profile;
     profile.add_string_table();
@@ -22,7 +22,7 @@ TEST(Symbolize, EmptyProfile)
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
 }
 
-TEST(Symbolize, SingleLocation)
+TEST(TSymbolizeTest, SingleLocation)
 {
     NProto::Profile profile;
     profile.add_string_table();
@@ -50,7 +50,7 @@ TEST(Symbolize, SingleLocation)
         << "function name is " << name;
 }
 
-TEST(Symbolize, GetBuildId)
+TEST(TSymbolizeTest, GetBuildId)
 {
     if (!IsProfileBuild()) {
         GTEST_SKIP();
@@ -63,7 +63,7 @@ TEST(Symbolize, GetBuildId)
     ASSERT_NE(*buildId, TString{""});
 }
 
-TEST(BuildInfo, Test)
+TEST(TBuildInfoTest, Test)
 {
     if (!IsProfileBuild()) {
         GTEST_SKIP();

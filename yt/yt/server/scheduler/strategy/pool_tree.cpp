@@ -2588,7 +2588,15 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto* pool = GetOperationElement(operationId)->GetParent();
+        MaybeDelay(Config_->TestingOptions->DelayInsidePoolPermissionsValidation, &Logger);
+
+        auto operationElement = FindOperationElement(operationId);
+        if (!operationElement) {
+            // NB(eshcherbin): Operation has been unregistered concurrently.
+            return;
+        }
+
+        auto* pool = operationElement->GetParent();
         while (pool->IsDefaultConfigured()) {
             pool = pool->GetParent();
         }

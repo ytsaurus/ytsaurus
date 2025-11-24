@@ -13,9 +13,9 @@ List of built-in scripts:
 
 At this point, you should have:
 
-* Helm 3.x
-* a running {{product-name}} cluster and the HTTP proxy address (`http_proxy`)
-* a dedicated robot user for Cron with a token issued to it (see [Token Management](../../user-guide/storage/auth.md#token-management))
+* Helm 3.x;
+* a running {{product-name}} cluster and the HTTP proxy address (`http_proxy`);
+* a dedicated robot user for Cron with a token issued to it (see [Token Management](../../user-guide/storage/auth.md#token-management)).
 
 ## Basic Installation
 
@@ -53,10 +53,10 @@ unmanagedSecret:
 ## Built-in Jobs { #jobs }
 
 Each job is defined by the following structure:
-- `enabled`: whether the job is enabled
-- `args`: command-line arguments
-- `schedule`: cron-format schedule
-- `restartPolicy`: restart policy (recommended: `Never`)
+- `enabled`: whether the job is enabled;
+- `args`: command-line arguments;
+- `schedule`: cron-format schedule;
+- `restartPolicy`: restart policy (recommended: `Never`).
 
 Example of enabling a job:
 

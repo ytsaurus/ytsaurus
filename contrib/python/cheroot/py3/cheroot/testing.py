@@ -19,6 +19,10 @@ NO_INTERFACE = None  # Using this or '' will cause an exception
 ANY_INTERFACE_IPV4 = '0.0.0.0'
 ANY_INTERFACE_IPV6 = '::'
 
+# We use special exit code to indicate success, rather than normal zero, so
+# the test doesn't acidentally pass:
+SUCCESSFUL_SUBPROCESS_EXIT = 23
+
 config = {
     cheroot.wsgi.Server: {
         'bind_addr': (NO_INTERFACE, EPHEMERAL_PORT),

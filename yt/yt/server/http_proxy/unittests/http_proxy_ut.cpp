@@ -3,6 +3,7 @@
 #include <yt/yt/server/http_proxy/framing.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
 
 #include <util/string/builder.h>
 
@@ -13,7 +14,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TProxy, FramingOutputStream)
+TEST(TProxyTest, FramingOutputStream)
 {
     constexpr char DataFrameTag = '\x01';
     constexpr char KeepAliveFrameTag = '\x02';

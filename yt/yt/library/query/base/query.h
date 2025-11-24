@@ -532,12 +532,12 @@ struct TInferNameOptions
 {
     bool OmitValues = false;
     bool OmitAliases = false;
-    bool OmitJoinPredicate = false;
     bool OmitOffsetAndLimit = false;
+    TConstGroupClausePtr GroupClause;
 };
 
-std::string InferName(TConstExpressionPtr expr, bool omitValues = false);
-std::string InferName(TConstBaseQueryPtr query, TInferNameOptions options = {});
+std::string InferName(TConstExpressionPtr expr, const TInferNameOptions& options = {});
+std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

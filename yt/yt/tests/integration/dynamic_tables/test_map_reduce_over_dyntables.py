@@ -5,7 +5,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, merge, join_reduce,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
-    lookup_rows, raises_yt_error, select_rows, generate_uuid)
+    lookup_rows, raises_yt_error, select_rows, generate_uuid, set_node_banned)
 
 from yt_type_helpers import (
     make_schema,
@@ -986,6 +986,77 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert len(schema) == 2
         assert schema[0]["name"] == "key"
         assert schema[1]["name"] == "value"
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("lose_after_materialization", [True, False])
+    def test_unavailable_versioned_chunks(self, lose_after_materialization):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t_input",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ],
+            replication_factor=1)
+        sync_mount_table("//tmp/t_input")
+        insert_rows(
+            path="//tmp/t_input",
+            data=[{"k": 1, "v": "b"}],
+            update=True,
+        )
+        sync_flush_table("//tmp/t_input")
+        insert_rows(
+            path="//tmp/t_input",
+            data=[{"k": 1, "v": "c"}],
+            update=True,
+        )
+        sync_flush_table("//tmp/t_input")
+        sync_unmount_table("//tmp/t_input")
+
+        chunk_ids = get("//tmp/t_input/@chunk_ids")
+
+        replicas_to_ban = []
+        for chunk_id in chunk_ids:
+            replicas = get(f"#{chunk_id}/@stored_replicas")
+            assert len(replicas) == 1
+            replicas_to_ban.append(str(replicas[0]))
+
+        def lose_chunks():
+            for replica in replicas_to_ban:
+                set_node_banned(replica, True)
+
+            for chunk_id in chunk_ids:
+                wait(lambda: get(f"#{chunk_id}/@replication_status/default/lost"))
+
+        if not lose_after_materialization:
+            lose_chunks()
+
+        op = map(
+            in_="//tmp/t_input",
+            out="<create=%true>//tmp/t_output",
+            command="cat",
+            track=False,
+            spec={
+                "suspend_operation_after_materialization": lose_after_materialization,
+                "job_io": {
+                    "table_reader": {"retry_count": 1, "pass_count": 1},
+                },
+            }
+        )
+
+        if lose_after_materialization:
+            wait(lambda: get(op.get_path() + "/@suspended"))
+            lose_chunks()
+            op.resume()
+            wait(lambda: get(op.get_path() + "/@progress/jobs/aborted/total", default=False) > 0)
+
+        for replica in replicas_to_ban:
+            set_node_banned(replica, False)
+
+        op.track()
+
+        assert_items_equal(read_table("//tmp/t_output"), [{"k": 1, "v": "c"}])
 
 
 ##################################################################

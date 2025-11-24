@@ -128,7 +128,9 @@ class GrafanaFacade(cli.FacadeBase):
         proxy.submit_dashboard(serialized_dashboard, self.dashboard_id, self.folder_uid)
 
     def generate_serialized_dashboard(self, verbose: bool) -> dict[str, Any]:
-        return self._prepare_serialized_dashboard(verbose)
+        serialized_dashboard = self._prepare_serialized_dashboard(verbose)
+        serialized_dashboard["uid"] = self.uid
+        return serialized_dashboard
 
     def _generate_dashboard(self):
         dashboard = self.func()

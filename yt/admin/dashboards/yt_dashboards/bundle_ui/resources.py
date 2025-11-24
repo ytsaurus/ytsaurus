@@ -75,7 +75,7 @@ About the difference between CPU and vCPU:
         .stack(False)
         .row(height=5)
             .cell("", Text(cpu_vs_vcpu_hint))
-            .cell("", EmptyCell())
+            .cell("", EmptyCell(), skip_cell=not has_porto)
         .row()
             .cell("CPU Total", MultiSensor(
                     cpu_guarantee.alias("Container CPU Guarantee") if has_porto else None,
@@ -122,7 +122,7 @@ About the difference between CPU and vCPU:
                 .all("method")).alias("{{method}}"))
             .cell("Disk Write per container" if has_porto else "Disk Write per pod", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                 .aggr("method", "table_path", "table_tag", "account", "medium"))
-                .alias("{{container}}" if has_porto else "{{exported_pod}}")
+                .alias("{{container}}")
                 .all(MonitoringTag("host"))
                 .top()
                 .stack(False))
@@ -138,7 +138,7 @@ About the difference between CPU and vCPU:
                 "Disk Read per container" if has_porto else "Disk Read per pod",
                 (chunk_reader_statistics("") + chunk_reader_statistics("lookup") + chunk_reader_statistics("select"))
                     .aggr("method", "table_path", "table_tag", "account", "medium", "user")
-                    .alias("{{container}}" if has_porto else "{{exported_pod}}")
+                    .alias("{{container}}")
                     .all(MonitoringTag("host"))
                     .top_avg(10)
                     .stack(False))

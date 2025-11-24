@@ -12,7 +12,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TTestClickHouseHelpers, FindMaxIncarnation)
+TEST(TTestClickHouseHelpersTest, FindMaxIncarnation)
 {
     THashMap<TString, IAttributeDictionaryPtr> instances;
     instances["instance_1"] = ConvertToAttributes(THashMap<TString, int>{
