@@ -2937,7 +2937,6 @@ private:
                 << TErrorAttribute("transaction_ids", transactionIds)
                 << TErrorAttribute("cell_id", cellId)
                 << TErrorAttribute("cell_type", cellType);
-            return;
         }
 
         for (auto transactionId : transactionIds) {
@@ -3108,7 +3107,6 @@ private:
                             << TErrorAttribute("transaction_id", transaction->GetId())
                             << TErrorAttribute("cell_id", cellId)
                             << TErrorAttribute("cell_type", cellType);
-                        return;
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
                 }
@@ -3854,7 +3852,7 @@ private:
         if (alerted) {
             return;
         }
-        auto cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
+        auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
         if (!cellLeaseTransactionIds) {
             YT_LOG_DEBUG(
                 "Lease was revoked on missing cell, ignored (LeaseId: %v, CellId: %v)",
