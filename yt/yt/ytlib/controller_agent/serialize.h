@@ -96,6 +96,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AlwaysSetChunkPoolOutput)              (302116))
     ((MovePoolsToTasksInSortController)      (302117))
     ((FixWaitingChunkCountInInputManager)    (302118))
+    ((UnifyFinalPartitionDispatching)        (302119))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
