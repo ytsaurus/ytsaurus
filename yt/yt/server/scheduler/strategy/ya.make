@@ -36,6 +36,7 @@ SRCS(
     policy/pool_tree_snapshot_state.cpp
     policy/scheduling_heartbeat_context.cpp
     policy/scheduling_policy.cpp
+    policy/scheduling_policy_detail.cpp
     policy/scheduling_segment_manager.cpp
     policy/structs.cpp
 )

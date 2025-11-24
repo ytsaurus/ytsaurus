@@ -9,6 +9,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingPolicyHost);
+DECLARE_REFCOUNTED_STRUCT(ISchedulingPolicy);
 
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 

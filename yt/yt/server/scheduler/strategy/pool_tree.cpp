@@ -16,6 +16,7 @@
 #include <yt/yt/server/scheduler/strategy/policy/gpu/scheduling_policy.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 
 #include <yt/yt/server/scheduler/common/allocation.h>
 #include <yt/yt/server/scheduler/common/helpers.h>
@@ -289,7 +290,7 @@ public:
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , SchedulingPolicy_(New<NPolicy::TSchedulingPolicy>(
+        , SchedulingPolicy_(CreateSchedulingPolicy(
             TreeId_,
             Logger,
             MakeWeak(this),
@@ -1368,7 +1369,7 @@ private:
     TResourceTreePtr ResourceTree_;
 
     const NProfiling::TProfiler Profiler_;
-    const NPolicy::TSchedulingPolicyPtr SchedulingPolicy_;
+    const NPolicy::ISchedulingPolicyPtr SchedulingPolicy_;
     const NPolicy::NGpu::ISchedulingPolicyPtr GpuSchedulingPolicy_;
     const TPoolTreeProfileManagerPtr ProfileManager_;
 
@@ -2681,7 +2682,7 @@ private:
         YT_VERIFY(treeSnapshot);
 
         auto processSchedulingHeartbeatFuture = BIND(
-            &NPolicy::TSchedulingPolicy::ProcessSchedulingHeartbeat,
+            &NPolicy::ISchedulingPolicy::ProcessSchedulingHeartbeat,
             SchedulingPolicy_,
             schedulingHeartbeatContext,
             treeSnapshot,
