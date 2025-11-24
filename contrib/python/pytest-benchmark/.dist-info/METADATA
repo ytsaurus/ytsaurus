@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: pytest-benchmark
-Version: 5.2.2
+Version: 5.2.3
 Summary: A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen timer.
 Author-email: Ionel Cristian Mărieș <contact@ionelmc.ro>
 License-Expression: BSD-2-Clause
@@ -39,15 +39,51 @@ Requires-Dist: pygaljs; extra == "histogram"
 Requires-Dist: setuptools; extra == "histogram"
 Provides-Extra: elasticsearch
 Requires-Dist: elasticsearch; extra == "elasticsearch"
-Dynamic: description
-Dynamic: description-content-type
 Dynamic: license-file
 
 ========
 Overview
 ========
 
+.. list-table::
+    :stub-columns: 1
 
+    * - docs
+      - |docs| |gitter|
+    * - tests
+      - |github-actions| |coveralls| |codecov|
+    * - package
+      - |version| |wheel| |supported-versions| |supported-implementations| |commits-since|
+.. |docs| image:: https://readthedocs.org/projects/pytest-benchmark/badge/?style=flat
+    :target: https://readthedocs.org/projects/pytest-benchmark/
+    :alt: Documentation Status
+.. |github-actions| image:: https://github.com/ionelmc/pytest-benchmark/actions/workflows/github-actions.yml/badge.svg
+    :alt: GitHub Actions Build Status
+    :target: https://github.com/ionelmc/pytest-benchmark/actions
+.. |gitter| image:: https://badges.gitter.im/ionelmc/pytest-benchmark.svg
+    :alt: Join the chat at https://gitter.im/ionelmc/pytest-benchmark
+    :target: https://gitter.im/ionelmc/pytest-benchmark
+.. |coveralls| image:: https://coveralls.io/repos/github/ionelmc/pytest-benchmark/badge.svg?branch=master
+    :alt: Coverage Status
+    :target: https://coveralls.io/github/ionelmc/pytest-benchmark?branch=master
+.. |codecov| image:: https://codecov.io/gh/ionelmc/pytest-benchmark/branch/master/graphs/badge.svg?branch=master
+    :alt: Coverage Status
+    :target: https://app.codecov.io/github/ionelmc/pytest-benchmark
+.. |version| image:: https://img.shields.io/pypi/v/pytest-benchmark.svg
+    :alt: PyPI Package latest release
+    :target: https://pypi.org/project/pytest-benchmark
+.. |wheel| image:: https://img.shields.io/pypi/wheel/pytest-benchmark.svg
+    :alt: PyPI Wheel
+    :target: https://pypi.org/project/pytest-benchmark
+.. |supported-versions| image:: https://img.shields.io/pypi/pyversions/pytest-benchmark.svg
+    :alt: Supported versions
+    :target: https://pypi.org/project/pytest-benchmark
+.. |supported-implementations| image:: https://img.shields.io/pypi/implementation/pytest-benchmark.svg
+    :alt: Supported implementations
+    :target: https://pypi.org/project/pytest-benchmark
+.. |commits-since| image:: https://img.shields.io/github/commits-since/ionelmc/pytest-benchmark/v5.2.3.svg
+    :alt: Commits since latest release
+    :target: https://github.com/ionelmc/pytest-benchmark/compare/v5.2.3...master
 
 A ``pytest`` fixture for benchmarking code. It will group the tests into rounds that are calibrated to the chosen
 timer.
@@ -194,6 +230,12 @@ Credits
 
 Changelog
 =========
+
+v5.2.3 (2025-11-09)
+--------------------
+
+* Add support for pytest 9.0.
+* Moved the README.rst/CHANGELOG.rst concatenation from setup.py to pyproject.toml.
 
 v5.2.2 (2025-11-07)
 --------------------

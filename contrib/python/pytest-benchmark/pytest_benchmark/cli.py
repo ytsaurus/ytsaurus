@@ -116,7 +116,7 @@ def make_parser():
 
 class HookDispatch:
     def __init__(self, *, root, **kwargs):
-        _, _, config = locate_config(invocation_dir=root, args=())
+        _, _, config, *_ = locate_config(invocation_dir=root, args=())
         conftest_file = pathlib.Path('conftest.py')
         if conftest_file.exists():
             self.conftest = pathlib.import_path(
