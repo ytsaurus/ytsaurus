@@ -537,6 +537,12 @@ TPyObjectPtr ToPyData(const TPyCastContext::TPtr& ctx,
             auto tzName = ctx->GetTimezoneName(tzId);
             return PyTuple_Pack(2, pyValue.Get(), tzName.Get());
         }
+        case NUdf::TDataType<NUdf::TDate32>::Id:
+            return PyCast<i32>(value.Get<i32>());
+        case NUdf::TDataType<NUdf::TDatetime64>::Id:
+        case NUdf::TDataType<NUdf::TTimestamp64>::Id:
+        case NUdf::TDataType<NUdf::TInterval64>::Id:
+            return PyCast<i64>(value.Get<i64>());
     }
 
     throw yexception()
@@ -672,6 +678,43 @@ NUdf::TUnboxedValue FromPyData(
             return FromPyTz<ui32>(value, NUdf::MAX_DATETIME, TStringBuf("TzDatetime"), ctx);
         case NUdf::TDataType<NUdf::TTzTimestamp>::Id:
             return FromPyTz<ui64>(value, NUdf::MAX_TIMESTAMP, TStringBuf("TzTimestamp"), ctx);
+
+        case NUdf::TDataType<NUdf::TDate32>::Id: {
+            const auto num = PyCast<i32>(value);
+            if (num > NUdf::MAX_DATE32 || num < NUdf::MIN_DATE32) {
+                throw yexception() << "Python object " << PyObjectRepr(value)
+                << " is out of range for Date32";
+            }
+
+            return NUdf::TUnboxedValuePod(num);
+        }
+        case NUdf::TDataType<NUdf::TDatetime64>::Id: {
+            const auto num = PyCast<i64>(value);
+            if (num > NUdf::MAX_DATETIME64 || num < NUdf::MIN_DATETIME64) {
+                throw yexception() << "Python object " << PyObjectRepr(value)
+                << " is out of range for Datetime64";
+            }
+
+            return NUdf::TUnboxedValuePod(num);
+        }
+        case NUdf::TDataType<NUdf::TTimestamp64>::Id: {
+            const auto num = PyCast<i64>(value);
+            if (num > NUdf::MAX_TIMESTAMP64 || num < NUdf::MIN_TIMESTAMP64) {
+                throw yexception() << "Python object " << PyObjectRepr(value)
+                << " is out of range for Timestamp64";
+            }
+
+            return NUdf::TUnboxedValuePod(num);
+        }
+        case NUdf::TDataType<NUdf::TInterval64>::Id: {
+            const auto num = PyCast<i64>(value);
+            if (std::abs(num) > NUdf::MAX_INTERVAL64) {
+                throw yexception() << "Python object " << PyObjectRepr(value)
+                << " is out of range for Interval64";
+            }
+
+            return NUdf::TUnboxedValuePod(num);
+        }
     }
 
     throw yexception()
