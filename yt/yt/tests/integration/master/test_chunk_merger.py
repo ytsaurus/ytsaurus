@@ -607,7 +607,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
 
         traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
-        assert traversal_info2["chunk_count"] > traversal_info1["chunk_count"]
+        wait(lambda: traversal_info2["chunk_count"] > traversal_info1["chunk_count"])
         assert traversal_info2["config_version"] == traversal_info1["config_version"]
 
         set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
