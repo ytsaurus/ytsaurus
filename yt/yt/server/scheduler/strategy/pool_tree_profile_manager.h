@@ -18,7 +18,7 @@ public:
         NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
         const IInvokerPtr& profilingInvoker,
-        NPolicy::TSchedulingPolicyPtr schedulingPolicy);
+        NPolicy::ISchedulingPolicyPtr schedulingPolicy);
 
     // Thread affinity: Control thread.
     NProfiling::TProfiler GetProfiler() const;
@@ -52,7 +52,7 @@ private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
     const IInvokerPtr ProfilingInvoker_;
-    const NPolicy::TSchedulingPolicyPtr SchedulingPolicy_;
+    const NPolicy::ISchedulingPolicyPtr SchedulingPolicy_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
