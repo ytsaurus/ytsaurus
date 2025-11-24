@@ -86,6 +86,8 @@ class OpenPortIteratorArcadia(Iterator):
     def __init__(self):
         if yatest_common_network is None:
             raise RuntimeError("Cannot use OpenPortIteratorArcadia outside arcadia")
+        if os.environ.get("PS1") and not os.environ.get("VALID_PORT_RANGE"):
+            os.environ["VALID_PORT_RANGE"] = "10000:20000"
         self.port_manager = yatest_common_network.PortManager()
 
     def release(self):
