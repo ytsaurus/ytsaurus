@@ -18,7 +18,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.25.5")
+    api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yql:essentials:providers:common:proto"))
 
     protobuf(files(buildProtoDir))
@@ -27,7 +27,7 @@ dependencies {
 protobuf {
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.25.5"
+        artifact = "com.google.protobuf:protoc:4.33.0"
     }
 
 }
