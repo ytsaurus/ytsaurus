@@ -1378,7 +1378,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG("Transaction coarsly serialized (TransactionId: %v, CommitTimestamp: %v)",
+                YT_LOG_DEBUG("Transaction coarsely serialized (TransactionId: %v, CommitTimestamp: %v)",
                     transaction->GetId(),
                     commitTimestamp);
 
