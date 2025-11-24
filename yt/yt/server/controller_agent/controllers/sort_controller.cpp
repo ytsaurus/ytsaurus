@@ -701,21 +701,18 @@ protected:
 
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
+            YT_VERIFY(!Controller_->SimpleSortTask_);
+
+            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
+            auto partition = DynamicPointerCast<TIntermediatePartition>(Controller_->PartitionsByLevels_[Level_][partitionIndex]);
+
             if (IsIntermediate()) {
                 Controller_->UpdateTask(GetNextPartitionTask().Get());
-            } else if (Controller_->SimpleSortTask_) {
-                Controller_->UpdateTask(Controller_->SimpleSortTask_.Get());
             } else {
                 Controller_->UpdateTask(Controller_->UnorderedMergeTask_.Get());
                 Controller_->UpdateTask(Controller_->IntermediateSortTask_.Get());
                 Controller_->UpdateTask(Controller_->FinalSortTask_.Get());
-            }
 
-            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
-            auto partition = DynamicPointerCast<TIntermediatePartition>(Controller_->PartitionsByLevels_[Level_][partitionIndex]);
-            const auto& shuffleChunkPool = partition->ShuffleChunkPool();
-
-            if (IsFinal()) {
                 for (const auto& finalPartition : partition->Children()) {
                     // Check if final partition is large enough to start sorted merge.
                     Controller_->IsSortedMergeNeeded(DynamicPointerCast<TFinalPartition>(finalPartition));
@@ -729,6 +726,7 @@ protected:
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
 
+            const auto& shuffleChunkPool = partition->ShuffleChunkPool();
             if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec_->MaxShuffleDataSliceCount) {
                 result.OperationFailedError = TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
                     << TErrorAttribute("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
@@ -795,23 +793,17 @@ protected:
                 nextPartitionTask->FinishInput();
                 Controller_->UpdateTask(nextPartitionTask.Get());
             } else {
-                if (Controller_->FinalSortTask_) {
-                    Controller_->FinalSortTask_->Finalize();
-                    Controller_->FinalSortTask_->FinishInput();
-                }
+                Controller_->FinalSortTask_->Finalize();
+                Controller_->FinalSortTask_->FinishInput();
 
-                if (Controller_->IntermediateSortTask_) {
-                    Controller_->IntermediateSortTask_->Finalize();
-                    Controller_->IntermediateSortTask_->FinishInput();
-                }
+                Controller_->IntermediateSortTask_->Finalize();
+                Controller_->IntermediateSortTask_->FinishInput();
+
+                Controller_->SortedMergeTask_->Finalize();
 
                 if (Controller_->UnorderedMergeTask_) {
                     Controller_->UnorderedMergeTask_->FinishInput();
                     Controller_->UnorderedMergeTask_->Finalize();
-                }
-
-                if (Controller_->SortedMergeTask_) {
-                    Controller_->SortedMergeTask_->Finalize();
                 }
 
                 Controller_->ValidateMergeDataSliceLimit();
@@ -822,23 +814,21 @@ protected:
 
                 Controller_->AssignPartitions();
 
-                {
-                    int twoPhasePartitionCount = 0;
-                    int threePhasePartitionCount = 0;
-                    for (const auto& partition : GetOutputPartitions()) {
-                        if (Controller_->IsSortedMergeNeeded(DynamicPointerCast<TFinalPartition>(partition))) {
-                            ++threePhasePartitionCount;
-                        } else {
-                            ++twoPhasePartitionCount;
-                        }
+                int twoPhasePartitionCount = 0;
+                int threePhasePartitionCount = 0;
+                for (const auto& partition : GetOutputPartitions()) {
+                    if (Controller_->IsSortedMergeNeeded(DynamicPointerCast<TFinalPartition>(partition))) {
+                        ++threePhasePartitionCount;
+                    } else {
+                        ++twoPhasePartitionCount;
                     }
-
-                    YT_LOG_DEBUG("Partitioning completed "
-                        "(PartitionCount: %v, TwoPhasePartitionCount: %v, ThreePhasePartitionCount: %v)",
-                        GetOutputPartitions().size(),
-                        twoPhasePartitionCount,
-                        threePhasePartitionCount);
                 }
+
+                YT_LOG_DEBUG("Partitioning completed "
+                    "(PartitionCount: %v, TwoPhasePartitionCount: %v, ThreePhasePartitionCount: %v)",
+                    GetOutputPartitions().size(),
+                    twoPhasePartitionCount,
+                    threePhasePartitionCount);
             }
 
             // NB: This is required at least to mark tasks completed, when there are no pending jobs.
