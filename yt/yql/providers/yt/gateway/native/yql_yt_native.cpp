@@ -1032,6 +1032,8 @@ public:
                 future = DoDrop(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtDropView>()) {
                 future = DoDrop(op.Cast(), execCtx);
+            } else if (auto op = opBase.Maybe<TYtCreateView>()) {
+                future = DoCreateView(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtStatOut>()) {
                 future = DoStatOut(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtDqProcessWrite>()) {
@@ -5186,6 +5188,23 @@ private:
             YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
             auto entry = execCtx->GetEntry();
             entry->Tx->Remove(path, TRemoveOptions().Force(true));
+        });
+    }
+
+    TFuture<void> DoCreateView(TYtCreateView create, const TExecContext<TRunOptions>::TPtr& execCtx) {
+        TString tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), execCtx->Cluster_);
+        auto table = create.Table();
+        bool isAnonymous = NYql::HasSetting(table.Settings().Ref(), EYtSettingType::Anonymous);
+        TString path = NYql::TransformPath(tmpFolder, table.Name().Value(), isAnonymous, execCtx->Session_->UserName_);
+        YQL_CLOG(INFO, ProviderYt) << "Creating: " << execCtx->Cluster_ << '.' << path;
+
+        NYT::TNode attrs = NYT::TNode::CreateMap();
+        attrs[YqlTypeAttribute] = "view";
+        attrs["value"] = create.Original().Value();
+
+        return execCtx->Session_->Queue_->Async([path, attrs, execCtx]() {
+            YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
+            execCtx->GetEntry()->Tx->Create(path, NT_DOCUMENT, TCreateOptions().Force(true).Attributes(attrs));
         });
     }
 
