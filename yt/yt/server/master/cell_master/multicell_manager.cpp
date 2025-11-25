@@ -330,8 +330,8 @@ public:
             return nullptr;
         }
 
-        auto [it, inserted] = LocalMasterIssuedLeaseIds_.insert({cellTag, {}});
-        if (inserted) {
+        auto [it, emplaced] = LocalMasterIssuedLeaseIds_.emplace(cellTag, THashSet<TTransactionId>{});
+        if (emplaced) {
             YT_LOG_INFO("Created entry for local leases issued for master (CellTag: %v)",
                 cellTag);
         }
