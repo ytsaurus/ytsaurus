@@ -70,7 +70,9 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
 
     ToProto(protoSpec->mutable_data_source_directory(), spec.DataSourceDirectory);
 
-    for (const auto& inputDataSliceDescriptors : spec.DataSliceDescriptors) {
+    protoSpec->set_input_stream_count(spec.InputStreamCount);
+    protoSpec->set_input_specs_truncated(spec.InputSpecsTruncated);
+    for (const auto& inputDataSliceDescriptors : spec.InputSpecs) {
         auto* inputSpec = protoSpec->add_input_specs();
         ToProto(
             inputSpec->mutable_chunk_specs(),
@@ -97,9 +99,11 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
 
     FromProto(&spec->DataSourceDirectory, protoSpec.data_source_directory());
 
+    spec->InputStreamCount = protoSpec.input_stream_count();
+    spec->InputSpecsTruncated = protoSpec.input_specs_truncated();
     for (const auto& inputSpec : protoSpec.input_specs()) {
         FromProto(
-            &spec->DataSliceDescriptors.emplace_back(),
+            &spec->InputSpecs.emplace_back(),
             inputSpec.chunk_specs(),
             inputSpec.chunk_spec_count_per_data_slice(),
             inputSpec.virtual_row_index_per_data_slice());

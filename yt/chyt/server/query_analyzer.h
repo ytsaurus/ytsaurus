@@ -42,8 +42,6 @@ struct TSecondaryQuery
 {
     DB::ASTPtr Query;
     DB::Scalars Scalars;
-    DB::UInt64 TotalRowsToRead;
-    DB::UInt64 TotalBytesToRead;
 };
 
 struct TBoundJoinOptions
@@ -66,13 +64,13 @@ public:
         const std::vector<TSubquerySpec>& operandSpecs,
         TBoundJoinOptions boundJoinOptions = {});
 
-    TSecondaryQuery CreateSecondaryQuery(int inputStreamsPerSecondaryQuery);
-
     TSecondaryQuery CreateSecondaryQuery(
         const TRange<TSubquery>& subqueries,
         const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
         int subqueryIndex,
-        bool isLastSubquery);
+        i64 inputStreamCount,
+        bool isCompleteSubquery = false,
+        bool isLastSubquery = false);
 
 private:
     NLogging::TLogger Logger;

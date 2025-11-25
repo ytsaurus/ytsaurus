@@ -109,6 +109,7 @@ public:
     std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;
     std::optional<NYPath::TYPath> ConcatTableRangeBreakpoint;
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
+    std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -249,6 +250,10 @@ public:
     bool EnableMinMaxOptimization;
     //! Allow to use minmax optimization for strings (answer can be corrupted for string with max_chars).
     bool AllowStringMinMaxOptimization;
+
+    //! CH estimates total execution time by linearly extrapolating the current read rate.
+    //! Since read throughput can vary, this estimate may be inaccurate and lead to false positive errors.
+    bool DisableReadingTimeEstimation;
 
     REGISTER_YSON_STRUCT(TExecutionSettings);
 

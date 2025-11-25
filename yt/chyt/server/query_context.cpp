@@ -808,6 +808,12 @@ void TQueryContext::SetReadTaskCallback(DB::ReadTaskCallback readTaskCallback)
     ReadTaskPuller_ = New<TSecondaryQueryReadTaskPuller>(this, std::move(readTaskCallback));
 }
 
+void TQueryContext::RegisterOperandReadTasks(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& tasks)
+{
+    YT_VERIFY(ReadTaskPuller_);
+    ReadTaskPuller_->RegisterOperand(operandIndex, std::move(tasks));
+}
+
 TCallback<TFuture<TSecondaryQueryReadDescriptors>()> TQueryContext::GetOperandReadTaskCallback(int operandIndex) const
 {
     if (!ReadTaskPuller_) {

@@ -9,10 +9,12 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NClickHouseServer {
 
 using namespace NChunkPools;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,63 +23,81 @@ DEFINE_REFCOUNTED_TYPE(TSecondaryQueryReadTaskPuller);
 TSecondaryQueryReadTaskPuller::TSecondaryQueryReadTaskPuller(
     TQueryContext* queryContext,
     DB::ReadTaskCallback nextTaskCallback)
-    : QueryContext_(queryContext)
-    , Invoker_(NConcurrency::CreateSerializedInvoker(QueryContext_->Host->GetWorkerInvoker()))
-    , NextTaskCallback_(std::move(nextTaskCallback))
+    : NextTaskCallback_(std::move(nextTaskCallback))
+    , QueryContext_(queryContext)
+    , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
 { }
+
+void TSecondaryQueryReadTaskPuller::RegisterOperand(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& initialTasks)
+{
+    auto guard = Guard(BufferLock_);
+    for (int index = std::ssize(Buffer_); index <= operandIndex; ++index) {
+        Buffer_.emplace_back();
+    }
+    OperandCount_ = std::ssize(Buffer_);
+
+    if (initialTasks.empty()) {
+        return;
+    }
+
+    for (auto& task : initialTasks) {
+        Buffer_[operandIndex].push(MakeFuture(std::move(task)));
+    }
+}
 
 TFuture<TSecondaryQueryReadDescriptors> TSecondaryQueryReadTaskPuller::PullTask(int operandIndex)
 {
-    return BIND(&TSecondaryQueryReadTaskPuller::DoPullTask, MakeStrong(this), operandIndex)
-        .AsyncVia(Invoker_)
-        .Run();
+    auto guard = Guard(BufferLock_);
+
+    if (Buffer_[operandIndex].empty()) {
+        std::vector<TPromise<TSecondaryQueryReadDescriptors>> taskPromises;
+        taskPromises.reserve(OperandCount_);
+        for (int index = 0; index < OperandCount_; ++index) {
+            taskPromises.push_back(NewPromise<TSecondaryQueryReadDescriptors>());
+            Buffer_[index].push(taskPromises.back().ToFuture());
+        }
+        YT_UNUSED_FUTURE(BIND(&TSecondaryQueryReadTaskPuller::DoPullAsync, MakeStrong(this), Passed(std::move(taskPromises)))
+            .AsyncVia(Invoker_)
+            .Run());
+    }
+
+    auto taskFuture = std::move(Buffer_[operandIndex].front());
+    Buffer_[operandIndex].pop();
+
+    return taskFuture;
 }
 
-TSecondaryQueryReadDescriptors TSecondaryQueryReadTaskPuller::DoPullTask(int operandIndex)
+void TSecondaryQueryReadTaskPuller::DoPullAsync(std::vector<TPromise<TSecondaryQueryReadDescriptors>> taskPromises)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     using namespace NStatisticPath;
     auto timeGuard = QueryContext_->CreateStatisticsTimerGuard("/secondary_query_read_task_puller/do_pull_task"_SP);
 
-    if (Buffer_.empty() || Buffer_[operandIndex].empty()) {
-        TryPopulateBuffer();
+    std::string protoReadTaskString;
+
+    bool finished = Finished_.load(std::memory_order::acquire);
+
+    if (!finished) {
+        protoReadTaskString = NextTaskCallback_();
     }
 
-    if (Buffer_.empty() || Buffer_[operandIndex].empty()) {
-        return {};
-    }
-
-    auto readTask = std::move(Buffer_[operandIndex].front());
-    Buffer_[operandIndex].pop();
-
-    return readTask;
-}
-
-void TSecondaryQueryReadTaskPuller::TryPopulateBuffer()
-{
-    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
-    if (Finished_) {
-        return;
-    }
-
-    auto protoReadTaskString = NextTaskCallback_();
     if (protoReadTaskString.empty()) {
-        Finished_ = true;
+        Finished_.store(true, std::memory_order::release);
+        static const TSecondaryQueryReadDescriptors emptyReadDescriptors;
+        for (const auto& promise : taskPromises) {
+            promise.Set(emptyReadDescriptors);
+        }
         return;
     }
 
     NProto::TSecondaryQueryReadTask protoReadTask;
     Y_PROTOBUF_SUPPRESS_NODISCARD protoReadTask.ParseFromString(protoReadTaskString);
     auto readTask = NYT::FromProto<TSecondaryQueryReadTask>(protoReadTask);
+    YT_VERIFY(readTask.OperandInputs.size() == taskPromises.size());
 
-    if (Buffer_.empty()) {
-        Buffer_.resize(readTask.OperandInputs.size());
-    }
-
-    for (int operandIndex = 0; operandIndex < std::ssize(readTask.OperandInputs); ++operandIndex) {
-        Buffer_[operandIndex].push(std::move(readTask.OperandInputs[operandIndex]));
+    for (const auto& [promise, task] : Zip(taskPromises, readTask.OperandInputs)) {
+        promise.Set(task);
     }
 }
 
@@ -85,7 +105,7 @@ void TSecondaryQueryReadTaskPuller::TryPopulateBuffer()
 
 TSecondaryQueryReadTaskIterator::TSecondaryQueryReadTaskIterator(
     int operandCount,
-    const std::vector<TSubquery>& subqueries,
+    const TRange<TSubquery>& subqueries,
     const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap)
 {
     EncodedReadTasks_.reserve(subqueries.size());
@@ -106,7 +126,7 @@ std::string TSecondaryQueryReadTaskIterator::NextTask()
 {
     auto currentIndex = Index_.fetch_add(1);
     if (currentIndex >= EncodedReadTasks_.size()) {
-        return "";
+        return {};
     }
     return EncodedReadTasks_[currentIndex];
 }

@@ -36,7 +36,9 @@ void FillDataSliceDescriptors(
 struct TSubquerySpec
 {
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
-    std::vector<TSecondaryQueryReadDescriptors> DataSliceDescriptors;
+    i64 InputStreamCount;
+    std::vector<TSecondaryQueryReadDescriptors> InputSpecs;
+    bool InputSpecsTruncated;
     TString InitialQuery;
     // Does not include virtual columns.
     NTableClient::TTableSchemaPtr ReadSchema;

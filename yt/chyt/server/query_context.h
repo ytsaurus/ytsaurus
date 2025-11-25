@@ -186,7 +186,8 @@ public:
     TQueryProgressValues GetQueryProgress() const;
 
     void SetReadTaskCallback(DB::ReadTaskCallback readTaskCallback);
-    TCallback<TFuture<TSecondaryQueryReadDescriptors>()> GetOperandReadTaskCallback(int tableIndex) const;
+    void RegisterOperandReadTasks(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& initialTasks);
+    TCallback<TFuture<TSecondaryQueryReadDescriptors>()> GetOperandReadTaskCallback(int operandIndex) const;
 
 public:
     //! A guard that automatically adds elapsed time to query statistics in destructor.

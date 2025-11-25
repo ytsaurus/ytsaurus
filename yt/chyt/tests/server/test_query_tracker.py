@@ -1,6 +1,6 @@
 from yt_commands import (authors,
                          create, exists, read_table, write_table,
-                         raises_yt_error, create_user, set, make_ace, wait)
+                         raises_yt_error, create_user, set, make_ace, wait, get)
 
 from yt.test_helpers import assert_items_equal
 
@@ -8,13 +8,18 @@ from yt_type_helpers import decimal_type
 
 from decimal_helpers import encode_decimal
 
+import yt_queries
 from yt_queries import start_query
 
 from base import ClickHouseTestBase, Clique
 
 from yt.wrapper import yson
 
+from collections import defaultdict
+import threading
 import time
+import queue
+import pytest
 
 
 class TestQueriesChyt(ClickHouseTestBase):
@@ -395,3 +400,123 @@ class TestQueriesChyt(ClickHouseTestBase):
             rows = [r for r in read_table(clique.query_log_table_path) if match(r)]
             print(rows)
             assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
+
+
+class TestChytEngineProgress(ClickHouseTestBase):
+    def setup_method(self, method):
+        super().setup_method(method)
+        self._initialize_state()
+        assert self.QUERY_QUEUE.qsize() == 0
+        assert not self.QUERY_FINISHED.is_set()
+        assert not self.QUERY_FAILED.is_set()
+
+    def teardown_method(self, method):
+        if self.TRACKING_THREAD is not None:
+            self.TRACKING_THREAD.join()
+            self.TRACKING_THREAD = None
+        self.QUERY_FINISHED.clear()
+        self.QUERY_FAILED.clear()
+
+        super().teardown_method(method)
+
+    def _initialize_state(self):
+        if not hasattr(self, "_INITIALIZED"):
+            self.QUERY_QUEUE = queue.Queue()
+            self.QUERY_FINISHED = threading.Event()
+            self.QUERY_FAILED = threading.Event()
+            self.TRACKING_THREAD: threading.Thread = None
+            self._INITIALIZED = True
+
+    @staticmethod
+    def _validate_progress_monotonicity(previous, current, expected_total_rows=None, expected_total_bytes=None):
+        assert previous["read_rows"] <= current["read_rows"]
+        assert previous["read_bytes"] <= current["read_bytes"]
+        assert previous["total_rows_to_read"] <= current["total_rows_to_read"]
+        assert previous["total_bytes_to_read"] <= current["total_bytes_to_read"]
+        if expected_total_rows is not None:
+            assert current["total_rows_to_read"] <= expected_total_rows
+        if expected_total_bytes is not None:
+            assert current["total_bytes_to_read"] <= expected_total_bytes
+
+        keys = ["read_rows", "read_bytes", "total_rows_to_read", "total_bytes_to_read"]
+        return any(previous[k] < current[k] for k in keys)
+
+    @staticmethod
+    def get_query_progress(query: yt_queries.Query):
+        return query.get(attributes=["progress"])["progress"]
+
+    def async_start_and_track_query(self, query, settings):
+        def routine(query, settings):
+            query = start_query("chyt", query, settings=settings)
+            self.QUERY_QUEUE.put(query)
+
+            try:
+                query.track()
+            except Exception:
+                self.QUERY_FAILED.set()
+                return
+
+            self.QUERY_FINISHED.set()
+
+        self.TRACKING_THREAD = threading.Thread(target=routine, args=(query, settings,))
+        self.TRACKING_THREAD.start()
+
+        return self.QUERY_QUEUE.get()
+
+    @authors("buyval01")
+    # TODO(buyval01): CHYT-1369
+    # @pytest.mark.parametrize("wait_progress_finish", [True, False])
+    @pytest.mark.parametrize("wait_progress_finish", [False])
+    @pytest.mark.parametrize("enable_pull_mode", [False, True])
+    def test_simple(self, query_tracker, wait_progress_finish, enable_pull_mode):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        for _ in range(10):
+            write_table("<append=%true>//tmp/t", [{"a": i} for i in range(100)])
+
+        table_row_count = get("//tmp/t/@row_count")
+        table_data_weight = get("//tmp/t/@data_weight")
+
+        with Clique(1) as clique:
+            settings = {"clique": clique.alias, "cluster": "primary"}
+            if enable_pull_mode:
+                settings["query_settings"] = {"chyt.execution.enable_input_specs_pulling": "1"}
+
+            query = """ SELECT * FROM `//tmp/t` WHERE NOT ignore(sleep(1));"""
+            query = self.async_start_and_track_query(query, settings)
+
+            previous_total_progress = defaultdict(int)
+            updates_count = 0
+
+            def start_check():
+                return self.QUERY_FAILED.is_set() or len(self.get_query_progress(query)) > 0
+            wait(start_check)
+            assert not self.QUERY_FAILED.is_set()
+
+            while True:
+                progress = query.get(attributes=["progress"])["progress"]
+                assert progress.get("queries_count") == 1
+                progress = progress["progress"][0]
+                total_progress = progress["total_progress"]
+
+                was_updated = self._validate_progress_monotonicity(
+                    previous_total_progress,
+                    total_progress,
+                    expected_total_bytes=table_data_weight,
+                    expected_total_rows=table_row_count,
+                )
+                if was_updated:
+                    updates_count += 1
+
+                previous_total_progress = total_progress
+                if self.QUERY_FINISHED.is_set():
+                    break
+                time.sleep(0.5)
+
+            if wait_progress_finish:
+                wait(lambda: self.get_query_progress(query)["progress"][0]["total_progress"]["finished"])
+
+            assert updates_count > 0
+            assert previous_total_progress["read_rows"] == previous_total_progress["total_rows_to_read"]
+            assert previous_total_progress["total_rows_to_read"] == table_row_count
+            assert previous_total_progress["read_bytes"] == previous_total_progress["total_bytes_to_read"]
+            assert previous_total_progress["total_bytes_to_read"] == table_data_weight

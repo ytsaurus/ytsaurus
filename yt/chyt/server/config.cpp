@@ -88,6 +88,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("list_dirs_breakpoint", &TThis::ListDirsBreakpoint)
         .Default();
+    registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +173,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
+
+    registrar.Parameter("disable_reading_time_estimation", &TThis::DisableReadingTimeEstimation)
+        .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

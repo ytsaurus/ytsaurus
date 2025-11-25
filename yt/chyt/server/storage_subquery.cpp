@@ -157,7 +157,7 @@ public:
 
         const auto& traceContext = GetQueryContext(context)->TraceContext;
 
-        auto perThreadDataSliceDescriptors = SubquerySpec_.DataSliceDescriptors;
+        auto perThreadDataSliceDescriptors = SubquerySpec_.InputSpecs;
 
         i64 totalRowCount = 0;
         i64 totalDataWeight = 0;
@@ -187,10 +187,9 @@ public:
         YT_LOG_DEBUG(
             "Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
             maxStreamCount,
-            SubquerySpec_.DataSliceDescriptors.size(),
+            SubquerySpec_.InputSpecs.size(),
             columnNames);
 
-        YT_LOG_INFO("Creating table readers");
         DB::Pipes pipes;
 
         IGranuleFilterPtr granuleMinMaxFilter;
@@ -221,11 +220,12 @@ public:
             readPlan = BuildSimpleReadPlan(columnSchemas);
         }
 
-        bool enableInputSpecsPulling = SubquerySpec_.QuerySettings->Execution->EnableInputSpecsPulling;
-        if (enableInputSpecsPulling) {
+        if (SubquerySpec_.InputSpecsTruncated) {
             // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,
             // which sends a Protocol::Server::ReadTaskRequest packet to the coordinator
             QueryContext_->SetReadTaskCallback(context->getReadTaskCallback());
+            QueryContext_->RegisterOperandReadTasks(SubquerySpec_.TableIndex, std::move(perThreadDataSliceDescriptors));
+            perThreadDataSliceDescriptors.clear();
         }
 
         if (SubquerySpec_.QuerySettings->Execution->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
@@ -251,11 +251,14 @@ public:
             pipes.emplace_back(sourcePtr);
         }
 
-        for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
-            const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
+        static const TSecondaryQueryReadDescriptors emptyThreadDataSliceDescriptors;
+        for (int threadIndex = 0; threadIndex < SubquerySpec_.InputStreamCount; ++threadIndex) {
+            const auto& threadDataSliceDescriptors = (threadIndex < std::ssize(perThreadDataSliceDescriptors))
+                ? perThreadDataSliceDescriptors[threadIndex]
+                : emptyThreadDataSliceDescriptors;
 
             DB::SourcePtr sourcePtr;
-            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && !enableInputSpecsPulling && readPlan->SuitableForTwoStagePrewhere()) {
+            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && !SubquerySpec_.InputSpecsTruncated && readPlan->SuitableForTwoStagePrewhere()) {
                 sourcePtr = CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
@@ -276,16 +279,7 @@ public:
             }
             pipes.emplace_back(sourcePtr);
 
-            i64 rowCount = 0;
-            i64 dataWeight = 0;
-            int dataSliceCount = 0;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
-                for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                    rowCount += chunkSpec.row_count_override();
-                    dataWeight += chunkSpec.data_weight_override();
-                }
-                ++dataSliceCount;
-
                 if (SubquerySpec_.DataSourceDirectory->DataSources().front()->GetType() == EDataSourceType::UnversionedTable) {
                     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                         if (FromProto<TTabletId>(chunkSpec.tablet_id()) != NullTabletId) {
@@ -299,13 +293,11 @@ public:
                     }
                 }
             }
+
             YT_LOG_DEBUG(
-                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v)",
                 threadIndex,
-                enableInputSpecsPulling,
-                rowCount,
-                dataWeight,
-                dataSliceCount);
+                SubquerySpec_.InputSpecsTruncated);
 
             TStringBuilder debugString;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {

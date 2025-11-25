@@ -17,18 +17,21 @@ class TSecondaryQueryReadTaskPuller final
 public:
     TSecondaryQueryReadTaskPuller(TQueryContext* queryContext, DB::ReadTaskCallback nextTaskCallback);
 
+    void RegisterOperand(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& initialTasks);
     TFuture<TSecondaryQueryReadDescriptors> PullTask(int operandIndex);
 
 private:
+    const DB::ReadTaskCallback NextTaskCallback_;
     TQueryContext* QueryContext_;
     IInvokerPtr Invoker_;
-    bool Finished_ = false;
-    const DB::ReadTaskCallback NextTaskCallback_;
 
-    std::vector<std::queue<TSecondaryQueryReadDescriptors>> Buffer_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BufferLock_);
+    std::vector<std::queue<TFuture<TSecondaryQueryReadDescriptors>>> Buffer_;
+    int OperandCount_;
 
-    TSecondaryQueryReadDescriptors DoPullTask(int operandIndex);
-    void TryPopulateBuffer();
+    std::atomic<bool> Finished_ = false;
+
+    void DoPullAsync(std::vector<TPromise<TSecondaryQueryReadDescriptors>> taskPromises);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +41,7 @@ class TSecondaryQueryReadTaskIterator final
 public:
     TSecondaryQueryReadTaskIterator(
         int operandCount,
-        const std::vector<TSubquery>& subqueries,
+        const TRange<TSubquery>& subqueries,
         const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap);
 
     std::string NextTask();
