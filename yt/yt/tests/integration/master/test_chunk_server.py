@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
-    authors, copy, create_user, get_driver, set_nodes_banned, wait, create, ls, get, set, remove, exists,
+    authors, copy, create_user, get_driver, print_debug, set_nodes_banned, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
@@ -1416,7 +1416,9 @@ class TestChunkServerMulticell(TestChunkServer):
             cell_indicies = {0}  # primary cell
             cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
 
+            print_debug(f"Will check #{object_id} for {cell_indicies} cells")
             for cell_index in cell_indicies:
+                print_debug(f"Check #{object_id} for master cell {cell_index}, expect {owning_nodes} owning nodes")
                 wait(lambda: are_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes))
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 12})

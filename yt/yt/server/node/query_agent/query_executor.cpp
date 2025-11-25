@@ -85,6 +85,8 @@
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
+#include <algorithm>
+
 namespace NYT::NQueryClient {
 
 using namespace NServer;
@@ -304,7 +306,7 @@ public:
         ITabletSnapshotStorePtr snapshotStore,
         const NLogging::TLogger& logger)
         : SnapshotStore_(std::move(snapshotStore))
-        , Logger(std::move(logger))
+        , Logger(logger)
     { }
 
     void ValidateAndRegisterTabletSnapshot(
@@ -448,7 +450,7 @@ public:
 
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
-        auto firstTablet = true;
+        bool firstTablet = true;
         for (const auto& source : DataSources_) {
             auto type = TypeFromId(source.ObjectId);
             switch (type) {
@@ -482,13 +484,13 @@ public:
             ->GetQueryServiceCounters(GetCurrentProfilingUser())
             ->Execute);
 
-        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(GetProfilingUser(Identity_));
+        auto* counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(GetProfilingUser(Identity_));
 
         ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
         ChunkReadOptions_.KeyFilterStatistics = TabletSnapshots_.CreateKeyFilterStatistics();
 
         auto updateProfiling = Finally([&] {
-            auto failed = std::uncaught_exceptions() != 0;
+            bool failed = std::uncaught_exceptions() != 0;
             counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
             counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
 
@@ -568,7 +570,7 @@ private:
         TGetSubreader getSubqueryReader;
         TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource;
 
-        auto ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
+        bool ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
         auto classifiedDataSources = GetClassifiedDataSources();
         auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
 
@@ -639,6 +641,7 @@ private:
                 auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
 
                 std::vector<IJoinProfilerPtr> joinProfilers;
+                joinProfilers.reserve(Query_->JoinClauses.size());
 
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
                     joinProfilers.push_back(CreateJoinSubqueryProfiler(
@@ -662,7 +665,7 @@ private:
                         bottomQuery,
                         getSubqueryReader(subqueryIndex++),
                         pipe->GetWriter(),
-                        std::move(joinProfilers),
+                        joinProfilers,
                         functionGenerators,
                         aggregateGenerators,
                         MemoryChunkProvider_,
@@ -693,7 +696,11 @@ private:
                     }
                 }));
 
-                return {pipe->GetReader(), std::move(asyncStatistics), responseFeatureFlags};
+                return {
+                    .Reader = pipe->GetReader(),
+                    .Statistics = std::move(asyncStatistics),
+                    .ResponseFeatureFlags = responseFeatureFlags,
+                };
             },
             [=, this, this_ = MakeStrong(this)] (
                 const ISchemafulUnversionedReaderPtr& reader,
@@ -703,7 +710,7 @@ private:
 
                 auto result = Evaluator_->Run(
                     frontQuery,
-                    std::move(reader),
+                    reader,
                     Writer_,
                     /*joinProfilers*/ {},
                     functionGenerators,
@@ -971,7 +978,7 @@ private:
         };
 
         int splitCount = splits.size();
-        auto maxSubqueries = std::min({QueryOptions_.MaxSubqueries, Config_->MaxSubqueries, splitCount});
+        int maxSubqueries = std::min({QueryOptions_.MaxSubqueries, Config_->MaxSubqueries, splitCount});
         int splitOffset = 0;
         int queryIndex = 1;
         int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
@@ -1003,7 +1010,7 @@ private:
 
         std::vector<NQueryClient::TDataSource> classifiedDataSources;
 
-        auto keySize = Query_->Schema.Original->GetKeyColumnCount();
+        int keySize = Query_->Schema.Original->GetKeyColumnCount();
 
         bool lookupSupported;
 
@@ -1111,7 +1118,7 @@ private:
             TKeyRef UpperSampleKey;
 
             TRange<TRowRange> Ranges;
-            ui64 Weight = 0;
+            i64 Weight = 0;
         };
 
         struct TPartitionRanges
@@ -1133,8 +1140,8 @@ private:
 
         std::vector<TTabletRanges> tabletRanges;
 
-        ui64 totalWeight = 0;
-        ui64 maxWeight = 0;
+        i64 totalWeight = 0;
+        i64 maxWeight = 0;
 
         for (const auto& dataSource : dataSourcesByTablet) {
             auto tabletId = dataSource.ObjectId;
@@ -1239,7 +1246,7 @@ private:
                             (*partitionIt)->PivotKey);
 
                         int maxWeight = 0;
-                        for (auto weight : weights) {
+                        for (int weight : weights) {
                             maxWeight = std::max(maxWeight, weight);
                         }
 
@@ -1252,7 +1259,7 @@ private:
                         }
 
                         // Stop when maxWeight is less than square root of sample key count per parittion.
-                        return maxWeight * maxWeight > std::ssize(partitionSampleKeys);
+                        return static_cast<i64>(maxWeight) * maxWeight > std::ssize(partitionSampleKeys);
                     });
 
                     std::tie(sampleKeyPrefixes, weights) = GetSampleKeysForPrefix(
@@ -1267,13 +1274,13 @@ private:
                     keyWidth = optimalKeyWidth;
                 }
 
-                ui64 rowCountInPartition = 0;
+                i64 rowCountInPartition = 0;
 
                 for (const auto& store : (*partitionIt)->Stores) {
                     rowCountInPartition += store->GetRowCount();
                 }
 
-                ui64 rowCountPerSampleRange = std::max<ui64>(rowCountInPartition / (partitionSampleKeys.size() + 1), 1);
+                i64 rowCountPerSampleRange = std::max<i64>(rowCountInPartition / (partitionSampleKeys.size() + 1), 1);
                 YT_VERIFY(rowCountPerSampleRange > 0);
 
                 if (QueryOptions_.VerboseLogging) {
@@ -1298,15 +1305,14 @@ private:
 
                         YT_VERIFY(weight > 0);
                         totalWeight += weight;
-                        if (maxWeight < weight) {
-                            maxWeight = weight;
-                        }
+                        maxWeight = std::max(maxWeight, weight);
 
                         sampleRanges.push_back(TSampleRange{
-                            lowerSampleBound,
-                            upperSampleBound,
-                            ranges.Slice(rangesIt, rangesItEnd),
-                            weight});
+                            .LowerSampleKey = lowerSampleBound,
+                            .UpperSampleKey = upperSampleBound,
+                            .Ranges = ranges.Slice(rangesIt, rangesItEnd),
+                            .Weight = weight,
+                        });
                     });
 
                 if (QueryOptions_.VerboseLogging) {
@@ -1325,8 +1331,8 @@ private:
             tabletRanges.push_back({.PartitionRanges = std::move(partitionRanges), .TabletId = tabletId});
         }
 
-        ui64 minWeightPerSubquery = QueryOptions_.MinRowCountPerSubquery;
-        auto maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
+        auto minWeightPerSubquery = QueryOptions_.MinRowCountPerSubquery;
+        int maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
         YT_VERIFY(maxGroups > 0);
 
         auto weightPerSubquery = std::max(maxWeight, std::min(minWeightPerSubquery, totalWeight));
@@ -1340,9 +1346,9 @@ private:
             maxGroups,
             targetGroupCount);
 
-        ui64 currentSummaryWeight = 0;
+        i64 currentSummaryWeight = 0;
         int groupId = 0;
-        ui64 nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+        i64 nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
 
         std::vector<std::vector<TTabletReadItems>> groupedReadRanges;
         std::vector<TTabletReadItems> tabletBoundsGroup;
@@ -1564,7 +1570,7 @@ private:
                         ChunkReadOptions_,
                         ETabletDistributedThrottlerKind::Select,
                         ChunkReadOptions_.WorkloadDescriptor.Category,
-                        std::move(timestampReadOptions),
+                        timestampReadOptions,
                         QueryOptions_.MergeVersionedRows);
                 } else if (dataSplit.Keys) {
                     THROW_ERROR_EXCEPTION_IF(!QueryOptions_.MergeVersionedRows,
@@ -1578,7 +1584,7 @@ private:
                         QueryOptions_.TimestampRange,
                         QueryOptions_.UseLookupCache,
                         ChunkReadOptions_,
-                        std::move(timestampReadOptions),
+                        timestampReadOptions,
                         Invoker_,
                         GetProfilingUser(Identity_),
                         Logger);

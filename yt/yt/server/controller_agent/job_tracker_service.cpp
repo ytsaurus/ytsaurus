@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NConcurrency;

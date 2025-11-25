@@ -741,8 +741,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(account);
+            ValidateObjectActive(account);
         }
 
         return account;
@@ -774,10 +773,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return objectManager->IsObjectLifeStageValid(account)
-                ? account
-                : nullptr;
+            return IsObjectActive(account) ? account : nullptr;
         } else {
             return account;
         }
@@ -794,8 +790,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(account);
+            ValidateObjectActive(account);
         }
 
         return account;
@@ -1136,9 +1131,11 @@ public:
             return;
         }
 
-        for (const auto& entry : requisition) {
+        for (const auto& entry : requisition.AllEntries()) {
             auto account = entry.Account;
-            YT_VERIFY(IsObjectAlive(account));
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
 
             UpdateMasterMemoryUsage(schema, account, delta);
         }
@@ -1290,6 +1287,11 @@ public:
     {
         YT_VERIFY(IsObjectAlive(account));
 
+        // See IncreaseMasterMemoryUsage.
+        if (account->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
+            return;
+        }
+
         if (schema->UnrefBy(account, delta)) {
             TDetailedMasterMemory currentMasterMemoryUsage; // Leaving empty.
 
@@ -1308,6 +1310,40 @@ public:
     void IncreaseMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account, int delta, bool recomputingMasterMemory = false)
     {
         YT_VERIFY(IsObjectAlive(account));
+
+        // This is a bit fragile and merits some explanation.
+        //
+        // Accounts are removed in a two-phase way. This means that an account
+        // may be, strictly speaking, alive (have positive reference counter)
+        // but not active (have life stage >= RemovalStarted). The question is:
+        // when should the RefBy below be allowed to strong-ref the account and
+        // when shouldn't it be?
+        //
+        // Ideally, we would've liked to forbid strong-referencing an account
+        // the moment its removal starts. But that would break ref-unref balance
+        // (we may ref an account while it's still active and then fail to
+        // perform the corresponding unref once it no longer is).
+        //
+        // On the other hand, allowing to ref an account regardless of its life
+        // stage also leads to trouble. There's a very useful alert that checks
+        // that, upon the end of the two-phase removal protocol, the account has
+        // zero reference counter (see TObjectManager::DoRemoveObject). It would
+        // be a bad (and dangerous) idea to disable that alert.
+        //
+        // (One particular way of getting here with an account in the process
+        // removal is requisition updates. By their nature, these updates are
+        // asynchronous, and they may be triggered by events having nothing to
+        // do with the account in question. An account may just happen to be
+        // mentioned by the requisition being updated.)
+        //
+        // The trick, then, is to come up with a deterministic criterion for
+        // starting to ignore an account here. The check below works because an
+        // account only enters the RemovalPreCommitted life stage when it's ref
+        // counter gets to 1. From that moment on, it should not be
+        // strong-referenced again and we should ignore it here.
+        if (account->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
+            return;
+        }
 
         if (recomputingMasterMemory || schema->RefBy(account, delta)) {
             TDetailedMasterMemory currentMasterMemoryUsage;
@@ -1650,10 +1686,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return objectManager->IsObjectLifeStageValid(user)
-                ? user
-                : nullptr;
+            return IsObjectActive(user) ? user : nullptr;
         } else {
             return user;
         }
@@ -1674,8 +1707,7 @@ public:
         ValidateUserFound(user, name);
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(user);
+            ValidateObjectActive(user);
         }
 
         return user;
@@ -1687,8 +1719,7 @@ public:
         ValidateUserFound(user, name);
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(user);
+            ValidateObjectActive(user);
         }
 
         return user;
@@ -1882,10 +1913,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return objectManager->IsObjectLifeStageValid(subject)
-                ? subject
-                : nullptr;
+            return IsObjectActive(subject) ? subject : nullptr;
         } else {
             return subject;
         }
@@ -1915,8 +1943,7 @@ public:
     {
         auto validateLifeStage = [&] (TSubject* subject) {
             if (activeLifeStageOnly) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->ValidateObjectLifeStage(subject);
+                ValidateObjectActive(subject);
             }
         };
 
@@ -2231,7 +2258,7 @@ public:
         if (permission == EPermission::FullRead) {
             if (options.Columns) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot specify columns for %v permission check",
+                    "Cannot specify columns for %Qlv permission check",
                     permission)
                     << TErrorAttribute("columns", options.Columns);
             }
@@ -2494,8 +2521,7 @@ public:
             return;
         }
 
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->ValidateObjectLifeStage(account);
+        ValidateObjectActive(account);
 
         if (!allowRootAccount && account == GetRootAccount()) {
             THROW_ERROR_EXCEPTION("Root account cannot be used");
@@ -3030,7 +3056,7 @@ private:
         i64 lastDiskSpace = 0;
         auto chunkMasterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
 
-        for (const auto& entry : requisition) {
+        for (const auto& entry : requisition.AllEntries()) {
             auto account = entry.Account;
             if (!IsObjectAlive(account)) {
                 continue;
@@ -3564,6 +3590,9 @@ private:
 
         auto resourceUsages = ComputeAccountResourceUsages();
         for (auto [accountId, account] : Accounts()) {
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
             ValidateAndMaybeRecomputeAccountResourceUsage(
                 account,
                 resourceUsages[account],

@@ -13,7 +13,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TParsing, ServiceDiscoveryEndpointsConfig)
+TEST(TParsingTest, ServiceDiscoveryEndpointsConfig)
 {
     NProto::TServiceDiscoveryEndpointsConfig expectedEndpointsProto;
     *expectedEndpointsProto.add_clusters() = "aba";
@@ -28,7 +28,7 @@ TEST(TParsing, ServiceDiscoveryEndpointsConfig)
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(resultedEndpointsProto, expectedEndpointsProto));
 }
 
-TEST(TParsing, CellDirectoryItem)
+TEST(TParsingTest, CellDirectoryItem)
 {
     NProto::TServiceDiscoveryEndpointsConfig endpoints;
     *endpoints.add_clusters() = "aba";

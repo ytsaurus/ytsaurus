@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/named_value/named_value.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 

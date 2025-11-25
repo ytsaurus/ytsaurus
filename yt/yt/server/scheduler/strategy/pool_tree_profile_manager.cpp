@@ -24,7 +24,7 @@ TPoolTreeProfileManager::TPoolTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
-    NPolicy::TSchedulingPolicyPtr schedulingPolicy)
+    NPolicy::ISchedulingPolicyPtr schedulingPolicy)
     : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)

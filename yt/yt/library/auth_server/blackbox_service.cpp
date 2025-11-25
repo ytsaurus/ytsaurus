@@ -98,25 +98,40 @@ private:
         TGuid callId,
         TInstant deadline)
     {
-        TSafeUrlBuilder builder;
-        builder.AppendString(Format("%v://%v:%v/blackbox?",
+        TSafeUrlBuilder urlBuilder;
+        urlBuilder.AppendString(Format("%v://%v:%v/blackbox?",
             Config_->Secure ? "https" : "http",
             Config_->Host,
             Config_->Port));
-        builder.AppendParam(TStringBuf("method"), method);
-        for (const auto& param : params) {
-            builder.AppendChar('&');
-            builder.AppendParam(param.first, param.second);
+        urlBuilder.AppendParam(TStringBuf("method"), method);
+        if (!Config_->UsePostRequests) {
+            urlBuilder.AppendChar('&');
         }
-        builder.AppendChar('&');
-        builder.AppendParam("attributes", "1008");
-        builder.AppendChar('&');
-        builder.AppendParam("format", "json");
 
-        auto realUrl = builder.FlushRealUrl();
-        auto safeUrl = builder.FlushSafeUrl();
+        TSafeUrlBuilder paramsBuilder;
+
+        // In POST requests params should be sent in the body: http://ytsaurus.tech/internal/ZJ38zvE-7NJHvW.
+        auto& paramsBuilderRef = Config_->UsePostRequests ? paramsBuilder : urlBuilder;
+        for (const auto& param : params) {
+            paramsBuilderRef.AppendParam(param.first, param.second);
+            paramsBuilderRef.AppendChar('&');
+        }
+
+        paramsBuilderRef.AppendParam("attributes", "1008");
+        paramsBuilderRef.AppendChar('&');
+        paramsBuilderRef.AppendParam("format", "json");
+
+        auto realUrl = urlBuilder.FlushRealUrl();
+        auto safeUrl = urlBuilder.FlushSafeUrl();
+
+        // It is empty in case of GET requests.
+        auto realParams = paramsBuilder.FlushRealUrl();
+        auto safeParams = paramsBuilder.FlushSafeUrl();
 
         auto httpHeaders = New<THeaders>();
+        if (Config_->UsePostRequests) {
+            httpHeaders->Add(NHeaders::ContentTypeHeaderName, "application/x-www-form-urlencoded");
+        }
         if (TvmService_) {
             httpHeaders->Add(NHeaders::ServiceTicketHeaderName,
                 TvmService_->GetServiceTicket(Config_->BlackboxServiceId));
@@ -133,6 +148,8 @@ private:
                     attempt,
                     realUrl,
                     safeUrl,
+                    realParams,
+                    safeParams,
                     httpHeaders,
                     deadline);
             } catch (const std::exception& ex) {
@@ -218,6 +235,8 @@ private:
         int attempt,
         const TString& realUrl,
         const TString& safeUrl,
+        const TString& realParams,
+        const TString& safeParams,
         const THeadersPtr& headers,
         TInstant deadline)
     {
@@ -230,13 +249,19 @@ private:
         NProfiling::TWallTimer timer;
         auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
 
-        YT_LOG_DEBUG("Calling Blackbox (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
+        YT_LOG_DEBUG("Calling Blackbox (Url: %v, Params: %v, CallId: %v, Attempt: %v, Timeout: %v)",
             safeUrl,
+            safeParams,
             callId,
             attempt,
             timeout);
 
-        auto rspOrError = WaitFor(HttpClient_->Get(realUrl, headers).WithTimeout(timeout));
+        TErrorOr<IResponsePtr> rspOrError;
+        if (Config_->UsePostRequests) {
+            rspOrError = WaitFor(HttpClient_->Post(realUrl, TSharedRef::FromString(realParams), headers).WithTimeout(timeout));
+        } else {
+            rspOrError = WaitFor(HttpClient_->Get(realUrl, headers).WithTimeout(timeout));
+        }
         if (!rspOrError.IsOK()) {
             onError(TError("Blackbox call failed")
                 << rspOrError);

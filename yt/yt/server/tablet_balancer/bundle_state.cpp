@@ -282,8 +282,7 @@ TBundleState::TBundleState(
     TClusterDirectoryPtr clusterDirectory,
     IInvokerPtr invoker,
     std::string clusterName)
-    : Bundle_(New<TTabletCellBundle>(name))
-    , Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
+    : Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , ClientDirectory_(clientDirectory)
@@ -291,6 +290,7 @@ TBundleState::TBundleState(
     , Invoker_(invoker)
     , TableRegistry_(std::move(tableRegistry))
     , SelfClusterName_(std::move(clusterName))
+    , Bundle_(New<TTabletCellBundle>(name))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
@@ -308,48 +308,123 @@ void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes
     }
 }
 
-TFuture<void> TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
+TFuture<TBundleSnapshotPtr> TBundleState::GetBundleSnapshot(
+    const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+    const NYTree::IListNodePtr& nodeStatistics,
+    const THashSet<TGroupName>& groupsForMoveBalancing,
+    const THashSet<TGroupName>& groupsForReshardBalancing,
+    const THashSet<std::string>& allowedReplicaClusters,
+    int iterationIndex)
 {
     return BIND(
-        &TBundleState::DoUpdateState,
+        &TBundleState::DoGetBundleSnapshot,
         MakeStrong(this),
-        fetchTabletCellsFromSecondaryMasters,
+        dynamicConfig,
+        nodeStatistics,
+        groupsForMoveBalancing,
+        groupsForReshardBalancing,
+        allowedReplicaClusters,
         iterationIndex)
         .AsyncVia(Invoker_)
         .Run();
 }
 
-TFuture<void> TBundleState::FetchStatistics(
-    const IListNodePtr& nodeStatistics,
-    bool useStatisticsReporter,
-    const TYPath& statisticsTablePath)
-{
-    return BIND(
-        &TBundleState::DoFetchStatistics,
-        MakeStrong(this),
-        nodeStatistics,
-        useStatisticsReporter,
-        statisticsTablePath)
-        .AsyncVia(Invoker_)
-        .Run();
-}
-
-TFuture<void> TBundleState::FetchReplicaStatistics(
+TBundleSnapshotPtr TBundleState::DoGetBundleSnapshot(
+    const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+    const NYTree::IListNodePtr& nodeStatistics,
+    const THashSet<TGroupName>& groupsForMoveBalancing,
+    const THashSet<TGroupName>& groupsForReshardBalancing,
     const THashSet<std::string>& allowedReplicaClusters,
-    bool fetchReshard,
-    bool fetchMove)
+    int iterationIndex)
 {
-    return BIND(
-        &TBundleState::DoFetchReplicaStatistics,
-        MakeStrong(this),
-        allowedReplicaClusters,
-        fetchReshard,
-        fetchMove)
-        .AsyncVia(Invoker_)
-        .Run();
+    YT_LOG_DEBUG("Started fetching new bundle state (GroupsForMoveBalancing: %v, "
+        "GroupsForReshardBalancing: %v, AllowedReplicaClusters: %v)",
+        groupsForMoveBalancing,
+        groupsForReshardBalancing,
+        allowedReplicaClusters);
+
+    TableRegistry_->DropAllAlienTables();
+
+    try {
+        UpdateState(dynamicConfig->FetchTabletCellsFromSecondaryMasters, iterationIndex);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+            "Failed to update meta registry")
+            << ex;
+    }
+
+    try {
+        FetchStatistics(
+            nodeStatistics,
+            dynamicConfig->UseStatisticsReporter,
+            dynamicConfig->StatisticsTablePath);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+            "Statistics fetch failed")
+            << ex;
+    }
+
+    auto bundleSnapshot = New<TBundleSnapshot>();
+
+    bool isReshardReplicaBalancingRequired = IsReplicaBalancingEnabled(
+        groupsForReshardBalancing,
+        [] (const TTableTabletBalancerConfigPtr& config) {
+            return config->EnableAutoReshard;
+        });
+
+    bool isMoveReplicaBalancingRequired = IsReplicaBalancingEnabled(
+        groupsForMoveBalancing,
+        [] (const TTableTabletBalancerConfigPtr& config) {
+            return config->EnableAutoTabletMove;
+        });
+
+    YT_LOG_DEBUG("Calculated if replica statistics fetch required (IsReshardRequired: %v, IsMoveRequired: %v)",
+        isReshardReplicaBalancingRequired,
+        isMoveReplicaBalancingRequired);
+
+    if (isReshardReplicaBalancingRequired || isMoveReplicaBalancingRequired) {
+        if (!dynamicConfig->UseStatisticsReporter) {
+            YT_LOG_ERROR("Cannot balance replicas when statistics reporter is not enabled");
+            bundleSnapshot->ReplicaBalancingFetchFailed = true;
+
+            bundleSnapshot->NonFatalError = TError(
+                NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                "Replica statistics fetch failed. Please enable statistics reporter");
+        } else {
+            try {
+                FetchReplicaStatistics(
+                    allowedReplicaClusters,
+                    isReshardReplicaBalancingRequired,
+                    isMoveReplicaBalancingRequired);
+            } catch (const std::exception& ex) {
+                bundleSnapshot->ReplicaBalancingFetchFailed = true;
+
+                bundleSnapshot->NonFatalError = TError(
+                    NTabletBalancer::EErrorCode::StatisticsFetchFailed,
+                    "Replica statistics fetch failed")
+                    << ex;
+            }
+        }
+    }
+
+    bundleSnapshot->Bundle = Bundle_->DeepCopy();
+    bundleSnapshot->PerformanceCountersKeys = PerformanceCountersKeys_;
+    return bundleSnapshot;
 }
 
-void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
+TBundleTabletBalancerConfigPtr TBundleState::GetConfig() const
+{
+    return Bundle_->Config;
+}
+
+void TBundleState::RemoveSelfFromRegistry()
+{
+    TableRegistry_->RemoveBundle(Bundle_);
+}
+
+void TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
 {
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
 
@@ -377,9 +452,9 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int 
                     id);
             }
 
-            if (!Tablets_.contains(tabletId)) {
+            if (!Bundle_->Tablets.contains(tabletId)) {
                 if (auto tableIt = Bundle_->Tables.find(tableId); tableIt != Bundle_->Tables.end()) {
-                    EmplaceOrCrash(Tablets_, tabletId, New<TTablet>(tabletId, tableIt->second.Get()));
+                    EmplaceOrCrash(Bundle_->Tablets, tabletId, New<TTablet>(tabletId, tableIt->second.Get()));
                 } else {
                     // A new table has been found.
                     newTableIds.insert(tableId);
@@ -394,7 +469,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int 
         }
     }
 
-    DropMissingKeys(Tablets_, tabletIds);
+    DropMissingKeys(Bundle_->Tablets, tabletIds);
 
     YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
     Counters_->BasicTableAttributesRequestCount.Increment(newTableIds.size());
@@ -414,7 +489,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int 
         const auto& tablets = GetOrCrash(newTableIdToTablets, tableId);
         for (auto tabletId : tablets) {
             auto tablet = New<TTablet>(tabletId, it->second.Get());
-            EmplaceOrCrash(Tablets_, tabletId, tablet);
+            EmplaceOrCrash(Bundle_->Tablets, tabletId, tablet);
         }
     }
 
@@ -423,7 +498,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters, int 
         EmplaceOrCrash(Bundle_->TabletCells, cellId, tabletCellInfo.TabletCell);
 
         for (const auto& [tabletId, tableId] : tabletCellInfo.TabletToTableId) {
-            if (!Tablets_.contains(tabletId)) {
+            if (!Bundle_->Tablets.contains(tabletId)) {
                 // Tablet was created (and found in FetchCells).
                 // After that it was quickly removed before we fetched BasicTableAttributes.
                 // Therefore a TTablet object was not created.
@@ -518,7 +593,7 @@ bool TBundleState::IsReplicaBalancingEnabled(
     return false;
 }
 
-void TBundleState::DoFetchStatistics(
+void TBundleState::FetchStatistics(
     const IListNodePtr& nodeStatistics,
     bool useStatisticsReporter,
     const TYPath& statisticsTablePath)
@@ -600,13 +675,13 @@ void TBundleState::DoFetchStatistics(
         for (auto& tabletResponse : statistics.Tablets) {
             TTabletPtr tablet;
 
-            if (auto it = Tablets_.find(tabletResponse.TabletId); it != Tablets_.end()) {
+            if (auto it = Bundle_->Tablets.find(tabletResponse.TabletId); it != Bundle_->Tablets.end()) {
                 tablet = it->second;
             } else {
                 // Tablet is not mounted or it's a new tablet.
 
                 tablet = New<TTablet>(tabletResponse.TabletId, table.Get());
-                EmplaceOrCrash(Tablets_, tabletResponse.TabletId, tablet);
+                EmplaceOrCrash(Bundle_->Tablets, tabletResponse.TabletId, tablet);
             }
 
             if (tabletResponse.CellId) {
@@ -662,7 +737,7 @@ void TBundleState::DoFetchStatistics(
         InsertOrCrash(finalTableIds, tableId);
     }
 
-    DropMissingKeys(Tablets_, tabletIds);
+    DropMissingKeys(Bundle_->Tablets, tabletIds);
 
     Bundle_->NodeStatistics.clear();
 
@@ -695,7 +770,7 @@ void TBundleState::FillTabletWithStatistics(const TTabletPtr& tablet, TTabletSta
         });
 }
 
-void TBundleState::DoFetchReplicaStatistics(
+void TBundleState::FetchReplicaStatistics(
     const THashSet<std::string>& allowedReplicaClusters,
     bool fetchReshard,
     bool fetchMove)

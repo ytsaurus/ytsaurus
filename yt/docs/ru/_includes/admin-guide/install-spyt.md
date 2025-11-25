@@ -22,7 +22,7 @@ $ kubectl apply -f cluster_v1_spyt.yaml -n <namespace>
 spyt.cluster.ytsaurus.tech/myspyt created
 ```
 
-После этого k8s оператор запустит несколько init job, которые запишут в Кипарис необходимые файлы. Следить за статусом можно с помощью `kubectl`:
+После этого k8s оператор запустит несколько Init Job, которые запишут в Кипарис необходимые файлы. Следить за статусом можно с помощью `kubectl`:
 
 ```bash
 $ kubectl get spyt

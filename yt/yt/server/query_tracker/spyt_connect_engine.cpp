@@ -259,7 +259,7 @@ private:
     {
         std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "$HOME/spark";
         std::string sparkDistr = Format("spark-%v-bin-hadoop3", Config_->SparkVersion);
-        std::string sparkConnectJar = Format("org.apache.spark_spark-connect_2.12-%v.jar", Config_->SparkVersion);
+        std::string sparkConnectJar = Format("spark-connect_2.12-%v.jar", Config_->SparkVersion);
         std::string command = CreateCommand(sparkHome, sparkDistr, sparkConnectJar);
 
         auto layerPaths = BuildYsonStringFluently()
@@ -315,7 +315,7 @@ private:
         }
 
         filePaths
-            .Item().Value(Format("//home/spark/distrib/%v/org.apache.spark_spark-connect_2.12-%v.jar", versionPath, Config_->SparkVersion));
+            .Item().Value(Format("//home/spark/distrib/%v/spark-connect_2.12-%v.jar", versionPath, Config_->SparkVersion));
 
         auto taskSpecBuilder = BuildYsonStringFluently().BeginMap()
             .Item("spark_connect_driver").BeginMap()

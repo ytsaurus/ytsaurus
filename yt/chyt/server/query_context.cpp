@@ -433,92 +433,28 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
 
     SortUnique(pathsToFetch);
 
-    // Add attributes to ObjectAttributesSnapshot_.
-    auto addToSnapshot = [this] (std::vector<TYPath>&& paths, std::vector<TErrorOr<IAttributeDictionaryPtr>>&& attributes) {
-        YT_VERIFY(paths.size() == attributes.size());
-        for (size_t index = 0; index < paths.size(); ++index) {
-            ObjectAttributesSnapshot_.emplace(std::move(paths[index]), std::move(attributes[index]));
-        }
-    };
-
     if (CreatedTablePath && pathsToFetch.size() == 1 && pathsToFetch.front() == CreatedTablePath) {
         // Special case when ClickHouse fetches the table created in the current query.
         // This table exists only in the write transaction so far.
         auto attributes = FetchTableAttributes(pathsToFetch, WriteTransactionId);
-        addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+        AddAttributesToSnapshot(std::move(pathsToFetch), std::move(attributes));
     } else if (QueryKind == EQueryKind::InitialQuery) {
-        auto lockMode = Settings->Execution->TableReadLockMode;
-
-        if (lockMode == ETableReadLockMode::Sync) {
-            // To speed up fetching, we fetch attributes and acquire snapshot locks in parallel.
-            // It may lead to inconsistency if we fetch attributes before locking the node,
-            // but we can detect it via revision attribute and refetch such paths.
-            auto locksFuture = DoAcquireSnapshotLocks(pathsToFetch);
-            auto attributesFuture = FetchTableAttributesAsync(pathsToFetch, NullTransactionId);
-
-            WaitForFast(AllSucceeded(std::vector{locksFuture.AsVoid(), attributesFuture.AsVoid()}))
-                .ThrowOnError();
-
-            SaveQueryReadTransaction();
-
-            auto locks = locksFuture.Get().Value();
-            auto attributes = attributesFuture.Get().Value();
-
-            std::vector<TYPath> pathsToRefetch;
-
-            for (size_t index = 0; index < pathsToFetch.size(); ++index) {
-                if (!locks[index].IsOK()) {
-                    ObjectAttributesSnapshot_.emplace(pathsToFetch[index], TError(locks[index]));
-                } else {
-                    auto lock = locks[index].Value();
-                    SnapshotLocks.emplace(pathsToFetch[index], lock);
-
-                    if (!attributes[index].IsOK()) {
-                        // Successfully locked, but got an error during fetching attributes.
-                        // Probably the table has been deleted. Need to refetch under the transaction.
-                        pathsToRefetch.push_back(pathsToFetch[index]);
-                    } else {
-                        auto id = attributes[index].Value()->Get<TObjectId>("id", NullObjectId);
-                        auto revision = attributes[index].Value()->Get<TRevision>("revision", NullRevision);
-
-                        if (id == lock.NodeId && revision == lock.Revision) {
-                            ObjectAttributesSnapshot_.emplace(pathsToFetch[index], attributes[index]);
-                        } else {
-                            // Object has changed. Need to refetch under the transaction.
-                            pathsToRefetch.push_back(pathsToFetch[index]);
-                        }
-                    }
-                }
+        switch (Settings->Execution->TableReadLockMode) {
+            case ETableReadLockMode::Sync: {
+                LockAndFetchAttributesSync(pathsToFetch);
+                break;
             }
-
-            // Finally, if we detected node changes, we need to refetch them again under the transaction.
-            if (!pathsToRefetch.empty()) {
-                auto attributes = FetchTableAttributes(pathsToRefetch, ReadTransactionId);
-                addToSnapshot(std::move(pathsToRefetch), std::move(attributes));
+            case ETableReadLockMode::BestEffort: {
+                LockAndFetchAttributesBestEffort(pathsToFetch);
+                break;
             }
-        } else { // lockMode == ETableReadLockMode::None || lockMode == ETableReadLockMode::BestEffort
-            auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
-
-            if (lockMode == ETableReadLockMode::BestEffort) {
-                std::vector<TYPath> pathsToLock;
-
-                for (size_t index = 0; index < pathsToFetch.size(); ++index) {
-                    if (attributes[index].IsOK() && attributes[index].Value()->Get<bool>("dynamic", false)) {
-                        pathsToLock.push_back(pathsToFetch[index]);
-                    }
-                }
-
-                // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
-                YT_UNUSED_FUTURE(DoAcquireSnapshotLocks(pathsToLock));
-                // But we do need to remember locks not to lock paths twice and to know whether to read
-                // a table under the transaction or not on worker instances.
-                // The exact lock value (node id/revision) matters only for Sync mode.
-                for (const auto& path : pathsToLock) {
-                    SnapshotLocks.emplace(path, TObjectLock{});
-                }
+            case ETableReadLockMode::None: {
+                auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+                AddAttributesToSnapshot(std::move(pathsToFetch), std::move(attributes));
+                break;
             }
-
-            addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+            default:
+                YT_ABORT();
         }
     } else { // QueryKind == EQueryKind::SecondaryQuery || QueryKind == EQueryKind::NoQuery
         std::vector<TYPath> pathsToFetchFromCache;
@@ -539,15 +475,15 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         auto attributesUnderTx = WaitForUniqueFast(attributesUnderTxFuture)
             .ValueOrThrow();
 
-        addToSnapshot(std::move(pathsToFetchFromCache), std::move(attributesFromCache));
-        addToSnapshot(std::move(pathsToFetchUnderTx), std::move(attributesUnderTx));
+        AddAttributesToSnapshot(std::move(pathsToFetchFromCache), std::move(attributesFromCache));
+        AddAttributesToSnapshot(std::move(pathsToFetchUnderTx), std::move(attributesUnderTx));
     }
 
     std::vector<TErrorOr<IAttributeDictionaryPtr>> result;
     result.reserve(paths.size());
 
     for (const auto& path : paths) {
-        result.push_back(ObjectAttributesSnapshot_.at(path));
+        result.push_back(GetOrCrash(ObjectAttributesSnapshot_, path));
 
         const auto& attributesOrError = result.back();
         if (attributesOrError.IsOK()) {
@@ -684,6 +620,88 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLock
             YT_VERIFY(curLock == newLocks.size());
             return result;
         }));
+}
+
+void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
+{
+    // To speed up fetching, we fetch attributes and acquire snapshot locks in parallel.
+    // It may lead to inconsistency if we fetch attributes before locking the node,
+    // but we can detect it via revision attribute and refetch such paths.
+    auto locksFuture = DoAcquireSnapshotLocks(pathsToFetch);
+    auto attributesFuture = FetchTableAttributesAsync(pathsToFetch, NullTransactionId);
+
+    WaitForFast(AllSucceeded(std::vector{locksFuture.AsVoid(), attributesFuture.AsVoid()}))
+        .ThrowOnError();
+
+    SaveQueryReadTransaction();
+
+    auto locks = locksFuture.Get().Value();
+    auto attributes = attributesFuture.Get().Value();
+
+    std::vector<TYPath> pathsToRefetch;
+
+    for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+        if (!locks[index].IsOK()) {
+            AddAttributesToSnapshot({std::move(pathsToFetch[index])}, {std::move(TError(locks[index]))});
+        } else {
+            auto lock = locks[index].Value();
+            SnapshotLocks.emplace(pathsToFetch[index], lock);
+
+            if (!attributes[index].IsOK()) {
+                // Successfully locked, but got an error during fetching attributes.
+                // Probably the table has been deleted. Need to refetch under the transaction.
+                pathsToRefetch.push_back(pathsToFetch[index]);
+            } else {
+                auto id = attributes[index].Value()->Get<TObjectId>("id", NullObjectId);
+                auto revision = attributes[index].Value()->Get<TRevision>("revision", NullRevision);
+
+                if (id == lock.NodeId && revision == lock.Revision) {
+                    AddAttributesToSnapshot({std::move(pathsToFetch[index])}, {std::move(attributes[index])});
+                } else {
+                    // Object has changed. Need to refetch under the transaction.
+                    pathsToRefetch.push_back(pathsToFetch[index]);
+                }
+            }
+        }
+    }
+
+    // Finally, if we detected node changes, we need to refetch them again under the transaction.
+    if (!pathsToRefetch.empty()) {
+        auto attributes = FetchTableAttributes(pathsToRefetch, ReadTransactionId);
+        AddAttributesToSnapshot(std::move(pathsToRefetch), std::move(attributes));
+    }
+}
+
+void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsToFetch)
+{
+    auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+    std::vector<TYPath> pathsToLock;
+
+    for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+        if (attributes[index].IsOK() && attributes[index].Value()->Get<bool>("dynamic", false)) {
+            pathsToLock.push_back(pathsToFetch[index]);
+        }
+    }
+
+    // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
+    YT_UNUSED_FUTURE(DoAcquireSnapshotLocks(pathsToLock));
+    // But we do need to remember locks not to lock paths twice and to know whether to read
+    // a table under the transaction or not on worker instances.
+    // The exact lock value (node id/revision) matters only for Sync mode.
+    for (const auto& path : pathsToLock) {
+        SnapshotLocks.emplace(path, TObjectLock{});
+    }
+    AddAttributesToSnapshot(std::move(pathsToFetch), std::move(attributes));
+}
+
+void TQueryContext::AddAttributesToSnapshot(
+    std::vector<TYPath>&& paths,
+    std::vector<TErrorOr<IAttributeDictionaryPtr>>&& attributes)
+{
+    YT_VERIFY(paths.size() == attributes.size());
+    for (size_t index = 0; index < paths.size(); ++index) {
+        ObjectAttributesSnapshot_.emplace(std::move(paths[index]), std::move(attributes[index]));
+    }
 }
 
 TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const

@@ -70,9 +70,15 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	if c.LogsDir == "" {
 		return xerrors.New("logs_dir can not be empty")
 	}
+	if c.IncludedClusters == nil {
+		return xerrors.New("included_clusters can not be empty")
+	}
 
 	if c.ExcludedFields == nil {
 		c.ExcludedFields = []string{}
+	}
+	if c.CORS == nil {
+		c.CORS = &ytmsvc.CORSConfig{}
 	}
 
 	if c.BulkACLCheckerURL == "" {

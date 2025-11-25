@@ -5409,7 +5409,7 @@ class TestAccessControlObjects(YTEnvSetup):
         create_user("dog")
         schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
         create("table", "//tmp/t", attributes={"schema": schema})
-        with raises_yt_error("Cannot specify columns for FullRead permission check"):
+        with raises_yt_error("Cannot specify columns for \"full_read\" permission check"):
             check_permission("dog", "full_read", "//tmp/t", columns=["x"])
 
     @authors("shakurov")

@@ -1064,12 +1064,20 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPoolTestCounters
+class TUnorderedChunkPoolCountersTest
     : public TUnorderedChunkPoolTest
 {
 protected:
+    struct TExpectedCounter
+    {
+        int Total = 0;
+        int Pending = 0;
+        int Blocked = 0;
+        int Running = 0;
+        int Suspended = 0;
+    };
+
     THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> FreeChunksToCookie_;
-    THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> ExtractedChunksToCookie_;
 
     IChunkPoolOutput::TCookie ExtractCookie()
     {
@@ -1079,104 +1087,38 @@ protected:
         }
         auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes();
         YT_VERIFY(std::ssize(stripes) == 1);
-        auto dataSlices = stripes.front()->DataSlices();
-        YT_VERIFY(std::ssize(dataSlices) == 1);
-        auto chunk = dataSlices.front()->GetSingleUnversionedChunk();
-        ExtractedChunksToCookie_[chunk] = FreeChunksToCookie_[chunk];
-        FreeChunksToCookie_.erase(dataSlices.front()->GetSingleUnversionedChunk());
+        const auto& dataSlices = stripes.front()->DataSlices();
+        for (const auto& dataSlice : dataSlices) {
+            FreeChunksToCookie_.erase(dataSlice->GetSingleUnversionedChunk());
+        }
         return cookie;
     }
-};
 
-TEST_F(TUnorderedChunkPoolTestCounters, BlockedJobCount)
-{
-    InitTables(
-        /*isTeleportable*/ {false},
-        /*isVersioned*/ {false});
+    void CheckJobCounter(const TExpectedCounter& expected)
+    {
+        const auto& actual = *ChunkPool_->GetJobCounter();
 
-    DataWeightPerJob_ = 950_MB;
-    InitJobConstraints();
+        ASSERT_EQ(expected.Total, expected.Pending + expected.Blocked + expected.Running + expected.Suspended);
 
-    CreateChunkPool();
+        ASSERT_EQ(actual.GetTotal(), expected.Total);
+        ASSERT_EQ(actual.GetPending(), expected.Pending);
+        ASSERT_EQ(actual.GetBlocked(), expected.Blocked);
+        ASSERT_EQ(actual.GetRunning(), expected.Running);
+        ASSERT_EQ(actual.GetSuspended(), expected.Suspended);
+    }
 
-    auto addChunk = [&] (i64 weight) {
+    void AddChunk(i64 weight)
+    {
         auto chunk = CreateChunk(
             /*tableIndex*/ 0,
             /*weight*/ weight,
             /*rowCount*/ 1);
-        auto cookie = AddChunk(chunk);
+        auto cookie = TUnorderedChunkPoolTest::AddChunk(chunk);
         FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
-    };
+    }
+};
 
-    auto& jobCounter = ChunkPool_->GetJobCounter();
-
-    ASSERT_EQ(jobCounter->GetTotal(), 0);
-
-    addChunk(500_MB);
-
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 1);
-
-    addChunk(400_MB);
-
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 1);
-
-    TUnorderedChunkPoolTest::ExtractCookie();
-
-    ASSERT_EQ(jobCounter->GetRunning(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 1);
-
-    addChunk(900_MB);
-
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 2);
-
-    TUnorderedChunkPoolTest::ExtractCookie();
-
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 2);
-
-    addChunk(900_MB);
-
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 3);
-
-    addChunk(400_MB);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 4);
-
-    addChunk(400_MB);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 4);
-
-    TUnorderedChunkPoolTest::ExtractCookie();
-
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetTotal(), 4);
-
-    ChunkPool_->Finish();
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetTotal(), 4);
-
-    TUnorderedChunkPoolTest::ExtractCookie();
-
-    ASSERT_EQ(jobCounter->GetRunning(), 4);
-    ASSERT_EQ(jobCounter->GetTotal(), 4);
-}
-
-TEST_F(TUnorderedChunkPoolTestCounters, SuspendedChunks)
+TEST_F(TUnorderedChunkPoolCountersTest, BlockedJobCount)
 {
     InitTables(
         /*isTeleportable*/ {false},
@@ -1187,118 +1129,109 @@ TEST_F(TUnorderedChunkPoolTestCounters, SuspendedChunks)
 
     CreateChunkPool();
 
-    auto addChunk = [&] {
-        auto chunk = CreateChunk(
-            /*tableIndex*/ 0,
-            /*weight*/ 1_GB,
-            /*rowCount*/ 1);
-        auto cookie = AddChunk(chunk);
-        FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
-    };
+    CheckJobCounter({.Total = 0});
 
-    auto& jobCounter = ChunkPool_->GetJobCounter();
+    AddChunk(500_MB);
+    CheckJobCounter({.Total = 1, .Blocked = 1});
 
-    ASSERT_EQ(jobCounter->GetTotal(), 0);
+    AddChunk(400_MB);
+    CheckJobCounter({.Total = 1, .Blocked = 1});
 
-    addChunk();
+    TUnorderedChunkPoolTest::ExtractCookie();
+    CheckJobCounter({.Total = 1, .Running = 1});
 
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 2);
+    AddChunk(900_MB);
+    CheckJobCounter({.Total = 2, .Blocked = 1, .Running = 1});
 
-    for (int i = 0; i < 4; ++i) {
-        addChunk();
-    }
+    TUnorderedChunkPoolTest::ExtractCookie();
+    CheckJobCounter({.Total = 2, .Running = 2});
 
-    ASSERT_EQ(jobCounter->GetPending(), 5);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    AddChunk(900_MB);
+    CheckJobCounter({.Total = 3, .Blocked = 1, .Running = 2});
+
+    AddChunk(400_MB);
+    CheckJobCounter({.Total = 4, .Pending = 1, .Blocked = 1, .Running = 2});
+
+    AddChunk(400_MB);
+    CheckJobCounter({.Total = 4, .Pending = 1, .Blocked = 1, .Running = 2});
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+    CheckJobCounter({.Total = 4, .Blocked = 1, .Running = 3});
 
     ChunkPool_->Finish();
-    ASSERT_EQ(jobCounter->GetPending(), 6);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 4, .Pending = 1, .Running = 3});
+
+    TUnorderedChunkPoolTest::ExtractCookie();
+    CheckJobCounter({.Total = 4, .Running = 4});
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, SuspendedChunks)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 950_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+
+    AddChunk(1_GB);
+    CheckJobCounter({.Total = 2, .Pending = 1, .Blocked = 1});
+
+    for (int i = 0; i < 4; ++i) {
+        AddChunk(1_GB);
+    }
+    CheckJobCounter({.Total = 6, .Pending = 5, .Blocked = 1});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 6, .Pending = 6});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetPending(), 5);
-    ASSERT_EQ(jobCounter->GetRunning(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 5, .Running = 1});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetPending(), 4);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 4, .Running = 2});
 
     auto cookie1 = FreeChunksToCookie_.begin()->second;
     ChunkPool_->Suspend(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 2);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 2, .Blocked = 1, .Running = 2, .Suspended = 1});
 
     ChunkPool_->Resume(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 4);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 4, .Running = 2});
 
     ChunkPool_->Suspend(cookie1);
 
     auto cookie2 = std::next(FreeChunksToCookie_.begin())->second;
     ChunkPool_->Suspend(cookie2);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 1, .Blocked = 1, .Running = 2, .Suspended = 2});
 
     auto cookie3 = std::next(std::next(FreeChunksToCookie_.begin()))->second;
     ChunkPool_->Suspend(cookie3);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 4);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Running = 2, .Suspended = 4});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
     ChunkPool_->Resume(cookie3);
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetSuspended(), 3);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Running = 3, .Suspended = 3});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
     ChunkPool_->Resume(cookie2);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetBlocked(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 1, .Blocked = 1, .Running = 3, .Suspended = 1});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 4);
-    ASSERT_EQ(jobCounter->GetSuspended(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Running = 4, .Suspended = 2});
 
     ChunkPool_->Resume(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 2);
-    ASSERT_EQ(jobCounter->GetRunning(), 4);
-    ASSERT_EQ(jobCounter->GetTotal(), 6);
+    CheckJobCounter({.Total = 6, .Pending = 2, .Running = 4});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 5);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Running = 5});
 
     auto stripeLists = GetAllStripeLists();
 
@@ -1307,7 +1240,7 @@ TEST_F(TUnorderedChunkPoolTestCounters, SuspendedChunks)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TUnorderedChunkPoolTestCounters, CountersWithSuspendedChunksExplicitJobCount)
+TEST_F(TUnorderedChunkPoolCountersTest, CountersWithSuspendedChunksExplicitJobCount)
 {
     InitTables(
         /*isTeleportable*/ {false},
@@ -1321,104 +1254,59 @@ TEST_F(TUnorderedChunkPoolTestCounters, CountersWithSuspendedChunksExplicitJobCo
     CreateChunkPool();
 
     for (int i = 0; i < 5; ++i) {
-        auto chunk = CreateChunk(
-            /*tableIndex*/ 0,
-            /*weight*/ 1_GB,
-            /*rowCount*/ 1);
-        auto cookie = AddChunk(chunk);
-        FreeChunksToCookie_.insert(std::pair(std::move(chunk), cookie));
+        AddChunk(1_GB);
     }
 
-    auto& jobCounter = ChunkPool_->GetJobCounter();
-
-    ASSERT_EQ(jobCounter->GetPending(), 4);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 4, .Suspended = 1});
 
     ChunkPool_->Finish();
-    ASSERT_EQ(jobCounter->GetPending(), 5);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 5});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetPending(), 4);
-    ASSERT_EQ(jobCounter->GetRunning(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 4, .Running = 1});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetPending(), 3);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 3, .Running = 2});
 
     auto cookie1 = FreeChunksToCookie_.begin()->second;
     ChunkPool_->Suspend(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 2);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 2, .Running = 2, .Suspended = 1});
 
     ChunkPool_->Resume(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 3);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 3, .Running = 2});
 
     ChunkPool_->Suspend(cookie1);
 
     auto cookie2 = std::next(FreeChunksToCookie_.begin())->second;
     ChunkPool_->Suspend(cookie2);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 1, .Running = 2, .Suspended = 2});
 
     auto cookie3 = std::next(std::next(FreeChunksToCookie_.begin()))->second;
     ChunkPool_->Suspend(cookie3);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 2);
-    ASSERT_EQ(jobCounter->GetSuspended(), 3);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Running = 2, .Suspended = 3});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
     ChunkPool_->Resume(cookie3);
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetSuspended(), 2);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Running = 3, .Suspended = 2});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
     ChunkPool_->Resume(cookie2);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 3);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 1, .Running = 3, .Suspended = 1});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 4);
-    ASSERT_EQ(jobCounter->GetSuspended(), 1);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Running = 4, .Suspended = 1});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
     ChunkPool_->Resume(cookie1);
-
-    ASSERT_EQ(jobCounter->GetPending(), 1);
-    ASSERT_EQ(jobCounter->GetRunning(), 4);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Pending = 1, .Running = 4});
 
     ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
-
-    ASSERT_EQ(jobCounter->GetRunning(), 5);
-    ASSERT_EQ(jobCounter->GetTotal(), 5);
+    CheckJobCounter({.Total = 5, .Running = 5});
 
     ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
 
@@ -1426,6 +1314,149 @@ TEST_F(TUnorderedChunkPoolTestCounters, CountersWithSuspendedChunksExplicitJobCo
 
     EXPECT_EQ(std::ssize(stripeLists), 5);
 
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(
+    TUnorderedChunkPoolCountersTest,
+    CheckJobCountWhenJobsAreLimitedByMaxDataSlices,
+    ValuesIn({
+        std::pair(0, 0),
+        std::pair(1, 1),
+        std::pair(9, 1),
+        std::pair(10, 1),
+        std::pair(11, 2),
+        std::pair(15, 2),
+        std::pair(19, 2),
+        std::pair(20, 2),
+        std::pair(21, 3),
+        std::pair(90, 9),
+        std::pair(91, 10),
+        std::pair(100, 10),
+        std::pair(101, 11),
+    }),
+    std::pair<int, int>)
+{
+    auto [sliceCount, expectedJobCount] = GetParam();
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 10;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+
+    for (int i = 0; i < sliceCount; ++i) {
+        AddChunk(1_MB);
+
+        int jobCount = DivCeil(i + 1, MaxDataSlicesPerJob_);
+
+        CheckJobCounter({
+            .Total = jobCount,
+            .Pending = jobCount - 1,
+            .Blocked = 1,
+        });
+    }
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = expectedJobCount, .Pending = expectedJobCount});
+
+    for (int i = 0; i < expectedJobCount; ++i) {
+        ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+        CheckJobCounter({
+            .Total = expectedJobCount,
+            .Pending = expectedJobCount - i - 1,
+            .Running = i + 1
+        });
+    }
+
+    ASSERT_EQ(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = expectedJobCount, .Running = expectedJobCount});
+
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), expectedJobCount);
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, ExtractedJobsThatLimitedByMaxDataSlicesFromUnfinishedPool)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 2;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+    for (int i = 0; i < MaxDataSlicesPerJob_; ++i) {
+        AddChunk(1_MB);
+        CheckJobCounter({.Total = 1, .Blocked = 1});
+    }
+    AddChunk(1_MB);
+
+    CheckJobCounter({.Total = 2, .Pending = 1, .Blocked = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Blocked = 1, .Running = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Running = 2});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 3, .Blocked = 1, .Running = 2});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 3, .Running = 3});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 4, .Blocked = 1, .Running = 3});
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 4, .Blocked = 1, .Running = 3});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 4, .Pending = 1, .Running = 3});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 4, .Running = 4});
+
+    auto stripeLists = GetAllStripeLists();
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, SingleRunningJobCounterRemainsAfterFinishingPool)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    MaxDataSlicesPerJob_ = 2;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(1_MB);
+    CheckJobCounter({.Total = 1, .Blocked = 1});
+
+    ASSERT_NE(ExtractCookie(), IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 1, .Running = 1});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 1, .Running = 1});
+
+    auto stripeLists = GetAllStripeLists();
     CheckEverything(stripeLists);
 }
 

@@ -1,6 +1,7 @@
 #include "slot_location.h"
 
 #include "bootstrap.h"
+#include "helpers.h"
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
@@ -110,6 +111,15 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
 
     HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
+}
+
+void TSlotLocation::CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const
+{
+    BIND([rootVolume, userId] {
+        NYT::NExecNode::CreateVitalDirectories(rootVolume, userId);
+    })
+    .Via(HeavyInvoker_)
+    .Run();
 }
 
 TFuture<void> TSlotLocation::Initialize()
@@ -916,7 +926,7 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
             }
         }
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
+        YT_LOG_WARNING(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
             LocationPath_,
             path);
         return false;

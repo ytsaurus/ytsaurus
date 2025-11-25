@@ -108,7 +108,7 @@ using TTestSchemaYsonStructPtr = TIntrusivePtr<TTestSchemaYsonStruct>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYsonSerialize, YsonTableSchema)
+TEST(TYsonSerializeTest, YsonTableSchema)
 {
     auto ysonStruct = New<TTestSchemaYsonStruct>();
     auto schema = GetYsonSchema(ysonStruct);
@@ -189,7 +189,7 @@ struct TTestSerializeYson
 
 using TTestSerializeYsonPtr = TIntrusivePtr<TTestSerializeYson>;
 
-TEST(TYsonSerialize, YsonSerialize)
+TEST(TYsonSerializeTest, YsonSerialize)
 {
     auto schema = GetYsonSchema<TTestSerializeYson>();
 
@@ -269,7 +269,7 @@ struct TTestPartialSerializeYson
 
 using TTestPartialSerializeYsonPtr = TIntrusivePtr<TTestPartialSerializeYson>;
 
-TEST(TYsonSerialize, PartialSerialize)
+TEST(TYsonSerializeTest, PartialSerialize)
 {
     auto ysonStruct = New<TTestPartialSerializeYson>();
     ysonStruct->Value = "some_value";
@@ -333,7 +333,7 @@ struct TTestYsonStructWithProto
 
 using TTestYsonStructWithProtoPtr = TIntrusivePtr<TTestYsonStructWithProto>;
 
-TEST(TYsonSerialize, ProtoSerialize)
+TEST(TYsonSerializeTest, ProtoSerialize)
 {
     NProto::TTestMessage proto;
     proto.SetInt32(234);

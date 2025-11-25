@@ -32,11 +32,12 @@ class TReshardIterationBase
 {
 public:
     TReshardIterationBase(
-        std::string bundleName,
+        TBundleSnapshotPtr bundleSnapshot,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : BundleName_(std::move(bundleName))
+        : BundleName_(bundleSnapshot->Bundle->Name)
         , GroupName_(std::move(groupName))
+        , BundleSnapshot_(std::move(bundleSnapshot))
         , DynamicConfig_(std::move(dynamicConfig))
     { }
 
@@ -50,14 +51,19 @@ public:
         return true;
     }
 
-    bool IsPickPivotKeysEnabled(const TBundleTabletBalancerConfigPtr& bundleConfig) const override
+    bool IsPickPivotKeysEnabled() const override
     {
-        return DynamicConfig_->PickReshardPivotKeys && bundleConfig->EnablePickPivotKeys;
+        return DynamicConfig_->PickReshardPivotKeys && BundleSnapshot_->Bundle->Config->EnablePickPivotKeys;
     }
 
     const std::string& GetBundleName() const override
     {
         return BundleName_;
+    }
+
+    const TTabletCellBundlePtr GetBundle() const override
+    {
+        return BundleSnapshot_->Bundle;
     }
 
     const TString& GetGroupName() const override
@@ -71,9 +77,10 @@ public:
     }
 
 protected:
-    std::string BundleName_;
-    TString GroupName_;
-    TTabletBalancerDynamicConfigPtr DynamicConfig_;
+    const std::string BundleName_;
+    const TGroupName GroupName_;
+    const TBundleSnapshotPtr BundleSnapshot_;
+    const TTabletBalancerDynamicConfigPtr DynamicConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,11 +90,11 @@ class TSizeReshardIteration
 {
 public:
     TSizeReshardIteration(
-        std::string bundleName,
+        TBundleSnapshotPtr bundleSnapshot,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
-            std::move(bundleName),
+            std::move(bundleSnapshot),
             std::move(groupName),
             std::move(dynamicConfig))
     { }
@@ -100,7 +107,6 @@ public:
     }
 
     void Prepare(
-        const TBundleStatePtr& /*bundleState*/,
         const TTabletBalancingGroupConfigPtr& /*groupConfig*/,
         const TTableRegistryPtr& /*tableRegistry*/) override
     { }
@@ -174,7 +180,7 @@ public:
             MergeSplitTabletsOfTable,
             Passed(std::move(tablets)),
             DynamicConfig_->MinDesiredTabletSize,
-            IsPickPivotKeysEnabled(table->Bundle->Config),
+            IsPickPivotKeysEnabled(),
             Logger())
             .AsyncVia(invoker)
             .Run();
@@ -210,11 +216,11 @@ class TParameterizedReshardIteration
 {
 public:
     TParameterizedReshardIteration(
-        std::string bundleName,
+        TBundleSnapshotPtr bundleSnapshot,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
-            std::move(bundleName),
+            std::move(bundleSnapshot),
             std::move(groupName),
             std::move(dynamicConfig))
     { }
@@ -227,13 +233,12 @@ public:
     }
 
     void Prepare(
-        const TBundleStatePtr& bundleState,
         const TTabletBalancingGroupConfigPtr& groupConfig,
         const TTableRegistryPtr& /*tableRegistry*/) override
     {
         Resharder_ = CreateParameterizedResharder(
-            bundleState->GetBundle(),
-            bundleState->PerformanceCountersKeys(),
+            BundleSnapshot_->Bundle,
+            BundleSnapshot_->PerformanceCountersKeys,
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
                 .Metric = DynamicConfig_->DefaultParameterizedMetric,
@@ -322,12 +327,12 @@ class TReplicaReshardIteration
 {
 public:
     TReplicaReshardIteration(
-        std::string bundleName,
+        TBundleSnapshotPtr bundleSnapshot,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
         std::string clusterName)
         : TSizeReshardIteration(
-            std::move(bundleName),
+            std::move(bundleSnapshot),
             std::move(groupName),
             std::move(dynamicConfig))
         , SelfClusterName_(std::move(clusterName))
@@ -341,7 +346,6 @@ public:
     }
 
     void Prepare(
-        const TBundleStatePtr& bundleState,
         const TTabletBalancingGroupConfigPtr& groupConfig,
         const TTableRegistryPtr& tableRegistry) override
     {
@@ -349,7 +353,7 @@ public:
         YT_VERIFY(SelfReferenceTableIds_.empty());
         YT_VERIFY(!groupConfig->Parameterized->ReplicaClusters.empty());
 
-        if (bundleState->IsLastReplicaBalancingFetchFailed()) {
+        if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
             YT_LOG_DEBUG("Balancing tablets via replica reshard is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
@@ -359,7 +363,7 @@ public:
                 "Not all statistics for replica reshard balancing were fetched");
         }
 
-        for (const auto& [id, table] : bundleState->GetBundle()->Tables) {
+        for (const auto& [id, table] : BundleSnapshot_->Bundle->Tables) {
             if (TypeFromId(id) != EObjectType::Table) {
                 continue;
             }
@@ -546,35 +550,35 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IReshardIterationPtr CreateSizeReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TSizeReshardIteration>(
-        std::move(bundleName),
+        std::move(bundleSnapshot),
         std::move(groupName),
         std::move(dynamicConfig));
 }
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TParameterizedReshardIteration>(
-        std::move(bundleName),
+        std::move(bundleSnapshot),
         std::move(groupName),
         std::move(dynamicConfig));
 }
 
 IReshardIterationPtr CreateReplicaReshardIteration(
-    std::string bundleName,
+    TBundleSnapshotPtr bundleSnapshot,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
     std::string selfClusterName)
 {
     return New<TReplicaReshardIteration>(
-        std::move(bundleName),
+        std::move(bundleSnapshot),
         std::move(groupName),
         std::move(dynamicConfig),
         std::move(selfClusterName));

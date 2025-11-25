@@ -29,12 +29,12 @@ class TMoveIterationBase
 public:
     TMoveIterationBase(
         TString groupName,
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : BundleName_(bundle->GetBundle()->Name)
+        : BundleName_(bundleSnapshot->Bundle->Name)
         , GroupName_(std::move(groupName))
-        , Bundle_(std::move(bundle))
+        , BundleSnapshot_(std::move(bundleSnapshot))
         , GroupConfig_(std::move(groupConfig))
         , DynamicConfig_(std::move(dynamicConfig))
     { }
@@ -74,9 +74,9 @@ public:
         return GroupName_;
     }
 
-    const TBundleStatePtr& GetBundle() const override
+    const TTabletCellBundlePtr& GetBundle() const override
     {
-        return Bundle_;
+        return BundleSnapshot_->Bundle;
     }
 
     const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const override
@@ -94,8 +94,8 @@ public:
 
 protected:
     const std::string BundleName_;
-    const TString GroupName_;
-    const TBundleStatePtr Bundle_;
+    const TGroupName GroupName_;
+    const TBundleSnapshotPtr BundleSnapshot_;
     const TTabletBalancingGroupConfigPtr GroupConfig_;
     const TTabletBalancerDynamicConfigPtr DynamicConfig_;
 };
@@ -107,19 +107,19 @@ class TOrdinaryMoveIteration
 {
 public:
     TOrdinaryMoveIteration(
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TMoveIterationBase(
             LegacyOrdinaryGroupName,
-            std::move(bundle),
+            std::move(bundleSnapshot),
             std::move(groupConfig),
             std::move(dynamicConfig))
     { }
 
     bool IsGroupBalancingEnabled() const override
     {
-        return Bundle_->GetBundle()->Config->EnableCellBalancer;
+        return BundleSnapshot_->Bundle->Config->EnableCellBalancer;
     }
 
     EBalancingMode GetBalancingMode() const override
@@ -131,7 +131,7 @@ public:
     {
         return BIND(
             ReassignOrdinaryTablets,
-            Bundle_->GetBundle(),
+            BundleSnapshot_->Bundle,
             /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
@@ -157,19 +157,19 @@ class TInMemoryMoveIteration
 {
 public:
     TInMemoryMoveIteration(
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TMoveIterationBase(
             LegacyInMemoryGroupName,
-            std::move(bundle),
+            std::move(bundleSnapshot),
             std::move(groupConfig),
             std::move(dynamicConfig))
     { }
 
     bool IsGroupBalancingEnabled() const override
     {
-        return Bundle_->GetBundle()->Config->EnableInMemoryCellBalancer;
+        return BundleSnapshot_->Bundle->Config->EnableInMemoryCellBalancer;
     }
 
     EBalancingMode GetBalancingMode() const override
@@ -181,7 +181,7 @@ public:
     {
         return BIND(
             ReassignInMemoryTablets,
-            Bundle_->GetBundle(),
+            BundleSnapshot_->Bundle,
             /*movableTables*/ std::nullopt,
             /*ignoreTableWiseConfig*/ false,
             Logger())
@@ -209,13 +209,13 @@ class TParameterizedMoveIterationBase
 public:
     TParameterizedMoveIterationBase(
         TString groupName,
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TMoveIterationBase(
             std::move(groupName),
-            std::move(bundle),
+            std::move(bundleSnapshot),
             std::move(groupConfig),
             std::move(dynamicConfig))
         , MetricTracker_(std::move(metricTracker))
@@ -252,13 +252,13 @@ class TParameterizedMoveIteration
 public:
     TParameterizedMoveIteration(
         TString groupName,
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TParameterizedMoveIterationBase(
             std::move(groupName),
-            std::move(bundle),
+            std::move(bundleSnapshot),
             std::move(metricTracker),
             std::move(groupConfig),
             std::move(dynamicConfig))
@@ -273,8 +273,8 @@ public:
     {
         return BIND(
             ReassignTabletsParameterized,
-            Bundle_->GetBundle(),
-            Bundle_->PerformanceCountersKeys(),
+            BundleSnapshot_->Bundle,
+            BundleSnapshot_->PerformanceCountersKeys,
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
@@ -308,14 +308,14 @@ class TReplicaMoveIteration
 public:
     TReplicaMoveIteration(
         TString groupName,
-        TBundleStatePtr bundle,
+        TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
         std::string selfClusterName)
         : TParameterizedMoveIterationBase(
             std::move(groupName),
-            std::move(bundle),
+            std::move(bundleSnapshot),
             std::move(metricTracker),
             std::move(groupConfig),
             std::move(dynamicConfig))
@@ -329,7 +329,7 @@ public:
 
     void Prepare(const TTableRegistryPtr& tableRegistry) override
     {
-        if (Bundle_->IsLastReplicaBalancingFetchFailed()) {
+        if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
             YT_LOG_DEBUG("Balancing tablets via replica move is not possible because "
                 "last statistics fetch failed (BundleName: %v, Group: %v)",
                 BundleName_,
@@ -339,7 +339,7 @@ public:
                 "Not all statistics for replica move balancing were fetched");
         }
 
-        for (const auto& [id, table] : Bundle_->GetBundle()->Tables) {
+        for (const auto& [id, table] : BundleSnapshot_->Bundle->Tables) {
             if (table->GetBalancingGroup() != GroupName_) {
                 continue;
             }
@@ -379,8 +379,8 @@ public:
     {
         return BIND(
             ReassignTabletsReplica,
-            Bundle_->GetBundle(),
-            Bundle_->PerformanceCountersKeys(),
+            BundleSnapshot_->Bundle,
+            BundleSnapshot_->PerformanceCountersKeys,
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
@@ -412,37 +412,37 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IMoveIterationPtr CreateOrdinaryMoveIteration(
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TOrdinaryMoveIteration>(
-        std::move(bundleState),
+        std::move(bundleSnapshot),
         std::move(groupConfig),
         std::move(dynamicConfig));
 }
 
 IMoveIterationPtr CreateInMemoryMoveIteration(
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TInMemoryMoveIteration>(
-        std::move(bundleState),
+        std::move(bundleSnapshot),
         std::move(groupConfig),
         std::move(dynamicConfig));
 }
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
     TString groupName,
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TParameterizedMoveIteration>(
         std::move(groupName),
-        std::move(bundleState),
+        std::move(bundleSnapshot),
         std::move(metricTracker),
         std::move(groupConfig),
         std::move(dynamicConfig));
@@ -450,7 +450,7 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
 
 IMoveIterationPtr CreateReplicaMoveIteration(
     TString groupName,
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
@@ -458,7 +458,7 @@ IMoveIterationPtr CreateReplicaMoveIteration(
 {
     return New<TReplicaMoveIteration>(
         std::move(groupName),
-        std::move(bundleState),
+        std::move(bundleSnapshot),
         std::move(metricTracker),
         std::move(groupConfig),
         std::move(dynamicConfig),

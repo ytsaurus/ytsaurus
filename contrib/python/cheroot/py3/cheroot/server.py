@@ -100,37 +100,6 @@ __all__ = (
     'get_ssl_adapter_class',
 )
 
-
-if sys.version_info[:2] >= (3, 13):
-    from queue import (
-        Queue as QueueWithShutdown,
-        ShutDown as QueueShutDown,
-    )
-else:
-
-    class QueueShutDown(Exception):
-        """Queue has been shut down."""
-
-    class QueueWithShutdown(queue.Queue):
-        """Add shutdown() similar to Python 3.13+ Queue."""
-
-        _queue_shut_down: bool = False
-
-        def shutdown(self, immediate=False):
-            if immediate:
-                while True:
-                    try:
-                        self.get_nowait()
-                    except queue.Empty:
-                        break
-            self._queue_shut_down = True
-
-        def get(self, *args, **kwargs):
-            if self._queue_shut_down:
-                raise QueueShutDown
-            return super().get(*args, **kwargs)
-
-
 IS_WINDOWS = platform.system() == 'Windows'
 """Flag indicating whether the app is running under Windows."""
 
@@ -1691,7 +1660,7 @@ class HTTPServer:
         self.reuse_port = reuse_port
         self.clear_stats()
 
-        self._unservicable_conns = QueueWithShutdown()
+        self._unservicable_conns = queue.Queue()
 
     def clear_stats(self):
         """Reset server stat counters.."""
@@ -1904,9 +1873,8 @@ class HTTPServer:
     def _serve_unservicable(self):
         """Serve connections we can't handle a 503."""
         while self.ready:
-            try:
-                conn = self._unservicable_conns.get()
-            except QueueShutDown:
+            conn = self._unservicable_conns.get()
+            if conn is _STOPPING_FOR_INTERRUPT:
                 return
             request = HTTPRequest(self, conn)
             try:
@@ -2269,7 +2237,7 @@ class HTTPServer:
 
         # This tells the thread that handles unservicable connections to shut
         # down:
-        self._unservicable_conns.shutdown(immediate=True)
+        self._unservicable_conns.put(_STOPPING_FOR_INTERRUPT)
 
         if self._start_time is not None:
             self._run_time += time.time() - self._start_time

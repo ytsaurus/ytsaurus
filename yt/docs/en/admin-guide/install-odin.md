@@ -18,4 +18,4 @@ metadata:
       content: 'Nadezhda Savchenko'
 ---
 
-{% include [Installating Odin](../_includes/admin-guide/install-odin.md) %}
+{% include [Install Odin](../_includes/admin-guide/install-odin.md) %}

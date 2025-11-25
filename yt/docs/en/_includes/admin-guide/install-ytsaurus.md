@@ -228,7 +228,7 @@ Status:
 
 {% endcut %}
 
-#### Issues with init job
+#### Issues with Init Job
 
 One possible reason for a cluster getting stuck in the `Initializing` state is that one of the init jobs has not completed. The job might not have had time to run yet, or it might have failed. You need to check the job logs using `kubectl logs <init-job-pod-name> -n <namespace>`.
 

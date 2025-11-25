@@ -1612,19 +1612,17 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config)
+TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config, const TQueryEngineDynamicConfigPtr& queryConfig)
 {
     TQueryOptions queryOptions;
 
     auto useOrderByInJoinSubqueriesDefault = false;
     auto statisticsAggregationDefault = EStatisticsAggregation::None;
-    if (auto singletonDynamicConfig = TSingletonManager::GetDynamicConfig()) {
-        auto queryEngineConfig = singletonDynamicConfig->GetSingletonConfig<NQueryClient::TQueryEngineDynamicConfig>();
-
-        useOrderByInJoinSubqueriesDefault = queryEngineConfig->UseOrderByInJoinSubqueries.value_or(
+    if (queryConfig) {
+        useOrderByInJoinSubqueriesDefault = queryConfig->UseOrderByInJoinSubqueries.value_or(
             useOrderByInJoinSubqueriesDefault);
 
-        statisticsAggregationDefault = queryEngineConfig->StatisticsAggregation.value_or(
+        statisticsAggregationDefault = queryConfig->StatisticsAggregation.value_or(
             statisticsAggregationDefault);
     }
 
@@ -1753,7 +1751,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             }));
     }
 
-    auto queryOptions = GetQueryOptions(options, dynamicConfig);
+    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+    auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
+    auto queryOptions = GetQueryOptions(options, dynamicConfig, queryEngineConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
@@ -1775,7 +1775,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion,
+        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion);
     const auto& query = fragment->Query;
@@ -1876,6 +1876,8 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
 
     auto dynamicConfig = GetNativeConnection()->GetConfig();
+    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+    auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
 
     TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
 
@@ -1927,7 +1929,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
-        options.ExpressionBuilderVersion,
+        options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion);
 

@@ -547,6 +547,29 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
         "12": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
+    def _create_basic_tables(
+        self,
+        table_path="//tmp/table",
+        table_schema=PRIMARY_SCHEMA,
+        index_name="secondary",
+        index_schema=INDEX_ON_VALUE_SCHEMA,
+        kind="full_sync",
+        mount=False,
+        **kwargs
+    ):
+        index_table_path = self._get_index_path(table_path, index_name)
+        table_id = self._create_table(table_path, table_schema)
+        index_table_id = self._create_table(index_table_path, index_schema)
+        wait(lambda: exists(f"#{table_id}"))
+        wait(lambda: exists(f"#{index_table_id}"))
+        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
+
+        if mount:
+            self._sync_create_cells()
+            self._mount(table_path, index_table_path)
+
+        return table_id, index_table_id, index_id, None
+
     @authors("sabdenovch")
     def test_forbid_create_beyond_portal(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})

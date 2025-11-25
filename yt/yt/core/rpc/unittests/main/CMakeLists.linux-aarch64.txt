@@ -75,7 +75,7 @@ set_property(
   unittester-core-rpc
   PROPERTY
   LABELS
-  MEDIUM
+  LARGE
 )
 
 set_property(

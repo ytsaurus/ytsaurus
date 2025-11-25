@@ -10,6 +10,7 @@
 #include "operation_state.h"
 #include "operation_controller.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -775,15 +776,14 @@ public:
         std::vector<TFuture<void>> futures;
         const auto& state = GetOperationState(operationId);
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            if (auto tree = GetTree(treeId);
-                tree->HasOperation(operationId))
-            {
+            if (auto tree = GetTree(treeId)) {
                 futures.push_back(tree->ValidateOperationPoolPermissions(
                     operationId,
                     user,
                     permissions));
             }
         }
+
         return AllSucceeded(futures);
     }
 

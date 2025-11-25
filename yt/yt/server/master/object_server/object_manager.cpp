@@ -266,9 +266,6 @@ public:
         EObjectType type,
         IAttributeDictionary* attributes) override;
 
-    bool IsObjectLifeStageValid(const TObject* object) const override;
-    void ValidateObjectLifeStage(const TObject* object) const override;
-
     TObject* ResolvePathToLocalObject(
         const TYPath& path,
         const std::optional<std::string>& service,
@@ -1668,9 +1665,17 @@ TObject* TObjectManager::CreateObject(
                 CheckRemovingObjectRefCounter(object);
                 break;
 
-            case EObjectLifeStage::RemovalAwaitingCellsSync:
+            case EObjectLifeStage::RemovalAwaitingCellsSync: {
+                if (auto refCounter = object->GetObjectRefCounter(/*flushUnrefs*/ true); refCounter != 1) {
+                    YT_LOG_ALERT("Forcibly advanced life stage of an object with an unexpected reference counter "
+                        "(ObjectId: %v, RefCounter: %v, LifeStage: %v)",
+                        GetObjectId(object),
+                        refCounter,
+                        object->GetLifeStage());
+                }
                 object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
                 break;
+            }
 
             default:
                 ConfirmObjectLifeStageToNativeMasterCell(object);
@@ -1678,38 +1683,6 @@ TObject* TObjectManager::CreateObject(
     }
 
     return object;
-}
-
-bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
-{
-    YT_VERIFY(IsObjectAlive(object));
-
-    if (IsHiveMutation()) {
-        return true;
-    }
-
-    if (object->GetLifeStage() == EObjectLifeStage::CreationCommitted) {
-        return true;
-    }
-
-    if (object->IsForeign() &&
-        object->GetLifeStage() == EObjectLifeStage::CreationPreCommitted)
-    {
-        return true;
-    }
-
-    return false;
-}
-
-void TObjectManager::ValidateObjectLifeStage(const TObject* object) const
-{
-    if (!IsObjectLifeStageValid(object)) {
-        THROW_ERROR_EXCEPTION(
-            NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "%v cannot be used since it is in %Qlv life stage",
-            object->GetCapitalizedObjectName(),
-            object->GetLifeStage());
-    }
 }
 
 std::optional<TObject*> TObjectManager::FindObjectByAttributes(

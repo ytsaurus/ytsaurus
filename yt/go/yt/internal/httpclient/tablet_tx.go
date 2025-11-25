@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"time"
 
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -34,22 +35,25 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	tx.InvokeWriteRow = tx.doWriteRow
 
 	tx.c = c
-
-	txTimeout := yson.Duration(c.config.GetTxTimeout())
-
-	startOptions := &yt.StartTabletTxOptions{
-		Type:    yt.TxTypeTablet,
-		Sticky:  true,
-		Timeout: &txTimeout,
+	if options == nil {
+		options = &yt.StartTabletTxOptions{}
 	}
 
-	if options != nil {
-		startOptions.Atomicity = options.Atomicity
+	txTimeout := yson.Duration(c.config.GetTxTimeout())
+	if options.Timeout != nil {
+		txTimeout = *options.Timeout
+	}
+
+	startOptions := &yt.StartTabletTxOptions{
+		Type:      yt.TxTypeTablet,
+		Sticky:    true,
+		Atomicity: options.Atomicity,
+		Timeout:   &txTimeout,
 	}
 
 	tx.txID, err = tx.StartTabletTx(ctx, startOptions)
 	tx.ctx = ctx
-	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.config, c.stop, nil)
+	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, time.Duration(txTimeout), c.config.GetTxPingPeriod(), c.stop, nil)
 
 	go tx.pinger.Run()
 

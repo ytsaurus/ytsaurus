@@ -31,6 +31,7 @@ void ValidateGpuSchedulingModuleName(TStringBuf name);
 // TODO(eshcherbin): Use for all testing delays.
 //! Used for testing purposes.
 void Delay(TDuration delay, EDelayType delayType = EDelayType::Async);
+void MaybeDelay(std::optional<TDuration> maybeDelay, EDelayType delayType = EDelayType::Async);
 void MaybeDelay(const TDelayConfigPtr& delayConfig, const NLogging::TLogger* logger = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

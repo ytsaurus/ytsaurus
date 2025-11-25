@@ -9,7 +9,7 @@
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
-#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>

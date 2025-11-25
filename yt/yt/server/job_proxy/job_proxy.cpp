@@ -1396,6 +1396,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         auto preparationPath = GetPreparationPath();
 
+        // Temporary workaround for nirvana - make tmp directories writable.
         auto tmpPath = NFS::CombinePaths(
             preparationPath,
             GetSandboxRelPath(ESandboxKind::Tmp));
@@ -1522,7 +1523,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
-        // TODO(yuryalekseev): Remove this after tasklets move to using default place.
+        // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(All);
     }
 

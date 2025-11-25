@@ -3816,7 +3816,7 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(SchedulerUtilsTest, CheckGetIndexFromPodId)
+TEST(TSchedulerUtilsTest, CheckGetIndexFromPodId)
 {
     static const std::string Cluster = "hume";
     static const std::string InstanceType = "tab";
@@ -3852,7 +3852,7 @@ TEST(SchedulerUtilsTest, CheckGetIndexFromPodId)
         InstanceType));
 }
 
-TEST(SchedulerUtilsTest, CheckGeneratePodTemplate)
+TEST(TSchedulerUtilsTest, CheckGeneratePodTemplate)
 {
     EXPECT_EQ("<short-hostname>-venus212-0ab-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 171));
     EXPECT_EQ("<short-hostname>-venus212-2710-exe-shtern", GetInstancePodIdTemplate("shtern", "venus212", "exe", 10000));
@@ -5491,7 +5491,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDataCentersPriority, AlphaNumDC)
+TEST(TDataCentersPriorityTest, AlphaNumDC)
 {
     constexpr int SlotCount = 5;
     constexpr int PerDataCenterCount = 3;
@@ -5532,7 +5532,7 @@ TEST(TDataCentersPriority, AlphaNumDC)
     EXPECT_EQ(assigningDC, THashSet<std::string>({"dc-1", "dc-2"}));
 }
 
-TEST(TDataCentersPriority, Feasibility)
+TEST(TDataCentersPriorityTest, Feasibility)
 {
     constexpr int SlotCount = 5;
 
@@ -5584,7 +5584,7 @@ TEST(TDataCentersPriority, Feasibility)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersPriority, Forbidden)
+TEST(TDataCentersPriorityTest, Forbidden)
 {
     constexpr int SlotCount = 5;
 
@@ -5628,7 +5628,7 @@ TEST(TDataCentersPriority, Forbidden)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersPriority, PerBundleForbidden)
+TEST(TDataCentersPriorityTest, PerBundleForbidden)
 {
     constexpr int SlotCount = 5;
 
@@ -5669,7 +5669,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_has_forbidden_dc");
 }
 
-TEST(TDataCentersPriority, DisruptionMinimizing)
+TEST(TDataCentersPriorityTest, DisruptionMinimizing)
 {
     constexpr int SlotCount = 5;
     auto input = GenerateMultiDCInputContext(9, SlotCount);
@@ -5718,7 +5718,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersPriority, MinimizingTabletMoves)
+TEST(TDataCentersPriorityTest, MinimizingTabletMoves)
 {
     constexpr int SlotCount = 5;
     auto input = GenerateMultiDCInputContext(9, SlotCount);
@@ -5765,7 +5765,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
 }
 
 
-TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
+TEST(TDataCentersPriorityTest, ChangeForbiddenSeveralTimes)
 {
     constexpr int SlotCount = 5;
 
@@ -5834,7 +5834,7 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
     ScheduleBundles(input, &mutations);
 }
 
-TEST(TDataCentersProxyPriority, AlphaNumDC)
+TEST(TDataCentersProxyPriorityTest, AlphaNumDC)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
@@ -5871,7 +5871,7 @@ TEST(TDataCentersProxyPriority, AlphaNumDC)
     EXPECT_EQ(assigningDC, THashSet<std::string>({"dc-1", "dc-2"}));
 }
 
-TEST(TDataCentersProxyPriority, Feasibility)
+TEST(TDataCentersProxyPriorityTest, Feasibility)
 {
     constexpr int PerDataCenterCount = 3;
 
@@ -5920,7 +5920,7 @@ TEST(TDataCentersProxyPriority, Feasibility)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersProxyPriority, Forbidden)
+TEST(TDataCentersProxyPriorityTest, Forbidden)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
@@ -5960,7 +5960,7 @@ TEST(TDataCentersProxyPriority, Forbidden)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersProxyPriority, PerBundleForbidden)
+TEST(TDataCentersProxyPriorityTest, PerBundleForbidden)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
@@ -5996,7 +5996,7 @@ TEST(TDataCentersProxyPriority, PerBundleForbidden)
     EXPECT_EQ(assigningDC, dataCenters);
 }
 
-TEST(TDataCentersProxyPriority, DisruptionMinimizing)
+TEST(TDataCentersProxyPriorityTest, DisruptionMinimizing)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);

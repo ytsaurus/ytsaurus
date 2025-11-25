@@ -15,7 +15,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(SignaturePreprocessTest, Basic)
+TEST(TSignaturePreprocessTest, Basic)
 {
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(PreprocessSignature(TYsonString("header"_sb), "payload")),

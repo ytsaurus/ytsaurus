@@ -33,7 +33,7 @@ void TBootstrapMock::InitializeMasterSmartpointers()
     epochContext->CurrentEpochCounter = 42;
     epochContext->EphemeralPtrUnrefInvoker = GetSyncInvoker();
 
-    InitializeMasterStateThread(this, epochContext, /*isAutomatonThread*/ true);
+    InitializeMasterThreadState(this, epochContext, /*isAutomatonThread*/ true);
     BeginMutation();
 }
 

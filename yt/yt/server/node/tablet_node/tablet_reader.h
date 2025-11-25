@@ -50,7 +50,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory,
-    NTableClient::TTimestampReadOptions timestampReadOptions,
+    const NTableClient::TTimestampReadOptions& timestampReadOptions,
     bool mergeVersionedRows = true);
 
 struct TPartitionKeys

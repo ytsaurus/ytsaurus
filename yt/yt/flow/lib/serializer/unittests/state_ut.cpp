@@ -63,7 +63,7 @@ using TTestYsonStatePtr = TIntrusivePtr<TTestYsonState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonState, Schema)
+TEST(TestYsonStateTest, Schema)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -155,7 +155,7 @@ std::optional<TUnversionedOwningRow> ApplyMutation(const std::optional<TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonState, FullMutation)
+TEST(TestYsonStateTest, FullMutation)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -180,7 +180,7 @@ TEST(TestYsonState, FullMutation)
     EXPECT_EQ(otherYsonState->Packable->Value, 345);
 }
 
-TEST(TestYsonState, RepeatMutation)
+TEST(TestYsonStateTest, RepeatMutation)
 {
 
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
@@ -215,7 +215,7 @@ TEST(TestYsonState, RepeatMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TestYsonState, Update)
+TEST(TestYsonStateTest, Update)
 {
     auto stateSchema = GetYsonStateSchema<TTestYsonState>();
 
@@ -332,7 +332,7 @@ struct TTestDefaultYsonState
 
 using TTestDefaultYsonStatePtr = TIntrusivePtr<TTestDefaultYsonState>;
 
-TEST(TestYsonState, Default)
+TEST(TestYsonStateTest, Default)
 {
     const auto defaultYsonStruct = New<TTestDefaultYsonState>();
     auto stateSchema = GetYsonStateSchema<TTestDefaultYsonState>();

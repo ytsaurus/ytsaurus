@@ -5350,7 +5350,7 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
             if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
                 error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
                 error.FindMatching(NYTree::EErrorCode::ResolveError) ||
-                error.FindMatching(NObjectClient::EErrorCode::InvalidObjectLifeStage))
+                error.FindMatching(NObjectClient::EErrorCode::InactiveObjectLifeStage))
             {
                 DoFailOperation(
                     TError("Failed to update account usage lease")
@@ -10404,9 +10404,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
     }
 
-    if (jobSpecConfig->RestrictPortoPlace) {
-        jobSpec->set_restrict_porto_place(jobSpecConfig->RestrictPortoPlace);
-    }
+    jobSpec->set_restrict_porto_place(jobSpecConfig->RestrictPortoPlace);
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

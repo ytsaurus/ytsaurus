@@ -1042,10 +1042,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            return objectManager->IsObjectLifeStageValid(cellBundle)
-                ? cellBundle
-                : nullptr;
+            return IsObjectActive(cellBundle) ? cellBundle : nullptr;
         } else {
             return cellBundle;
         }
@@ -1063,8 +1060,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            ValidateObjectActive(cellBundle);
         }
 
         return cellBundle;
@@ -1081,8 +1077,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            ValidateObjectActive(cellBundle);
         }
 
         return cellBundle;

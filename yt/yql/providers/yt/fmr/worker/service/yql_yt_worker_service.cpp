@@ -33,8 +33,8 @@ struct TWorkerRunOptions {
     ui16 Port;
 
     void InitLogger() {
-        NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
-        NLog::EComponentHelpers::ForEach([level](NLog::EComponent c) {
+        NLog::ELevel level = NLog::TLevelHelpers::FromInt(Verbosity);
+        NLog::TComponentHelpers::ForEach([level](NLog::EComponent c) {
             NYql::NLog::YqlLogger().SetComponentLevel(c, level);
         });
     }

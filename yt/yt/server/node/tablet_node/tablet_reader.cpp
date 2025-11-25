@@ -320,7 +320,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory,
-    TTimestampReadOptions timestampReadOptions,
+    const TTimestampReadOptions& timestampReadOptions,
     bool mergeVersionedRows)
 {
     auto timestamp = timestampRange.Timestamp;
@@ -421,7 +421,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
             timestampReadOptions);
 
         reader = NRowMerger::CreateSchemafulOverlappingRangeReader(
-            std::move(startStoreBounds),
+            startStoreBounds,
             std::move(rowMerger),
             [
                 =,
@@ -451,7 +451,6 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
         auto storesCount = stores.size();
         auto getNextReader = [
             =,
-            timestampReadOptions = std::move(timestampReadOptions),
             stores = std::move(stores),
             boundsPerStore = std::move(boundsPerStore),
             index = 0
@@ -527,7 +526,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
     auto takePartition = [&] (const std::vector<ISortedStorePtr>& candidateStores) {
         for (const auto& store : candidateStores) {
-            auto begin = std::upper_bound(
+            const auto* begin = std::upper_bound(
                 bounds.begin(),
                 bounds.end(),
                 store->GetMinKey().Get(),
@@ -535,7 +534,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     return lhs < rhs.second;
                 });
 
-            auto end = std::lower_bound(
+            const auto* end = std::lower_bound(
                 bounds.begin(),
                 bounds.end(),
                 store->GetUpperBoundKey().Get(),
@@ -556,7 +555,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     takePartition(tabletSnapshot->GetEdenStores());
 
     auto range = tabletSnapshot->GetIntersectingPartitions(lowerBound, upperBound);
-    for (auto it = range.first; it != range.second; ++it) {
+    for (const auto* it = range.first; it != range.second; ++it) {
         takePartition((*it)->Stores);
     }
 
@@ -620,7 +619,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             timestampReadOptions);
 
         reader = NRowMerger::CreateSchemafulOverlappingRangeReader(
-            std::move(boundaries),
+            boundaries,
             std::move(rowMerger),
             [
                 =,
@@ -709,16 +708,16 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
-    constexpr i64 infinity = std::numeric_limits<i64>::max() / 2;
+    static constexpr i64 Infinity = std::numeric_limits<i64>::max() / 2;
 
     auto valueToInt = [] (const TUnversionedValue& value) {
         switch (value.Type) {
             case EValueType::Int64:
-                return std::clamp(value.Data.Int64, -infinity, +infinity);
+                return std::clamp(value.Data.Int64, -Infinity, +Infinity);
             case EValueType::Min:
-                return -infinity;
+                return -Infinity;
             case EValueType::Max:
-                return +infinity;
+                return +Infinity;
             default:
                 YT_ABORT();
         }
@@ -726,7 +725,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 
     int tabletIndex = 0;
     i64 lowerRowIndex = 0;
-    i64 upperRowIndex = infinity;
+    i64 upperRowIndex = Infinity;
     if (lowerBound < upperBound) {
         if (lowerBound[0].Type == EValueType::Min) {
             tabletIndex = 0;
@@ -757,21 +756,19 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     }
 
     i64 trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount;
-    if (lowerRowIndex < trimmedRowCount) {
-        lowerRowIndex = trimmedRowCount;
-    }
+    lowerRowIndex = std::max(lowerRowIndex, trimmedRowCount);
 
     std::vector<int> storeIndices;
     const auto& allStores = tabletSnapshot->OrderedStores;
     if (lowerRowIndex < upperRowIndex && !allStores.empty()) {
-        auto lowerIt = std::upper_bound(
+        const auto* lowerIt = std::upper_bound(
             allStores.begin(),
             allStores.end(),
             lowerRowIndex,
             [] (i64 lhs, const IOrderedStorePtr& rhs) {
                 return lhs < rhs->GetStartingRowIndex();
             }) - 1;
-        auto it = lowerIt;
+        const auto* it = lowerIt;
         while (it != allStores.end()) {
             const auto& store = *it;
             if (store->GetStartingRowIndex() >= upperRowIndex) {
@@ -795,9 +792,9 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         }));
 
     std::vector<std::function<ISchemafulUnversionedReaderPtr()>> readers;
-    for (auto storeIndex : storeIndices) {
+    for (int storeIndex : storeIndices) {
         auto store = allStores[storeIndex];
-        readers.push_back([=, store = std::move(store)] {
+        readers.emplace_back([=, store = std::move(store)] {
             return store->CreateReader(
                 tabletSnapshot,
                 tabletIndex,
@@ -939,7 +936,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     }
 
     auto reader = NRowMerger::CreateVersionedOverlappingRangeReader(
-        std::move(boundaries),
+        boundaries,
         std::move(rowMerger),
         [
             =,

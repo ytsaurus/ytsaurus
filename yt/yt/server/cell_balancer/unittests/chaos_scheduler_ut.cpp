@@ -104,7 +104,7 @@ void CheckRegistry(const TGlobalCellRegistryPtr& registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TChaosCellBundleManagement, TestTabletCellCreation)
+TEST(TChaosCellBundleManagementTest, TestTabletCellCreation)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -148,7 +148,7 @@ TEST(TChaosCellBundleManagement, TestTabletCellCreation)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestSetClusterClockCellTag)
+TEST(TChaosCellBundleManagementTest, TestSetClusterClockCellTag)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -192,7 +192,7 @@ TEST(TChaosCellBundleManagement, TestSetClusterClockCellTag)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestChaosCellBundlesCreation)
+TEST(TChaosCellBundleManagementTest, TestChaosCellBundlesCreation)
 {
     auto input = GenerateSimpleInputContext();
     const auto& chaosConfig = input.Config->ChaosConfig;
@@ -235,7 +235,7 @@ TEST(TChaosCellBundleManagement, TestChaosCellBundlesCreation)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestCellsRegistry)
+TEST(TChaosCellBundleManagementTest, TestCellsRegistry)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -312,7 +312,7 @@ TEST(TChaosCellBundleManagement, TestCellsRegistry)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestInconsistentCellsRegistry)
+TEST(TChaosCellBundleManagementTest, TestInconsistentCellsRegistry)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -333,7 +333,7 @@ TEST(TChaosCellBundleManagement, TestInconsistentCellsRegistry)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "global_cell_registry_is_inconsistent");
 }
 
-TEST(TChaosCellBundleManagement, TestCreateAreas)
+TEST(TChaosCellBundleManagementTest, TestCreateAreas)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -361,7 +361,7 @@ TEST(TChaosCellBundleManagement, TestCreateAreas)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestCreateChaosCells)
+TEST(TChaosCellBundleManagementTest, TestCreateChaosCells)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");
@@ -444,7 +444,7 @@ TEST(TChaosCellBundleManagement, TestCreateChaosCells)
     CheckRegistry(input.GlobalRegistry);
 }
 
-TEST(TChaosCellBundleManagement, TestSetMetadataCells)
+TEST(TChaosCellBundleManagementTest, TestSetMetadataCells)
 {
     auto input = GenerateSimpleInputContext();
     input.TabletCellBundles["bigc"] = GetTabletCellBundleInfo("bigc");

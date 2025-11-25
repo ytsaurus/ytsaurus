@@ -8,7 +8,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMisraGriesHeavyHitters, Basic)
+TEST(TMisraGriesHeavyHittersTest, Basic)
 {
     auto now = TInstant::Now() - TDuration::Days(100);
     auto window = TDuration::Minutes(1);
@@ -59,7 +59,7 @@ TEST(TMisraGriesHeavyHitters, Basic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMisraGriesHeavyHitters, Random)
+TEST(TMisraGriesHeavyHittersTest, Random)
 {
     const int keyCount = 1e5;
     const double threshold = 0.0001;
@@ -101,7 +101,7 @@ TEST(TMisraGriesHeavyHitters, Random)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMisraGriesHeavyHitters, Weighted)
+TEST(TMisraGriesHeavyHittersTest, Weighted)
 {
     auto now = TInstant::Now() - TDuration::Days(100);
     auto window = TDuration::Minutes(1);
@@ -149,7 +149,7 @@ TEST(TMisraGriesHeavyHitters, Weighted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMisraGriesHeavyHitters, WeightedRandom)
+TEST(TMisraGriesHeavyHittersTest, WeightedRandom)
 {
     const double threshold = 0.0001;
     const int limit = 10;

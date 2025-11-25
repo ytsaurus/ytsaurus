@@ -253,6 +253,28 @@ inline size_t TRequisitionEntry::GetHash() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class B, std::sentinel_for<B> E>
+TChunkRequisition::TEntryRange<B, E>::TEntryRange(B begin, E end)
+    : Begin_(std::move(begin))
+    , End_(std::move(end))
+{ }
+
+template <class B, std::sentinel_for<B> E>
+B TChunkRequisition::TEntryRange<B, E>::begin() const
+{
+    return Begin_;
+}
+
+template <class B, std::sentinel_for<B> E>
+E TChunkRequisition::TEntryRange<B, E>::end() const
+{
+    return End_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline TChunkRequisition::TChunkRequisition(
     NSecurityServer::TAccount* account,
     int mediumIndex,
@@ -263,29 +285,44 @@ inline TChunkRequisition::TChunkRequisition(
     YT_VERIFY(replicationPolicy);
 }
 
-inline TChunkRequisition::const_iterator TChunkRequisition::begin() const
+inline TChunkRequisition::TAllEntriesRange TChunkRequisition::AllEntries() const
+{
+    return TAllEntriesRange(AllEntriesBegin(), AllEntriesEnd());
+}
+
+inline TChunkRequisition::TAllEntriesConstIterator TChunkRequisition::AllEntriesBegin() const
 {
     return Entries_.begin();
 }
 
-inline TChunkRequisition::const_iterator TChunkRequisition::end() const
+inline TChunkRequisition::TAllEntriesConstIterator TChunkRequisition::AllEntriesEnd() const
 {
     return Entries_.end();
 }
 
-inline TChunkRequisition::const_iterator TChunkRequisition::cbegin() const
+inline std::ptrdiff_t TChunkRequisition::GetAllEntryCount() const
 {
-    return begin();
+    return std::ssize(Entries_);
 }
 
-inline TChunkRequisition::const_iterator TChunkRequisition::cend() const
+inline TChunkRequisition::TActiveEntriesRange TChunkRequisition::ActiveEntries() const
 {
-    return end();
+    return TActiveEntriesRange(ActiveEntriesBegin(), ActiveEntriesEnd());
 }
 
-inline size_t TChunkRequisition::GetEntryCount() const
+inline TChunkRequisition::TActiveEntriesConstIterator TChunkRequisition::ActiveEntriesBegin() const
 {
-    return Entries_.size();
+    return TActiveEntriesConstIterator(Entries_.begin(), Entries_.end());
+}
+
+inline TChunkRequisition::TActiveEntriesEndConstIterator TChunkRequisition::ActiveEntriesEnd() const
+{
+    return TActiveEntriesEndConstIterator();
+}
+
+inline std::ptrdiff_t TChunkRequisition::CountActiveEntries() const
+{
+    return std::ranges::distance(ActiveEntries());
 }
 
 inline bool TChunkRequisition::GetVital() const

@@ -26,7 +26,7 @@ struct TD
 
 } // namespace
 
-TEST(TTypes, Size)
+TEST(TTypesTest, Size)
 {
     static_assert(TTypes<>::Size == 0);
     static_assert(TTypes<int>::Size == 1);
@@ -34,7 +34,7 @@ TEST(TTypes, Size)
     static_assert(TTypes<TA, TB, TC>::Size == 3);
 }
 
-TEST(TTypes, Contains)
+TEST(TTypesTest, Contains)
 {
     static_assert(TTypes<>::Contains<TA> == false);
     static_assert(TTypes<TA>::Contains<TA> == true);
@@ -44,7 +44,7 @@ TEST(TTypes, Contains)
     static_assert(TTypes<TA, TB>::Contains<TC> == false);
 }
 
-TEST(TTypes, IndexOf)
+TEST(TTypesTest, IndexOf)
 {
     using TMyTypes = TTypes<TA, TB, TC>;
     static_assert(TMyTypes::IndexOf<TA> == 0);
@@ -52,7 +52,7 @@ TEST(TTypes, IndexOf)
     static_assert(TMyTypes::IndexOf<TC> == 2);
 }
 
-TEST(TTypes, Wrap)
+TEST(TTypesTest, Wrap)
 {
     using TPair = TTypes<TA, TB>::Wrap<std::pair>;
     [[maybe_unused]] TPair p(TA{}, TB{});
@@ -61,13 +61,13 @@ TEST(TTypes, Wrap)
     [[maybe_unused]] TTuple t(TA{}, TB{}, TC{});
 }
 
-TEST(TTypes, MapWrap)
+TEST(TTypesTest, MapWrap)
 {
     using TTuple = TTypes<TA, TB, TC>::Map<std::optional>::Wrap<std::tuple>;
     [[maybe_unused]] TTuple t(TA{}, std::nullopt, TC{});
 }
 
-TEST(TTypes, ForEach)
+TEST(TTypesTest, ForEach)
 {
     using TMyTypes = TTypes<TA, TB, TC>;
     std::vector<std::string_view> names;
@@ -79,7 +79,7 @@ TEST(TTypes, ForEach)
     ASSERT_EQ(names, std::vector<std::string_view>({"A", "B", "C"}));
 }
 
-TEST(TTypes, Concat)
+TEST(TTypesTest, Concat)
 {
     static_assert(std::same_as<
         TTypes<TA, TB>::Concat<TTypes<TC, TD>>,
@@ -94,7 +94,7 @@ TEST(TTypes, Concat)
         TTypes<TC, TD>>);
 }
 
-TEST(TTypes, Flatten)
+TEST(TTypesTest, Flatten)
 {
     static_assert(std::same_as<
         TTypes<>::Flatten,

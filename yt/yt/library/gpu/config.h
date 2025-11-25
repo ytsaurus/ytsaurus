@@ -86,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TGpuAgentGpuInfoProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(GpuInfoProviderConfig, EGpuInfoProviderType, NvidiaSmi,
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(GpuInfoProviderConfig, EGpuInfoProviderType, NvidiaSmi, TGpuInfoProviderConfigBase,
     ((Base)         (TGpuInfoProviderConfigBase))
     ((NvidiaSmi)    (TNvidiaSmiGpuInfoProviderConfig))
     ((NvGpuManager) (TNvManagerGpuInfoProviderConfig))

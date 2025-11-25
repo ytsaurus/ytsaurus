@@ -28,6 +28,9 @@
 #include <util/stream/null.h>
 #include <util/string/hex.h>
 
+#include <yt/yt/core/concurrency/async_stream.h>
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 namespace NYT {
 
 namespace {
@@ -80,7 +83,7 @@ TTableSchemaPtr CreateSingleValueTableSchema(const TLogicalTypePtr& logicalType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffSchemaParse, TestAllowedTypes)
+TEST(TSkiffSchemaParseTest, TestAllowedTypes)
 {
     EXPECT_EQ(
         "{uint64,}",
@@ -178,7 +181,7 @@ TEST(TSkiffSchemaParse, TestAllowedTypes)
                 .EndMap()));
 }
 
-TEST(TSkiffSchemaParse, TestRecursiveTypesAreDisallowed)
+TEST(TSkiffSchemaParseTest, TestRecursiveTypesAreDisallowed)
 {
     try {
         ConvertToSkiffSchemaShortDebugString(
@@ -209,7 +212,7 @@ TEST(TSkiffSchemaParse, TestRecursiveTypesAreDisallowed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffSchemaDescription, TestDescriptionDerivation)
+TEST(TSkiffSchemaDescriptionTest, TestDescriptionDerivation)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -231,7 +234,7 @@ TEST(TSkiffSchemaDescription, TestDescriptionDerivation)
     EXPECT_EQ(denseFieldDescriptionList[0].ValidatedGetDeoptionalizeType(/*simplify*/ true), EWireType::Uint64);
 }
 
-TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
+TEST(TSkiffSchemaDescriptionTest, TestKeySwitchColumn)
 {
     {
         auto schema = CreateTupleSchema({
@@ -257,7 +260,7 @@ TEST(TSkiffSchemaDescription, TestKeySwitchColumn)
     }
 }
 
-TEST(TSkiffSchemaDescription, TestDisallowEmptyNames)
+TEST(TSkiffSchemaDescriptionTest, TestDisallowEmptyNames)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -272,7 +275,7 @@ TEST(TSkiffSchemaDescription, TestDisallowEmptyNames)
     }
 }
 
-TEST(TSkiffSchemaDescription, TestWrongRowType)
+TEST(TSkiffSchemaDescriptionTest, TestWrongRowType)
 {
     auto schema = CreateRepeatedVariant16Schema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -287,7 +290,7 @@ TEST(TSkiffSchemaDescription, TestWrongRowType)
     }
 }
 
-TEST(TSkiffSchemaDescription, TestOtherColumnsOk)
+TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsOk)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -300,7 +303,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsOk)
     ASSERT_EQ(tableDescriptionList[0].HasOtherColumns, true);
 }
 
-TEST(TSkiffSchemaDescription, TestOtherColumnsWrongType)
+TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsWrongType)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -316,7 +319,7 @@ TEST(TSkiffSchemaDescription, TestOtherColumnsWrongType)
     }
 }
 
-TEST(TSkiffSchemaDescription, TestOtherColumnsWrongPlace)
+TEST(TSkiffSchemaDescriptionTest, TestOtherColumnsWrongPlace)
 {
     auto schema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("Foo"),
@@ -601,12 +604,12 @@ void TestAllWireTypes(bool useSchema)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestAllWireTypesNoSchema)
+TEST(TSkiffWriterTest, TestAllWireTypesNoSchema)
 {
     TestAllWireTypes(false);
 }
 
-TEST(TSkiffWriter, TestAllWireTypesWithSchema)
+TEST(TSkiffWriterTest, TestAllWireTypesWithSchema)
 {
     TestAllWireTypes(true);
 }
@@ -693,7 +696,7 @@ TEST_P(TSkiffYsonWireTypeP, Test)
     EXPECT_EQ(actualValue, TNamedValue("column", value).ToUnversionedValue(nameTable));
 }
 
-TEST(TSkiffWriter, TestYsonWireType)
+TEST(TSkiffWriterTest, TestYsonWireType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson32"),
@@ -1053,7 +1056,7 @@ TEST_P(TSkiffFormatSmallIntP, Test)
     EXPECT_EQ(actualValue, TNamedValue("common", value).ToUnversionedValue(nameTable));
 }
 
-TEST(TSkiffWriter, TestBadSmallIntegers)
+TEST(TSkiffWriterTest, TestBadSmallIntegers)
 {
     using namespace NLogicalTypeShortcuts;
     auto writeSkiffValue = [] (
@@ -1353,7 +1356,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestRearrange)
+TEST(TSkiffWriterTest, TestRearrange)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
@@ -1434,7 +1437,7 @@ TEST(TSkiffWriter, TestRearrange)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestMissingRequiredField)
+TEST(TSkiffWriterTest, TestMissingRequiredField)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
@@ -1461,7 +1464,7 @@ TEST(TSkiffWriter, TestMissingRequiredField)
     }
 }
 
-TEST(TSkiffWriter, TestSparse)
+TEST(TSkiffWriterTest, TestSparse)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -1554,7 +1557,7 @@ TEST(TSkiffWriter, TestSparse)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestMissingFields)
+TEST(TSkiffWriterTest, TestMissingFields)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
@@ -1602,7 +1605,7 @@ TEST(TSkiffWriter, TestMissingFields)
     }
 }
 
-TEST(TSkiffWriter, TestOtherColumns)
+TEST(TSkiffWriterTest, TestOtherColumns)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -1673,7 +1676,7 @@ TEST(TSkiffWriter, TestOtherColumns)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestKeySwitch)
+TEST(TSkiffWriterTest, TestKeySwitch)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
@@ -1734,7 +1737,7 @@ TEST(TSkiffWriter, TestKeySwitch)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestEndOfStream)
+TEST(TSkiffWriterTest, TestEndOfStream)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
@@ -1785,7 +1788,7 @@ TEST(TSkiffWriter, TestEndOfStream)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestRowRangeIndex)
+TEST(TSkiffWriterTest, TestRowRangeIndex)
 {
     const auto rowAndRangeIndex = CreateTupleSchema({
         CreateVariant8Schema({
@@ -1973,7 +1976,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "00" "02");
 }
 
-TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
+TEST(TSkiffWriterTest, TestRowIndexOnlyOrRangeIndexOnly)
 {
     std::string columnNameList[] = {
         RowIndexColumnName,
@@ -2015,7 +2018,7 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
     }
 }
 
-TEST(TSkiffWriter, TestComplexType)
+TEST(TSkiffWriterTest, TestComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -2077,7 +2080,7 @@ TEST(TSkiffWriter, TestComplexType)
     }
 }
 
-TEST(TSkiffWriter, TestTzTime)
+TEST(TSkiffWriterTest, TestTzTime)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -2174,7 +2177,7 @@ TEST(TSkiffWriter, TestTzTime)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestTimezoneString)
+TEST(TSkiffWriterTest, TestTimezoneString)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("dateColumn")
@@ -2211,7 +2214,7 @@ TEST(TSkiffWriter, TestTimezoneString)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestRemainingRowBytes)
+TEST(TSkiffWriterTest, TestRemainingRowBytes)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -2267,7 +2270,7 @@ TEST(TSkiffWriter, TestRemainingRowBytes)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestRemainingRowBytesDuplicate)
+TEST(TSkiffWriterTest, TestRemainingRowBytesDuplicate)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int32)->SetName("$remaining_row_bytes"),
@@ -2290,7 +2293,7 @@ TEST(TSkiffWriter, TestRemainingRowBytesDuplicate)
         "Name \"$remaining_row_bytes\" is found multiple times");
 }
 
-TEST(TSkiffWriter, TestEmptyComplexType)
+TEST(TSkiffWriterTest, TestEmptyComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -2337,7 +2340,7 @@ TEST(TSkiffWriter, TestEmptyComplexType)
     }
 }
 
-TEST(TSkiffWriter, TestSparseComplexType)
+TEST(TSkiffWriterTest, TestSparseComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -2386,7 +2389,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
     }
 }
 
-TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
+TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -2438,7 +2441,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
+TEST(TSkiffWriterTest, TestBadWireTypeForSimpleColumn)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -2455,7 +2458,7 @@ TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
         "Unexpected wire type");
 }
 
-TEST(TSkiffWriter, TestMissingComplexColumn)
+TEST(TSkiffWriterTest, TestMissingComplexColumn)
 {
     auto optionalSkiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -2493,7 +2496,7 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
     }
 }
 
-TEST(TSkiffWriter, TestSkippedFields)
+TEST(TSkiffWriterTest, TestSkippedFields)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("number"),
@@ -2568,7 +2571,7 @@ TEST(TSkiffWriter, TestSkippedFields)
     }
 }
 
-TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
+TEST(TSkiffWriterTest, TestSkippedFieldsOutOfRange)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Nothing)->SetName("string"),
@@ -2622,7 +2625,7 @@ TEST(TSkiffWriter, TestSkippedFieldsOutOfRange)
 
 }
 
-TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
+TEST(TSkiffWriterTest, TestSkippedFieldsAndKeySwitch)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
@@ -2692,7 +2695,7 @@ TEST(TSkiffWriter, TestSkippedFieldsAndKeySwitch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffParser, Simple)
+TEST(TSkiffParserTest, Simple)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
@@ -2764,7 +2767,7 @@ TEST(TSkiffParser, Simple)
     ASSERT_EQ(IsNull(rowCollector.GetRowValue(0, "opt_string32")), true);
 }
 
-TEST(TSkiffParser, TestOptionalNull)
+TEST(TSkiffParserTest, TestOptionalNull)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -2807,7 +2810,7 @@ TEST(TSkiffParser, TestOptionalNull)
     ASSERT_EQ(rowCollector.GetRowValue(0, "opt_null").Type, EValueType::Null);
 }
 
-TEST(TSkiffParser, TestSparse)
+TEST(TSkiffParserTest, TestSparse)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -2855,7 +2858,7 @@ TEST(TSkiffParser, TestSparse)
     ASSERT_EQ(GetString(rowCollector.GetRowValue(1, "string32")), "foo");
 }
 
-TEST(TSkiffParser, TestYsonWireType)
+TEST(TSkiffParserTest, TestYsonWireType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
@@ -2905,7 +2908,7 @@ TEST(TSkiffParser, TestYsonWireType)
     ASSERT_EQ(IsNull(rowCollector.GetRowValue(5, "yson")), true);
 }
 
-TEST(TSkiffParser, TestBadYsonWireType)
+TEST(TSkiffParserTest, TestBadYsonWireType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Yson32)->SetName("yson"),
@@ -2941,7 +2944,7 @@ TEST(TSkiffParser, TestBadYsonWireType)
     }
 }
 
-TEST(TSkiffParser, TestSpecialColumns)
+TEST(TSkiffParserTest, TestSpecialColumns)
 {
     std::shared_ptr<TSkiffSchema> skiffSchemaList[] = {
         CreateTupleSchema({
@@ -2968,7 +2971,7 @@ TEST(TSkiffParser, TestSpecialColumns)
     }
 }
 
-TEST(TSkiffParser, TestOtherColumns)
+TEST(TSkiffParserTest, TestOtherColumns)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("name"),
@@ -3006,7 +3009,7 @@ TEST(TSkiffParser, TestOtherColumns)
     ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(rowCollector.GetRowValue(1, "baz"))), "{\"boolean\"=%false;}");
 }
 
-TEST(TSkiffParser, TestComplexColumn)
+TEST(TSkiffParserTest, TestComplexColumn)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -3043,7 +3046,7 @@ TEST(TSkiffParser, TestComplexColumn)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffParser, TestTimezoneTime)
+TEST(TSkiffParserTest, TestTimezoneTime)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -3122,7 +3125,7 @@ TEST(TSkiffParser, TestTimezoneTime)
     ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "timestamp64Column")), MakeTzString<i64>(Timestamp64LowerBound, GetTzName(3)));
 }
 
-TEST(TSkiffParser, TestTimezoneString)
+TEST(TSkiffParserTest, TestTimezoneString)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("dateColumn")
@@ -3152,7 +3155,7 @@ TEST(TSkiffParser, TestTimezoneString)
     ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "dateColumn")), MakeTzString<ui16>(DateUpperBound - 1, GetTzName(1)));
 }
 
-TEST(TSkiffParser, TestWrongTimezoneName)
+TEST(TSkiffParserTest, TestWrongTimezoneName)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -3181,7 +3184,7 @@ TEST(TSkiffParser, TestWrongTimezoneName)
     EXPECT_THROW_WITH_SUBSTRING(parser->Read(dataStream.Str()), "Invalid timezone index");
 }
 
-TEST(TSkiffParser, TestWrongTimezoneType)
+TEST(TSkiffParserTest, TestWrongTimezoneType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({
@@ -3200,7 +3203,7 @@ TEST(TSkiffParser, TestWrongTimezoneType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffParser, TestEmptyInput)
+TEST(TSkiffParserTest, TestEmptyInput)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::String32)->SetName("column"),
@@ -3230,7 +3233,7 @@ TEST(TSkiffParser, TestEmptyInput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffParser, ColumnIds)
+TEST(TSkiffParserTest, ColumnIds)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("field_a"),
@@ -3259,7 +3262,7 @@ TEST(TSkiffParser, ColumnIds)
     ASSERT_EQ(GetUint64(rowCollector.GetRowValue(0, "field_b")), 2u);
 }
 
-TEST(TSkiffParser, TestSparseComplexType)
+TEST(TSkiffParserTest, TestSparseComplexType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -3304,7 +3307,7 @@ TEST(TSkiffParser, TestSparseComplexType)
     EXPECT_FALSE(rowCollector.FindRowValue(1, "value"));
 }
 
-TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
+TEST(TSkiffParserTest, TestSparseComplexTypeWithExtraOptional)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateRepeatedVariant16Schema({
@@ -3354,7 +3357,7 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
 }
 
 
-TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
+TEST(TSkiffParserTest, TestBadWireTypeForSimpleColumn)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
@@ -3371,7 +3374,7 @@ TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
         "Unexpected wire type");
 }
 
-TEST(TSkiffParser, TestEmptyColumns)
+TEST(TSkiffParserTest, TestEmptyColumns)
 {
     auto skiffSchema = CreateTupleSchema({});
     TCollectingValueConsumer rowCollector;
@@ -3383,14 +3386,14 @@ TEST(TSkiffParser, TestEmptyColumns)
     ASSERT_EQ(rowCollector.Size(), 2);
 }
 
-TEST(TSkiffFormat, TestTimestamp)
+TEST(TSkiffFormatTest, TestTimestamp)
 {
     using namespace NLogicalTypeShortcuts;
     CHECK_BIDIRECTIONAL_CONVERSION(Timestamp(), CreateSimpleTypeSchema(EWireType::Uint64), 42ull, "2A000000" "00000000");
     CHECK_BIDIRECTIONAL_CONVERSION(Interval(), CreateSimpleTypeSchema(EWireType::Int64), 42, "2A000000" "00000000");
 }
 
-TEST(TSkiffFormat, ComplexTzType)
+TEST(TSkiffFormatTest, ComplexTzType)
 {
     auto skiffSchema = CreateTupleSchema({
         CreateTupleSchema({

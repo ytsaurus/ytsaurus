@@ -25,6 +25,8 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
 
+#include <yt/yt/core/concurrency/async_stream_helpers.h>
+
 #include <yt/yt/core/json/config.h>
 #include <yt/yt/core/json/json_writer.h>
 

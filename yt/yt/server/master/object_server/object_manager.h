@@ -189,13 +189,6 @@ struct IObjectManager
         EObjectType type,
         NYTree::IAttributeDictionary* attributes) = 0;
 
-    //! Returns true iff the object is in it's "active" life stage, i.e. it has
-    //! been fully created and isn't being destroyed at the moment.
-    virtual bool IsObjectLifeStageValid(const TObject* object) const = 0;
-
-    //! Same as above, but throws if the object isn't in its "active" life stage.
-    virtual void ValidateObjectLifeStage(const TObject* object) const = 0;
-
     struct TResolvePathOptions
     {
         bool EnablePartialResolve = false;

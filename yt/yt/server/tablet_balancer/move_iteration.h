@@ -24,7 +24,7 @@ struct IMoveIteration
 
     virtual const std::string& GetBundleName() const = 0;
     virtual const TString& GetGroupName() const = 0;
-    virtual const TBundleStatePtr& GetBundle() const = 0;
+    virtual const TTabletCellBundlePtr& GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
     virtual const TTabletBalancingGroupConfigPtr& GetGroupConfig() const = 0;
 
@@ -37,25 +37,25 @@ DEFINE_REFCOUNTED_TYPE(IMoveIteration)
 ////////////////////////////////////////////////////////////////////////////////
 
 IMoveIterationPtr CreateOrdinaryMoveIteration(
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateInMemoryMoveIteration(
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateParameterizedMoveIteration(
     TString groupName,
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IMoveIterationPtr CreateReplicaMoveIteration(
     TString groupName,
-    TBundleStatePtr bundleState,
+    TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,

@@ -35,7 +35,6 @@ TEST_F(TChaosReplicatedNodeProxyTest, GetMinimalTabletCountTest)
     ASSERT_EQ(result.Value(), 1);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

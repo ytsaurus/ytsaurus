@@ -13,6 +13,7 @@ default:
     cert-manager-version: v1.17.1
     cron-version: 0.0.3
     odin-version: 0.0.5
+    tutorial-version: 0.0.2
 
 public:
   example_cluster: 'cluster_name'

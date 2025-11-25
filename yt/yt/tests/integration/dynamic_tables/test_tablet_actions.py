@@ -916,6 +916,7 @@ class TestTabletActions(TabletActionsBase):
 ##################################################################
 
 
+@authors("alexelexa")
 class TabletBalancerBase(TabletActionsBase):
     def _set_enable_tablet_balancer(self, value):
         raise Exception("Function is not implemented")
@@ -929,7 +930,6 @@ class TabletBalancerBase(TabletActionsBase):
     def _turn_off_pivot_keys_picking(self):
         raise Exception("Function is not implemented")
 
-    @authors("savrus")
     @pytest.mark.parametrize("freeze", [False, True])
     def test_cells_balance(self, freeze):
         self._set_enable_tablet_balancer(False)
@@ -956,7 +956,6 @@ class TabletBalancerBase(TabletActionsBase):
         cell1 = tablets[1]["cell_id"]
         assert cell0 != cell1
 
-    @authors("savrus")
     def test_cells_balance_in_bundle(self):
         self._set_enable_tablet_balancer(False)
 
@@ -1205,7 +1204,6 @@ class TabletBalancerBase(TabletActionsBase):
         wait(lambda: self._tablets_distribution("//tmp/t") == [2, 2])
         wait(lambda: self._tablets_distribution("//tmp/r") == [2, 2])
 
-    @authors("savrus")
     def test_tablet_merge(self):
         self._configure_bundle("default")
         sync_create_cells(1)
@@ -1282,14 +1280,13 @@ class TabletBalancerBase(TabletActionsBase):
         set("//tmp/t/@tablet_balancer_config/desired_tablet_count", 1)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
-    @authors("savrus", "ifsmirnov", "alexelexa")
+    @authors("ifsmirnov", "alexelexa")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("with_hunks", [True, False])
     def test_tablet_split(self, in_memory_mode, with_hunks):
         self._turn_off_pivot_keys_picking()
         self._test_tablet_split(in_memory_mode, with_hunks)
 
-    @authors("savrus")
     def test_tablet_balancer_disabled(self):
         self._configure_bundle("default")
         sync_create_cells(1)
@@ -1304,6 +1301,7 @@ class TabletBalancerBase(TabletActionsBase):
             False,
         )
         self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2

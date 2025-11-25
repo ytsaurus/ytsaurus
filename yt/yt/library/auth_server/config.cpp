@@ -45,6 +45,8 @@ void TBlackboxServiceConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("use_lowercase_login", &TThis::UseLowercaseLogin)
         .Default(true);
+    registrar.Parameter("use_post_requests", &TThis::UsePostRequests)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         config->HttpClient->MaxIdleConnections = 10;

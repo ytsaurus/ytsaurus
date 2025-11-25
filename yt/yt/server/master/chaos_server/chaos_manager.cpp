@@ -206,8 +206,7 @@ public:
         }
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(bundle);
+            ValidateObjectActive(bundle);
         }
 
         return bundle;
@@ -219,8 +218,7 @@ public:
         auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(name, ECellarType::Chaos, true);
 
         if (activeLifeStageOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(cellBundle);
+            ValidateObjectActive(cellBundle);
         }
 
         return cellBundle->As<TChaosCellBundle>();

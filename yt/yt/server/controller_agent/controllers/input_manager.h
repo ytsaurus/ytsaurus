@@ -236,7 +236,7 @@ private:
 
     std::vector<TInputTablePtr> InputTables_;
 
-    struct TStripeDescriptor
+    struct TStripeDescriptor final
     {
         NChunkPools::TChunkStripePtr Stripe;
         NChunkPools::IChunkPoolInput::TCookie Cookie = NChunkPools::IChunkPoolInput::NullCookie;
@@ -246,10 +246,12 @@ private:
         void Persist(const TPersistenceContext& context);
     };
 
+    using TStripeDescriptorPtr = TIntrusivePtr<TStripeDescriptor>;
+
     struct TInputChunkDescriptor
         : public TRefTracked<TInputChunkDescriptor>
     {
-        TCompactVector<TStripeDescriptor, 1> InputStripes;
+        TCompactVector<TStripeDescriptorPtr, 1> InputStripes;
         TCompactVector<NChunkClient::TInputChunkPtr, 1> InputChunks;
         EInputChunkState State = EInputChunkState::Active;
 

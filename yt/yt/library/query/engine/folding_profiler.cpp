@@ -272,7 +272,7 @@ struct TExpressionFragmentPrinter
         TStringBuilderBase* builder,
         const std::vector<TDebugInfo>& debugExpressions,
         const std::vector<TCodegenFragmentInfo>& expressions)
-        : TBase(builder, /*omitValues*/ false)
+        : TBase(builder, /*inferNameOptions*/ {})
         , DebugExpressions(debugExpressions)
         , Expressions(expressions)
     { }
@@ -805,7 +805,7 @@ size_t TExpressionProfiler::Profile(
             std::move(literalArgs),
             std::move(argumentTypes),
             functionExpr->LogicalType,
-            "{" + InferName(functionExpr, true) + "}",
+            "{" + InferName(functionExpr, TInferNameOptions{.OmitValues = true}) + "}",
             ExecutionBackend_,
             Id_),
         functionExpr->GetWireType(),
@@ -846,7 +846,7 @@ size_t TExpressionProfiler::Profile(
         unaryOp->Opcode,
         operand,
         unaryOp->GetWireType(),
-        "{" + InferName(unaryOp, true) + "}"),
+        "{" + InferName(unaryOp, TInferNameOptions{.OmitValues = true}) + "}"),
         unaryOp->GetWireType(),
         fragments->Items[operand].Nullable);
     return fragments->Items.size() - 1;
@@ -886,7 +886,7 @@ size_t TExpressionProfiler::Profile(
         lhsOperand,
         rhsOperand,
         binaryOp->GetWireType(),
-        "{" + InferName(binaryOp, true) + "}",
+        "{" + InferName(binaryOp, TInferNameOptions{.OmitValues = true}) + "}",
         UseCanonicalNullRelations_),
         binaryOp->GetWireType(),
         nullable);

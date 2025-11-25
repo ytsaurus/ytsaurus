@@ -18,4 +18,4 @@ metadata:
       content: 'Nadezhda Savchenko'
 ---
 
-{% include [Installating Cron](../_includes/admin-guide/install-cron.md) %}
+{% include [Install Cron](../_includes/admin-guide/install-cron.md) %}

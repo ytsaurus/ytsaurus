@@ -303,6 +303,7 @@ struct TRequisitionEntry
     // #IsObjectAlive() checks are a must. Entries with dead accounts may be
     // safely ignored for accounting purposes but not for the purposes of
     // hashing and comparisons.
+    // Cf. TChunkRequisition::AllEntries & TChunkRequisition::ActiveEntries.
     NSecurityServer::TAccountRawPtr Account;
     int MediumIndex = NChunkClient::GenericMediumIndex;
     TReplicationPolicy ReplicationPolicy;
@@ -358,7 +359,73 @@ public:
     // However, additional space is needed when merging new items into it, and
     // branching a chunk owner node also introduces additional items.
     using TEntries = TCompactVector<TRequisitionEntry, 4>;
-    using const_iterator = TEntries::const_iterator;
+    using TAllEntriesConstIterator = TEntries::const_iterator;
+
+    class TActiveEntriesEndConstIterator;
+
+    // Filters out entries with inactive accounts (i.e. accounts that are either
+    // not alive or have a life stage different from EObjectLifeStage::CreationCommitted).
+    class TActiveEntriesConstIterator
+    {
+    private:
+        friend class TChunkRequisition;
+
+        TActiveEntriesConstIterator(
+            TEntries::const_iterator underlying,
+            TEntries::const_iterator underlyingEnd);
+
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = TRequisitionEntry;
+        using reference = const TRequisitionEntry&;
+        using pointer = const TRequisitionEntry*;
+        using difference_type = std::ptrdiff_t;
+
+        TActiveEntriesConstIterator() = default;
+
+        TActiveEntriesConstIterator& operator++();
+        TActiveEntriesConstIterator operator++(int);
+        reference operator*() const;
+        pointer operator->() const;
+        bool operator==(const TActiveEntriesConstIterator& rhs) const;
+        bool operator==(const TActiveEntriesEndConstIterator& rhs) const;
+
+    private:
+        void SkipToNextActiveEntry();
+
+        TEntries::const_iterator Underlying_;
+        // Non-const for assignability.
+        TEntries::const_iterator UnderlyingEnd_;
+    };
+
+    class TActiveEntriesEndConstIterator
+    {
+    public:
+        TActiveEntriesEndConstIterator() = default;
+
+        bool operator==(const TActiveEntriesEndConstIterator& rhs) const;
+        bool operator==(const TActiveEntriesConstIterator& rhs) const;
+    };
+
+    template <class B, std::sentinel_for<B> E>
+    struct TEntryRange
+        : public std::ranges::view_interface<TEntryRange<B, E>>
+    {
+    public:
+        B begin() const;
+        E end() const;
+
+    private:
+        friend class TChunkRequisition;
+
+        TEntryRange(B begin, E end);
+
+        B Begin_;
+        E End_;
+    };
+
+    using TAllEntriesRange = TEntryRange<TAllEntriesConstIterator, TAllEntriesConstIterator>;
+    using TActiveEntriesRange = TEntryRange<TActiveEntriesConstIterator, TActiveEntriesEndConstIterator>;
 
     //! Constructs an empty requisition with no entries.
     TChunkRequisition() = default;
@@ -379,12 +446,19 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    const_iterator begin() const;
-    const_iterator end() const;
-    const_iterator cbegin() const;
-    const_iterator cend() const;
+    //! Returns a range of all entries in this requisition. These may include entries referencing
+    //! inactive accounts (i.e. accounts that are either not alive or being removed).
+    TAllEntriesRange AllEntries() const;
+    TAllEntriesConstIterator AllEntriesBegin() const;
+    TAllEntriesConstIterator AllEntriesEnd() const;
+    std::ptrdiff_t GetAllEntryCount() const;
 
-    size_t GetEntryCount() const;
+    //! Returns a range of active entries in this requisition. An active entry is an entry referencing
+    //! an active account (i.e. an account that's both alive and not being removed).
+    TActiveEntriesRange ActiveEntries() const;
+    TActiveEntriesConstIterator ActiveEntriesBegin() const;
+    TActiveEntriesEndConstIterator ActiveEntriesEnd() const;
+    std::ptrdiff_t CountActiveEntries() const;
 
     bool GetVital() const;
     void SetVital(bool vital);

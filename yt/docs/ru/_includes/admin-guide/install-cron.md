@@ -6,14 +6,14 @@
 
 Список встроенных скриптов:
 
-* `clear_tmp` - скрипт, который очищает временные файлы на кластере. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cron/clear_tmp).
+* `clear_tmp` - скрипт, который очищает временные файлы на кластере. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cron/clear_tmp);
 * `prune_offline_cluster_nodes` - скрипт, который удаляет из Кипариса offline ноды. Код скрипта живет [здесь](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cron/prune_offline_cluster_nodes).
 
 ## Предварительные требования
 
 На данном этапе у вас должны быть:
 
-* Helm 3.x
+* Helm 3.x;
 * запущенный кластер {{product-name}} и адрес HTTP прокси (`http_proxy`);
 * специальный пользователь-робот для Cron с выписанным для него токеном (см. раздел [Управление токенами](../../user-guide/storage/auth.md#token-management)).
 
@@ -53,10 +53,10 @@ unmanagedSecret:
 ## Встроенные задачи { #jobs }
 
 Каждая задача задаётся структурой:
-- `enabled`: Включена ли задача
-- `args`: Аргументы командной строки
-- `schedule`: Расписание в формате cron
-- `restartPolicy`: Политика перезапуска (рекомендуется `Never`)
+- `enabled`: Включена ли задача;
+- `args`: Аргументы командной строки;
+- `schedule`: Расписание в формате cron;
+- `restartPolicy`: Политика перезапуска (рекомендуется `Never`).
 
 Пример включения задачи:
 

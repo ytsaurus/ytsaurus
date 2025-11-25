@@ -480,19 +480,12 @@ private:
         auto oldJobProxyConfigTemplate = GetJobProxyConfigTemplate();
         auto newJobProxyConfigTemplate = New<NJobProxy::TJobProxyInternalConfig>();
 
-        auto singletonsConfig = TSingletonManager::GetConfig();
-        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<TFiberManagerConfig>());
-
+        newJobProxyConfigTemplate->MergeAllSingletonConfigsFrom(*TSingletonManager::GetConfig());
         {
-            auto config = CloneYsonStruct(singletonsConfig->GetSingletonConfig<NNet::TAddressResolverConfig>());
+            auto config = newJobProxyConfigTemplate->GetSingletonConfig<NNet::TAddressResolverConfig>();
             config->LocalHostNameOverride = NNet::GetLocalHostName();
-            newJobProxyConfigTemplate->SetSingletonConfig(std::move(config));
         }
 
-        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NRpc::TDispatcherConfig>());
-        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
-        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
-        newJobProxyConfigTemplate->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 

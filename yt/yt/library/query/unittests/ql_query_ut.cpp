@@ -1113,7 +1113,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
 
     auto fmt = [] (const TNamedItemList& items) {
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-            builder->AppendString(InferName(item.Expression, /*omitValues*/ false));
+            builder->AppendString(InferName(item.Expression));
         };
         return JoinToString(items, namedItemFormatter);
     };

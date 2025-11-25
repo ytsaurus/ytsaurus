@@ -390,11 +390,11 @@ struct TAbstractExpressionPrinter
     using TBase::Visit;
 
     TStringBuilderBase* Builder;
-    bool OmitValues;
+    TInferNameOptions Options;
 
-    TAbstractExpressionPrinter(TStringBuilderBase* builder, bool omitValues)
+    TAbstractExpressionPrinter(TStringBuilderBase* builder, const TInferNameOptions& options)
         : Builder(builder)
-        , OmitValues(omitValues)
+        , Options(options)
     { }
 
     static int GetOpPriority(EBinaryOp op)
@@ -542,15 +542,44 @@ struct TAbstractExpressionPrinter
 
     void OnLiteral(const TLiteralExpression* literalExpr, TArgs... /*args*/)
     {
-        if (OmitValues) {
+        if (Options.OmitValues) {
             Builder->AppendChar('?');
         } else {
             Builder->AppendString(ToString(static_cast<TValue>(literalExpr->Value)));
         }
     }
 
-    void OnReference(const TReferenceExpression* referenceExpr, TArgs... /*args*/)
+    void OnReference(const TReferenceExpression* referenceExpr, TArgs... args)
     {
+        auto& groupClause = Options.GroupClause;
+        if (groupClause) {
+            if (auto it = std::find_if(
+                    groupClause->GroupItems.begin(),
+                    groupClause->GroupItems.end(),
+                    [&] (const TNamedItem& item) { return item.Name == referenceExpr->ColumnName; });
+                it != groupClause->GroupItems.end())
+            {
+                auto groupClauseHolder = std::move(groupClause);
+                Visit(it->Expression, args...);
+                groupClause = std::move(groupClauseHolder);
+                return;
+            }
+
+            if (auto it = std::find_if(
+                    groupClause->AggregateItems.begin(),
+                    groupClause->AggregateItems.end(),
+                    [&] (const TAggregateItem& item) { return item.Name == referenceExpr->ColumnName; });
+                it != groupClause->AggregateItems.end())
+            {
+                auto groupClauseHolder = std::move(groupClause);
+                Builder->AppendString(it->AggregateFunction);
+                Builder->AppendChar('(');
+                Derived()->OnArguments(it, args...);
+                Builder->AppendChar(')');
+                groupClause = std::move(groupClauseHolder);
+                return;
+            }
+        }
         Builder->AppendString(NAst::FormatId(referenceExpr->ColumnName));
     }
 
@@ -631,7 +660,7 @@ struct TAbstractExpressionPrinter
 
         Builder->AppendString(" IN (");
 
-        if (OmitValues) {
+        if (Options.OmitValues) {
             Builder->AppendString("??");
         } else {
             JoinToString(
@@ -658,7 +687,7 @@ struct TAbstractExpressionPrinter
 
         Builder->AppendString(" BETWEEN (");
 
-        if (OmitValues) {
+        if (Options.OmitValues) {
             Builder->AppendString("??");
         } else {
             JoinToString(
@@ -688,7 +717,7 @@ struct TAbstractExpressionPrinter
         }
 
         Builder->AppendString(", (");
-        if (OmitValues) {
+        if (Options.OmitValues) {
             Builder->AppendString("??");
         } else {
             JoinToString(
@@ -709,7 +738,7 @@ struct TAbstractExpressionPrinter
         }
         Builder->AppendString("), (");
 
-        if (OmitValues) {
+        if (Options.OmitValues) {
             Builder->AppendString("??");
         } else {
             JoinToString(
@@ -761,11 +790,13 @@ struct TAbstractExpressionPrinter
 
     void OnSubquery(const TSubqueryExpression* subqueryExpr, TArgs... /*args*/)
     {
+        auto inferNameOptions = TInferNameOptions{
+            .OmitValues = Options.OmitValues,
+            .GroupClause = subqueryExpr->GroupClause,
+        };
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-            builder->AppendString(InferName(item.Expression, OmitValues));
-            if (!OmitValues) {
-                builder->AppendFormat(" AS %v", item.Name);
-            }
+            builder->AppendString(InferName(item.Expression, inferNameOptions));
+            builder->AppendFormat(" AS %v", item.Name);
         };
 
         std::vector<std::string> clauses;
@@ -782,11 +813,16 @@ struct TAbstractExpressionPrinter
         clauses.push_back(std::string("FROM (") + JoinToString(subqueryExpr->FromExpressions, namedItemFormatter) + ")");
 
         if (subqueryExpr->WhereClause) {
-            clauses.push_back(std::string("WHERE ") + InferName(subqueryExpr->WhereClause, OmitValues));
+            clauses.push_back(std::string("WHERE ") + InferName(subqueryExpr->WhereClause, inferNameOptions));
         }
 
+        inferNameOptions.GroupClause.Reset();
+
         if (subqueryExpr->GroupClause) {
-            clauses.push_back(Format("GROUP BY[common prefix: %v, aggregates: %v] %v",
+            auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
+                builder->AppendString(InferName(item.Expression, inferNameOptions));
+            };
+            clauses.push_back(Format("GROUP BY [common prefix: %v, aggregates: %v] %v",
                 subqueryExpr->GroupClause->CommonPrefixWithPrimaryKey,
                 MakeFormattableView(subqueryExpr->GroupClause->AggregateItems, [] (auto* builder, const auto& item) {
                     builder->AppendString(item.AggregateFunction);

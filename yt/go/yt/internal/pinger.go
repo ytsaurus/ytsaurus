@@ -48,26 +48,30 @@ type Pinger struct {
 	abortCtx context.Context
 	stop     *StopGroup
 	txID     yt.TxID
-	config   *yt.Config
-	options  *yt.PingTxOptions
+	pingOpts *yt.PingTxOptions // options of PingTx low-level call.
+
+	txTimeout    time.Duration
+	txPingPeriod time.Duration
 }
 
 func NewPinger(
 	ctx context.Context,
 	yc yt.LowLevelTxClient,
 	txID yt.TxID,
-	config *yt.Config,
+	txTimeout time.Duration,
+	txPingPeriod time.Duration,
 	stop *StopGroup,
-	opts *yt.PingTxOptions,
+	pingOpts *yt.PingTxOptions,
 ) *Pinger {
 	return &Pinger{
-		yc:       yc,
-		ctx:      ctx,
-		abortCtx: &abortCtx{ctx},
-		stop:     stop,
-		txID:     txID,
-		config:   config,
-		options:  opts,
+		yc:           yc,
+		ctx:          ctx,
+		abortCtx:     &abortCtx{ctx},
+		stop:         stop,
+		txID:         txID,
+		txTimeout:    txTimeout,
+		txPingPeriod: txPingPeriod,
+		pingOpts:     pingOpts,
 
 		finished:     make(chan struct{}),
 		finishFailed: make(chan struct{}),
@@ -98,7 +102,7 @@ func (p *Pinger) abortBackground(leaseLost bool, leaseCtx context.Context) {
 	// Send best effort abort. We try to abort tx in case lease was extended by the master restart,
 	// or a ping that we didn't receive reply to.
 	if sendBestEffortAbort {
-		ctx, cancel := context.WithTimeout(p.abortCtx, p.config.TxTimeout)
+		ctx, cancel := context.WithTimeout(p.abortCtx, p.txTimeout)
 		defer cancel()
 
 		_ = p.yc.AbortTx(ctx, p.txID, nil)
@@ -211,9 +215,9 @@ func (p *Pinger) TryCommit(committer func() error) error {
 }
 
 func (p *Pinger) PingTx(ctx context.Context) error {
-	pingCtx, cancel := context.WithTimeout(ctx, p.config.GetTxPingPeriod())
+	pingCtx, cancel := context.WithTimeout(ctx, p.txPingPeriod)
 	defer cancel()
-	return p.yc.PingTx(pingCtx, p.txID, p.options)
+	return p.yc.PingTx(pingCtx, p.txID, p.pingOpts)
 }
 
 // OnTxError may be optionally invoked to snoop transaction state from failure of other commands.
@@ -242,7 +246,7 @@ func (p *Pinger) OnTxError(err error) {
 func (p *Pinger) Run() {
 	defer p.stop.Done()
 
-	ticker := time.NewTicker(p.config.GetTxPingPeriod())
+	ticker := time.NewTicker(p.txPingPeriod)
 	defer ticker.Stop()
 
 	var (
@@ -255,7 +259,7 @@ func (p *Pinger) Run() {
 			leaseCtxCancel()
 		}
 
-		leaseCtx, leaseCtxCancel = context.WithTimeout(p.abortCtx, p.config.GetTxTimeout())
+		leaseCtx, leaseCtxCancel = context.WithTimeout(p.abortCtx, p.txTimeout)
 	}
 
 	refreshLease()
@@ -306,8 +310,4 @@ func (p *Pinger) Ctx() context.Context {
 
 func (p *Pinger) Stop() *StopGroup {
 	return p.stop
-}
-
-func (p *Pinger) Config() *yt.Config {
-	return p.config
 }
