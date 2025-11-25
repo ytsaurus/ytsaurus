@@ -110,6 +110,30 @@ int CalculateCummulativeBlockSize(const std::vector<TBlock>& blocks)
     return size;
 }
 
+std::vector<std::vector<bool>> GeneratePairWiseCases(int paramCount) {
+    std::vector<std::vector<bool>> result;
+    std::vector<bool> testCase(paramCount, false);
+
+    for (int i = 0; i < paramCount; ++i) {
+        for (int j = i + 1; j < paramCount; ++j) {
+            testCase[i] = false;
+            testCase[j] = true;
+            result.push_back(testCase);
+            testCase[i] = true;
+            testCase[j] = false;
+            result.push_back(testCase);
+            testCase[i] = true;
+            testCase[j] = true;
+            result.push_back(testCase);
+            testCase[i] = false;
+            testCase[j] = false;
+            result.push_back(testCase);
+        }
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeBootstrapMock
@@ -403,6 +427,7 @@ public:
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
         bool PreallocateDiskSpace = false;
+        bool WaitPrecedingBlocksReceived = true;
     };
 
     TDataNodeTest() = default;
@@ -414,7 +439,7 @@ public:
     TStoreLocationConfigPtr GenerateStoreLocationConfig(double ioWeight, int sessionCountLimit)
     {
         auto storeLocationConfig = New<TStoreLocationConfig>();
-        storeLocationConfig->Path = Format("/tmp/locations/%v/chunk_store", GenerateRandomString(5, Generator_));
+        storeLocationConfig->Path = Format("%v/%v/chunk_store", RootLocationsPath_, GenerateRandomString(5, Generator_));
         storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
         auto ioEngineConfig = New<TIOEngineConfig>();
         ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
@@ -567,6 +592,7 @@ public:
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
             THashMap<std::string, IServicePtr>());
@@ -588,7 +614,7 @@ public:
         MasterConnectorMock_.Reset();
         TestConnection_.Reset();
 
-        NFS::RemoveRecursive("/tmp/locations");
+        NFS::RemoveRecursive(RootLocationsPath_);
     }
 
     const NDataNode::IBootstrapPtr& GetDataNodeBootstrap() const {
@@ -730,7 +756,14 @@ public:
                 approvedCumulativeBlockSize = resp.Value()->probe_put_blocks_state().approved_cumulative_block_size();
             } while (approvedCumulativeBlockSize < cummulativeBlockSize);
         }
-        WaitFor(PutBlocks(sessionId, blocks, 0, cummulativeBlockSize)).ThrowOnError();
+        std::vector<TFuture<void>> putBlocks(blocks.size());
+        std::vector<int> indices(blocks.size());
+        std::iota(std::begin(indices), std::end(indices), 0);
+        std::random_shuffle(std::begin(indices), std::end(indices));
+        for (auto i : indices) {
+            putBlocks[i] = PutBlocks(sessionId, {blocks[i]}, i, cummulativeBlockSize).AsVoid();
+        }
+        WaitFor(AllSucceeded(putBlocks)).ThrowOnError();
         WaitFor(FlushBlocks(sessionId, blockCount - 1)).ThrowOnError();
         WaitFor(FinishChunk(sessionId, blockCount)).ThrowOnError();
         return blocks;
@@ -744,7 +777,9 @@ private:
     const TDuration RequestTimeout_ = TDuration::Seconds(30);
     const TDataNodeTestParams TestParams_;
 
-    TRandomGenerator Generator_{42};
+    TRandomGenerator Generator_{RandomNumber<ui64>()};
+
+    TString RootLocationsPath_ = Format("/tmp/locations/%v", GenerateRandomString(5, Generator_));
 
     std::atomic<int> Counter_ = 0;
 
@@ -765,20 +800,43 @@ private:
 struct TGetBlockSetTestCase
 {
     int BlockCount = 100;
-    int BlockSize = 1_KB;
-    int ParallelGetBlockSetCount = 1;
-    int BlocksInRequest = 10;
+    int BlockSize = 2_KB;
+    int ParallelGetBlockSetCount = 50;
+    int BlocksInRequest = 25;
     bool PopulateCache = true;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
     bool EnableSequentialIORequests = true;
     bool UseProbePutBlocks = false;
     bool PreallocateDiskSpace = false;
+    bool WaitPrecedingBlocksReceived = true;
     NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
     bool EnableHugePageManager = false;
-    NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
-    i64 MinRequestSizeToUseHugePages = 2_MB;
+    bool UseDirectIOForReads = false;
+    i64 MinRequestSizeToUseHugePages = 1_KB;
 };
+
+std::vector<TGetBlockSetTestCase> GenerateGetBlockSetParams()
+{
+    const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(8);
+    std::vector<TGetBlockSetTestCase> result;
+    result.reserve(testCases.size());
+
+    for (const auto& testCase : testCases) {
+        TGetBlockSetTestCase getblockSetTestCase;
+        getblockSetTestCase.PopulateCache = testCase[0];
+        getblockSetTestCase.FetchFromCache = testCase[1];
+        getblockSetTestCase.EnableSequentialIORequests = testCase[2];
+        getblockSetTestCase.UseProbePutBlocks = testCase[3];
+        getblockSetTestCase.WaitPrecedingBlocksReceived = testCase[4];
+        getblockSetTestCase.PreallocateDiskSpace = testCase[5];
+        getblockSetTestCase.EnableHugePageManager = testCase[6];
+        getblockSetTestCase.UseDirectIOForReads = testCase[7];
+        result.push_back(getblockSetTestCase);
+    }
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -792,11 +850,14 @@ public:
             TDataNodeTest::TDataNodeTestParams {
                 .HugePageManagerType = GetParam().HugePageManagerType,
                 .EnableHugePageManager = GetParam().EnableHugePageManager,
-                .UseDirectIOForReads = GetParam().UseDirectIOForReads,
+                .UseDirectIOForReads = GetParam().UseDirectIOForReads ? NIO::EDirectIOPolicy::Always : NIO::EDirectIOPolicy::Never,
                 .MinRequestSizeToUseHugePages = GetParam().MinRequestSizeToUseHugePages,
                 .EnableSequentialIORequests = GetParam().EnableSequentialIORequests,
                 .ReadThreadCount = 4,
-                .WriteThreadCount = 4
+                .WriteThreadCount = 4,
+                .UseProbePutBlocks = GetParam().UseProbePutBlocks,
+                .PreallocateDiskSpace = GetParam().PreallocateDiskSpace,
+                .WaitPrecedingBlocksReceived = GetParam().WaitPrecedingBlocksReceived,
             })
     { }
 };
@@ -1108,7 +1169,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
 
     if (testCase.EnableHugePageManager) {
-        if (testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent) {
+        if (testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent && testCase.UseDirectIOForReads) {
             YT_VERIFY(GetDataNodeBootstrap()->GetHugePageManager()->GetHugePageSize() > 0);
             EXPECT_GT(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
         }
@@ -1120,134 +1181,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
 INSTANTIATE_TEST_SUITE_P(
     TGetBlockSetTest,
     TGetBlockSetTest,
-    ::testing::Values(
-        TGetBlockSetTestCase{},
-        TGetBlockSetTestCase{
-            .BlockCount = 100,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 1,
-            .BlocksInRequest = 100,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true
-        },
-        TGetBlockSetTestCase{
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .EnableSequentialIORequests = true
-        },
-        TGetBlockSetTestCase{
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .EnableSequentialIORequests = false
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = true,
-            .FetchFromCache = true,
-            .FetchFromDisk = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = true,
-            .FetchFromDisk = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = true,
-            .FetchFromCache = false,
-            .FetchFromDisk = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .UseProbePutBlocks = true,
-            .PreallocateDiskSpace = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .UseProbePutBlocks = false,
-            .PreallocateDiskSpace = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .UseProbePutBlocks = true
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 1000,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .EnableSequentialIORequests = false
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 100,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .HugePageManagerType = NIO::EHugeManagerType::Transparent,
-            .EnableHugePageManager = true,
-            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always,
-            .MinRequestSizeToUseHugePages = 0
-        },
-        TGetBlockSetTestCase{
-            .BlockCount = 100,
-            .BlockSize = 1_KB,
-            .ParallelGetBlockSetCount = 100,
-            .BlocksInRequest = 40,
-            .PopulateCache = false,
-            .FetchFromCache = false,
-            .FetchFromDisk = true,
-            .HugePageManagerType = NIO::EHugeManagerType::Preallocated,
-            .EnableHugePageManager = true,
-            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always,
-            .MinRequestSizeToUseHugePages = 0
-        }
-    )
+    ::testing::ValuesIn(GenerateGetBlockSetParams())
 );
 
 TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
