@@ -219,6 +219,8 @@ public:
         } else {
             readPlan = BuildSimpleReadPlan(columnSchemas);
         }
+        SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= readPlan->SuitableForDistinctReadOptimization();
+        QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead);
 
         if (SubquerySpec_.InputSpecsTruncated) {
             // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,

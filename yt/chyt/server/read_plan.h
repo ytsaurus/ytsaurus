@@ -35,6 +35,11 @@ struct TFilterInfo
     //! Execute filter actions and merge the resulting filter columns with the passed one.
     //! NB: Modifies the passed TBlockWithFilter.
     void Execute(TBlockWithFilter& blockWithFilter) const;
+
+    //! Removes filter column if RemoveFilterColumn is |true|,
+    //! called from Execute, but sometimes it needs to be called separately.
+    //! NB: Modifies the passed TBlockWithFilter.
+    DB::IColumn::Ptr RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +67,7 @@ struct TReadPlanWithFilter final
 
     int GetReadColumnCount() const;
     bool SuitableForTwoStagePrewhere() const;
+    bool SuitableForDistinctReadOptimization() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TReadPlanWithFilter)

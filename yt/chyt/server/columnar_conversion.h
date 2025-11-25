@@ -35,6 +35,12 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     NTableClient::ESimpleLogicalValueType type,
     EExtendedYsonFormat ysonFormat = EExtendedYsonFormat::Binary);
 
+// Reduces filter column to size of dictionary in dictionary or rle encoding,
+// to filter unique values wihout materialization when distinct read optimization is used.
+void ReduceFilterToDistinct(
+    DB::IColumn::Filter& filter,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
