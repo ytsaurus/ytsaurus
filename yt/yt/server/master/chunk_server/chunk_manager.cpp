@@ -482,6 +482,7 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRestarted, MakeWeak(this)));
+        nodeTracker->SubscribeNodeHostChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeHostChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeRackChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDataCenterChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
@@ -2941,6 +2942,11 @@ private:
         }
 
         ChunkPlacement_->OnNodeUpdated(node);
+    }
+
+    void OnNodeHostChanged(TNode* node, THost* /*oldHost*/)
+    {
+        OnNodeChanged(node);
     }
 
     void OnNodeRackChanged(TNode* node, TRack* /*oldRack*/)
