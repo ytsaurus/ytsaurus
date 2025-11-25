@@ -56,6 +56,11 @@ public:
         return TSynchronizerBase::Sync(force);
     }
 
+    TFuture<void> GetFirstSuccessfulSyncFuture() override
+    {
+        return TSynchronizerBase::GetFirstSuccessfulSyncFuture();
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
 
 private:
