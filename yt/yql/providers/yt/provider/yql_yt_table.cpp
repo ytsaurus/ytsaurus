@@ -1024,12 +1024,8 @@ void TYtOutTableInfo::Parse(TExprBase node) {
 TExprBase TYtOutTableInfo::ToExprNode(TExprContext& ctx, const TPositionHandle& pos) const {
     auto tableBuilder = Build<TYtOutTable>(ctx, pos);
     tableBuilder.Name().Value(Name).Build();
-
-    if (RowSpec)
-        tableBuilder.RowSpec(RowSpec->ToExprNode(ctx, pos));
-    else
-        tableBuilder.RowSpec<TCoVoid>().Build();
-
+    YQL_ENSURE(RowSpec);
+    tableBuilder.RowSpec(RowSpec->ToExprNode(ctx, pos));
     YQL_ENSURE(Meta);
     tableBuilder.Meta(Meta->ToExprNode(ctx, pos));
 
