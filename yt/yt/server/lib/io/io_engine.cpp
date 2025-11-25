@@ -221,7 +221,7 @@ TInternalReadResponse DoRead(
             i64 toRead = AlignUp<i64>(Min<i64>(toReadRemaining, AlignDown<i64>(maxBytesPerRead, blockSize)), blockSize);
             i64 reallyRead = -1;
             bool hugePageAvailable = hugePageBlob && static_cast<i64>(hugePageBlob.Size()) >= toRead;
-            TRequestStatsGuard statsGuard(sensors->ReadSensors);
+            TRequestStatsGuard statsGuard(sensors->ReadSensors, hugePageAvailable);
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
             if (hugePageAvailable) {
