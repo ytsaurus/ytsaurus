@@ -23,6 +23,7 @@ SRCS(
     shallow_merge_job.cpp
     signature_proxy.cpp
     simple_sort_job.cpp
+    job_api_service.cpp
     sorted_merge_job.cpp
     stderr_writer.cpp
     tmpfs_manager.cpp

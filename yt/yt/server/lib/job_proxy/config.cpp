@@ -473,6 +473,14 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("dump_single_local_cluster_statistics", &TThis::DumpSingleLocalClusterStatistics)
         .Default(false);
 
+    registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
+        .Default(false);
+
+    registrar.Parameter("job_api_service", &TThis::JobApiService)
+        .DefaultNew();
+    registrar.Parameter("grpc_server", &TThis::GrpcServer)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -548,7 +556,15 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("dump_single_local_cluster_statistics", &TThis::DumpSingleLocalClusterStatistics)
         .Default(false);
+
+    registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
+        .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobApiServiceConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

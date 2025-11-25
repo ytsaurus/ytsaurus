@@ -3068,6 +3068,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 
     proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
+    proxyInternalConfig->GrpcServer = GetUserSlot()->GetGrpcServerConfig();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
     for (const auto& tmpfsVolume : TmpfsVolumes_) {
@@ -3271,6 +3272,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
+
+        proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
