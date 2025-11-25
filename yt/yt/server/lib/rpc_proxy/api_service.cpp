@@ -1170,9 +1170,17 @@ private:
                 request->ShortDebugString());
         }
 
-        auto connection = multiproxyTargetCluster
-            ? LocalConnection_->GetClusterDirectory()->GetConnectionOrThrow(*multiproxyTargetCluster)
-            : LocalConnection_;
+        NApi::NNative::IConnectionPtr connection;
+        if (multiproxyTargetCluster) {
+            connection = WaitForFast(
+                InsistentGetRemoteConnection(
+                    LocalConnection_,
+                    *multiproxyTargetCluster,
+                    NNative::EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync))
+                .ValueOrThrow();
+        } else {
+            connection = LocalConnection_;
+        }
 
         auto client = AuthenticatedClientCache_->Get(
             multiproxyTargetCluster,
