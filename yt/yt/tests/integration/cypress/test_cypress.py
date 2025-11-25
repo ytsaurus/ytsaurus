@@ -1316,8 +1316,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2") == 1
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/t2/@type") == "int64_node")
+        assert get("//tmp/t2/@type") == "int64_node"
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
         assert get("//tmp/t2&/@type") == "link"
         assert not get("//tmp/t2&/@broken")
@@ -1363,8 +1362,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/a")
         assert exists("//tmp/b")
         assert exists("//tmp/b&")
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: exists("//tmp/b/@id"))
+        assert exists("//tmp/b/@id")
         assert exists("//tmp/b/@row_count")
         assert exists("//tmp/b&/@target_path")
         assert not exists("//tmp/b/@x")
@@ -1410,8 +1408,7 @@ class TestCypress(YTEnvSetup):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l/@id") == id1)
+        assert get("//tmp/l/@id") == id1
         with raises_yt_error("already exists"):
             link("//tmp/t2", "//tmp/l")
 
@@ -1430,8 +1427,7 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l")
         link("//tmp/t2", "//tmp/l", force=True)
         assert get("//tmp/t1/@id") == id1
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l/@id") == id2)
+        assert get("//tmp/l/@id") == id2
 
     @authors("babenko", "danilalexeev")
     def test_link_force2(self):
@@ -1439,11 +1435,9 @@ class TestCypress(YTEnvSetup):
         id2 = create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         remove("//tmp/t1")
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l&/@broken"))
+        assert get("//tmp/l&/@broken")
         link("//tmp/t2", "//tmp/l", force=True)
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l/@id") == id2, ignore_exceptions=True)
+        assert get("//tmp/l/@id") == id2
 
     @authors("babenko", "danilalexeev")
     def test_link_ignore_existing_force_fail(self):
@@ -1456,8 +1450,7 @@ class TestCypress(YTEnvSetup):
         id = create("table", "//tmp/t")
         link("//tmp/t", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l2/@id") == id)
+        assert lambda: get("//tmp/l2/@id") == id
         assert not get("//tmp/l2&/@broken")
         remove("//tmp/l1")
         assert get("//tmp/l2&/@broken")
@@ -1476,8 +1469,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         copy("//tmp/t2", "//tmp/l", force=True)
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l/@type") == "table")
+        assert lambda: get("//tmp/l/@type") == "table"
         assert get("//tmp/t1/@id") == id1
 
     @authors("babenko", "danilalexeev")
@@ -1494,8 +1486,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         move("//tmp/t2", "//tmp/l", force=True)
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/l/@type") == "table")
+        assert get("//tmp/l/@type") == "table"
         assert not exists("//tmp/t2")
         assert get("//tmp/t1/@id") == id1
 
@@ -1556,8 +1547,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/a")
         link("//tmp/a", "//tmp/b")
         id = get("//tmp/b&/@id")
-        # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
-        wait(lambda: get("//tmp/b/@type") == "map_node")
+        assert get("//tmp/b/@type") == "map_node"
         assert get("//tmp/b&/@type") == "link"
         assert get("#{0}/@type".format(id)) == "map_node"
         assert get("#{0}&/@type".format(id)) == "link"
@@ -3974,8 +3964,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@enable_skynet_sharing")
         assert get("//tmp/t1/@chunk_merger_mode") == "deep"
 
-    @authors("avmatrosov")
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_annotation_attribute(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -3999,7 +3988,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/parent/@annotation", None)
         assert get("//tmp/parent/@annotation") == yson.YsonEntity()
 
-    @authors("avmatrosov")
+    @authors("danilalexeev")
     def test_annotation_errors(self):
         create("map_node", "//tmp/test_node")
         assert get("//tmp/test_node/@annotation") == yson.YsonEntity()
@@ -4010,8 +3999,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node/@annotation", chr(255))
         set("//tmp/test_node/@annotation", printable)
 
-    @authors("avmatrosov")
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_annotation_transaction(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -4035,7 +4023,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/@annotation")
         assert not exists("//tmp/test_node/child/@annotation")
 
-    @authors("avmatrosov")
+    @authors("danilalexeev")
     def test_annotation_clone(self):
         create("map_node", "//tmp/test_node")
         create("map_node", "//tmp/test_node/child")
@@ -4088,9 +4076,7 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         assert get("//tmp/x/2/@owner") == "u1"
 
-    @authors("avmatrosov")
-    # TODO(danilalexeev): YT-26541.
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_preserve_acl(self):
         create("table", "//tmp/t1")
 
@@ -4105,9 +4091,7 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), acl)
         assert_items_equal(get("//tmp/t3/@acl"), acl)
 
-    @authors("avmatrosov")
-    # TODO(danilalexeev): YT-26541.
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_preserve_acl_without_rights(self):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")

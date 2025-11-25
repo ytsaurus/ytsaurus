@@ -20,6 +20,24 @@ constinit auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TraverseSequoiaTree(
+    NCypressClient::TNodeId rootId,
+    const TNodeIdToChildDescriptors& nodeIdToChildren,
+    INodeVisitor<TCypressChildDescriptor>* visitor)
+{
+    const auto& children = GetOrCrash(nodeIdToChildren, rootId);
+    for (const auto& child : children) {
+        if (!visitor->ShouldVisit(child)) {
+            continue;
+        }
+        visitor->OnNodeEntered(child);
+        TraverseSequoiaTree(child.ChildId, nodeIdToChildren, visitor);
+        visitor->OnNodeExited(child);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Traverses a Sequoia tree stored in a hash map and invokes appropriate methods of IYsonConsumer.
 // TODO(h0pless): Make a base class between TSequoiaTreeVisitor and TTreeVisitor.
 class TSequoiaTreeVisitor

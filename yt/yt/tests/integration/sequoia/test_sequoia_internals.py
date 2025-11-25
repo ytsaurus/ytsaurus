@@ -646,6 +646,7 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
+        set("//tmp/a/@annotation", "test")
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -671,9 +672,10 @@ class TestSequoiaInternals(YTEnvSetup):
             assert both_usages["resource_usage"]["node_count"] == resource_usage["node_count"]
             assert both_usages["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
 
-            multiple_attributes = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage", "id", "creation_time"])
+            multiple_attributes = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage", "id", "creation_time", "annotation"])
             assert multiple_attributes["resource_usage"]["node_count"] == resource_usage["node_count"]
             assert multiple_attributes["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
+            assert type(multiple_attributes["annotation"]) is not yson.YsonEntity
 
         test_attributes_list("//tmp/a")
         test_attributes_list("//tmp/a/b")
@@ -692,7 +694,7 @@ class TestSequoiaInternals(YTEnvSetup):
         test_attribute_access("//tmp/a/b/c")
         test_attribute_access("//tmp/a/1")
 
-        get_result = get("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
+        get_result = get("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage", "annotation"])
         a_attr = get_result.attributes
         b_attr = get_result["b"].attributes
         c_attr = get_result["b"]["c"].attributes
@@ -705,6 +707,9 @@ class TestSequoiaInternals(YTEnvSetup):
         assert a_attr["resource_usage"]["node_count"] == 1
 
         assert a_attr["recursive_resource_usage"]["disk_space"] == c_attr["resource_usage"]["disk_space"] + d_attr["resource_usage"]["disk_space"]
+
+        assert type(a_attr["annotation"]) is not yson.YsonEntity
+        assert type(b_attr["annotation"]) is not yson.YsonEntity
 
         list_result = ls("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
         for child in list_result:
