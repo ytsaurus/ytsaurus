@@ -100,6 +100,9 @@ struct TIOEngineSensors final
         // Single request time.
         NProfiling::TEventTimer Timer;
 
+        // Single request time using huge pages.
+        NProfiling::TEventTimer HugePageTimer;
+
         // Cumulative execution time of all requests.
         NProfiling::TTimeCounter TotalTimeCounter;
 
@@ -108,6 +111,9 @@ struct TIOEngineSensors final
 
         // Currently executing requests count.
         TInflightCounter InflightCounter;
+
+        // Currently executing requests count with huge pages.
+        TInflightCounter HugePageInflightCounter;
     };
 
     NProfiling::TCounter WrittenBytesCounter;
@@ -139,6 +145,7 @@ class TRequestStatsGuard
 {
 public:
     explicit TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors);
+    TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors, bool usingHugePages);
     TRequestStatsGuard(TRequestStatsGuard&& other) = default;
 
     ~TRequestStatsGuard();
@@ -148,6 +155,7 @@ public:
 private:
     TIOEngineSensors::TRequestSensors Sensors_;
     NProfiling::TWallTimer Timer_;
+    bool UsingHugePages_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
