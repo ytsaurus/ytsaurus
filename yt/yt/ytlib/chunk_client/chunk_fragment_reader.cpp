@@ -1362,14 +1362,6 @@ private:
         auto peerInfoToPlan = MakePlans();
         auto peerCount = std::ssize(peerInfoToPlan);
 
-        if (isHedged && Options_.HedgingManager) {
-            if (!Options_.HedgingManager->OnHedgingDelayPassed(peerCount)) {
-                YT_LOG_DEBUG("Hedging manager restrained hedging requests (PeerCount: %v)",
-                    peerCount);
-                return;
-            }
-        }
-
         // NB: This may happen e.g. if some chunks are lost or all fragments were read from cache.
         if (peerCount == 0 && !isHedged) {
             OnCompleted();
@@ -1380,9 +1372,7 @@ private:
 
         if (!isHedged && peerCount > 0) {
             // TODO(akozhikhov): Support cancellation of primary requests?
-            auto hedgingDelay = Options_.HedgingManager
-                ? std::make_optional(Options_.HedgingManager->OnPrimaryRequestsStarted(peerCount))
-                : Reader_->Config_->FragmentReadHedgingDelay;
+            auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay;
 
             if (hedgingDelay) {
                 if (*hedgingDelay == TDuration::Zero()) {

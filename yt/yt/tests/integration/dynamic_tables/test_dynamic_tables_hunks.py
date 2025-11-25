@@ -1268,6 +1268,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("//tmp/m/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_table()

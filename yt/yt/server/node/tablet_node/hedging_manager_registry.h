@@ -28,7 +28,9 @@ struct ITabletHedgingManagerRegistry
     //! Returns hedging manager for specific #hedgingUnit
     //! and creates one if not present.
     //! May return null in case of disabled hedging determined via config.
-    virtual IHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) = 0;
+    virtual INewHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) = 0;
+
+    virtual void CollectStatistics() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletHedgingManagerRegistry)
@@ -49,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(IHedgingManagerRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ! Uses #invoker for background eviction of expired tablet hedging manager registries.
+// ! Uses #invoker for background statistics collection and eviction of expired tablet hedging manager registries.
 IHedgingManagerRegistryPtr CreateHedgingManagerRegistry(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
