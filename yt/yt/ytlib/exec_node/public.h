@@ -78,6 +78,8 @@ DEFINE_ENUM(EJobPhase,
     ((Finished)                     ( 80))
 );
 
+DEFINE_ENUM_UNKNOWN_VALUE(EJobPhase, Missing);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
