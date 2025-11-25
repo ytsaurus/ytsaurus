@@ -588,43 +588,12 @@ TSecondaryQueryBuilder::TSecondaryQueryBuilder(
     , BoundJoinOptions_(std::move(boundJoinOptions))
 { }
 
-TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPerSecondaryQuery)
-{
-    YT_LOG_DEBUG("Creating secondary query for pull distribution mode");
-
-    DB::Scalars scalars;
-    for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
-        auto spec = OperandSpecs_[index];
-        if (!spec.QuerySettings->Execution->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
-            spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
-        }
-
-        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
-        auto encodedSpec = protoSpec.SerializeAsString();
-
-        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
-
-        std::string scalarName = Format("yt_table_%d", index);
-        scalars[scalarName] = DB::Block{{
-            DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
-            std::make_shared<DB::DataTypeString>(),
-            "scalarName"}};
-    }
-
-    auto secondaryQueryAst = DB::queryNodeToDistributedSelectQuery(Query_);
-
-    YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
-
-    return {
-        .Query = std::move(secondaryQueryAst),
-        .Scalars = std::move(scalars),
-    };
-}
-
 TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     const TRange<TSubquery>& threadSubqueries,
     const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
     int subqueryIndex,
+    i64 inputStreamCount,
+    bool isCompleteSubquery,
     bool isLastSubquery)
 {
     auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
@@ -633,6 +602,12 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     i64 totalDataWeight = 0;
     i64 totalChunkCount = 0;
     for (const auto& subquery : threadSubqueries) {
+        YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, StripeListStatistics: %v)",
+            subquery.Cookie,
+            subquery.Bounds.first,
+            subquery.Bounds.second,
+            subquery.StripeList->GetAggregateStatistics());
+
         const auto& stripeListStatistics = subquery.StripeList->GetAggregateStatistics();
         totalRowCount += stripeListStatistics.RowCount;
         totalDataWeight += stripeListStatistics.DataWeight;
@@ -655,9 +630,11 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
 
         auto spec = OperandSpecs_[index];
         spec.SubqueryIndex = subqueryIndex;
+        spec.InputStreamCount = inputStreamCount;
+        spec.InputSpecsTruncated = !isCompleteSubquery;
 
         if (!spec.QuerySettings->Execution->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
-            FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
+            FillDataSliceDescriptors(spec.InputSpecs, miscExtMap, TRange(stripes));
         }
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
@@ -675,8 +652,9 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
             "scalarName"}};
     }
 
+    YT_VERIFY(isCompleteSubquery || !BoundJoinOptions_.FilterJoinedSubqueryBySortKey);
     auto secondaryQuery = Query_;
-    if (BoundJoinOptions_.FilterJoinedSubqueryBySortKey && !threadSubqueries.empty()) {
+    if (isCompleteSubquery && BoundJoinOptions_.FilterJoinedSubqueryBySortKey && !threadSubqueries.empty()) {
         // TODO(max42): this comparator should be created beforehand.
         TComparator comparator(std::vector<ESortOrder>(BoundJoinOptions_.JoinRightKeyExpressions.size(), ESortOrder::Ascending));
 

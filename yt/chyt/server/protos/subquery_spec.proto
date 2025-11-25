@@ -9,7 +9,9 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 message TSubquerySpec
 {
     required NYT.NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
-    repeated NYT.NControllerAgent.NProto.TTableInputSpec input_specs = 2;
+    required int64 input_stream_count = 2;
+    repeated NYT.NControllerAgent.NProto.TTableInputSpec input_specs = 3;
+    required bool input_specs_truncated = 4;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
     optional int64 subquery_index = 8;
     optional int64 table_index = 9;
