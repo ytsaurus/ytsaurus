@@ -17,6 +17,8 @@ PEERDIR(
     yt/yt/library/stockpile
     yt/yt/server/lib/misc
     yt/yt/server/lib/rpc_proxy
+
+    yt/yt_proto/yt/client
 )
 
 END()

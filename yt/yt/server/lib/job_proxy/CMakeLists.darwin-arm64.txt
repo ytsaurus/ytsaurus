@@ -46,6 +46,7 @@ target_link_libraries(server-lib-job_proxy PUBLIC
   yt-library-stockpile
   server-lib-misc
   server-lib-rpc_proxy
+  yt_proto-yt-client
   contrib-libs-protobuf
 )
 

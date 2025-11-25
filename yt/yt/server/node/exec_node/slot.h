@@ -106,6 +106,8 @@ struct IUserSlot
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
 
+    virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
+
     virtual int GetSlotIndex() const = 0;
 
     virtual int GetUserId() const = 0;
