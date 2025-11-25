@@ -631,9 +631,7 @@ NYT::TNode TYtTableBaseInfo::GetCodecSpecNode(const NCommon::TStructMemberMapper
 
 NYT::TNode TYtTableBaseInfo::GetAttrSpecNode(ui64 nativeTypeCompatibility, bool rowSpecCompactForm) const {
     NYT::TNode res = NYT::TNode::CreateMap();
-    if (Meta && Meta->SqlView) {
-        res[YqlTypeAttribute] = "view";
-    } else if (RowSpec) {
+    if (RowSpec) {
         RowSpec->FillAttrNode(res[YqlRowSpecAttribute], nativeTypeCompatibility, rowSpecCompactForm);
     }
     return res;
@@ -907,7 +905,7 @@ bool TYtTableInfo::HasSubstAnonymousLabel(NNodes::TExprBase node) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder, TString sqlView) {
+TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeFlags, const TMaybe<TColumnOrder>& columnOrder) {
     RowSpec = MakeIntrusive<TYqlRowSpecInfo>();
     RowSpec->SetType(type, nativeYtTypeFlags);
     RowSpec->SetColumnOrder(columnOrder);
@@ -916,7 +914,6 @@ TYtOutTableInfo::TYtOutTableInfo(const TStructExprType* type, ui64 nativeYtTypeF
     Meta->CanWrite = true;
     Meta->DoesExist = true;
     Meta->YqlCompatibleScheme = true;
-    Meta->SqlView = sqlView;;
 
     IsTemp = true;
 }
@@ -1028,7 +1025,6 @@ TExprBase TYtOutTableInfo::ToExprNode(TExprContext& ctx, const TPositionHandle& 
     tableBuilder.RowSpec(RowSpec->ToExprNode(ctx, pos));
     YQL_ENSURE(Meta);
     tableBuilder.Meta(Meta->ToExprNode(ctx, pos));
-
     if (Stat) {
         tableBuilder.Stat(Stat->ToExprNode(ctx, pos));
     } else {

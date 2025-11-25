@@ -582,7 +582,8 @@ private:
             auto pubTableInfo = TYtTableInfo(publish.Publish());
             if (auto commitEpoch = pubTableInfo.CommitEpoch.GetOrElse(0)) {
                 const TYtTableDescription& nextDescription = State_->TablesData->GetTable(cluster, pubTableInfo.Name, commitEpoch);
-                if (nextDescription.RowSpec && nextDescription.RowSpecSortReady && !nextDescription.RowSpec->IsSorted()) {
+                YQL_ENSURE(nextDescription.RowSpec);
+                if (nextDescription.RowSpecSortReady && !nextDescription.RowSpec->IsSorted()) {
                     bool modified = false;
                     TVector<TYtOutput> outs;
                     for (auto out: publish.Input()) {
