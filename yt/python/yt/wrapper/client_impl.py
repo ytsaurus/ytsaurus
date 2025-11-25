@@ -3179,7 +3179,7 @@ class YtClient(ClientState):
             destination_table: Union[str, YPath, None] = None, erasure_codec: Optional[Literal["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"]] = None,  # noqa
             compression_codec: Optional[Literal["none", "snappy", "lz4", "lz4_high_compression", "brotli_1", "brotli_2", "brotli_3", "brotli_4", "brotli_5", "brotli_6", "brotli_7", "brotli_8", "brotli_9", "brotli_10", "brotli_11", "zlib_1", "zlib_2", "zlib_3", "zlib_4", "zlib_5", "zlib_6", "zlib_7", "zlib_8", "zlib_9", "zstd_1", "zstd_2", "zstd_3", "zstd_4", "zstd_5", "zstd_6", "zstd_7", "zstd_8", "zstd_9", "zstd_10", "zstd_11", "zstd_12", "zstd_13", "zstd_14", "zstd_15", "zstd_16", "zstd_17", "zstd_18", "zstd_19", "zstd_20", "zstd_21", "lzma_0", "lzma_1", "lzma_2", "lzma_3", "lzma_4", "lzma_5", "lzma_6", "lzma_7", "lzma_8", "lzma_9", "bzip2_1", "bzip2_2", "bzip2_3", "bzip2_4", "bzip2_5", "bzip2_6", "bzip2_7", "bzip2_8", "bzip2_9", "zstd_fast_1", "zstd_fast_2", "zstd_fast_3", "zstd_fast_4", "zstd_fast_5", "zstd_fast_6", "zstd_fast_7", "zlib6", "gzip_normal", "zlib9", "gzip_best_compression", "zstd", "brotli3", "brotli5", "brotli8", "quick_lz"]] = None,  # noqa
             desired_chunk_size: Optional[int] = None, spec: Union[SpecCommonType, Dict[str, Any], None] = None,
-            check_codecs: bool = False, optimize_for: Optional[Literal["lookup", "scan"]] = None, force_empty: bool = False):
+            check_codecs: bool = False, optimize_for: Optional[Literal["lookup", "scan"]] = None, force_empty: bool = False) -> bool:
         """
         Transforms source table to destination table writing data with given compression and erasure codecs.
 

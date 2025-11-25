@@ -82,7 +82,7 @@ def transform(
     optimize_for: Optional[Literal["lookup", "scan"]] = None,
     force_empty: bool = False,
     client=None,
-):
+) -> bool:
     """Transforms source table to destination table writing data with given compression and erasure codecs.
 
     Automatically calculates desired chunk size and data size per job. Also can be used to convert chunks in
@@ -174,19 +174,22 @@ def transform(
             # force "one job - one chunk" mode (real chunk size based on data_size_per_job)
             desired_chunk_size = desired_chunk_size * 2 + 1024 ** 3
 
-        spec = update(
-            {
-                "title": "Transform table",
-                "combine_chunks": True,
-                "force_transform": True,
-                "data_weight_per_job": data_weight_per_job,
-                "job_io": {
-                    "table_writer": {
-                        "desired_chunk_size": desired_chunk_size
-                    }
-                },
+        base_spec = {
+            "title": "Transform table",
+            "combine_chunks": True,
+            "force_transform": True,
+            "job_io": {
+                "table_writer": {
+                    "desired_chunk_size": desired_chunk_size
+                }
             },
-            spec)
+        }
+        if "data_size_per_job" not in spec and "data_weight_per_job" not in spec:
+            base_spec["data_weight_per_job"] = data_weight_per_job
+        spec = update(
+            base_spec,
+            spec,
+        )
 
         if job_splitting is not None:
             spec.update({"enable_job_splitting": job_splitting})
