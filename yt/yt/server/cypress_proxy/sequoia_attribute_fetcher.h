@@ -25,20 +25,24 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaAttributeFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
-    const TSequoiaSessionPtr sequoiaSession,
+    const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    const NCypressClient::TNodeId rootId,
-    const std::vector<NCypressClient::TNodeId>& nodesToFetchFromMaster);
+    NCypressClient::TNodeId rootId,
+    const TNodeIdToChildDescriptors* nodeIdToChildren,
+    TNodeAncestry rootAncestry,
+    const std::vector<NCypressClient::TNodeId>& scalarNodeIds);
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForListRequest(
-    const TSequoiaSessionPtr sequoiaSession,
+    const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    const NCypressClient::TNodeId rootId,
-    const std::vector<TCypressChildDescriptor>& children);
+    NCypressClient::TNodeId rootId,
+    const std::vector<TCypressChildDescriptor>* children,
+    TNodeAncestry rootAncestry);
 
 std::tuple<ISequoiaAttributeFetcherPtr, NYTree::TAttributeFilter> CreateSpecialAttributeFetcherAndLeftAttributesForNode(
-    const TSequoiaSessionPtr sequoiaSession,
+    const TSequoiaSessionPtr& sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
-    const NCypressClient::TNodeId rootId);
+    NCypressClient::TNodeId rootId,
+    TNodeAncestry rootAncestry);
 
 } // namespace NYT::NCypressServer
