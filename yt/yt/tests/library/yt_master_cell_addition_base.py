@@ -975,4 +975,8 @@ class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):
             out="//tmp/t2",
             spec={"cluster_name": "remote_0"},
         )
-        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        def assert_read():
+            assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        wait(lambda: self.do_with_retries(assert_read))
