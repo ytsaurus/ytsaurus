@@ -569,6 +569,7 @@ private:
     std::optional<double> SamplingRate_;
 
     TClusterNodes CliqueNodes_;
+    i64 InputStreamsPerQuery_;
     std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
 
@@ -653,8 +654,6 @@ private:
             "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
 
         QueryContext_->SetRuntimeVariable(
-            "use_input_specs_pulling", SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling);
-        QueryContext_->SetRuntimeVariable(
             "use_distinct_read_optimization", SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead);
         QueryContext_->SetRuntimeVariable(
             "use_min_max_optimization", SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization);
@@ -705,15 +704,15 @@ private:
 
         YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *QueryInfo_.query);
 
-        i64 inputStreamsPerSecondaryQuery = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
-        if (inputStreamsPerSecondaryQuery <= 0) {
-            inputStreamsPerSecondaryQuery = Context_->getSettingsRef()[DB::Setting::max_threads];
+        InputStreamsPerQuery_ = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
+        if (InputStreamsPerQuery_ <= 0) {
+            InputStreamsPerQuery_ = Context_->getSettingsRef()[DB::Setting::max_threads];
         }
         NTracing::GetCurrentTraceContext()->AddTag(
             "chyt.input_streams_per_secondary_query",
-            inputStreamsPerSecondaryQuery);
+            InputStreamsPerQuery_);
 
-        i64 taskCount = std::max<int>(1, secondaryQueryCount * inputStreamsPerSecondaryQuery);
+        i64 taskCount = std::max<int>(1, secondaryQueryCount * InputStreamsPerQuery_);
         if (SuitableForPullInputSpecsMode()) {
             taskCount = std::round(taskCount * QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
             YT_LOG_DEBUG(
@@ -766,60 +765,46 @@ private:
         NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", totalChunkCount);
     }
 
-    void PrepareSecondaryQueriesForPush(std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder, int secondaryQueryCount)
+    TSecondaryQuery CreateSecondaryQueryForPush(
+        std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder,
+        int secondaryQueryCount,
+        int queryIndex)
     {
-        for (int index = 0; index < secondaryQueryCount; ++index) {
-            int firstSubqueryIndex = index * ThreadSubqueries_.size() / secondaryQueryCount;
-            int lastSubqueryIndex = (index + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
+        int firstSubqueryIndex = queryIndex * ThreadSubqueries_.size() / secondaryQueryCount;
+        int lastSubqueryIndex = (queryIndex + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
 
-            auto threadSubqueries = TRange(ThreadSubqueries_.data() + firstSubqueryIndex, ThreadSubqueries_.data() + lastSubqueryIndex);
+        auto threadSubqueries = TRange(ThreadSubqueries_.data() + firstSubqueryIndex, ThreadSubqueries_.data() + lastSubqueryIndex);
+        YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
+        // Each thread subquery will form its own secondary query when reading in order.
+        YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
 
-            YT_LOG_DEBUG("Preparing secondary query (QueryIndex: %v, SecondaryQueryCount: %v)",
-                index,
-                secondaryQueryCount);
-            for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, StripeListStatistics: %v)",
-                    threadSubquery.Cookie,
-                    threadSubquery.Bounds.first,
-                    threadSubquery.Bounds.second,
-                    threadSubquery.StripeList->GetAggregateStatistics());
-            }
-
-            YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
-            // Each thread subquery will form its own secondary query when reading in order.
-            YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
-
-            auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(
-                threadSubqueries,
-                QueryInput_.MiscExtMap,
-                index,
-                index + 1 == secondaryQueryCount /*isLastSubquery*/);
-
-            YT_LOG_DEBUG(
-                "Secondary query prepared (ThreadSubqueryCount: %v, QueryIndex: %v, SecondaryQueryCount: %v)",
-                lastSubqueryIndex - firstSubqueryIndex,
-                index,
-                secondaryQueryCount);
-
-            YT_LOG_TRACE(
-                "Secondary query AST (SubqueryIndex: %v, AST: %v)",
-                index,
-                secondaryQuery.Query);
-
-            SecondaryQueries_.emplace_back(std::move(secondaryQuery));
-        }
+        return secondaryQueryBuilder->CreateSecondaryQuery(
+            threadSubqueries,
+            QueryInput_.MiscExtMap,
+            queryIndex,
+            threadSubqueries.size(),
+            true /*isCompleteSubquery*/,
+            queryIndex + 1 == secondaryQueryCount /*isLastSubquery*/);
     }
 
-    void PrepareSecondaryQueriesForPull(std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder, int secondaryQueryCount)
+    TSecondaryQuery CreateSecondaryQueryForPull(
+        std::shared_ptr<TSecondaryQueryBuilder> secondaryQueryBuilder,
+        int /*secondaryQueryCount*/,
+        int queryIndex)
     {
-        i64 inputStreamsPerSecondaryQuery = (std::ssize(ThreadSubqueries_) + secondaryQueryCount - 1) / secondaryQueryCount;
-        auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(inputStreamsPerSecondaryQuery);
-        SecondaryQueries_.assign(secondaryQueryCount, secondaryQuery);
+        int firstSubqueryIndex = queryIndex * InputStreamsPerQuery_;
+        int lastSubqueryIndex = std::min(firstSubqueryIndex + InputStreamsPerQuery_, std::ssize(ThreadSubqueries_));
 
-        TaskIterator_ = New<TSecondaryQueryReadTaskIterator>(
-            QueryInput_.OperandCount,
-            ThreadSubqueries_,
-            QueryInput_.MiscExtMap);
+        auto threadSubqueries = TRange(ThreadSubqueries_.data() + firstSubqueryIndex, ThreadSubqueries_.data() + lastSubqueryIndex);
+        YT_VERIFY(!threadSubqueries.Empty() || ThreadSubqueries_.empty());
+        // Each thread subquery will form its own secondary query when reading in order.
+        YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
+
+        return secondaryQueryBuilder->CreateSecondaryQuery(
+            threadSubqueries,
+            QueryInput_.MiscExtMap,
+            queryIndex,
+            InputStreamsPerQuery_);
     }
 
     void PrepareSecondaryQueryAsts()
@@ -845,10 +830,33 @@ private:
 
         auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
 
-        if (SuitableForPullInputSpecsMode()) {
-            PrepareSecondaryQueriesForPull(secondaryQueryBuilder, secondaryQueryCount);
-        } else {
-            PrepareSecondaryQueriesForPush(secondaryQueryBuilder, secondaryQueryCount);
+        i64 threadSubqueryCount = std::ssize(ThreadSubqueries_);
+        bool inputSpecsCanBePulled = threadSubqueryCount > InputStreamsPerQuery_ * secondaryQueryCount;
+        bool useInputSpecsPulling = SuitableForPullInputSpecsMode() && inputSpecsCanBePulled;
+
+        if (useInputSpecsPulling) {
+            QueryContext_->SetRuntimeVariable(
+                "use_input_specs_pulling", useInputSpecsPulling);
+        }
+
+        auto queryConstructor = (useInputSpecsPulling)
+            ? BIND(&TDistributedQueryPreparer::CreateSecondaryQueryForPull, Unretained(this), secondaryQueryBuilder, secondaryQueryCount)
+            : BIND(&TDistributedQueryPreparer::CreateSecondaryQueryForPush, Unretained(this), secondaryQueryBuilder, secondaryQueryCount);
+
+        for (int index = 0; index < secondaryQueryCount; ++index) {
+            YT_LOG_DEBUG("Preparing secondary query (QueryIndex: %v, SecondaryQueryCount: %v)",
+                index,
+                secondaryQueryCount);
+            auto secondaryQuery = queryConstructor(index);
+            SecondaryQueries_.emplace_back(std::move(secondaryQuery));
+        }
+
+        if (useInputSpecsPulling) {
+            auto remainingSubqueries = TRange(ThreadSubqueries_.data() + secondaryQueryCount * InputStreamsPerQuery_, ThreadSubqueries_.data() + threadSubqueryCount);
+            TaskIterator_ = New<TSecondaryQueryReadTaskIterator>(
+                QueryInput_.OperandCount,
+                remainingSubqueries,
+                QueryInput_.MiscExtMap);
         }
     }
 };
