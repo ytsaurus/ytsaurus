@@ -15,18 +15,30 @@ void TSchedulerPool::ValidateChildrenGuaranteeSum(
     std::function<std::optional<TResource>(const NScheduler::TPoolConfigPtr&)> getResource)
 {
     auto parentResource = getResource(this->FullConfig());
-    if (!parentResource) {
+    if (!parentResource || !this->FullConfig()->AllowChildrenGuarantees) {
         for (const auto& [_, child] : KeyToChild_) {
             if (auto childResource = getResource(child->FullConfig())) {
-                THROW_ERROR_EXCEPTION(
-                    "%v is explicitly configured at child pool %Qv but is not configured at parent %Qv",
-                    guaranteeName,
-                    child->GetName(),
-                    GetName())
-                    << TErrorAttribute("pool_name", child->GetName())
-                    << TErrorAttribute("parent_name", GetName())
-                    << TErrorAttribute("resource_type", resourceType)
-                    << TErrorAttribute("resource_guarantee", *childResource);
+                if (!parentResource) {
+                    THROW_ERROR_EXCEPTION(
+                        "%v is explicitly configured at child pool %Qv but is not configured at parent %Qv",
+                        guaranteeName,
+                        child->GetName(),
+                        GetName())
+                        << TErrorAttribute("pool_name", child->GetName())
+                        << TErrorAttribute("parent_name", GetName())
+                        << TErrorAttribute("resource_type", resourceType)
+                        << TErrorAttribute("resource_guarantee", *childResource);
+                } else {
+                    THROW_ERROR_EXCEPTION(
+                        "%v is explicitly configured at child pool %Qv but parent %Qv does not allow children guarantees",
+                        guaranteeName,
+                        child->GetName(),
+                        GetName())
+                        << TErrorAttribute("pool_name", child->GetName())
+                        << TErrorAttribute("parent_name", GetName())
+                        << TErrorAttribute("resource_type", resourceType)
+                        << TErrorAttribute("resource_guarantee", *childResource);
+                }
             }
         }
         return;
