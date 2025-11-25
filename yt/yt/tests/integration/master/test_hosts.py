@@ -157,13 +157,23 @@ class TestHosts(TestHostsBase):
 class TestHostAwareReplication(TestHostsBase):
     ENABLE_MULTIDAEMON = False  # There are components restart.
     NUM_MASTERS = 1
-    NUM_NODES = 32
+    NUM_NODES = 20
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "use_host_aware_replicator": True,
             "enable_two_random_choices_write_target_allocation": False,
-        }
+        },
+        "cell_master": {
+            "logging": {
+                "message_level_overrides": {
+                    "Chunk has multiple replicas on the same host": "debug",
+                    "Computed regular chunk statistics": "debug",
+                    "Computed erasure chunk statistics": "debug",
+                    "Computed chunk statistics on refresh": "debug",
+                },
+            },
+        },
     }
 
     def _get_replica_nodes(self, chunk_id):
@@ -206,6 +216,11 @@ class TestHostAwareReplication(TestHostsBase):
         wait(lambda: not self._is_chunk_status_ok(chunk_id))
 
         set_node_banned(nodes[0], False)
+
+        # Without global refresh chunk may refresh before the node[0] unban.
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", False)
+        set("//sys/@config/chunk_manager/enable_chunk_refresh", True)
+
         wait(lambda: self._is_chunk_status_ok(chunk_id))
         wait(lambda: nodes[0] in self._get_replica_nodes(chunk_id))
 
@@ -245,10 +260,17 @@ class TestHostAwareReplication(TestHostsBase):
         self._check_chunk_is_ok(chunk_id, num_replicas)
 
         replicas = self._get_replica_nodes(chunk_id)
-        for i in range(1, 10):
-            host = self._get_host(replicas[0])
-            self._set_host(replicas[0], host)
+        host = self._get_host(replicas[0])
+        for _ in range(self.NUM_NODES - num_replicas):
+            replicas = self._get_replica_nodes(chunk_id)
+            if self._get_host(replicas[0]) != host:
+                changing_replica = replicas[0]
+            else:
+                changing_replica = replicas[1]
+
+            self._set_host(changing_replica, host)
             self._check_chunk_is_ok(chunk_id, num_replicas)
+
 
 ##################################################################
 

@@ -652,6 +652,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         if (ChunkPlacement_->UseHostAwareReplicator() && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
+                YT_LOG_TRACE(
+                    "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
+                    chunk->GetId(),
+                    host->GetName(),
+                    chunkLocation->GetNode()->GetDefaultAddress());
                 unsafelyPlacedSealedReplicas[mediumIndex] = replica;
             }
         }
@@ -1134,6 +1139,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         if (ChunkPlacement_->UseHostAwareReplicator() && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
+                YT_LOG_TRACE(
+                    "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
+                    chunk->GetId(),
+                    host->GetName(),
+                    chunkLocation->GetNode()->GetDefaultAddress());
                 unsafelyPlacedReplicas[mediumIndex] = replica;
             }
         }
@@ -2926,6 +2936,7 @@ void TChunkReplicator::ScheduleNodeRefreshSequoia(TNodeId nodeId)
 
 void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
+    YT_LOG_DEBUG("Scheduling global chunk refresh");
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (IsShardActive(shardIndex)) {
