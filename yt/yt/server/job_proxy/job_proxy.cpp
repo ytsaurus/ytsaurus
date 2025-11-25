@@ -1523,7 +1523,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
-        // TODO(yuryalekseev): Remove this after tasklets move to using default place.
+        // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(All);
     }
 
