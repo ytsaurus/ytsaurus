@@ -2711,6 +2711,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
         .Default();
 
+    registrar.Parameter("allow_children_guarantees", &TThis::AllowChildrenGuarantees)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)
         if (config->ConfigPreset && !config->ConfigPresets.empty()) {
