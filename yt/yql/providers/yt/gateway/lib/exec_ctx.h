@@ -50,14 +50,13 @@ struct TInputInfo {
 struct TOutputInfo {
     TOutputInfo() = default;
     TOutputInfo(const TString& name, const TString& path, const NYT::TNode& codecSpec, const NYT::TNode& attrSpec,
-        const NYT::TSortColumns& sortedBy, NYT::TNode columnGroups, const TString& view)
+        const NYT::TSortColumns& sortedBy, NYT::TNode columnGroups)
         : Name(name)
         , Path(path)
         , Spec(codecSpec)
         , AttrSpec(attrSpec)
         , SortedBy(sortedBy)
         , ColumnGroups(std::move(columnGroups))
-        , View(view)
     {
     }
     TString Name;
@@ -66,7 +65,6 @@ struct TOutputInfo {
     NYT::TNode AttrSpec;
     NYT::TSortColumns SortedBy;
     NYT::TNode ColumnGroups;
-    TString View;
     TMaybe<TString> FilePath; // Needed for fileGateway
 };
 

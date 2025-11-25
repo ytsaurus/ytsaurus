@@ -197,20 +197,16 @@ void TExecContextBaseSimple::SetOutput(TYtOutSection output, const TYtSettings::
         }
         TString outTablePath = GetTransformedPath(outTableName, Cluster_, true, settings);
         auto attrSpec = tableInfo.GetAttrSpecNode(nativeYtTypeCompatibility, rowSpecCompactForm);
-
         OutTables_.emplace_back(
             outTableName,
             outTablePath,
             tableInfo.GetCodecSpecNode(),
             attrSpec,
             ToYTSortColumns(tableInfo.RowSpec->GetForeignSort()),
-            optimizeForScan ? tableInfo.GetColumnGroups() : NYT::TNode{},
-            tableInfo.Meta->SqlView
+            optimizeForScan ? tableInfo.GetColumnGroups() : NYT::TNode{}
         );
-        if (tableInfo.Meta->SqlView.empty()) {
-            outTablePaths.push_back(outTablePath);
-            outTableSpecs.push_back(std::move(attrSpec));
-        }
+        outTablePaths.push_back(outTablePath);
+        outTableSpecs.push_back(std::move(attrSpec));
         if (loggedTable++ < 10) {
             YQL_CLOG(INFO, ProviderYt) << "Output: " << Cluster_ << '.' << outTableName;
         }
@@ -243,8 +239,7 @@ void TExecContextBaseSimple::SetSingleOutput(const TYtOutTableInfo& outTable, co
         outTable.GetCodecSpecNode(),
         outTable.GetAttrSpecNode(nativeYtTypeCompatibility, rowSpecCompactForm),
         ToYTSortColumns(outTable.RowSpec->GetForeignSort()),
-        optimizeForScan ? outTable.GetColumnGroups() : NYT::TNode{},
-        outTable.Meta->SqlView
+        optimizeForScan ? outTable.GetColumnGroups() : NYT::TNode{}
     );
 
     YQL_CLOG(INFO, ProviderYt) << "Output: " << Cluster_ << '.' << outTableName;
