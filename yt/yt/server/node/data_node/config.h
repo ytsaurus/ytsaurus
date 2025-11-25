@@ -1103,6 +1103,8 @@ struct TDataNodeDynamicConfig
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
 
+    bool WaitPrecedingBlocksReceived;
+
     TP2PConfigPtr P2P;
 
     //! Desired number of bytes per disk write in a blob chunks.
