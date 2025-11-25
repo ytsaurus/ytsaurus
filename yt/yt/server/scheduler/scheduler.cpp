@@ -308,11 +308,7 @@ public:
             Config_->ExperimentAssignmentErrorCheckPeriod);
         ExperimentAssignmentErrorChecker_->Start();
 
-        MeteringRecordCountCounter_ = SchedulerProfiler()
-            .Counter("/metering/record_count");
-        MeteringUsageQuantityCounter_ = SchedulerProfiler()
-            .Counter("/metering/usage_quantity");
-
+        // TODO(eshcherbin): Make these sensors global?
         AllocationMeteringRecordCountCounter_ = SchedulerProfiler()
             .Counter("/metering/allocation/record_count");
         AllocationMeteringUsageQuantityCounter_ = SchedulerProfiler()
@@ -1807,9 +1803,6 @@ private:
     TJobResourcesProfiler TotalResourceLimitsProfiler_;
     TJobResourcesProfiler TotalResourceUsageProfiler_;
 
-    NProfiling::TCounter MeteringRecordCountCounter_;
-    NProfiling::TCounter MeteringUsageQuantityCounter_;
-
     NProfiling::TCounter AllocationMeteringRecordCountCounter_;
     NProfiling::TCounter AllocationMeteringUsageQuantityCounter_;
     NProfiling::TCounter GuaranteesMeteringRecordCountCounter_;
@@ -2116,22 +2109,6 @@ private:
 
         TotalResourceLimitsProfiler_.Start();
         TotalResourceUsageProfiler_.Start();
-
-        SchedulerProfiler().AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
-            return NodeManager_->GetActiveAllocationCount();
-        });
-        SchedulerProfiler().AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
-            return NodeManager_->GetSubmitToStrategyAllocationCount();
-        });
-        SchedulerProfiler().AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
-            return NodeManager_->GetTotalConcurrentHeartbeatComplexity();
-        });
-        SchedulerProfiler().AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
-            return NodeManager_->GetExecNodeCount();
-        });
-        SchedulerProfiler().AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
-            return NodeManager_->GetTotalNodeCount();
-        });
 
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
