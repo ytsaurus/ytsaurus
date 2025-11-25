@@ -858,7 +858,7 @@ protected:
         , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-            ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            ChunkReadOptions_.NewHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
                     .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
@@ -1334,13 +1334,7 @@ void TLookupSession::AddTabletRequest(
                 : nullptr;
 
             if (InMemoryMode_ == EInMemoryMode::None) {
-                if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-                    ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
-                        THedgingUnit{
-                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
-                            .HunkChunk = false,
-                        });
-                }
+                // TODO(akozhikhov): Create hedging manager for regular blocks.
             }
 
             auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(ProfilingUser_);

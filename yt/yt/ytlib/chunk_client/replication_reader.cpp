@@ -2309,7 +2309,7 @@ private:
             auto moreCandidates = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
-                /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
+                /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
                 hasUnfetchedBlocks);
 
             if (moreCandidates.empty()) {
@@ -2614,20 +2614,12 @@ private:
         std::optional<TPeer> backupPeer,
         const TPeerList& peers)
     {
-        IHedgingManagerPtr hedgingManager;
-        if (SessionOptions_.HedgingManager) {
-            hedgingManager = SessionOptions_.HedgingManager;
-        } else if (ReaderConfig_->BlockRpcHedgingDelay) {
-            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay);
-        }
-
-        std::optional<THedgingChannelOptions> hedgingOptions;
-        if (hedgingManager) {
-            hedgingOptions = THedgingChannelOptions{
-                .HedgingManager = std::move(hedgingManager),
+        std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
+            ? std::make_optional(THedgingChannelOptions{
+                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay),
                 .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
-            };
-        }
+            })
+            : std::nullopt;
 
         auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
         YT_VERIFY(channel);
@@ -2792,7 +2784,7 @@ private:
 
     int GetDesiredPeerCount() const
     {
-        return (SessionOptions_.HedgingManager || ReaderConfig_->BlockRpcHedgingDelay) ? 2 : 1;
+        return (SessionOptions_.NewHedgingManager || ReaderConfig_->BlockRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override
@@ -3541,7 +3533,7 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             ReaderConfig_->ProbePeerCount,
-            /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
+            /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -3579,20 +3571,12 @@ private:
             return;
         }
 
-        IHedgingManagerPtr hedgingManager;
-        if (SessionOptions_.HedgingManager) {
-            hedgingManager = SessionOptions_.HedgingManager;
-        } else if (ReaderConfig_->LookupRpcHedgingDelay) {
-            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->LookupRpcHedgingDelay);
-        }
-
-        std::optional<THedgingChannelOptions> hedgingOptions;
-        if (hedgingManager) {
-            hedgingOptions = THedgingChannelOptions{
-                .HedgingManager = std::move(hedgingManager),
+        std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->LookupRpcHedgingDelay
+            ? std::make_optional(THedgingChannelOptions{
+                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->LookupRpcHedgingDelay),
                 .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryLookupRpcRequestOnHedging,
-            };
-        }
+            })
+            : std::nullopt;
 
         auto primaryPeer = peers[0];
         auto backupPeer = peers.size() > 1 ? peers[1] : std::optional<TPeer>();
@@ -3804,7 +3788,7 @@ private:
 
     int GetDesiredPeerCount() const
     {
-        return (SessionOptions_.HedgingManager || ReaderConfig_->LookupRpcHedgingDelay) ? 2 : 1;
+        return (SessionOptions_.NewHedgingManager || ReaderConfig_->LookupRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override
