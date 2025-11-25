@@ -422,8 +422,6 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
     };
 
     if (filterHint) {
-        YT_VERIFY(std::ssize(filterHint) == ytColumn.ValueCount);
-
         resizeCHChars(
             CountTotalStringLengthWithFilterHint(
                 ytOffsets,
@@ -741,6 +739,42 @@ DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     }
 
     YT_ABORT();
+}
+
+void ReduceFilterToDistinct(
+    DB::IColumn::Filter& filter,
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+{
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    if ((dictionaryIndexes.empty() && rleIndexes.empty()) || filter.empty()) {
+        return;
+    }
+
+    DB::IColumn::Filter newFilter;
+    newFilter.resize_fill(ytValueColumn->ValueCount + 1);
+
+    int rowIndex = 0;
+    bool hasNull = false;
+    DecodeRawVector<i64>(
+        ytColumn.StartIndex,
+        ytColumn.StartIndex + ytColumn.ValueCount,
+        dictionaryIndexes,
+        rleIndexes,
+        [] (i64 index) {
+            return index + 1;
+        },
+        [&] (i64 index) {
+            hasNull |= (index == 0);
+            if (filter[rowIndex++]) {
+                index = (index == 0) ? newFilter.size() : index;
+                newFilter.data()[index - 1] = 1;
+            }
+        });
+    if (!hasNull) {
+        newFilter.pop_back();
+    }
+    filter = std::move(newFilter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
