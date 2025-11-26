@@ -34,11 +34,6 @@ class TShuffleChunkPool
     , public IShuffleChunkPool
 {
 public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
-
-public:
     //! For persistence only.
     TShuffleChunkPool() = default;
 
@@ -180,10 +175,8 @@ private:
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
-        , public TJobSplittingBase
     {
     public:
-        DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
         DEFINE_SIGNAL_OVERRIDE(void(), Completed);
         DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
@@ -402,6 +395,18 @@ private:
                 Uncompleted_.Fire();
             }
         }
+
+        bool IsSplittable(TCookie /*cookie*/) const override
+        {
+            // TODO: Support intermediate partition jobs split.
+            return false;
+        }
+
+        void SubscribeChunkTeleported(const TCallback<void(TInputChunkPtr, std::any tag)>&) override
+        { }
+
+        void UnsubscribeChunkTeleported(const TCallback<void(TInputChunkPtr, std::any tag)>&) override
+        { }
 
     private:
         friend class TShuffleChunkPool;
