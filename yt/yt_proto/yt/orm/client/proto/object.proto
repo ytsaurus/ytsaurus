@@ -427,7 +427,7 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30052.
+// Next field 30056.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -484,9 +484,15 @@ extend google.protobuf.FileOptions
     // Sets policy for parent-child references.
     // Default policy is CRP_REMOVE.
     optional ECascadingRemovalPolicy parent_removal_policy = 30046;
+
     // Sets policy for user defined references.
-    // Default policy is CRP_CLEAR.
-    optional ECascadingRemovalPolicy reference_removal_policy = 30047;
+    // Default policy is |CRP_CLEAR| except |counting|, where it's |CRP_FORBID|.
+    optional ECascadingRemovalPolicy deprecated_reference_removal_policy = 30047;
+    optional ECascadingRemovalPolicy single_reference_removal_policy = 30052;
+    optional ECascadingRemovalPolicy multi_reference_removal_policy = 30053;
+    optional ECascadingRemovalPolicy tabular_reference_removal_policy = 30054;
+    optional ECascadingRemovalPolicy counting_reference_removal_policy = 30055;
+
     // Sets policy for generated back references.
     // Default policy is CRP_CLEAR.
     optional ECascadingRemovalPolicy generated_backref_removal_policy = 30048;
