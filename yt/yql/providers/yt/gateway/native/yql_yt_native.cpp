@@ -5187,13 +5187,13 @@ private:
     }
 
     TFuture<void> DoCreateView(TYtCreateView create, const TExecContext<TRunOptions>::TPtr& execCtx) {
-        TString tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), execCtx->Cluster_);
-        auto table = create.Table();
-        bool isAnonymous = NYql::HasSetting(table.Settings().Ref(), EYtSettingType::Anonymous);
-        TString path = NYql::TransformPath(tmpFolder, table.Name().Value(), isAnonymous, execCtx->Session_->UserName_);
+        const auto tmpFolder = GetTablesTmpFolder(*execCtx->Options_.Config(), execCtx->Cluster_);
+        const auto table = create.Table();
+        const bool isAnonymous = NYql::HasSetting(table.Settings().Ref(), EYtSettingType::Anonymous);
+        const auto path = NYql::TransformPath(tmpFolder, table.Name().Value(), isAnonymous, execCtx->Session_->UserName_);
         YQL_CLOG(INFO, ProviderYt) << "Creating: " << execCtx->Cluster_ << '.' << path;
 
-        NYT::TNode attrs = NYT::TNode::CreateMap();
+        auto attrs = YqlOpOptionsToAttrs(execCtx->Session_->OperationOptions_);
         attrs[YqlTypeAttribute] = "view";
         attrs["value"] = create.Original().Value();
 
