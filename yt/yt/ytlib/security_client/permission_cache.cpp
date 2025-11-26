@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/security_client/acl.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NSecurityClient {
 
 using namespace NApi::NNative;
@@ -90,6 +92,7 @@ TPermissionCache::TPermissionCache(
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
+        NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         SecurityClientLogger().WithTag("Cache: Permission"),
         std::move(profiler))
     , Config_(std::move(config))

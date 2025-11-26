@@ -20,6 +20,7 @@
 
 #include <yt/yt/core/rpc/balancing_channel.h>
 #include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
@@ -172,7 +173,7 @@ TChaosResidencyCacheBase::TChaosResidencyCacheBase(
     TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config)
+    : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
     , Connection_(connection)
     , Logger(logger)
 { }

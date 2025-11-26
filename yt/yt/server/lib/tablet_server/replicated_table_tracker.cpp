@@ -208,6 +208,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterLivenessCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -252,6 +253,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterIncomingReplicationCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -304,6 +306,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: ClusterSafeModeCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -350,6 +353,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: HydraReadOnlyCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
@@ -424,6 +428,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             Logger().WithTag("Cache: BundleHealth"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }

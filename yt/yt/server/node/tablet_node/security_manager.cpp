@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -80,6 +82,7 @@ public:
         NCellarNode::IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletNodeLogger().WithTag("Cache: ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
