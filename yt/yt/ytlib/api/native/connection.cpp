@@ -1534,19 +1534,20 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     }
 
     // Slow path.
-    TFuture<void> waitDone;
-    switch (mode)  {
-    case EInsistentGetRemoteConnectionMode::SyncOutOfBound:
-        waitDone = connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
-        break;
-    case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
-        waitDone = connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
-        break;
-    }
+    TFuture<void> waitDone = [&] {
+        switch (mode)  {
+            case EInsistentGetRemoteConnectionMode::Sync:
+                return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+            case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
+                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+        }
+        // NB: we don't put YT_ABORT in `default:` case, because we want compiler to check that all enum values are handled.
+        YT_ABORT();
+    }();
 
     return waitDone.Apply(BIND([=] {
-            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        }));
+        return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+    }));
 }
 
 IConnectionPtr FindRemoteConnection(
