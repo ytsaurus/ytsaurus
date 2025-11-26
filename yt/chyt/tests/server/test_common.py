@@ -8,7 +8,8 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls
+from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
+                  grant_system_permissions_to_clickhouse_user)
 
 from yt.common import YtError, wait, parts_to_uuid
 
@@ -481,10 +482,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             wait(lambda: permission_cache_hit_counter.get_delta() == before)
 
             assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
-            wait(lambda: permission_cache_hit_counter.get_delta() == before + 1)
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 2)
 
             assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
-            wait(lambda: permission_cache_hit_counter.get_delta() == before + 2)
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 4)
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
@@ -2380,11 +2381,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query('select count(key) as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
 
-            # FIXME(coteeq): Should be 1.
-            # The issue with the bare `count()` is that its optimizer (quite unsurprisingly) runs
-            # before IStorageDistributed::read, so distributor had no chance to validate permissions.
-            # This is not a fundamental issue, just a current code architecture.
-            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 2}]
+            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
 
             with raises_yt_error("Cannot use ranges with row_index"):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
@@ -2392,6 +2389,64 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Check again for sanity to account for various miscachings.
             with raises_yt_error("Cannot use ranges with row_index"):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+    @authors("coteeq")
+    def test_dictionary_with_row_level_acl(self):
+        create_user("u")
+
+        grant_system_permissions_to_clickhouse_user()
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "uint64", "required": True},
+                    {"name": "value", "type": "string", "required": True}
+                ]
+            },
+        )
+        write_table("//tmp/t", [{"key": 15, "value": "value15"}, {"key": 16, "value": "value16"}])
+
+        acl = [
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "yt-clickhouse", "read"),
+            make_ace("allow", "yt-clickhouse", "read"),
+        ]
+        acl[1]["row_access_predicate"] = "key = 15"
+        acl[3]["row_access_predicate"] = "key = 16"
+        set("//tmp/t/@acl", acl)
+
+        dict_config = {
+            "name": "dict",
+            "layout": {"flat": {}},
+            "structure": {
+                "id": {"name": "key"},
+                "attribute": [
+                    {"name": "value", "type": "String", "null_value": "n/a"},
+                ],
+            },
+            "lifetime": 0,
+            "source": {"yt": {"path": "//tmp/t"}},
+        }
+
+        config_patch = {
+            "clickhouse": {
+                "dictionaries": [dict_config],
+            },
+            "yt": {
+                "user": "yt-clickhouse",
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            def dict_get(key):
+                query = f"select dictGet('dict', 'value', cast({key} as UInt64)) as dict_get"
+                return clique.make_query(query, user="u")
+            # Regardless of query initiator, dictionary is read from yt-clickhouse user.
+            assert dict_get(15) == [{"dict_get": "n/a"}]
+            assert dict_get(16) == [{"dict_get": "value16"}]
 
     @authors("buyval01")
     def test_complex_secondary_query_headers(self):
