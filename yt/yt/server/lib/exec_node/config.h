@@ -737,6 +737,10 @@ struct TJobProxyConfig
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
+
+    NBus::TBusClientConfigPtr SupervisorConnection;
+
     TDuration SupervisorRpcTimeout;
 
     TDuration JobProxyHeartbeatPeriod;
@@ -761,6 +765,9 @@ struct TJobProxyConfig
 
     //! Forward variables from job proxy environment to user job.
     bool ForwardAllEnvironmentVariables;
+
+    //! Defines environment variables for job proxy, optionally exported to user job.
+    std::vector<NJobProxy::TEnvironmentVariableConfigPtr> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

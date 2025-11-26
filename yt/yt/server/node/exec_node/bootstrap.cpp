@@ -496,7 +496,11 @@ private:
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
-        newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        if (const auto& clusterConnection = GetConfig()->ExecNode->JobProxy->ClusterConnection) {
+            newJobProxyConfigTemplate->OriginalClusterConnection = clusterConnection->Clone();
+        } else {
+            newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        }
 
         // We could probably replace addresses for known cells here as well, but
         // changing addresses of a known cell is cursed anyway, so I'm not
@@ -520,8 +524,12 @@ private:
 
         newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            newJobProxyConfigTemplate->SupervisorConnection = CloneYsonStruct(supervisorConnection);
+        } else {
+            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        }
 
         newJobProxyConfigTemplate->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
@@ -543,10 +551,19 @@ private:
         newJobProxyConfigTemplate->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
         newJobProxyConfigTemplate->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
         newJobProxyConfigTemplate->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->JobProxy->ForwardAllEnvironmentVariables;
+        newJobProxyConfigTemplate->EnvironmentVariables = GetConfig()->ExecNode->JobProxy->EnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
             newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
             newJobProxyConfigTemplate->TvmBridgeConnection->Address = localAddress;
+
+            // Duplicate the TBusConfig part from SupervisorConnection to TvmBridgeConnection,
+            // because it may have ssl parameters.
+            if (const NBus::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+                newJobProxyConfigTemplate->TvmBridgeConnection = UpdateYsonStruct(
+                    newJobProxyConfigTemplate->TvmBridgeConnection,
+                    NYson::ConvertToYsonString(busConfig));
+            }
 
             newJobProxyConfigTemplate->TvmBridge = New<NAuth::TTvmBridgeConfig>();
             newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();

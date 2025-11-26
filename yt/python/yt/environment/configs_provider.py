@@ -454,6 +454,8 @@ def _build_master_configs(yt_config,
 
             config["cluster_connection"] = cluster_connection_config
 
+            config["bus_client"] = _build_native_bus_config(yt_config)
+
             multidaemon_config_output["daemons"][f"master_{cell_index}_{master_index}"] = {
                 "type": "master",
                 "config": config,
@@ -529,6 +531,8 @@ def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock
 
         config["rpc_port"], config["monitoring_port"] = ports[clock_index]
 
+        config["bus_client"] = _build_native_bus_config(yt_config)
+
         config["clock_cell"] = connection_config
 
         # COMPAT(aleksandra-zh)
@@ -591,6 +595,8 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
 
         config["rpc_port"], config["monitoring_port"] = ports[index]
 
+        config["bus_client"] = _build_native_bus_config(yt_config)
+
         multidaemon_config_output["daemons"][f"discovery_{index}"] = {
             "type": "discovery_server",
             "config": config,
@@ -641,6 +647,8 @@ def _build_queue_agent_configs(multidaemon_config_output,
 
         config["rpc_port"] = rpc_ports[index]
         config["monitoring_port"] = next(ports_generator)
+
+        config["bus_client"] = _build_native_bus_config(yt_config)
 
         set_at(config, "queue_agent/stage", "production")
 
@@ -742,6 +750,8 @@ def _build_timestamp_provider_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
+
+        config["bus_client"] = _build_native_bus_config(yt_config)
 
         multidaemon_config_output["daemons"][f"timestamp_provider_{index}"] = {
             "type": "timestamp_provider",
@@ -1064,17 +1074,34 @@ def _build_node_configs(multidaemon_config_output,
                 _get_node_job_environment_config(yt_config, index, logs_dir)
             )
 
+        if yt_config.enable_tls:
+            # Pass bus client certificates to job proxy via environment variables.
+            set_at(config, "exec_node/job_proxy/environment_variables", [
+                {
+                    "name": "YT_JOB_PROXY_BUS_CA_BUNDLE",
+                    "file_name": yt_config.internal_ca_cert,
+                    "forward_to_user_job": False,
+                },
+                {
+                    "name": "YT_JOB_PROXY_BUS_CLIENT_CERTIFICATE",
+                    "file_name": yt_config.rpc_client_cert,
+                    "forward_to_user_job": False,
+                },
+                {
+                    "name": "YT_JOB_PROXY_BUS_CLIENT_PRIVATE_KEY",
+                    "file_name": yt_config.rpc_client_cert_key,
+                    "forward_to_user_job": False,
+                },
+            ])
+            set_at(config, "exec_node/job_proxy/cluster_connection", deepcopy(config["cluster_connection"]))
+            bus_config = _build_native_bus_config(yt_config, from_files=False, env_prefix="YT_JOB_PROXY_BUS")
+            set_at(config, "exec_node/job_proxy/cluster_connection/bus_client", bus_config)
+            set_at(config, "exec_node/job_proxy/supervisor_connection", deepcopy(bus_config))
+            set_at(config, "exec_node/job_proxy/supervisor_connection/address", "{0}:{1}".format("127.0.0.1", config["rpc_port"]))
+
         if yt_config.jobs_environment_type == "cri":
             # Forward variables set in docker image into user job environment.
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
-
-            # Job proxy needs CA certificate to validate incoming connections.
-            if yt_config.internal_ca_cert is not None:
-                get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
-                    "internal_path": yt_config.internal_ca_cert,
-                    "external_path": yt_config.internal_ca_cert,
-                    "read_only": True,
-                })
 
         if yt_config.use_slot_user_id:
             start_uid = 10000 + config["rpc_port"]
@@ -1478,6 +1505,8 @@ def _build_native_driver_configs(master_connection_configs,
                 }
             }
 
+            cell_connection_config["bus_client"] = _build_native_bus_config(yt_config)
+
             if yt_config.mock_tvm_id is not None:
                 cell_connection_config["tvm_id"] = yt_config.mock_tvm_id
 
@@ -1657,6 +1686,34 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
     return configs
 
 
+def _build_native_bus_config(yt_config, is_server=False, from_files=True, env_prefix=None):
+    if not yt_config.enable_tls:
+        return {
+            "encryption_mode": "disabled",
+            "verification_mode": "none",
+        }
+
+    config = {
+        "encryption_mode": "required",
+        "verification_mode": "full",
+        "peer_alternative_host_name": yt_config.cluster_name,
+    }
+
+    if from_files:
+        set_at(config, "ca/file_name", yt_config.internal_ca_cert)
+        set_at(config, "cert_chain/file_name", yt_config.rpc_cert if is_server else yt_config.rpc_client_cert)
+        set_at(config, "private_key/file_name", yt_config.rpc_cert_key if is_server else yt_config.rpc_client_cert_key)
+
+    if env_prefix is not None:
+        # NOTE: Passing via "environment_variable" have priority over "file_name" when both is set.
+        side = "SERVER" if is_server else "CLIENT"
+        set_at(config, "ca/environment_variable", f"{env_prefix}_CA_BUNDLE")
+        set_at(config, "cert_chain/environment_variable", f"{env_prefix}_{side}_CERTIFICATE")
+        set_at(config, "private_key/environment_variable", f"{env_prefix}_{side}_PRIVATE_KEY")
+
+    return config
+
+
 def _build_cluster_connection_config(yt_config,
                                      master_connection_configs,
                                      clock_connection_config,
@@ -1782,6 +1839,8 @@ def _build_cluster_connection_config(yt_config,
         update_inplace(cluster_connection["cypress_proxy"], _get_balancing_channel_config())
         cluster_connection["cypress_proxy"]["addresses"] = cypress_proxy_addresses
 
+    cluster_connection["bus_client"] = _build_native_bus_config(yt_config)
+
     if yt_config.mock_tvm_id is not None:
         cluster_connection["tvm_id"] = yt_config.mock_tvm_id
 
@@ -1858,16 +1917,6 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0,
             "expiration_period": 0,
         }
-
-    if yt_config.internal_ca_cert is not None:
-        set_at(cluster_connection, "bus_client", {
-            "ca": {
-                "file_name": yt_config.internal_ca_cert,
-            },
-            "encryption_mode": "required",
-            "verification_mode": "full",
-            "peer_alternative_host_name": yt_config.cluster_name,
-        })
 
     if yt_config.delta_global_cluster_connection_config:
         cluster_connection = update(cluster_connection, yt_config.delta_global_cluster_connection_config)
@@ -2243,16 +2292,7 @@ def init_singletons(config, yt_config):
             },
             "enable_validation": True,
         })
-    if yt_config.rpc_cert is not None:
-        set_at(config, "bus_server", {
-            "encryption_mode": "optional",
-            "cert_chain": {
-                "file_name": yt_config.rpc_cert,
-            },
-            "private_key": {
-                "file_name": yt_config.rpc_cert_key,
-            },
-        })
+    set_at(config, "bus_server", _build_native_bus_config(yt_config, is_server=True))
 
 
 def init_jaeger_collector(config, name, process_tags):
