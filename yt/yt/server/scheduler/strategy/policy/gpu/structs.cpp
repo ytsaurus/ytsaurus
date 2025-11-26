@@ -41,10 +41,12 @@ TOperation::TOperation(
     TOperationId id,
     EOperationType type,
     bool gang,
-    std::optional<THashSet<std::string>> specifiedSchedulingModules)
+    std::optional<THashSet<std::string>> specifiedSchedulingModules,
+    TSchedulingTagFilter schedulingTagFilter)
     : Id_(id)
     , Type_(type)
     , SpecifiedSchedulingModules_(std::move(specifiedSchedulingModules))
+    , SchedulingTagFilter_(std::move(schedulingTagFilter))
     , Gang_(gang)
 { }
 

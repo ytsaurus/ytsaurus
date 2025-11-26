@@ -180,7 +180,8 @@ public:
             element->GetOperationId(),
             element->GetOperationType(),
             element->IsGang(),
-            element->Spec()->SchedulingModules);
+            element->Spec()->SchedulingModules,
+            element->GetSchedulingTagFilter());
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 

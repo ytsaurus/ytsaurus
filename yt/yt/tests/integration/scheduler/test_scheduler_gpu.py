@@ -650,5 +650,41 @@ class TestDryRunGpuSchedulingPolicy(YTEnvSetup):
         wait(lambda: len(get(scheduler_new_orchid_pool_tree_path("gpu") + "/gpu_assignment_plan/nodes")) ==
              TestDryRunGpuSchedulingPolicy.NUM_NODES)
 
+    @authors("severovv")
+    def test_tag_filters(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        non_schedulable_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+            spec={"scheduling_tag_filter": f"{nodes[0]}&{nodes[1]}"},
+        )
+        time.sleep(1)
+
+        first_node_only = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+            spec={"scheduling_tag_filter": nodes[0]},
+        )
+        wait(lambda: len(first_node_only.get_running_jobs()) == 1)
+
+        any_node = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+        )
+        wait(lambda: len(any_node.get_running_jobs()) == 1)
+
+        self._wait_for_operations_in_orchid(operation_count=3)
+
+        node1 = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{nodes[0]}")
+        assert len(node1["assignments"]) == 1
+        assert node1["assignments"][0]["operation_id"] == first_node_only.id
+
+        node2 = get(scheduler_new_orchid_pool_tree_path("gpu") + f"/gpu_assignment_plan/nodes/{nodes[1]}")
+        assert len(node2["assignments"]) == 1
+        assert node2["assignments"][0]["operation_id"] == any_node.id
+
+        assert len(non_schedulable_op.get_running_jobs()) == 0
+
 
 ##################################################################
