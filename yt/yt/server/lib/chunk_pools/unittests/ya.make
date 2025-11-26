@@ -14,6 +14,7 @@ ENDIF()
 
 SRCS(
     chunk_pools_helpers.cpp
+    chunk_stripe_list_merger_ut.cpp
     input_chunk_mapping_ut.cpp
     job_size_adjuster_ut.cpp
     job_size_tracker_ut.cpp
