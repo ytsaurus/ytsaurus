@@ -265,8 +265,7 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
-    , CachedResourceStatisticsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>>(
-        BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
+    , ResourceStatisticsByTagsCache_(New<TResourceStatisticsByTagsCache>(
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NodeShardLogger().WithTag("NodeShardId: %v", Id_))
@@ -298,7 +297,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     SubmitAllocationsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitAllocationsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
-    CachedResourceStatisticsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
+    ResourceStatisticsByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
 IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultPtr& result)
@@ -1054,7 +1053,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
     if (nodeChangesCount > Config_->NodeChangesCountThresholdToUpdateCache) {
         UpdateExecNodeDescriptors();
-        CachedResourceStatisticsByTags_->Clear();
+        ResourceStatisticsByTagsCache_->Clear();
     }
 
     return errors;
@@ -1229,34 +1228,38 @@ TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationI
     return {};
 }
 
-TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TSchedulingTagFilter& filter)
+TNodeShard::TResourceStatistics TNodeShard::GetResourceStatisticsByTags(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto descriptors = CachedExecNodeDescriptors_.Acquire();
+    return ResourceStatisticsByTagsCache_->GetOrPut(
+        filter,
+        [&] {
+            auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
-    TResourceStatistics statistics;
-    for (const auto& [nodeId, descriptor] : *descriptors) {
-        if (descriptor->Online && descriptor->CanSchedule(filter)) {
-            statistics.Usage += descriptor->ResourceUsage;
-            statistics.Limits += descriptor->ResourceLimits;
-        }
-    }
-    return statistics;
+            TResourceStatistics statistics;
+            for (const auto& [nodeId, descriptor] : *descriptors) {
+                if (descriptor->Online && descriptor->CanSchedule(filter)) {
+                    statistics.Usage += descriptor->ResourceUsage;
+                    statistics.Limits += descriptor->ResourceLimits;
+                }
+            }
+            return statistics;
+        });
 }
 
 TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedResourceStatisticsByTags_->Get(filter).Limits;
+    return GetResourceStatisticsByTags(filter).Limits;
 }
 
 TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedResourceStatisticsByTags_->Get(filter).Usage;
+    return GetResourceStatisticsByTags(filter).Usage;
 }
 
 int TNodeShard::GetActiveAllocationCount() const
@@ -2135,7 +2138,7 @@ void TNodeShard::UpdateNodeResources(
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->ResourceUsage().GetUserSlots() > 0) {
-            CachedResourceStatisticsByTags_->Clear();
+            ResourceStatisticsByTagsCache_->Clear();
         }
 
         if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {

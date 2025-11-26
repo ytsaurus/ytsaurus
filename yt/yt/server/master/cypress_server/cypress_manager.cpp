@@ -951,7 +951,7 @@ public:
         , RootNodeTransaction_(rootNodeTransaction)
     { }
 
-    TPromise<TYsonString> Run()
+    TFuture<TYsonString> Run()
     {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         auto invoker = hydraFacade->IsAutomatonLocked()
@@ -966,7 +966,7 @@ public:
             TrunkRootNode_,
             RootNodeTransaction_,
             this);
-        return Promise_;
+        return Promise_.ToFuture();
     }
 
 private:
@@ -1041,7 +1041,6 @@ public:
         , NodeMap_(TNodeMapTraits(this))
         , TypeToHandler_(std::make_unique<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>>())
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
-            BIND_NO_PROPAGATE(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             std::nullopt,
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
@@ -2738,9 +2737,12 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction) override
     {
-        return RecursiveResourceUsageCache_->Get(TVersionedNodeId(
-            trunkNode->GetId(),
-            GetObjectId(transaction)));
+        return RecursiveResourceUsageCache_->GetOrPut(
+            TVersionedNodeId(trunkNode->GetId(), GetObjectId(transaction)),
+            [&] {
+                auto visitor = New<TResourceUsageVisitor>(Bootstrap_, trunkNode, transaction);
+                return visitor->Run();
+            });
     }
 
 private:
@@ -2780,8 +2782,7 @@ private:
     TCypressShard* RootShard_ = nullptr;
 
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
-    using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
-    const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
+    const TIntrusivePtr<TRecursiveResourceUsageCache> RecursiveResourceUsageCache_;
 
     // COMPAT(shakurov)
     bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
@@ -5018,19 +5019,6 @@ private:
                 tableManager->SetTableSchema(table, expectedSchema);
             }
         }
-    }
-
-    TFuture<TYsonString> DoComputeRecursiveResourceUsage(TVersionedNodeId versionedNodeId)
-    {
-        auto trunkNodeId = versionedNodeId.ObjectId;
-        auto transactionId = versionedNodeId.TransactionId;
-        auto* trunkNode = GetNodeOrThrow(TVersionedNodeId{trunkNodeId});
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionId
-            ? transactionManager->GetTransactionOrThrow(transactionId)
-            : nullptr;
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, trunkNode, transaction);
-        return visitor->Run();
     }
 
     void ResetCypressNodeReachability()

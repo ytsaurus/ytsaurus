@@ -249,10 +249,16 @@ public:
     {
         auto config = Config_.Acquire();
 
+        if (!Options_.ConnectionInvoker) {
+            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
+            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
+        }
+
         if (config->EnableDynamicCacheStickyGroupSize) {
             YT_LOG_INFO("Dynamic cache sticky group size enabled");
             StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
-                config->StickyGroupSizeCacheExpirationTimeout);
+                config->StickyGroupSizeCacheExpirationTimeout,
+                GetInvoker());
         }
 
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
@@ -265,11 +271,6 @@ public:
                 config->IdleChannelTtl),
             config->TvmId,
             Options_.TvmService);
-
-        if (!Options_.ConnectionInvoker) {
-            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
-            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
-        }
 
         MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
             StaticConfig_,
@@ -1481,23 +1482,24 @@ bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
         TSharedRefArray::AreBitwiseEqual(Message, other.Message);
 }
 
-TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
-    : AdvisedStickyGroupSize_(New<TSyncExpiringCache<TKey, std::optional<int>>>(
-        BIND([] (const TKey& /*key*/) {
-            return std::optional<int>{};
-        }),
+////////////////////////////////////////////////////////////////////////////////
+
+TStickyGroupSizeCache::TStickyGroupSizeCache(
+    TDuration expirationTimeout,
+    IInvokerPtr invoker)
+    : Underlying_(New<TUnderlying>(
         expirationTimeout,
-        GetSyncInvoker()))
+        invoker))
 { }
 
 std::optional<int> TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
 {
-    return AdvisedStickyGroupSize_->Set(key, stickyGroupSize).value_or(std::nullopt);
+    return Underlying_->Put(key, stickyGroupSize).value_or(std::nullopt);
 }
 
 std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& key)
 {
-    return AdvisedStickyGroupSize_->Find(key).value_or(std::nullopt);
+    return Underlying_->Find(key).value_or(std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

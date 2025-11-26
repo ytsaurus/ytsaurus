@@ -228,7 +228,9 @@ private:
         TJobResources Usage;
         TJobResources Limits;
     };
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>> CachedResourceStatisticsByTags_;
+
+    using TResourceStatisticsByTagsCache = TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>;
+    const TIntrusivePtr<TResourceStatisticsByTagsCache> ResourceStatisticsByTagsCache_;
 
     const NLogging::TLogger Logger;
 
@@ -324,7 +326,7 @@ private:
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
-    TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
+    TResourceStatistics GetResourceStatisticsByTags(const TSchedulingTagFilter& filter) const;
 
     TExecNodePtr GetOrRegisterNode(
         NNodeTrackerClient::TNodeId nodeId,
