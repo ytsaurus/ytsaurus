@@ -272,7 +272,7 @@ IConnectionPtr FindRemoteConnection(
     const std::optional<std::string>& clusterName);
 
 DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
-    (SyncOutOfBound)
+    (Sync)
     (WaitFirstSuccessfulSync)
 );
 
@@ -283,7 +283,7 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     const std::string& clusterName,
-    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::SyncOutOfBound);
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
