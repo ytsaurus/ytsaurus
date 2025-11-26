@@ -14,6 +14,10 @@ from yt.wrapper import YtClient
 
 import yt.yson
 
+from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqProgressSaved, TRspProgressSaved
+
+import grpc
+
 import pytest
 
 import datetime
@@ -312,7 +316,14 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
             update_inplace(default_config, config)
         return YtClient(proxy=None, config=default_config)
 
-    def run_job_proxy(self, enable_rpc_proxy, rpc_proxy_thread_pool_size=None, enable_monitoring=False, time_limit=2000):
+    def run_job_proxy(
+        self,
+        enable_rpc_proxy,
+        rpc_proxy_thread_pool_size=None,
+        enable_monitoring=False,
+        time_limit=2000,
+        env_variable="YT_JOB_PROXY_SOCKET_PATH",
+    ):
         task_patch = {
             "enable_rpc_proxy_in_job_proxy": enable_rpc_proxy,
             "monitoring": {
@@ -322,7 +333,7 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
         if rpc_proxy_thread_pool_size is not None:
             task_patch["rpc_proxy_worker_thread_pool_size"] = rpc_proxy_thread_pool_size
         op = run_test_vanilla(
-            with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT; sleep {}".format(time_limit)),
+            with_breakpoint(f"echo ${env_variable} >&2; BREAKPOINT; sleep {time_limit}"),
             task_patch=task_patch
         )
         job_id = wait_breakpoint()[0]
@@ -647,3 +658,45 @@ class TestJobProxyTls(YTEnvSetup):
 @authors("khlebnikov")
 class TestJobProxyTlsCri(TestJobProxyTls):
     JOB_ENVIRONMENT_TYPE = "cri"
+
+
+class TestJobProxyJobApi(TestRpcProxyInJobProxyBase):
+    DELTA_NODE_CONFIG = {
+        "grpc_dispatcher": {
+            # This is not necessary for the test, but helpful with debugging
+            "grpc_internal_min_log_level": "debug",
+        },
+    }
+
+    @authors("dann239")
+    def test_grpc_disabled_by_default(self):
+        socket_file = self.run_job_proxy(
+            enable_rpc_proxy=False,
+            env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
+        )
+        assert not os.path.exists(socket_file)
+
+    @authors("dann239")
+    def test_progress_saved(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_grpc_server": True,
+                    },
+                },
+            },
+        })
+        socket_file = self.run_job_proxy(
+            enable_rpc_proxy=False,
+            env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
+        )
+        assert os.path.exists(socket_file)
+
+        channel = grpc.insecure_channel(f"unix:{socket_file}")
+        endpoint = channel.unary_unary(
+            "/JobApiService/ProgressSaved",
+            TReqProgressSaved.SerializeToString,
+            TRspProgressSaved.FromString,
+        )
+        endpoint(TReqProgressSaved())

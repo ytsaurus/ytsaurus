@@ -2,8 +2,11 @@
 #include "connection.h"
 #include "tablet_helpers.h"
 
-#include <exception>
 #include <yt/yt/client/api/client.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
+
+#include <exception>
 
 namespace NYT::NApi::NNative {
 
@@ -17,6 +20,7 @@ TSyncReplicaCache::TSyncReplicaCache(
     const NLogging::TLogger& logger)
     : TAsyncExpiringCache(
         std::move(config),
+        NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         logger.WithTag("Cache: SyncReplicaCache"))
     , Connection_(std::move(connection))
 { }

@@ -614,48 +614,69 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     IntermediateEmptyBlockCount_.store(intermediateEmptyBlockCount);
 
     if (precedingBlockReceivedFutures.empty()) {
-        return DoPerformPutBlocks(
+        return PreparePutBlocks(
             startBlockIndex,
             std::move(blocks),
             useCumulativeBlockSize,
-            enableCaching,
-            std::move(fairShareQueueSlot));
+            enableCaching)
+            .Apply(BIND([this, this_ = MakeStrong(this), fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
+                DoPerformPutBlocks(std::move(fairShareQueueSlot));
+                return NIO::TIOCounters{};
+            }));
     }
 
-    auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures)
-        .WithTimeout(Config_->SessionBlockReorderTimeout)
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-            if (error.GetCode() == NYT::EErrorCode::Timeout) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::WriteThrottlingActive,
-                    "Block reordering timeout")
-                    << TErrorAttribute("timeout", Config_->SessionBlockReorderTimeout);
-            }
+    return PreparePutBlocks(
+        startBlockIndex,
+        std::move(blocks),
+        useCumulativeBlockSize,
+        enableCaching)
+        .Apply(BIND([this, this_ = MakeStrong(this),
+            fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
 
-            if (!error.IsOK()) {
-                THROW_ERROR(error);
-            }
-        })
-        .AsyncVia(SessionInvoker_));
+            auto allPrecedingBlocksReceivedFuture = AllSucceeded(precedingBlockReceivedFutures);
 
-    return allPrecedingBlocksReceivedFuture
-        .Apply(BIND(
-            &TBlobSession::DoPerformPutBlocks,
-            MakeStrong(this),
-            startBlockIndex,
-            Passed(std::move(blocks)),
-            useCumulativeBlockSize,
-            enableCaching,
-            Passed(std::move(fairShareQueueSlot)))
-            .AsyncVia(SessionInvoker_));
+            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived) {
+                auto allPrecedingBlocksReceivedFutureWithTimeout = allPrecedingBlocksReceivedFuture
+                    .WithTimeout(Config_->SessionBlockReorderTimeout)
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                        if (error.GetCode() == NYT::EErrorCode::Timeout) {
+                            THROW_ERROR_EXCEPTION(
+                                NChunkClient::EErrorCode::WriteThrottlingActive,
+                                "Block reordering timeout")
+                                << TErrorAttribute("timeout", Config_->SessionBlockReorderTimeout);
+                        }
+
+                        if (!error.IsOK()) {
+                            THROW_ERROR(error);
+                        }
+                    })
+                    .AsyncVia(SessionInvoker_));
+
+                return allPrecedingBlocksReceivedFutureWithTimeout.Apply(BIND([this, this_ = MakeStrong(this),
+                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] () mutable {
+                        DoPerformPutBlocks(std::move(fairShareQueueSlot));
+                        return NIO::TIOCounters{};
+                    }));
+            } else {
+                allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
+                    fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
+                        if (error.IsOK()) {
+                            DoPerformPutBlocks(std::move(fairShareQueueSlot));
+                        } else {
+                            YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
+                            Cancel(error);
+                        }
+                    }));
+                return MakeFuture(NIO::TIOCounters{});
+            }
+        }));
 }
 
-TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
+TFuture<void> TBlobSession::PreparePutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
     bool useCumulativeBlockSize,
-    bool enableCaching,
-    TLocationFairShareSlotPtr fairShareQueueSlot)
+    bool enableCaching)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -665,9 +686,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     const auto& blockCache = Bootstrap_->GetBlockCache();
 
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
-    std::vector<TLocationMemoryGuard> locationMemoryGuards;
-
-    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
 
     std::vector<int> receivedBlockIndexes;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
@@ -686,7 +704,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
                 YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
-                locationMemoryGuards.push_back({});
                 continue;
             }
 
@@ -703,7 +720,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             auto blockSize = block.Size();
             if (UseProbePutBlocks_) {
                 // Memory already acquired in TSessionBase::ProbePutBlocks.
-                locationMemoryGuards.push_back(GetMemoryForPutBlocks(blockSize));
+                slot.LocationMemoryGuard = GetMemoryForPutBlocks(blockSize);
             } else {
                 if (useCumulativeBlockSize) {
                     // Move tracking from pending guards.
@@ -725,12 +742,12 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
                 }
 
                 // Track memory per location - without memory tracker.
-                locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
+                slot.LocationMemoryGuard = Location_->AcquireLocationMemory(
                     /*useLegacyUsedMemory*/ true,
                     /*memoryGuard*/ {},
                     EIODirection::Write,
                     Options_.WorkloadDescriptor,
-                    blockSize));
+                    blockSize);
             }
 
             // Track in memory tracker.
@@ -744,7 +761,12 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             slot.State = ESlotState::Received;
             slot.Block = block;
             slot.ReceivedPromise.TrySet();
-            slot.FairShareSlot = fairShareQueueSlot;
+
+            if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
+                auto blockId = TBlockId(GetChunkId(), WindowIndex_);
+                SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
+                return MakeFuture<void>(Error_);
+            }
 
             if (enableCaching) {
                 blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
@@ -755,14 +777,26 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         }
     }
 
-    YT_VERIFY(blocks.size() == locationMemoryGuards.size());
-
     auto totalSize = GetByteSize(blocks);
     TotalByteSize_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
+
+    const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
+    const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
+    return AllSucceeded(std::vector{
+        netThrottler->Throttle(totalSize),
+        diskThrottler->Throttle(totalSize)
+    });
+}
+
+void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSlot)
+{
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
+    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
 
     // Organize blocks in packs of BytesPerWrite size and pass them to the pipeline.
     int firstBlockIndex = WindowIndex_;
@@ -807,14 +841,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             break;
         }
 
-        slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
-
-        if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
-            auto blockId = TBlockId(GetChunkId(), WindowIndex_);
-            SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
-            return MakeFuture<NIO::TIOCounters>(Error_);
-        }
-
         blocksToWrite.push_back(slot.Block);
         blocksToWriteSize += slot.Block.Size();
         ++WindowIndex_;
@@ -823,15 +849,6 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             flushBlocksToPipeline();
         }
     }
-
-    const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
-    const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
-    return AllSucceeded(std::vector{
-        netThrottler->Throttle(totalSize),
-        diskThrottler->Throttle(totalSize)
-    }).Apply(BIND([] {
-        return NIO::TIOCounters{};
-    }));
 }
 
 void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error)
@@ -1027,7 +1044,6 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 
     MemoryUsage_.fetch_sub(slot.Block.Size());
     slot.Block = {};
-    slot.FairShareSlot.Reset();
     slot.LocationMemoryGuard.Release();
     slot.State = EBlobSessionSlotState::Released;
     Location_->CheckProbePutBlocksRequests();

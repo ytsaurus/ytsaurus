@@ -319,6 +319,12 @@ private:
     void OnNodeEntered(const TNode& node) override
     {
         PermissionChecker_->Put(node.Acd);
+
+        if (auto result = PermissionChecker_->CheckPermission();
+            result.Action != ESecurityAction::Allow)
+        {
+            Result_ = std::move(result);
+        }
     }
 
     void OnNodeExited(const TNode& /*node*/) override
@@ -326,14 +332,9 @@ private:
         PermissionChecker_->Pop();
     }
 
-    bool ShouldContinue() override
+    bool ShouldVisit(const TNode& /*node*/) override
     {
-        auto result = PermissionChecker_->CheckPermission();
-        if (result.Action == ESecurityAction::Allow) {
-            return true;
-        }
-        Result_ = result;
-        return false;
+        return !Result_.has_value();
     }
 };
 

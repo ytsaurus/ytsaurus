@@ -67,6 +67,24 @@ bool HasShortCircuitActions(const DB::ActionsDAG& actionsDag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DB::IColumn::Ptr TFilterInfo::RemoveColumnIfNeeded(TBlockWithFilter& blockWithFilter) const
+    {
+    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
+
+    if (!block.has(FilterColumnName)) {
+        return nullptr;
+    }
+    auto filterColumnPosition = block.getPositionByName(FilterColumnName);
+    auto filterColumn = block.getByPosition(filterColumnPosition).column->convertToFullIfNeeded();
+
+    // Output block should contain at least one column to preserve row count.
+    if (RemoveFilterColumn && block.columns() != 1) {
+        block.erase(filterColumnPosition);
+    }
+
+    return filterColumn;
+}
+
 void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
 {
     auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
@@ -77,13 +95,7 @@ void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
         Actions->execute(block, numRows);
     }
 
-    auto filterColumnPosition = block.getPositionByName(FilterColumnName);
-    auto filterColumn = block.getByPosition(filterColumnPosition).column->convertToFullIfNeeded();
-
-    // Output block should contain at least one column to preserve row count.
-    if (RemoveFilterColumn && block.columns() != 1) {
-        block.erase(filterColumnPosition);
-    }
+    auto filterColumn = RemoveColumnIfNeeded(blockWithFilter);
 
     if (currentFilter.empty()) {
         currentFilter.resize_fill(rowCount, 1);
@@ -141,6 +153,16 @@ int TReadPlanWithFilter::GetReadColumnCount() const
 bool TReadPlanWithFilter::SuitableForTwoStagePrewhere() const
 {
     return Steps.size() > 1 && !Steps.back().FilterInfo;
+}
+
+bool TReadPlanWithFilter::SuitableForDistinctReadOptimization() const
+{
+    for (int i = 0; i < std::ssize(Steps) - 1; i++) {
+        if (!Steps[i].FilterInfo || !Steps[i].FilterInfo->RemoveFilterColumn) {
+            return false;
+        }
+    }
+    return Steps.back().Columns.size() == 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,6 +287,11 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
         }
         if (step.FilterInfo) {
             step.FilterInfo->Execute(blockWithFilter);
+        }
+    }
+    for (const auto& step : readPlan->Steps) {
+        if (step.FilterInfo) {
+            step.FilterInfo->RemoveColumnIfNeeded(blockWithFilter);
         }
     }
 

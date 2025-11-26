@@ -63,6 +63,8 @@
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <stack>
 
 namespace NYT::NCypressProxy {
@@ -751,7 +753,8 @@ protected:
         auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
             SequoiaSession_,
             attributeFilter,
-            Id_);
+            Id_,
+            ResolveResult_.NodeAncestry);
 
         if (key && !leftAttributes.Keys().empty()) {
             // Key is not a special attribute, so it can be requested by master.
@@ -805,7 +808,6 @@ protected:
                         node->MutableAttributes()->Set(key, value);
                     }
                 }
-
             }
 
             TAsyncYsonWriter writer;
@@ -1251,11 +1253,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         "Request involves Sequoia path %v and Cypress additional path %v",
         ypathExt.original_target_path(),
         originalSourcePath);
-
-    // TODO(h0pless): Support acl preservation. It has to be done both here and in master.
-    if (options.PreserveAcl) {
-        THROW_ERROR_EXCEPTION("Copy with \"preserve_acl\" flag is not supported in Sequoia yet");
-    }
 
     // TODO(h0pless): This might not be the best solution in a long run, but it'll work for now.
     // Clarification: we need to convert scion into Sequoia map node, currently we can't do that.
@@ -2208,47 +2205,40 @@ private:
         // TODO(danilalexeev): YT-24566. Support permission validation.
 
         // Fetch nodes from child nodes table.
-        std::vector<TNodeId> childrenToFetch;
-        childrenToFetch.push_back(Id_);
+        std::vector<TNodeId> layerToFetch;
+        layerToFetch.emplace_back(Id_);
 
-        THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildren;
-        nodeIdToChildren[Id_] = {};
-
-        std::vector<TNodeId> nodesToFetchFromMaster;
-        auto populateNodesToFetchFromMaster = [&] {
-            for (const auto& [nodeId, children] : nodeIdToChildren) {
-                auto nodeType = TypeFromId(nodeId);
-                if (IsScalarType(nodeType) || attributeFilter) {
-                    nodesToFetchFromMaster.push_back(nodeId);
-                }
-            }
-        };
+        TNodeIdToChildDescriptors nodeIdToChildren;
+        std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
 
         int maxRetrievedDepth = 0;
         bool subtreeExceedesSizeLimit = false;
-        while (!childrenToFetch.empty() && !subtreeExceedesSizeLimit) {
+        while (!layerToFetch.empty() && !subtreeExceedesSizeLimit) {
             ++maxRetrievedDepth;
 
-            std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncNextLayer;
-            for (auto nodeId : childrenToFetch) {
-                if (IsSequoiaCompositeNodeType(TypeFromId(nodeId))) {
-                    asyncNextLayer.push_back(SequoiaSession_->FetchChildren(nodeId));
+            std::vector<TNodeId> fetchedParentIds;
+            std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
+            for (auto nodeId : layerToFetch) {
+                if (auto type = TypeFromId(nodeId); IsSequoiaCompositeNodeType(type)) {
+                    fetchedParentIds.push_back(nodeId);
+                    asyncLayerChildren.push_back(SequoiaSession_->FetchChildren(nodeId));
+                } else if (IsScalarType(type)) {
+                    scalarNodeIdsToFetchFromMaster.push_back(nodeId);
                 }
             }
-            childrenToFetch.clear();
 
             // This means that we've already fetched all map-nodes.
-            if (asyncNextLayer.empty()) {
+            if (asyncLayerChildren.empty()) {
                 break;
             }
 
             // NB: An error here will lead to a retry of the whole request.
-            auto currentSubtreeLayerChildren = WaitFor(AllSucceeded(asyncNextLayer))
+            auto layerChildren = WaitFor(AllSucceeded(std::move(asyncLayerChildren)))
                 .ValueOrThrow();
 
-            auto currentSubtreeLayerChildrenCount = std::accumulate(
-                currentSubtreeLayerChildren.begin(),
-                currentSubtreeLayerChildren.end(),
+            auto layerChildrenCount = std::accumulate(
+                layerChildren.begin(),
+                layerChildren.end(),
                 i64(0),
                 [&] (i64 totalCount, auto children) {
                     totalCount += children.size();
@@ -2259,31 +2249,34 @@ private:
             // should fetch the next layer, so opaques can be set correctly. Thankfully it's
             // cheap to fetch data from a dynamic table. Additionaly root node should not be made
             // opaque, hence maxRetrievedDepth check.
-            if (std::ssize(nodeIdToChildren) + currentSubtreeLayerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
-                populateNodesToFetchFromMaster();
+            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
                 subtreeExceedesSizeLimit = true;
             }
 
             // It's still useful to save extra node information even if subtree exceedes size limit.
             // Said information can be useful during tree traversal.
-            for (const auto& children : currentSubtreeLayerChildren) {
-                for (const auto& child : children) {
-                    nodeIdToChildren[child.ParentId].push_back(child);
-                    nodeIdToChildren[child.ChildId] = {};
-                    childrenToFetch.push_back(child.ChildId);
-                }
-            }
-        }
+            std::vector<TNodeId> nextLayerToFetch;
 
-        if (!subtreeExceedesSizeLimit) {
-            populateNodesToFetchFromMaster();
+            YT_VERIFY(std::ssize(fetchedParentIds) == std::ssize(layerChildren));
+            for (auto&& [parentId, children] : Zip(fetchedParentIds, layerChildren)) {
+                for (const auto& child : children) {
+                    EmplaceDefault(nodeIdToChildren, child.ChildId);
+                    nextLayerToFetch.emplace_back(child.ChildId);
+                }
+
+                nodeIdToChildren[parentId] = std::move(children);
+            }
+
+            layerToFetch = std::move(nextLayerToFetch);
         }
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             SequoiaSession_,
             attributeFilter,
             Id_,
-            nodesToFetchFromMaster);
+            &nodeIdToChildren,
+            ResolveResult_.NodeAncestry,
+            scalarNodeIdsToFetchFromMaster);
 
         auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
         // Build a DFS over this mess.
@@ -2476,7 +2469,8 @@ private:
             SequoiaSession_,
             attributeFilter,
             Id_,
-            children);
+            &children,
+            ResolveResult_.NodeAncestry);
 
         auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
 

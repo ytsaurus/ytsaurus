@@ -325,6 +325,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodePendingRestartChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeTagsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeRestarted);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node, THost*), NodeHostChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TRack*), NodeRackChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TDataCenter*), DataCenterCreated);
@@ -578,6 +579,7 @@ public:
                 oldHost ? std::optional(oldHost->GetName()) : std::nullopt,
                 host ? std::optional(host->GetName()) : std::nullopt);
             NodeTagsChanged_.Fire(node);
+            NodeHostChanged_.Fire(node, oldHost);
             UpdateNodeCounters(node, +1);
         }
     }

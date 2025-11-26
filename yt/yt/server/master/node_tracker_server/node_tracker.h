@@ -101,10 +101,13 @@ public:
     //! Fired when node is restarted.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeRestarted);
 
-    //! Fired when node rack changes.
+    // Fired when node's host changes.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node, THost* oldHost), NodeHostChanged);
+
+    //! Fired for all nodes with the same host that had rack change.
     /*!
      *  NB: A node's rack may also change when its host changes. This signal is
-     *  also fired in those cases.
+     *  not fired in those cases.
      */
     DECLARE_INTERFACE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
 

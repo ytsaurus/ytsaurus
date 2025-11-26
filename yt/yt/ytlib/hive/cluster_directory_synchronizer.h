@@ -24,6 +24,9 @@ struct IClusterDirectorySynchronizer
     //! Starts the synchronizer if not started yet.
     virtual TFuture<void> Sync(bool force = false) = 0;
 
+    //! Return a future that gets set once the first sync is complete.
+    virtual TFuture<void> GetFirstSuccessfulSyncFuture() = 0;
+
     //! Raised with each synchronization (either successful or not).
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Synchronized);
 };

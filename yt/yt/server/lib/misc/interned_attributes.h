@@ -27,6 +27,7 @@
     XX(AlienConfigVersions, alien_config_versions) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
+    XX(AllowChildrenGuarantees, allow_children_guarantees) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(AllowNormalPreemption, allow_normal_preemption) \

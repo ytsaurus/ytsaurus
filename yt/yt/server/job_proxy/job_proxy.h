@@ -74,6 +74,7 @@ public:
     TString GetPreparationPath() const override;
     TString GetSlotPath() const override;
     TString GetJobProxyUnixDomainSocketPath() const override;
+    std::string GetJobProxyGrpcUnixDomainSocketPath() const override;
     TString AdjustPath(const TString& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
@@ -136,8 +137,9 @@ private:
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
-    // Local RPC server accessible only via Unix domain socket.
+    // Local RPC and GRPC servers accessible only via Unix domain sockets.
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr GrpcServer_;
 
     // Public RPC server that listens on TCP port for external access.
     // Separated from the private server to limit exposed services.

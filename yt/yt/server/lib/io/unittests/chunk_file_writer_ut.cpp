@@ -152,6 +152,29 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
     EXPECT_EQ(GetTotalSize(blocks), file->GetLength());
 }
 
+TEST_P(TChunkFileWriterTest, CancelBeforeWritingBlocks)
+{
+    auto writer = CreateWriter(GetParam());
+
+    writer->Open()
+        .Get()
+        .ThrowOnError();
+
+    auto tmpFile = OpenTempDataFile(writer);
+
+    std::vector<TBlock> blocks{
+        MakeRandomBlock(10),
+        MakeRandomBlock(10),
+        MakeRandomBlock(4096),
+        MakeRandomBlock(1_MB + 1),
+        MakeRandomBlock(5_MB + 1),
+    };
+
+    writer->Cancel().Get().ThrowOnError();
+    EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
+    EXPECT_FALSE(writer->GetReadyEvent().Get().IsOK());
+}
+
 TEST_P(TChunkFileWriterTest, MultiWrite)
 {
     auto writer = CreateWriter(GetParam());

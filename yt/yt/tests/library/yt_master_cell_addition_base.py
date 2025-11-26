@@ -968,15 +968,15 @@ class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):
         remote_driver = get_driver(cluster="remote_0")
         create("table", "//tmp/t1", driver=remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
-        wait(lambda: self.do_with_retries(lambda: create("table", "//tmp/t2", attributes={"external_cell_tag": 13})))
 
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"cluster_name": "remote_0"},
-        )
+        def _check_basic_remote_copy():
+            create("table", "//tmp/t2", attributes={"external_cell_tag": 13}, force=True)
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_name": "remote_0"},
+            )
 
-        def assert_read():
             assert read_table("//tmp/t2") == [{"a": "b"}]
 
-        wait(lambda: self.do_with_retries(assert_read))
+        wait(lambda: self.do_with_retries(_check_basic_remote_copy))

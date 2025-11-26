@@ -113,6 +113,7 @@ public:
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
             std::move(config),
+            invoker,
             TabletNodeLogger().WithTag("Cache: PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
