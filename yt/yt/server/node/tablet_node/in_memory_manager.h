@@ -43,9 +43,6 @@ struct TInMemoryChunkData final
 
     //! Blocks to serve.
     const std::vector<NChunkClient::TBlock> Blocks;
-
-    //! Blocks with block tracker memory category holders attached.
-    const std::vector<NChunkClient::TBlock> BlockCategoryHolders;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
