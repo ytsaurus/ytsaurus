@@ -942,3 +942,9 @@ def enable_sequoia_acls(test_class):
     })
 
     return test_class
+
+
+def grant_system_permissions_to_clickhouse_user(user="yt-clickhouse"):
+    yt_set("//sys/clickhouse/@acl/end", make_ace("allow", user, "write"))
+    yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", user, "use"))
+    yt_set("//sys/schemas/orchid/@acl/end", make_ace("allow", user, "create"))

@@ -64,8 +64,8 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
         if (!refreshRevisions.empty()) {
             entry.RefreshRevision = refreshRevisions[index];
         }
-        if (IsPathPointingToAttributes(path)) {
-            entry.Error = TError("Requested path should not point to attributes (i.e. contain @)");
+        if (auto error = TryGetShouldNotPointToAttributesError(path); !error.IsOK()) {
+            entry.Error = std::move(error);
             ++invalidPathCount;
         }
         std::tie(entry.DirName, entry.BaseName) = DirNameAndBaseName(path);
