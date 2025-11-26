@@ -124,6 +124,8 @@ items:
               href: user-guide/dynamic-tables/queues.md
         - name: Реплицированные таблицы
           href: user-guide/dynamic-tables/replicated-dynamic-tables.md
+        - name: Хаосные реплицированные таблицы
+          href: user-guide/dynamic-tables/chaos-dynamic-tables.md
         - name: Транзакции
           href: user-guide/dynamic-tables/transactions.md
         - name: Шардирование
