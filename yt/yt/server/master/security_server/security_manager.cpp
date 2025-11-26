@@ -2210,6 +2210,25 @@ public:
         return false;
     }
 
+    bool HasRowLevelAce(TObject* object) const override
+    {
+        TAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            /*firstObjectAcdOverride*/ {});
+
+        auto aceEndIter = TAceIterator();
+
+        for (; aceIter != aceEndIter; ++aceIter) {
+            auto value = *aceIter;
+            auto* currentAce = value.Ace;
+            if (currentAce->RowAccessPredicate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     TPermissionCheckResponse CheckPermission(
         TObject* object,
         TUser* user,

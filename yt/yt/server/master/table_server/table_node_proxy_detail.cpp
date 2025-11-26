@@ -459,6 +459,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetRemovable(true)
         .SetOpaque(true)
         .SetPresent(static_cast<bool>(table->CustomRuntimeData())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HasRowLevelAce)
+        .SetPresent(isNative)
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -469,6 +472,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
+    bool isNative = table->IsNative();
     bool isQueueConsumer = table->IsQueueConsumer();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -1170,6 +1174,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .Value(table->CustomRuntimeData());
+
+            return true;
+
+        case EInternedAttributeKey::HasRowLevelAce:
+            if (!isNative) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(Bootstrap_->GetSecurityManager()->HasRowLevelAce(Object_));
 
             return true;
 
