@@ -4616,20 +4616,21 @@ private:
                 , BuiltinOwnerSubject_(builtinOwnerSubject)
             { }
 
-            TSubjectId operator()(TRawObjectPtr<TSubject> subject) const
+            TSubjectId operator()(const TAccessControlEntry& ace) const
             {
-                auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
-                    ? OwnerSubjectOverride_
-                    : subject.Get();
-                if (!adjustedSubject) {
-                    return NullObjectId;
-                }
+                for (auto subject : ace.Subjects) {
+                    auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
+                        ? OwnerSubjectOverride_
+                        : subject.Get();
+                    if (!adjustedSubject) {
+                        continue;
+                    }
 
-                if (!CheckSubjectMatch(adjustedSubject, User_)) {
-                    return NullObjectId;
+                    if (CheckSubjectMatch(adjustedSubject, User_)) {
+                        return adjustedSubject->GetId();
+                    }
                 }
-
-                return adjustedSubject->GetId();
+                return NullObjectId;
             }
 
         private:

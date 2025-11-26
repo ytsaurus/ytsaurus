@@ -9,6 +9,15 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TMatchAceSubjectCallback = std::function<
+    NSecurityClient::TSubjectId(const NSecurityClient::TSerializableAccessControlEntry&)>;
+
+TMatchAceSubjectCallback CreateMatchAceSubjectCallback(
+    TUserDescriptorPtr user,
+    TUserDirectoryPtr userDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 NSecurityServer::TPermissionCheckResponse CheckPermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,
