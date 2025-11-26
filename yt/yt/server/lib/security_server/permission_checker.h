@@ -75,13 +75,13 @@ namespace NDetail {
 
 NYTree::EPermissionSet ExtendReadPermission(NYTree::EPermissionSet original);
 
-// Checks if the given subject matches the user or any of it's associated groups.
+// Checks if the given ACE matches the user or any of it's associated groups.
 // The subject can be a user name, user alias, group name, or group alias.
 // Returns the matched subject id, or |NullObjectId| otherwise.
 template <class T, class TAccessControlEntry>
 concept CSubjectMatchCallback = CInvocable<
     T,
-    NSecurityClient::TSubjectId(const decltype(std::declval<TAccessControlEntry>().Subjects[0])&)>;
+    NSecurityClient::TSubjectId(const TAccessControlEntry&)>;
 
 } // namespace NDetail
 
