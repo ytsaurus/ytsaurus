@@ -6,17 +6,17 @@ SRCS(
     chunk_pool.cpp
     config.cpp
     helpers.cpp
-    input_stream.cpp
     input_chunk_mapping.cpp
-    legacy_job_manager.cpp
+    input_stream.cpp
     job_size_adjuster.cpp
     job_size_tracker.cpp
+    legacy_job_manager.cpp
     legacy_sorted_chunk_pool.cpp
     legacy_sorted_job_builder.cpp
     multi_chunk_pool.cpp
+    new_job_manager.cpp
     new_sorted_chunk_pool.cpp
     new_sorted_job_builder.cpp
-    new_job_manager.cpp
     ordered_chunk_pool.cpp
     resource.cpp
     shuffle_chunk_pool.cpp

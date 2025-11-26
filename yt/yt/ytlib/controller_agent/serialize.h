@@ -98,6 +98,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixWaitingChunkCountInInputManager)    (302118))
     ((UnifyFinalPartitionDispatching)        (302119))
     ((StorePhysicalChildPartitionBounds)     (302120))
+    ((UseMultiplePartitionTagsInChunkStripe) (302121))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
