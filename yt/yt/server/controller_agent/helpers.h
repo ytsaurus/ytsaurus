@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/chunk_pools/public.h>
+
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
@@ -176,6 +178,10 @@ TFuture<std::optional<T>> WithSoftTimeout(
 NScheduler::TDiskQuota CreateDiskQuota(
     const NScheduler::TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NChunkPools::TChunkStripeListPtr MergeIntermediateStripeLists(const std::vector<NChunkPools::TChunkStripeListPtr>& stripeList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

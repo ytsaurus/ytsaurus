@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -9,6 +11,8 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
@@ -26,6 +30,7 @@ namespace NYT::NControllerAgent {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NChunkPools;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -486,6 +491,77 @@ TDiskQuota CreateDiskQuota(
 ////////////////////////////////////////////////////////////////////////////////
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkStripeListPtr MergeIntermediateStripeLists(const std::vector<TChunkStripeListPtr>& stripeLists)
+{
+    // Track seen chunks by their IDs to detect duplicates.
+    THashSet<TChunkId> seenChunkIds;
+
+    std::vector<TInputChunkPtr> chunks;
+    THashSet<int> partitionTags;
+
+    auto result = New<TChunkStripeList>();
+
+    i64 dataWeight = 0;
+    i64 rowCount = 0;
+
+    // Merge stripes from all lists.
+    for (const auto& stripeList : stripeLists) {
+        THashSet<TChunkId> chunkIdsInStripeList;
+
+        YT_VERIFY(stripeList->GetFilteringPartitionTags().has_value());
+        YT_VERIFY(!stripeList->GetOutputChunkPoolIndex().has_value());
+        for (const auto& stripe : stripeList->Stripes()) {
+            // Verify that there are no boundary keys, as merging with boundary keys
+            // is not possible with current data structures and API.
+            YT_VERIFY(!stripe->GetBoundaryKeys());
+            YT_VERIFY(!stripe->IsForeign());
+            YT_VERIFY(stripe->GetChunkListId() == NullChunkListId);
+            YT_VERIFY(!stripe->GetInputChunkPoolIndex().has_value());
+            YT_VERIFY(std::ssize(stripe->DataSlices()) == 1);
+
+            const auto& dataSlice = stripe->DataSlices()[0];
+            dataSlice->GetDataWeight();
+            YT_VERIFY(!dataSlice->HasLimits());
+            YT_VERIFY(!dataSlice->Tag.has_value());
+            YT_VERIFY(!dataSlice->ReadRangeIndex.has_value());
+            YT_VERIFY(!dataSlice->VirtualRowIndex.has_value());
+
+            auto inputChunk = dataSlice->GetSingleUnversionedChunk();
+
+            auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
+
+            YT_VERIFY(chunkIdsInStripeList.insert(chunkId).second);
+
+            if (!seenChunkIds.insert(chunkId).second) {
+                continue;
+            }
+
+            result->AddStripe(stripe);
+        }
+
+        if (chunkIdsInStripeList.empty()) {
+            continue;
+        }
+
+        auto statistics = stripeList->GetAggregateStatistics();
+        dataWeight += statistics.DataWeight;
+        rowCount += statistics.RowCount;
+
+        auto& currentPartitionTags = *stripeList->GetFilteringPartitionTags();
+        partitionTags.insert(currentPartitionTags.begin(), currentPartitionTags.end());
+    }
+
+    if (!partitionTags.empty()) {
+        result->SetFilteringPartitionTags(TPartitionTags(partitionTags.begin(), partitionTags.end()), dataWeight, rowCount);
+    }
+
+    // Approximate is dropped; doesn't appear to be necessary.
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

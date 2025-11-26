@@ -11,6 +11,7 @@
 
 namespace NYT::NChunkPools {
 
+using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
@@ -323,7 +324,7 @@ private:
 
             // NB(apollo1321): Actually, this data weight is uncompressed data size here.
             // This behaviour is incorrect and should be fixed in YT-26516.
-            list->SetFilteringPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
+            list->SetFilteringPartitionTags({PartitionIndex_}, run.DataWeight, run.RowCount);
 
             list->SetApproximate(run.IsApproximate);
 
