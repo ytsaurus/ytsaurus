@@ -254,7 +254,7 @@ private:
         NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
             YT_VERIFY(!Runs_.empty());
-            YT_VERIFY(JobCounter->GetPending() > 0);
+            YT_VERIFY(JobCounter_->GetPending() > 0);
 
             NTableClient::TChunkStripeStatisticsVector result(1);
 
@@ -285,7 +285,7 @@ private:
 
         TCookie Extract(TNodeId /*nodeId*/) override
         {
-            if (JobCounter->GetPending() == 0) {
+            if (JobCounter_->GetPending() == 0) {
                 return IChunkPoolOutput::NullCookie;
             }
 
@@ -388,7 +388,7 @@ private:
         void CheckCompleted()
         {
             bool wasCompleted = IsCompleted_;
-            IsCompleted_ = Owner_->Finished && (JobCounter->GetCompletedTotal() == std::ssize(Runs_));
+            IsCompleted_ = Owner_->Finished && (JobCounter_->GetCompletedTotal() == std::ssize(Runs_));
             if (!wasCompleted && IsCompleted_) {
                 Completed_.Fire();
             } else if (wasCompleted && !IsCompleted_) {
@@ -505,9 +505,9 @@ private:
             TRun run;
             run.ElementaryIndexBegin = Runs_.empty() ? 0 : Runs_.back().ElementaryIndexEnd;
             run.ElementaryIndexEnd = run.ElementaryIndexBegin;
-            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter, /*value*/ 0);
-            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter, /*value*/ 0);
-            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter, /*value*/ 1);
+            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter_, /*value*/ 0);
+            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter_, /*value*/ 0);
+            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter_, /*value*/ 1);
             run.UpdateState();
             Runs_.push_back(run);
             ++Owner_->TotalJobCount_;
