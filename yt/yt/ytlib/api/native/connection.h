@@ -271,11 +271,19 @@ IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const std::optional<std::string>& clusterName);
 
-//! Synchornizes the directory (once) and retries the lookup if
-//! the cluster is missing in the directory at the moment.
+DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
+    (SyncOutOfBound)
+    (WaitFirstSuccessfulSync)
+);
+
+//! Lookup cluster in directory, if cluster is missing wait for sync then retry lookup (once).
+//! `mode` parameter controls how waiting is done
+//!    - SyncOutOfBound -- run sync out of bound sync immediately.
+//!    - WaitFirstSuccessfulSync -- wait until
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName);
+    const std::string& clusterName,
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::SyncOutOfBound);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,

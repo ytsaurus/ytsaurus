@@ -1529,7 +1529,8 @@ IConnectionPtr FindRemoteConnection(
 
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const IConnectionPtr& connection,
-    const std::string& clusterName)
+    const std::string& clusterName,
+    EInsistentGetRemoteConnectionMode mode)
 {
     // Fast path.
     if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
@@ -1537,8 +1538,17 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     }
 
     // Slow path.
-    return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true)
-        .Apply(BIND([=] {
+    TFuture<void> waitDone;
+    switch (mode)  {
+    case EInsistentGetRemoteConnectionMode::SyncOutOfBound:
+        waitDone = connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+        break;
+    case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
+        waitDone = connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+        break;
+    }
+
+    return waitDone.Apply(BIND([=] {
             return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
         }));
 }
