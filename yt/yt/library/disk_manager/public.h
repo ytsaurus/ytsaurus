@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/misc/typeid.h>
 
+#include <library/cpp/yt/yson/consumer.h>
+
 namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,13 +55,23 @@ DEFINE_ENUM_UNKNOWN_VALUE(ERecoverPolicy, RecoverAuto);
 struct TDiskInfo
 {
     std::string DiskId;
+    std::string DiskLayoutId;
     std::string DevicePath;
     std::string DeviceName;
     std::string DiskModel;
+    i64 Capacity;
     THashSet<std::string> PartitionFsLabels;
     EDiskState State;
     EStorageClass StorageClass;
+    std::string Configured;
+    std::string Ready;
+    std::string Absent;
+    std::string Error;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TDiskInfo& diskInfo, NYT::NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
