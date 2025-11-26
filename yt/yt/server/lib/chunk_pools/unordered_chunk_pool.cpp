@@ -92,13 +92,13 @@ public:
         // TODO(max42): why do we need row buffer in unordered pool at all?
         YT_VERIFY(RowBuffer_);
 
-        FreeJobCounter_->AddParent(JobCounter);
-        FreeDataWeightCounter_->AddParent(DataWeightCounter);
-        FreeRowCounter_->AddParent(RowCounter);
+        FreeJobCounter_->AddParent(JobCounter_);
+        FreeDataWeightCounter_->AddParent(DataWeightCounter_);
+        FreeRowCounter_->AddParent(RowCounter_);
 
-        JobManager_->JobCounter()->AddParent(JobCounter);
-        JobManager_->DataWeightCounter()->AddParent(DataWeightCounter);
-        JobManager_->RowCounter()->AddParent(RowCounter);
+        JobManager_->JobCounter()->AddParent(JobCounter_);
+        JobManager_->DataWeightCounter()->AddParent(DataWeightCounter_);
+        JobManager_->RowCounter()->AddParent(RowCounter_);
 
         if (JobSizeConstraints_->IsExplicitJobCount()) {
             FreeJobCounter_->SetPending(JobSizeConstraints_->GetJobCount());
@@ -396,7 +396,7 @@ public:
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
-        if (JobSizeAdjuster_ && JobCounter->GetPending() > JobCounter->GetRunning()) {
+        if (JobSizeAdjuster_ && JobCounter_->GetPending() > JobCounter_->GetRunning()) {
             JobSizeAdjuster_->UpdateStatistics(jobSummary);
             UpdateFreeJobCounter();
         }
@@ -978,10 +978,10 @@ private:
         bool completed =
             Finished &&
             FreeDataWeightCounter_->GetTotal() == 0 &&
-            JobCounter->GetRunning() == 0 &&
-            JobCounter->GetSuspended() == 0 &&
-            JobCounter->GetPending() == 0 &&
-            JobCounter->GetBlocked() == 0;
+            JobCounter_->GetRunning() == 0 &&
+            JobCounter_->GetSuspended() == 0 &&
+            JobCounter_->GetPending() == 0 &&
+            JobCounter_->GetBlocked() == 0;
 
         if (!IsCompleted_ && completed) {
             Completed_.Fire();
