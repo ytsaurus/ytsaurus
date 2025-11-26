@@ -2189,7 +2189,7 @@ private:
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
     {
-        auto attributeFilter = request->has_attributes()
+        auto fullAttributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
@@ -2198,7 +2198,10 @@ private:
 
         context->SetRequestInfo("ResponseSizeLimit: %v, AttributeFilter: %v",
             responseSizeLimit,
-            attributeFilter);
+            fullAttributeFilter);
+
+        auto masterAttributeFilter = fullAttributeFilter;
+        masterAttributeFilter.Remove({"opaque"});
 
         ValidatePermissionForThis(EPermission::Read);
 
@@ -2272,7 +2275,7 @@ private:
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             SequoiaSession_,
-            attributeFilter,
+            masterAttributeFilter,
             Id_,
             &nodeIdToChildren,
             ResolveResult_.NodeAncestry,
@@ -2287,7 +2290,7 @@ private:
             Id_,
             maxRetrievedDepth,
             &writer,
-            attributeFilter,
+            fullAttributeFilter,
             std::move(nodeIdToChildren),
             std::move(nodesWithAttributes));
 
