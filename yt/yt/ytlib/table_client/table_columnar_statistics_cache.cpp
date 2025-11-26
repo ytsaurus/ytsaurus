@@ -105,12 +105,13 @@ public:
         TProfiler profiler)
         : TAsyncExpiringCache<TTableKey, TColumnarStatisticsEntry>(
             config,
+            invoker,
             logger,
             std::move(profiler))
-        , Config_(config)
-        , Client_(client)
-        , Invoker_(invoker)
-        , Logger(logger)
+        , Config_(std::move(config))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger))
     {
         YT_VERIFY(!Config_->RefreshTime);
     }

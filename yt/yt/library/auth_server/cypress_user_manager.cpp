@@ -13,6 +13,8 @@
 #include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/error.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NAuth {
@@ -107,6 +109,7 @@ public:
         NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             /*logger*/ {},
             std::move(profiler))
         , CypressUserManager_(std::move(cypressUserManager))

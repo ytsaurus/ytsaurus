@@ -1,8 +1,11 @@
 #include "puller_replica_cache.h"
 #include "tablet.h"
 
-#include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/core/misc/async_expiring_cache.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
 
@@ -32,6 +35,7 @@ public:
     explicit TPullerReplicaCache(TTablet* tablet, TReplicationCardId replicationCardId)
         : TAsyncExpiringCache<TTabletId, void>(
             GetCacheConfig(tablet->GetSettings().MountConfig),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletNodeLogger().WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
                 replicationCardId))

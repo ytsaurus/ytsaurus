@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NAuth {
 
 using namespace NConcurrency;
@@ -27,6 +29,7 @@ public:
         NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             config->Cache,
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             AuthLogger().WithTag("Cache: SecretVault"),
             std::move(profiler))
         , Underlying_(std::move(underlying))
