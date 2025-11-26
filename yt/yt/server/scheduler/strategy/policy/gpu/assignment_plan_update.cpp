@@ -743,6 +743,11 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
     TNode* node,
     const TJobResources& discount) const
 {
+    const auto& nodeTags = node->Descriptor()->Tags;
+    if (!Operation_->SchedulingTagFilter().CanSchedule(nodeTags)) {
+        return false;
+    }
+
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
     return CanSatisfyResourceRequest(node, discount) && CanSatisfyDiskRequest(node);
 }

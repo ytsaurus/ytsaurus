@@ -68,6 +68,8 @@ public:
     // Works only for full-host module-bound operations and smaller gangs.
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<std::string>>, SpecifiedSchedulingModules);
 
+    DEFINE_BYREF_RO_PROPERTY(TSchedulingTagFilter, SchedulingTagFilter);
+
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Gang);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Starving);
 
@@ -94,7 +96,8 @@ public:
         TOperationId id,
         EOperationType type,
         bool gang,
-        std::optional<THashSet<std::string>> specifiedSchedulingModules);
+        std::optional<THashSet<std::string>> specifiedSchedulingModules,
+        TSchedulingTagFilter schedulingTagFilter);
 
     void Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources);
     bool IsInitialized() const;

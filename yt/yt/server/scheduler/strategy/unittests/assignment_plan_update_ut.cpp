@@ -173,7 +173,8 @@ protected:
     TNodePtr CreateTestNode(
         std::string module,
         const TJobResources& nodeResources,
-        TDiskResources diskResources = TestSingleMediumDiskResources)
+        TDiskResources diskResources = TestSingleMediumDiskResources,
+        TBooleanFormulaTags tags = {})
     {
         auto node = New<TNode>(Format("node-%v", NextAvailableNodeId_));
         node->SchedulingModule() = std::move(module);
@@ -184,6 +185,7 @@ protected:
         descriptor->Online = true;
         descriptor->ResourceLimits = nodeResources;
         descriptor->DiskResources = std::move(diskResources);
+        descriptor->Tags = std::move(tags);
 
         // Important to pass the TNode::IsSchedulable check.
         descriptor->ResourceLimits.SetUserSlots(1);
@@ -257,13 +259,15 @@ protected:
         TAllocationGroupResourcesMap groupedNeededResources,
         EOperationType type = EOperationType::Vanilla,
         std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {},
         bool gang = false)
     {
         auto operation = New<TOperation>(
             TOperationId(TGuid::Create()),
             type,
             gang,
-            std::move(specifiedSchedulingModules));
+            std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter));
         operation->Initialize(groupedNeededResources);
         operation->ReadyToAssignGroupedNeededResources() = groupedNeededResources;
 
@@ -275,6 +279,7 @@ protected:
         int allocationCount,
         EOperationType type = EOperationType::Vanilla,
         std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {},
         std::optional<bool> gang = {})
     {
         bool defaultGang = type == EOperationType::Vanilla &&
@@ -284,6 +289,7 @@ protected:
             GetSingleGroupOperationNeededResources(std::move(allocationResources), allocationCount),
             type,
             std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter),
             gang.value_or(defaultGang));
     }
 
@@ -291,13 +297,15 @@ protected:
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
         std::optional<bool> gang = {},
-        std::optional<THashSet<std::string>> specifiedSchedulingModules = {})
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {})
     {
         return CreateSingleGroupTestOperation(
             TestNodeResources,
             allocationCount,
             type,
             std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter),
             gang);
     }
 
@@ -306,13 +314,15 @@ protected:
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
         std::optional<bool> gang = {},
-        std::optional<THashSet<std::string>> specifiedSchedulingModules = {})
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {})
     {
         return CreateSingleGroupTestOperation(
             TJobResourcesWithQuota(TestNodeResources, ToDiskQuota(diskRequest)),
             allocationCount,
             type,
             std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter),
             gang);
     }
 
@@ -320,7 +330,8 @@ protected:
         int gpuCount = 1,
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
-        std::optional<THashSet<std::string>> specifiedSchedulingModules = {})
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
+        TSchedulingTagFilter schedulingTagFilter = {})
     {
         YT_VERIFY(1 <= gpuCount && gpuCount <= 8);
 
@@ -328,7 +339,8 @@ protected:
             UnitResources * gpuCount,
             allocationCount,
             type,
-            std::move(specifiedSchedulingModules));
+            std::move(specifiedSchedulingModules),
+            std::move(schedulingTagFilter));
     }
 
     TOperationPtr CreateSimpleTestOperationWithDisk(
@@ -923,6 +935,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestTwoAllocationGroups)
         },
         EOperationType::Vanilla,
         /*specifiedSchedulingModules*/ {},
+        /*schedulingTagFilter*/ {},
         /*gang*/ false));
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
@@ -2115,6 +2128,55 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
     EXPECT_EQ(TestNodeResources * 2, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(TestNodeResources * 8, operations[1]->AssignedResourceUsage());
     EXPECT_EQ(TestNodeResources * 1, operations[2]->AssignedResourceUsage());
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSchedulingTagFilters)
+{
+    const auto& module = *TestModules.begin();
+     std::vector<TNodePtr> nodes = {
+        CreateTestNode(
+            module,
+            TestNodeResources,
+            TestSingleMediumDiskResources,
+            TBooleanFormulaTags(THashSet<std::string>({"a"}))
+        ),
+        CreateTestNode(
+            module,
+            TestNodeResources,
+            TestSingleMediumDiskResources,
+            TBooleanFormulaTags(THashSet<std::string>({"b"}))
+        ),
+    };
+    std::vector<TOperationPtr> operations = {
+        CreateFullHostTestOperation(
+            /*allocationCount*/ 1,
+            EOperationType::Vanilla,
+            /*gang*/ false,
+            /*specifiedSchedulingModules*/ {},
+            TSchedulingTagFilter(MakeBooleanFormula("a & b"))),
+    };
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    EXPECT_EQ(0, std::ssize(nodes[0]->Assignments()));
+    EXPECT_EQ(0, std::ssize(nodes[1]->Assignments()));
+
+    operations.push_back(
+        CreateFullHostTestOperation(
+            /*allocationCount*/ 1,
+            EOperationType::Vanilla,
+            /*gang*/ false,
+            /*specifiedSchedulingModules*/ {},
+            TSchedulingTagFilter(MakeBooleanFormula("a"))));
+    operations.push_back(CreateSimpleTestOperation());
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    ASSERT_EQ(1, std::ssize(nodes[0]->Assignments()));
+    auto node1Assignment = *nodes[0]->Assignments().begin();
+    EXPECT_EQ(operations[1].Get(), node1Assignment->Operation);
+
+    ASSERT_EQ(1, std::ssize(nodes[1]->Assignments()));
+    auto node2Assignment = *nodes[1]->Assignments().begin();
+    EXPECT_EQ(operations[2].Get(), node2Assignment->Operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
