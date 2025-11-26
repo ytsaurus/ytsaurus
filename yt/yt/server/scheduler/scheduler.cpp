@@ -294,8 +294,7 @@ public:
             Config_->JobReporterIssuesCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
 
-        CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
-            BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
+        ExecNodeMemoryDistributionByTagsCache_ = New<TExecNodeMemoryDistributionByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
             GetBackgroundInvoker());
 
@@ -483,7 +482,24 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CachedExecNodeMemoryDistributionByTags_->Get(filter);
+        return ExecNodeMemoryDistributionByTagsCache_->GetOrPut(
+            filter,
+            [&] {
+                YT_LOG_DEBUG("Started calculating node memory distribution (SchedulingTagFilter: %v)", filter);
+
+                auto descriptors = CachedExecNodeDescriptors_.Acquire();
+
+                TMemoryDistribution result;
+                for (const auto& [nodeId, descriptor] : *descriptors) {
+                    if (descriptor->Online && filter.CanSchedule(descriptor->Tags)) {
+                        ++result[RoundUp<i64>(descriptor->ResourceLimits.GetMemory(), 1_GB)];
+                    }
+                }
+
+                YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %v)", filter);
+
+                return result;
+            });
     }
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) override
@@ -1811,7 +1827,8 @@ private:
     };
     TAtomicIntrusivePtr<TRefCountedExecNodeDescriptorList> CachedSerializedExecNodeDescriptors_;
 
-    TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
+    using TExecNodeMemoryDistributionByTagsCache = TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>;
+    TIntrusivePtr<TExecNodeMemoryDistributionByTagsCache> ExecNodeMemoryDistributionByTagsCache_;
 
     TJobResourcesProfiler TotalResourceLimitsProfiler_;
     TJobResourcesProfiler TotalResourceUsageProfiler_;
@@ -2381,7 +2398,7 @@ private:
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);
             OperationsCleaner_->UpdateConfig(Config_->OperationsCleaner);
-            CachedExecNodeMemoryDistributionByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
+            ExecNodeMemoryDistributionByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
@@ -2580,26 +2597,6 @@ private:
         } else {
             SetSchedulerAlert(ESchedulerAlertType::ExperimentAssignmentError, TError());
         }
-    }
-
-    TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        YT_LOG_DEBUG("Calculating node memory distribution (SchedulingTagFilter: %v)", filter);
-
-        auto descriptors = CachedExecNodeDescriptors_.Acquire();
-
-        TMemoryDistribution result;
-        for (const auto& [nodeId, descriptor] : *descriptors) {
-            if (descriptor->Online && filter.CanSchedule(descriptor->Tags)) {
-                ++result[RoundUp<i64>(descriptor->ResourceLimits.GetMemory(), 1_GB)];
-            }
-        }
-
-        YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %v)", filter);
-
-        return result;
     }
 
     void AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason) override

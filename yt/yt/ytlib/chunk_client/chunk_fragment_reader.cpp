@@ -171,13 +171,6 @@ public:
         , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , PeerInfoCache_(New<TPeerInfoCache>(
-            BIND([this, weakThis = MakeWeak(this)] (TNodeId nodeId) -> TErrorOr<TPeerInfoPtr> {
-                auto this_ = weakThis.Lock();
-                if (!this_) {
-                    return TError(NYT::EErrorCode::Canceled, "Reader was destroyed");
-                }
-                return GetPeerInfo(nodeId);
-            }),
             Config_->PeerInfoExpirationTimeout,
             ReaderInvoker_))
         , MediumThrottler_(std::move(mediumThrottler))
@@ -664,14 +657,16 @@ private:
             }
         }
 
-        auto peerInfoOrErrors = Reader_->PeerInfoCache_->Get(nodeIds);
-        for (int i = 0; i < std::ssize(peerInfoOrErrors); ++i) {
-            YT_VERIFY(!peerInfoOrErrors[i].IsOK() || peerInfoOrErrors[i].Value()->Channel);
-            probingInfos[i].PeerInfoOrError = std::move(peerInfoOrErrors[i]);
+        auto peerInfoOrErrors = Reader_->PeerInfoCache_->GetOrPutMany(
+            TRange(nodeIds),
+            [&] (int index) { return Reader_->GetPeerInfo(nodeIds[index]); });
+        for (int nodeIndex = 0; nodeIndex < std::ssize(peerInfoOrErrors); ++nodeIndex) {
+            YT_VERIFY(!peerInfoOrErrors[nodeIndex].IsOK() || peerInfoOrErrors[nodeIndex].Value()->Channel);
+            probingInfos[nodeIndex].PeerInfoOrError = std::move(peerInfoOrErrors[nodeIndex]);
         }
 
         auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
-        for (auto nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
+        for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             auto& probingInfo = probingInfos[nodeIndex];
             auto it = nodeIdToSuspicionMarkTime.find(probingInfo.NodeId);
             if (it != nodeIdToSuspicionMarkTime.end()) {

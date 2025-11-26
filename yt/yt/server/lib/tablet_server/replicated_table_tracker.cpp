@@ -192,8 +192,45 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TClusterClientCache = TSyncExpiringCache<std::string, TErrorOr<NApi::IClientPtr>>;
-using TClusterClientCachePtr = TIntrusivePtr<TClusterClientCache>;
+DECLARE_REFCOUNTED_CLASS(TClusterClientCache)
+
+class TClusterClientCache
+    : public TRefCounted
+{
+public:
+    TClusterClientCache(
+        IReplicatedTableTrackerHostPtr host,
+        TDuration expirationTime,
+        IInvokerPtr rttInvoker)
+        : Host_(std::move(host))
+        , Underlying_(New<TUnderlying>(
+            expirationTime,
+            std::move(rttInvoker)))
+    { }
+
+    TErrorOr<NApi::IClientPtr> TryGet(const std::string& clusterName)
+    {
+        return Underlying_->GetOrPut(
+            clusterName,
+            [&] () -> TErrorOr<NApi::IClientPtr> {
+                YT_LOG_DEBUG("Creating cached client (Cluster: %v)",
+                    clusterName);
+
+                if (auto client = Host_->CreateClusterClient(clusterName)) {
+                    return client;
+                }
+
+                return TError("No client is available");
+            });
+    }
+
+private:
+    const IReplicatedTableTrackerHostPtr Host_;
+    using TUnderlying = TSyncExpiringCache<std::string, TErrorOr<NApi::IClientPtr>>;
+    const TIntrusivePtr<TUnderlying> Underlying_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterClientCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +255,7 @@ protected:
         const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto clientOrError = ClusterClientCache_->Get(key);
+        auto clientOrError = ClusterClientCache_->TryGet(key);
         if (!clientOrError.IsOK()) {
             return MakeFuture(TError(clientOrError));
         }
@@ -263,7 +300,7 @@ protected:
         const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto clientOrError = ClusterClientCache_->Get(key);
+        auto clientOrError = ClusterClientCache_->TryGet(key);
         if (!clientOrError.IsOK()) {
             return MakeFuture(TError(clientOrError));
         }
@@ -316,7 +353,7 @@ protected:
         const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto clientOrError = ClusterClientCache_->Get(key);
+        auto clientOrError = ClusterClientCache_->TryGet(key);
         if (!clientOrError.IsOK()) {
             return MakeFuture(TError(clientOrError));
         }
@@ -363,7 +400,7 @@ protected:
         const std::string& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto clientOrError = ClusterClientCache_->Get(key);
+        auto clientOrError = ClusterClientCache_->TryGet(key);
         if (!clientOrError.IsOK()) {
             return MakeFuture(TError(clientOrError));
         }
@@ -438,7 +475,7 @@ protected:
         const TBundleHealthKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto clientOrError = ClusterClientCache_->Get(key.ClusterKey);
+        auto clientOrError = ClusterClientCache_->TryGet(key.ClusterKey);
         if (!clientOrError.IsOK()) {
             return MakeFuture(TError(clientOrError));
         }
@@ -510,7 +547,10 @@ public:
         , Profiler_(std::move(profiler))
         , OrchidService_(CreateOrchidService())
         , Config_(std::move(config))
-        , ClusterClientCache_(CreateClusterClientCache())
+        , ClusterClientCache_(New<TClusterClientCache>(
+            Host_,
+            Config_->ClientExpirationTime,
+            RttInvoker_))
         , ClusterLivenessChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , ClusterSafeModeChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , HydraReadOnlyChecker_(Config_->ClusterStateCache, ClusterClientCache_)
@@ -646,7 +686,7 @@ public:
 
         void UpdateReplicaState()
         {
-            auto clientOrError = TableTracker_->ClusterClientCache_->Get(ClusterName_);
+            auto clientOrError = TableTracker_->ClusterClientCache_->TryGet(ClusterName_);
             if (!clientOrError.IsOK()) {
                 OnCheckFailed(clientOrError);
                 return;
@@ -1247,28 +1287,6 @@ private:
     TFuture<TReplicaLagTimes> ReplicaLagTimesFuture_ = MakeFuture<TReplicaLagTimes>(TError("No result yet"));
     TErrorOr<TReplicaLagTimes> ReplicaLagTimesOrError_;
 
-
-    TClusterClientCachePtr CreateClusterClientCache() const
-    {
-        return New<TClusterClientCache>(
-            BIND([this, weakThis = MakeWeak(this)] (const std::string& clusterName) -> TErrorOr<NApi::IClientPtr> {
-                auto this_ = weakThis.Lock();
-                if (!this_) {
-                    return TError("Replicated table tracker was destroyed");
-                }
-
-                YT_LOG_DEBUG("Creating client for (Cluster : %v)",
-                    clusterName);
-
-                if (auto client = Host_->CreateClusterClient(clusterName)) {
-                    return client;
-                }
-
-                return TError("No client is available");
-            }),
-            Config_->ClientExpirationTime,
-            RttInvoker_);
-    }
 
     void ScheduleTrackerIteration()
     {

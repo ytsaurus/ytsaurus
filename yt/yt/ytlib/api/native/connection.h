@@ -205,13 +205,16 @@ public:
         bool operator == (const TKey& other) const;
     };
 
-    explicit TStickyGroupSizeCache(TDuration expirationTimeout);
+    TStickyGroupSizeCache(
+        TDuration expirationTimeout,
+        IInvokerPtr invoker);
 
     std::optional<int> UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
     std::optional<int> GetAdvisedStickyGroupSize(const TKey& key);
 
 private:
-    const TIntrusivePtr<TSyncExpiringCache<TKey, std::optional<int>>> AdvisedStickyGroupSize_;
+    using TUnderlying = TSyncExpiringCache<TKey, std::optional<int>>;
+    const TIntrusivePtr<TUnderlying> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
