@@ -222,31 +222,31 @@ class TestClickHouseCommon(ClickHouseTestBase):
         }
         query_log_path = root_dir + "/query_log/0"
 
-        table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
         create("table", "//tmp/dictionary_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
         create("table", "//tmp/rle_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
 
         arr = []
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "a"})
-            arr.append({"a": 1, "b": "b"})
-            arr.append({"a": 2, "b": "c"})
-            arr.append({"a": None, "b": None})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "a", "c": 1})
+            arr.append({"a": 1, "b": "b", "c": 2})
+            arr.append({"a": 2, "b": "c", "c": 3})
+            arr.append({"a": None, "b": None, "c": 4})
 
         write_table("//tmp/dictionary_encoded_table", arr)
 
         arr = []
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "a"})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "a", "c": 1})
 
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "b"})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "b", "c": 2})
 
-        for _ in range(1000):
-            arr.append({"a": 2, "b": "c"})
+        for _ in range(100):
+            arr.append({"a": 2, "b": "c", "c": 3})
 
-        for _ in range(1000):
-            arr.append({"a": None, "b": None})
+        for _ in range(100):
+            arr.append({"a": None, "b": None, "c": 4})
 
         write_table("//tmp/rle_encoded_table", arr)
 
@@ -299,6 +299,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     clique, query_log_path, "select max(b) from " + table_name + " where b < 'c'", 4, [{"max(b)": 'b'}]
                 )
                 self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = 1", 2, [{"b": "a"}, {"b": "b"}]
+                )
+                self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a in (1, 2)", 3, [{"b": "a"}, {"b": "b"}, {"b": "c"}]
+                )
+                self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
+                )
+                self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
@@ -308,20 +317,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
                 # Queries that are not optimized by simple distinct optimization.
 
-                assert len(clique.make_query("select a from " + table_name)) == 4000
-                assert len(clique.make_query("select a * a from " + table_name)) == 4000
-                assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 3000}]
+                self.make_query_and_check_block_rows(
+                    clique,
+                    query_log_path,
+                    "select distinct b from " + table_name + " where a = 2",
+                    400,
+                    [{"b" : "c"}],
+                )
+
+                assert len(clique.make_query("select a from " + table_name)) == 400
+                assert len(clique.make_query("select a * a from " + table_name)) == 400
+                assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 300}]
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a, b from " + table_name,
-                    4000,
+                    400,
                     [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}, {"a": None, "b": None}],
                 )
 
-                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 3001
+                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 301
                 assert clique.make_query("select count(a * rand()) from " + table_name) == [
-                    {"count(multiply(a, rand()))": 3000}
+                    {"count(multiply(a, rand()))": 300}
                 ]
 
             send_simple_distinct_queries('"//tmp/dictionary_encoded_table"')

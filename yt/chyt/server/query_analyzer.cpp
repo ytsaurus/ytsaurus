@@ -464,7 +464,7 @@ class TCheckSimpleDistinctVisitor
 {
 public:
     TCheckSimpleDistinctVisitor(bool isDistinct)
-        :  IsDistinct_(isDistinct)
+        : IsDistinct_(isDistinct)
     { }
 
     static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
@@ -488,32 +488,27 @@ public:
                 OnlyDeterministicFunctions_ &= function->isDeterministic();
             }
         }
-        if (auto* columnNode = node->as<DB::ColumnNode>()) {
-            Columns_.insert(columnNode->getColumnName());
-        }
         if (node->getNodeType() == DB::QueryTreeNodeType::JOIN || node->getNodeType() == DB::QueryTreeNodeType::ARRAY_JOIN) {
             HasJoin_ = true;
         }
     }
 
-    bool needChildVisit(VisitQueryTreeNodeType& /*parent*/, VisitQueryTreeNodeType& /*child*/)
+    bool needChildVisit(const DB::QueryTreeNodePtr& /*parent*/, const DB::QueryTreeNodePtr& /*childNode*/)
     {
-        return Columns_.size() <= 1 && OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
+        return OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
     }
 
     bool IsSimpleDistinctCase() const
     {
-        return Columns_.size() == 1 &&
-            (IsDistinct_ || IsAggregated_) &&
+        return (IsDistinct_ || IsAggregated_) &&
             OnlyDeterministicFunctions_ &&
             OnlyAllowedAggregationFunctions_ &&
             !HasJoin_;
     }
 
 private:
-    bool IsDistinct_;
+    const bool IsDistinct_;
 
-    THashSet<std::string> Columns_;
     bool IsAggregated_ = false;
     bool OnlyDeterministicFunctions_ = true;
     bool OnlyAllowedAggregationFunctions_ = true;
