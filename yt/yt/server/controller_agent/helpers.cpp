@@ -2,8 +2,6 @@
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -12,13 +10,11 @@
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
-#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
-
 #include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/client/transaction_client/public.h>
+// #include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -28,15 +24,12 @@
 
 namespace NYT::NControllerAgent {
 
-using namespace NApi;
 using namespace NChunkClient;
-using namespace NChunkPools;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NScheduler;
-using namespace NSecurityClient;
-using namespace NTransactionClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -55,7 +48,7 @@ TString TrimCommandForBriefSpec(const TString& command)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec)
+INodePtr UpdateSpec(INodePtr templateSpec, INodePtr originalSpec)
 {
     if (!templateSpec) {
         return originalSpec;
@@ -66,7 +59,7 @@ NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr orig
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserFile::TUserFile(
-    NYPath::TRichYPath path,
+    TRichYPath path,
     std::optional<TTransactionId> transactionId,
     bool layer)
     : TUserObject(std::move(path), transactionId)
@@ -91,7 +84,7 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, Filesystem);
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
     PHOENIX_REGISTER_FIELD(12, GpuCheck,
-        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
+        .SinceVersion(ESnapshotVersion::PrepareGpuCheckFSDuration));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -99,7 +92,7 @@ PHOENIX_DEFINE_TYPE(TUserFile);
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpec(
-    NControllerAgent::NProto::TFileDescriptor* descriptor,
+    NProto::TFileDescriptor* descriptor,
     const TUserFile& file,
     bool copyFiles,
     bool enableBypassArtifactCache)
@@ -170,13 +163,13 @@ void BuildFileSpec(
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpecs(
-    NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    NProto::TUserJobSpec* jobSpec,
     const std::vector<TUserFile>& files,
     const TUserJobSpecPtr& config,
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        NControllerAgent::NProto::TFileDescriptor* descriptor;
+        NProto::TFileDescriptor* descriptor;
         if (file.GpuCheck) {
             descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
@@ -198,7 +191,7 @@ TString GetIntermediatePath(int streamIndex)
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,
-    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
+    const std::vector<TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     if (schemas.empty()) {
@@ -472,7 +465,7 @@ TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPar
 
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+    const TMediumDirectoryPtr& mediumDirectory)
 {
     if (!diskRequestConfig->MediumName) {
         return CreateDiskQuotaWithoutMedium(diskRequestConfig->DiskSpace);
@@ -491,77 +484,6 @@ TDiskQuota CreateDiskQuota(
 ////////////////////////////////////////////////////////////////////////////////
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkStripeListPtr MergeIntermediateStripeLists(const std::vector<TChunkStripeListPtr>& stripeLists)
-{
-    // Track seen chunks by their IDs to detect duplicates.
-    THashSet<TChunkId> seenChunkIds;
-
-    std::vector<TInputChunkPtr> chunks;
-    THashSet<int> partitionTags;
-
-    auto result = New<TChunkStripeList>();
-
-    i64 dataWeight = 0;
-    i64 rowCount = 0;
-
-    // Merge stripes from all lists.
-    for (const auto& stripeList : stripeLists) {
-        THashSet<TChunkId> chunkIdsInStripeList;
-
-        YT_VERIFY(stripeList->GetFilteringPartitionTags().has_value());
-        YT_VERIFY(!stripeList->GetOutputChunkPoolIndex().has_value());
-        for (const auto& stripe : stripeList->Stripes()) {
-            // Verify that there are no boundary keys, as merging with boundary keys
-            // is not possible with current data structures and API.
-            YT_VERIFY(!stripe->GetBoundaryKeys());
-            YT_VERIFY(!stripe->IsForeign());
-            YT_VERIFY(stripe->GetChunkListId() == NullChunkListId);
-            YT_VERIFY(!stripe->GetInputChunkPoolIndex().has_value());
-            YT_VERIFY(std::ssize(stripe->DataSlices()) == 1);
-
-            const auto& dataSlice = stripe->DataSlices()[0];
-            dataSlice->GetDataWeight();
-            YT_VERIFY(!dataSlice->HasLimits());
-            YT_VERIFY(!dataSlice->Tag.has_value());
-            YT_VERIFY(!dataSlice->ReadRangeIndex.has_value());
-            YT_VERIFY(!dataSlice->VirtualRowIndex.has_value());
-
-            auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-
-            auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
-
-            YT_VERIFY(chunkIdsInStripeList.insert(chunkId).second);
-
-            if (!seenChunkIds.insert(chunkId).second) {
-                continue;
-            }
-
-            result->AddStripe(stripe);
-        }
-
-        if (chunkIdsInStripeList.empty()) {
-            continue;
-        }
-
-        auto statistics = stripeList->GetAggregateStatistics();
-        dataWeight += statistics.DataWeight;
-        rowCount += statistics.RowCount;
-
-        auto& currentPartitionTags = *stripeList->GetFilteringPartitionTags();
-        partitionTags.insert(currentPartitionTags.begin(), currentPartitionTags.end());
-    }
-
-    if (!partitionTags.empty()) {
-        result->SetFilteringPartitionTags(TPartitionTags(partitionTags.begin(), partitionTags.end()), dataWeight, rowCount);
-    }
-
-    // Approximate is dropped; doesn't appear to be necessary.
-
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

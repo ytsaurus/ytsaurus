@@ -181,10 +181,6 @@ NScheduler::TDiskQuota CreateDiskQuota(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkPools::TChunkStripeListPtr MergeIntermediateStripeLists(const std::vector<NChunkPools::TChunkStripeListPtr>& stripeList);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NControllerAgent
 
 #define HELPERS_INL_H_

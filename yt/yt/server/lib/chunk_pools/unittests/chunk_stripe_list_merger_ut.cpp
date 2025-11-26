@@ -1,4 +1,4 @@
-#include <yt/yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/lib/chunk_pools/helpers.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
@@ -97,7 +97,7 @@ protected:
 
 TEST_F(TChunkStripeMergerTest, EmptyInput)
 {
-    auto result = MergeIntermediateStripeLists({});
+    auto result = MergeStripeLists({});
 
     EXPECT_EQ(result->Stripes().size(), 0u);
     EXPECT_FALSE(result->GetFilteringPartitionTags());
@@ -113,7 +113,7 @@ TEST_F(TChunkStripeMergerTest, SingleStripeList)
 
     auto stripeList = CreateStripeList({chunk1, chunk2}, /*partitionTags*/ {1, 2});
 
-    auto result = MergeIntermediateStripeLists({stripeList});
+    auto result = MergeStripeLists({stripeList});
 
     EXPECT_EQ(result->Stripes().size(), 2u);
     EXPECT_TRUE(result->GetFilteringPartitionTags());
@@ -142,7 +142,7 @@ TEST_F(TChunkStripeMergerTest, MultipleStripeLists)
     auto stripeList1 = CreateStripeList({chunk1}, /*partitionTags*/ {1});
     auto stripeList2 = CreateStripeList({chunk2, chunk3}, /*partitionTags*/ {2, 3});
 
-    auto result = MergeIntermediateStripeLists({stripeList1, stripeList2});
+    auto result = MergeStripeLists({stripeList1, stripeList2});
 
     EXPECT_EQ(result->Stripes().size(), 3u);
     EXPECT_TRUE(result->GetFilteringPartitionTags());
@@ -178,7 +178,7 @@ TEST_F(TChunkStripeMergerTest, DeduplicateChunks)
     stripeList2->AddStripe(CreateStripe(chunk3));
     stripeList2->SetFilteringPartitionTags(/*partitionTags*/ {2, 3}, /*dataWeight*/ 3_KBs, /*rowCount*/ 300);
 
-    auto result = MergeIntermediateStripeLists({stripeList1, stripeList2});
+    auto result = MergeStripeLists({stripeList1, stripeList2});
 
     EXPECT_EQ(result->Stripes().size(), 3u);
     EXPECT_TRUE(result->GetFilteringPartitionTags());
@@ -210,7 +210,7 @@ TEST_F(TChunkStripeMergerTest, SkipEmptyStripeLists)
 
     auto stripeList2 = CreateStripeList({chunk2}, /*partitionTags*/ {3});
 
-    auto result = MergeIntermediateStripeLists({stripeList1, emptyStripeList, stripeList2});
+    auto result = MergeStripeLists({stripeList1, emptyStripeList, stripeList2});
 
     EXPECT_EQ(result->Stripes().size(), 2u);
     EXPECT_TRUE(result->GetFilteringPartitionTags());
@@ -245,7 +245,7 @@ TEST_F(TChunkStripeMergerTest, AllChunksDuplicated)
     stripeList2->AddStripe(CreateStripe(chunk2));
     stripeList2->SetFilteringPartitionTags({3, 4}, /*dataWeight*/ 1_KBs, /*rowCount*/ 100);
 
-    auto result = MergeIntermediateStripeLists({stripeList1, stripeList2});
+    auto result = MergeStripeLists({stripeList1, stripeList2});
 
     EXPECT_EQ(result->Stripes().size(), 2u);
     EXPECT_TRUE(result->GetFilteringPartitionTags());
@@ -263,6 +263,38 @@ TEST_F(TChunkStripeMergerTest, AllChunksDuplicated)
 
     auto chunkIds = GetChunkIds(result);
     EXPECT_THAT(chunkIds, UnorderedElementsAre(chunk1->GetChunkId(), chunk2->GetChunkId()));
+}
+
+TEST_F(TChunkStripeMergerTest, NoDeduplicationWithoutPartitionTags)
+{
+    auto chunk1 = CreateChunk(1_KB, 100);
+    auto chunk2 = CreateChunk(2_KB, 200);
+
+    auto stripeList1 = New<TChunkStripeList>();
+    stripeList1->AddStripe(CreateStripe(chunk1));
+    stripeList1->AddStripe(CreateStripe(chunk2));
+
+    auto stripeList2 = New<TChunkStripeList>();
+    stripeList2->AddStripe(CreateStripe(chunk1));
+    stripeList2->AddStripe(CreateStripe(chunk2));
+
+    auto result = MergeStripeLists({stripeList1, stripeList2});
+
+    EXPECT_EQ(result->Stripes().size(), 4u);
+    EXPECT_FALSE(result->GetFilteringPartitionTags());
+
+    auto stats = result->GetAggregateStatistics();
+    EXPECT_EQ(stats.DataWeight, 6_KBs);
+    EXPECT_EQ(stats.RowCount, 600);
+    EXPECT_EQ(stats.ChunkCount, 4);
+    EXPECT_EQ(stats.CompressedDataSize, 6_KBs);
+
+    EXPECT_EQ(result->GetSliceCount(), 4);
+
+    auto chunkIds = GetChunkIds(result);
+    EXPECT_THAT(chunkIds, UnorderedElementsAre(
+        chunk1->GetChunkId(), chunk1->GetChunkId(),
+        chunk2->GetChunkId(), chunk2->GetChunkId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
