@@ -313,13 +313,20 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.7.5 (`ghcr.io/ytsaurus/spyt:2.7.5`)
+**Current release:** 2.8.0 (`ghcr.io/ytsaurus/spyt:2.8.0`)
 
 **All releases:**
 
-{% cut "**2.7.5**" %}
+{% cut "**2.8.0**" %}
 
-**Release date:** 2025-11-05
+- Dynamic allocation support in direct submit scenarios
+- YTsaurus distributed read and write API support
+- Driver auto-shutdown on executor failures
+- Spark connect integration improvements
+
+{% endcut %}
+
+{% cut "**2.7.5**" %}
 
 Maintenance release with minor enhancements
 
@@ -328,8 +335,6 @@ Maintenance release with minor enhancements
 {% endcut %}
 
 {% cut "**2.7.4**" %}
-
-**Release date:** 2025-11-05
 
 Maintenance release with minor enhancements
 
