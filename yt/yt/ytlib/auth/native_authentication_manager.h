@@ -23,6 +23,7 @@ public:
     IDynamicTvmServicePtr GetTvmService() const;
     bool IsValidationEnabled() const;
     bool IsSubmissionEnabled() const;
+    bool WarnOnUnauthenticated() const;
 
     void SetTvmService(IDynamicTvmServicePtr tvmService);
 
@@ -30,6 +31,7 @@ private:
     TAtomicIntrusivePtr<IDynamicTvmService> TvmService_;
     std::atomic<bool> EnableValidation_ = false;
     std::atomic<bool> EnableSubmission_ = true;
+    std::atomic<bool> WarnOnUnauthenticated_ = false;
 
     IDynamicTvmServicePtr CreateTvmService(const TTvmServiceConfigPtr& config);
 };
