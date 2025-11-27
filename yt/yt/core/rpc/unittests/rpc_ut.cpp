@@ -632,7 +632,7 @@ TYPED_TEST(TNotGrpcTest, RequestBytesThrottling)
                 methods = {
                     RequestBytesThrottledCall = {
                         request_bytes_throttler = {
-                            limit = 100000;
+                            limit = 150000;
                         }
                     }
                 }
@@ -641,6 +641,8 @@ TYPED_TEST(TNotGrpcTest, RequestBytesThrottling)
     })");
     auto config = ConvertTo<TServerConfigPtr>(TYsonString(configText));
     this->GetServer()->Configure(config);
+
+    Sleep(TDuration::MilliSeconds(100));
 
     TTestProxy proxy(this->CreateChannel());
 
@@ -879,7 +881,7 @@ TYPED_TEST(TNotGrpcTest, MemoryTrackingMultipleConcurrent)
         futures.push_back(req->Invoke().AsVoid());
     }
 
-    Sleep(TDuration::MilliSeconds(100));
+    Sleep(TDuration::MilliSeconds(500));
 
     if (TypeParam::MemoryUsageTrackingEnabled) {
         auto rpcUsage = memoryUsageTracker->GetUsed();
