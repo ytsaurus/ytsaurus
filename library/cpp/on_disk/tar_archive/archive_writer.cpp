@@ -22,6 +22,7 @@ public:
     void WriteFile(const TString& path, TBlob& blob);
     void WriteFileFrom(const TString& path, ui64 size, IInputStream& stream);
     void WriteSymlink(const TFsPath& path, const TFsPath& target);
+    void WriteHardlink(const TFsPath& path, const TFsPath& target);
     IOutputStream& GetStream(ui64 size);
 private:
     void WriteEntry(const TString& path, int type, const TMaybe<ui64>& fileSize = {},
@@ -126,6 +127,19 @@ void TArchiveWriter::TImpl::WriteSymlink(const TFsPath &path, const TFsPath &tar
     WriteEntry(path, S_IFLNK, {}, target);
 }
 
+void TArchiveWriter::TImpl::WriteHardlink(const TFsPath &path, const TFsPath &target) {
+    EnsureNotWriting();
+    archive_entry *entry = archive_entry_new2(Archive);
+    CheckErrno();
+    Y_ENSURE(entry != nullptr);
+    archive_entry_set_pathname(entry, path.GetPath().c_str());
+    archive_entry_set_hardlink_utf8(entry, target.GetPath().c_str());
+    archive_entry_set_filetype(entry, AE_IFREG);
+    archive_entry_set_perm(entry, 0766);
+    CheckResult(archive_write_header(Archive, entry));
+    archive_entry_free(entry);
+}
+
 IOutputStream& TArchiveWriter::TImpl::GetStream(ui64 size) {
     if (!IsWriting()) {
         CurStream = TOutputFileStream(this, size);
@@ -193,4 +207,8 @@ void TArchiveWriter::WriteFileFrom(const TString& path, ui64 size, IInputStream&
 
 void TArchiveWriter::WriteSymlink(const TFsPath& path, const TFsPath& target) {
     PImpl->WriteSymlink(path, target);
+}
+
+void TArchiveWriter::WriteHardlink(const TFsPath& path, const TFsPath& target) {
+    PImpl->WriteHardlink(path, target);
 }
