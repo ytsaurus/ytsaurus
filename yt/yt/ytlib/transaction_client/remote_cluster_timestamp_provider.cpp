@@ -105,6 +105,9 @@ public:
         return MinTimestamp;
     }
 
+    void Reconfigure(const TRemoteTimestampProviderConfigPtr& /*config*/) override
+    { }
+
 private:
     const TWeakPtr<IConnection> NativeConnection_;
     const TCellTag ClockClusterTag_;
