@@ -1210,7 +1210,10 @@ private:
                             addReplica(lastSeenReplicas[index], index);
                         }
                     } else {
-                        for (auto nodeId : lastSeenReplicas) {
+                        // NB: both of master and Sequoia replicas are ordered
+                        // from old to new. It's more convenient to see new
+                        // replicas first so they're reversed here.
+                        for (auto nodeId : std::views::reverse(lastSeenReplicas)) {
                             addReplica(nodeId, GenericChunkReplicaIndex);
                         }
                     }
