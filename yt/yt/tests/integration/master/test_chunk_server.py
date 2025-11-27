@@ -21,6 +21,7 @@ from collections import defaultdict
 
 import yt.wrapper as yt
 
+import builtins
 import json
 import os
 import shutil
@@ -468,7 +469,7 @@ class TestChunkServer(YTEnvSetup):
             return {str(r) for r in get(f"#{chunk_id}/@stored_replicas")}
 
         def get_last_seen_replicas():
-            return {str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")}
+            return [str(r) for r in get(f"#{chunk_id}/@last_seen_replicas")]
 
         # Last seen replica count is 5 for regular chunks.
         for _ in range(6):
@@ -480,7 +481,9 @@ class TestChunkServer(YTEnvSetup):
 
         stored_replicas = get_stored_replicas()
         last_seen_replicas = get_last_seen_replicas()
-        assert stored_replicas == last_seen_replicas
+        assert stored_replicas == builtins.set(last_seen_replicas)
+        # First last seen replica is the newest one.
+        assert nodes[0] == last_seen_replicas[0]
 
 
 ##################################################################
