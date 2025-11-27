@@ -252,7 +252,7 @@ class TPortoInstanceLauncher
     : public IInstanceLauncher
 {
 public:
-    TPortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor)
+    TPortoInstanceLauncher(std::string_view name, IPortoExecutorPtr executor)
         : Executor_(std::move(executor))
         , Logger(ContainersLogger().WithTag("Container: %v", name))
     {
@@ -447,9 +447,9 @@ private:
     const NLogging::TLogger Logger;
 };
 
-IInstanceLauncherPtr CreatePortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor)
+IInstanceLauncherPtr CreatePortoInstanceLauncher(std::string_view name, IPortoExecutorPtr executor)
 {
-    return New<TPortoInstanceLauncher>(name, executor);
+    return New<TPortoInstanceLauncher>(name, std::move(executor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
