@@ -9,7 +9,7 @@ from yt_commands import (
     complete_op, suspend_op,
     resume_op, clean_operations, sync_create_cells, create_test_tables,
     update_controller_agent_config, update_op_parameters, update_access_control_object_acl, raises_yt_error,
-    create_access_control_object_namespace, create_access_control_object)
+    create_access_control_object_namespace, create_access_control_object, check_operation_permission)
 
 from yt_env_setup import (
     YTEnvSetup,
@@ -198,6 +198,28 @@ class TestSchedulerAclsBase(YTEnvSetup):
             if not has_access:
                 message += ". Got error response {}".format(authorization_error)
             message += ". Action result: {}".format(result)
+            raise AssertionError(message)
+
+    @staticmethod
+    def _validate_permission(user, should_have_permission, operation_id, permission, **kwargs):
+        result = check_operation_permission(
+            operation_id,
+            user=user,
+            permission=permission,
+        )
+        action = result.get("action")
+        has_permission = action == "allow"
+        if has_permission != should_have_permission:
+            message = (
+                'User "{user}" should {maybe_not}have "{permission}" permission for operation "{operation_id}". '
+                'Got action: "{action}"'.format(
+                    user=user,
+                    maybe_not="" if should_have_permission else "not ",
+                    permission=permission,
+                    operation_id=operation_id,
+                    action=action,
+                )
+            )
             raise AssertionError(message)
 
     def _run_and_fail_op(self, should_update_operation_parameters):
@@ -891,6 +913,42 @@ class TestSchedulerAcls(TestSchedulerAclsBase):
         set(f"//sys/users/{self.read_only_user}/@acl", [])
         validate_operations(list_operations(authenticated_user=self.no_rights_user, access=access_filter), [op.id])
         validate_operations(list_operations(authenticated_user=self.manage_and_read_user, access=access_filter), [op.id])
+
+    @authors("bystrovserg")
+    @pytest.mark.parametrize("use_acl", [False, True])
+    def test_check_operation_permission(self, use_acl):
+        spec = self.spec if use_acl else {"aco_name": "users"}
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT"),
+            spec=spec,
+        )
+        wait_breakpoint()
+
+        def test_permission():
+            # Test read permission
+            self._validate_permission(self.no_rights_user, False, op.id, "read")
+            self._validate_permission(self.read_only_user, True, op.id, "read")
+            self._validate_permission(self.manage_only_user, False, op.id, "read")
+            self._validate_permission(self.manage_and_read_user, True, op.id, "read")
+            self._validate_permission(self.banned_from_managing_user, True, op.id, "read")
+            self._validate_permission(self.banned_user, False, op.id, "read")
+
+            # Test manage permission
+            self._validate_permission(self.no_rights_user, False, op.id, "manage")
+            self._validate_permission(self.read_only_user, False, op.id, "manage")
+            self._validate_permission(self.manage_only_user, True, op.id, "manage")
+            self._validate_permission(self.manage_and_read_user, True, op.id, "manage")
+            self._validate_permission(self.banned_from_managing_user, False, op.id, "manage")
+            self._validate_permission(self.banned_user, False, op.id, "manage")
+
+        test_permission()
+
+        release_breakpoint()
+        op.track()
+
+        clean_operations()
+
+        test_permission()
 
 
 class TestSchedulerAclsStrictMode(TestSchedulerAclsBase):

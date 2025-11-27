@@ -14,7 +14,7 @@ from .auth_commands import DictCurrentUser
 from .distributed_commands import DistributedWriteCookePacketType, DistributedWriteFragmentPacketType, DistributedWriteSessionPacketType
 from .format import Format
 from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
-from .operation_commands import GetOperationOperationType, ListOperationsType, OperationState
+from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
 from .ypath import YPath
@@ -409,6 +409,21 @@ class YtClient(ClientState):
         return client_api.batch_apply(
             function, data,
             client=self)
+
+    def check_operation_permission(
+            self,
+            operation_id: str = None, user: str = None, permission: str = None, format: Union[str, Format, None] = None) -> CheckOperationPermissionResultType:
+        """
+        Check if user has permission for operation.
+
+        :param str operation_id: operation id.
+        :param str user: user name.
+        :param str permission: permission name (e.g., "read", "manage").
+
+        """
+        return client_api.check_operation_permission(
+            client=self,
+            operation_id=operation_id, user=user, permission=permission, format=format)
 
     def check_permission(
             self,
