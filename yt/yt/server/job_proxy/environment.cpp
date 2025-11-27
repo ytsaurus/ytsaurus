@@ -208,10 +208,10 @@ TErrorOr<TJobEnvironmentNetworkStatistics> ExtractJobEnvironmentNetworkStatistic
 ////////////////////////////////////////////////////////////////////////////////
 
 TSidecarEnvironmentBase::TSidecarEnvironmentBase(
-        std::string name,
-        NScheduler::TSidecarJobSpecPtr spec,
-        TWeakPtr<IJobProxyEnvironment> jobProxy,
-        std::function<void(TError)> failedSidecarCallback)
+    std::string name,
+    NScheduler::TSidecarJobSpecPtr spec,
+    TWeakPtr<IJobProxyEnvironment> jobProxy,
+    std::function<void(TError)> failedSidecarCallback)
     : Name_(std::move(name))
     , Spec_(std::move(spec))
     , JobProxy_(std::move(jobProxy))
@@ -250,8 +250,7 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
                 Spec_->RestartPolicy,
                 sidecarResult
             );
-            auto jobProxy = JobProxy_.Lock();
-            if (jobProxy) {
+            if (auto jobProxy = JobProxy_.Lock()) {
                 jobProxy->ShutdownSidecars();
             }
 
@@ -589,8 +588,8 @@ public:
         std::string jobProxyContainerPath)
         : TSidecarEnvironmentBase(std::move(name), std::move(spec), std::move(jobProxy), std::move(failedSidecarCallback))
         , CurrentWorkDirectory_(jobProxyContainerPath + "/" + GetSandboxRelPath(ESandboxKind::User))
+        , Launcher_(CreatePortoInstanceLauncher(Name_, std::move(portoExecutor)))
     {
-        Launcher_ = CreatePortoInstanceLauncher(Name_, std::move(portoExecutor));
         Launcher_->SetCwd(CurrentWorkDirectory_);
     }
 
@@ -666,10 +665,10 @@ private:
 
 private:
     IInstancePtr Instance_;
+    TString CurrentWorkDirectory_;
     IInstanceLauncherPtr Launcher_;
     TFuture<void> SidecarFinished_;
     TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
-    TString CurrentWorkDirectory_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoSidecarEnvironment)
