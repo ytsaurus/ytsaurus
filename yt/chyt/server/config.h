@@ -650,6 +650,8 @@ struct TSystemLogTableExporterConfig
 
     //! Table attributes specified during creation of a new table.
     NYTree::IMapNodePtr CreateTableAttributes;
+    //! Tablets count of a new table.
+    int CreateTableTabletCount;
 
     //! The exporter startup may fail due to concurrent dyntable mount operations
     //! in clique instances and we need to retry such errors with backoff.
