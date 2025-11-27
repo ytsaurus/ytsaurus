@@ -795,9 +795,10 @@ private:
             YT_VERIFY(!FreeStripes_.empty());
         }
 
-        FreeJobCounter_->SetPending(pendingJobCount);
+        // NB(apollo1321): Order matters. SetPending may fire callbacks.
         FreeJobCounter_->SetSuspended(suspendedJobCount);
         FreeJobCounter_->SetBlocked(blockedJobCount);
+        FreeJobCounter_->SetPending(pendingJobCount);
     }
 
     void Register(int stripeIndex)
