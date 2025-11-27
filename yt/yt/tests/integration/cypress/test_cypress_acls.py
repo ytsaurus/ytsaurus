@@ -23,6 +23,15 @@ import pytest
 ##################################################################
 
 
+def make_rl_ace(users, row_access_predicate=None, mode=None, permission="read"):
+    ace = make_ace("allow", users, permission)
+    if row_access_predicate is not None:
+        ace["row_access_predicate"] = row_access_predicate
+    if mode is not None:
+        ace["inapplicable_row_access_predicate_mode"] = mode
+    return ace
+
+
 @pytest.mark.enabled_multidaemon
 class TestCheckPermissionProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -2063,6 +2072,85 @@ class TestCypressAcls(CheckPermissionBase):
         with raises_yt_error('"read" permission for node //tmp/t'):
             copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
 
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_alter_requires_full_read(self):
+        create_user("u")
+        create_user("u_with_partial_read")
+        create_user("u_with_explicit_full_read")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+            }
+        )
+
+        new_schema = [
+            {"name": "public", "type": "string"},
+            {"name": "not_private_anymore", "stable_name": "private", "type": "int64"},
+        ]
+
+        set("//tmp/t/@acl", [
+            make_ace("allow", "u", "write"),
+        ])
+
+        # Missing any read.
+        with raises_yt_error('"read" permission for node //tmp/t'):
+            alter_table("//tmp/t", schema=new_schema, authenticated_user="u")
+
+        set("//tmp/t/@acl", [
+            make_ace("allow", "u", ["read", "write"]),
+            make_ace("allow", "u_with_partial_read", "read"),
+            make_ace("allow", "u_with_partial_read", "read", columns=["private"]),
+        ])
+
+        # Can't read column 'private'.
+        with raises_yt_error('"full_read" permission for node //tmp/t'):
+            alter_table("//tmp/t", schema=new_schema, authenticated_user="u")
+
+        set("//tmp/t/@acl", [
+            make_ace("allow", "u", ["read", "write"]),
+            make_rl_ace("u", row_access_predicate='public = ""'),
+        ])
+
+        # Has non-trivial RL ACE.
+        with raises_yt_error('"read" permission for node //tmp/t'):
+            alter_table("//tmp/t", schema=new_schema, authenticated_user="u")
+
+        set("//tmp/t/@acl", [
+            make_ace("allow", "u", ["read", "write"]),
+            make_ace("allow", "u_with_partial_read", "read"),
+            make_ace("allow", ["u", "u_with_partial_read"], "read", columns=["private"]),
+        ])
+
+        # Finally has full_read.
+        alter_table("//tmp/t", schema=new_schema, authenticated_user="u")
+
+        new_schema_2 = [
+            {"name": "public", "type": "string"},
+            {"name": "not_private_anymore_2", "stable_name": "private", "type": "int64"},
+        ]
+
+        set("//tmp/t/@acl", [
+            make_ace("allow", "u", ["read", "write"]),
+            make_ace("allow", "u_with_explicit_full_read", ["full_read", "write"]),
+            make_ace("allow", "u_with_partial_read", ["read", "write"]),
+            make_ace("allow", "u_with_partial_read", "read", columns=["not_private_anymore"]),
+        ])
+
+        # Sanity check that columnar ACL is working as expected.
+        with raises_yt_error('"full_read" permission for node //tmp/t'):
+            alter_table("//tmp/t", schema=new_schema_2, authenticated_user="u")
+
+        # Explicit full_read.
+        alter_table("//tmp/t", schema=new_schema_2, authenticated_user="u_with_explicit_full_read")
+
 
 @pytest.mark.enabled_multidaemon
 class TestRowAcls(YTEnvSetup):
@@ -2108,27 +2196,27 @@ class TestRowAcls(YTEnvSetup):
         create_user("prime_manager")
         create_user("even_manager")
         create_user("everything_manager")
-        create_user("everything_manager_via_expression")
+        create_user("everything_manager_via_row_access_predicate")
         create_user("only_generic_read")
         create_user("no_read")
 
         acl = [
-            self._make_rl_ace("prime_manager", "col1 in (2, 3, 5, 7)"),
-            self._make_rl_ace("even_manager", "col1 % 2 = 0"),
+            make_rl_ace("prime_manager", "col1 in (2, 3, 5, 7)"),
+            make_rl_ace("even_manager", "col1 % 2 = 0"),
             make_ace("allow", "everything_manager", "full_read"),
-            self._make_rl_ace("everything_manager_via_expression", "true"),
-            self._make_rl_ace(["prime_manager", "even_manager", "only_generic_read", "everything_manager_via_expression"]),
+            make_rl_ace("everything_manager_via_row_access_predicate", "true"),
+            make_rl_ace(["prime_manager", "even_manager", "only_generic_read", "everything_manager_via_row_access_predicate"]),
         ]
 
         self._create_and_write_table(acl, optimize_for)
 
-        for user in ["prime_manager", "even_manager", "everything_manager", "everything_manager_via_expression", "only_generic_read"]:
+        for user in ["prime_manager", "even_manager", "everything_manager", "everything_manager_via_row_access_predicate", "only_generic_read"]:
             get("//tmp/t/@optimize_for", authenticated_user=user)
 
         with raises_yt_error("Access denied for user"):
             get("//tmp/t/@optimize_for", authenticated_user="no_read")
 
-        for user in ["prime_manager", "even_manager", "only_generic_read", "no_read", "everything_manager_via_expression"]:
+        for user in ["prime_manager", "even_manager", "only_generic_read", "no_read", "everything_manager_via_row_access_predicate"]:
             with raises_yt_error("Access denied for user"):
                 copy("//tmp/t", f"//tmp/t_copy_{user}", authenticated_user=user)
             with raises_yt_error("Access denied for user"):
@@ -2140,7 +2228,7 @@ class TestRowAcls(YTEnvSetup):
         assert self._read("prime_manager") == self._rows(2, 3, 5, 7)
         assert self._read("even_manager") == self._rows(2, 4, 6, 8)
         assert self._read("everything_manager") == self._rows(*range(2, 10))
-        assert self._read("everything_manager_via_expression") == self._rows(*range(2, 10))
+        assert self._read("everything_manager_via_row_access_predicate") == self._rows(*range(2, 10))
         assert self._read("only_generic_read") == []
 
         # Just check for sanity.
@@ -2151,80 +2239,82 @@ class TestRowAcls(YTEnvSetup):
     def test_row_ace_validation(self):
         create_user("u")
 
-        def make_bad_ace(action, permissions, expression, inapplicable_expression_mode=None, columns=None):
+        def make_bad_ace(action, permissions, row_access_predicate, inapplicable_row_access_predicate_mode=None, columns=None):
             ace = make_ace(action, "u", permissions, columns=columns)
-            if expression is not None:
-                ace["expression"] = expression
-            if inapplicable_expression_mode is not None:
-                ace["inapplicable_expression_mode"] = inapplicable_expression_mode
+            if row_access_predicate is not None:
+                ace["row_access_predicate"] = row_access_predicate
+            if inapplicable_row_access_predicate_mode is not None:
+                ace["inapplicable_row_access_predicate_mode"] = inapplicable_row_access_predicate_mode
             return ace
 
         bad_aces = []
         bad_aces.extend([
-            (make_bad_ace("deny", "read", "a = 2"), 'ACE specifying "expression" may have only "allow" action'),
+            (make_bad_ace("deny", "read", "a = 2"), 'ACE specifying "row_access_predicate" may have only "allow" action'),
         ])
         bad_aces.extend([
-            (make_bad_ace("allow", permission, "a = 2"), 'ACE specifying "expression" may contain only "read" permission')
+            (make_bad_ace("allow", permission, "a = 2"), 'ACE specifying "row_access_predicate" may contain only "read" permission')
             for permission in ["write", "use", "administer", "create", "remove", "mount", "manage", "modify_children"]
         ] + [
-            (make_bad_ace("allow", ["write", "modify_children"], "a = 2"), 'ACE specifying "expression" may contain only "read" permission'),
+            (make_bad_ace("allow", ["write", "modify_children"], "a = 2"), 'ACE specifying "row_access_predicate" may contain only "read" permission'),
         ])
         bad_aces.extend([
-            (make_bad_ace("allow", "read", None, "ignore"), '"inapplicable_expression_mode" can only be specified if "expression" is specified'),
+            (make_bad_ace("allow", "read", None, "ignore"), '"inapplicable_row_access_predicate_mode" can only be specified if "row_access_predicate" is specified'),
         ])
         bad_aces.extend([
-            (make_bad_ace("allow", "read", "a = 2", columns=["col"]), 'Single ACE must not contain both "columns" and "expression"'),
+            (make_bad_ace("allow", "read", "a = 2", columns=["col"]), 'Single ACE must not contain both "columns" and "row_access_predicate"'),
         ])
 
         bad_aces.extend([
-            (make_bad_ace("allow", ["read", "full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
-            (make_bad_ace("allow", ["full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
+            (make_bad_ace("allow", ["read", "full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "row_access_predicate" or "columns"'),
+            (make_bad_ace("allow", ["full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "row_access_predicate" or "columns"'),
         ])
 
         for bad_ace, expected_error in bad_aces:
             with raises_yt_error(expected_error):
                 create("table", "//tmp/t", attributes={"acl": [bad_ace]})
 
-    def _prepare_check_permission(self, user):
+    def _prepare_check_permission(self, user, permission="read"):
         create_user("u0")
         create_user("u1")
         create_user("u2")
         create_user("u3")
+        create_user("writer")
 
         acl = [
-            self._make_rl_ace("u0", "a < 3"),
-            self._make_rl_ace(["u0", "u1"], "b == 2"),
-            self._make_rl_ace(["u0", "u1"], "c == \"asdf\"", "ignore"),
+            make_rl_ace("u0", "a < 3"),
+            make_rl_ace(["u0", "u1"], "b == 2"),
+            make_rl_ace(["u0", "u1"], "c == \"asdf\"", "ignore"),
             make_ace("allow", ["u2"], "full_read"),
-            self._make_rl_ace(["u3"]),
+            make_rl_ace(["u3"]),
+            make_ace("allow", "writer", "write"),
         ]
 
         create("table", "//tmp/t", attributes={"acl": acl})
-        return check_permission(user, "read", "//tmp/t")
+        return check_permission(user, permission, "//tmp/t")
 
     @authors("coteeq")
     def test_check_permission_u0(self):
         response = self._prepare_check_permission("u0")
-        response["row_level_acl"].sort(key=lambda descriptor: descriptor.get("expression", ""))
+        response["row_level_acl"].sort(key=lambda descriptor: descriptor.get("row_access_predicate", ""))
 
-        assert response["row_level_acl"][0]["expression"] == "a < 3"
-        assert response["row_level_acl"][1]["expression"] == "b == 2"
-        assert response["row_level_acl"][2]["expression"] == "c == \"asdf\""
+        assert response["row_level_acl"][0]["row_access_predicate"] == "a < 3"
+        assert response["row_level_acl"][1]["row_access_predicate"] == "b == 2"
+        assert response["row_level_acl"][2]["row_access_predicate"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["row_level_acl"][0]
-        assert "inapplicable_expression_mode" not in response["row_level_acl"][1]
-        assert response["row_level_acl"][2]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_row_access_predicate_mode" not in response["row_level_acl"][0]
+        assert "inapplicable_row_access_predicate_mode" not in response["row_level_acl"][1]
+        assert response["row_level_acl"][2]["inapplicable_row_access_predicate_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u1(self):
         response = self._prepare_check_permission("u1")
-        response["row_level_acl"].sort(key=lambda descriptor: descriptor["expression"])
+        response["row_level_acl"].sort(key=lambda descriptor: descriptor["row_access_predicate"])
 
-        assert response["row_level_acl"][0]["expression"] == "b == 2"
-        assert response["row_level_acl"][1]["expression"] == "c == \"asdf\""
+        assert response["row_level_acl"][0]["row_access_predicate"] == "b == 2"
+        assert response["row_level_acl"][1]["row_access_predicate"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["row_level_acl"][0]
-        assert response["row_level_acl"][1]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_row_access_predicate_mode" not in response["row_level_acl"][0]
+        assert response["row_level_acl"][1]["inapplicable_row_access_predicate_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u2(self):
@@ -2237,30 +2327,35 @@ class TestRowAcls(YTEnvSetup):
         assert response["row_level_acl"] == []
 
     @authors("coteeq")
+    def test_check_permission_writer(self):
+        response = self._prepare_check_permission("writer", permission="write")
+        assert "row_level_acl" not in response
+
+    @authors("coteeq")
     @pytest.mark.parametrize("mode", ["ignore", "fail"])
     @pytest.mark.parametrize("invalid_reason", ["non_existent_column", "column_type_invalid", "not_boolean", "syntax"])
-    def test_invalid_expression(self, mode, invalid_reason):
+    def test_invalid_row_access_predicate(self, mode, invalid_reason):
         create_user("u")
 
-        expression = None
+        row_access_predicate = None
         error = None
         if invalid_reason == "non_existent_column":
-            expression = "non_existent = 2"
+            row_access_predicate = "non_existent = 2"
             error = "Undefined reference"
         elif invalid_reason == "column_type_invalid":
-            expression = "col1 = \"str\""
+            row_access_predicate = "col1 = \"str\""
             error = "Type mismatch in expression"
         elif invalid_reason == "not_boolean":
-            expression = "col1 + 1"
+            row_access_predicate = "col1 + 1"
             error = "result type to be boolean"
         else:
-            expression = ")col1 == 2("
+            row_access_predicate = ")col1 == 2("
             error = "syntax error"
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", expression, mode=mode),
+                make_rl_ace("u"),
+                make_rl_ace("u", row_access_predicate, mode=mode),
             ],
         )
 
@@ -2277,8 +2372,8 @@ class TestRowAcls(YTEnvSetup):
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", "col1 < 5"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 < 5"),
             ],
             optimize_for,
         )
@@ -2303,8 +2398,8 @@ class TestRowAcls(YTEnvSetup):
 
         alter_table("//tmp/t", schema=new_schema)
 
-        set("//tmp/t/@acl/end", self._make_rl_ace("u"))
-        set("//tmp/t/@acl/end", self._make_rl_ace("u", "is_null(new_col) and col1 < 5"))
+        set("//tmp/t/@acl/end", make_rl_ace("u"))
+        set("//tmp/t/@acl/end", make_rl_ace("u", "is_null(new_col) and col1 < 5"))
 
         assert self._read("u") == self._rows(2, 3, 4)
 
@@ -2315,8 +2410,8 @@ class TestRowAcls(YTEnvSetup):
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", "col1 < 5"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 < 5"),
             ],
             optimize_for,
         )
@@ -2329,7 +2424,7 @@ class TestRowAcls(YTEnvSetup):
 
         alter_table("//tmp/t", schema=new_schema_1)
 
-        # col1 is now string and expression is not applicable.
+        # col1 is now string and row_access_predicate is not applicable.
         with raises_yt_error():
             assert self._read("u")
 
@@ -2357,8 +2452,8 @@ class TestRowAcls(YTEnvSetup):
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", "col1 % 2 = 0"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 % 2 = 0"),
             ],
             optimize_for,
         )
@@ -2372,8 +2467,8 @@ class TestRowAcls(YTEnvSetup):
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", "col1 % 2 = 0"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 % 2 = 0"),
             ],
             optimize_for,
             schema=[
@@ -2393,15 +2488,38 @@ class TestRowAcls(YTEnvSetup):
 
         self._create_and_write_table(
             [
-                self._make_rl_ace("u"),
-                self._make_rl_ace("u", "col1 = 4"),
-                self._make_rl_ace("u", "col1 = 5"),
-                self._make_rl_ace("u", "col1 = 6"),
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+                make_rl_ace("u", "col1 = 6"),
             ],
             optimize_for,
         )
 
         assert self._read("u") == self._rows(4, 5, 6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rls_does_not_affect_writes(self, optimize_for):
+        create_user("u")
+        create_user("writer")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace(["u", "writer"]),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+                make_ace("allow", "writer", "write"),
+            ],
+            optimize_for,
+        )
+
+        with raises_yt_error("\"write\" permission for node"):
+            write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="u")
+
+        write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="writer")
+        # Check that 'writer' has row-level acl in effect.
+        assert self._read("writer") == []
 
 
 ##################################################################

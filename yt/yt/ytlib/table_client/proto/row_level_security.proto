@@ -8,8 +8,8 @@ message TRlsReadSpec
 {
     message TTrivialDeny {}
 
-    oneof expression_or_trivial_deny {
-        string expression = 1;
+    oneof predicate_or_trivial_deny {
+        string predicate = 1;
         TTrivialDeny trivial_deny = 2;
     }
 

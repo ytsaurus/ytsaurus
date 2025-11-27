@@ -12,11 +12,16 @@
 
 #include <yt/yt/ytlib/security_client/acl.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NSecurityClient {
 
 using namespace NApi::NNative;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +108,10 @@ TFuture<TPermissionValue> TPermissionCache::DoGet(const TPermissionKey& key, boo
         return MakeFuture<TPermissionValue>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
+    if (auto error = TryGetShouldNotPointToAttributesError(key.Path); !error.IsOK()) {
+        return MakeFuture<TPermissionValue>(std::move(error));
+    }
+
     TObjectServiceProxy proxy(
         connection,
         Config_->MasterReadOptions->ReadFrom,
@@ -138,6 +147,25 @@ TFuture<std::vector<TErrorOr<TPermissionValue>>> TPermissionCache::DoGetMany(
         return MakeFuture<std::vector<TErrorOr<TPermissionValue>>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
+    // If the path points to attributes, we can immediately set the error
+    // without issuing a master request.
+    std::vector<TErrorOr<TPermissionValue>> results(keys.size());
+    std::vector<bool> isResultSet(keys.size(), false);
+    int validPathsCount = 0;
+    for (const auto& [index, key] : SEnumerate(keys)) {
+        if (auto error = TryGetShouldNotPointToAttributesError(key.Path); !error.IsOK()) {
+            results[index] = std::move(error);
+            isResultSet[index] = true;
+        } else {
+            ++validPathsCount;
+        }
+    }
+
+    if (validPathsCount == 0) {
+        return MakeFuture<std::vector<TErrorOr<TPermissionValue>>>(std::move(results));
+    }
+
+    std::vector<int> requestIndexToResultIndex;
     TObjectServiceProxy proxy(
         connection,
         Config_->MasterReadOptions->ReadFrom,
@@ -146,22 +174,33 @@ TFuture<std::vector<TErrorOr<TPermissionValue>>> TPermissionCache::DoGetMany(
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, *Config_->MasterReadOptions);
     batchReq->SetUser(Config_->RefreshUser);
-    for (const auto& key : keys) {
-        batchReq->AddRequest(MakeRequest(connection, key));
+    for (const auto& [index, key] : SEnumerate(keys)) {
+        if (!isResultSet[index]) {
+            batchReq->AddRequest(MakeRequest(connection, key));
+            requestIndexToResultIndex.push_back(index);
+        }
     }
+    YT_VERIFY(std::ssize(requestIndexToResultIndex) == validPathsCount);
 
     return batchReq->Invoke()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            std::vector<TErrorOr<TPermissionValue>> results;
-            results.reserve(keys.size());
-            YT_ASSERT(std::ssize(keys) == batchRsp->GetResponseCount());
-            for (int index = 0; index < std::ssize(keys); ++index) {
-                const auto& key = keys[index];
-                const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(index);
-                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
-            }
-            return results;
-        }));
+        .Apply(
+            BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this),
+                    keys,
+                    requestIndexToResultIndex = std::move(requestIndexToResultIndex),
+                    results = std::move(results)
+                ] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) mutable {
+                    YT_ASSERT(std::ssize(requestIndexToResultIndex) == batchRsp->GetResponseCount());
+                    for (int responseIndex = 0; responseIndex < std::ssize(keys); ++responseIndex) {
+                        const auto& key = keys[responseIndex];
+                        const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(responseIndex);
+                        int resultIndex = requestIndexToResultIndex[responseIndex];
+                        results[resultIndex] = ParseCheckPermissionResponse(key, rspOrError);
+                    }
+                    return results;
+                }));
 }
 
 bool TPermissionCache::CanCacheError(const TError& error) noexcept

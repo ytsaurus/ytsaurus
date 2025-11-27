@@ -857,3 +857,9 @@ class ClickHouseTestBase(YTEnvSetup):
 
         sync_create_cells(1)
         create_access_control_object_namespace(name="chyt")
+
+
+def grant_system_permissions_to_clickhouse_user(user="yt-clickhouse"):
+    yt_set("//sys/clickhouse/@acl/end", make_ace("allow", user, "write"))
+    yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", user, "use"))
+    yt_set("//sys/schemas/orchid/@acl/end", make_ace("allow", user, "create"))

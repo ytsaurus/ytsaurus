@@ -59,8 +59,8 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, Columns);
     Persist(context, Vital);
     if (context.GetVersion() >= EMasterReign::RowLevelSecurity) {
-        Persist(context, Expression);
-        Persist(context, InapplicableExpressionMode);
+        Persist(context, RowAccessPredicate);
+        Persist(context, InapplicableRowAccessPredicateMode);
     }
 }
 
@@ -74,8 +74,8 @@ void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext&
     Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
-    Persist(context, Expression);
-    Persist(context, InapplicableExpressionMode);
+    Persist(context, RowAccessPredicate);
+    Persist(context, InapplicableRowAccessPredicateMode);
 }
 
 bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
@@ -104,11 +104,11 @@ bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
         return false;
     }
 
-    if (Expression != rhs.Expression) {
+    if (RowAccessPredicate != rhs.RowAccessPredicate) {
         return false;
     }
 
-    if (InapplicableExpressionMode != rhs.InapplicableExpressionMode) {
+    if (InapplicableRowAccessPredicateMode != rhs.InapplicableRowAccessPredicateMode) {
         return false;
     }
 
@@ -132,8 +132,8 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
             .OptionalItem("subject_tag_filter", ace.SubjectTagFilter)
             .OptionalItem("columns", ace.Columns)
             .OptionalItem("vital", ace.Vital)
-            .OptionalItem(TSerializableAccessControlEntry::ExpressionKey, ace.Expression)
-            .OptionalItem(TSerializableAccessControlEntry::InapplicableExpressionModeKey, ace.InapplicableExpressionMode)
+            .OptionalItem(TSerializableAccessControlEntry::RowAccessPredicateKey, ace.RowAccessPredicate)
+            .OptionalItem(TSerializableAccessControlEntry::InapplicableRowAccessPredicateModeKey, ace.InapplicableRowAccessPredicateMode)
         .EndMap();
 }
 
@@ -202,8 +202,8 @@ static void DoDeserializeAclOrThrow(
         // Vital
         ace.Vital = serializableAce.Vital;
 
-        ace.Expression = serializableAce.Expression;
-        ace.InapplicableExpressionMode = serializableAce.InapplicableExpressionMode;
+        ace.RowAccessPredicate = serializableAce.RowAccessPredicate;
+        ace.InapplicableRowAccessPredicateMode = serializableAce.InapplicableRowAccessPredicateMode;
 
         acl.Entries.push_back(ace);
     }

@@ -46,8 +46,8 @@ struct TAccessControlEntry
     std::optional<TBooleanFormula> SubjectTagFilter;
     std::optional<std::vector<std::string>> Columns;
     std::optional<bool> Vital;
-    std::optional<std::string> Expression;
-    std::optional<NSecurityClient::EInapplicableExpressionMode> InapplicableExpressionMode;
+    std::optional<std::string> RowAccessPredicate;
+    std::optional<NSecurityClient::EInapplicableRowAccessPredicateMode> InapplicableRowAccessPredicateMode;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
     void Persist(const NCypressServer::TCopyPersistenceContext& context);

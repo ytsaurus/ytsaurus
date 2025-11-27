@@ -4,6 +4,8 @@ from yt_commands import (authors,
 
 from yt.test_helpers import assert_items_equal
 
+from yt_error_codes import AuthorizationErrorCode
+
 from yt_type_helpers import decimal_type
 
 from decimal_helpers import encode_decimal
@@ -223,7 +225,7 @@ class TestQueriesChyt(ClickHouseTestBase):
                 authenticated_user="u1",
             )
 
-            with raises_yt_error("\"read\" permission for node //tmp/test_table is denied for \"u1\""):
+            with raises_yt_error(AuthorizationErrorCode):
                 query.track()
 
     @authors("mpereskokova")

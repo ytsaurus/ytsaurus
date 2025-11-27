@@ -2765,7 +2765,7 @@ class TestQuery(DynamicTablesBase):
             make_ace("allow", "u", "read"),
             make_ace("allow", "u", "read"),
         ]
-        acl[-1]["expression"] = "key = 1"
+        acl[-1]["row_access_predicate"] = "key = 1"
         set("//tmp/t/@acl", acl)
 
         with raises_yt_error("row-level ACL is present, but is not supported"):

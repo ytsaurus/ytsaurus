@@ -15,7 +15,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A container for a prepared-to-be-compiled expression for RLS.
+//! A container for a prepared-to-be-compiled predicate for RLS.
 //! Note that trivial allow should be encoded as `std::optional<TRlsReadSpec>()`.
 class TRlsReadSpec
 {
@@ -30,7 +30,7 @@ public:
     bool IsTrivialDeny() const;
 
     //! Prerequisite: not trivial deny.
-    const std::string& GetExpression() const;
+    const std::string& GetPredicate() const;
     const TTableSchemaPtr& GetTableSchema() const;
 
     friend void ToProto(
@@ -49,7 +49,7 @@ private:
     };
 
     TTableSchemaPtr TableSchema_;
-    std::variant<TTrivialDeny, std::string> ExpressionOrTrivialDeny_ = TTrivialDeny{};
+    std::variant<TTrivialDeny, std::string> PredicateOrTrivialDeny_ = TTrivialDeny{};
 
     PHOENIX_DECLARE_TYPE(TRlsReadSpec, 0x01215125);
 };

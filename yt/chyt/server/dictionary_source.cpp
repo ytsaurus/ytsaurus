@@ -75,6 +75,9 @@ public:
         auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
             .RichPath = Path_,
             .Client = Host_->GetRootClient(),
+            .GetUserObjectBasicAttributesOptions = {
+                .OmitInaccessibleRows = true,
+            },
         });
 
         auto chunkReaderHost = TChunkReaderHost::FromClient(Host_->GetRootClient());

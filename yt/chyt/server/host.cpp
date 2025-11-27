@@ -38,6 +38,8 @@
 #include <yt/yt/library/clickhouse_discovery/discovery_v1.h>
 #include <yt/yt/library/clickhouse_discovery/discovery_v2.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -49,8 +51,6 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
-
-#include <yt/yt/core/bus/tcp/config.h>
 
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
@@ -319,6 +319,47 @@ public:
         }
 
         return rowLevelAclPerTable;
+    }
+
+    TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
+        const std::vector<NYPath::TYPath>& paths,
+        const TString& user)
+    {
+        std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> results(paths.size());
+        std::vector<int> requestIndexToResultIndex;
+        std::vector<TPermissionKey> permissionCacheKeys;
+        permissionCacheKeys.reserve(paths.size());
+        requestIndexToResultIndex.reserve(paths.size());
+
+        for (const auto& [index, path] : SEnumerate(paths)) {
+            permissionCacheKeys.push_back(TPermissionKey{
+                .Path = path,
+                .User = user,
+                .Permission = EPermission::Read,
+                .Columns = std::nullopt,
+                .CallerIsRlsAware = true,
+            });
+        }
+
+        return PermissionCache_->GetMany(permissionCacheKeys)
+            .Apply(BIND([] (const std::vector<TErrorOr<TPermissionValue>>& checkResults) {
+                std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> results(checkResults.size());
+                for (size_t index = 0; index < checkResults.size(); ++index) {
+                    const auto& checkResult = checkResults[index];
+                    if (!checkResult.IsOK()) {
+                        if (checkResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                            results[index] = EPreliminaryCheckPermissionResult::ResolveError;
+                        } else {
+                            results[index] = TError(checkResult);
+                        }
+                    } else {
+                        results[index] = checkResult.Value().RowLevelAcl
+                            ? EPreliminaryCheckPermissionResult::RowLevelAcePresent
+                            : EPreliminaryCheckPermissionResult::RowLevelAceNotPresent;
+                    }
+                }
+                return results;
+            }));
     }
 
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
@@ -1025,6 +1066,13 @@ std::vector<THost::TRowLevelAcl> THost::ValidateTableReadPermissionsAndGetRowLev
     const TString& user)
 {
     return Impl_->ValidateTableReadPermissionsAndGetRowLevelAcl(paths, user);
+}
+
+TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> THost::PreliminaryCheckPermissions(
+    const std::vector<NYPath::TYPath>& paths,
+    const TString& user)
+{
+    return Impl_->PreliminaryCheckPermissions(paths, user);
 }
 
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(

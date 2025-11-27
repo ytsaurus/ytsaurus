@@ -4,8 +4,8 @@ package NYT.NSecurityClient.NProto;
 
 message TRowLevelAccessControlEntry
 {
-    required string expression = 1;
-    required int32 inapplicable_expression_mode = 2; // EInapplicableExpressionMode
+    required string row_access_predicate = 1;
+    required int32 inapplicable_row_access_predicate_mode = 2; // EInapplicableRowAccessPredicateMode
 }
 
 ////////////////////////////////////////////////////////////////////////////////
