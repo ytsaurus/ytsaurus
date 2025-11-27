@@ -1412,6 +1412,13 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
+        if (spec->InterruptionSignal) {
+            if (!FindSignalIdBySignalName(*spec->InterruptionSignal)) {
+                THROW_ERROR_EXCEPTION("Unexpected signal name")
+                    << TErrorAttribute("interruption_signal", spec->InterruptionSignal);
+            }
+        }
+
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(
                 "Options \"tmpfs_size\" and \"tmpfs_path\" cannot be specified "
