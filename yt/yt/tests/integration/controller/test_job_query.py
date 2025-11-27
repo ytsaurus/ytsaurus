@@ -530,7 +530,7 @@ class TestJobQuery(YTEnvSetup):
         path_in_with_query = '<input_query="* WHERE a = \\"0\\"">' + path_in
         command = "cat"
 
-        with raises_yt_error("Can't use per-table input_query with operation input_query at the same time"):
+        with raises_yt_error('Cannot use per-table "input_query" with operation "input_query" at the same time'):
             map(
                 in_=[path_in_with_query],
                 out=path_out,
@@ -547,7 +547,7 @@ class TestJobQuery(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error("Can't use per-table input_query without enable_chunk_filter mode"):
+        with raises_yt_error('Cannot use per-table "input_query" without "enable_chunk_filter" mode'):
             map(
                 in_=[path_in_with_query],
                 out=path_out,
@@ -563,7 +563,7 @@ class TestJobQuery(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error("Can't use per-table input_query with enable_row_filter mode"):
+        with raises_yt_error('Cannot use per-table "input_query" with "enable_row_filter" mode'):
             map(
                 in_=[path_in_with_query],
                 out=path_out,
@@ -579,7 +579,7 @@ class TestJobQuery(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error("Per-table input_query does not support projections"):
+        with raises_yt_error('Per-table "input_query" does not support projections'):
             map(
                 in_=['<input_query="a, b WHERE a = \\"0\\"">' + path_in],
                 out=path_out,
