@@ -760,7 +760,7 @@ class Channel:
                         callback(olditem)
 
     def __repr__(self) -> str:
-        flag = self.isclosed() and "closed" or "open"
+        flag = (self.isclosed() and "closed") or "open"
         return "<Channel id=%d %s>" % (self.id, flag)
 
     def __del__(self) -> None:
@@ -1007,7 +1007,7 @@ class ChannelFactory:
         except KeyError:
             pass
         try:
-            callback, endmarker, strconfig = self._callbacks.pop(id)
+            callback, endmarker, _strconfig = self._callbacks.pop(id)
         except KeyError:
             pass
         else:
@@ -1037,7 +1037,7 @@ class ChannelFactory:
         # executes in receiver thread
         channel = self._channels.get(id)
         try:
-            callback, endmarker, strconfig = self._callbacks[id]
+            callback, _endmarker, strconfig = self._callbacks[id]
         except KeyError:
             queue = channel._items if channel is not None else None
             if queue is None:
@@ -1079,7 +1079,7 @@ class ChannelFile:
             self.channel.close()
 
     def __repr__(self) -> str:
-        state = self.channel.isclosed() and "closed" or "open"
+        state = (self.channel.isclosed() and "closed") or "open"
         return "<ChannelFile %d %s>" % (self.channel.id, state)
 
 
@@ -1237,7 +1237,7 @@ class WorkerGateway(BaseGateway):
         self._trace("shutting down execution pool")
         self._execpool.trigger_shutdown()
         if not self._execpool.waitall(5.0):
-            self._trace("execution ongoing after 5 secs," " trying interrupt_main")
+            self._trace("execution ongoing after 5 secs, trying interrupt_main")
             # We try hard to terminate execution based on the assumption
             # that there is only one gateway object running per-process.
             if sys.platform != "win32":
@@ -1248,7 +1248,7 @@ class WorkerGateway(BaseGateway):
                 interrupt_main()
             if not self._execpool.waitall(10.0):
                 self._trace(
-                    "execution did not finish in another 10 secs, " "calling os._exit()"
+                    "execution did not finish in another 10 secs, calling os._exit()"
                 )
                 os._exit(1)
 
