@@ -560,7 +560,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     auto* request = &context->Request();
     auto* response = &context->Response();
 
-    GlobalSensors_->HeartbeatRequestProtoMessageBytes().Increment(request->ByteSizeLong());
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatRequestProtoMessageBytes().Increment(request->ByteSizeLong());
+    }
 
     int jobReporterWriteFailuresCount = 0;
     if (request->has_job_reporter_write_failures_count()) {
@@ -661,7 +663,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             EndNodeHeartbeatProcessing(node);
         }
 
-        GlobalSensors_->HeartbeatResponseProtoMessageBytes().Increment(response->ByteSizeLong());
+        if (GlobalSensors_) {
+            GlobalSensors_->HeartbeatResponseProtoMessageBytes().Increment(response->ByteSizeLong());
+        }
     });
 
     if (resourceLimits.GetUserSlots() > 0) {
@@ -778,7 +782,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     FillNodeProfilingTags(response, strategyProxy);
 
     if (!skipScheduleAllocations) {
-        GlobalSensors_->HeartbeatWithScheduleAllocationsCounter().Increment();
+        if (GlobalSensors_) {
+            GlobalSensors_->HeartbeatWithScheduleAllocationsCounter().Increment();
+        }
 
         node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
@@ -1791,8 +1797,10 @@ void TNodeShard::ProcessHeartbeatAllocations(
             }
         }
     }
-    GlobalSensors_->HeartbeatAllocationCounter().Increment(request->allocations_size());
-    GlobalSensors_->HeartbeatCounter().Increment();
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatAllocationCounter().Increment(request->allocations_size());
+        GlobalSensors_->HeartbeatCounter().Increment();
+    }
 
     if (shouldLogOngoingAllocations) {
         LogOngoingAllocationsOnHeartbeat(
@@ -2042,7 +2050,9 @@ bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
             ConcurrentHeartbeatComplexity_.load(),
             node->GetSchedulingHeartbeatComplexity());
 
-        GlobalSensors_->ConcurrentHeartbeatComplexityLimitReachedCounter().Increment();
+        if (GlobalSensors_) {
+            GlobalSensors_->ConcurrentHeartbeatComplexityLimitReachedCounter().Increment();
+        }
 
         return true;
     }
@@ -2058,7 +2068,9 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
             Config_->HardConcurrentHeartbeatLimit,
             ConcurrentHeartbeatCount_);
 
-        GlobalSensors_->HardConcurrentHeartbeatLimitReachedCounter().Increment();
+        if (GlobalSensors_) {
+            GlobalSensors_->HardConcurrentHeartbeatLimitReachedCounter().Increment();
+        }
 
         return true;
     }
@@ -2071,7 +2083,9 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
             Config_->SoftConcurrentHeartbeatLimit,
             ConcurrentHeartbeatCount_);
 
-        GlobalSensors_->SoftConcurrentHeartbeatLimitReachedCounter().Increment();
+        if (GlobalSensors_) {
+            GlobalSensors_->SoftConcurrentHeartbeatLimitReachedCounter().Increment();
+        }
 
         return true;
     }
@@ -2375,20 +2389,25 @@ void TNodeShard::SubmitAllocationsToStrategy()
 void TNodeShard::SetAllocationState(const TAllocationPtr& allocation, const EAllocationState state)
 {
     YT_VERIFY(state != EAllocationState::Scheduled);
-    YT_ASSERT(GlobalSensors_);
 
-    GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    }
     allocation->SetState(state);
-    GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    }
 }
 
 void TNodeShard::SetFinishedState(const TAllocationPtr& allocation, bool aborted)
 {
-    YT_ASSERT(GlobalSensors_);
-
-    GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    }
     allocation->SetState(EAllocationState::Finished);
-    GlobalSensors_->IncrementFinishedAllocationProfilingCounter(allocation, aborted);
+    if (GlobalSensors_) {
+        GlobalSensors_->IncrementFinishedAllocationProfilingCounter(allocation, aborted);
+    }
 }
 
 void TNodeShard::ProcessOperationInfoHeartbeat(
@@ -2430,12 +2449,14 @@ void TNodeShard::UpdateUnutilizedResourceCounters(
     for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
         if (unutilizedResources[reason]) {
             auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
-            GlobalSensors_->UnutilizedResourcesCounterByReason()[reason].Update(
-                unutilizedVolume,
-                {
-                    {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},
-                    {ProfilingWithinHeartbeatKey, ToString(withinHeartbeat)},
-                });
+            if (GlobalSensors_) {
+                GlobalSensors_->UnutilizedResourcesCounterByReason()[reason].Update(
+                    unutilizedVolume,
+                    {
+                        {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},
+                        {ProfilingWithinHeartbeatKey, ToString(withinHeartbeat)},
+                    });
+            }
         }
     }
 
@@ -2523,8 +2544,10 @@ void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
         SetControllerAgentDescriptor(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
     }
 
-    GlobalSensors_->HeartbeatRegisteredControllerAgentsBytes().Increment(
-        response->registered_controller_agents().SpaceUsedExcludingSelfLong());
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatRegisteredControllerAgentsBytes().Increment(
+            response->registered_controller_agents().SpaceUsedExcludingSelfLong());
+    }
 }
 
 void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
@@ -2538,8 +2561,9 @@ void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
     EmplaceOrCrash(node->IdToAllocation(), allocation->GetId(), allocation);
     ++ActiveAllocationCount_;
 
-    YT_ASSERT(GlobalSensors_);
-    GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    }
 
     YT_LOG_DEBUG(
         "Allocation registered "

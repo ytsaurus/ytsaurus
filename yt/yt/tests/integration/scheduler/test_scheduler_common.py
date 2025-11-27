@@ -955,6 +955,23 @@ class TestSchedulerCommon(YTEnvSetup):
         )
         wait(lambda: get(op.get_path() + "/@suspended"))
 
+    @authors("eshcherbin")
+    def test_restart_during_heartbeat_processing(self):
+        update_scheduler_config("testing_options", {"master_connection_delay": {"duration": 4000}})
+
+        op = run_test_vanilla("sleep 1", spec={"testing": {"schedule_allocation_delay_scheduler": {"duration": 2000}}})
+        op.wait_for_state("running")
+
+        while True:
+            scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
+            if len(scheduler_locks) > 0:
+                scheduler_transaction = scheduler_locks[0]["transaction_id"]
+                abort_transaction(scheduler_transaction)
+                break
+            time.sleep(0.01)
+
+        op.track()
+
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
