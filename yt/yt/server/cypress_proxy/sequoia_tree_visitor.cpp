@@ -20,6 +20,24 @@ constinit auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TraverseSequoiaTree(
+    NCypressClient::TNodeId rootId,
+    const TNodeIdToChildDescriptors& nodeIdToChildren,
+    INodeVisitor<TCypressChildDescriptor>* visitor)
+{
+    const auto& children = GetOrCrash(nodeIdToChildren, rootId);
+    for (const auto& child : children) {
+        if (!visitor->ShouldVisit(child)) {
+            continue;
+        }
+        visitor->OnNodeEntered(child);
+        TraverseSequoiaTree(child.ChildId, nodeIdToChildren, visitor);
+        visitor->OnNodeExited(child);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Traverses a Sequoia tree stored in a hash map and invokes appropriate methods of IYsonConsumer.
 // TODO(h0pless): Make a base class between TSequoiaTreeVisitor and TTreeVisitor.
 class TSequoiaTreeVisitor
@@ -36,6 +54,7 @@ public:
         , AttributeFilter_(attributeFilter)
         , MaxAllowedNodeDepth_(maxAllowedNodeDepth)
         , NodeIdToChildren_(std::move(nodeIdToChildren))
+        , CalculateOpaqueness_(attributeFilter.AdmitsKeySlow({"opaque"}))
         , NodesWithAttributes_(std::move(nodesWithAttributes))
     { }
 
@@ -49,7 +68,9 @@ private:
     const TAttributeFilter AttributeFilter_;
     const int MaxAllowedNodeDepth_;
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>> NodeIdToChildren_;
-    const THashMap<TNodeId, INodePtr> NodesWithAttributes_;
+    const bool CalculateOpaqueness_;
+
+    THashMap<TNodeId, INodePtr> NodesWithAttributes_;
 
     void VisitAny(TNodeId nodeId, int currentNodeDepth, std::optional<TStringBuf> itemKey)
     {
@@ -65,10 +86,7 @@ private:
 
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
             auto nodeIter = NodesWithAttributes_.find(nodeId);
-            if (nodeIter != NodesWithAttributes_.end()) {
-                maybeWriteKey();
-                nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
-            } else {
+            if (nodeIter == NodesWithAttributes_.end() && !CalculateOpaqueness_) {
                 // NodesWithAttributes_ come from attribute fetcher, and the
                 // contract is that it may silently omit some nodes (due to a
                 // race between listing the subtree via dyntable and actually
@@ -84,6 +102,14 @@ private:
 
                 // Silently omit the node.
                 return;
+            }
+
+            MaybeOverrideAttributes(nodeId, currentNodeDepth);
+
+            nodeIter = NodesWithAttributes_.find(nodeId);
+            if (nodeIter != NodesWithAttributes_.end()) {
+                maybeWriteKey();
+                nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
             }
         }
 
@@ -108,6 +134,24 @@ private:
                 VisitEntity(nodeId);
                 break;
         }
+    }
+
+    void MaybeOverrideAttributes(TNodeId nodeId, int currentNodeDepth)
+    {
+        if (!CalculateOpaqueness_) {
+            return;
+        }
+
+        auto nodeType = TypeFromId(nodeId);
+        if (nodeType != EObjectType::Scion && nodeType != EObjectType::SequoiaMapNode) {
+            return;
+        }
+
+        auto emptyNode = ConvertToNode(NYson::TYsonString(TString("{}")));
+        auto [it, _] = NodesWithAttributes_.insert({nodeId, std::move(emptyNode)});
+
+        auto shouldAppearOpaque = currentNodeDepth == MaxAllowedNodeDepth_ && !GetOrCrash(NodeIdToChildren_, nodeId).empty();
+        it->second->MutableAttributes()->Set("opaque", shouldAppearOpaque);
     }
 
     void VisitScalar(TNodeId nodeId)

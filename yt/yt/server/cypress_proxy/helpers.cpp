@@ -249,9 +249,9 @@ TError CheckPrerequisitesAfterRequestInvocation(
     return TError();
 }
 
-static bool PathsEqualIgnoringTrailingAmpersands(const NYPath::TYPath& firstPath, const NYPath::TYPath& secondPath)
+static bool PathsEqualIgnoringTrailingAmpersands(const TYPath& firstPath, const TYPath& secondPath)
 {
-    auto maybeCropPath = [] (std::string_view path) {
+    auto maybeCropPath = [] (TYPathBuf path) {
         // It is considered that path is a valid YPath.
         if (path.ends_with("&")) {
             return path.substr(0, std::ssize(path) - 1);

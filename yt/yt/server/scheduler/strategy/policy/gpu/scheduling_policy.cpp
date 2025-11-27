@@ -180,7 +180,8 @@ public:
             element->GetOperationId(),
             element->GetOperationType(),
             element->IsGang(),
-            element->Spec()->SchedulingModules);
+            element->Spec()->SchedulingModules,
+            element->GetSchedulingTagFilter());
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 
@@ -445,6 +446,15 @@ private:
 
             auto assignmentCount = GetOrDefault(operation->AssignmentCountPerGroup(), allocationGroupName);
             auto allocationUsageShare = convertToShare(allocationGroupResources.MinNeededResources);
+
+            YT_LOG_DEBUG(
+                "Updating operation resources for allocation group"
+                "(OperationId: %v, AllocationGroup %v, MinNeededResources %v, FairShare: %v, AllocationUsageShare: %v)",
+                operation->GetId(),
+                allocationGroupName,
+                allocationGroupResources.MinNeededResources,
+                fairShare,
+                allocationUsageShare);
             while (true) {
                 bool noMoreAssignmentsNeeded = assignmentCount >= allocationGroupResources.AllocationCount;
                 bool fairShareExceeded = Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare);
@@ -454,6 +464,16 @@ private:
                 bool demandExceeded = Dominates(
                     assignedUsageShare + readyToAssignShare + allocationUsageShare,
                     operationElement->Attributes().DemandShare + TResourceVector::Epsilon());
+
+                YT_LOG_DEBUG(
+                    "Calculating allocationCount for allocationGroup"
+                    "(OperationId %v, AllocationGroup %v, NoMoreAssignmentsNeeded %v, FairShareExceeded %v, DemandExceeded %v, ReadyToAssignShare %v)",
+                    operation->GetId(),
+                    allocationGroupName,
+                    noMoreAssignmentsNeeded,
+                    fairShareExceeded,
+                    demandExceeded,
+                    readyToAssignShare);
 
                 if (noMoreAssignmentsNeeded || fairShareExceeded || demandExceeded) {
                     break;

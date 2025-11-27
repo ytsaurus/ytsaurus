@@ -152,6 +152,7 @@ using TUserDescriptorPtr = std::shared_ptr<const TUserDescriptor>;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TNodeIdToConstAttributes = THashMap<NCypressClient::TNodeId, NYTree::IConstAttributeDictionaryPtr>;
+using TNodeIdToChildDescriptors = THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

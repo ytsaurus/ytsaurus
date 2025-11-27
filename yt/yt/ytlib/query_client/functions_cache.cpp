@@ -389,7 +389,8 @@ public:
         TWeakPtr<NNative::IClient> client,
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
-            config,
+            std::move(config),
+            invoker,
             QueryClientLogger().WithTag("Cache: CypressFunctionRegistry"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))

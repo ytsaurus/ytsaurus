@@ -3,6 +3,7 @@
 #include "yql_ytflow_configuration.h"
 
 #include <yql/essentials/ast/yql_expr.h>
+#include <yql/essentials/core/yql_type_annotation.h>
 #include <yql/essentials/core/yql_user_data.h>
 #include <yql/essentials/providers/common/gateway/yql_provider_gateway.h>
 
@@ -10,7 +11,6 @@
 
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
-
 
 namespace NYql {
 
@@ -61,12 +61,10 @@ public:
     struct TRunOptions {
         using TSelf = TRunOptions;
 
-        using TGetYtflowIntegration = std::function<IYtflowIntegration*(const TExprNode&)>;
-
         OPTION_FIELD(TString, SessionId);
         OPTION_FIELD(TMaybe<ui32>, PublicId);
         OPTION_FIELD(TYtflowSettings::TConstPtr, Config);
-        OPTION_FIELD(TGetYtflowIntegration, GetYtflowIntegration);
+        OPTION_FIELD(const TTypeAnnotationContext*, Types);
         OPTION_FIELD(TUserDataTable, UserDataBlocks);
     };
 

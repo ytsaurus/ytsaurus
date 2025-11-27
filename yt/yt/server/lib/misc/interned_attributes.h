@@ -27,6 +27,7 @@
     XX(AlienConfigVersions, alien_config_versions) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
+    XX(AllowChildrenGuarantees, allow_children_guarantees) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(AllowNormalPreemption, allow_normal_preemption) \
@@ -241,6 +242,7 @@
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
+    XX(HasRowLevelAce, has_row_level_ace) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
     XX(HistoricUsageAggregationPeriod, historic_usage_aggregation_period) \

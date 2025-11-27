@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"io"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -17,6 +18,7 @@ type TxInterceptor struct {
 	Encoder
 	Client Encoder
 	log    log.Structured
+	config *yt.Config
 	pinger *Pinger
 }
 
@@ -37,20 +39,22 @@ func BeginTx(
 	}
 
 	updatedOptions := *options
-	txTimeout := yson.Duration(config.GetTxTimeout())
-	updatedOptions.Timeout = &txTimeout
+	if options.Timeout == nil {
+		txTimeout := yson.Duration(config.GetTxTimeout())
+		updatedOptions.Timeout = &txTimeout
+	}
 
 	txID, err := e.StartTx(ctx, &updatedOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	pingerOpts := &yt.PingTxOptions{TransactionOptions: options.TransactionOptions}
-	if pingerOpts.TransactionOptions != nil {
-		pingerOpts.TransactionID = yt.TxID{}
+	pingOpts := &yt.PingTxOptions{TransactionOptions: options.TransactionOptions}
+	if pingOpts.TransactionOptions != nil {
+		pingOpts.TransactionID = yt.TxID{}
 	}
 
-	tx, err := newTx(ctx, e, log, stop, config, txID, pingerOpts)
+	tx, err := newTx(ctx, e, log, stop, config, txID, time.Duration(*updatedOptions.Timeout), pingOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +82,7 @@ func AttachTx(
 		options = &yt.AttachTxOptions{}
 	}
 
-	tx, err := newTx(ctx, e, log, stop, config, txID, nil)
+	tx, err := newTx(ctx, e, log, stop, config, txID, config.GetTxTimeout(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +105,15 @@ func newTx(
 	stop *StopGroup,
 	config *yt.Config,
 	txID yt.TxID,
-	pingerOptions *yt.PingTxOptions,
+	txTimeout time.Duration,
+	pingOpts *yt.PingTxOptions,
 ) (*TxInterceptor, error) {
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  e,
 		log:     log,
-		pinger:  NewPinger(ctx, &e, txID, config, stop, pingerOptions),
+		config:  config,
+		pinger:  NewPinger(ctx, &e, txID, txTimeout, config.GetTxPingPeriod(), stop, pingOpts),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
@@ -142,7 +148,7 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 
 	options.TransactionID = t.ID()
 
-	return BeginTx(ctx, t.Client, t.log, t.pinger.stop, t.pinger.config, options)
+	return BeginTx(ctx, t.Client, t.log, t.pinger.stop, t.config, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {

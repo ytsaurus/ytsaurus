@@ -2236,6 +2236,25 @@ public:
         return false;
     }
 
+    bool HasRowLevelAce(TObject* object) const override
+    {
+        TAceIterator aceIter(
+            Bootstrap_->GetObjectManager().Get(),
+            object,
+            /*firstObjectAcdOverride*/ {});
+
+        auto aceEndIter = TAceIterator();
+
+        for (; aceIter != aceEndIter; ++aceIter) {
+            auto value = *aceIter;
+            auto* currentAce = value.Ace;
+            if (currentAce->RowAccessPredicate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     TPermissionCheckResponse CheckPermission(
         TObject* object,
         TUser* user,
@@ -2258,7 +2277,7 @@ public:
         if (permission == EPermission::FullRead) {
             if (options.Columns) {
                 THROW_ERROR_EXCEPTION(
-                    "Cannot specify columns for %v permission check",
+                    "Cannot specify columns for %Qlv permission check",
                     permission)
                     << TErrorAttribute("columns", options.Columns);
             }
@@ -4616,20 +4635,21 @@ private:
                 , BuiltinOwnerSubject_(builtinOwnerSubject)
             { }
 
-            TSubjectId operator()(TRawObjectPtr<TSubject> subject) const
+            TSubjectId operator()(const TAccessControlEntry& ace) const
             {
-                auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
-                    ? OwnerSubjectOverride_
-                    : subject.Get();
-                if (!adjustedSubject) {
-                    return NullObjectId;
-                }
+                for (auto subject : ace.Subjects) {
+                    auto* adjustedSubject = subject == BuiltinOwnerSubject_ && OwnerSubjectOverride_
+                        ? OwnerSubjectOverride_
+                        : subject.Get();
+                    if (!adjustedSubject) {
+                        continue;
+                    }
 
-                if (!CheckSubjectMatch(adjustedSubject, User_)) {
-                    return NullObjectId;
+                    if (CheckSubjectMatch(adjustedSubject, User_)) {
+                        return adjustedSubject->GetId();
+                    }
                 }
-
-                return adjustedSubject->GetId();
+                return NullObjectId;
             }
 
         private:

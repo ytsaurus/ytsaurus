@@ -8,7 +8,8 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
-from base import ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls
+from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
+                  grant_system_permissions_to_clickhouse_user)
 
 from yt.common import YtError, wait, parts_to_uuid
 
@@ -225,31 +226,31 @@ class TestClickHouseCommon(ClickHouseTestBase):
         }
         query_log_path = root_dir + "/query_log/0"
 
-        table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        table_schema = [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}, {"name": "c", "type": "int64"}]
         create("table", "//tmp/dictionary_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
         create("table", "//tmp/rle_encoded_table", attributes={"schema": table_schema, "optimize_for": "scan"})
 
         arr = []
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "a"})
-            arr.append({"a": 1, "b": "b"})
-            arr.append({"a": 2, "b": "c"})
-            arr.append({"a": None, "b": None})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "a", "c": 1})
+            arr.append({"a": 1, "b": "b", "c": 2})
+            arr.append({"a": 2, "b": "c", "c": 3})
+            arr.append({"a": None, "b": None, "c": 4})
 
         write_table("//tmp/dictionary_encoded_table", arr)
 
         arr = []
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "a"})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "a", "c": 1})
 
-        for _ in range(1000):
-            arr.append({"a": 1, "b": "b"})
+        for _ in range(100):
+            arr.append({"a": 1, "b": "b", "c": 2})
 
-        for _ in range(1000):
-            arr.append({"a": 2, "b": "c"})
+        for _ in range(100):
+            arr.append({"a": 2, "b": "c", "c": 3})
 
-        for _ in range(1000):
-            arr.append({"a": None, "b": None})
+        for _ in range(100):
+            arr.append({"a": None, "b": None, "c": 4})
 
         write_table("//tmp/rle_encoded_table", arr)
 
@@ -302,6 +303,18 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     clique, query_log_path, "select max(b) from " + table_name + " where b < 'c'", 4, [{"max(b)": 'b'}]
                 )
                 self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = 1", 2, [{"b": "a"}, {"b": "b"}]
+                )
+                self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a >= 1 and a <= 2", 3, [{"b": "a"}, {"b" : "b"}, {"b": "c"}]
+                )
+                self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a in (1, 2)", 3, [{"b": "a"}, {"b": "b"}, {"b": "c"}]
+                )
+                self.make_query_and_check_block_rows(
+                    clique, query_log_path, "select distinct b from " + table_name + " prewhere a = c", 1, [{"b": "a"}]
+                )
+                self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
@@ -311,20 +324,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
                 # Queries that are not optimized by simple distinct optimization.
 
-                assert len(clique.make_query("select a from " + table_name)) == 4000
-                assert len(clique.make_query("select a * a from " + table_name)) == 4000
-                assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 3000}]
+                self.make_query_and_check_block_rows(
+                    clique,
+                    query_log_path,
+                    "select distinct b from " + table_name + " where a = 2",
+                    400,
+                    [{"b" : "c"}],
+                )
+
+                assert len(clique.make_query("select a from " + table_name)) == 400
+                assert len(clique.make_query("select a * a from " + table_name)) == 400
+                assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 300}]
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a, b from " + table_name,
-                    4000,
+                    400,
                     [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}, {"a": None, "b": None}],
                 )
 
-                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 3001
+                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 301
                 assert clique.make_query("select count(a * rand()) from " + table_name) == [
-                    {"count(multiply(a, rand()))": 3000}
+                    {"count(multiply(a, rand()))": 300}
                 ]
 
             send_simple_distinct_queries('"//tmp/dictionary_encoded_table"')
@@ -461,10 +482,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             wait(lambda: permission_cache_hit_counter.get_delta() == before)
 
             assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
-            wait(lambda: permission_cache_hit_counter.get_delta() == before + 1)
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 2)
 
             assert clique.make_query('select b from "//tmp/t"', user="u") == [{"b": "value2"}]
-            wait(lambda: permission_cache_hit_counter.get_delta() == before + 2)
+            wait(lambda: permission_cache_hit_counter.get_delta() == before + 4)
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
@@ -2360,11 +2381,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query('select count(key) as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
 
-            # FIXME(coteeq): Should be 1.
-            # The issue with the bare `count()` is that its optimizer (quite unsurprisingly) runs
-            # before IStorageDistributed::read, so distributor had no chance to validate permissions.
-            # This is not a fundamental issue, just a current code architecture.
-            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 2}]
+            assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
 
             with raises_yt_error("Cannot use ranges with row_index"):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
@@ -2372,6 +2389,64 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Check again for sanity to account for various miscachings.
             with raises_yt_error("Cannot use ranges with row_index"):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+    @authors("coteeq")
+    def test_dictionary_with_row_level_acl(self):
+        create_user("u")
+
+        grant_system_permissions_to_clickhouse_user()
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "uint64", "required": True},
+                    {"name": "value", "type": "string", "required": True}
+                ]
+            },
+        )
+        write_table("//tmp/t", [{"key": 15, "value": "value15"}, {"key": 16, "value": "value16"}])
+
+        acl = [
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "yt-clickhouse", "read"),
+            make_ace("allow", "yt-clickhouse", "read"),
+        ]
+        acl[1]["row_access_predicate"] = "key = 15"
+        acl[3]["row_access_predicate"] = "key = 16"
+        set("//tmp/t/@acl", acl)
+
+        dict_config = {
+            "name": "dict",
+            "layout": {"flat": {}},
+            "structure": {
+                "id": {"name": "key"},
+                "attribute": [
+                    {"name": "value", "type": "String", "null_value": "n/a"},
+                ],
+            },
+            "lifetime": 0,
+            "source": {"yt": {"path": "//tmp/t"}},
+        }
+
+        config_patch = {
+            "clickhouse": {
+                "dictionaries": [dict_config],
+            },
+            "yt": {
+                "user": "yt-clickhouse",
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            def dict_get(key):
+                query = f"select dictGet('dict', 'value', cast({key} as UInt64)) as dict_get"
+                return clique.make_query(query, user="u")
+            # Regardless of query initiator, dictionary is read from yt-clickhouse user.
+            assert dict_get(15) == [{"dict_get": "n/a"}]
+            assert dict_get(16) == [{"dict_get": "value16"}]
 
     @authors("buyval01")
     def test_complex_secondary_query_headers(self):

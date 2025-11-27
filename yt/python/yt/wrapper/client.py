@@ -14,8 +14,7 @@ def report_and_exit(error):
 Error: {}
 
 Most likely, you need to run:
-$ cd yt/python/yt/wrapper/bin/generate_client_impl
-$ ./generate_client_impls.sh
+$ yt/python/yt/wrapper/bin/generate_client_impl/generate_client_impls.sh
 
 If the problem persists, consider reporting it to {}.
 

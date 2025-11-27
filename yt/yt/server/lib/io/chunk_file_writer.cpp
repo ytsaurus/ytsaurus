@@ -243,11 +243,8 @@ bool TChunkFileWriter::WriteBlocks(
 
 TFuture<void> TChunkFileWriter::GetReadyEvent()
 {
-    auto state = State_.load();
-    YT_VERIFY(
-        state == EState::WritingBlocks ||
-        state == EState::Ready ||
-        state == EState::Failed);
+    YT_VERIFY(ReadyEvent_);
+
     return ReadyEvent_;
 }
 

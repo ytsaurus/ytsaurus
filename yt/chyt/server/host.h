@@ -51,6 +51,10 @@ public:
         const std::vector<NYPath::TRichYPath>& paths,
         const TString& user);
 
+    TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> PreliminaryCheckPermissions(
+        const std::vector<NYPath::TYPath>& paths,
+        const TString& user);
+
     //! Get object attributes via local cache.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
         const std::vector<NYPath::TYPath>& paths,

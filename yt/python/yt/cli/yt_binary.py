@@ -2104,7 +2104,8 @@ def add_get_job_trace_parser(add_parser):
     parser = add_parser("get-job-trace", get_job_trace)
     operation_id_args(parser, dest="operation_id")
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
-    parser.add_argument("trace_id", help="trace id")
+
+    parser.add_argument("--trace-id", help="trace id")
 
     add_time_argument(parser, "--from-time", help="lower limit for event's timestamp")
     add_time_argument(parser, "--to-time", help="upper limit for event's timestamp")

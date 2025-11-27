@@ -1144,6 +1144,11 @@ TRANSFORMS[65] = [
                 ("controller_start_time", "int64"),
                 ("controller_finish_time", "int64"),
                 ("gang_rank", "int64"),
+                # COMPAT(pogorelov): Next three columns are not used anymore.
+                # Remove them when it is possible.
+                ("job_cookie_group_index", "int64"),
+                ("main_job_id_hi", "uint64"),
+                ("main_job_id_lo", "uint64"),
                 ("distributed_group_job_index", "int64"),
                 ("distributed_group_main_job_id_hi", "uint64"),
                 ("distributed_group_main_job_id_lo", "uint64"),

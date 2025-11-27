@@ -86,7 +86,7 @@ struct TResourceUsageSnapshot final
     THashMap<TString, TJobResources> PoolToResourceUsageWithPrecommit;
 };
 
-using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
+DEFINE_REFCOUNTED_TYPE(TResourceUsageSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

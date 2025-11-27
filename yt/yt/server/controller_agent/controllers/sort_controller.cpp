@@ -65,6 +65,8 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <util/generic/xrange.h>
+
 #include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -160,10 +162,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, Level);
     DEFINE_BYVAL_RO_PROPERTY(int, Index);
 
-    DEFINE_BYREF_RW_PROPERTY(TKeyBound, LowerBound);
     DEFINE_BYREF_RW_PROPERTY(IPersistentChunkPoolOutputPtr, ChunkPoolOutput);
 
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PartitioningCompleted, false);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(AllDataCollected, false);
 
 protected:
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionBase, 0x20b1ca1b);
@@ -177,15 +178,27 @@ class TIntermediatePartition
     : public TPartitionBase
 {
 public:
+    // A single logical child partition may correspond to multiple physical partitions.
+    struct TPhysicalPartitionsBounds final
+    {
+        std::vector<NTableClient::TKeyBound> KeyBounds;
+        std::string WireKeyBounds;
+
+        PHOENIX_DECLARE_TYPE(TPhysicalPartitionsBounds, 0x3e6c9443);
+    };
+
     TIntermediatePartition() = default;
 
     TIntermediatePartition(int level, int index)
         : TPartitionBase(level, index)
     { }
 
+    // TODO(apollo1321): Use std::variant or Tag field to avoid using dynamic_cast.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TPartitionBasePtr>, Children);
     DEFINE_BYREF_RW_PROPERTY(IShuffleChunkPoolPtr, ShuffleChunkPool);
     DEFINE_BYREF_RW_PROPERTY(IPersistentChunkPoolInputPtr, ShuffleChunkPoolInput);
+    DEFINE_BYVAL_RW_PROPERTY(int, PhysicalPartitionCount);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TPhysicalPartitionsBounds>, PhysicalChildPartitionsBounds);
 
 private:
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TIntermediatePartition, 0xd449982f);
@@ -194,6 +207,13 @@ private:
 using TIntermediatePartitionPtr = TIntrusivePtr<TIntermediatePartition>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPartitionDispatchDecision,
+    (Skip)
+    (NoSort)
+    (SortInSingleJob)
+    (IntermediateSortAndMerge)
+);
 
 class TFinalPartition
     : public TPartitionBase
@@ -207,7 +227,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, AssignedNodeId, InvalidNodeId);
 
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(CachedSortedMergeNeeded, false);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<EPartitionDispatchDecision>, DispatchDecision);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Maniac, false);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(ReducingPartitionCompleted, false);
 
@@ -228,9 +248,8 @@ void TPartitionBase::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, Level_);
     PHOENIX_REGISTER_FIELD(2, Index_);
-    PHOENIX_REGISTER_FIELD(3, LowerBound_);
-    PHOENIX_REGISTER_FIELD(4, ChunkPoolOutput_);
-    PHOENIX_REGISTER_FIELD(5, PartitioningCompleted_);
+    PHOENIX_REGISTER_FIELD(3, ChunkPoolOutput_);
+    PHOENIX_REGISTER_FIELD(4, AllDataCollected_);
 }
 
 PHOENIX_DEFINE_TYPE(TPartitionBase);
@@ -242,16 +261,26 @@ void TIntermediatePartition::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Children_);
     PHOENIX_REGISTER_FIELD(2, ShuffleChunkPool_);
     PHOENIX_REGISTER_FIELD(3, ShuffleChunkPoolInput_);
+    PHOENIX_REGISTER_FIELD(4, PhysicalPartitionCount_);
+    PHOENIX_REGISTER_FIELD(5, PhysicalChildPartitionsBounds_);
 }
 
 PHOENIX_DEFINE_TYPE(TIntermediatePartition);
+
+void TIntermediatePartition::TPhysicalPartitionsBounds::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, KeyBounds);
+    PHOENIX_REGISTER_FIELD(2, WireKeyBounds);
+}
+
+PHOENIX_DEFINE_TYPE(TIntermediatePartition::TPhysicalPartitionsBounds);
 
 void TFinalPartition::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TPartitionBase>();
 
     PHOENIX_REGISTER_FIELD(1, AssignedNodeId_);
-    PHOENIX_REGISTER_FIELD(2, CachedSortedMergeNeeded_);
+    PHOENIX_REGISTER_FIELD(2, DispatchDecision_);
     PHOENIX_REGISTER_FIELD(3, Maniac_);
     PHOENIX_REGISTER_FIELD(4, ReducingPartitionCompleted_);
 }
@@ -450,36 +479,6 @@ protected:
             , ChunkPoolOutput_(std::move(chunkPoolOutput))
         {
             GetChunkPoolOutput()->GetJobCounter()->AddParent(Controller_->PartitionJobCounter_);
-
-            const auto& inputPartitions = Controller_->PartitionsByLevels_[Level_];
-            WirePartitionLowerBoundPrefixes_.reserve(inputPartitions.size());
-            PartitionLowerBoundInclusivenesses_.reserve(inputPartitions.size());
-            for (const auto& inputPartitionBase : inputPartitions) {
-                auto inputPartition = DynamicPointerCast<TIntermediatePartition>(inputPartitionBase);
-                auto keySetWriter = New<TKeySetWriter>();
-                auto partitionLowerBoundPrefixesWriter = New<TKeySetWriter>();
-                std::vector<bool> partitionLowerBoundInclusivenesses;
-
-                int keysWritten = 0;
-                for (int childPartitionIndex = 1; childPartitionIndex < std::ssize(inputPartition->Children()); ++childPartitionIndex) {
-                    const auto& childPartition = inputPartition->Children()[childPartitionIndex];
-                    auto lowerBound = childPartition->LowerBound();
-                    if (lowerBound && !lowerBound.IsUniversal()) {
-                        keySetWriter->WriteKey(KeyBoundToLegacyRow(lowerBound));
-                        partitionLowerBoundPrefixesWriter->WriteKey(lowerBound.Prefix);
-                        partitionLowerBoundInclusivenesses.push_back(lowerBound.IsInclusive);
-                        ++keysWritten;
-                    }
-                }
-                YT_VERIFY(keysWritten == 0 || keysWritten + 1 == std::ssize(inputPartition->Children()));
-                if (keysWritten == 0) {
-                    WirePartitionLowerBoundPrefixes_.push_back(std::nullopt);
-                    PartitionLowerBoundInclusivenesses_.push_back({});
-                } else {
-                    WirePartitionLowerBoundPrefixes_.push_back(ToString(partitionLowerBoundPrefixesWriter->Finish()));
-                    PartitionLowerBoundInclusivenesses_.push_back(partitionLowerBoundInclusivenesses);
-                }
-            }
         }
 
         TString GetTitle() const override
@@ -587,12 +586,6 @@ protected:
         IPersistentChunkPoolInputPtr ChunkPoolInput_;
         IPersistentChunkPoolOutputPtr ChunkPoolOutput_;
 
-        //! Partition index -> wire partition lower key bound prefixes.
-        std::vector<std::optional<TString>> WirePartitionLowerBoundPrefixes_;
-
-        //! Partition index -> partition lower bound inclusivenesses.
-        std::vector<std::vector<bool>> PartitionLowerBoundInclusivenesses_;
-
         bool IsFinal() const
         {
             return Level_ == Controller_->PartitionTreeDepth_ - 1;
@@ -674,10 +667,17 @@ protected:
             auto partition = DynamicPointerCast<TIntermediatePartition>(Controller_->PartitionsByLevels_[Level_][partitionIndex]);
 
             auto* partitionJobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            partitionJobSpecExt->set_partition_count(partition->Children().size());
-            if (const auto& lowerBoundPrefixes = WirePartitionLowerBoundPrefixes_[partitionIndex]) {
-                partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(*lowerBoundPrefixes);
-                ToProto(partitionJobSpecExt->mutable_partition_lower_bound_inclusivenesses(), PartitionLowerBoundInclusivenesses_[partitionIndex]);
+            YT_VERIFY(partition->GetPhysicalPartitionCount() > 0);
+            partitionJobSpecExt->set_partition_count(partition->GetPhysicalPartitionCount());
+            if (const auto& partitionsBound = partition->PhysicalChildPartitionsBounds()) {
+                partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(partitionsBound->WireKeyBounds);
+
+                auto* lowerBoundInclusiveness = partitionJobSpecExt->mutable_partition_lower_bound_inclusivenesses();
+                lowerBoundInclusiveness->Clear();
+                lowerBoundInclusiveness->Reserve(partitionsBound->KeyBounds.size());
+                for (const auto& lowerBound : partitionsBound->KeyBounds) {
+                    lowerBoundInclusiveness->Add(lowerBound.IsInclusive);
+                }
             }
             partitionJobSpecExt->set_partition_task_level(Level_);
 
@@ -701,24 +701,21 @@ protected:
 
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
+            YT_VERIFY(!Controller_->SimpleSortTask_);
+
+            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
+            auto partition = DynamicPointerCast<TIntermediatePartition>(Controller_->PartitionsByLevels_[Level_][partitionIndex]);
+
             if (IsIntermediate()) {
                 Controller_->UpdateTask(GetNextPartitionTask().Get());
-            } else if (Controller_->SimpleSortTask_) {
-                Controller_->UpdateTask(Controller_->SimpleSortTask_.Get());
             } else {
                 Controller_->UpdateTask(Controller_->UnorderedMergeTask_.Get());
                 Controller_->UpdateTask(Controller_->IntermediateSortTask_.Get());
                 Controller_->UpdateTask(Controller_->FinalSortTask_.Get());
-            }
 
-            auto partitionIndex = GetPartitionIndex(joblet->InputStripeList);
-            auto partition = DynamicPointerCast<TIntermediatePartition>(Controller_->PartitionsByLevels_[Level_][partitionIndex]);
-            const auto& shuffleChunkPool = partition->ShuffleChunkPool();
-
-            if (IsFinal()) {
                 for (const auto& finalPartition : partition->Children()) {
                     // Check if final partition is large enough to start sorted merge.
-                    Controller_->IsSortedMergeNeeded(DynamicPointerCast<TFinalPartition>(finalPartition));
+                    Controller_->TryDispatchFinalPartitionForProcessing(DynamicPointerCast<TFinalPartition>(finalPartition));
                 }
             }
 
@@ -729,6 +726,7 @@ protected:
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
 
+            const auto& shuffleChunkPool = partition->ShuffleChunkPool();
             if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec_->MaxShuffleDataSliceCount) {
                 result.OperationFailedError = TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
                     << TErrorAttribute("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
@@ -795,23 +793,17 @@ protected:
                 nextPartitionTask->FinishInput();
                 Controller_->UpdateTask(nextPartitionTask.Get());
             } else {
-                if (Controller_->FinalSortTask_) {
-                    Controller_->FinalSortTask_->Finalize();
-                    Controller_->FinalSortTask_->FinishInput();
-                }
+                Controller_->FinalSortTask_->Finalize();
+                Controller_->FinalSortTask_->FinishInput();
 
-                if (Controller_->IntermediateSortTask_) {
-                    Controller_->IntermediateSortTask_->Finalize();
-                    Controller_->IntermediateSortTask_->FinishInput();
-                }
+                Controller_->IntermediateSortTask_->Finalize();
+                Controller_->IntermediateSortTask_->FinishInput();
+
+                Controller_->SortedMergeTask_->Finalize();
 
                 if (Controller_->UnorderedMergeTask_) {
                     Controller_->UnorderedMergeTask_->FinishInput();
                     Controller_->UnorderedMergeTask_->Finalize();
-                }
-
-                if (Controller_->SortedMergeTask_) {
-                    Controller_->SortedMergeTask_->Finalize();
                 }
 
                 Controller_->ValidateMergeDataSliceLimit();
@@ -822,23 +814,30 @@ protected:
 
                 Controller_->AssignPartitions();
 
-                {
-                    int twoPhasePartitionCount = 0;
-                    int threePhasePartitionCount = 0;
-                    for (const auto& partition : GetOutputPartitions()) {
-                        if (Controller_->IsSortedMergeNeeded(DynamicPointerCast<TFinalPartition>(partition))) {
-                            ++threePhasePartitionCount;
-                        } else {
-                            ++twoPhasePartitionCount;
-                        }
-                    }
+                int twoPhasePartitionCount = 0;
+                int threePhasePartitionCount = 0;
+                for (const auto& partition : GetOutputPartitions()) {
+                    auto finalPartition = DynamicPointerCast<TFinalPartition>(partition);
+                    YT_VERIFY(finalPartition->GetDispatchDecision());
 
-                    YT_LOG_DEBUG("Partitioning completed "
-                        "(PartitionCount: %v, TwoPhasePartitionCount: %v, ThreePhasePartitionCount: %v)",
-                        GetOutputPartitions().size(),
-                        twoPhasePartitionCount,
-                        threePhasePartitionCount);
+                    switch (*finalPartition->GetDispatchDecision()) {
+                        case EPartitionDispatchDecision::Skip:
+                            break;
+                        case EPartitionDispatchDecision::NoSort:
+                        case EPartitionDispatchDecision::SortInSingleJob:
+                            ++twoPhasePartitionCount;
+                            break;
+                        case EPartitionDispatchDecision::IntermediateSortAndMerge:
+                            ++threePhasePartitionCount;
+                            break;
+                    }
                 }
+
+                YT_LOG_DEBUG("Partitioning completed "
+                    "(PartitionCount: %v, TwoPhasePartitionCount: %v, ThreePhasePartitionCount: %v)",
+                    GetOutputPartitions().size(),
+                    twoPhasePartitionCount,
+                    threePhasePartitionCount);
             }
 
             // NB: This is required at least to mark tasks completed, when there are no pending jobs.
@@ -1849,43 +1848,100 @@ protected:
         return DynamicPointerCast<TFinalPartition>(PartitionsByLevels_.back()[partitionIndex]);
     }
 
-    //! Called when all of the partition data is in the
-    //! chunk pool output.
-    void OnPartitioningCompleted(const TPartitionBasePtr& partition)
+    // Attempts to determine and apply a dispatch decision for the partition.
+    // Returns true if decision was already set or successfully determined now.
+    bool TryDispatchFinalPartitionForProcessing(const TFinalPartitionPtr& partition, bool forceSortedMerge)
+    {
+        if (partition->GetDispatchDecision()) {
+            return true;
+        }
+
+        const auto& chunkPoolOutput = partition->ChunkPoolOutput();
+        i64 dataWeight = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
+
+        if (dataWeight == 0 && partition->IsAllDataCollected()) {
+            YT_LOG_DEBUG(
+                "Final partition is empty (PartitionIndex: %v)",
+                partition->GetIndex());
+
+            partition->SetDispatchDecision(EPartitionDispatchDecision::Skip);
+        } else if (forceSortedMerge) {
+            YT_LOG_DEBUG(
+                "Final partition is forced to be processed by intermediate sort jobs and single sorted merge job ""(PartitionIndex: %v, DataWeight: %v)",
+                partition->GetIndex(),
+                dataWeight);
+
+            partition->SetDispatchDecision(EPartitionDispatchDecision::IntermediateSortAndMerge);
+        } else if (partition->IsManiac() && partition->IsAllDataCollected()) {
+            YT_LOG_DEBUG(
+                "Final partition is maniac and will be processed by single unordered merge job (PartitionIndex: %v, DataWeight: %v)",
+                partition->GetIndex(),
+                dataWeight);
+
+            partition->SetDispatchDecision(EPartitionDispatchDecision::NoSort);
+        } else if (!partition->IsManiac() && chunkPoolOutput->GetJobCounter()->GetTotal() > 1) {
+            YT_LOG_DEBUG(
+                "Final partition will be processed by intermediate sort jobs and single sorted merge job "
+                "(PartitionIndex: %v, DataWeight: %v, ExpectedSortJobCount: %v)",
+                partition->GetIndex(),
+                dataWeight,
+                chunkPoolOutput->GetJobCounter()->GetTotal());
+
+            partition->SetDispatchDecision(EPartitionDispatchDecision::IntermediateSortAndMerge);
+        } else if (partition->IsAllDataCollected()) {
+            YT_LOG_DEBUG(
+                "Final partition will be processed by single sort job (PartitionIndex: %v, DataWeight: %v)",
+                partition->GetIndex(),
+                dataWeight);
+
+            partition->SetDispatchDecision(EPartitionDispatchDecision::SortInSingleJob);
+        }
+
+        if (!partition->GetDispatchDecision().has_value()) {
+            return false;
+        }
+
+        switch (*partition->GetDispatchDecision()) {
+            case EPartitionDispatchDecision::Skip:
+                OnFinalPartitionCompleted(partition);
+                break;
+            case EPartitionDispatchDecision::NoSort:
+                UnorderedMergeTask_->RegisterPartition(partition);
+                break;
+            case EPartitionDispatchDecision::SortInSingleJob:
+                FinalSortTask_->RegisterPartition(partition);
+                break;
+            case EPartitionDispatchDecision::IntermediateSortAndMerge:
+                SortedMergeTask_->RegisterPartition(partition);
+                IntermediateSortTask_->RegisterPartition(partition);
+                break;
+        }
+
+        return true;
+    }
+
+    virtual bool TryDispatchFinalPartitionForProcessing(const TFinalPartitionPtr& partition)
+    {
+        return TryDispatchFinalPartitionForProcessing(partition, /*forceSortedMerge*/ false);
+    }
+
+    void OnAllDataCollected(const TPartitionBasePtr& partition)
     {
         // This function can be called multiple times due the lost jobs
         // regeneration. We are interested in the first call only.
-        if (partition->IsPartitioningCompleted()) {
+        if (partition->IsAllDataCollected()) {
             return;
         }
-        partition->SetPartitioningCompleted(true);
-        i64 dataWeight = partition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal();
+        partition->SetAllDataCollected(true);
 
         if (DynamicPointerCast<TIntermediatePartition>(partition)) {
             YT_LOG_DEBUG(
                 "Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
                 partition->GetLevel(),
                 partition->GetIndex(),
-                dataWeight);
-            return;
-        }
-
-        auto finalPartition = DynamicPointerCast<TFinalPartition>(partition);
-        if (dataWeight == 0) {
-            YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", partition->GetIndex());
-            OnFinalPartitionCompleted(finalPartition);
-            return;
-        }
-        YT_LOG_DEBUG(
-            "Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
-            partition->GetIndex(),
-            dataWeight);
-        if (!finalPartition->IsManiac() && !IsSortedMergeNeeded(finalPartition)) {
-            FinalSortTask_->RegisterPartition(finalPartition);
-        }
-
-        if (finalPartition->IsManiac()) {
-            UnorderedMergeTask_->RegisterPartition(finalPartition);
+                partition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
+        } else {
+            YT_VERIFY(TryDispatchFinalPartitionForProcessing(DynamicPointerCast<TFinalPartition>(partition)));
         }
     }
 
@@ -1910,7 +1966,7 @@ protected:
                 // Partitioning of #partition data is completed,
                 // so its data can be processed.
                 for (const auto& child : intermediatePartition->Children()) {
-                    OnPartitioningCompleted(child);
+                    OnAllDataCollected(child);
                 }
             }));
         }
@@ -2050,7 +2106,8 @@ protected:
         std::vector<TFinalPartitionPtr> partitionsToAssign;
         for (const auto& partition : GetFinalPartitions()) {
             // We are not interested in one-job partition locality.
-            if (!partition->IsManiac() && !IsSortedMergeNeeded(partition)) {
+            YT_VERIFY(partition->GetDispatchDecision().has_value());
+            if (!partition->IsManiac() && *partition->GetDispatchDecision() != EPartitionDispatchDecision::IntermediateSortAndMerge) {
                 continue;
             }
             if (!partition->HasAssignedNode()) {
@@ -2075,7 +2132,7 @@ protected:
                     return UnorderedMergeTask_;
                 } else if (SimpleSortTask_) {
                     return SimpleSortTask_;
-                } else if (IsSortedMergeNeeded(partition)) {
+                } else if (*partition->GetDispatchDecision() == EPartitionDispatchDecision::IntermediateSortAndMerge) {
                     return IntermediateSortTask_;
                 } else {
                     return FinalSortTask_;
@@ -2254,32 +2311,6 @@ protected:
         ++CompletedPartitionCount_;
 
         YT_LOG_DEBUG("Final partition completed (PartitionIndex: %v)", partition->GetIndex());
-    }
-
-    virtual bool IsSortedMergeNeeded(const TFinalPartitionPtr& partition) const
-    {
-        if (partition->IsCachedSortedMergeNeeded()) {
-            return true;
-        }
-
-        if (partition->IsManiac()) {
-            return false;
-        }
-
-        if (partition->ChunkPoolOutput()->GetJobCounter()->GetTotal() <= 1) {
-            return false;
-        }
-
-        YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->GetIndex());
-        partition->SetCachedSortedMergeNeeded(true);
-        SortedMergeTask_->RegisterPartition(partition);
-
-        if (SimpleSortTask_) {
-            SimpleSortTask_->OnSortedMergeNeeded();
-        } else {
-            IntermediateSortTask_->RegisterPartition(partition);
-        }
-        return true;
     }
 
     void CheckSortStartThreshold()
@@ -2672,6 +2703,7 @@ protected:
             }
 
             auto partition = New<TIntermediatePartition>(level, levelPartitionIndex);
+            partition->SetPhysicalPartitionCount(std::ssize(partitionTreeSkeleton->Children));
             PartitionsByLevels_[level].push_back(partition);
             for (int childIndex = 0; childIndex < std::ssize(partitionTreeSkeleton->Children); ++childIndex) {
                 auto* child = partitionTreeSkeleton->Children[childIndex].get();
@@ -2793,37 +2825,98 @@ protected:
             RootPartitionPoolJobSizeConstraints_->GetJobCount());
     }
 
-    // TODO(apollo1321): Enable maniac partitions for map-reduce operations.
     void AssignPartitionKeysToPartitions(const std::vector<TPartitionKey>& partitionKeys, bool setManiac)
     {
         YT_VERIFY(!SimpleSortTask_);
+        YT_VERIFY(PartitionCount_ == std::ssize(partitionKeys) + 1);
 
-        const auto& finalPartitions = GetFinalPartitions();
-        YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
-        finalPartitions[0]->LowerBound() = TKeyBound::MakeUniversal(/*isUpper*/ false);
-        for (int finalPartitionIndex = 1; finalPartitionIndex < std::ssize(finalPartitions); ++finalPartitionIndex) {
-            const auto& partition = finalPartitions[finalPartitionIndex];
-            const auto& partitionKey = partitionKeys[finalPartitionIndex - 1];
-            YT_LOG_DEBUG("Assigned lower key bound to final partition (FinalPartitionIndex: %v, KeyBound: %v)",
-                finalPartitionIndex,
-                partitionKey.LowerBound);
-            partition->LowerBound() = partitionKey.LowerBound;
-            if (partitionKey.Maniac && setManiac) {
-                YT_LOG_DEBUG("Final partition is a maniac (FinalPartitionIndex: %v)", finalPartitionIndex);
-                partition->SetManiac(true);
-            }
-        }
+        int currentKeyIndex = 0;
 
-        for (int level = PartitionTreeDepth_ - 1; level >= 0; --level) {
-            for (const auto& partition : PartitionsByLevels_[level]) {
-                auto intermediatePartition = DynamicPointerCast<TIntermediatePartition>(partition);
-                intermediatePartition->LowerBound() = intermediatePartition->Children().front()->LowerBound();
-                YT_LOG_DEBUG("Assigned lower key bound to partition (PartitionLevel: %v, PartitionIndex: %v, KeyBound: %v",
-                    partition->GetLevel(),
-                    partition->GetIndex(),
-                    partition->LowerBound());
+        // In-order DFS to assign bounds.
+        auto visitPartition = [&] (const TPartitionBasePtr& partitionBase, auto visitPartition) {
+            auto intermediatePartition = DynamicPointerCast<TIntermediatePartition>(partitionBase);
+            YT_VERIFY(currentKeyIndex <= std::ssize(partitionKeys));
+
+            if (!intermediatePartition) {
+                // Leaf node (TFinalPartition)
+                auto finalPartition = DynamicPointerCast<TFinalPartition>(partitionBase);
+                YT_VERIFY(finalPartition);
+
+                // Set maniac flag if needed
+                if (setManiac && currentKeyIndex > 0) {
+                    const auto& partitionKey = partitionKeys[currentKeyIndex - 1];
+                    if (partitionKey.Maniac) {
+                        YT_LOG_DEBUG(
+                            "Final partition is a maniac (FinalPartitionIndex: %v)",
+                            currentKeyIndex);
+                        finalPartition->SetManiac(true);
+                    }
+                }
+
+                ++currentKeyIndex;
+                return;
             }
-        }
+
+            std::vector<TKeyBound> keyBounds;
+            auto keySetWriter = New<TKeySetWriter>();
+
+            for (int childIndex : xrange(std::ssize(intermediatePartition->Children()))) {
+                const auto& child = intermediatePartition->Children()[childIndex];
+
+                // Before visiting each child (except the first), record the boundary.
+                if (childIndex > 0) {
+                    YT_VERIFY(currentKeyIndex > 0 && currentKeyIndex <= std::ssize(partitionKeys));
+                    const auto& lowerBound = partitionKeys[currentKeyIndex - 1].LowerBound;
+                    YT_VERIFY(lowerBound);
+                    YT_VERIFY(!lowerBound.IsUniversal());
+
+                    keyBounds.push_back(lowerBound);
+                    keySetWriter->WriteKey(lowerBound.Prefix);
+
+                    YT_LOG_DEBUG(
+                        "Added key bound for intermediate partition child "
+                        "(PartitionLevel: %v, PartitionIndex: %v, ChildIndex: %v, KeyBound: %v)",
+                        intermediatePartition->GetLevel(),
+                        intermediatePartition->GetIndex(),
+                        childIndex,
+                        lowerBound);
+                }
+
+                visitPartition(child, visitPartition);
+            }
+
+            YT_VERIFY(intermediatePartition->GetPhysicalPartitionCount() == std::ssize(keyBounds) + 1);
+
+            if (intermediatePartition->GetPhysicalPartitionCount() == 1) {
+                // Fallback to hash-based partitioning with partition count = 1.
+                // TODO(apollo1321): This scenario should be prohibited.
+                YT_LOG_DEBUG(
+                    "Skipping physical partitions bound for intermediate partition with single child "
+                    "(PartitionLevel: %v, PartitionIndex: %v, PhysicalPartitionCount: %v)",
+                    intermediatePartition->GetLevel(),
+                    intermediatePartition->GetIndex(),
+                    intermediatePartition->GetPhysicalPartitionCount());
+                return;
+            }
+
+            intermediatePartition->PhysicalChildPartitionsBounds() = TIntermediatePartition::TPhysicalPartitionsBounds{
+                .KeyBounds = std::move(keyBounds),
+                .WireKeyBounds = ToString(keySetWriter->Finish()),
+            };
+
+            YT_LOG_DEBUG(
+                "Set physical partitions bound for intermediate partition "
+                "(PartitionLevel: %v, PartitionIndex: %v, PhysicalPartitionCount: %v, BoundCount: %v)",
+                intermediatePartition->GetLevel(),
+                intermediatePartition->GetIndex(),
+                intermediatePartition->GetPhysicalPartitionCount(),
+                std::ssize(intermediatePartition->PhysicalChildPartitionsBounds()->KeyBounds));
+        };
+
+        YT_VERIFY(!PartitionsByLevels_.empty() && !PartitionsByLevels_[0].empty());
+        visitPartition(PartitionsByLevels_[0][0], visitPartition);
+
+        YT_VERIFY(currentKeyIndex == PartitionCount_);
     }
 
     virtual EJobType GetPartitionJobType(bool isRoot) const = 0;
@@ -2926,8 +3019,6 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, Level_);
     PHOENIX_REGISTER_FIELD(4, ChunkPoolInput_);
     PHOENIX_REGISTER_FIELD(5, ChunkPoolOutput_);
-    PHOENIX_REGISTER_FIELD(6, WirePartitionLowerBoundPrefixes_);
-    PHOENIX_REGISTER_FIELD(7, PartitionLowerBoundInclusivenesses_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->DataBalancer_) {
@@ -3279,17 +3370,24 @@ private:
 
         FinishTaskInput(SimpleSortTask_);
 
-        YT_LOG_INFO("Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
+        YT_LOG_INFO(
+            "Sorting without partitioning (SortJobCount: %v, DataWeightPerJob: %v)",
             jobSizeConstraints->GetJobCount(),
             jobSizeConstraints->GetDataWeightPerJob());
 
-        if (IsSortedMergeNeeded(partition)) {
-            YT_LOG_DEBUG("Final partition needs sorted merge (PartitionIndex: %v)", partition->GetIndex());
+        partition->SetAllDataCollected(true);
+
+        if (partition->ChunkPoolOutput()->GetJobCounter()->GetTotal() <= 1) {
+            partition->SetDispatchDecision(EPartitionDispatchDecision::SortInSingleJob);
+        } else {
+            YT_LOG_DEBUG("Simple sort needs sorted merge");
+            partition->SetDispatchDecision(EPartitionDispatchDecision::IntermediateSortAndMerge);
+            SortedMergeTask_->RegisterPartition(partition);
+            // TODO(apollo1321): Remove this dirty hack.
+            SimpleSortTask_->OnSortedMergeNeeded();
         }
 
-        // Kick-start the sort task.
-        SortStartThresholdReached_ = true;
-        UpdateSortTasks();
+        UpdateTask(SimpleSortTask_.Get());
     }
 
     void PrepareUnorderedMergeTask()
@@ -4531,14 +4629,9 @@ private:
         YT_ABORT();
     }
 
-    bool IsSortedMergeNeeded(const TFinalPartitionPtr& partition) const override
+    bool TryDispatchFinalPartitionForProcessing(const TFinalPartitionPtr& partition) override
     {
-        if (Spec_->ForceReduceCombiners && !partition->IsCachedSortedMergeNeeded()) {
-            partition->SetCachedSortedMergeNeeded(true);
-            SortedMergeTask_->RegisterPartition(partition);
-            IntermediateSortTask_->RegisterPartition(partition);
-        }
-        return TSortControllerBase::IsSortedMergeNeeded(partition);
+        return TSortControllerBase::TryDispatchFinalPartitionForProcessing(partition, /*forceSortedMerge*/ Spec_->ForceReduceCombiners);
     }
 
     TUserJobSpecPtr GetSortUserJobSpec(bool isFinalSort) const override

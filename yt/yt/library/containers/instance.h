@@ -134,7 +134,7 @@ struct IInstanceLauncher
 DEFINE_REFCOUNTED_TYPE(IInstanceLauncher)
 
 #ifdef _linux_
-IInstanceLauncherPtr CreatePortoInstanceLauncher(const TString& name, IPortoExecutorPtr executor);
+IInstanceLauncherPtr CreatePortoInstanceLauncher(std::string_view name, IPortoExecutorPtr executor);
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

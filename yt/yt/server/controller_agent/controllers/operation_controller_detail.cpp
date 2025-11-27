@@ -10404,9 +10404,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
     }
 
-    if (jobSpecConfig->RestrictPortoPlace) {
-        jobSpec->set_restrict_porto_place(jobSpecConfig->RestrictPortoPlace);
-    }
+    jobSpec->set_restrict_porto_place(jobSpecConfig->RestrictPortoPlace);
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

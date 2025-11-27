@@ -73,9 +73,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, OutputChunkPoolIndex);
 
     // Set the partition tag that is used for filtering chunk blocks.
-    void SetFilteringPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount);
+    void SetFilteringPartitionTags(NChunkClient::TPartitionTags partitionTags, i64 dataWeight, i64 rowCount);
 
-    std::optional<int> GetFilteringPartitionTag() const;
+    const std::optional<NChunkClient::TPartitionTags>& GetFilteringPartitionTags() const;
 
     void AddStripe(TChunkStripePtr stripe);
 
@@ -83,7 +83,7 @@ public:
     NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;
 
 private:
-    std::optional<int> PartitionTag_;
+    std::optional<NChunkClient::TPartitionTags> PartitionTags_;
     std::optional<i64> OverriddenDataWeight_;
     std::optional<i64> OverriddenRowCount_;
 

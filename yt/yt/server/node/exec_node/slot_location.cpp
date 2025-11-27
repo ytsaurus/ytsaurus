@@ -926,7 +926,7 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
             }
         }
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
+        YT_LOG_WARNING(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
             LocationPath_,
             path);
         return false;

@@ -28,12 +28,27 @@ void TraverseSequoiaTree(
         std::reference_wrapper<const std::remove_reference_t<TNodeRef>>,
         TNode>;
     std::vector<TTraceElement> trace;
+    std::optional<TTraceElement> skippedRoot;
 
     for (auto&& node : treeTraversal) {
+        if (skippedRoot.has_value() && isParent(*skippedRoot, node)) {
+            continue;
+        }
+        skippedRoot.reset();
+
         // Adjust the trace to reflect the current path.
         while (!trace.empty() && !isParent(trace.back(), node)) {
             visitor->OnNodeExited(trace.back());
             trace.pop_back();
+        }
+
+        if (!visitor->ShouldVisit(node)) {
+            if constexpr (std::is_lvalue_reference_v<TNodeRef>) {
+                skippedRoot.emplace(node);
+            } else {
+                skippedRoot.emplace(std::move(node));
+            }
+            continue;
         }
 
         visitor->OnNodeEntered(node);
@@ -42,10 +57,6 @@ void TraverseSequoiaTree(
             trace.emplace_back(node);
         } else {
             trace.emplace_back(std::move(node));
-        }
-
-        if (!visitor->ShouldContinue()) {
-            return;
         }
     }
 

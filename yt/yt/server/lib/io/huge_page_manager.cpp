@@ -60,6 +60,37 @@ struct IHugePageAllocator
 
 DEFINE_REFCOUNTED_TYPE(IHugePageAllocator)
 
+class THugePageAllocatorBase
+    : public IHugePageAllocator
+{
+public:
+    THugePageAllocatorBase(IMemoryUsageTrackerPtr memoryTracker)
+        : MemoryTracker_(std::move(memoryTracker))
+    { }
+
+    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager)
+    {
+        auto result = DoAllocateHugePageBlob(pageCount, hugePageManager);
+        if (result.IsOK()) {
+            MemoryTracker_->Acquire(result.Value().Size());
+        }
+
+        return result;
+    }
+
+    void DeallocateHugePageBlob(TMutableRef hugePageBlob)
+    {
+        auto hugePageBlobSize = hugePageBlob.Size();
+        DoDeallocateHugePageBlob(std::move(hugePageBlob));
+        MemoryTracker_->Release(hugePageBlobSize);
+    }
+private:
+    virtual TErrorOr<TMutableRef> DoAllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) = 0;
+    virtual void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) = 0;
+
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+};
+
 class THugePageManager
     : public IHugePageManager
 {
@@ -223,18 +254,24 @@ private:
 };
 
 class TPreallocatedHugePageAllocator
-    : public IHugePageAllocator
+    : public THugePageAllocatorBase
 {
 public:
-    TPreallocatedHugePageAllocator(i64 hugePageCount, const NProfiling::TProfiler& profiler)
-        : HugePageCount_(hugePageCount)
+    TPreallocatedHugePageAllocator(
+        i64 hugePageCount,
+        const NProfiling::TProfiler& profiler,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
+        : THugePageAllocatorBase(std::move(memoryUsageTracker))
+        , HugePageCount_(hugePageCount)
     {
         profiler.AddFuncGauge("/huge_page_count", MakeStrong(this), [this] {
             return GetHugePageCount();
         });
     }
 
-    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override {
+private:
+    TErrorOr<TMutableRef> DoAllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override
+    {
         auto usedHugePageCount = hugePageManager.GetUsedHugePageCount();
         auto hugePageSize = hugePageManager.GetHugePageSize();
         if (usedHugePageCount + pageCount > HugePageCount_) {
@@ -263,7 +300,8 @@ public:
         return TMutableRef(page, pageCount * hugePageSize);
     }
 
-    void DeallocateHugePageBlob(TMutableRef hugePageBlob) override {
+    void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) override
+    {
 #ifdef _linux_
         auto result = munmap(hugePageBlob.Begin(), hugePageBlob.Size());
 
@@ -284,15 +322,17 @@ public:
         return HugePageCount_;
     }
 
-private:
     i64 HugePageCount_ = 0;
 };
 
 class TTransparentHugePageAllocator
-    : public IHugePageAllocator
+    : public THugePageAllocatorBase
 {
 public:
-    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override {
+    using THugePageAllocatorBase::THugePageAllocatorBase;
+private:
+    TErrorOr<TMutableRef> DoAllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override
+    {
         auto hugePageSize = hugePageManager.GetHugePageSize();
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
         if (freeHugePageMemory < pageCount * hugePageSize) {
@@ -320,7 +360,8 @@ public:
         return TMutableRef(page, pageCount * hugePageSize);
     }
 
-    void DeallocateHugePageBlob(TMutableRef hugePageBlob) override {
+    void DoDeallocateHugePageBlob(TMutableRef hugePageBlob) override
+    {
 #ifdef _linux_
         ::madvise(hugePageBlob.Begin(), hugePageBlob.Size(), MADV_DONTNEED);
         ::free(hugePageBlob.Begin());
@@ -329,7 +370,6 @@ public:
 #endif
     }
 
-private:
     int GetFreeHugePageMemory(const IHugePageManager& hugePageManager) const
     {
         return hugePageManager.GetHugePageMemoryLimit() - GetHugePageMemory(hugePageManager);
@@ -347,12 +387,17 @@ class TDynamicHugePageManager
 public:
     TDynamicHugePageManager(
         THugePageManagerConfigPtr config,
-        NProfiling::TProfiler profiler)
+        NProfiling::TProfiler profiler,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : StaticConfig_(std::move(config))
         , DynamicConfig_(New<THugePageManagerDynamicConfig>())
         , Profiler_(std::move(profiler))
-        , PreallocatedHugePageAllocator_(New<TPreallocatedHugePageAllocator>(GetPreallocatedHugePageSize(), Profiler_))
-        , TransparentHugePageAllocator_(New<TTransparentHugePageAllocator>())
+        , PreallocatedHugePageAllocator_(
+            New<TPreallocatedHugePageAllocator>(
+                GetPreallocatedHugePageSize(),
+                Profiler_,
+                memoryUsageTracker))
+        , TransparentHugePageAllocator_(New<TTransparentHugePageAllocator>(memoryUsageTracker))
         , HugePageManager_(CreateHugePageManager(GetCurrentType()))
     {
         Profiler_.AddFuncGauge("/current_huge_page_manager_type", MakeStrong(this), [this] {
@@ -439,9 +484,10 @@ private:
 
 IHugePageManagerPtr CreateHugePageManager(
     THugePageManagerConfigPtr config,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return New<TDynamicHugePageManager>(std::move(config), std::move(profiler));
+    return New<TDynamicHugePageManager>(std::move(config), std::move(profiler), std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

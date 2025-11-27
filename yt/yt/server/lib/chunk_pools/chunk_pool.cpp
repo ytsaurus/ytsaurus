@@ -70,38 +70,38 @@ i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /*nodeId*/) co
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPoolOutputWithCountersBase::TChunkPoolOutputWithCountersBase()
-    : DataWeightCounter(New<TProgressCounter>())
-    , RowCounter(New<TProgressCounter>())
-    , JobCounter(New<TProgressCounter>())
-    , DataSliceCounter(New<TProgressCounter>())
+    : DataWeightCounter_(New<TProgressCounter>())
+    , RowCounter_(New<TProgressCounter>())
+    , JobCounter_(New<TProgressCounter>())
+    , DataSliceCounter_(New<TProgressCounter>())
 { }
 
 const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetJobCounter() const
 {
-    return JobCounter;
+    return JobCounter_;
 }
 
 const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataWeightCounter() const
 {
-    return DataWeightCounter;
+    return DataWeightCounter_;
 }
 
 const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetRowCounter() const
 {
-    return RowCounter;
+    return RowCounter_;
 }
 
 const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataSliceCounter() const
 {
-    return DataSliceCounter;
+    return DataSliceCounter_;
 }
 
 void TChunkPoolOutputWithCountersBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, JobCounter);
-    PHOENIX_REGISTER_FIELD(2, DataWeightCounter);
-    PHOENIX_REGISTER_FIELD(3, RowCounter);
-    PHOENIX_REGISTER_FIELD(4, DataSliceCounter);
+    PHOENIX_REGISTER_FIELD(1, JobCounter_);
+    PHOENIX_REGISTER_FIELD(2, DataWeightCounter_);
+    PHOENIX_REGISTER_FIELD(3, RowCounter_);
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter_);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);

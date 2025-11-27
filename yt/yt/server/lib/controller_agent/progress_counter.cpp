@@ -136,6 +136,7 @@ void TProgressCounter::AddPending(i64 value)
     for (const auto& parent : Parents_) {
         parent->AddPending(value);
     }
+    // TODO(apollo1321): Fire on change only.
     PendingUpdated_.Fire();
 }
 
@@ -446,4 +447,3 @@ const TProgressCounterPtr NullProgressCounter = New<TProgressCounter>();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

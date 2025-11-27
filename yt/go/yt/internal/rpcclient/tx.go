@@ -2,6 +2,7 @@ package rpcclient
 
 import (
 	"context"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 
@@ -36,6 +37,7 @@ type TxInterceptor struct {
 	Client Encoder
 
 	log    log.Structured
+	config *yt.Config
 	pinger *internal.Pinger
 }
 
@@ -52,20 +54,22 @@ func BeginTx(
 	}
 
 	updatedOptions := *opts
-	txTimeout := yson.Duration(config.GetTxTimeout())
-	updatedOptions.Timeout = &txTimeout
+	if opts.Timeout == nil {
+		txTimeout := yson.Duration(config.GetTxTimeout())
+		updatedOptions.Timeout = &txTimeout
+	}
 
 	txID, err := e.StartTx(ctx, &updatedOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	pingerOpts := &yt.PingTxOptions{TransactionOptions: opts.TransactionOptions}
-	if pingerOpts.TransactionOptions != nil {
-		pingerOpts.TransactionID = yt.TxID{}
+	pingOpts := &yt.PingTxOptions{TransactionOptions: opts.TransactionOptions}
+	if pingOpts.TransactionOptions != nil {
+		pingOpts.TransactionID = yt.TxID{}
 	}
 
-	tx, err := newTx(ctx, e, log, stop, config, txID, pingerOpts)
+	tx, err := newTx(ctx, e, log, stop, config, txID, time.Duration(*updatedOptions.Timeout), pingOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +97,7 @@ func AttachTx(
 		opts = &yt.AttachTxOptions{}
 	}
 
-	tx, err := newTx(ctx, e, log, stop, config, txID, nil)
+	tx, err := newTx(ctx, e, log, stop, config, txID, config.GetTxTimeout(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +120,15 @@ func newTx(
 	stop *internal.StopGroup,
 	config *yt.Config,
 	txID yt.TxID,
-	pingerOptions *yt.PingTxOptions,
+	txTimeout time.Duration,
+	pingOpts *yt.PingTxOptions,
 ) (*TxInterceptor, error) {
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  e,
 		log:     log,
-		pinger:  internal.NewPinger(ctx, &e, txID, config, stop, pingerOptions),
+		config:  config,
+		pinger:  internal.NewPinger(ctx, &e, txID, txTimeout, config.GetTxPingPeriod(), stop, pingOpts),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
@@ -157,7 +163,7 @@ func (t *TxInterceptor) BeginTx(
 	}
 	opts.TransactionID = t.ID()
 
-	return BeginTx(ctx, t.Client, t.log, t.pinger.Stop(), t.pinger.Config(), opts)
+	return BeginTx(ctx, t.Client, t.log, t.pinger.Stop(), t.config, opts)
 }
 
 func (t *TxInterceptor) Abort() (err error) {

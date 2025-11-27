@@ -155,6 +155,7 @@ public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletServerLogger().WithTag("Cache: BundleHealth"))
     { }
 
@@ -183,6 +184,7 @@ public:
     explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
+            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletServerLogger().WithTag("Cache: ClusterLivenessCheck"))
     { }
 

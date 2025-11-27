@@ -502,6 +502,23 @@ public:
         return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
+    NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const override
+    {
+        VerifyEnabled();
+
+        auto shortPath = NFS::GetRelativePath(
+            Location_->GetSlotPath(SlotIndex_),
+            GetJobProxyGrpcUnixDomainSocketPath());
+
+        auto addressConfig = New<NRpc::NGrpc::TServerAddressConfig>();
+        addressConfig->Address = "unix:" + shortPath;
+
+        auto config = New<NRpc::NGrpc::TServerConfig>();
+        config->Addresses.push_back(std::move(addressConfig));
+
+        return config;
+    }
+
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
         bool ignoreQuota) override
@@ -727,6 +744,16 @@ private:
                     << ex;
             }
         }
+    }
+
+    TString GetJobProxyGrpcUnixDomainSocketPath() const
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
     }
 };
 

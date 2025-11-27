@@ -105,7 +105,7 @@ class ComputationCellGenerator:
                     "Computation cpu time",
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.cpu_time.rate"))
                         .alias("{{computation_id}}")
-                        .unit("UNIT_PERCENT_UNIT"))
+                        .unit("UNIT_NONE"))
                 .cell(
                     "Computation memory usage",
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.memory_usage"))

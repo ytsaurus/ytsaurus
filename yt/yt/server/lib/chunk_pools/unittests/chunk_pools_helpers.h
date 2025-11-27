@@ -34,7 +34,22 @@ class TChunkPoolTestBase
     : public testing::Test
 {
 protected:
+    struct TExpectedCounter
+    {
+        i64 Total = 0;
+        i64 Pending = 0;
+        i64 Blocked = 0;
+        i64 Running = 0;
+        i64 Suspended = 0;
+        i64 Completed = 0;
+        i64 Failed = 0;
+        i64 Aborted = 0;
+        i64 Lost = 0;
+    };
+
     void SetUp() override;
+
+    void CheckCounter(const NControllerAgent::TConstProgressCounterPtr& actual, const TExpectedCounter& expected);
 
     static NLogging::TLogger GetTestLogger();
 

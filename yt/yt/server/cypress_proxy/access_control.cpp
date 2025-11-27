@@ -23,8 +23,6 @@ constinit const auto Logger = CypressProxyLogger;
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 void LogAndThrowAuthorizationError(
     const TPermissionCheckResult& result,
     EPermission permission,
@@ -101,69 +99,53 @@ ESecurityAction FastCheckPermission(const TUserDescriptorPtr& user)
     return ESecurityAction::Undefined;
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAceFilterCallback = std::function<bool(const TSerializableAccessControlEntry&)>;
-
-TAceFilterCallback CreateUserTagsAceFilter(const TBooleanFormulaTags& tags)
+TMatchAceSubjectCallback CreateMatchAceSubjectCallback(
+    TUserDescriptorPtr user,
+    TUserDirectoryPtr userDirectory)
 {
-    return [&] (const TSerializableAccessControlEntry& ace) -> bool {
-        return !ace.SubjectTagFilter.has_value() || ace.SubjectTagFilter->IsSatisfiedBy(tags);
+    return [
+        user = std::move(user),
+        userDirectory = std::move(userDirectory)
+    ] (const TSerializableAccessControlEntry& ace) -> TSubjectId {
+        if (ace.SubjectTagFilter && !ace.SubjectTagFilter->IsSatisfiedBy(user->Tags)) {
+            return NullObjectId;
+        }
+
+        for (const auto& subject : ace.Subjects) {
+            // TODO(danilalexeev): YT-24542. Support the "owner" keyword.
+            static const TStringBuf OwnerKeyword = "owner";
+            if (subject == OwnerKeyword) {
+                THROW_ERROR_EXCEPTION(
+                    "Permission validation failed: the keyword %Qv is not yet supported in Sequoia",
+                    OwnerKeyword);
+            }
+
+            // Check if the subject is a user.
+            if (auto descriptor = userDirectory->FindUserByNameOrAlias(subject)) {
+                // NB: Pointer comparison is unreliable as user descriptors are
+                // recreated on each synchronization epoch.
+                if (descriptor->Name == user->Name) {
+                    return descriptor->SubjectId;
+                }
+            } else if (auto descriptor = userDirectory->FindGroupByNameOrAlias(subject)) {
+                // Overwise, the subject is a group.
+                if (user->RecursiveMemberOf.contains(descriptor->Name)) {
+                    return descriptor->SubjectId;
+                }
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "Permission validation failed: unknown ACE subject %Qv",
+                    subject);
+            }
+        }
+
+        return NullObjectId;
     };
 }
-
-class TMatchAceSubjectCallback
-{
-public:
-    TMatchAceSubjectCallback(
-        TUserDescriptorPtr user,
-        TUserDirectoryPtr userDirectory)
-        : User_(std::move(user))
-        , UserDirectory_(std::move(userDirectory))
-    { }
-
-    TSubjectId operator()(const std::string& subject) const
-    {
-        // TODO(danilalexeev): YT-24542. Support the "owner" keyword.
-        static const TStringBuf OwnerKeyword = "owner";
-        if (subject == OwnerKeyword) {
-            THROW_ERROR_EXCEPTION(
-                "Permission validation failed: the keyword %Qv is not yet supported in Sequoia",
-                OwnerKeyword);
-        }
-
-        return CheckSubjectMatch(subject);
-    }
-
-private:
-    const TUserDescriptorPtr User_;
-    const TUserDirectoryPtr UserDirectory_;
-
-    TSubjectId CheckSubjectMatch(const std::string& subject) const
-    {
-        // Check if the subject is a user.
-        if (auto descriptor = UserDirectory_->FindUserByNameOrAlias(subject)) {
-            // NB: Pointer comparison is unreliable as user descriptors are
-            // recreated on each synchronization epoch.
-            return descriptor->Name == User_->Name ? descriptor->SubjectId : NullObjectId;
-        }
-
-        // Overwise, the subject is a group.
-        if (auto descriptor = UserDirectory_->FindGroupByNameOrAlias(subject)) {
-            return User_->RecursiveMemberOf.contains(descriptor->Name)
-                ? descriptor->SubjectId
-                : NullObjectId;
-        }
-
-        THROW_ERROR_EXCEPTION(
-            "Permission validation failed: unknown ACE subject %Qv",
-            subject);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,14 +161,12 @@ TPermissionCheckResponse CheckPermissionForNode(
         return MakeFastCheckPermissionResponse(fastAction, options);
     }
 
-    auto aceFilter = CreateUserTagsAceFilter(user->Tags);
-
     using TChecker = NSecurityServer::TPermissionChecker<
         TSerializableAccessControlEntry,
         TMatchAceSubjectCallback>;
     auto checker = TChecker(
         permission,
-        TMatchAceSubjectCallback(
+        CreateMatchAceSubjectCallback(
             std::move(user),
             std::move(userDirectory)),
         &options);
@@ -198,7 +178,7 @@ TPermissionCheckResponse CheckPermissionForNode(
 
     int depth = 0;
     for (const auto& acd : ancestryAcds | std::views::reverse) {
-        for (const auto& ace : acd->Acl.Entries | std::views::filter(aceFilter)) {
+        for (const auto& ace : acd->Acl.Entries) {
             checker.ProcessAce(ace, acd->NodeId, depth);
 
             if (!checker.ShouldProceed()) {
@@ -243,24 +223,20 @@ void ValidatePermissionForNode(
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TSubtreePermissionChecker
 {
 public:
     TSubtreePermissionChecker(
         EPermission permission,
-        TUserDescriptorPtr user,
-        TUserDirectoryPtr userDirectory)
-        : AceFilter_(CreateUserTagsAceFilter(user->Tags))
-        , MatchAceSubjectCallback_(std::move(user), std::move(userDirectory))
+        TMatchAceSubjectCallback matchAceSubjectCallback)
+        : MatchAceSubjectCallback_(std::move(matchAceSubjectCallback))
         , Underlying_(permission, MatchAceSubjectCallback_)
     { }
 
     void Put(const TAccessControlDescriptor* acd)
     {
         Underlying_.Put(
-            acd->Acl.Entries | std::views::filter(AceFilter_),
+            acd->Acl.Entries,
             acd->NodeId,
             acd->Inherit);
     }
@@ -276,8 +252,6 @@ public:
     }
 
 private:
-    const TAceFilterCallback AceFilter_;
-
     TMatchAceSubjectCallback MatchAceSubjectCallback_;
 
     using TChecker = NSecurityServer::TSubtreePermissionChecker<
@@ -319,6 +293,12 @@ private:
     void OnNodeEntered(const TNode& node) override
     {
         PermissionChecker_->Put(node.Acd);
+
+        if (auto result = PermissionChecker_->CheckPermission();
+            result.Action != ESecurityAction::Allow)
+        {
+            Result_ = std::move(result);
+        }
     }
 
     void OnNodeExited(const TNode& /*node*/) override
@@ -326,18 +306,11 @@ private:
         PermissionChecker_->Pop();
     }
 
-    bool ShouldContinue() override
+    bool ShouldVisit(const TNode& /*node*/) override
     {
-        auto result = PermissionChecker_->CheckPermission();
-        if (result.Action == ESecurityAction::Allow) {
-            return true;
-        }
-        Result_ = result;
-        return false;
+        return !Result_.has_value();
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -358,8 +331,9 @@ TPermissionCheckResult CheckPermissionForSubtree(
 
     TSubtreePermissionChecker checker(
         permission,
-        std::move(user),
-        std::move(userDirectory));
+        CreateMatchAceSubjectCallback(
+            std::move(user),
+            std::move(userDirectory)));
 
     auto subtreeNodes = TRange(nodeSubtree.Nodes);
 

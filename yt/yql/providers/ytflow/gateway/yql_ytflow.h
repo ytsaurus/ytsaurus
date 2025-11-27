@@ -16,6 +16,7 @@ using TYtflowGatewayConfigPtr = std::shared_ptr<TYtflowGatewayConfig>;
 struct TYtflowServices
 {
     const NKikimr::NMiniKQL::IFunctionRegistry* FunctionRegistry = nullptr;
+    const TTypeAnnotationContext* Types = nullptr;
 
     TFileStoragePtr FileStorage;
     TYtflowGatewayConfigPtr Config;

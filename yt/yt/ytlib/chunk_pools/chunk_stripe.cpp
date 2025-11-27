@@ -118,7 +118,7 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
 void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, Stripes_);
-    PHOENIX_REGISTER_FIELD(2, PartitionTag_);
+    PHOENIX_REGISTER_FIELD(2, PartitionTags_);
     PHOENIX_REGISTER_FIELD(3, Approximate_);
     PHOENIX_REGISTER_FIELD(4, SliceCount_);
     PHOENIX_REGISTER_FIELD(5, Statistics_);
@@ -131,19 +131,19 @@ void TChunkStripeList::Reserve(i64 size)
     Stripes_.reserve(size);
 }
 
-void TChunkStripeList::SetFilteringPartitionTag(int partitionTag, i64 dataWeight, i64 rowCount)
+void TChunkStripeList::SetFilteringPartitionTags(TPartitionTags partitionTags, i64 dataWeight, i64 rowCount)
 {
     YT_VERIFY(dataWeight >= 0);
     YT_VERIFY(rowCount >= 0);
 
-    PartitionTag_ = partitionTag;
+    PartitionTags_ = partitionTags;
     OverriddenDataWeight_ = dataWeight;
     OverriddenRowCount_ = rowCount;
 }
 
-std::optional<int> TChunkStripeList::GetFilteringPartitionTag() const
+const std::optional<TPartitionTags>& TChunkStripeList::GetFilteringPartitionTags() const
 {
-    return PartitionTag_;
+    return PartitionTags_;
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripeList);

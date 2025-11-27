@@ -22,9 +22,9 @@ struct INodeVisitor
 
     virtual void OnNodeExited(const TNode& /*node*/) = 0;
 
-    //! Determines if the traversal should continue or termintate early.
-    //! Called on each node visit (after #OnNodeEntered).
-    virtual bool ShouldContinue() = 0;
+    //! Determines if the traversal should visit a node or ignore it.
+    //! Called before #OnNodeEntered.
+    virtual bool ShouldVisit(const TNode& /*node*/) = 0;
 };
 
 // Simulates an in-order tree traversal using a precomputed sequence of nodes.
@@ -38,6 +38,12 @@ void TraverseSequoiaTree(
     TNodeRange&& treeTraversal,
     INodeVisitor<std::ranges::range_value_t<TNodeRange>>* visitor,
     TCallback isParent);
+
+// Performs an in-order tree traversal from a root node.
+void TraverseSequoiaTree(
+    NCypressClient::TNodeId rootId,
+    const TNodeIdToChildDescriptors& nodeIdToChildren,
+    INodeVisitor<TCypressChildDescriptor>* visitor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

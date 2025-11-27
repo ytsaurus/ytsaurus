@@ -157,7 +157,7 @@ public:
 
         const auto& traceContext = GetQueryContext(context)->TraceContext;
 
-        auto perThreadDataSliceDescriptors = SubquerySpec_.DataSliceDescriptors;
+        auto perThreadDataSliceDescriptors = SubquerySpec_.InputSpecs;
 
         i64 totalRowCount = 0;
         i64 totalDataWeight = 0;
@@ -187,7 +187,7 @@ public:
         YT_LOG_DEBUG(
             "Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
             maxStreamCount,
-            SubquerySpec_.DataSliceDescriptors.size(),
+            SubquerySpec_.InputSpecs.size(),
             columnNames);
 
         DB::Pipes pipes;
@@ -219,12 +219,15 @@ public:
         } else {
             readPlan = BuildSimpleReadPlan(columnSchemas);
         }
+        SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= readPlan->SuitableForDistinctReadOptimization();
+        QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead);
 
-        bool enableInputSpecsPulling = SubquerySpec_.QuerySettings->Execution->EnableInputSpecsPulling;
-        if (enableInputSpecsPulling) {
+        if (SubquerySpec_.InputSpecsTruncated) {
             // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,
             // which sends a Protocol::Server::ReadTaskRequest packet to the coordinator
             QueryContext_->SetReadTaskCallback(context->getReadTaskCallback());
+            QueryContext_->RegisterOperandReadTasks(SubquerySpec_.TableIndex, std::move(perThreadDataSliceDescriptors));
+            perThreadDataSliceDescriptors.clear();
         }
 
         if (SubquerySpec_.QuerySettings->Execution->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
@@ -250,11 +253,14 @@ public:
             pipes.emplace_back(sourcePtr);
         }
 
-        for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
-            const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
+        static const TSecondaryQueryReadDescriptors emptyThreadDataSliceDescriptors;
+        for (int threadIndex = 0; threadIndex < SubquerySpec_.InputStreamCount; ++threadIndex) {
+            const auto& threadDataSliceDescriptors = (threadIndex < std::ssize(perThreadDataSliceDescriptors))
+                ? perThreadDataSliceDescriptors[threadIndex]
+                : emptyThreadDataSliceDescriptors;
 
             DB::SourcePtr sourcePtr;
-            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && !enableInputSpecsPulling && readPlan->SuitableForTwoStagePrewhere()) {
+            if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && !SubquerySpec_.InputSpecsTruncated && readPlan->SuitableForTwoStagePrewhere()) {
                 sourcePtr = CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
@@ -293,7 +299,7 @@ public:
             YT_LOG_DEBUG(
                 "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v)",
                 threadIndex,
-                enableInputSpecsPulling);
+                SubquerySpec_.InputSpecsTruncated);
 
             TStringBuilder debugString;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {

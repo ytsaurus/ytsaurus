@@ -57,6 +57,7 @@ target_proto_messages(yt_proto-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/hive/proto/timestamp_map.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/hive/proto/cluster_directory.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/job_proxy/proto/job_api_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto
@@ -85,6 +86,7 @@ target_sources(yt_proto-yt-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/hive/proto/timestamp_map.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/job_proxy/proto/job_api_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h

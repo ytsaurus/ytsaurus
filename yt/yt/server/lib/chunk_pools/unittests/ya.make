@@ -13,7 +13,9 @@ IF (DISTBUILD) # TODO(prime@): this is always on
 ENDIF()
 
 SRCS(
+    chunk_pool_output_merger_ut.cpp
     chunk_pools_helpers.cpp
+    chunk_stripe_list_merger_ut.cpp
     input_chunk_mapping_ut.cpp
     job_size_adjuster_ut.cpp
     job_size_tracker_ut.cpp
@@ -29,6 +31,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    library/cpp/yt/backtrace/symbolizers/dwarf
     yt/yt/build
     yt/yt/core/test_framework
     yt/yt/server/lib/chunk_pools

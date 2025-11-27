@@ -136,10 +136,10 @@ public:
     const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
 protected:
-    NControllerAgent::TProgressCounterPtr DataWeightCounter;
-    NControllerAgent::TProgressCounterPtr RowCounter;
-    NControllerAgent::TProgressCounterPtr JobCounter;
-    NControllerAgent::TProgressCounterPtr DataSliceCounter;
+    NControllerAgent::TProgressCounterPtr DataWeightCounter_;
+    NControllerAgent::TProgressCounterPtr RowCounter_;
+    NControllerAgent::TProgressCounterPtr JobCounter_;
+    NControllerAgent::TProgressCounterPtr DataSliceCounter_;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolOutputWithCountersBase, 0x74763364);
 };

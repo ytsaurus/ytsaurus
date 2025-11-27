@@ -249,10 +249,16 @@ public:
     {
         auto config = Config_.Acquire();
 
+        if (!Options_.ConnectionInvoker) {
+            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
+            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
+        }
+
         if (config->EnableDynamicCacheStickyGroupSize) {
             YT_LOG_INFO("Dynamic cache sticky group size enabled");
             StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
-                config->StickyGroupSizeCacheExpirationTimeout);
+                config->StickyGroupSizeCacheExpirationTimeout,
+                GetInvoker());
         }
 
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
@@ -265,11 +271,6 @@ public:
                 config->IdleChannelTtl),
             config->TvmId,
             Options_.TvmService);
-
-        if (!Options_.ConnectionInvoker) {
-            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
-            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
-        }
 
         MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
             StaticConfig_,
@@ -1481,23 +1482,24 @@ bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
         TSharedRefArray::AreBitwiseEqual(Message, other.Message);
 }
 
-TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
-    : AdvisedStickyGroupSize_(New<TSyncExpiringCache<TKey, std::optional<int>>>(
-        BIND([] (const TKey& /*key*/) {
-            return std::optional<int>{};
-        }),
+////////////////////////////////////////////////////////////////////////////////
+
+TStickyGroupSizeCache::TStickyGroupSizeCache(
+    TDuration expirationTimeout,
+    IInvokerPtr invoker)
+    : Underlying_(New<TUnderlying>(
         expirationTimeout,
-        GetSyncInvoker()))
+        invoker))
 { }
 
 std::optional<int> TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
 {
-    return AdvisedStickyGroupSize_->Set(key, stickyGroupSize).value_or(std::nullopt);
+    return Underlying_->Put(key, stickyGroupSize).value_or(std::nullopt);
 }
 
 std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& key)
 {
-    return AdvisedStickyGroupSize_->Find(key).value_or(std::nullopt);
+    return Underlying_->Find(key).value_or(std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1523,7 +1525,8 @@ IConnectionPtr FindRemoteConnection(
 
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const IConnectionPtr& connection,
-    const std::string& clusterName)
+    const std::string& clusterName,
+    EInsistentGetRemoteConnectionMode mode)
 {
     // Fast path.
     if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
@@ -1531,10 +1534,20 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     }
 
     // Slow path.
-    return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true)
-        .Apply(BIND([=] {
-            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        }));
+    TFuture<void> waitDone = [&] {
+        switch (mode)  {
+            case EInsistentGetRemoteConnectionMode::Sync:
+                return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+            case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
+                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+        }
+        // NB: we don't put YT_ABORT in `default:` case, because we want compiler to check that all enum values are handled.
+        YT_ABORT();
+    }();
+
+    return waitDone.Apply(BIND([=] {
+        return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+    }));
 }
 
 IConnectionPtr FindRemoteConnection(

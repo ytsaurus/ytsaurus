@@ -886,13 +886,13 @@ public:
 
     void ValidateMaximumTransactionCount() const override
     {
-        i64 currentTransactionsCount = GetTransactionCount();
-        i64 maxTransactionsCount = Host_->GetTransactionManagerDynamicConfig()->MaxParallelTransactionCount
+        i64 currentTransactionCount = GetTransactionCount();
+        i64 maxTransactionCount = Host_->GetTransactionManagerDynamicConfig()->MaxParallelTransactionCount
             .value_or(Config_->MaxParallelTransactionCount);
-        if (currentTransactionsCount > maxTransactionsCount) {
-            THROW_ERROR_EXCEPTION("Max transaction count exceeded")
-                << TErrorAttribute("current_transactions_count", currentTransactionsCount)
-                << TErrorAttribute("max_transactions_count", maxTransactionsCount);
+        if (currentTransactionCount > maxTransactionCount) {
+            THROW_ERROR_EXCEPTION("Maximum transaction count exceeded")
+                << TErrorAttribute("current_transaction_count", currentTransactionCount)
+                << TErrorAttribute("max_transaction_count", maxTransactionCount);
         }
     }
 
@@ -1378,7 +1378,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG("Transaction coarsly serialized (TransactionId: %v, CommitTimestamp: %v)",
+                YT_LOG_DEBUG("Transaction coarsely serialized (TransactionId: %v, CommitTimestamp: %v)",
                     transaction->GetId(),
                     commitTimestamp);
 
