@@ -1068,15 +1068,6 @@ class TUnorderedChunkPoolCountersTest
     : public TUnorderedChunkPoolTest
 {
 protected:
-    struct TExpectedCounter
-    {
-        int Total = 0;
-        int Pending = 0;
-        int Blocked = 0;
-        int Running = 0;
-        int Suspended = 0;
-    };
-
     THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> FreeChunksToCookie_;
 
     IChunkPoolOutput::TCookie ExtractCookie()
@@ -1096,15 +1087,7 @@ protected:
 
     void CheckJobCounter(const TExpectedCounter& expected)
     {
-        const auto& actual = *ChunkPool_->GetJobCounter();
-
-        ASSERT_EQ(expected.Total, expected.Pending + expected.Blocked + expected.Running + expected.Suspended);
-
-        ASSERT_EQ(actual.GetTotal(), expected.Total);
-        ASSERT_EQ(actual.GetPending(), expected.Pending);
-        ASSERT_EQ(actual.GetBlocked(), expected.Blocked);
-        ASSERT_EQ(actual.GetRunning(), expected.Running);
-        ASSERT_EQ(actual.GetSuspended(), expected.Suspended);
+        CheckCounter(ChunkPool_->GetJobCounter(), expected);
     }
 
     void AddChunk(i64 weight)

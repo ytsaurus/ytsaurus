@@ -3,14 +3,16 @@
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/private.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
-
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>
+
+#include <yt/yt/core/misc/backtrace.h>
 
 namespace NYT {
 
@@ -99,6 +101,21 @@ TLogger TChunkPoolTestBase::GetTestLogger()
 
     return ChunkPoolLogger()
         .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name());
+}
+
+void TChunkPoolTestBase::CheckCounter(const TConstProgressCounterPtr& actual, const TExpectedCounter& expected)
+{
+    ASSERT_EQ(expected.Total, expected.Pending + expected.Blocked + expected.Running + expected.Suspended + expected.Completed) << DumpBacktrace();
+
+    ASSERT_EQ(actual->GetTotal(), expected.Total) << DumpBacktrace();
+    ASSERT_EQ(actual->GetPending(), expected.Pending) << DumpBacktrace();
+    ASSERT_EQ(actual->GetBlocked(), expected.Blocked) << DumpBacktrace();
+    ASSERT_EQ(actual->GetRunning(), expected.Running) << DumpBacktrace();
+    ASSERT_EQ(actual->GetSuspended(), expected.Suspended) << DumpBacktrace();
+    ASSERT_EQ(actual->GetCompletedTotal(), expected.Completed) << DumpBacktrace();
+    ASSERT_EQ(actual->GetFailed(), expected.Failed) << DumpBacktrace();
+    ASSERT_EQ(actual->GetAbortedTotal(), expected.Aborted) << DumpBacktrace();
+    ASSERT_EQ(actual->GetLost(), expected.Lost) << DumpBacktrace();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

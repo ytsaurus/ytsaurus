@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     chunk_pool.cpp
+    chunk_pool_output_merger.cpp
     config.cpp
     helpers.cpp
     input_chunk_mapping.cpp

@@ -123,7 +123,9 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
             const auto& dataSlice = stripe->DataSlices()[0];
             YT_VERIFY(!dataSlice->HasLimits());
-            YT_VERIFY(!dataSlice->Tag.has_value());
+            if (hasPartitionTags) {
+                YT_VERIFY(!dataSlice->Tag.has_value());
+            }
             YT_VERIFY(!dataSlice->ReadRangeIndex.has_value());
             YT_VERIFY(!dataSlice->VirtualRowIndex.has_value());
 
