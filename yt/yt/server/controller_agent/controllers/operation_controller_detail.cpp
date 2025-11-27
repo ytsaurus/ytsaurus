@@ -7795,14 +7795,14 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
         THROW_ERROR_EXCEPTION("Column filter and QL filter cannot appear in the same operation");
     }
     if (spec.InputQuery && hasPerTableInputQuery) {
-        THROW_ERROR_EXCEPTION("Can't use per-table input_query with operation input_query at the same time");
+        THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" with operation \"input_query\" at the same time");
     }
     if (hasPerTableInputQuery && !spec.InputQueryFilterOptions->EnableChunkFilter) {
-        THROW_ERROR_EXCEPTION("Can't use per-table input_query without enable_chunk_filter mode");
+        THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" without \"enable_chunk_filter\" mode");
     }
     if (hasPerTableInputQuery && spec.InputQueryFilterOptions->EnableRowFilter) {
         // TODO: Implement EnableRowFilter. Should work only without table->Path.GetColumns().
-        THROW_ERROR_EXCEPTION("Can't use per-table input_query with enable_row_filter mode");
+        THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" with \"enable_row_filter\" mode");
     }
     // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
@@ -7840,7 +7840,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
         for (const auto& name : names) {
             if (!typeInferrers->contains(name)) {
-                THROW_ERROR_EXCEPTION("Can't use per-table input_query with UDFs");
+                THROW_ERROR_EXCEPTION("Cannot use per-table \"input_query\" with UDFs");
             }
         }
     };
@@ -7890,7 +7890,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
             fetchFunctions);
         InputQuerySpec_.emplace(std::move(query), externalCGInfo, spec.InputQueryFilterOptions);
         bool allowTimestampColumns = AnyOf(InputManager_->GetInputTables(), [] (const auto& table) { return table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp; });
-        validateQuery( InputQuerySpec_->Query, allowTimestampColumns);
+        validateQuery(InputQuerySpec_->Query, allowTimestampColumns);
 
         // Use query column filter for input tables.
         for (const auto& table : InputManager_->GetInputTables()) {
@@ -7912,7 +7912,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
             validateQuery(table->InputQuerySpec->Query, allowTimestampColumns);
 
             if (table->InputQuerySpec->Query->ProjectClause) {
-                THROW_ERROR_EXCEPTION("Per-table input_query does not support projections");
+                THROW_ERROR_EXCEPTION("Per-table \"input_query\" does not support projections");
             }
         }
     }
