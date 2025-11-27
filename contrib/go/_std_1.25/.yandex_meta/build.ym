@@ -6,6 +6,10 @@
 https://go.dev/dl/go{{self.version().strip()}}.src.tar.gz
 {% endblock %}
 
+{% block keep_sources %}
+src/internal/goexperiment/exp_coverageredesign_off.go
+{% endblock %}
+
 {% set YAGOGEN="contrib/go/yagogen" %}
 
 {% block prepare_env %}
@@ -30,6 +34,9 @@ rsync --recursive \
 {% endblock %}
 
 {% block build_source %}
+ls patches/*.patch | while read patch_file; do
+  patch --input=${patch_file} --strip 1 --no-backup-if-mismatch --fuzz {{fuzz or 1}} || (echo ${patch_file} fail && exit 1)
+done
 
 (cd src && bash ./make.bash --no-banner)
 

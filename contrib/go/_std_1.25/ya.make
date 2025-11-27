@@ -47,19 +47,26 @@ RECURSE(
     src/crypto/internal/fips140/aes/gcm
     src/crypto/internal/fips140/alias
     src/crypto/internal/fips140/bigmod
+    src/crypto/internal/fips140cache
     src/crypto/internal/fips140/check
     src/crypto/internal/fips140/check/checktest
+    src/crypto/internal/fips140deps
+    src/crypto/internal/fips140deps/byteorder
+    src/crypto/internal/fips140deps/cpu
+    src/crypto/internal/fips140deps/godebug
     src/crypto/internal/fips140/drbg
     src/crypto/internal/fips140/ecdh
     src/crypto/internal/fips140/ecdsa
     src/crypto/internal/fips140/ed25519
     src/crypto/internal/fips140/edwards25519
     src/crypto/internal/fips140/edwards25519/field
+    src/crypto/internal/fips140hash
     src/crypto/internal/fips140/hkdf
     src/crypto/internal/fips140/hmac
     src/crypto/internal/fips140/mlkem
     src/crypto/internal/fips140/nistec
     src/crypto/internal/fips140/nistec/fiat
+    src/crypto/internal/fips140only
     src/crypto/internal/fips140/pbkdf2
     src/crypto/internal/fips140/rsa
     src/crypto/internal/fips140/sha256
@@ -67,16 +74,9 @@ RECURSE(
     src/crypto/internal/fips140/sha512
     src/crypto/internal/fips140/ssh
     src/crypto/internal/fips140/subtle
+    src/crypto/internal/fips140test
     src/crypto/internal/fips140/tls12
     src/crypto/internal/fips140/tls13
-    src/crypto/internal/fips140cache
-    src/crypto/internal/fips140deps
-    src/crypto/internal/fips140deps/byteorder
-    src/crypto/internal/fips140deps/cpu
-    src/crypto/internal/fips140deps/godebug
-    src/crypto/internal/fips140hash
-    src/crypto/internal/fips140only
-    src/crypto/internal/fips140test
     src/crypto/internal/hpke
     src/crypto/internal/impl
     src/crypto/internal/randutil
@@ -397,10 +397,10 @@ RECURSE(
     src/vendor/golang.org/x/net/dns
     src/vendor/golang.org/x/net/dns/dnsmessage
     src/vendor/golang.org/x/net/http
-    src/vendor/golang.org/x/net/http/httpguts
-    src/vendor/golang.org/x/net/http/httpproxy
     src/vendor/golang.org/x/net/http2
     src/vendor/golang.org/x/net/http2/hpack
+    src/vendor/golang.org/x/net/http/httpguts
+    src/vendor/golang.org/x/net/http/httpproxy
     src/vendor/golang.org/x/net/idna
     src/vendor/golang.org/x/net/lif
     src/vendor/golang.org/x/net/nettest
