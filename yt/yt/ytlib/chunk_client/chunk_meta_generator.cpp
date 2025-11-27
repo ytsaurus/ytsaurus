@@ -236,70 +236,9 @@ protected:
     }
 };
 
-// TODO(achulkov2): Separate logic for single-block formats and formats convertible
-// to arrow20::Table objects into two separate bases, since they are not really related.
-
-class TSingleBlockArrowTableChunkMetaGeneratorBase
-    : public TArrowChunkMetaGeneratorBase
-{
-public:
-    using TArrowChunkMetaGeneratorBase::TArrowChunkMetaGeneratorBase;
-
-protected:
-    virtual std::shared_ptr<arrow20::Table> GetArrowTable() const = 0;
-
-    std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
-    {
-        return ColumnarStatistics_;
-    }
-
-    void Prepare() override
-    {
-        ColumnarStatistics_ = NArrow::ExtractColumnarStatistics(*GetArrowTable());
-    }
-
-    i64 GetRowCount() const override
-    {
-        return GetArrowTable()->num_rows();
-    }
-
-    // For single block tables, the maximum data block size is the size of the whole file.
-    i64 GetMaxDataBlockSize() const override
-    {
-        return GetUnderlyingFileSize();
-    }
-
-    TTableSchemaPtr GetChunkSchema() const override
-    {
-        return NArrow::CreateYTTableSchemaFromArrowSchema(GetArrowTable()->schema());
-    }
-
-    void FillBlocksExt(NProto::TBlocksExt& ext) override
-    {
-        auto* blockInfo = ext.add_blocks();
-        blockInfo->set_offset(0);
-        blockInfo->set_size(GetUnderlyingFileSize());
-        blockInfo->set_checksum(NullChecksum);
-    }
-
-    void FillDataBlockMetaExt(NTableClient::NProto::TDataBlockMetaExt& ext) override
-    {
-        auto* dataBlockMeta = ext.add_data_blocks();
-        dataBlockMeta->set_row_count(GetRowCount());
-        dataBlockMeta->set_chunk_row_count(GetRowCount());
-        dataBlockMeta->set_uncompressed_size(GetUncompressedDataSize());
-        dataBlockMeta->set_block_index(0);
-    }
-
-private:
-    TColumnarStatistics ColumnarStatistics_;
-};
-
 template <typename TStreamingReader>
-    requires std::derived_from<TStreamingReader, arrow20::RecordBatchReader> && requires(const TStreamingReader& reader) {
-        { reader.bytes_read() } -> std::same_as<int64_t>;
-    }
-class TStreamingReaderArrowTableChunkMetaGeneratorBase
+    requires std::derived_from<TStreamingReader, arrow20::RecordBatchReader>
+class TArrowStreamingReaderChunkMetaGeneratorBase
     : public TArrowChunkMetaGeneratorBase
 {
 private:
@@ -318,6 +257,8 @@ public:
     using TArrowChunkMetaGeneratorBase::TArrowChunkMetaGeneratorBase;
 
 protected:
+    virtual int64_t GetCurrentFileOffset(const TStreamingReader& streamingReader) = 0;
+
     std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
     {
         return ColumnarStatistics_;
@@ -329,17 +270,13 @@ protected:
         ColumnarStatistics_ = TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount());
         while (true) {
             std::shared_ptr<arrow20::RecordBatch> batch;
-            // The docs say it is safe to separate rows using this.
-            // The implementation only increments `bytes_read` by header row during the initialization or by whole requested batches synchronously:
-            // https://github.com/tractoai/mirror-ytsaurus-ytsaurus/blob/d20e61aecc890ce1d9df0cc27bd29f766fc32313/contrib/libs/apache/arrow/cpp/src/arrow/csv/reader.cc#L887
-            // https://github.com/tractoai/mirror-ytsaurus-ytsaurus/blob/d20e61aecc890ce1d9df0cc27bd29f766fc32313/contrib/libs/apache/arrow/cpp/src/arrow/csv/reader.cc#L931
-            auto offset = streamingReader->bytes_read();
+            auto offset = GetCurrentFileOffset(*streamingReader);
             PARQUET_THROW_NOT_OK(streamingReader->ReadNext(&batch));
             if (!batch) {
                 break;
             }
             RowCount_ += batch->num_rows();
-            MaxDataBlockSize_ = std::max(MaxDataBlockSize_, streamingReader->bytes_read() - offset);
+            MaxDataBlockSize_ = std::max(MaxDataBlockSize_, GetCurrentFileOffset(*streamingReader) - offset);
             Blocks_.push_back({.Offset = offset, .RowCount = batch->num_rows()});
             // This may error as it is not as flexible as the type inference inside the batches, but we are willing to take the risk.
             // Might improve later.
@@ -393,55 +330,65 @@ private:
 };
 
 class TJsonChunkMetaGenerator
-    : public TSingleBlockArrowTableChunkMetaGeneratorBase
+    : public TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::json::StreamingReader>
 {
 public:
     TJsonChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
-        : TSingleBlockArrowTableChunkMetaGeneratorBase(
+        : TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::json::StreamingReader>(
             EChunkFormat::TableUnversionedArrowJsonLines,
             std::move(chunkFile))
     { }
 
-private:
-    std::shared_ptr<arrow20::Table> ArrowTable_;
+protected:
+    int64_t GetCurrentFileOffset(const arrow20::json::StreamingReader& streamingReader) override
+    {
+        // The docs say it is safe to separate rows using this.
+        // The implementation only increments `bytes_processed` by header row during the initialization or by whole requested batches synchronously:
+        // https://github.com/apache/arrow/blob/apache-arrow-20.0.0/cpp/src/arrow/json/reader.cc#L458
+        // https://github.com/apache/arrow/blob/apache-arrow-20.0.0/cpp/src/arrow/json/reader.cc#L367
+        return streamingReader.bytes_processed();
+    }
 
     void Prepare() override
     {
-        // `TableReader::Read()` is blocking the thread executing the fiber, so we hide this in a new one.
-        // `TableReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
+        // `StreamingReader::ReadNext()` is blocking the thread executing the fiber, so we hide this in a new one.
+        // `StreamingReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
         auto actionQueue = New<TActionQueue>("TJsonChunkMetaGenerator");
-        PARQUET_ASSIGN_OR_THROW(ArrowTable_, (WaitFor(BIND(([chunkFile = ChunkFile_]() {
-            PARQUET_ASSIGN_OR_THROW(auto jsonReader, arrow20::json::TableReader::Make(
-                arrow20::default_memory_pool(),
-                chunkFile,
-                arrow20::json::ReadOptions::Defaults(),
-                arrow20::json::ParseOptions::Defaults()));
-            return jsonReader->Read();
+        WaitFor(BIND(([this_ = TIntrusivePtr(this), this]() {
+            PARQUET_ASSIGN_OR_THROW(
+                auto streamingReader,
+                arrow20::json::StreamingReader::Make(
+                    ChunkFile_,
+                    arrow20::json::ReadOptions::Defaults(),
+                    arrow20::json::ParseOptions::Defaults()));
+            PrepareFromStreamingReader(streamingReader);
         }))
             .AsyncVia(actionQueue->GetInvoker())
             .Run())
-            .ValueOrThrow()));
-
-        TSingleBlockArrowTableChunkMetaGeneratorBase::Prepare();
-    }
-
-    std::shared_ptr<arrow20::Table> GetArrowTable() const override
-    {
-        return ArrowTable_;
+            .ThrowOnError();
     }
 };
 
 class TCsvChunkMetaGenerator
-    : public TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow20::csv::StreamingReader>
+    : public TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::csv::StreamingReader>
 {
 public:
     TCsvChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
-        : TStreamingReaderArrowTableChunkMetaGeneratorBase<arrow20::csv::StreamingReader>(
+        : TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::csv::StreamingReader>(
             EChunkFormat::TableUnversionedArrowCsv,
             std::move(chunkFile))
     { }
 
 protected:
+    int64_t GetCurrentFileOffset(const arrow20::csv::StreamingReader& streamingReader) override
+    {
+        // The docs say it is safe to separate rows using this.
+        // The implementation only increments `bytes_read` by header row during the initialization or by whole requested batches synchronously:
+        // https://github.com/apache/arrow/blob/apache-arrow-20.0.0/cpp/src/arrow/csv/reader.cc#L884
+        // https://github.com/apache/arrow/blob/apache-arrow-20.0.0/cpp/src/arrow/csv/reader.cc#L938
+        return streamingReader.bytes_read();
+    }
+
     void Prepare() override
     {
         // `StreamingReader::ReadNext()` is blocking the thread executing the fiber, so we hide this in a new one.

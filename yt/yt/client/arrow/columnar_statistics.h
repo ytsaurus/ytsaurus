@@ -13,9 +13,6 @@ NTableClient::TColumnarStatistics ExtractColumnarStatistics(
     const std::shared_ptr<arrow20::RecordBatch>& batch);
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
-    arrow20::Table& arrowTable);
-
-NTableClient::TColumnarStatistics ExtractColumnarStatistics(
     parquet20::FileMetaData& parquetFileMeta);
 
 ////////////////////////////////////////////////////////////////////////////////

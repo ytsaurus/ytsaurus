@@ -23,6 +23,7 @@ from yt_type_helpers import optional_type, make_schema, make_column, struct_type
 
 import yt_error_codes
 
+import json
 import time
 import pytest
 import os
@@ -2337,6 +2338,36 @@ class TestAttachTable(TestAttachTableBase):
 
         assert_items_equal([row["c"] for row in read_table("//tmp/imported", verbose=False)], list(range(count)))
         assert get(f"//sys/chunks/{chunk_info["chunk_id"]}/@max_block_size") == max_block_size
+
+    @authors("faucct")
+    @pytest.mark.parametrize("count,max_block_size", [
+        (1 << 14, 201_882),
+        (1 << 15, 414_874),
+        (1 << 16, 840_858),
+        (1 << 17, 1_048_572),
+        (1 << 18, 1_048_580),
+    ])
+    def test_json_blocks(self, count, max_block_size):
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=f'{'\n'.join(
+            json.dumps({"c": i}) for i in range(count)
+        )}\n'.encode())
+        chunk_info, = attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), medium=self.get_s3_medium_name())["chunk_infos"]
+
+        assert_items_equal([row["c"] for row in read_table("//tmp/imported", verbose=False)], list(range(count)))
+        assert get(f"//sys/chunks/{chunk_info["chunk_id"]}/@max_block_size") == max_block_size
+
+    @authors("faucct")
+    def test_json_blocks_with_disappearing_columns(self):
+        bucket = self.get_s3_medium_bucket()
+        count = 1 << 19
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=('{"c":1}\n' + '{}\n' * count).encode())
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), medium=self.get_s3_medium_name())["chunk_infos"]
+
+        assert_items_equal(
+            [yson.dumps(row) for row in read_table("//tmp/imported", verbose=False)],
+            [b'{"c"=1;}'] + [b'{"c"=#;}'] * count,
+        )
 
     @authors("achulkov2_forgot_to_lock_laptop")
     def test_invalid_parquet(self):

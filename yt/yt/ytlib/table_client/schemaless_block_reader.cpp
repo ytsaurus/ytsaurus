@@ -4,13 +4,8 @@
 #include "hunks.h"
 #include "columnar_chunk_meta.h"
 
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/writer.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/json/reader.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/options.h>
-#include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/reader.h>
+#include <yt/yt/client/arrow/schema.h>
+
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -24,6 +19,14 @@
 #include <yt/yt/client/table_client/value_consumer.h>
 
 #include <yt/yt/library/arrow_parquet_adapter/arrow.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/ipc/writer.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/json/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/options.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/reader.h>
 
 namespace NYT::NTableClient {
 
@@ -434,11 +437,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateArrowTableForParquet(
+std::shared_ptr<arrow20::RecordBatchReader> CreateArrowRecordBatchReaderForParquet(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& dataBlockMeta,
-    const TColumnarChunkMetaPtr& chunkMeta,
-    std::shared_ptr<arrow20::Table>* table)
+    const TColumnarChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(chunkMeta->Blocks());
     YT_VERIFY(chunkMeta->ParquetFormatMetaExt());
@@ -475,34 +477,38 @@ void CreateArrowTableForParquet(
         std::move(parquetReader),
         &arrowParquetReader));
 
-    PARQUET_THROW_NOT_OK(arrowParquetReader->ReadRowGroup(blockIndex, table));
+    std::shared_ptr<arrow20::Table> table;
+    PARQUET_THROW_NOT_OK(arrowParquetReader->ReadRowGroup(blockIndex, &table));
+    return std::make_shared<arrow20::TableBatchReader>(table);
 }
 
-void CreateArrowTableForJson(
+std::shared_ptr<arrow20::RecordBatchReader> CreateArrowRecordBatchReaderForJson(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& /*dataBlockMeta*/,
-    const TColumnarChunkMetaPtr& /*chunkMeta*/,
-    std::shared_ptr<arrow20::Table>* table)
+    const TColumnarChunkMetaPtr& chunkMeta)
 {
-    PARQUET_ASSIGN_OR_THROW(auto jsonReader, arrow20::json::TableReader::Make(
-        arrow20::default_memory_pool(),
+    auto parseOptions = arrow20::json::ParseOptions::Defaults();
+    parseOptions.explicit_schema = std::make_shared<arrow20::Schema>(NArrow::CreateArrowSchemaFromYTTableSchema(*chunkMeta->ChunkSchema()));
+    PARQUET_ASSIGN_OR_THROW(auto reader, arrow20::json::StreamingReader::Make(
         std::make_shared<arrow20::io::BufferReader>(std::make_shared<arrow20::Buffer>(
             reinterpret_cast<const uint8_t*>(block.Data()),
             block.Size())),
         arrow20::json::ReadOptions::Defaults(),
-        arrow20::json::ParseOptions::Defaults()
-    ));
-    PARQUET_ASSIGN_OR_THROW(*table, jsonReader->Read());
+        std::move(parseOptions)));
+    return reader;
 }
 
-std::shared_ptr<arrow20::RecordBatchReader> CreateArrowTableForCsv(
+std::shared_ptr<arrow20::RecordBatchReader> CreateArrowRecordBatchReaderForCsv(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& /*dataBlockMeta*/,
     const TColumnarChunkMetaPtr& chunkMeta)
 {
     auto readOptions = arrow20::csv::ReadOptions::Defaults();
-    for (auto& columnName : chunkMeta->ChunkSchema()->GetColumnNames()) {
-        readOptions.column_names.push_back(columnName);
+    auto convertOptions = arrow20::csv::ConvertOptions::Defaults();
+    auto schema = NArrow::CreateArrowSchemaFromYTTableSchema(*chunkMeta->ChunkSchema());
+    for (auto& field : schema.fields()) {
+        readOptions.column_names.push_back(field->name());
+        convertOptions.column_types[field->name()] = field->type();
     }
     if (readOptions.column_names.empty()) {
         readOptions.autogenerate_column_names = true;
@@ -512,10 +518,9 @@ std::shared_ptr<arrow20::RecordBatchReader> CreateArrowTableForCsv(
         std::make_shared<arrow20::io::BufferReader>(std::make_shared<arrow20::Buffer>(
             reinterpret_cast<const uint8_t*>(block.Data()),
             block.Size())),
-        readOptions,
+        std::move(readOptions),
         arrow20::csv::ParseOptions::Defaults(),
-        arrow20::csv::ConvertOptions::Defaults()
-    ));
+        std::move(convertOptions)));
     return reader;
 }
 
@@ -525,29 +530,16 @@ std::shared_ptr<arrow20::RecordBatchReader> CreateArrowRecordBatchReader(
     const TColumnarChunkMetaPtr& chunkMeta,
     EChunkFormat chunkFormat)
 {
-    std::shared_ptr<arrow20::Table> table;
     switch (chunkFormat) {
         case EChunkFormat::TableUnversionedArrowParquet:
-            CreateArrowTableForParquet(block, dataBlockMeta, chunkMeta, &table);
-            break;
+            return CreateArrowRecordBatchReaderForParquet(block, dataBlockMeta, chunkMeta);
         case EChunkFormat::TableUnversionedArrowJsonLines:
-            CreateArrowTableForJson(block, dataBlockMeta, chunkMeta, &table);
-            break;
+            return CreateArrowRecordBatchReaderForJson(block, dataBlockMeta, chunkMeta);
         case EChunkFormat::TableUnversionedArrowCsv:
-            return CreateArrowTableForCsv(block, dataBlockMeta, chunkMeta);
+            return CreateArrowRecordBatchReaderForCsv(block, dataBlockMeta, chunkMeta);
         default:
             YT_ABORT();
     }
-
-    // This class makes sure that the `arrow20::Table` is alive during interactions with `arrow20::TableBatchReader`.
-    struct TableBatchReader
-    {
-        std::shared_ptr<arrow20::Table> Table;
-        arrow20::TableBatchReader Reader{*Table};
-    };
-
-    auto reader = std::make_shared<TableBatchReader>(std::move(table));
-    return std::shared_ptr<arrow20::RecordBatchReader>(reader, &reader->Reader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

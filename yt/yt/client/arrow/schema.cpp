@@ -16,6 +16,91 @@ using namespace NTableClient;
 
 namespace {
 
+std::shared_ptr<arrow20::Field> GetArrowFieldFromLogicalType(std::string name, const NTableClient::TLogicalType& logicalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<arrow20::DataType> GetArrowTypeFromLogicalType(const NTableClient::TLogicalType& logicalType)
+{
+    switch (logicalType.GetMetatype()) {
+        case ELogicalMetatype::Simple:
+            switch (logicalType.AsSimpleTypeRef().GetElement()) {
+                case ESimpleLogicalValueType::Boolean:
+                    return std::make_shared<arrow20::BooleanType>();
+                case ESimpleLogicalValueType::Uint8:
+                    return std::make_shared<arrow20::UInt8Type>();
+                case ESimpleLogicalValueType::Uint16:
+                    return std::make_shared<arrow20::UInt16Type>();
+                case ESimpleLogicalValueType::Uint32:
+                    return std::make_shared<arrow20::UInt32Type>();
+                case ESimpleLogicalValueType::Uint64:
+                    return std::make_shared<arrow20::UInt64Type>();
+                case ESimpleLogicalValueType::Int8:
+                    return std::make_shared<arrow20::Int8Type>();
+                case ESimpleLogicalValueType::Int16:
+                    return std::make_shared<arrow20::Int16Type>();
+                case ESimpleLogicalValueType::Int32:
+                    return std::make_shared<arrow20::Int32Type>();
+                case ESimpleLogicalValueType::Int64:
+                    return std::make_shared<arrow20::Int64Type>();
+                case ESimpleLogicalValueType::Float:
+                    return std::make_shared<arrow20::FloatType>();
+                case ESimpleLogicalValueType::Double:
+                    return std::make_shared<arrow20::DoubleType>();
+                case ESimpleLogicalValueType::Utf8:
+                    return std::make_shared<arrow20::StringType>();
+                case ESimpleLogicalValueType::String:
+                    return std::make_shared<arrow20::BinaryType>();
+                default:
+                    break;
+            }
+            break;
+        case ELogicalMetatype::List:
+        {
+            auto& listType = logicalType.AsListTypeRef();
+            return std::make_shared<arrow20::ListType>(GetArrowFieldFromLogicalType("item", *listType.GetElement()));
+        }
+        case ELogicalMetatype::Struct:
+        {
+            auto& structType = logicalType.AsStructTypeRef();
+            arrow20::FieldVector fields;
+            for (const auto& field : structType.GetFields()) {
+                fields.emplace_back(GetArrowFieldFromLogicalType(field.Name, *field.Type));
+            }
+            return std::make_shared<arrow20::StructType>(std::move(fields));
+        }
+        case ELogicalMetatype::Dict:
+        {
+            auto& dictType = logicalType.AsDictTypeRef();
+            return std::make_shared<arrow20::MapType>(
+                GetArrowFieldFromLogicalType("key", *dictType.GetKey()),
+                GetArrowFieldFromLogicalType("value", *dictType.GetValue()));
+        }
+        case ELogicalMetatype::Decimal:
+        {
+            auto& decimalType = logicalType.AsDecimalTypeRef();
+            return std::make_shared<arrow20::Decimal128Type>(decimalType.GetPrecision(), decimalType.GetScale());
+        }
+        default:
+            break;
+    }
+    THROW_ERROR_EXCEPTION("Type is unsupported by arrow");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<arrow20::Field> GetArrowFieldFromLogicalType(std::string name, const NTableClient::TLogicalType& logicalType)
+{
+    return std::make_shared<arrow20::Field>(
+        std::move(name),
+        GetArrowTypeFromLogicalType(logicalType.IsNullable()
+            ? *logicalType.AsOptionalTypeRef().GetElement()
+            : logicalType),
+        logicalType.IsNullable());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 NTableClient::TLogicalTypePtr GetLogicalTypeFromArrowType(const std::shared_ptr<arrow20::Field>& arrowType);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,6 +181,8 @@ NTableClient::TLogicalTypePtr GetLogicalTypeFromArrowType(const std::shared_ptr<
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 NTableClient::TLogicalTypePtr GetLogicalTypeFromArrowType(const std::shared_ptr<arrow20::Field>& arrowField)
 {
     auto resultType = GetLogicalTypeFromArrowType(arrowField->type());
@@ -108,6 +195,21 @@ NTableClient::TLogicalTypePtr GetLogicalTypeFromArrowType(const std::shared_ptr<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Keep in sync with `CreateYTTableSchemaFromArrowSchema`.
+// For now this is only used in `schemaless_block_generator.cpp`, so it only needs to support types returned from `CreateYTTableSchemaFromArrowSchema`.
+arrow20::Schema CreateArrowSchemaFromYTTableSchema(
+    const NTableClient::TTableSchema& tableSchema)
+{
+    arrow20::FieldVector fields;
+    for (const auto& column : tableSchema.Columns()) {
+        fields.emplace_back(GetArrowFieldFromLogicalType(column.Name(), *column.LogicalType()));
+    }
+    return arrow20::Schema(std::move(fields));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Keep in sync with `CreateArrowSchemaFromYTTableSchema`.
 NTableClient::TTableSchemaPtr CreateYTTableSchemaFromArrowSchema(
     const std::shared_ptr<arrow20::Schema>& arrowSchema)
 {

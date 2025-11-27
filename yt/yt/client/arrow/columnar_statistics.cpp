@@ -109,23 +109,6 @@ NTableClient::TColumnarStatistics ExtractColumnarStatistics(
 }
 
 NTableClient::TColumnarStatistics ExtractColumnarStatistics(
-    arrow20::Table& arrowTable)
-{
-    arrow20::TableBatchReader batchReader(arrowTable);
-    TColumnarStatisticsValueConsumer consumer(NArrow::CreateYTTableSchemaFromArrowSchema(arrowTable.schema()));
-    while (true) {
-        std::shared_ptr<arrow20::RecordBatch> batch;
-        PARQUET_THROW_NOT_OK(batchReader.ReadNext(&batch));
-
-        if (!batch) {
-            return consumer.GetStatistics();
-        }
-
-        PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
-    }
-}
-
-NTableClient::TColumnarStatistics ExtractColumnarStatistics(
     parquet20::FileMetaData& parquetFileMeta)
 {
     auto columnarStatistics = NTableClient::TColumnarStatistics::MakeEmpty(
