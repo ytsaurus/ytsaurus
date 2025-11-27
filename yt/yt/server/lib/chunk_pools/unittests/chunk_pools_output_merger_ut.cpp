@@ -1,7 +1,7 @@
 #include "chunk_pools_helpers.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/chunk_pool_output_merger.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pools_output_merger.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -75,13 +75,13 @@ protected:
         return inputChunk;
     }
 
-    IPersistentChunkPoolPtr CreateUnorderedChunkPool()
+    IPersistentChunkPoolPtr CreateUnorderedChunkPool(int jobCount = 1)
     {
         TUnorderedChunkPoolOptions options{
             .JobSizeConstraints = CreateExplicitJobSizeConstraints(
                 /*canAdjustDataSizePerJob*/ false,
                 /*isExplicitJobCount*/ true,
-                /*jobCount*/ 1,
+                /*jobCount*/ jobCount,
                 /*dataWeightPerJob*/ Inf64,
                 /*primaryDataWeightPerJob*/ Inf64,
                 /*compressedDataSizePerJob*/ Inf64,
@@ -131,7 +131,7 @@ TEST_F(TChunkPoolOutputMergerTest, SimpleMerge)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -172,7 +172,7 @@ TEST_F(TChunkPoolOutputMergerTest, ExtractWithoutAllPoolsReady)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     // Don't finish pool2.
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     // Should be suspended because not all pools are ready.
     CheckJobCounter({.Total = 1, .Suspended = 1});
@@ -224,7 +224,7 @@ TEST_F(TChunkPoolOutputMergerTest, FailedJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -276,7 +276,7 @@ TEST_F(TChunkPoolOutputMergerTest, AbortedJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -328,7 +328,7 @@ TEST_F(TChunkPoolOutputMergerTest, LostJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -399,7 +399,7 @@ TEST_F(TChunkPoolOutputMergerTest, MergeMultiplePools)
     pool4->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk4)));
     pool4->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2, pool3, pool4});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2, pool3, pool4}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 4_KBs, .Pending = 4_KBs});
@@ -440,7 +440,7 @@ TEST_F(TChunkPoolOutputMergerTest, Persistence)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -483,7 +483,7 @@ TEST_F(TChunkPoolOutputMergerTest, Persistence)
     CheckDataSliceCounter({.Total = 2, .Completed = 2});
 }
 
-TEST_F(TChunkPoolOutputMergerTest, InitialPoolsAreEmpty)
+TEST_F(TChunkPoolOutputMergerTest, EmptyFinishedPools)
 {
     auto pool1 = CreateUnorderedChunkPool();
     pool1->Finish();
@@ -491,7 +491,7 @@ TEST_F(TChunkPoolOutputMergerTest, InitialPoolsAreEmpty)
     auto pool2 = CreateUnorderedChunkPool();
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     EXPECT_TRUE(Merger_->IsCompleted());
 
@@ -501,14 +501,14 @@ TEST_F(TChunkPoolOutputMergerTest, InitialPoolsAreEmpty)
     CheckDataSliceCounter({.Total = 0});
 }
 
-TEST_F(TChunkPoolOutputMergerTest, PoolsAreEmptyAfterRegistering)
+TEST_F(TChunkPoolOutputMergerTest, EmptyUnfinishedPool)
 {
     auto pool1 = CreateUnorderedChunkPool();
     pool1->Finish();
 
     auto pool2 = CreateUnorderedChunkPool();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2});
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
 
     EXPECT_FALSE(Merger_->IsCompleted());
 
@@ -525,6 +525,112 @@ TEST_F(TChunkPoolOutputMergerTest, PoolsAreEmptyAfterRegistering)
     CheckDataWeightCounter({.Total = 0});
     CheckRowCounter({.Total = 0});
     CheckDataSliceCounter({.Total = 0});
+}
+
+TEST_F(TChunkPoolOutputMergerTest, PoolsWithMultipleStripes)
+{
+    auto chunk1a = CreateChunk();
+    auto chunk1b = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool();
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1a)));
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1b)));
+    pool1->Finish();
+
+    EXPECT_EQ(1, pool1->GetJobCounter()->GetPending());
+
+    auto chunk2a = CreateChunk();
+    auto chunk2b = CreateChunk();
+    auto chunk2c = CreateChunk();
+
+    auto pool2 = CreateUnorderedChunkPool();
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2a)));
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2b)));
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2c)));
+    pool2->Finish();
+
+    EXPECT_EQ(1, pool2->GetJobCounter()->GetPending());
+
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckJobCounter({.Total = 1, .Pending = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Pending = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Pending = 5000});
+    CheckDataSliceCounter({.Total = 5, .Pending = 5});
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckJobCounter({.Total = 1, .Running = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Running = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Running = 5000});
+    CheckDataSliceCounter({.Total = 5, .Running = 5});
+
+    auto stripeList = Merger_->GetStripeList(cookie);
+    EXPECT_EQ(2u, stripeList->Stripes().size());
+
+    EXPECT_EQ(5, Merger_->GetStripeListSliceCount(cookie));
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckJobCounter({.Total = 1, .Completed = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Completed = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Completed = 5000});
+    CheckDataSliceCounter({.Total = 5, .Completed = 5});
+}
+
+TEST_F(TChunkPoolOutputMergerTest, PoolsWithMultipleJobs)
+{
+    auto chunk1a = CreateChunk();
+    auto chunk1b = CreateChunk();
+
+    auto pool1 = CreateUnorderedChunkPool(/*jobCount*/ 2);
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1a)));
+    pool1->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk1b)));
+    pool1->Finish();
+
+    EXPECT_EQ(2, pool1->GetJobCounter()->GetPending());
+
+    auto chunk2a = CreateChunk();
+    auto chunk2b = CreateChunk();
+    auto chunk2c = CreateChunk();
+
+    auto pool2 = CreateUnorderedChunkPool(/*jobCount*/ 3);
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2a)));
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2b)));
+    pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2c)));
+    pool2->Finish();
+
+    EXPECT_EQ(3, pool2->GetJobCounter()->GetPending());
+
+    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+
+    CheckJobCounter({.Total = 1, .Pending = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Pending = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Pending = 5000});
+    CheckDataSliceCounter({.Total = 5, .Pending = 5});
+
+    auto cookie = Merger_->Extract();
+    EXPECT_NE(IChunkPoolOutput::NullCookie, cookie);
+
+    CheckJobCounter({.Total = 1, .Running = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Running = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Running = 5000});
+    CheckDataSliceCounter({.Total = 5, .Running = 5});
+
+    auto stripeList = Merger_->GetStripeList(cookie);
+    EXPECT_EQ(5u, stripeList->Stripes().size());
+
+    TCompletedJobSummary summary;
+    Merger_->Completed(cookie, summary);
+
+    EXPECT_TRUE(Merger_->IsCompleted());
+    CheckJobCounter({.Total = 1, .Completed = 1});
+    CheckDataWeightCounter({.Total = 5_KBs, .Completed = 5_KBs});
+    CheckRowCounter({.Total = 5000, .Completed = 5000});
+    CheckDataSliceCounter({.Total = 5, .Completed = 5});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
