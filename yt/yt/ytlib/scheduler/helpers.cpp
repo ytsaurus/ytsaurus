@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/ypath_resolver.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <util/folder/path.h>
@@ -483,7 +485,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TCheckPermissionResults>
-void ValidateCheckPermissionsResults(
+TError ValidateCheckPermissionsResults(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TJobId jobId,
@@ -519,13 +521,15 @@ void ValidateCheckPermissionsResults(
             error = error
                 << TErrorAttribute("job_id", jobId);
         }
-        THROW_ERROR error;
+        return error;
     }
 
     YT_LOG_DEBUG("Operation access successfully validated (User: %v, Permissions: %v, AccessControlRule: %v)",
         user,
         permissionSet,
         accessControlRule.GetAclString());
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -534,7 +538,26 @@ void ValidateCheckPermissionsResults(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationAccessByAco(
+std::optional<TAccessControlRule> TryGetAccessControlRuleFromOperation(const TOperation& operation)
+{
+    auto acoName = TryGetString(operation.RuntimeParameters.AsStringBuf(), "/aco_name");
+    auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
+
+    if (aclYson) {
+        auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
+        return TAccessControlRule(acl);
+    }
+
+    if (acoName) {
+        return TAccessControlRule(*acoName);
+    }
+
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError CheckOperationAccessByAco(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TJobId jobId,
@@ -555,7 +578,7 @@ void ValidateOperationAccessByAco(
     auto results = WaitFor(AllSucceeded(futures))
         .ValueOrThrow();
 
-    ValidateCheckPermissionsResults(
+    return ValidateCheckPermissionsResults(
         authenticatedUser,
         operationId,
         jobId,
@@ -565,7 +588,7 @@ void ValidateOperationAccessByAco(
         logger);
 }
 
-void ValidateOperationAccessByAcl(
+TError CheckOperationAccessByAcl(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TJobId jobId,
@@ -603,7 +626,7 @@ void ValidateOperationAccessByAcl(
             results.front().MissingSubjects);
     }
 
-    ValidateCheckPermissionsResults(
+    return ValidateCheckPermissionsResults(
         user,
         operationId,
         jobId,
@@ -622,8 +645,9 @@ void ValidateOperationAccess(
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger)
 {
+    TError error;
     if (accessControlRule.IsAcoName()) {
-        NScheduler::ValidateOperationAccessByAco(
+        error = NScheduler::CheckOperationAccessByAco(
             user,
             operationId,
             jobId,
@@ -632,7 +656,7 @@ void ValidateOperationAccess(
             client,
             logger);
     } else {
-        NScheduler::ValidateOperationAccessByAcl(
+        error = NScheduler::CheckOperationAccessByAcl(
             user,
             operationId,
             jobId,
@@ -641,6 +665,8 @@ void ValidateOperationAccess(
             client,
             logger);
     }
+
+    error.ThrowOnError();
 }
 
 
@@ -662,6 +688,33 @@ void ValidateOperationAccess(
         logger);
 }
 
+TError CheckOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger)
+{
+    if (accessControlRule.IsAcoName()) {
+        return NScheduler::CheckOperationAccessByAco(
+            user,
+            operationId,
+            NullJobId,
+            permissionSet,
+            accessControlRule.GetAcoName(),
+            client,
+            logger);
+    }
+    return NScheduler::CheckOperationAccessByAcl(
+        user,
+        operationId,
+        NullJobId,
+        permissionSet,
+        accessControlRule.GetAcl(),
+        client,
+        logger);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 static NRecords::TOrderedByIdKey CreateOperationKey(const TOperationId& operationId)
