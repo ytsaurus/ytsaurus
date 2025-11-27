@@ -40,7 +40,7 @@ class Gateway(gateway_base.BaseGateway):
     def __repr__(self) -> str:
         """A string representing gateway type and status."""
         try:
-            r: str = self.hasreceiver() and "receive-live" or "not-receiving"
+            r: str = (self.hasreceiver() and "receive-live") or "not-receiving"
             i = str(len(self._channelfactory.channels()))
         except AttributeError:
             r = "uninitialized"

@@ -1,6 +1,6 @@
-Metadata-Version: 2.3
+Metadata-Version: 2.4
 Name: execnet
-Version: 2.1.1
+Version: 2.1.2
 Summary: execnet: rapid multi-Python deployment
 Project-URL: Homepage, https://execnet.readthedocs.io/en/latest/
 Author: holger krekel and others
