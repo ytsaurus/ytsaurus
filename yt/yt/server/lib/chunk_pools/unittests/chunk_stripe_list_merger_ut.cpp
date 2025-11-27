@@ -47,7 +47,7 @@ protected:
         return inputChunk;
     }
 
-    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto chunkSlice = New<TInputChunkSlice>(chunk);
         auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
@@ -56,14 +56,14 @@ protected:
         return dataSlice;
     }
 
-    TChunkStripePtr CreateStripe(const TInputChunkPtr& chunk)
+    static TChunkStripePtr CreateStripe(const TInputChunkPtr& chunk)
     {
         auto dataSlice = BuildDataSliceByChunk(chunk);
         auto stripe = New<TChunkStripe>(dataSlice);
         return stripe;
     }
 
-    TChunkStripeListPtr CreateStripeList(
+    static TChunkStripeListPtr CreateStripeList(
         std::vector<TInputChunkPtr> chunks,
         TPartitionTags partitionTags)
     {
@@ -81,7 +81,7 @@ protected:
         return stripeList;
     }
 
-    std::vector<TChunkId> GetChunkIds(const TChunkStripeListPtr& stripeList)
+    static std::vector<TChunkId> GetChunkIds(const TChunkStripeListPtr& stripeList)
     {
         std::vector<TChunkId> chunkIds;
         for (const auto& stripe : stripeList->Stripes()) {
@@ -295,6 +295,46 @@ TEST_F(TChunkStripeMergerTest, NoDeduplicationWithoutPartitionTags)
     EXPECT_THAT(chunkIds, UnorderedElementsAre(
         chunk1->GetChunkId(), chunk1->GetChunkId(),
         chunk2->GetChunkId(), chunk2->GetChunkId()));
+}
+
+TEST_F(TChunkStripeMergerTest, MultipleDataSlicesWithoutPartitionTags)
+{
+    auto chunk1 = CreateChunk(1_KB, 100);
+    auto chunk2 = CreateChunk(2_KB, 200);
+    auto chunk3 = CreateChunk(3_KB, 300);
+
+    auto stripe1 = New<TChunkStripe>();
+    stripe1->DataSlices().push_back(BuildDataSliceByChunk(chunk1));
+    stripe1->DataSlices().push_back(BuildDataSliceByChunk(chunk2));
+
+    auto stripe2 = New<TChunkStripe>();
+    stripe2->DataSlices().push_back(BuildDataSliceByChunk(chunk3));
+
+    auto stripeList = New<TChunkStripeList>();
+    stripeList->AddStripe(stripe1);
+    stripeList->AddStripe(stripe2);
+
+    auto result = MergeStripeLists({stripeList});
+
+    EXPECT_EQ(result->Stripes().size(), 2u);
+    EXPECT_FALSE(result->GetFilteringPartitionTags());
+
+    EXPECT_EQ(result->Stripes()[0]->DataSlices().size(), 2u);
+    EXPECT_EQ(result->Stripes()[1]->DataSlices().size(), 1u);
+
+    auto stats = result->GetAggregateStatistics();
+    EXPECT_EQ(stats.DataWeight, 6_KBs);
+    EXPECT_EQ(stats.RowCount, 600);
+    EXPECT_EQ(stats.ChunkCount, 3);
+    EXPECT_EQ(stats.CompressedDataSize, 6_KBs);
+
+    EXPECT_EQ(result->GetSliceCount(), 3);
+
+    auto chunkIds = GetChunkIds(result);
+    EXPECT_THAT(chunkIds, UnorderedElementsAre(
+        chunk1->GetChunkId(),
+        chunk2->GetChunkId(),
+        chunk3->GetChunkId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

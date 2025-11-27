@@ -57,7 +57,7 @@ class TUnorderedChunkPool
     , public TChunkPoolOutputWithCountersBase
     , public IPersistentChunkPool
     , public TJobSplittingBase
-    , public virtual NLogging::TLoggerOwner
+    , public virtual TLoggerOwner
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);

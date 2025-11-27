@@ -52,6 +52,10 @@ void ValidateLogger(const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Merges multiple stripe lists into a single stripe list.
+// If partition tags are present, deduplicates chunks and accumulates partition tags and statistics.
+// If partition tags are absent, preserves all stripes without deduplication (for testing purposes).
+// All input stripe lists must either have partition tags or all must not have them.
 NChunkPools::TChunkStripeListPtr MergeStripeLists(const std::vector<NChunkPools::TChunkStripeListPtr>& stripeList);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -56,8 +56,8 @@ target_link_options(unittester-chunk-pools PRIVATE
 )
 
 target_sources(unittester-chunk-pools PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_pool_output_merger_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_pools_output_merger_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/chunk_stripe_list_merger_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/input_chunk_mapping_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/job_size_adjuster_ut.cpp
