@@ -514,6 +514,9 @@ void TSystemLogTableExporterConfig::Register(TRegistrar registrar)
                     .Item("optimize_for").Value(NTableClient::EOptimizeFor::Scan)
                 .EndMap()->AsMap();
         });
+    registrar.Parameter("create_table_tablet_count", &TThis::CreateTableTabletCount)
+        .GreaterThanOrEqual(1)
+        .Default(1);
 
     registrar.Parameter("startup_retry_backoff", &TThis::StartupRetryBackoff)
         .Default(TDuration::Seconds(1));
