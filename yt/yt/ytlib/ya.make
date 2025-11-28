@@ -182,6 +182,7 @@ SRCS(
     chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
+    chunk_client/medium_descriptor.cpp
     chunk_client/memory_reader.cpp
     chunk_client/memory_tracked_deferred_chunk_meta.cpp
     chunk_client/memory_writer.cpp
@@ -813,6 +814,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+    yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
     yt/yt/library/query/engine

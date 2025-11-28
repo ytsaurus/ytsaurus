@@ -2,16 +2,30 @@ package NYT.NChunkClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TDomesticMediumDescriptor
+{
+}
+
+message TS3MediumDescriptor
+{
+    optional bytes config = 1; // YSON
+}
+
 message TMediumDirectory
 {
-    message TItem
+    message TMediumDescriptor
     {
         required string name = 1;
         required int32 index = 2;
         required int32 priority = 3;
+
+        oneof type_specific_descriptor {
+            TDomesticMediumDescriptor domestic_medium_descriptor = 5;
+            TS3MediumDescriptor s3_medium_descriptor = 6;
+        }
     }
 
-    repeated TItem items = 1;
+    repeated TMediumDescriptor medium_descriptors = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

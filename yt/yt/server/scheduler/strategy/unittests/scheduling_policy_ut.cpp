@@ -55,7 +55,7 @@ public:
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
-        auto* item = protoDirectory.add_items();
+        auto* item = protoDirectory.add_medium_descriptors();
         item->set_name(NChunkClient::DefaultSlotsMediumName);
         item->set_index(NChunkClient::DefaultSlotsMediumIndex);
         item->set_priority(0);

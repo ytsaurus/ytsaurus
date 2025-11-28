@@ -698,9 +698,9 @@ private:
         int mediumIndex) const
     {
         const auto& mediumDirectory = Reader_->Host_->Client->GetNativeConnection()->GetMediumDirectory();
-        const auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+        auto mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
         return {
-            mediumDescriptor ? -mediumDescriptor->Priority : 0,
+            mediumDescriptor ? -mediumDescriptor->GetPriority() : 0,
             Config_->NetQueueSizeFactor * netQueueSize +
             Config_->DiskQueueSizeFactor * diskQueueSize,
         };
