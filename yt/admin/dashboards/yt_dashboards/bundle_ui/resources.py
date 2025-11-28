@@ -27,8 +27,11 @@ container_vcpu_usage = MonitoringExpr(TabNodePorto("yt.porto.vcpu.total")
 
 memory_guarantee = MonitoringExpr(TabNodePorto("yt.porto.memory.memory_limit")
     .value("container_category", "pod"))
-container_memory_usage = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage")
+anon_memory_limit = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_limit")
     .value("container_category", "pod"))
+anon_memory_usage = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage")
+    .value("container_category", "pod"))
+oom_tracker_threshold = MonitoringExpr(TabNodeMemory("yt.memory.tcmalloc.desired_usage_limit_bytes"))
 
 
 def build_user_resource_overview_rowset(has_porto):
@@ -104,13 +107,17 @@ About the difference between CPU and vCPU:
             .min(0)
             .cell("Memory Total", MultiSensor(
                     memory_guarantee.alias("Container Memory Guarantee") if has_porto else None,
-                    container_memory_usage.alias("Container Memory Usage") if has_porto else None,
+                    anon_memory_limit.alias("Anon Memory Limit") if has_porto else None,
+                    oom_tracker_threshold.alias("OOM tracker threshold"),
+                    anon_memory_usage.alias("Anon Memory Usage") if has_porto else None,
                     MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                         .sensor_stack()
                         .all("category")).alias("{{category}}"))
                 .aggr(MonitoringTag("host")))
             .cell("Memory per container", MultiSensor(
-                memory_guarantee.all(MonitoringTag("host")).series_max().alias("Guarantee"),
+                memory_guarantee.all(MonitoringTag("host")).series_min().alias("Container Memory Guarantee"),
+                anon_memory_limit.all(MonitoringTag("host")).series_min().alias("Anon Memory Limit"),
+                oom_tracker_threshold.all(MonitoringTag("host")).series_min().alias("OOM tracker threshold"),
                 *top_max_bottom_min("yt.porto.memory.anon_usage")),
                 skip_cell=not has_porto)
         .apply_func(lambda row: net(row, "tx"))
