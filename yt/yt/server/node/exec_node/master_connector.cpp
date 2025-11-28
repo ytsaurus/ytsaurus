@@ -92,7 +92,7 @@ public:
             *locationStatistics = location->GetSlotLocationStatistics();
 
             // Slot location statistics might be not computed yet, so we set medium index separately.
-            locationStatistics->set_medium_index(location->GetMediumDescriptor().Index);
+            locationStatistics->set_medium_index(location->GetMediumDescriptor()->GetIndex());
         }
 
         if (auto buildInfo = Bootstrap_->GetJobController()->GetBuildInfo()) {

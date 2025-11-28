@@ -146,7 +146,6 @@ NS3::IClientPtr CreateS3Client(
 
     clientConfig->Url = std::move(s3Config.Url);
     clientConfig->Region = std::move(s3Config.Region);
-    clientConfig->Bucket = std::move(s3Config.Bucket);
 
     auto sslConfig = NYT::New<NYT::NCrypto::TSslContextConfig>();
     sslConfig->InsecureSkipVerify = true;

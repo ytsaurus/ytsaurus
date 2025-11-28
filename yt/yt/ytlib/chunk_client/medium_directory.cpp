@@ -14,32 +14,32 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
+TMediumDescriptorPtr TMediumDirectory::FindByIndex(int index) const
 {
     auto guard = ReaderGuard(SpinLock_);
     auto it = IndexToDescriptor_.find(index);
     return it == IndexToDescriptor_.end() ? nullptr : it->second;
 }
 
-const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
+TMediumDescriptorPtr TMediumDirectory::GetByIndexOrThrow(int index) const
 {
-    const auto* result = FindByIndex(index);
+    auto result = FindByIndex(index);
     if (!result) {
         THROW_ERROR_EXCEPTION("No such medium %v", index);
     }
     return result;
 }
 
-const TMediumDescriptor* TMediumDirectory::FindByName(const std::string& name) const
+TMediumDescriptorPtr TMediumDirectory::FindByName(const std::string& name) const
 {
     auto guard = ReaderGuard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
-    return it == NameToDescriptor_.end() ? nullptr : it->second;
+    return it == NameToDescriptor_.end() ? nullptr : it->second->second;
 }
 
-const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const std::string& name) const
+TMediumDescriptorPtr TMediumDirectory::GetByNameOrThrow(const std::string& name) const
 {
-    const auto* result = FindByName(name);
+    auto result = FindByName(name);
     if (!result) {
         THROW_ERROR_EXCEPTION("No such medium %Qv", name);
     }
@@ -63,24 +63,18 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
-    for (const auto& protoItem : protoDirectory.items()) {
-        TMediumDescriptor descriptor;
-        descriptor.Name = protoItem.name();
-        descriptor.Index = protoItem.index();
-        descriptor.Priority = protoItem.priority();
+    for (const auto& protoItem : protoDirectory.medium_descriptors()) {
+        auto descriptor = TMediumDescriptor::CreateFromProto(protoItem);
 
-        const TMediumDescriptor* descriptorPtr;
-        auto it = oldIndexToDescriptor.find(descriptor.Index);
-        if (it == oldIndexToDescriptor.end() || *it->second != descriptor) {
-            auto descriptorHolder = std::make_unique<TMediumDescriptor>(descriptor);
-            descriptorPtr = descriptorHolder.get();
-            Descriptors_.emplace_back(std::move(descriptorHolder));
-        } else {
-            descriptorPtr = it->second;
+        // Let's keep the same pointer if the medium configuration did not change since the descriptor
+        // sometimes caches things, e.g. S3 client in S3 medium descriptor.
+        auto oldIt = oldIndexToDescriptor.find(descriptor->GetIndex());
+        if (oldIt != oldIndexToDescriptor.end() && *oldIt->second == *descriptor) {
+            descriptor = std::move(oldIt->second);
         }
-
-        YT_VERIFY(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
-        YT_VERIFY(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
+        auto [it, inserted] = IndexToDescriptor_.emplace(descriptor->GetIndex(), descriptor);
+        YT_VERIFY(inserted);
+        EmplaceOrCrash(NameToDescriptor_, descriptor->Name(), it);
     }
 }
 
@@ -89,7 +83,6 @@ void TMediumDirectory::Clear()
     auto guard = WriterGuard(SpinLock_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
-    Descriptors_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,10 +98,10 @@ void Serialize(const TMediumDirectoryPtr& mediumDirectory, NYson::IYsonConsumer*
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .DoFor(mediumDirectory->GetMediumIndexes(), [&] (auto fluent, int mediumIndex) {
-                auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
+                auto descriptor = mediumDirectory->FindByIndex(mediumIndex);
                 if (descriptor) {
-                    fluent.Item(descriptor->Name).BeginMap()
-                        .Item("index").Value(descriptor->Index)
+                    fluent.Item(descriptor->Name()).BeginMap()
+                        .Item("index").Value(descriptor->GetIndex())
                     .EndMap();
                 }
             })

@@ -21,9 +21,6 @@ struct TS3ConnectionConfig
     //! address, in some not.
     TString Region;
 
-    //! Name of the bucket to use.
-    TString Bucket;
-
     //! Url for S3 proxy server. If empty, Url will be used.
     std::optional<TString> ProxyUrl;
 
