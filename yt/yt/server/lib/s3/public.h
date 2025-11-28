@@ -1,21 +1,19 @@
-#include "config.h"
+#pragma once
+
+#include <library/cpp/yt/memory/ref_counted.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TS3ConnectionConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("url", &TThis::Url)
-        .Default();
-    registrar.Parameter("region", &TThis::Region)
-        .Default();
-}
+constexpr i64 MinMultiPartUploadPartSize = 5_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TS3ClientConfig::Register(TRegistrar /*registrar*/)
-{ }
+DECLARE_REFCOUNTED_CLASS(TS3ReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TS3WriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
