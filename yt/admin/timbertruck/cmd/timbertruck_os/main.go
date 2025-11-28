@@ -44,8 +44,6 @@ type JSONLogConfig struct {
 	// Default value is 16777216 (16 MiB).
 	TextFileLineLimit int `yaml:"text_file_line_limit"`
 
-	LogbrokerTopic string `yaml:"logbroker_topic"`
-
 	YtQueue []ytqueue.Config `yaml:"yt_queue"`
 }
 
