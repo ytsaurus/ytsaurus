@@ -378,10 +378,10 @@ public:
             return MakeFuture<std::vector<TTmpfsVolumeResult>>(std::move(error));
         }
 
-        std::vector<const TString*> tmpfsPaths;
+        std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(volumeParams.size());
         for (const auto& volume: volumeParams) {
-            tmpfsPaths.push_back(&volume.Path);
+            tmpfsPaths.push_back(volume.Path);
         }
 
         //! Check that no volume path is a prefix of another volume path.
