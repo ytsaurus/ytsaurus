@@ -91,6 +91,8 @@ func zapifyField(field log.Field) zap.Field {
 		return RawContext(field.Interface().(context.Context))
 	case log.FieldTypeLazyCall:
 		return LazyCall(field.Key(), field.Interface())
+	case log.FieldTypeObject:
+		return zap.Object(field.Key(), field.Interface().(zapcore.ObjectMarshaler))
 	default:
 		// For when new field type is not added to this func
 		panic(fmt.Sprintf("unknown field type: %d", field.Type()))
