@@ -1453,10 +1453,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("memory_limit", spec->MemoryLimit);
         }
 
-        std::vector<const TString*> tmpfsPaths;
+        std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(spec->TmpfsVolumes.size());
         for (const auto& volume: spec->TmpfsVolumes) {
-            tmpfsPaths.push_back(&volume->Path);
+            tmpfsPaths.push_back(volume->Path);
         }
 
         //! Check that no volume path is a prefix of another volume path.

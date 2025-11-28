@@ -956,7 +956,7 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Check that no volume path is a prefix of another volume path. Throw if check has failed.
-void ValidateTmpfsPaths(const std::vector<const TString*>& tmpfsPaths)
+void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths)
 {
     for (int i = 0; i < std::ssize(tmpfsPaths); ++i) {
         for (int j = 0; j < std::ssize(tmpfsPaths); ++j) {
@@ -964,13 +964,13 @@ void ValidateTmpfsPaths(const std::vector<const TString*>& tmpfsPaths)
                 continue;
             }
 
-            auto lhsFsPath = TFsPath(*tmpfsPaths[i]);
-            auto rhsFsPath = TFsPath(*tmpfsPaths[j]);
+            auto lhsFsPath = TFsPath(tmpfsPaths[i]);
+            auto rhsFsPath = TFsPath(tmpfsPaths[j]);
 
             if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
                 THROW_ERROR_EXCEPTION("Path of tmpfs volume %Qv is a prefix of another tmpfs volume %Qv",
-                    *tmpfsPaths[i],
-                    *tmpfsPaths[j]);
+                    tmpfsPaths[i],
+                    tmpfsPaths[j]);
             }
         }
     }
