@@ -17,10 +17,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
     TString result;
@@ -46,9 +42,6 @@ std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* gene
     return blocks;
 }
 
-void DumpBrokenMeta(TRef /*block*/)
-{ }
-
 void DumpBrokenBlock(
     int /*blockIndex*/,
     const TBlockInfo& /*blockInfo*/,
@@ -64,14 +57,6 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto generator = TRandomGenerator(42);
 
-    auto reader = New<TPhysicalChunkLayoutReader>(
-        chunkId,
-        Format("%v", chunkId),
-        Format("%v.meta", chunkId),
-        TPhysicalChunkLayoutReader::TOptions{},
-        Logger(),
-        BIND(&DumpBrokenBlock),
-        BIND(&DumpBrokenMeta));
     auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
 
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
@@ -84,14 +69,17 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
 
     struct TMyTag {};
     auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
-    auto deserializedBlocks = reader->DeserializeBlocks(
+    auto deserializedBlocks = DeserializeBlocks(
         blocksBlob,
-        TPhysicalChunkLayoutReader::TBlockRange{
+        TBlockRange{
             .StartBlockIndex = 0,
-            .EndBlockIndex = BlocksCount
+            .EndBlockIndex = BlocksCount,
         },
+        /*validateBlockChecksums*/ true,
+        Format("%v", chunkId),
         blocksExt,
-        New<NChunkClient::TChunkReaderStatistics>());
+        New<NChunkClient::TChunkReaderStatistics>(),
+         BIND(&DumpBrokenBlock));
 
     EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
     for (int i = 0; i < BlocksCount; ++i) {
