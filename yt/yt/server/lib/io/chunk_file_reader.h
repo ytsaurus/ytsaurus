@@ -181,7 +181,7 @@ public:
 private:
     const IIOEnginePtr IOEngine_;
     IBlocksExtCache* const BlocksExtCache_;
-    const TPhysicalChunkLayoutReaderPtr ChunkLayoutReader_;
+    const TPhysicalChunkLayoutReaderPtr PhysicalChunkLayoutReader_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);

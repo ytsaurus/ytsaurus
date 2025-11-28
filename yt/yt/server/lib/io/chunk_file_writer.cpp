@@ -32,8 +32,6 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
-// constinit const auto Logger = IOLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TPhysicalChunkLayoutWriter::TPhysicalChunkLayoutWriter(TChunkId chunkId, bool syncOnClose)
