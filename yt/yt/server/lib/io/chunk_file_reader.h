@@ -56,6 +56,74 @@ DEFINE_ENUM(EDirectIOFlag,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The purpose of this class is to isolate all reading logic related to the physical layout of a chunk file.
+//! It acts as a guarantee that different chunk readers read the same binary chunk file in the same way.
+class TPhysicalChunkLayoutReader
+    : public TRefCounted
+{
+private:
+    using TDumpBrokenBlockCallback = TCallback<void(int /*blockIndex*/, const NIO::TBlockInfo& /*blockInfo*/, TRef /*block*/)>;
+    using TDumpBrokenMetaCallback = TCallback<void(TRef /*block*/)>;
+public:
+
+    struct TOptions
+    {
+        bool ValidateBlockChecksums = true;
+    };
+
+    TPhysicalChunkLayoutReader(
+        NChunkClient::TChunkId chunkId,
+        TString chunkFileName,
+        TString chunkMetaFileName,
+        const TOptions& options,
+        NLogging::TLogger logger,
+        TDumpBrokenBlockCallback dumpBrokenBlockCallback,
+        TDumpBrokenMetaCallback dumpBrokenMetaCallback);
+
+    struct TBlockRange
+    {
+        i64 StartBlockIndex = 0;
+        i64 EndBlockIndex = 0;
+    };
+
+    struct TChunkMetaWithChunkId
+    {
+        NChunkClient::TChunkId ChunkId;
+        NChunkClient::TRefCountedChunkMetaPtr ChunkMeta;
+    };
+    //! Deserializes chunk meta from blob with format validation.
+    //! For chunk meta version 2+, the local chunk id stored in this class is validated against the one
+    //! stored in the meta file. Passing NullChunkId to this class suppresses this check.
+    TChunkMetaWithChunkId DeserializeMeta(
+        TSharedRef metaFileBlob,
+        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics);
+
+    //! Deserializes blocks according to blocks extension. Validates checksums if configured.
+    std::vector<NChunkClient::TBlock> DeserializeBlocks(
+        TSharedRef blocksBlob,
+        TBlockRange blockRange,
+        const TBlocksExtPtr& blocksExt,
+        NChunkClient::TChunkReaderStatisticsPtr chunkReaderStatistics);
+
+    const TString& GetChunkFileName() const;
+    const TString& GetChunkMetaFileName() const;
+    NChunkClient::TChunkId GetChunkId() const;
+
+private:
+    const TString ChunkFileName_;
+    const TString ChunkMetaFileName_;
+    const TOptions Options_;
+    const NLogging::TLogger Logger;
+    const NChunkClient::TChunkId ChunkId_;
+
+    const TDumpBrokenBlockCallback DumpBrokenBlockCallback_;
+    const TDumpBrokenMetaCallback DumpBrokenMetaCallback_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutReader)
+
+////////////////////////////////////////////////////////////////////////////
+
 class TChunkFileReader
     : public virtual TRefCounted
 {
@@ -112,10 +180,9 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
-    NChunkClient::TChunkId ChunkId_;
-    const TString FileName_;
-    const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
+    const TPhysicalChunkLayoutReaderPtr ChunkLayoutReader_;
+    const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
     TEnumIndexedArray<EDirectIOFlag, TFuture<TIOEngineHandlePtr>> DataFileHandleFuture_;
