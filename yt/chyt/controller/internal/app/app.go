@@ -97,15 +97,21 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		l.Debug("initializing location", log.String("location_proxy", proxy))
 		var err error
 
+		ytConfig := yt.Config{
+			Token: config.Token,
+			Proxy: proxy,
+		}
+
+		clusterURL, err := ytConfig.GetClusterURL()
+		if err != nil {
+			l.Fatal("error parsing YT proxy", log.Error(err), log.String("proxy", proxy))
+		}
+
 		loc := &Location{}
+		loc.l = newLogger("l."+clusterURL.Address, options.LogToStderr)
+		ytConfig.Logger = withName(loc.l, "yt")
 
-		loc.l = newLogger("l."+proxy, options.LogToStderr)
-
-		loc.ytc, err = ythttp.NewClient(&yt.Config{
-			Token:  config.Token,
-			Proxy:  proxy,
-			Logger: withName(loc.l, "yt"),
-		})
+		loc.ytc, err = ythttp.NewClient(&ytConfig)
 		if err != nil {
 			l.Fatal("error creating YT client", log.Error(err), log.String("proxy", proxy))
 		}
