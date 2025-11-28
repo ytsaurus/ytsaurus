@@ -153,6 +153,7 @@ DEFINE_ENUM(EControlQueue,
     (Strategy)
     (EventLog)
     (Metering)
+    (GpuAssignmentPlanUpdate)
 );
 
 DEFINE_ENUM(EControllerAgentPickStrategy,
@@ -176,6 +177,7 @@ DEFINE_ENUM(EGpuSchedulingModuleType,
     (InfinibandCluster)
 );
 
+// NB(eshcherbin): Temporary.
 DEFINE_ENUM(EGpuSchedulingPolicyMode,
     (Noop)
     (DryRun)

@@ -95,7 +95,7 @@ void TOperation::AddAssignment(const TAssignmentPtr& assignment)
 
     InsertOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ += assignment->ResourceUsage;
-    ++AssignmentCountPerGroup_[assignment->AllocationGroupName];
+    ++EmptyAssignmentCountPerGroup_[assignment->AllocationGroupName];
 
     auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
@@ -108,7 +108,7 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
 
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;
-    --GetOrCrash(AssignmentCountPerGroup_, assignment->AllocationGroupName);
+    --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
 }
 
 void TOperation::SetPreemptible(bool preemptible)
