@@ -2711,7 +2711,7 @@ TError TSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TP
     return TError();
 }
 
-void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element) const
+void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -2719,7 +2719,7 @@ void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element
     GetOperationSharedState(operationId)->Enable();
 }
 
-void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const
+void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

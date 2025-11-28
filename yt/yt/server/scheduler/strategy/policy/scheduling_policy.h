@@ -50,8 +50,8 @@ struct ISchedulingPolicy
     virtual TError OnOperationMaterialized(const TPoolTreeOperationElement* element) = 0;
     virtual TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const = 0;
 
-    virtual void EnableOperation(const TPoolTreeOperationElement* element) const = 0;
-    virtual void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const = 0;
+    virtual void EnableOperation(const TPoolTreeOperationElement* element) = 0;
+    virtual void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) = 0;
 
     virtual void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,

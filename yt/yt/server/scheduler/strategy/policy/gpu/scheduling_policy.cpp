@@ -3,10 +3,15 @@
 #include "private.h"
 #include "assignment_plan_update.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+// TODO(eshcherbin): (!) Remove this include after TPostUpdateContext is not present in ISchedulingPolicy.
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
+
+#include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -75,8 +80,7 @@ public:
         , Logger(GetLogger(treeId))
         , Config_(std::move(config))
         , PlanUpdateExecutor_(New<TPeriodicExecutor>(
-            // TODO(eshcherbin): Create a separate bucket for GPU scheduling policy.
-            StrategyHost_->GetControlInvoker(EControlQueue::Strategy),
+            StrategyHost_->GetControlInvoker(EControlQueue::GpuAssignmentPlanUpdate),
             BIND(&TSchedulingPolicy::UpdateAssignmentPlan, MakeWeak(this)),
             Config_->PlanUpdatePeriod))
     { }
@@ -172,6 +176,14 @@ public:
         }
     }
 
+    void ProcessSchedulingHeartbeat(
+        const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        bool /*skipScheduleAllocations*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void RegisterOperation(const TPoolTreeOperationElement* element) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -223,7 +235,7 @@ public:
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
     }
 
-    void OnOperationMaterialized(const TPoolTreeOperationElement* element) override
+    TError OnOperationMaterialized(const TPoolTreeOperationElement* element) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -233,6 +245,13 @@ public:
         YT_LOG_DEBUG("Operation materialized (OperationId: %v, InitialGroupedNeededResources: %v)",
             operation->GetId(),
             element->GetInitialGroupedNeededResources());
+
+        return {};
+    }
+
+    TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* /*element*/) const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     void EnableOperation(const TPoolTreeOperationElement* element) override
@@ -252,7 +271,7 @@ public:
         YT_LOG_DEBUG("Operation enabled (OperationId: %v)", operation->GetId());
     }
 
-    void DisableOperation(const TPoolTreeOperationElement* element) override
+    void DisableOperation(TPoolTreeOperationElement* element, bool /*markAsNonAlive*/) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -270,6 +289,63 @@ public:
         operation->SetEnabled(false);
 
         YT_LOG_DEBUG("Operation disabled (OperationId: %v)", operation->GetId());
+    }
+
+    void RegisterAllocationsFromRevivedOperation(
+        TPoolTreeOperationElement* /*element*/,
+        std::vector<TAllocationPtr> /*allocations*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool ProcessAllocationUpdate(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TPoolTreeOperationElement* /*element*/,
+        TAllocationId /*allocationId*/,
+        const TJobResources& /*allocationResources*/,
+        bool /*resetPreemptibleProgress*/,
+        const std::optional<std::string>& /*allocationDataCenter*/,
+        const std::optional<std::string>& /*allocationInfinibandCluster*/,
+        std::optional<EAbortReason>* /*maybeAbortReason*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool ProcessFinishedAllocation(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TPoolTreeOperationElement* /*element*/,
+        TAllocationId /*allocationId*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesStringForNode(
+        TNodeId /*nodeId*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesStringForOngoingAllocations(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const std::vector<TAllocationPtr>& /*allocations*/,
+        TInstant /*now*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildElementLoggingStringAttributes(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TPoolTreeElement* /*element*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     void PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const override
@@ -300,10 +376,43 @@ public:
         })));
     }
 
-    void UpdateConfig(TGpuSchedulingPolicyConfigPtr config) override
+    void ProfileOperation(
+        const TPoolTreeOperationElement* /*element*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        NProfiling::ISensorWriter* /*writer*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void PostUpdate(
+        TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
+        TPostUpdateContext* /*postUpdateContext*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void OnResourceUsageSnapshotUpdate(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void UpdateConfig(TStrategyTreeConfigPtr treeConfig) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
+        const auto& config = treeConfig->GpuSchedulingPolicy;
         if (Config_->Mode != config->Mode) {
             YT_LOG_WARNING("Scheduling policy config update failed because mode has changed (OldMode: %v, NewMode: %v)",
                 Config_->Mode,
@@ -311,19 +420,19 @@ public:
             return;
         }
 
-        Config_ = std::move(config);
+        Config_ = config;
 
         PlanUpdateExecutor_->SetPeriod(Config_->PlanUpdatePeriod);
     }
 
-    void InitPersistentState(INodePtr /*persistentState*/)
+    void InitPersistentState(INodePtr /*persistentState*/) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_UNIMPLEMENTED();
     }
 
-    INodePtr BuildPersistentState() const
+    INodePtr BuildPersistentState() const override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -400,8 +509,6 @@ private:
             return;
         }
 
-        // TODO(eshcherbin): (!) Consider changes in needed resources for empty assignments.
-
         auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
             return TResourceVector::FromJobResources(allocationResources, operationElement->GetTotalResourceLimits());
         };
@@ -420,7 +527,7 @@ private:
             for (const auto& assignment : sortedAssignments) {
                 // NB(eshcherbin): Assignment is preemptible if the total resource usage of all assignments before it is lower than fair share.
                 // In particular, the assignment which crosses the fair share boundary is not considered preemptible.
-                // TODO(eshcherbin): For map operations, the assignment on the boundary should be preemptible.
+                // TODO(eshcherbin): (!) For map operations, the assignment on the boundary should be preemptible.
                 assignment->Preemptible = Dominates(prefixUsageShare + TResourceVector::Epsilon(), fairShare);
                 prefixUsageShare += convertToShare(assignment->ResourceUsage);
             }
@@ -444,7 +551,7 @@ private:
                 TAllocationGroupResources{.MinNeededResources = allocationGroupResources.MinNeededResources}).first;
             auto& readyToAssignResources = it->second;
 
-            auto assignmentCount = GetOrDefault(operation->AssignmentCountPerGroup(), allocationGroupName);
+            auto assignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), allocationGroupName);
             auto allocationUsageShare = convertToShare(allocationGroupResources.MinNeededResources);
 
             YT_LOG_DEBUG(
@@ -548,32 +655,146 @@ public:
     void UpdateNodeDescriptor(TNodeId /*nodeId*/, TExecNodeDescriptorPtr /*descriptor*/) override
     { }
 
+    void ProcessSchedulingHeartbeat(
+        const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        bool /*skipScheduleAllocations*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void RegisterOperation(const TPoolTreeOperationElement* /*element*/) override
     { }
 
     void UnregisterOperation(const TPoolTreeOperationElement* /*element*/) override
     { }
 
-    void OnOperationMaterialized(const TPoolTreeOperationElement* /*element*/) override
-    { }
+    TError OnOperationMaterialized(const TPoolTreeOperationElement* /*element*/) override
+    {
+        return {};
+    }
+
+    TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* /*element*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
     void EnableOperation(const TPoolTreeOperationElement* /*element*/) override
     { }
 
-    void DisableOperation(const TPoolTreeOperationElement* /*element*/) override
+    void DisableOperation(TPoolTreeOperationElement* /*element*/, bool /*markAsNonAlive*/) override
     { }
+
+    void RegisterAllocationsFromRevivedOperation(
+        TPoolTreeOperationElement* /*element*/,
+        std::vector<TAllocationPtr> /*allocations*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool ProcessAllocationUpdate(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TPoolTreeOperationElement* /*element*/,
+        TAllocationId /*allocationId*/,
+        const TJobResources& /*allocationResources*/,
+        bool /*resetPreemptibleProgress*/,
+        const std::optional<std::string>& /*allocationDataCenter*/,
+        const std::optional<std::string>& /*allocationInfinibandCluster*/,
+        std::optional<EAbortReason>* /*maybeAbortReason*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool ProcessFinishedAllocation(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TPoolTreeOperationElement* /*element*/,
+        TAllocationId /*allocationId*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesStringForNode(
+        TNodeId /*nodeId*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildSchedulingAttributesStringForOngoingAllocations(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const std::vector<TAllocationPtr>& /*allocations*/,
+        TInstant /*now*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildElementLoggingStringAttributes(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TPoolTreeElement* /*element*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
     void PopulateOrchidService(const TCompositeMapServicePtr& /*orchidService*/) const override
     { }
 
-    void UpdateConfig(TGpuSchedulingPolicyConfigPtr config) override
+    void ProfileOperation(
+        const TPoolTreeOperationElement* /*element*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        NProfiling::ISensorWriter* /*writer*/) const override
     {
-        if (EGpuSchedulingPolicyMode::Noop != config->Mode) {
-            YT_LOG_WARNING("Scheduling policy config update failed because mode has changed (OldMode: %v, NewMode: %v)",
+        YT_UNIMPLEMENTED();
+    }
+
+    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void PostUpdate(
+        TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
+        TPostUpdateContext* /*postUpdateContext*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual void OnResourceUsageSnapshotUpdate(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void UpdateConfig(TStrategyTreeConfigPtr config) override
+    {
+        if (EGpuSchedulingPolicyMode::Noop != config->GpuSchedulingPolicy->Mode) {
+            YT_LOG_WARNING("GPU scheduling policy config update failed because mode has changed (OldMode: %v, NewMode: %v)",
                 EGpuSchedulingPolicyMode::Noop,
-                config->Mode);
+                config->GpuSchedulingPolicy->Mode);
             return;
         }
+    }
+
+    void InitPersistentState(INodePtr /*persistentState*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    INodePtr BuildPersistentState() const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
 private:
