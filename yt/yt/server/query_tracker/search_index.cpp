@@ -532,6 +532,76 @@ public:
         }
     }
 
+    void RemoveQuery(const TQuery& query, ITransactionPtr transaction) override
+    {
+        ValidateQuery(query);
+
+        // TimeBasedIndex contains only finished queries.
+        if (!IsFinishedState(query.State.value())) {
+            YT_LOG_DEBUG("Active query passed to the time-based index will not be deleted (QueryId: %v)", query.Id);
+            return;
+        }
+        auto rowBuffer = New<TRowBuffer>();
+
+        auto filterFactors = TString(GetFilterFactors(query));
+        auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
+
+        auto accessControlObjects = query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(query.AccessControlObjects) : std::vector<std::string>{};
+
+        {
+            static_assert(TFinishedQueryByStartTimeDescriptor::FieldCount == 8);
+
+            TFinishedQueryByStartTimeKey removeKey{
+                .IsTutorial = isTutorial,
+                .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
+                .QueryId = query.Id
+            };
+            auto keys = FromRecordKeys(TRange(std::array{removeKey}));
+
+            transaction->DeleteRows(
+                StateRoot_ + "/finished_queries_by_start_time",
+                TFinishedQueryByStartTimeDescriptor::Get()->GetNameTable(),
+                keys);
+        }
+        {
+            static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 7);
+
+            TFinishedQueryByUserAndStartTimeKey removeKey{
+                .IsTutorial = isTutorial,
+                .User = query.User.value(),
+                .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
+                .QueryId = query.Id
+            };
+            auto keys = FromRecordKeys(TRange(std::array{removeKey}));
+
+            transaction->DeleteRows(
+                StateRoot_ + "/" + FinishedQueriesByUserAndStartTimeTable,
+                TFinishedQueryByUserAndStartTimeDescriptor::Get()->GetNameTable(),
+                keys);
+        }
+        {
+            static_assert(TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 8);
+
+            if (!accessControlObjects.empty()) {
+                std::vector<TFinishedQueryByAcoAndStartTimeKey> keys;
+                keys.reserve(accessControlObjects.size());
+                for (const auto& aco : accessControlObjects) {
+                    TFinishedQueryByAcoAndStartTimeKey removeKey{
+                        .IsTutorial = isTutorial,
+                        .AccessControlObject = aco,
+                        .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
+                        .QueryId = query.Id
+                    };
+                    keys.push_back(removeKey);
+                }
+                transaction->DeleteRows(
+                    StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
+                    TFinishedQueryByAcoAndStartTimeDescriptor::Get()->GetNameTable(),
+                    FromRecordKeys(TRange(keys)));
+            }
+        }
+    }
+
     void UpdateQuery(const TQuery& query, const TUpdateQueryOptions& options, ITransactionPtr transaction) override
     {
         ValidateQuery(query);
@@ -934,6 +1004,31 @@ public:
 
         std::map<TSearchMetaRecordKey, std::pair<i64, i64>, TSearchMetaRecordKeyComparator> tokenOccurrences;
         WriteRowsToInvertedIndex(
+            accessScopes,
+            tokens,
+            -static_cast<TMinusTimestamp>(query.StartTime->MicroSeconds()),
+            query.Id,
+            query.Engine.value(),
+            query.User.value(),
+            tokenOccurrences,
+            rowBuffer,
+            transaction);
+        UpdateSearchMetaTable(transaction, tokenOccurrences);
+    }
+
+    void RemoveQuery(const TQuery& query, ITransactionPtr transaction) override
+    {
+        ValidateQuery(query);
+
+        auto rowBuffer = New<TRowBuffer>();
+
+        auto accessControlObjects = query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(query.AccessControlObjects) : std::vector<std::string>{};
+
+        auto accessScopes = GetAccessScopes(query.User.value(), accessControlObjects);
+        auto tokens = GetTokensFromQuery(Tokenizer_, query.Query.value(), ConvertToNode(query.Annotations)->AsMap(), accessControlObjects, ETokenizationMode::Standard);
+
+        std::map<TSearchMetaRecordKey, std::pair<i64, i64>, TSearchMetaRecordKeyComparator> tokenOccurrences;
+        DeleteRowsFromInvertedIndex(
             accessScopes,
             tokens,
             -static_cast<TMinusTimestamp>(query.StartTime->MicroSeconds()),
