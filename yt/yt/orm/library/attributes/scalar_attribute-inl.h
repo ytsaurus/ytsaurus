@@ -18,14 +18,15 @@ namespace NYT::NOrm::NAttributes {
 namespace NDetail {
 
 bool AreProtoMessagesEqual(
-    const google::protobuf::Message& lhs,
-    const google::protobuf::Message& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer);
+    const NProtoBuf::Message& lhs,
+    const NProtoBuf::Message& rhs,
+    const TComparisonOptions& options);
 
 bool AreProtoMessagesEqualByPath(
-    const google::protobuf::Message& lhs,
-    const google::protobuf::Message& rhs,
-    const NYPath::TYPath& path);
+    const NProtoBuf::Message& lhs,
+    const NProtoBuf::Message& rhs,
+    const NYPath::TYPath& path,
+    const TComparisonOptions& options);
 
 // List all supported types explicitly for safety.
 template <class T>
@@ -56,9 +57,8 @@ template <NDetail::CScalarAttributeTriviallyComparable T>
 bool AreScalarAttributesEqualImpl(
     const T& lhs,
     const T& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& /*options*/)
 {
-    Y_UNUSED(messageDifferencer);
     return lhs == rhs;
 }
 
@@ -66,10 +66,9 @@ template <class T>
 bool AreScalarAttributesEqualImpl(
     const TIntrusivePtr<T>& lhs,
     const TIntrusivePtr<T>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& /*options*/)
     requires std::convertible_to<T*, NYTree::INode*>
 {
-    Y_UNUSED(messageDifferencer);
     return NYTree::AreNodesEqual(lhs, rhs);
 }
 
@@ -77,23 +76,23 @@ template <class T>
 bool AreScalarAttributesEqualImpl(
     const T& lhs,
     const T& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
-    requires std::convertible_to<T*, google::protobuf::Message*>
+    const TComparisonOptions& options)
+    requires std::convertible_to<T*, NProtoBuf::Message*>
 {
-    return AreProtoMessagesEqual(lhs, rhs, messageDifferencer);
+    return AreProtoMessagesEqual(lhs, rhs, options);
 }
 
 template <class TArray>
 bool AreScalarAttributeArraysEqual(
     const TArray& lhs,
     const TArray& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
     if (lhs.size() != rhs.size()) {
         return false;
     }
     for (decltype(lhs.size()) i = 0; i < lhs.size(); ++i) {
-        if (!AreScalarAttributesEqualImpl(lhs[i], rhs[i], messageDifferencer)) {
+        if (!AreScalarAttributesEqualImpl(lhs[i], rhs[i], options)) {
             return false;
         }
     }
@@ -104,7 +103,7 @@ template <class TMapping>
 bool AreScalarAttributeMappingsEqual(
     const TMapping& lhs,
     const TMapping& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
     if (lhs.size() != rhs.size()) {
         return false;
@@ -114,7 +113,7 @@ bool AreScalarAttributeMappingsEqual(
         if (it == rhs.end()) {
             return false;
         }
-        if (!AreScalarAttributesEqualImpl(value, it->second, messageDifferencer)) {
+        if (!AreScalarAttributesEqualImpl(value, it->second, options)) {
             return false;
         }
     }
@@ -125,45 +124,45 @@ template <class T>
 bool AreScalarAttributesEqualImpl(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
-    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
+    return AreScalarAttributeArraysEqual(lhs, rhs, options);
 }
 
 template <class TValue>
 bool AreScalarAttributesEqualImpl(
-    const google::protobuf::RepeatedField<TValue>& lhs,
-    const google::protobuf::RepeatedField<TValue>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const NProtoBuf::RepeatedField<TValue>& lhs,
+    const NProtoBuf::RepeatedField<TValue>& rhs,
+    const TComparisonOptions& options)
 {
-    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
+    return AreScalarAttributeArraysEqual(lhs, rhs, options);
 }
 
 template <class TValue>
 bool AreScalarAttributesEqualImpl(
-    const google::protobuf::RepeatedPtrField<TValue>& lhs,
-    const google::protobuf::RepeatedPtrField<TValue>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const NProtoBuf::RepeatedPtrField<TValue>& lhs,
+    const NProtoBuf::RepeatedPtrField<TValue>& rhs,
+    const TComparisonOptions& options)
 {
-    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
+    return AreScalarAttributeArraysEqual(lhs, rhs, options);
 }
 
 template <NDetail::CScalarAttributeTriviallyComparable TKey, class TValue>
 bool AreScalarAttributesEqualImpl(
     const THashMap<TKey, TValue>& lhs,
     const THashMap<TKey, TValue>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
-    return AreScalarAttributeMappingsEqual(lhs, rhs, messageDifferencer);
+    return AreScalarAttributeMappingsEqual(lhs, rhs, options);
 }
 
 template <NDetail::CScalarAttributeTriviallyComparable TKey, class TValue>
 bool AreScalarAttributesEqualImpl(
-    const ::google::protobuf::Map<TKey, TValue>& lhs,
-    const ::google::protobuf::Map<TKey, TValue>& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const NProtoBuf::Map<TKey, TValue>& lhs,
+    const NProtoBuf::Map<TKey, TValue>& rhs,
+    const TComparisonOptions& options)
 {
-    return AreScalarAttributeMappingsEqual(lhs, rhs, messageDifferencer);
+    return AreScalarAttributeMappingsEqual(lhs, rhs, options);
 }
 
 } // namespace NDetail
@@ -174,22 +173,23 @@ template <class T>
 bool AreScalarAttributesEqual(
     const T& lhs,
     const T& rhs,
-    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
-    return NDetail::AreScalarAttributesEqualImpl(lhs, rhs, messageDifferencer);
+    return NDetail::AreScalarAttributesEqualImpl(lhs, rhs, options);
 }
 
 template <class T>
 bool AreScalarAttributesEqualByPath(
     const T& lhs,
     const T& rhs,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const TComparisonOptions& options)
 {
     if (path.empty()) {
-        return AreScalarAttributesEqual(lhs, rhs);
+        return AreScalarAttributesEqual(lhs, rhs, options);
     } else {
-        if constexpr (std::convertible_to<T*, google::protobuf::Message*>) {
-            return NDetail::AreProtoMessagesEqualByPath(lhs, rhs, path);
+        if constexpr (std::convertible_to<T*, NProtoBuf::Message*>) {
+            return NDetail::AreProtoMessagesEqualByPath(lhs, rhs, path, options);
         } else {
             return NDetail::AreScalarAttributesEqualAsYTrees(lhs, rhs, path);
         }
@@ -200,14 +200,15 @@ template <class T>
 bool AreScalarAttributesEqualByPath(
     const std::vector<T>& lhs,
     const std::vector<T>& rhs,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const TComparisonOptions& options)
 {
     if (path.empty()) {
-        return AreScalarAttributesEqual(lhs, rhs);
+        return AreScalarAttributesEqual(lhs, rhs, options);
     }
 
     if (!path.StartsWith("/*")) {
-        return AreScalarAttributesEqualByPath<std::vector<T>>(lhs, rhs, path);
+        return AreScalarAttributesEqualByPath<std::vector<T>>(lhs, rhs, path, options);
     }
 
     if (lhs.size() != rhs.size()) {
@@ -216,7 +217,7 @@ bool AreScalarAttributesEqualByPath(
 
     auto suffix = path.substr(2);
     for (int i = 0; i < ssize(lhs); ++i) {
-        if (!AreScalarAttributesEqualByPath(lhs[i], rhs[i], suffix)) {
+        if (!AreScalarAttributesEqualByPath(lhs[i], rhs[i], suffix, options)) {
             return false;
         }
     }
@@ -227,10 +228,10 @@ bool AreScalarAttributesEqualByPath(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClearVisitor final
-    : public TProtoVisitor<::google::protobuf::Message*, TClearVisitor>
+    : public TProtoVisitor<NProtoBuf::Message*, TClearVisitor>
 {
     friend class TPathVisitor<TClearVisitor>;
-    friend class TProtoVisitor<::google::protobuf::Message*, TClearVisitor>;
+    friend class TProtoVisitor<NProtoBuf::Message*, TClearVisitor>;
 
 protected:
     template <typename TVisitParam>
@@ -288,7 +289,7 @@ protected:
     }
 
     void VisitWholeMessage(
-        ::google::protobuf::Message* message,
+        NProtoBuf::Message* message,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -301,8 +302,8 @@ protected:
     }
 
     void VisitWholeMapField(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -315,8 +316,8 @@ protected:
     }
 
     void VisitWholeRepeatedField(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -329,8 +330,8 @@ protected:
     }
 
     void VisitUnrecognizedField(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::Descriptor* descriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::Descriptor* descriptor,
         TString name,
         EVisitReason reason)
     {
@@ -362,8 +363,8 @@ protected:
     }
 
     void VisitField(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason)
     {
         if (PathComplete()) {
@@ -380,9 +381,9 @@ protected:
     }
 
     void VisitMapFieldEntry(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
-        ::google::protobuf::Message* entryMessage,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* entryMessage,
         TString key,
         EVisitReason reason)
     {
@@ -401,8 +402,8 @@ protected:
     }
 
     void VisitRepeatedFieldEntry(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
         int index,
         EVisitReason reason)
     {
@@ -415,8 +416,8 @@ protected:
     }
 
     void DeleteRepeatedFieldEntry(
-        ::google::protobuf::Message* message,
-        const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+        NProtoBuf::Message* message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
         int index)
     {
         auto* reflection = message->GetReflection();
@@ -437,8 +438,6 @@ void ClearFieldByPath(T&& from, NYPath::TYPathBuf path)
     visitor.SetAllowAsterisk(true);
     visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
     visitor.Visit(std::forward<T>(from), path);
-    // Y_UNUSED(from);
-    // Y_UNUSED(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

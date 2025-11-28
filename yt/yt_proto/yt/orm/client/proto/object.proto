@@ -430,7 +430,7 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30056.
+// Next field 30057.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -539,6 +539,9 @@ extend google.protobuf.FileOptions
 
     // Generate new-style references in codegen output by default. May be disabled by field option.
     optional bool convert_to_new_references = 30051;
+
+    // If true, treats default value and field absence as equal.
+    optional bool compare_absent_value_as_default = 30056;
 }
 
 enum EGenerationPolicy
