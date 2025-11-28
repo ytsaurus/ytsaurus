@@ -185,6 +185,28 @@ def list_operation_events(operation_id, event_type=None, format=None, client=Non
         timeout=timeout)
 
 
+def check_operation_permission(operation_id, user, permission, format=None, client=None):
+    """Check if user has permission for operation.
+
+    :param str operation_id: operation id.
+    :param str user: user name.
+    :param str permission: permission name (e.g. "read", "manage").
+    """
+    params = {}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "user", user)
+    set_param(params, "permission", permission)
+
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
+    return make_formatted_request(
+        "check_operation_permission",
+        params=params,
+        format=format,
+        client=client,
+        timeout=timeout)
+
+
 def iterate_operations(user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
                        from_time=None, to_time=None, cursor_direction="past", limit_per_request=100,
                        include_archive=None, attributes=None, format=None, client=None):

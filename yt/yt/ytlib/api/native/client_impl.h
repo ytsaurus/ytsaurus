@@ -645,6 +645,12 @@ public: \
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TListOperationEventsOptions& options),
         (operationIdOrAlias, options))
+    IMPLEMENT_METHOD(TCheckOperationPermissionResult, CheckOperationPermission, (
+        const std::string& user,
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        NYTree::EPermission permission,
+        const TCheckOperationPermissionOptions& options),
+        (user, operationIdOrAlias, permission, options))
     // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
     // and an operation is in both Cypress and archive.
     // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations

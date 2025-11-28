@@ -402,6 +402,23 @@ class YtClient(ClientState):
             function, data,
             client=self)
 
+    def check_operation_permission(
+            self,
+            operation_id, user, permission,
+            format=None):
+        """
+        Check if user has permission for operation.
+
+        :param str operation_id: operation id.
+        :param str user: user name.
+        :param str permission: permission name (e.g. "read", "manage").
+
+        """
+        return client_api.check_operation_permission(
+            operation_id, user, permission,
+            client=self,
+            format=format)
+
     def check_permission(
             self,
             user, permission, path,

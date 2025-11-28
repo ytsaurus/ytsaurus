@@ -1878,6 +1878,14 @@ def get_operation(is_raw=False, **kwargs):
 
 
 @resolve_operation_id_or_alias
+def check_operation_permission(user, permission, **kwargs):
+    kwargs["user"] = user
+    kwargs["permission"] = permission
+    result = execute_command("check_operation_permission", kwargs)
+    return yson.loads(result)
+
+
+@resolve_operation_id_or_alias
 def update_op_parameters(**kwargs):
     execute_command("update_op_parameters", kwargs)
 
