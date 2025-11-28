@@ -2,6 +2,7 @@ RECURSE(
     base
     chyt
     local
+    python-packages
     query-tracker
     strawberry
     ytsaurus
