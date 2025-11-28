@@ -17,6 +17,10 @@ import os
 import sys
 
 def where():
+    cafile = os.environ.get("SSL_CERT_FILE")
+    if cafile is not None:
+        return cafile
+
     is_arcadia_python = hasattr(sys, "extra_modules")
 
     if is_arcadia_python:
