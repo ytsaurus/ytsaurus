@@ -1160,16 +1160,16 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
                 location->GetId(),
                 location->GetMediumName());
         }
-        if (oldDescriptor.Index != NChunkClient::GenericMediumIndex &&
-            oldDescriptor.Index != newDescriptor->Index)
+        if (oldDescriptor->GetIndex() != NChunkClient::GenericMediumIndex &&
+            oldDescriptor->GetIndex() != newDescriptor->GetIndex())
         {
             THROW_ERROR_EXCEPTION(
                 "Medium %Qv has changed its index from %v to %v",
                 location->GetMediumName(),
-                oldDescriptor.Index,
-                newDescriptor->Index);
+                oldDescriptor->GetIndex(),
+                newDescriptor->GetIndex());
         }
-        location->SetMediumDescriptor(*newDescriptor);
+        location->SetMediumDescriptor(newDescriptor);
         location->InvokeUpdateDiskResources();
     }
 
@@ -1181,7 +1181,7 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
                 "Default medium is unknown (MediumName: %v)",
                 defaultMediumName);
         }
-        DefaultMediumIndex_ = descriptor->Index;
+        DefaultMediumIndex_ = descriptor->GetIndex();
     }
 }
 
