@@ -196,7 +196,7 @@ public:
             const auto& location = chunk->GetLocation();
             if (!SkipLocationInHeartbeat(location) && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
-                auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
+                auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor()->GetIndex();
                 ++perMediumChunkCounts[mediumIndex];
                 ++perLocationChunkCounts[location->GetUuid()];
                 ++storedChunkCount;
@@ -1327,7 +1327,7 @@ private:
     {
         const auto& ioThroughputMeter = Bootstrap_->GetIOThroughputMeter();
 
-        auto mediumIndex = location->GetMediumDescriptor().Index;
+        auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
         statistics->set_medium_index(mediumIndex);
         statistics->set_available_space(location->GetAvailableSpace());
         statistics->set_used_space(location->GetUsedSpace());
@@ -1367,7 +1367,7 @@ private:
                 continue;
             }
 
-            auto mediumIndex = location->GetMediumDescriptor().Index;
+            auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
 
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -1396,7 +1396,7 @@ private:
             }
 
             const auto& locationConfigPerMedium = GetNodeDynamicConfig()->StoreLocationConfigPerMedium;
-            auto config = locationConfigPerMedium.find(mediumDescriptor->Name);
+            auto config = locationConfigPerMedium.find(mediumDescriptor->Name());
             if (config == locationConfigPerMedium.end()) {
                 continue;
             }
@@ -1445,7 +1445,7 @@ private:
             return true;
         }
 
-        auto mediumIndex = location->GetMediumDescriptor().Index;
+        auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
         return mediumIndex == GenericMediumIndex;
     }
 
@@ -1471,7 +1471,7 @@ private:
         bool onMediumChange = false)
     {
         ToProto(chunkInfo.mutable_chunk_id(), chunk->GetId());
-        chunkInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
+        chunkInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
 
         auto locationIndex = chunk->GetLocation()->GetIndex();
         auto locationUuid = chunk->GetLocation()->GetUuid();

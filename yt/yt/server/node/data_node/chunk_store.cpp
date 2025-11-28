@@ -323,15 +323,15 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
             itRange.second,
             [&] (const auto& lhs, const auto& rhs) {
                 return
-                    lhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority <
-                    rhs.second.Chunk->GetLocation()->GetMediumDescriptor().Priority;
+                    lhs.second.Chunk->GetLocation()->GetMediumDescriptor()->GetPriority() <
+                    rhs.second.Chunk->GetLocation()->GetMediumDescriptor()->GetPriority();
             });
 
         return resultIt->second.Chunk;
     }
 
     for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (it->second.Chunk->GetLocation()->GetMediumDescriptor().Index == mediumIndex) {
+        if (it->second.Chunk->GetLocation()->GetMediumDescriptor()->GetIndex() == mediumIndex) {
             return it->second.Chunk;
         }
     }
@@ -363,7 +363,7 @@ TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(const IChunkPtr& oldChunk, c
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
     YT_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor().Index == newChunk->GetLocation()->GetMediumDescriptor().Index);
+    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor()->GetIndex() == newChunk->GetLocation()->GetMediumDescriptor()->GetIndex());
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
     YT_VERIFY(itRange.first != itRange.second);
@@ -988,6 +988,26 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     return {location, std::move(lockedChunkGuard)};
 }
 
+<<<<<<< HEAD
+=======
+bool TChunkStore::CanStartNewSession(
+    const TStoreLocationPtr& location,
+    int mediumIndex)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    if (!location->IsWritable()) {
+        return false;
+    }
+
+    if (location->GetMediumDescriptor()->GetIndex() != mediumIndex) {
+        return false;
+    }
+
+    return true;
+}
+
+>>>>>>> 6fb4267b47e (S3 regular chunk reader & writer: v1)
 IChunkPtr TChunkStore::CreateFromDescriptor(
     const TStoreLocationPtr& location,
     const TChunkDescriptor& descriptor)
