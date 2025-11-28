@@ -74,7 +74,7 @@ yt:
   proxy: "yt.company.com"
   token: "Qwerty123!"
 
-unmanagedSecret:
+unmanagedSecret: 
   enabled: false
   secretKeyRef:
     name: ytadminsec
@@ -136,7 +136,6 @@ jobs:
     args:
       - prune_offline_cluster_nodes
       - --node-flavors exe,flavor:exec
-      - --node-ttl 1d
       - --no-dry-run
     schedule: "*/15 * * * *"
     restartPolicy: Never
