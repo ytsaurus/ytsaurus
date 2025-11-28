@@ -121,9 +121,9 @@ TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient
         "%v",
         MakeFormattableView(diskResources.disk_location_resources(), [&mediumDirectory] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
             int mediumIndex = locationResources.medium_index();
-            auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            auto mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
             TStringBuf mediumName = mediumDescriptor
-                ? mediumDescriptor->Name
+                ? mediumDescriptor->Name()
                 : TStringBuf("unknown");
             builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v, medium_name: %v}",
                 locationResources.usage(),
