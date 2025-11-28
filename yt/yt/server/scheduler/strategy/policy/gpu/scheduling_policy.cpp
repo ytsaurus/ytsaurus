@@ -456,7 +456,7 @@ private:
                 fairShare,
                 allocationUsageShare);
             while (true) {
-                bool noMoreAssignmentsNeeded = assignmentCount >= allocationGroupResources.AllocationCount;
+                bool noMoreAssignmentsNeeded = assignmentCount + readyToAssignResources.AllocationCount >= allocationGroupResources.AllocationCount;
                 bool fairShareExceeded = Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare);
 
                 // XXX(eshcherbin): This is a dirty hack, which we use to factor in the real demand of the operation.
