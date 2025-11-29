@@ -80,13 +80,13 @@ bool MlockFileMappings(bool populate, TMlockStatistics* statistics)
             if (statistics) {
                 statistics->ErrorCodes.insert(errno);
                 statistics->BytesLockedUnsuccessfully += (endAddress - startAddress);
-                statistics->UnsuccessfullCallCount++;
+                statistics->UnsuccessfulCallCount++;
             }
 
             continue;
         } else if (statistics) {
-            statistics->BytesLockedSucessfully += (endAddress - startAddress);
-            statistics->SuccessfullCallCount++;
+            statistics->BytesLockedSuccessfully += (endAddress - startAddress);
+            statistics->SuccessfulCallCount++;
         }
 
         if (populate) {
