@@ -532,7 +532,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
-        .Default(25'000)
+        .Default(2'500)
         .GreaterThan(0);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
