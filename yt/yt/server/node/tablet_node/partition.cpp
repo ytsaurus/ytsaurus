@@ -35,12 +35,17 @@ void TSampleKeyList::Save(TSaveContext& context) const
     Save(context, MergeRefsToRef<TSampleKeyListTag>(writer->Finish()));
 }
 
-void TSampleKeyList::Load(TLoadContext& context)
+void TSampleKeyList::Load(TLoadContext& context, const IMemoryUsageTrackerPtr& tracker)
 {
     using NYT::Load;
+    auto data = Load<TSharedRef>(context);
+    data = TrackMemory(tracker, data);
     auto reader = CreateWireProtocolReader(
-        Load<TSharedRef>(context),
-        New<TRowBuffer>(TSampleKeyListTag()));
+        std::move(data),
+        New<TRowBuffer>(
+            TSampleKeyListTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            tracker));
     Keys = reader->ReadUnversionedRowset(true);
 }
 
@@ -145,7 +150,18 @@ void TPartition::AsyncLoad(TLoadContext& context)
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
-    Load(context, *SampleKeys_);
+
+    YT_ASSERT(Tablet_);
+
+    auto nodeMemoryTracker = Tablet_
+        ? Tablet_->MaybeGetNodeMemoryUsageTracker()
+        : nullptr;
+
+    SampleKeys_->Load(
+        context,
+        nodeMemoryTracker
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+            : nullptr);
 }
 
 i64 TPartition::GetCompressedDataSize() const
