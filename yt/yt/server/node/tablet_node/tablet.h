@@ -918,6 +918,8 @@ public:
 
     void ResetRowCache(const ITabletSlotPtr& slot);
 
+    INodeMemoryTrackerPtr MaybeGetNodeMemoryUsageTracker() const;
+
 private:
     struct TTabletSizeMetrics
     {

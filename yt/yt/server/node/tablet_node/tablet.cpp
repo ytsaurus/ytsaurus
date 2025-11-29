@@ -1428,7 +1428,13 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
     mergedPartition->SetAllowedSplitTime(TInstant::Now() + splitDelay);
 
     std::vector<TLegacyKey> mergedSampleKeys;
-    auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
+    auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+    auto rowBuffer = New<TRowBuffer>(
+        TSampleKeyListTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        nodeMemoryTracker
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+            : nullptr);
 
     std::vector<TLegacyOwningKey> immediateSplitKeys;
     int immediateSplitKeyCount = 0;
@@ -1526,7 +1532,13 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         YT_VERIFY(sampleKeyIndex >= std::ssize(existingSampleKeys) || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
         std::vector<TLegacyKey> sampleKeys;
-        auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
+        auto nodeMemoryTracker = MaybeGetNodeMemoryUsageTracker();
+        auto rowBuffer = New<TRowBuffer>(
+            TSampleKeyListTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            nodeMemoryTracker
+                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+                : nullptr);
 
         while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
             sampleKeys.push_back(rowBuffer->CaptureRow(existingSampleKeys[sampleKeyIndex]));
@@ -3348,6 +3360,11 @@ void TTablet::ResetRowCache(const ITabletSlotPtr& slot)
     RowCache_.Reset();
 
     ReconfigureRowCache(slot);
+}
+
+INodeMemoryTrackerPtr TTablet::MaybeGetNodeMemoryUsageTracker() const
+{
+    return Context_ ? Context_->GetNodeMemoryUsageTracker() : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
