@@ -348,7 +348,7 @@ public:
         auto query = GetJobTraceEventsQuery();
         auto selectOptions = GetDefaultSelectRowsOptions(Deadline_, AsyncLastCommittedTimestamp);
 
-        return OperationsArchiveClient_->SelectRows(query, selectOptions).ApplyUnique(BIND(
+        return OperationsArchiveClient_->SelectRows(query, selectOptions).AsUnique().Apply(BIND(
             [this, this_ = MakeStrong(this)] (TSelectRowsResult&& result) {
             const auto& rowset = result.Rowset;
             const auto& idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());

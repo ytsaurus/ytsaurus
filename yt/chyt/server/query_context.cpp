@@ -664,7 +664,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLock
         {
             return DoAcquireSnapshotLocksAsync(pathsToLock, client, tx.Transaction->GetId(), logger);
         }))
-        .ApplyUnique(BIND([notSet = std::move(notSet), result = std::move(result)]
+        .AsUnique().Apply(BIND([notSet = std::move(notSet), result = std::move(result)]
             (std::vector<TErrorOr<TObjectLock>>&& newLocks) mutable
         {
             size_t curLock = 0;

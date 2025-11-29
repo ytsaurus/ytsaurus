@@ -169,7 +169,7 @@ private:
             },
             FirstRowIndex_,
             replicaReadRowCount);
-        replica.DataFuture.SubscribeUnique(
+        replica.DataFuture.AsUnique().Subscribe(
             BIND(&TReadRowsSession::OnGotReplicaData, MakeStrong(this), partIndex)
                 .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }

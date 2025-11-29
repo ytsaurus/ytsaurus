@@ -90,7 +90,7 @@ public:
             return futures[0];
         } else {
             return AllSucceeded(std::move(futures))
-                .ApplyUnique(BIND([
+                .AsUnique().Apply(BIND([
                     payloadCount = std::ssize(payloads)
                 ] (std::vector<std::vector<TJournalHunkDescriptor>>&& descriptorLists) {
                     std::vector<TJournalHunkDescriptor> result;

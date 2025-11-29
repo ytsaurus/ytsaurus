@@ -52,7 +52,7 @@ void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: We want to use ApplyUnique() almost everywhere but TFuture<void> doesn't
+// NB: We want to use AsUnique().Apply() almost everywhere but TFuture<void> doesn't
 // have this method. So |void| is a special case.
 template <class T>
 TErrorOr<T> MaybeWrapSequoiaRetriableError(

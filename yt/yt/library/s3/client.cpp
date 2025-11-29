@@ -495,7 +495,7 @@ private:
                 CredentialProvider_);
 
             return Client_->MakeRequest(std::move(req))
-                .ApplyUnique(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .AsUnique().Apply(BIND([method = req.Method] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
                         return TError("HTTP request failed") << std::move(responseOrError);
                     }

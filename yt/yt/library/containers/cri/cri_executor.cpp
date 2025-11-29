@@ -196,7 +196,7 @@ private:
     void PollContainerStatus()
     {
         Executor_->GetContainerStatus(ContainerDescriptor_)
-            .SubscribeUnique(BIND(&TCriProcess::OnContainerStatus, MakeStrong(this)));
+            .AsUnique().Subscribe(BIND(&TCriProcess::OnContainerStatus, MakeStrong(this)));
     }
 
     void OnContainerStatus(TErrorOr<TCriRuntimeApi::TRspContainerStatusPtr>&& responseOrError)

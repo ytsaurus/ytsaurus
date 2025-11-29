@@ -154,7 +154,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         false)
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.
-        .ApplyUnique(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
+        .AsUnique().Apply(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
             .AsyncVia(Context_.Job->GetInvoker()))
         .ToUncancelable();
 }

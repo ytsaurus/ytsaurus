@@ -1158,7 +1158,7 @@ private:
 
         return AnySet<T>({
             future
-                .ApplyUnique(BIND([fallbackValue] (TErrorOr<T>&& resultOrError) {
+                .AsUnique().Apply(BIND([fallbackValue] (TErrorOr<T>&& resultOrError) {
                     if (!resultOrError.IsOK() && resultOrError.FindMatching(NChunkClient::EErrorCode::ReadMetaTimeout)) {
                         return fallbackValue();
                     } else if (!resultOrError.IsOK()) {
@@ -1276,7 +1276,7 @@ private:
             }
 
             return blocksFuture
-                .ApplyUnique(BIND([=] (std::vector<TBlock>&& blocks) {
+                .AsUnique().Apply(BIND([=] (std::vector<TBlock>&& blocks) {
                     return TReadBlocksResult{
                         .ReadFromP2P = readFromP2P,
                         .Blocks = std::move(blocks),
@@ -1325,7 +1325,7 @@ private:
                 std::move(result.Blocks));
         });
 
-        context->ReplyFrom(blocksFuture.ApplyUnique(onBlocksRead));
+        context->ReplyFrom(blocksFuture.AsUnique().Apply(onBlocksRead));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
@@ -1613,7 +1613,7 @@ private:
                         readSessionId);
 
                     if (!enableMemoryTracking) {
-                        readFuture = readFuture.ApplyUnique(BIND([
+                        readFuture = readFuture.AsUnique().Apply(BIND([
                             =,
                             memoryGuard = std::move(locationMemoryGuards[index]),
                             resultIndex = index] (TReadResponse&& result) mutable {
@@ -1634,7 +1634,7 @@ private:
                 }
 
                 AllSucceeded(std::move(readFutures))
-                    .SubscribeUnique(BIND(
+                    .AsUnique().Subscribe(BIND(
                         [
                             =,
                             this,
@@ -1883,7 +1883,7 @@ private:
         };
 
         auto result = chunk->ReadMeta(options, extensionTags)
-            .ApplyUnique(BIND([] (TRefCountedChunkMetaPtr&& meta) {
+            .AsUnique().Apply(BIND([] (TRefCountedChunkMetaPtr&& meta) {
                 return TReadMetaResult{
                     .Meta = std::move(meta),
                     .Throttled = false,

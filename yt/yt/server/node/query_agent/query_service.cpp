@@ -630,7 +630,7 @@ private:
             context->Reply();
         } else {
             auto throttler = GetUserBackendOutThrottler();
-            context->ReplyFrom(future.ApplyUnique(BIND(
+            context->ReplyFrom(future.AsUnique().Apply(BIND(
                 [
                     =,
                     context = context,
@@ -1609,7 +1609,7 @@ private:
             context->Reply();
         } else {
             context->ReplyFrom(
-                resultFuture.ApplyUnique(BIND(
+                resultFuture.AsUnique().Apply(BIND(
                 [
                     context = context,
                     throttler = std::move(throttler),

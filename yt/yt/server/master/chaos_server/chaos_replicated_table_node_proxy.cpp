@@ -77,7 +77,7 @@ public:
         return GetTabletCount(
                 std::move(replicationCardFuture),
                 std::move(connection))
-            .ApplyUnique(BIND([] (TErrorOr<int>&& count) {
+            .AsUnique().Apply(BIND([] (TErrorOr<int>&& count) {
                 if (!count.IsOK()) {
                     return BuildYsonStringFluently()
                         .Entity();
@@ -93,12 +93,12 @@ public:
         NNative::IConnectionPtr connection)
     {
         auto getTableInfoWaitTimeout = connection->GetConfig()->DefaultChaosReplicatedTableGetTabletCountTimeout;
-        auto activeQueueConnectionsFuture = replicationCardFuture.ApplyUnique(BIND(
+        auto activeQueueConnectionsFuture = replicationCardFuture.AsUnique().Apply(BIND(
             [connection = std::move(connection)] (TReplicationCardPtr&& card) {
                 return GetActiveQueueReplicaConnections(card->Replicas, connection);
             }));
 
-        auto replicaTabletCountRequestsFuture = activeQueueConnectionsFuture.ApplyUnique(BIND(
+        auto replicaTabletCountRequestsFuture = activeQueueConnectionsFuture.AsUnique().Apply(BIND(
             [getTableInfoWaitTimeout] (std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
             {
                 std::vector<TFuture<int>> requests;
@@ -115,7 +115,7 @@ public:
             }));
 
         return replicaTabletCountRequestsFuture
-            .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
+            .AsUnique().Apply(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
                 return MakeFuture(GetMinimalTabletCount(std::move(tabletCounts)));
             }));
     }
@@ -498,7 +498,7 @@ private:
                 auto id = GetThisImpl()->GetReplicationCardId();
                 auto connection = Bootstrap_->GetClusterConnection();
                 return GetReplicationCard()
-                    .ApplyUnique(BIND([connection = std::move(connection), id] (TReplicationCardPtr&& card) {
+                    .AsUnique().Apply(BIND([connection = std::move(connection), id] (TReplicationCardPtr&& card) {
                         if (card->ReplicationCardCollocationId.IsEmpty()) {
                             return MakeFuture(
                                 BuildYsonStringFluently()
@@ -510,7 +510,7 @@ private:
                             card->ReplicationCardCollocationId,
                             id,
                             std::move(connection))
-                            .ApplyUnique(BIND([] (std::vector<TReplicationCardId>&& ids) {
+                            .AsUnique().Apply(BIND([] (std::vector<TReplicationCardId>&& ids) {
                                 return BuildYsonStringFluently()
                                     .Value(ids);
                             }));
@@ -591,7 +591,7 @@ private:
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
         return req->Invoke()
-            .ApplyUnique(BIND([] (TChaosNodeServiceProxy::TErrorOrRspGetReplicationCardCollocationPtr&& result) {
+            .AsUnique().Apply(BIND([] (TChaosNodeServiceProxy::TErrorOrRspGetReplicationCardCollocationPtr&& result) {
                 if (!result.IsOK()) {
                     return TErrorOr<std::vector<TReplicationCardId>>(TError(result));
                 }
@@ -637,7 +637,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
             GetReplicationCard({.IncludeHistory = true}),
             Bootstrap_->GetClusterConnection());
 
-        context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
+        context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
             [context, response] (int&& result) {
                 response->set_tablet_count(result);
             })));

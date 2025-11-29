@@ -465,7 +465,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
             })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
-                .SubscribeUnique(
+                .AsUnique().Subscribe(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
                         .Via(Invoker_));
         });
@@ -563,7 +563,7 @@ void TJob::Start() noexcept
         resolveFuture = MakeFuture(std::vector<TNameWithAddress>());
     }
 
-    resolveFuture.SubscribeUnique(
+    resolveFuture.AsUnique().Subscribe(
         BIND(&TJob::DoStart, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
 }

@@ -292,7 +292,7 @@ public:
         }
 
         return compressorsFuture
-            .ApplyUnique(BIND([
+            .AsUnique().Apply(BIND([
                 presetCompressionDictionaryId,
                 tabletSnapshot = std::move(tabletSnapshot)
             ] (TRowDictionaryCompressors&& compressors) {
@@ -691,7 +691,7 @@ private:
             tabletSnapshot->ChunkFragmentReader,
             /*suitableForCaching*/ true,
             Logger)
-            .SubscribeUnique(BIND(
+            .AsUnique().Subscribe(BIND(
                 [=, cookie = std::move(cookie)] (TErrorOr<TRowDigestedDictionary>&& digestedDictionaryOrError) mutable
             {
                 if (!digestedDictionaryOrError.IsOK()) {

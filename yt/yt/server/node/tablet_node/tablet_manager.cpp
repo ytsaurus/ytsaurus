@@ -611,7 +611,7 @@ public:
         return tablet
             ->GetStoresUpdateCommitSemaphore()
             ->AsyncAcquire()
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND(
                     ThrowOnDestroyed(&TTabletManager::OnStoresUpdateCommitSemaphoreAcquired),
                     MakeWeak(this),

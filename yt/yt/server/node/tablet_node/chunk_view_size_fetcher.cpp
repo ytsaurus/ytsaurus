@@ -125,7 +125,7 @@ private:
         }
 
         AllSet(ChunkReplicaCache_->GetReplicas(chunkIds))
-            .SubscribeUnique(BIND(
+            .AsUnique().Subscribe(BIND(
                 &TChunkViewSizeFetcher::OnChunkReplicasReceived,
                 MakeStrong(this),
                 std::move(stores))
