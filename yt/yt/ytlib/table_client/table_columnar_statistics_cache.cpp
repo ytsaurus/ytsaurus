@@ -179,7 +179,7 @@ public:
 
         auto asyncResults = GetMany(missedKeys);
 
-        return asyncResults.ApplyUnique(BIND(&TImpl::CombineResult, MakeStrong(this), Passed(std::move(finalResults)), Passed(std::move(missedIndices))));
+        return asyncResults.AsUnique().Apply(BIND(&TImpl::CombineResult, MakeStrong(this), Passed(std::move(finalResults)), Passed(std::move(missedIndices))));
     }
 
     std::vector<TErrorOr<TNamedColumnarStatistics>> CombineResult(

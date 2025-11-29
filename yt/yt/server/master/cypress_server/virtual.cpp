@@ -339,7 +339,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchLocalItems(
     });
 
     return AllSucceeded(asyncAttributes)
-        .ApplyUnique(BIND([keys = std::move(keys), session] (std::vector<TYsonString>&& attributes) mutable {
+        .AsUnique().Apply(BIND([keys = std::move(keys), session] (std::vector<TYsonString>&& attributes) mutable {
             for (auto&& [key, attributes] : Zip(keys, attributes)) {
                 session->Items.emplace_back(std::move(key), TYsonString(attributes));
             }
@@ -385,7 +385,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     });
 
     return batchReq->Invoke()
-        .ApplyUnique(BIND([
+        .AsUnique().Apply(BIND([
             keys = std::move(keys),
             attributeFilter,
             session,

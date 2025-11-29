@@ -157,7 +157,7 @@ private:
 
         if (!storesToFetch.empty()) {
             AllSet(std::move(asyncChunkMetas))
-                .SubscribeUnique(BIND(
+                .AsUnique().Subscribe(BIND(
                     &TMinHashDigestFetcher::OnChunkMetaReceived,
                     MakeStrong(this),
                     Passed(std::move(storesToFetch)))
@@ -216,7 +216,7 @@ private:
 
         if (!storesToFetch.empty()) {
             AllSet(std::move(asyncMinHashDigests))
-                .SubscribeUnique(BIND(
+                .AsUnique().Subscribe(BIND(
                     &TMinHashDigestFetcher::OnMinHashDigestReceived,
                     MakeStrong(this),
                     std::move(storesToFetch))

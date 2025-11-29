@@ -56,10 +56,10 @@ public:
         };
         options.ReadFrom = EMasterChannelKind::Cache;
         return Client_->GetNode(path, options)
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TCypressTokenAuthenticator::OnCallTokenResult,
                 MakeStrong(this)))
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TCypressTokenAuthenticator::WrapError,
                 tokenHash));
     }
@@ -102,7 +102,7 @@ private:
             TGetNodeOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             return Client_->GetNode(path, options)
-                .ApplyUnique(BIND(
+                .AsUnique().Apply(BIND(
                     &TCypressTokenAuthenticator::OnCallUsernameResult,
                     MakeStrong(this),
                     std::move(*userIdAttribute)));

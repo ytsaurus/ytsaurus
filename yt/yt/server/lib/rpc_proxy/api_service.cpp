@@ -1378,7 +1378,7 @@ private:
         ExecuteCall(
             context,
             [=, Logger = Logger] {
-                return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag).AsUnique().Apply(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
@@ -6618,7 +6618,7 @@ private:
                 }
 
                 return AllSucceeded(std::move(validation))
-                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                    .AsUnique().Apply(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
                         auto allValid = std::ranges::all_of(results, [] (bool value) {
                             return value;
                         });
@@ -6756,7 +6756,7 @@ private:
                 }
 
                 return AllSucceeded(std::move(validation))
-                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                    .AsUnique().Apply(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
                         auto allValid = std::ranges::all_of(results, [] (bool value) {
                             return value;
                         });

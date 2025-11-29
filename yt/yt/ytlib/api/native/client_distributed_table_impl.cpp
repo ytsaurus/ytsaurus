@@ -518,7 +518,7 @@ TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(
         cookie.MainTransactionId,
         /*writeBlocksOptions*/ {});
 
-    return asyncSchemalessWriter.ApplyUnique(BIND([] (IUnversionedTableFragmentWriterPtr&& schemalessWriter) {
+    return asyncSchemalessWriter.AsUnique().Apply(BIND([] (IUnversionedTableFragmentWriterPtr&& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
     }));
 }

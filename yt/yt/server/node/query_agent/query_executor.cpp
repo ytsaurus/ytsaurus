@@ -673,7 +673,7 @@ private:
                         RequestFeatureFlags_,
                         responseFeatureFlags);
 
-                asyncStatistics = asyncStatistics.ApplyUnique(BIND([
+                asyncStatistics = asyncStatistics.AsUnique().Apply(BIND([
                     =,
                     Logger = Logger
                 ] (TErrorOr<TQueryStatistics>&& result) {

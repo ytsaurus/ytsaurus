@@ -146,7 +146,7 @@ private:
         TCellTag clockClusterTag)
     {
         return underlying->GenerateTimestamps(count, clockClusterTag)
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND([
                     count,
                     Logger = Logger,

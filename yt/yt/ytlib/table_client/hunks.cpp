@@ -1608,7 +1608,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     }
 
     auto fragmentsFuture = chunkFragmentReader->ReadFragments(options, requests);
-    return fragmentsFuture.ApplyUnique(BIND([
+    return fragmentsFuture.AsUnique().Apply(BIND([
             =,
             requests = std::move(requests),
             values = std::move(values),
@@ -1665,7 +1665,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     std::move(owningCompressedValues),
                     std::move(compressionDictionaryIds),
                     std::move(options))
-                    .ApplyUnique(BIND([
+                    .AsUnique().Apply(BIND([
                         result = std::move(result),
                         hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
                         performanceCounters = std::move(performanceCounters),
@@ -1744,7 +1744,7 @@ TFuture<TSharedRange<TRow>> DecodeHunksInRows(
             std::move(performanceCounters),
             requestType,
             CollectHunkValues(rows, rowVisitor))
-        .ApplyUnique(BIND(
+        .AsUnique().Apply(BIND(
             [rows = std::move(rows)]
             (TSharedRange<TUnversionedValue*>&& sharedValues)
         {
@@ -1948,7 +1948,7 @@ protected:
                 PerformanceCounters_,
                 NTableClient::EPerformanceCountedRequestType::Read,
                 MakeSharedRange(std::move(values), DecodableRows_))
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND(&TBatchHunkReader::OnHunksRead, MakeStrong(this)));
 
         return CreateEmptyRowBatch<TImmutableRow>();

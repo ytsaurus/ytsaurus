@@ -694,7 +694,7 @@ void TBlockFetcher::RequestBlocks(
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
         YT_VERIFY(readerIndexToWindowIndices[readerIndex].size() == blockIndices.size());
-        future.SubscribeUnique(
+        future.AsUnique().Subscribe(
             BIND(
                 &TBlockFetcher::OnGotBlocks,
                 MakeWeak(this),

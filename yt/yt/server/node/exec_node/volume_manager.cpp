@@ -4243,7 +4243,7 @@ private:
                 std::move(volumeCreateTimeGuard),
                 std::move(nbdConfig),
                 options);
-            auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+            auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
                 [
                     tagSet = std::move(tagSet),
                     location = std::move(location),
@@ -4342,7 +4342,7 @@ private:
 
         // This future is intentionally uncancellable: we don't want to interrupt invoked volume creation,
         // until it is completed and the OverlayVolume object is fully created.
-        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
             [
                 location = std::move(location),
                 tagSet = std::move(tagSet),
@@ -4382,7 +4382,7 @@ private:
 
         auto location = LayerCache_->PickLocation();
         auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
-        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
             [
                 tagSet = std::move(tagSet),
                 artifactKey,
