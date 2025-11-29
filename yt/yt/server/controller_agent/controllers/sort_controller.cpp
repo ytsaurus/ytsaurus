@@ -1940,8 +1940,6 @@ protected:
     {
         YT_VERIFY(partition->IsAllDataCollected());
 
-        partition->ShuffleChunkPoolInput()->Finish();
-
         YT_LOG_DEBUG(
             "Processing partition completed by jobs "
             "(PartitionLevel: %v, PartitionIndex: %v, PhysicalPartitionCount: %v, DataWeight: %v)",
@@ -1965,6 +1963,10 @@ protected:
                     childPartition->GetIndex(),
                     childPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
             }
+
+            // NB(apollo1321): Finish may run callbacks in-place, so Finish() should not
+            // be called before marking all child partitions as completed.
+            partition->ShuffleChunkPoolInput()->Finish();
         } else {
             YT_LOG_DEBUG(
                 "Dispatching physical partitions for final level intermediate partition "
@@ -1972,6 +1974,8 @@ protected:
                 partition->GetLevel(),
                 partition->GetIndex(),
                 partition->GetPhysicalPartitionCount());
+
+            partition->ShuffleChunkPoolInput()->Finish();
 
             TryDispatchPhysicalPartitionsForProcessing(partition, /*isAllDataCollected*/ true);
             YT_VERIFY(std::ssize(partition->DispatchedPhysicalPartitions()) == partition->GetPhysicalPartitionCount());
