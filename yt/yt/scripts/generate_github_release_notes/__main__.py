@@ -16,7 +16,7 @@ def parse_changelog_entry(commit_description):
     changelog_pattern = re.compile(
         r'Changelog entry.*\n'
         r'.*Type: (.+)[\n]+'
-        r'.*Component: (.+)[\n]+'
+        r'.*Component: ([^\n]+)\n+'
         r'(.+)[\n]+',
         re.DOTALL | re.IGNORECASE
     )
@@ -74,21 +74,6 @@ def get_commits(repo, since_commit, until_commit):
     return [Commit(commit.strip(), repo) for commit in commits if commit.strip()]
 
 
-def longest_common_substring(a, b):
-    # print("CALC LCP, a: ", a, ", b: ", b)
-    la, lb = len(a), len(b)
-    dp = [[0] * (lb + 1) for _ in range(la + 1)]
-    best = 0
-
-    for i in range(1, la + 1):
-        for j in range(1, lb + 1):
-            if a[i-1] == b[j-1]:
-                dp[i][j] = dp[i-1][j-1] + 1
-                if dp[i][j] > best:
-                    best = dp[i][j]
-    return best
-
-
 def filter_commits(commits, commits_prev_release):
     result_commits = []
     removed_commits = []
@@ -96,11 +81,14 @@ def filter_commits(commits, commits_prev_release):
     print("HERE ", len(commits), len(commits_prev_release))
 
     for commit in commits:
+        remove = False
         for prev_commit in commits_prev_release:
             if commit.name in prev_commit.name:
                 removed_commits += [(commit, prev_commit)]
-            else:
-                result_commits += [commit]
+                remove = False
+                break
+        if not remove:
+            result_commits += [commit]
     return result_commits, removed_commits
 
 
@@ -117,6 +105,8 @@ class ReleaseNotes:
             if component == "unparsed":
                 continue
             if self.args.components and component not in self.args.components:
+                continue
+            if self.args.ignore_components and component in self.args.ignore_components:
                 continue
             formatted_notes.append(f"### {component}")
 
@@ -143,7 +133,7 @@ class ReleaseNotes:
                 formatted_notes.append(commit.get_formatted())
                 formatted_notes.append("")
 
-        if self.removed_commits:
+        if self.removed_commits and self.args.print_removed:
             formatted_notes.append("### REMOVED")
             for commit, prev_commit in self.removed_commits:
                 formatted_notes.append(commit.get_formatted(add_name=True))
@@ -166,8 +156,6 @@ def generate_release_notes(args):
             release_notes.by_component[commit.changelog_entry.component][commit.changelog_entry.commit_type].append(commit)
 
     return release_notes
-
-
 
 
 def main():
@@ -208,6 +196,13 @@ def main():
     )
 
     parser.add_argument(
+        "-ic", "--ignore-component",
+        action="append",
+        dest="ignore_components",
+        help="Components to ignore"
+    )
+
+    parser.add_argument(
         "-r", "--repo",
         required=False,
         default="ytsaurus",
@@ -221,9 +216,19 @@ def main():
         help="Ignore unparsed commit with changelog entry"
     )
 
+    parser.add_argument(
+        "-pr", "--print-removed",
+        action="store_true",
+        default=False,
+        help="Print removed commits"
+    )
+
     args = parser.parse_args()
 
     release_notes = generate_release_notes(args)
+    for component in release_notes.by_component:
+        print(f"COMPONENT: '{component}', {'\n' in component}")
+    print(f"REMOVED COMMITS: {len(release_notes.removed_commits)}")
     print(release_notes.get_formatted())
 
 
