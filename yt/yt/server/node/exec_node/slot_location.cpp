@@ -113,12 +113,12 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
 }
 
-void TSlotLocation::CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const
+TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const
 {
-    BIND([rootVolume, userId] {
-        NYT::NExecNode::CreateVitalDirectories(rootVolume, userId);
+    return BIND([rootVolume, userId] {
+        NYT::NExecNode::CreateSlotDirectories(rootVolume, userId);
     })
-    .Via(HeavyInvoker_)
+    .AsyncVia(ToolInvoker_)
     .Run();
 }
 

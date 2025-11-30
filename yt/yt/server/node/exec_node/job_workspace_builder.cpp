@@ -513,15 +513,16 @@ private:
                             << volumeOrError;
                     }
 
-                    YT_LOG_DEBUG("Root volume prepared");
+                    auto rootVolume = std::move(volumeOrError.Value());
+                    return slot->CreateSlotDirectories(
+                        rootVolume,
+                        Context_.UserSandboxOptions.UserId)
+                        .Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] () {
+                            ResultHolder_.RootVolume = rootVolume;
+                            YT_LOG_DEBUG("Root volume prepared");
+                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                        }).AsyncVia(Invoker_));
 
-                    ResultHolder_.RootVolume = volumeOrError.Value();
-
-                    slot->CreateVitalDirectories(
-                        ResultHolder_.RootVolume,
-                        Context_.UserSandboxOptions.UserId);
-
-                    SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                 }).AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
