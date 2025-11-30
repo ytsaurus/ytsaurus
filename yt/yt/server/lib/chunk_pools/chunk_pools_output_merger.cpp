@@ -84,6 +84,10 @@ public:
     {
         YT_LOG_DEBUG("Extracting job (NodeId: %v)", nodeId);
 
+        if (JobCounter_->GetPending() == 0) {
+            return NullCookie;
+        }
+
         VerifyCanExtract();
 
         ExtractedCookie_ = static_cast<TCookie>(RandomNumber<ui32>(std::numeric_limits<TCookie>::max()));
@@ -199,21 +203,17 @@ public:
             }
         });
 
-        JobCounter_->AddRunning(-1);
         JobCounter_->AddCompleted(1, jobSummary.InterruptionReason);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
 
-        DataWeightCounter_->AddRunning(-statistics.DataWeight);
         DataWeightCounter_->AddCompleted(statistics.DataWeight, jobSummary.InterruptionReason);
-        RowCounter_->AddRunning(-statistics.RowCount);
         RowCounter_->AddCompleted(statistics.RowCount, jobSummary.InterruptionReason);
-        DataSliceCounter_->AddRunning(-ExtractedChunkStripeList_->GetSliceCount());
         DataSliceCounter_->AddCompleted(ExtractedChunkStripeList_->GetSliceCount(), jobSummary.InterruptionReason);
 
-        IsRunning_ = false;
         IsCompleted_ = true;
 
+        ResetRunningCounters();
         UpdateCounters();
 
         YT_LOG_DEBUG(
@@ -232,35 +232,26 @@ public:
 
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
-        WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
-                const auto& chunkPool = ChunkPools_[poolIndex];
-                for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
-                    chunkPool->Failed(extractedCookieId);
-                }
+        ApplyAndVerifyNotCompleted(
+            [] (const auto& chunkPool, auto extractedCookieId) {
+                chunkPool->Failed(extractedCookieId);
+            },
+            "Failed");
 
-                YT_VERIFY(!chunkPool->IsCompleted());
-
-                YT_LOG_DEBUG("Failed pool (PoolIndex: %v)", poolIndex);
-            }
-        });
-
-        JobCounter_->AddRunning(-1);
         JobCounter_->AddFailed(1);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
         i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
 
-        DataWeightCounter_->AddRunning(-statistics.DataWeight);
         DataWeightCounter_->AddFailed(statistics.DataWeight);
-        RowCounter_->AddRunning(-statistics.RowCount);
         RowCounter_->AddFailed(statistics.RowCount);
-        DataSliceCounter_->AddRunning(-sliceCount);
         DataSliceCounter_->AddFailed(sliceCount);
 
-        ResetRunning();
-
+        ResetRunningCounters();
         UpdateCounters();
+
+        ExtractedChunkStripeList_.Reset();
+        ExtractedCookie_ = IChunkPoolOutput::NullCookie;
 
         YT_LOG_DEBUG(
             "Job failed (Cookie: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
@@ -276,35 +267,26 @@ public:
 
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
-        WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
-                const auto& chunkPool = ChunkPools_[poolIndex];
-                for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
-                    chunkPool->Aborted(extractedCookieId, reason);
-                }
+        ApplyAndVerifyNotCompleted(
+            [reason] (const auto& chunkPool, auto extractedCookieId) {
+                chunkPool->Aborted(extractedCookieId, reason);
+            },
+            "Aborted");
 
-                YT_VERIFY(!chunkPool->IsCompleted());
-
-                YT_LOG_DEBUG("Aborted pool (PoolIndex: %v)", poolIndex);
-            }
-        });
-
-        JobCounter_->AddRunning(-1);
         JobCounter_->AddAborted(1, reason);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
         i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
 
-        DataWeightCounter_->AddRunning(-statistics.DataWeight);
         DataWeightCounter_->AddAborted(statistics.DataWeight, reason);
-        RowCounter_->AddRunning(-statistics.RowCount);
         RowCounter_->AddAborted(statistics.RowCount, reason);
-        DataSliceCounter_->AddRunning(-sliceCount);
         DataSliceCounter_->AddAborted(sliceCount, reason);
 
-        ResetRunning();
-
+        ResetRunningCounters();
         UpdateCounters();
+
+        ExtractedChunkStripeList_.Reset();
+        ExtractedCookie_ = IChunkPoolOutput::NullCookie;
 
         YT_LOG_DEBUG(
             "Job aborted (Cookie: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
@@ -320,18 +302,11 @@ public:
 
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ false, /*shouldBeCompleted*/ true);
 
-        WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
-                const auto& chunkPool = ChunkPools_[poolIndex];
-                for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
-                    chunkPool->Lost(extractedCookieId);
-                }
-
-                YT_VERIFY(!chunkPool->IsCompleted());
-
-                YT_LOG_DEBUG("Lost pool (PoolIndex: %v)", poolIndex);
-            }
-        });
+        ApplyAndVerifyNotCompleted(
+            [] (const auto& chunkPool, auto extractedCookieId) {
+                chunkPool->Lost(extractedCookieId);
+            },
+            "Lost");
 
         JobCounter_->AddLost(1);
 
@@ -404,11 +379,18 @@ private:
         YT_VERIFY(!ExtractedChunkStripeList_);
     }
 
-    void ResetRunning()
+    void ResetRunningCounters()
     {
+        JobCounter_->AddRunning(-1);
+
+        auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
+        i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
+
+        DataWeightCounter_->AddRunning(-statistics.DataWeight);
+        RowCounter_->AddRunning(-statistics.RowCount);
+        DataSliceCounter_->AddRunning(-sliceCount);
+
         IsRunning_ = false;
-        ExtractedChunkStripeList_.Reset();
-        ExtractedCookie_ = IChunkPoolOutput::NullCookie;
     }
 
     template <class TFunc>
@@ -417,6 +399,27 @@ private:
         DisableUpdate_ = true;
         auto guard = Finally([&] { DisableUpdate_ = false; });
         func();
+    }
+
+    template <class TAction>
+    void ApplyAndVerifyNotCompleted(TAction&& action, TStringBuf actionName)
+    {
+        WithUpdateDisabled([&] {
+            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+                if (UnderlyingChunkPoolCookies_[poolIndex].empty()) {
+                    continue;
+                }
+
+                const auto& chunkPool = ChunkPools_[poolIndex];
+                for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
+                    action(chunkPool, extractedCookieId);
+                }
+
+                YT_VERIFY(!chunkPool->IsCompleted());
+
+                YT_LOG_DEBUG("%v pool (PoolIndex: %v)", actionName, poolIndex);
+            }
+        });
     }
 
     std::array<TProgressCounter*, 4> GetAllCounters()
