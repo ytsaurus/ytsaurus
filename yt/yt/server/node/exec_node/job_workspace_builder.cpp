@@ -345,7 +345,7 @@ private:
 
         const auto& slot = Context_.Slot;
         return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
-            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;
@@ -546,7 +546,7 @@ private:
 
         const auto& slot = Context_.Slot;
         return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
-            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;
@@ -914,7 +914,7 @@ private:
 
         const auto& slot = Context_.Slot;
         return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
-            .ApplyUnique(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;

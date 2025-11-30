@@ -402,7 +402,7 @@ public:
             /*uncancelable*/ false,
             [userSandBoxPath = std::move(userSandBoxPath), volumeParams, this, this_ = MakeStrong(this)] {
                 return VolumeManager_->PrepareTmpfsVolumes(userSandBoxPath, volumeParams)
-                    .ApplyUnique(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    .AsUnique().Apply(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                         if (!volumeResultsOrError.IsOK()) {
                             THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
                                 volumeResultsOrError);

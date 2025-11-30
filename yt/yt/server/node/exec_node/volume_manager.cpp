@@ -2800,7 +2800,7 @@ public:
         const TString& target) override final
     {
         return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .ApplyUnique(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+            .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 // Targets_ is protected with guard.
                 Y_UNUSED(guard);
 
@@ -2821,7 +2821,7 @@ public:
         }
 
         return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .ApplyUnique(BIND([this, this_] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+            .AsUnique().Apply(BIND([this, this_] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 if (RemoveFuture_) {
                     return RemoveFuture_;
                 }
@@ -4190,7 +4190,7 @@ private:
             std::move(volumeCreateTimeGuard),
             volumeParams);
 
-        return future.ApplyUnique(BIND(
+        return future.AsUnique().Apply(BIND(
             [
                 tmpfsPath = volumeParams.Path,
                 tagSet = std::move(tagSet),
