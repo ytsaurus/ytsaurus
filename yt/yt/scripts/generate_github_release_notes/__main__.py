@@ -52,8 +52,16 @@ class Commit:
     def get_link(self):
         return f"[{self.hash[:7]}](https://github.com/ytsaurus/{self.repo}/commit/{self.hash})"
 
-    def get_formatted(self):
-        return f"- {self.changelog_entry.message}, {self.get_link()}."
+    def get_formatted(self, add_name=False):
+        result = ""
+        if self.changelog_entry:
+            result += f"- {self.changelog_entry.message}"
+
+        if add_name:
+            result += f"; {self.name}"
+
+        result += f", {self.get_link()}."
+        return result
 
 
 def get_commits(repo, since_commit, until_commit):
@@ -67,6 +75,7 @@ def get_commits(repo, since_commit, until_commit):
 
 
 def longest_common_substring(a, b):
+    # print("CALC LCP, a: ", a, ", b: ", b)
     la, lb = len(a), len(b)
     dp = [[0] * (lb + 1) for _ in range(la + 1)]
     best = 0
@@ -83,9 +92,12 @@ def longest_common_substring(a, b):
 def filter_commits(commits, commits_prev_release):
     result_commits = []
     removed_commits = []
+
+    print("HERE ", len(commits), len(commits_prev_release))
+
     for commit in commits:
         for prev_commit in commits_prev_release:
-            if longest_common_substring(commit.name, prev_commit.name) > 15:
+            if commit.name in prev_commit.name:
                 removed_commits += [(commit, prev_commit)]
             else:
                 result_commits += [commit]
@@ -134,8 +146,8 @@ class ReleaseNotes:
         if self.removed_commits:
             formatted_notes.append("### REMOVED")
             for commit, prev_commit in self.removed_commits:
-                formatted_notes.append(commit.get_formatted())
-                formatted_notes.append(prev_commit.get_formatted())
+                formatted_notes.append(commit.get_formatted(add_name=True))
+                formatted_notes.append(prev_commit.get_formatted(add_name=True))
                 formatted_notes.append("")
 
         return '\n'.join(formatted_notes)
