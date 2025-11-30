@@ -38,6 +38,7 @@ PY_SRCS(
     table_creation.py
     test_compare_replicas.py
     test_ordered.py
+    test_queue_and_hunk_storage.py
     test_queues.py
     test_sorted.py
     verify.py
