@@ -631,11 +631,11 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
-    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const override
+    TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
 
-        return Location_->CreateVitalDirectories(rootVolume, userId);
+        return Location_->CreateSlotDirectories(rootVolume, userId);
     }
 
 private:
