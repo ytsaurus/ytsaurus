@@ -486,14 +486,14 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
-        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+        auto mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
 
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
-            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->GetPriority() : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
