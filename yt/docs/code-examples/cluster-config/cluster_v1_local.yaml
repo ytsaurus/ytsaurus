@@ -37,14 +37,25 @@ spec:
         path: /yt/master-data/master-changelogs
       - locationType: MasterSnapshots
         path: /yt/master-data/master-snapshots
+      - locationType: Logs
+        path: /yt/master-logs
 
     volumeMounts:
       - name: master-data
         mountPath: /yt/master-data
+      - name: master-logs
+        mountPath: /yt/master-logs
 
     volumeClaimTemplates:
       - metadata:
           name: master-data
+        spec:
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 5Gi
+      - metadata:
+          name: master-logs
         spec:
           accessModes: [ "ReadWriteOnce" ]
           resources:
@@ -129,9 +140,10 @@ spec:
           minLogLevel: info
           writerType: file
           rotationPolicy: *rotationPolicy
-        - name: error
-          minLogLevel: error
-          writerType: stderr
+        # this file is append-only and not rotated
+        # - name: error
+        #   minLogLevel: error
+        #   writerType: stderr
 
   schedulers:
     instanceCount: 1
@@ -154,11 +166,19 @@ spec:
 
   tabletNodes:
     - instanceCount: 1
+      loggers: *loggers
+
+  queueAgents:
+    instanceCount: 1
+    loggers: *loggers
 
   yqlAgents:
     instanceCount: 1
     image: ghcr.io/ytsaurus/query-tracker:0.0.11
+    loggers: *loggers
 
   queryTrackers:
     instanceCount: 1
     image: ghcr.io/ytsaurus/query-tracker:0.0.11
+    loggers: *loggers
+
