@@ -27,7 +27,14 @@
 
 ### Конфигурирование {{product-name}} операции  { #operation-config }
 
-Помимо стандартных параметров Spark для драйвера и экзекьюторов дополнительно можно конфигурировать операции и таски через соответствующие conf параметры `spark.ytsaurus.{driver|executor}.{operation|task}.parameters`. Например, `--conf spark.ytsaurus.executor.operation.shutdown.delay=10000`.
+Помимо стандартных параметров Spark для драйвера и экзекьюторов дополнительно можно конфигурировать операции и таски через соответствующие conf параметры `spark.ytsaurus.{driver|executor}.{operation|task}.parameters`. В качестве значения указывается yson-строка с допустимыми параметрами ванила операции. Например, можно задать тип и объем подключаемых дисков:
+```bash
+--conf spark.ytsaurus.executor.task.parameters='{"disk_request"={"disk_space"=1234567;
+                                                 "account"="disk_account_name";
+                                                 "medium_name"="ssd_slots_physical";};
+                                                }'
+```
+Полный список параметров можно посмотреть в разделе [опции операции](../../../../../user-guide/data-processing/operations/operations-options.md).
 
 ### Преимущества подхода { #advantages }
 
