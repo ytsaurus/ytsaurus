@@ -35,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const NControllerAgent::NProto::TJobSpec& jobSpec);
+IJobSpecHelperPtr CreateJobSpecHelper(NControllerAgent::NProto::TJobSpec jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
