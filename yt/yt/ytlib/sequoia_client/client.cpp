@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
@@ -25,9 +26,10 @@ namespace NYT::NSequoiaClient {
 
 using namespace NApi;
 using namespace NApi::NNative;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
-using namespace NLogging;
+using namespace NRpc;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,9 @@ public:
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , GroundClientFuture_(std::move(groundClientFuture))
+        , AuthenticatedLocalClientCache_(New<NNative::TClientCache>(
+            Config_ ? Config_->ClientCache : New<TSlruCacheConfig>(),
+            LocalConnection_))
     { }
 
     const TLogger& GetLogger() const override
@@ -127,11 +132,18 @@ public:
     }
 
 #undef XX
+    NNative::IClientPtr GetOrCreateAuthenticatedLocalClient(const TAuthenticationIdentity& identity) override
+    {
+        return AuthenticatedLocalClientCache_->Get(
+            identity,
+            NNative::TClientOptions::FromAuthenticationIdentity(identity));
+    }
 
 private:
     const NNative::TSequoiaConnectionConfigPtr Config_;
     const NNative::IConnectionPtr LocalConnection_;
     const TFuture<NNative::IClientPtr> GroundClientFuture_;
+    const NNative::TClientCachePtr AuthenticatedLocalClientCache_;
 
     NNative::IClientPtr GetGroundClientOrThrow()
     {

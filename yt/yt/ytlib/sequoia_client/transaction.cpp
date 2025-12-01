@@ -165,10 +165,10 @@ public:
         const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
-        , AuthenticatedLocalClient_(
-            localConnection->CreateNativeClient(
-                NNative::TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
+        , AuthenticatedLocalClient_(SequoiaClient_->GetOrCreateAuthenticatedLocalClient(
+            sequoiaTransactionOptions.AuthenticationIdentity))
         , GroundClient_(std::move(groundClient))
+        // Maybe just pass invoker instead of connection.
         , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
