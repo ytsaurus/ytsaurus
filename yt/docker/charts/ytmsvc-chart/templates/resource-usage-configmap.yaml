@@ -1,0 +1,39 @@
+{{- if .Values.microservices.resourceUsage.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-resource-usage-config
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+data:
+  {{- if .Values.microservices.resourceUsage.api.enabled }}
+  resource-usage-config.yaml: |
+    http_addr: {{ .Values.microservices.resourceUsage.api.config.httpAddr | quote }}
+    http_handler_timeout: {{ .Values.microservices.resourceUsage.api.config.httpHandlerTimeout }}
+    debug_http_addr: {{ .Values.microservices.resourceUsage.api.config.debugHttpAddr | quote }}
+
+    api_prefix: {{ .Values.microservices.resourceUsage.api.config.apiPrefix | quote }}
+
+    cors:
+      allowed_hosts: {{ .Values.microservices.resourceUsage.api.config.cors.allowedHosts | toYaml | nindent 8 }}
+      allowed_host_suffixes: {{ .Values.microservices.resourceUsage.api.config.cors.allowedHostSuffixes | toYaml | nindent 8}}
+
+    auth_cookie_name: {{ .Values.microservices.resourceUsage.api.config.authCookieName | quote }}
+
+    snapshot_root: {{ .Values.microservices.resourceUsage.api.config.snapshotRoot | quote }}
+
+    logs_dir: {{ include "ytmsvc.resourceUsage.logsDir" . | quote }}
+
+    excluded_fields: {{ .Values.microservices.resourceUsage.api.config.excludedFields | toYaml | nindent 6 }}
+    update_snapshots_on_every_request: {{ .Values.microservices.resourceUsage.api.config.updateSnapshotsOnEveryRequest }}
+
+    included_clusters:
+      - proxy: {{ .Values.cluster.proxy | quote }}
+        cluster_name: {{ .Values.cluster.name | quote }}
+
+    bulk_acl_checker_base_url: {{ include "ytmsvc.bulkAclCheckerBaseUrl" . | quote }}
+
+    debug_login: {{ .Values.microservices.resourceUsage.api.config.debugLogin | quote }}
+    disable_acl: {{ .Values.microservices.resourceUsage.api.config.disableAcl }}
+  {{- end }}
+{{- end }}
