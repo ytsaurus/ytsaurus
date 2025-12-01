@@ -81,7 +81,7 @@ void FormatValue(TStringBuilderBase* builder, const TTableKey& key, TStringBuf s
 template <>
 struct THash<NYT::NTableClient::TTableKey>
 {
-    size_t operator()(const NYT::NTableClient::TTableKey& key)
+    size_t operator()(const NYT::NTableClient::TTableKey& key) const
     {
         return THash<NYT::NObjectClient::TObjectId>()(key.ObjectId);
     }
