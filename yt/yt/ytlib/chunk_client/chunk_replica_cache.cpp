@@ -318,7 +318,7 @@ public:
             SequoiaLocateChunksCounter_.Increment(std::ssize(currentChunkIds));
 
             LookupReplicasInSequoia(connection, currentChunkIds)
-                .SubscribeUnique(BIND(
+                .AsUnique().Subscribe(BIND(
                     &TChunkReplicaCache::OnSequoiaReplicasLocated,
                     MakeStrong(this),
                     std::move(currentChunkIds),
@@ -863,7 +863,7 @@ private:
             SequoiaLocateChunksCounter_.Increment(std::ssize(chunkIdsToRefresh));
 
             LookupReplicasInSequoia(connection, chunkIdsToRefresh)
-                .SubscribeUnique(BIND(
+                .AsUnique().Subscribe(BIND(
                     &TChunkReplicaCache::OnSequoiaReplicasRefreshed,
                     MakeStrong(this),
                     std::move(chunkIdsToRefresh)));

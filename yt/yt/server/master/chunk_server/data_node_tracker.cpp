@@ -251,7 +251,9 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (node->GetLocalState() == ENodeState::Restarted) {
-            YT_LOG_ALERT("Restarted node sent full heartbeat (NodeId: %v, NodeAddress: %v)", node->GetId(), node->GetDefaultAddress());
+            YT_LOG_ALERT("Restarted node sent full heartbeat (NodeId: %v, NodeAddress: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
             THROW_ERROR_EXCEPTION("Full data node heartbeats are not supported for restarted nodes, the node will be disposed for standard registration");
         }
 
@@ -322,7 +324,7 @@ public:
                 if (GetDynamicConfig()->VerifyAllLocationsAreReportedInFullHeartbeats ||
                     location->GetState() == EChunkLocationState::Restarted) {
                     THROW_ERROR_EXCEPTION(
-                        "Node has not reported all locations, location %v has %v state",
+                        "Node has not reported all locations, location %v has %Qlv state",
                         location->GetUuid(),
                         location->GetState());
                 }
@@ -544,7 +546,9 @@ public:
                 ProcessRestartedNodeChunkLocations(node, chunkLocationUuids);
                 break;
             default:
-                YT_LOG_ALERT("Unexpected node state during registration (NodeAddress: %v, State: %v)", node->GetDefaultAddress(), node->GetLocalState());
+                YT_LOG_ALERT("Unexpected node state during registration (NodeAddress: %v, State: %v)",
+                    node->GetDefaultAddress(),
+                    node->GetLocalState());
         }
 
         if (isPrimaryMaster) {
@@ -594,7 +598,7 @@ public:
                     existingNode->GetDefaultAddress());
             } else {
                 // Location is not dangling anymore.
-                auto mutationContext = GetCurrentMutationContext();
+                const auto* mutationContext = GetCurrentMutationContext();
 
                 location->SetNode(node);
                 location->SetState(EChunkLocationState::Offline);
@@ -1206,7 +1210,7 @@ private:
             // We have checked that node state is not restarted, so there should not be any locations with restarted state.
             if (location->GetState() != EChunkLocationState::Registered) {
                 YT_LOG_ALERT(
-                    "Node has reported full heartbeat for location with invalid state (NodeAddress: %v, NodeId: %v, LocationUuid: %v, LocationState: %Qlv)",
+                    "Node has reported full heartbeat for location with invalid state (NodeAddress: %v, NodeId: %v, LocationUuid: %v, LocationState: %v)",
                     node->GetDefaultAddress(),
                     nodeId,
                     location->GetUuid(),
@@ -1485,7 +1489,7 @@ private:
             if (location->GetState() != EChunkLocationState::Restarted) {
                 YT_LOG_ALERT(
                     "Locations was not set restarted after node is set restarted "
-                    "(LocationUuid: %v, locationState: %v, nodeAddress: %v)",
+                    "(LocationUuid: %v, LocationState: %v, NodeAddress: %v)",
                     location->GetUuid(),
                     location->GetState(),
                     node->GetDefaultAddress());

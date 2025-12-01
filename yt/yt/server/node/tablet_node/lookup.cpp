@@ -1369,7 +1369,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
         // TODO(akozhikhov): Proper block fetcher: we may face unset futures here
         // presumably due to some issues with block fetching logic in old columnar readers.
         if (futures.size() != results.size()) {
-            return AllSet(std::move(futures)).ApplyUnique(BIND(
+            return AllSet(std::move(futures)).AsUnique().Apply(BIND(
                 &TLookupSession::ProcessResults,
                 MakeStrong(this)));
         }
@@ -1391,7 +1391,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
     return CancelableRunWithBoundedConcurrency(
         std::move(callbacks),
         MaxConcurrentSubqueries_)
-        .ApplyUnique(BIND(
+        .AsUnique().Apply(BIND(
             &TLookupSession::ProcessResults,
             MakeStrong(this)));
 }

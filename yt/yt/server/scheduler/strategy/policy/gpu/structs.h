@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TAssignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): (!) Hide operation and node behind an interface so that
+// TODO(eshcherbin): Hide operation and node behind an interface so that
 // assignment plan update algorithm would not be able to change internal state.
 class TOperation final
 {
@@ -61,8 +61,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
     using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
-    DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, AssignmentCountPerGroup);
+    DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, EmptyAssignmentCountPerGroup);
 
+    // TODO(eshcherbin): (!) Support opportunistic jobs.
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
 
     // Works only for full-host module-bound operations and smaller gangs.
@@ -85,8 +86,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
-    // TODO(eshcherbin): Should we consider that |ReadyToAssignGroupedNeededResources| is always equal to
-    // |InitialGroupedNeededResources| for full-host module-bound operations, which are not preemptible and have no assignments?
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);

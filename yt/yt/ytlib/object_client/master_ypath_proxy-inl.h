@@ -67,7 +67,7 @@ public:
         }
 
         return AllSucceeded(AsyncResults_)
-            .ApplyUnique(BIND([objectCount = ObjectCount_] (std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>&& results) {
+            .AsUnique().Apply(BIND([objectCount = ObjectCount_] (std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>&& results) {
                 THashMap<TObjectId, TErrorOr<TTypedResponsePtr>> objectIdToResponse;
                 objectIdToResponse.reserve(objectCount);
 

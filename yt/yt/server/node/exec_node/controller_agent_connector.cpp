@@ -155,7 +155,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
         ToProto(settleJobRequest->mutable_last_job_id(), *lastJobId);
     }
 
-    return settleJobRequest->Invoke().ApplyUnique(BIND([
+    return settleJobRequest->Invoke().AsUnique().Apply(BIND([
             this,
             this_ = MakeStrong(this),
             allocationId,

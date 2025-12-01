@@ -79,7 +79,7 @@ public:
             blockCount,
             chunkReadOptions);
 
-        return asyncResult.ApplyUnique(BIND(
+        return asyncResult.AsUnique().Apply(BIND(
             [=, this, this_ = MakeStrong(this)]
             (TErrorOr<std::vector<TBlock>>&& blocksOrError)
             {
@@ -290,7 +290,7 @@ public:
             options.WorkloadDescriptor.Category,
             GetRefCountedTypeCookie<TChunkFragmentBufferTag>(),
             options.ReadSessionId)
-            .ApplyUnique(BIND([
+            .AsUnique().Apply(BIND([
                 // NB: Keep Guard_ alive.
                 this_ = MakeStrong(this),
                 options = std::move(options)

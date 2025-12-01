@@ -306,7 +306,7 @@ private:
             }
 
             return reader->ReadBlocks(options, blockIndexes)
-                .ApplyUnique(BIND([
+                .AsUnique().Apply(BIND([
                     indexes = std::move(blockIndexes),
                     blocksExt = blocksExt
                 ] (std::vector<NChunkClient::TBlock>&& blocks) mutable {
@@ -318,7 +318,7 @@ private:
                 }));
         }));
 
-        return readFuture.ApplyUnique(BIND([
+        return readFuture.AsUnique().Apply(BIND([
             index = chunk.Index,
             chunkOffset = chunk.Offset,
             chunkSize = chunk.Size,

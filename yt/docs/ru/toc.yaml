@@ -293,6 +293,16 @@ items:
               href: user-guide/data-processing/spyt/overview.md
             - name: Запуск Spark задач на выполнение
               href: user-guide/data-processing/spyt/launch.md
+            - name: Прямой сабмит
+              items:
+                - name: Описание
+                  href: user-guide/data-processing/spyt/direct-submit/desc.md
+                - name: Динамическая аллокация
+                  href: user-guide/data-processing/spyt/direct-submit/dyn-allocation.md
+                - name: Диагностика
+                  href: user-guide/data-processing/spyt/direct-submit/diagnostics.md
+                - name: History server
+                  href: user-guide/data-processing/spyt/direct-submit/shs.md
             - name: Внутренний SPYT кластер
               items:
               - name: Описание кластера

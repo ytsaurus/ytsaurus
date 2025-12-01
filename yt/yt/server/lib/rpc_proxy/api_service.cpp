@@ -759,9 +759,11 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetOperation));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperations));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperationEvents));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckOperationPermission));
 
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobTraces));
+
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInput)
             .SetStreamingEnabled(true)
@@ -1376,7 +1378,7 @@ private:
         ExecuteCall(
             context,
             [=, Logger = Logger] {
-                return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag).AsUnique().Apply(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
@@ -3574,6 +3576,33 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_traces(), result);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CheckOperationPermission)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto user = request->user();
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+        auto permission = CheckedEnumCast<NYTree::EPermission>(request->permission());
+
+        TCheckOperationPermissionOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("User: %v, OperationIdOrAlias: %v, Permission: %v",
+            user,
+            operationIdOrAlias,
+            permission);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->CheckOperationPermission(user, operationIdOrAlias, permission, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_result(), result);
             });
     }
 
@@ -6589,7 +6618,7 @@ private:
                 }
 
                 return AllSucceeded(std::move(validation))
-                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                    .AsUnique().Apply(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
                         auto allValid = std::ranges::all_of(results, [] (bool value) {
                             return value;
                         });
@@ -6727,7 +6756,7 @@ private:
                 }
 
                 return AllSucceeded(std::move(validation))
-                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                    .AsUnique().Apply(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
                         auto allValid = std::ranges::all_of(results, [] (bool value) {
                             return value;
                         });

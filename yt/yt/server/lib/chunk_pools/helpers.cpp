@@ -113,6 +113,11 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
         YT_VERIFY(!stripeList->GetOutputChunkPoolIndex().has_value());
 
         for (const auto& stripe : stripeList->Stripes()) {
+            if (!hasPartitionTags) {
+                result->AddStripe(stripe);
+                continue;
+            }
+
             // Verify that there are no boundary keys, as merging with boundary keys
             // is not possible with current data structures and API.
             YT_VERIFY(!stripe->GetBoundaryKeys());
@@ -123,9 +128,6 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
             const auto& dataSlice = stripe->DataSlices()[0];
             YT_VERIFY(!dataSlice->HasLimits());
-            if (hasPartitionTags) {
-                YT_VERIFY(!dataSlice->Tag.has_value());
-            }
             YT_VERIFY(!dataSlice->ReadRangeIndex.has_value());
             YT_VERIFY(!dataSlice->VirtualRowIndex.has_value());
 
@@ -133,7 +135,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
             YT_VERIFY(chunkIdsInStripeList.insert(chunkId).second);
 
-            if (!hasPartitionTags || seenChunkIds.insert(chunkId).second) {
+            if (seenChunkIds.insert(chunkId).second) {
                 result->AddStripe(stripe);
             }
         }

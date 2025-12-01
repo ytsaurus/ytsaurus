@@ -18,6 +18,18 @@ class UnknownFieldSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace util {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class MessageDifferencer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace util
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace protobuf
 } // namespace google
 
@@ -27,6 +39,7 @@ namespace NProtoBuf {
 
 using Message = ::google::protobuf::Message;
 using MessageLite = ::google::protobuf::MessageLite;
+using MessageDifferencer = ::google::protobuf::util::MessageDifferencer;
 using Descriptor = ::google::protobuf::Descriptor;
 using FieldDescriptor = ::google::protobuf::FieldDescriptor;
 using UnknownFieldSet = ::google::protobuf::UnknownFieldSet;

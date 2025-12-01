@@ -127,7 +127,7 @@ public:
                 auto missingExtensionsFuture = metaFetchCallback(missingExtensionTags);
 
                 // Represent extensions as a map to avoid a linear scan for every tag.
-                auto missingExtensionMapFuture = missingExtensionsFuture.ApplyUnique(BIND([] (TRefCountedChunkMetaPtr&& fetchedChunkMeta) {
+                auto missingExtensionMapFuture = missingExtensionsFuture.AsUnique().Apply(BIND([] (TRefCountedChunkMetaPtr&& fetchedChunkMeta) {
                     THashMap<int, TString> extensionMap;
                     for (auto& ext : *fetchedChunkMeta->mutable_extensions()->mutable_extensions()) {
                         YT_VERIFY(extensionMap.emplace(ext.tag(), std::move(*ext.mutable_data())).second);

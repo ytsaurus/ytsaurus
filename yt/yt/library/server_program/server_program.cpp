@@ -116,7 +116,7 @@ void TServerProgramBase::Configure(const TServerProgramConfigPtr& config)
 
     TMlockStatistics statistics;
     auto success = MlockFileMappings(/*populate*/ true, &statistics);
-    MemoryLockedSuccessfully_.Update(statistics.BytesLockedSucessfully);
+    MemoryLockedSuccessfully_.Update(statistics.BytesLockedSuccessfully);
     MemoryLockedUnsuccessfully_.Update(statistics.BytesLockedUnsuccessfully);
 
     YT_LOG_DEBUG_UNLESS(success,
@@ -125,9 +125,9 @@ void TServerProgramBase::Configure(const TServerProgramConfigPtr& config)
         MakeFormattableView(statistics.ErrorCodes, [] (TStringBuilderBase* builder, int errnum) {
             builder->AppendString(strerror(errnum));
         }),
-        statistics.SuccessfullCallCount,
-        statistics.UnsuccessfullCallCount,
-        statistics.BytesLockedSucessfully,
+        statistics.SuccessfulCallCount,
+        statistics.UnsuccessfulCallCount,
+        statistics.BytesLockedSuccessfully,
         statistics.BytesLockedUnsuccessfully);
 
     ConfigureSingletons(config);

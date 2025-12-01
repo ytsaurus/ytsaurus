@@ -68,6 +68,7 @@ public:
     void WriteFile(const TString& path, TBlob& blob);
     void WriteFileFrom(const TString& path, ui64 size, IInputStream& stream);
     void WriteSymlink(const TFsPath& path, const TFsPath& target);
+    void WriteHardlink(const TFsPath& path, const TFsPath& target);
 
 private:
     class TImpl;

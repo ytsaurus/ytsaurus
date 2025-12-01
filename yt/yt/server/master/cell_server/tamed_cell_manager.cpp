@@ -1589,7 +1589,7 @@ private:
     void ProcessUnregisterNode(TNode* node)
     {
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
-            UpdateNodeCellarSize(node, cellarType, 0);
+            UpdateNodeCellarSize(node, cellarType, /*newSize*/ 0);
         }
     }
 
@@ -1632,7 +1632,7 @@ private:
 
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
             if (!seenCellarTypes.contains(cellarType)) {
-                UpdateNodeCellarSize(node, cellarType, 0);
+                UpdateNodeCellarSize(node, cellarType, /*newSize*/ 0);
             }
         }
     }

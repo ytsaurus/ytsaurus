@@ -26,7 +26,7 @@ def clientside() -> NoReturn:
     inputlist = [sock, sys.stdin]
     try:
         while 1:
-            r, w, e = select.select(inputlist, [], [])
+            r, _w, _e = select.select(inputlist, [], [])
             if sys.stdin in r:
                 line = input()
                 sock.sendall((line + "\n").encode())
@@ -45,7 +45,7 @@ def clientside() -> NoReturn:
 class promptagent(Thread):
     def __init__(self, clientsock) -> None:
         print("server side starting")
-        super.__init__()  # type: ignore[call-overload]
+        super().__init__()  # type: ignore[call-overload]
         self.clientsock = clientsock
 
     def run(self) -> None:

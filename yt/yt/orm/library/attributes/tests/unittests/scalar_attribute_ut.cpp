@@ -1083,9 +1083,9 @@ class TScalarAttributesEqualitySuite
     : public ::testing::Test
 {
 public:
-    bool AreEqual(const NYPath::TYPath& path)
+    bool AreEqual(const NYPath::TYPath& path, const TComparisonOptions& options = {})
     {
-        return NAttributes::AreScalarAttributesEqualByPath(Message1, Message2, path);
+        return NAttributes::AreScalarAttributesEqualByPath(Message1, Message2, path, options);
     }
 
 protected:
@@ -1117,8 +1117,10 @@ TEST_F(TScalarAttributesEqualitySuite, Simple)
     EXPECT_FALSE(Message1.has_bool_field());
     Message1.set_bool_field(false);
 
-    // Yson nodes comparison does not consider not set field and default field values equal.
     EXPECT_FALSE(AreEqual("/bool_field"));
+    EXPECT_TRUE(AreEqual("/bool_field", TComparisonOptions{.CompareAbsentAsDefault = true}));
+    Message1.set_bool_field(true);
+    EXPECT_FALSE(AreEqual("/bool_field", TComparisonOptions{.CompareAbsentAsDefault = true}));
 
     Message1.set_int32_field(15);
     Message2.set_int32_field(16);
@@ -1250,6 +1252,26 @@ TEST_F(TScalarAttributesEqualitySuite, IntInsideRepeated)
     EXPECT_FALSE(AreEqual("/repeated_int32_field/*"));
     Message2.mutable_repeated_int32_field()->at(0) = 5;
     EXPECT_TRUE(AreEqual("/repeated_int32_field/*"));
+}
+
+TEST_F(TScalarAttributesEqualitySuite, CompareAbsentInsideNestedMessage)
+{
+    EXPECT_TRUE(AreEqual("/nested_message/int32_field"));
+
+    Message1.mutable_nested_message();
+    EXPECT_FALSE(AreEqual("/nested_message"));
+    // Inner field is absent in both messages.
+    EXPECT_TRUE(AreEqual("/nested_message/int32_field"));
+    Message1.mutable_nested_message()->set_int32_field(0);
+    EXPECT_FALSE(AreEqual("/nested_message/int32_field"));
+    EXPECT_TRUE(AreEqual(
+        "/nested_message/int32_field",
+        TComparisonOptions{.CompareAbsentAsDefault = true}));
+
+    Message1.mutable_nested_message()->set_int32_field(0);
+    EXPECT_TRUE(AreEqual(
+        "/nested_message/int32_field",
+        TComparisonOptions{.CompareAbsentAsDefault = true}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

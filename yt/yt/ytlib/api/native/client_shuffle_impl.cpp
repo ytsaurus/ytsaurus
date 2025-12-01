@@ -215,7 +215,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
         partitionIndex,
         writerIndexRange,
         TFetchShuffleChunksOptions{})
-        .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
+        .AsUnique().Apply(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
             auto dataSourceDirectory = New<TDataSourceDirectory>();
             dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
                 EDataSourceType::UnversionedTable,

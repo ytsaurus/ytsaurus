@@ -24,6 +24,8 @@ public:
 
     virtual void UpdateQuery(const NApi::TQuery& query, const TUpdateQueryOptions& options, NApi::ITransactionPtr transaction) = 0;
 
+    virtual void RemoveQuery(const NApi::TQuery& query, NApi::ITransactionPtr transaction) = 0;
+
     virtual NApi::TListQueriesResult ListQueries(const NApi::TListQueriesOptions& options, const std::string& user) = 0;
 };
 

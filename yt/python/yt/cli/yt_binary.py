@@ -2095,6 +2095,22 @@ def add_list_job_traces_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.check_operation_permission)
+def check_operation_permission(**kwargs):
+    result = yt.check_operation_permission(**kwargs)
+    if kwargs.get("format") is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_check_operation_permission_parser(add_parser):
+    parser = add_parser("check-operation-permission", check_operation_permission)
+    operation_id_args(parser, dest="operation_id")
+    parser.add_argument("--user", required=True, help="user name")
+    parser.add_argument("--permission", required=True, help="permission name (e.g. read, manage)")
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.get_job_trace)
 def get_job_trace(**kwargs):
     write_silently(chunk_iter_stream(yt.get_job_trace(**kwargs), yt.config["read_buffer_size"]))
@@ -3101,6 +3117,7 @@ def _prepare_parser():
     add_get_operation_parser(add_parser)
     add_list_operations_parser(add_parser)
     add_list_operation_events_parser(add_parser)
+    add_check_operation_permission_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)

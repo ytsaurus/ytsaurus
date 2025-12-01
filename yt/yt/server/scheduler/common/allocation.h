@@ -70,8 +70,9 @@ public:
     //! Index of operation when allocation was scheduled.
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulingIndex);
 
+    // TODO(eshcherbin): Rename to preemption description.
     //! String describing preemption reason.
-    DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, PreemptionReason);
 
     //! Preemptor allocation id and operation id.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TPreemptedFor>, PreemptedFor);

@@ -402,15 +402,18 @@ void TQueryTrackerProxy::StartQuery(
     auto startTime = TInstant::Now();
     bool isTutorial = false;
 
-    if (options.Settings) {
-        auto settingsMap = options.Settings->AsMap();
-        if (settingsMap->GetChildValueOrDefault("is_tutorial", false)) {
-            if (GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
-                isTutorial = true;
-            } else {
+    if (options.Annotations) {
+        auto annotationsMap = options.Annotations->AsMap();
+        if (annotationsMap->GetChildValueOrDefault("is_tutorial", false)) {
+            if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
                 YT_LOG_DEBUG("Attempt to create a tutorial failed. User is not a superuser (User: %v)", user);
                 THROW_ERROR_EXCEPTION("Non-superusers can't create tutorial queries. To create one contact your cluster administrator.");
             }
+            if (!options.Draft) {
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+            }
+
+            isTutorial = true;
         }
     }
 
@@ -483,9 +486,8 @@ void TQueryTrackerProxy::StartQuery(
         auto query = PartialRecordToQuery(newRecord);
         if (isIndexed) {
             TimeBasedIndex_->AddQuery(query, transaction);
-            if (!isTutorial) {
-                TokenBasedIndex_->AddQuery(query, transaction);
-            }
+            YT_VERIFY(!isTutorial);
+            TokenBasedIndex_->AddQuery(query, transaction);
         }
     }
 
@@ -800,8 +802,10 @@ void TQueryTrackerProxy::AlterQuery(
         "query_id",
         "state",
         "start_time",
+        "finish_time",
         "user",
         "query",
+        "files",
         "access_control_objects",
         "engine",
         "settings",
@@ -812,8 +816,24 @@ void TQueryTrackerProxy::AlterQuery(
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
     auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
+    auto isTutorialChanged = false;
 
     auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects);
+
+    if (options.Annotations) {
+        auto annotationsMap = options.Annotations->AsMap();
+        if (annotationsMap->GetChildValueOrDefault("is_tutorial", false) != isTutorial) {
+            if (!GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
+                THROW_ERROR_EXCEPTION("Non-superusers can't change tutorial flag. To change one contact your cluster administrator.");
+            }
+            if (*query.State != EQueryState::Draft) {
+                THROW_ERROR_EXCEPTION("Tutorials should be in draft state.");
+            }
+
+            isTutorialChanged = true;
+            isTutorial = !isTutorial;
+        }
+    }
 
     YT_LOG_DEBUG(
         "Altering query (QueryId: %v, State: %v, HasAnnotations: %v, HasAccessControlObjects: %v)",
@@ -846,6 +866,7 @@ void TQueryTrackerProxy::AlterQuery(
             if (accessControlObjects) {
                 record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
             }
+            record.IsTutorial = isTutorial;
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
@@ -861,17 +882,42 @@ void TQueryTrackerProxy::AlterQuery(
                     .NewAccessControlObjects = accessControlObjects
                 };
 
-                TimeBasedIndex_->UpdateQuery(
-                    query,
-                    indexUpdateQueryOptions,
-                    transaction
-                );
-                if (!isTutorial) {
-                    TokenBasedIndex_->UpdateQuery(
+                if (isTutorialChanged) {
+                    // isTutorial is key column in all indexes, so we should remove all previous entries
+                    TimeBasedIndex_->RemoveQuery(query, transaction);
+                    if (isTutorial) {
+                        TokenBasedIndex_->RemoveQuery(query, transaction);
+                    }
+
+                    if (accessControlObjects) {
+                        query.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+                    }
+                    if (options.Annotations) {
+                        query.Annotations = ConvertToYsonString(options.Annotations);
+                    }
+                    if (!query.OtherAttributes) {
+                        query.OtherAttributes = {};
+                    }
+                    query.OtherAttributes->Set("is_tutorial", isTutorial);
+
+                    TimeBasedIndex_->AddQuery(query, transaction);
+                    if (!isTutorial) {
+                        TokenBasedIndex_->AddQuery(query, transaction);
+                    }
+                } else {
+                    TimeBasedIndex_->UpdateQuery(
                         query,
                         indexUpdateQueryOptions,
                         transaction
                     );
+
+                    if (!isTutorial) {
+                        TokenBasedIndex_->UpdateQuery(
+                            query,
+                            indexUpdateQueryOptions,
+                            transaction
+                        );
+                    }
                 }
             }
         }
@@ -910,6 +956,7 @@ void TQueryTrackerProxy::AlterQuery(
                 transaction
             );
 
+            YT_VERIFY(!isTutorialChanged);
             if (!isTutorial) {
                 TokenBasedIndex_->UpdateQuery(
                     query,

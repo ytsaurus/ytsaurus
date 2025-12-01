@@ -240,7 +240,7 @@ TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromOb
         queuePath)
         .AsyncVia(invoker)
         .Run()
-        .ApplyUnique(BIND([queuePath] (TErrorOr<THashMap<TString, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<TString, TQueueExportProgressPtr>> {
+        .AsUnique().Apply(BIND([queuePath] (TErrorOr<THashMap<TString, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<TString, TQueueExportProgressPtr>> {
             if (!result.IsOK()) {
                 return TError("Failed to get queue exports progress for %v", queuePath) << TError(result);
             }

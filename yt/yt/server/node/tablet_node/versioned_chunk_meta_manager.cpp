@@ -95,7 +95,7 @@ public:
                     &TCachedVersionedChunkMeta::Create,
                     prepareColumnarMeta,
                     MemoryUsageTracker_))
-                .ApplyUnique(BIND(
+                .AsUnique().Apply(BIND(
                     [cookie = std::move(cookie), key]
                     (TErrorOr<TCachedVersionedChunkMetaPtr>&& metaOrError) mutable
                 {

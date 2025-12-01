@@ -587,8 +587,8 @@ public:
     TError OnOperationMaterialized(const TPoolTreeOperationElement* element) override;
     TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const override;
 
-    void EnableOperation(const TPoolTreeOperationElement* element) const override;
-    void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const override;
+    void EnableOperation(const TPoolTreeOperationElement* element) override;
+    void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) override;
 
     void RegisterAllocationsFromRevivedOperation(
         TPoolTreeOperationElement* element,

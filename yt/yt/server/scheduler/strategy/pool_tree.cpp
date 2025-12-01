@@ -387,7 +387,7 @@ public:
         ResourceTree_->UpdateConfig(Config_);
 
         SchedulingPolicy_->UpdateConfig(Config_);
-        GpuSchedulingPolicy_->UpdateConfig(Config_->GpuSchedulingPolicy);
+        GpuSchedulingPolicy_->UpdateConfig(Config_);
 
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
@@ -530,7 +530,7 @@ public:
         ProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get());
+        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
@@ -565,7 +565,7 @@ public:
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
         SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
-        GpuSchedulingPolicy_->DisableOperation(operationElement.Get());
+        GpuSchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
 
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
@@ -1094,7 +1094,12 @@ public:
 
         auto element = GetOperationElement(operationId);
         auto error = SchedulingPolicy_->OnOperationMaterialized(element.Get());
-        GpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+
+        auto gpuPolicyError = GpuSchedulingPolicy_->OnOperationMaterialized(element.Get());
+        YT_LOG_DEBUG_UNLESS(gpuPolicyError.IsOK(),
+            gpuPolicyError,
+            "Error occurred while processing materialized operation in GPU scheduling policy (OperationId: %v)",
+            operationId);
 
         return error;
     }

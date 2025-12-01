@@ -28,6 +28,7 @@ public:
         bool IsDir() const;
         bool IsRegular() const;
         bool IsSymLink() const;
+        bool IsHardlink() const;
         EArchiveFileType GetType() const;
 
         ui64 GetSize() const;

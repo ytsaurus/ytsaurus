@@ -105,6 +105,9 @@ public:
         return MinTimestamp;
     }
 
+    void Reconfigure(const TRemoteTimestampProviderConfigPtr& /*config*/) override
+    { }
+
 private:
     const TWeakPtr<IConnection> NativeConnection_;
     const TCellTag ClockClusterTag_;
@@ -143,7 +146,7 @@ private:
         TCellTag clockClusterTag)
     {
         return underlying->GenerateTimestamps(count, clockClusterTag)
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND([
                     count,
                     Logger = Logger,

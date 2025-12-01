@@ -23,8 +23,6 @@ struct TSequoiaReplicaModificationProfile
 struct ISequoiaReplicasModifier
     : public TRefCounted
 {
-    virtual ~ISequoiaReplicasModifier() = default;
-
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifyReplicas() = 0;
 };
 

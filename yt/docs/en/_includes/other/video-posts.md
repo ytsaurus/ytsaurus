@@ -4,6 +4,17 @@ This page features video content and publications from {{product-name}} develope
 
 ## Conferences, publications
 
+### 2025: Balancing of the load in the YTsaurus dynamic tables
+- **Event:** Data Internals X 2025
+- **Materials:** [VK Video](https://vkvideo.ru/video-228253760_456239070?list=ln-Wgu2EbKcTiStJibmbs)
+- **Author:** Alexandra Latysheva
+- **Language:** Russian
+
+### 2025: Optimal expression evaluation in analytical queries using SIMD and JIT
+- **Event:** Data Internals X 2025
+- **Materials:** [VK Video](https://vkvideo.ru/video-228253760_456239057?list=ln-22KtshYLYQiJZEmaPo)
+- **Author:** Alexey Lukyanchikov
+- **Language:** Russian
 
 ### 2025: YTsaurus dynamic tables in action: how we build ad profiles for behavioral targeting
 - **Event:** [Publication on Habr](https://habr.com/ru/companies/yandex/articles/939078/)

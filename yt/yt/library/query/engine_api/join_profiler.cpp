@@ -149,7 +149,7 @@ public:
                     .DataSource = std::move(*dataSource),
                 },
                 writer)
-                .SubscribeUnique(BIND([this, this_ = MakeStrong(this), writer] (TErrorOr<TQueryStatistics>&& error) {
+                .AsUnique().Subscribe(BIND([this, this_ = MakeStrong(this), writer] (TErrorOr<TQueryStatistics>&& error) {
                     if (!error.IsOK()) {
                         writer->Fail(error);
                     } else {
@@ -178,7 +178,7 @@ public:
         auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
 
         ExecutePlan_(joinFragment, pipe->GetWriter())
-            .SubscribeUnique(BIND([this, this_ = MakeStrong(this), pipe] (TErrorOr<TQueryStatistics>&& error) {
+            .AsUnique().Subscribe(BIND([this, this_ = MakeStrong(this), pipe] (TErrorOr<TQueryStatistics>&& error) {
                 if (!error.IsOK()) {
                     pipe->Fail(error);
                 } else {

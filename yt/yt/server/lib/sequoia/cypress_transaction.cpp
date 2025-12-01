@@ -482,7 +482,7 @@ private:
     TFuture<void> FetchChanges(std::vector<T>* to)
     {
         return SequoiaTransaction_->SelectRows<T>(FetchChangesQuery_)
-            .ApplyUnique(BIND([to, this_ = MakeStrong(this)] (std::vector<T>&& changes) {
+            .AsUnique().Apply(BIND([to, this_ = MakeStrong(this)] (std::vector<T>&& changes) {
                 *to = std::move(changes);
                 SortBy(*to, [] (const T& record) {
                     return record.Key.TransactionId;
@@ -660,7 +660,7 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return FetchAncestorsAndReplicas()
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TTransactionReplicator::ReplicateTransactions,
                 MakeStrong(this))
                 .AsyncVia(Invoker_));
@@ -750,7 +750,7 @@ private:
 
         // Fast path.
         if (!ancestors) {
-            return replicas.ApplyUnique(BIND(
+            return replicas.AsUnique().Apply(BIND(
                 [] (std::vector<std::optional<NRecords::TTransactionReplica>>&& replicas) {
                     return TFetchedInfo{
                         .Replicas = std::move(replicas),
@@ -758,14 +758,14 @@ private:
                 }).AsyncVia(Invoker_));
         }
 
-        return ancestors.ApplyUnique(BIND([
+        return ancestors.AsUnique().Apply(BIND([
             replicas = std::move(replicas),
             this,
             this_ = MakeStrong(this)
         ] (std::vector<std::optional<NRecords::TTransaction>>&& ancestors) {
             ValidateAncestors(ancestors);
 
-            return replicas.ApplyUnique(BIND([
+            return replicas.AsUnique().Apply(BIND([
                 ancestors = std::move(ancestors)
             ] (std::vector<std::optional<NRecords::TTransactionReplica>>&& replicas) {
                 return TFetchedInfo{
@@ -954,7 +954,7 @@ protected:
 
         return SequoiaTransaction_->LookupRows<TRecordKey<T>>(
             {{.TransactionId = transactionId}})
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND([] (std::vector<std::optional<T>>&& lookupResult) {
                     YT_ASSERT_THREAD_AFFINITY_ANY();
                     YT_ASSERT(lookupResult.size() == 1);
@@ -986,7 +986,7 @@ private:
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
                 })
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));
     }
@@ -1117,7 +1117,7 @@ protected:
                 &TStartCypressTransaction::LockParentAndCollectAncestors,
                 MakeStrong(this))
                     .AsyncVia(Invoker_))
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TStartCypressTransaction::ModifyTablesAndRegisterActions,
                 MakeStrong(this))
                     .AsyncVia(Invoker_))
@@ -1148,7 +1148,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FetchTransaction<NRecords::TDoomedTransaction>(ParentId_)
-            .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::optional<NRecords::TDoomedTransaction>&& record) {
+            .AsUnique().Apply(BIND([this, this_ = MakeStrong(this)] (std::optional<NRecords::TDoomedTransaction>&& record) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 if (record) {
@@ -1278,7 +1278,7 @@ private:
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
             {{.TransactionId = ParentId_}},
             {idMapping.TransactionId, idMapping.AncestorIds})
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TStartCypressTransaction::CheckParentAndGetParentAncestors,
                 MakeStrong(this))
                     .AsyncVia(Invoker_));
@@ -1327,7 +1327,7 @@ private:
         }
 
         return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TDoomedTransactionKey>(PrerequisiteTransactionIds_))
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TStartCypressTransaction::ValidatePrerequisiteTransactionsNotDoomed,
                 MakeStrong(this))
                     .AsyncVia(Invoker_))
@@ -1336,7 +1336,7 @@ private:
                     return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TTransactionKey>(PrerequisiteTransactionIds_));
                 })
                     .AsyncVia(Invoker_))
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TStartCypressTransaction::ValidateAndLockPrerequisiteTransactions,
                 MakeStrong(this))
                     .AsyncVia(Invoker_));
@@ -1466,7 +1466,7 @@ private:
         }
 
         return FetchNextTransaction()
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TDependentTransactionCollector::ProcessNextTransaction,
                 MakeStrong(this))
                 .AsyncVia(Invoker_))
@@ -1614,7 +1614,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return FetchTransaction<NRecords::TTransaction>(TransactionId_)
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TDoomCypressTransaction::MaybeDoomTransactionSubtree,
                 MakeStrong(this)))
             .Apply(BIND(
@@ -1639,7 +1639,7 @@ private:
         auto transaction = *target;
 
         return FetchTransaction<NRecords::TDoomedTransaction>(transaction.Key.TransactionId)
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND(&TDoomCypressTransaction::OnDoomedTransactionFetched, MakeStrong(this), transaction)
                     .AsyncVia(Invoker_));
     }
@@ -1660,7 +1660,7 @@ private:
             std::move(transaction),
             Invoker_)
                 ->Run()
-                .ApplyUnique(
+                .AsUnique().Apply(
                     BIND(&TDoomCypressTransaction::MarkTrasactionSubtreeDoomed, MakeStrong(this))
                         .AsyncVia(Invoker_));
     }
@@ -1773,7 +1773,7 @@ protected:
                 }
 
                 return FetchTransaction<NRecords::TTransaction>(TransactionId_)
-                    .ApplyUnique(BIND(
+                    .AsUnique().Apply(BIND(
                         &TFinishCypressTransaction::ValidateAndFinishTargetTransaction,
                         MakeStrong(this))
                             .AsyncVia(Invoker_))
@@ -1836,7 +1836,7 @@ private:
             ->Run();
 
         auto handleTransactionReplicasFuture = FetchReplicas(transactionInfos.Transactions)
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TFinishCypressTransaction::OnReplicasFetched,
                 MakeStrong(this),
                 std::move(transactionInfos))
@@ -1944,7 +1944,7 @@ private:
             std::move(targetTransaction),
             Invoker_)
                 ->Run()
-                .ApplyUnique(
+                .AsUnique().Apply(
                     BIND(&TFinishCypressTransaction::DoFinishTransactions, MakeStrong(this))
                         .AsyncVia(Invoker_));
     }
@@ -2210,7 +2210,7 @@ protected:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TTransactionKey>(TransactionIds_))
-            .ApplyUnique(BIND(&TThis::ReplicateTransactions, MakeStrong(this))
+            .AsUnique().Apply(BIND(&TThis::ReplicateTransactions, MakeStrong(this))
                 .AsyncVia(Invoker_))
             .Apply(
                 BIND(&TThis::CommitSequoiaTransaction, MakeStrong(this))
@@ -2407,7 +2407,7 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
         mutationId,
         retry,
         logger)
-        .ApplyUnique(BIND([transactionId] (std::optional<TSharedRefArray>&& response) {
+        .AsUnique().Apply(BIND([transactionId] (std::optional<TSharedRefArray>&& response) {
             if (!response.has_value() || !*response) {
                 return CreateErrorResponseMessage(CreateNoSuchTransactionError(transactionId));
             }

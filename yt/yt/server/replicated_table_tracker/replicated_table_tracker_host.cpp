@@ -88,7 +88,7 @@ TFuture<TReplicatedTableTrackerSnapshot> TReplicatedTableTrackerHost::GetSnapsho
         return future;
     }
 
-    return SnapshotPromise_.ToFuture().ApplyUnique(BIND([
+    return SnapshotPromise_.ToFuture().AsUnique().Apply(BIND([
         this,
         this_ = MakeStrong(this)
     ] (TErrorOr<TReplicatedTableTrackerSnapshot>&& snapshotOrError) {

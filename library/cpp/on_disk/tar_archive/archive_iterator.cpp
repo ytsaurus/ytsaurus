@@ -73,6 +73,11 @@ bool TArchiveIterator::TArchiveEntry::IsSymLink() const {
     return S_ISLNK(archive_entry_filetype(Master->PImpl->CurEntry));
 }
 
+bool TArchiveIterator::TArchiveEntry::IsHardlink() const {
+    EnsureValid();
+    return archive_entry_hardlink(Master->PImpl->CurEntry) != NULL;
+}
+
 EArchiveFileType TArchiveIterator::TArchiveEntry::GetType() const {
     EnsureValid();
     if (IsSymLink()) {

@@ -321,7 +321,7 @@ private:
         }
 
         auto allSetFuture = AllSucceeded(std::move(putBlocksFutures))
-            .ApplyUnique(BIND([&] (std::vector<TDataNodeServiceProxy::TRspPutBlocksPtr>&& responses) {
+            .AsUnique().Apply(BIND([&] (std::vector<TDataNodeServiceProxy::TRspPutBlocksPtr>&& responses) {
                 YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
                 // Memory can be freed now.
