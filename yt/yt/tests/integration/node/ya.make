@@ -20,6 +20,7 @@ TEST_SRCS(
     test_node_job_resource_manager.py
     test_p2p.py
     test_user_job.py
+    test_sidecar.py
 )
 
 END()
