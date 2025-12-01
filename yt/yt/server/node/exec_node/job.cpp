@@ -3381,16 +3381,6 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
             options.TmpfsVolumes.push_back(volumeParams);
         }
 
-        // COMPAT(ignat).
-        if (UserJobSpec_->has_disk_space_limit()) {
-            options.DiskSpaceLimit = UserJobSpec_->disk_space_limit();
-        }
-
-        // COMPAT(ignat).
-        if (UserJobSpec_->has_inode_limit()) {
-            options.InodeLimit = UserJobSpec_->inode_limit();
-        }
-
         // Place upper directory of overlayfs on requested disk.
         if (UserJobSpec_->has_disk_request()) {
             options.SlotPath = GetUserSlot()->GetSlotPath();
