@@ -16,6 +16,8 @@ TMatchAceSubjectCallback CreateMatchAceSubjectCallback(
     TUserDescriptorPtr user,
     TUserDirectoryPtr userDirectory);
 
+NSecurityClient::ESecurityAction FastCheckPermission(const TUserDescriptorPtr& user);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NSecurityServer::TPermissionCheckResponse CheckPermissionForNode(
@@ -52,6 +54,32 @@ void ValidatePermissionForSubtree(
 NSecurityClient::TSerializableAccessControlList ComputeEffectiveAclForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Repressents an intermediate read access permission check result in
+// an append-only ACD stack.
+class TIntermediateReadPermissionCheckResult
+{
+public:
+    TIntermediateReadPermissionCheckResult() = default;
+
+    NSecurityClient::ESecurityAction GetAction() const;
+
+    TIntermediateReadPermissionCheckResult Put(
+        const TAccessControlDescriptor& acd,
+        const TMatchAceSubjectCallback& matchAceSubjectCallback) const;
+
+private:
+    NSecurityClient::ESecurityAction ObjectAction_ = NSecurityClient::ESecurityAction::Undefined;
+    NSecurityClient::ESecurityAction ImmediateDescendantsAction_ = NSecurityClient::ESecurityAction::Undefined;
+    NSecurityClient::ESecurityAction DescendatsAction_ = NSecurityClient::ESecurityAction::Undefined;
+
+    TIntermediateReadPermissionCheckResult(
+        NSecurityClient::ESecurityAction objectAction,
+        NSecurityClient::ESecurityAction immediateDescendantsAction,
+        NSecurityClient::ESecurityAction descendatsAction);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

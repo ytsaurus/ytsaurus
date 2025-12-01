@@ -1,6 +1,7 @@
 #include "node_proxy.h"
 
 #include "access_control.h"
+#include "acd_fetcher.h"
 #include "bootstrap.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -391,6 +392,28 @@ protected:
         return ComputeEffectiveAclForNode(
             SequoiaSession_,
             ResolveResult_.NodeAncestry);
+    }
+
+    std::tuple<ESecurityAction, TMatchAceSubjectCallback, TIntermediateReadPermissionCheckResult>
+    InitializeCompositeNodeReadValidation()
+    {
+        auto authenticatedUser = SequoiaSession_->GetCurrentAuthenticatedUser();
+        auto fastAction = FastCheckPermission(authenticatedUser);
+
+        auto matchAceSubjectCallback = CreateMatchAceSubjectCallback(
+            authenticatedUser,
+            Bootstrap_->GetUserDirectory());
+
+        auto ancestryAcds = SequoiaSession_
+            ->GetAcdFetcher()
+            ->Fetch({ResolveResult_.NodeAncestry});
+
+        TIntermediateReadPermissionCheckResult result;
+        for (const auto* acd : ancestryAcds) {
+            result = result.Put(*acd, matchAceSubjectCallback);
+        }
+
+        return {fastAction, std::move(matchAceSubjectCallback), result};
     }
 
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
@@ -2205,11 +2228,19 @@ private:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        // TODO(danilalexeev): YT-24566. Support permission validation.
+        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
+        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
+        auto trivialAcd = TAccessControlDescriptor{};
+
+        struct TNode
+        {
+            TNodeId Id;
+            TIntermediateReadPermissionCheckResult IntermediateResult;
+        };
 
         // Fetch nodes from child nodes table.
-        std::vector<TNodeId> layerToFetch;
-        layerToFetch.emplace_back(Id_);
+        std::vector<TNode> layerToFetch;
+        layerToFetch.emplace_back(Id_, intermediateResult);
 
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
@@ -2219,14 +2250,14 @@ private:
         while (!layerToFetch.empty() && !subtreeExceedesSizeLimit) {
             ++maxRetrievedDepth;
 
-            std::vector<TNodeId> fetchedParentIds;
+            std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
-            for (auto nodeId : layerToFetch) {
-                if (auto type = TypeFromId(nodeId); IsSequoiaCompositeNodeType(type)) {
-                    fetchedParentIds.push_back(nodeId);
-                    asyncLayerChildren.push_back(SequoiaSession_->FetchChildren(nodeId));
+            for (auto node : layerToFetch) {
+                if (auto type = TypeFromId(node.Id); IsSequoiaCompositeNodeType(type)) {
+                    fetchedParents.push_back(node);
+                    asyncLayerChildren.push_back(SequoiaSession_->FetchChildren(node.Id));
                 } else if (IsScalarType(type)) {
-                    scalarNodeIdsToFetchFromMaster.push_back(nodeId);
+                    scalarNodeIdsToFetchFromMaster.push_back(node.Id);
                 }
             }
 
@@ -2256,21 +2287,43 @@ private:
                 subtreeExceedesSizeLimit = true;
             }
 
+            auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
+            auto childAcdIt = layerChildrenAcds.begin();
+
             // It's still useful to save extra node information even if subtree exceedes size limit.
             // Said information can be useful during tree traversal.
-            std::vector<TNodeId> nextLayerToFetch;
+            std::vector<TNode> nextLayerToFetch;
 
-            YT_VERIFY(std::ssize(fetchedParentIds) == std::ssize(layerChildren));
-            for (auto&& [parentId, children] : Zip(fetchedParentIds, layerChildren)) {
+            YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
+            for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
+                    const auto* acd = *childAcdIt++;
+                    auto result = parent
+                        .IntermediateResult
+                        .Put(*acd, matchAceSubjectCallback);
+
+                    // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
+                    if (fastAction != ESecurityAction::Allow &&
+                        result.GetAction() != ESecurityAction::Allow)
+                    {
+                        // Do not put child in the map, marking no access.
+                        continue;
+                    }
+
                     EmplaceDefault(nodeIdToChildren, child.ChildId);
-                    nextLayerToFetch.emplace_back(child.ChildId);
+                    nextLayerToFetch.emplace_back(child.ChildId, result);
                 }
 
-                nodeIdToChildren[parentId] = std::move(children);
+                nodeIdToChildren[parent.Id] = std::move(children);
             }
 
+            YT_VERIFY(childAcdIt == layerChildrenAcds.end());
             layerToFetch = std::move(nextLayerToFetch);
+        }
+
+        if (!subtreeExceedesSizeLimit) {
+            // TODO(danilalexeev): YT-26733.
+            maxRetrievedDepth = 0;
         }
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
@@ -2452,12 +2505,14 @@ private:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        // TODO(danilalexeev): YT-24566. Support the permission validation.
+        auto acdFetcher = SequoiaSession_->GetAcdFetcher();
+        auto [fastAction, matchAceSubjectCallback, intermediateResult] = InitializeCompositeNodeReadValidation();
 
         TAsyncYsonWriter writer;
 
         auto children = WaitFor(SequoiaSession_->FetchChildren(Id_))
             .ValueOrThrow();
+        auto childrenAcds = acdFetcher->Fetch({children});
 
         if (limit && std::ssize(children) > limit) {
             children.resize(*limit);
@@ -2478,15 +2533,24 @@ private:
         auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
 
         writer.OnBeginList();
-        for (const auto& child : children) {
-            writer.OnListItem();
+        for (const auto& [child, acd] : Zip(children, childrenAcds)) {
             if (attributeFilter && !attributeFilter.IsEmpty()) {
                 auto nodeIter = nodesWithAttributes.find(child.ChildId);
-                if (nodeIter != nodesWithAttributes.end()) {
-                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
-                } else {
-                    THROW_ERROR_EXCEPTION("Can not fetch attributes for nodes");
+                if (nodeIter == nodesWithAttributes.end()) {
+                    // Silently omit the node.
+                    continue;
                 }
+                writer.OnListItem();
+
+                auto action = intermediateResult.Put(*acd, matchAceSubjectCallback).GetAction();
+                // TODO(danilalexeev): YT-24575. Do not fetch ACD on superuser's request.
+                if (fastAction == ESecurityAction::Allow ||
+                    action == ESecurityAction::Allow)
+                {
+                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                }
+            } else {
+                writer.OnListItem();
             }
             writer.OnStringScalar(child.ChildKey);
         }
