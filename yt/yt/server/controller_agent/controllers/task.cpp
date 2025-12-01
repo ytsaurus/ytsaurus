@@ -130,7 +130,11 @@ void TTask::Initialize()
 
     if (IsSimpleTask()) {
         if (auto userJobSpec = GetUserJobSpec()) {
-            MaximumUsedTmpfsSizes_.resize(userJobSpec->TmpfsVolumes.size());
+            for (const auto& [name, volume] : userJobSpec->Volumes) {
+                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                    MaximumUsedTmpfsSizes_[name];
+                }
+            }
         }
     }
 
@@ -260,7 +264,7 @@ int TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
-std::vector<std::optional<i64>> TTask::GetMaximumUsedTmpfsSizes() const
+THashMap<std::string, std::optional<i64>> TTask::GetMaximumUsedTmpfsSizes() const
 {
     return MaximumUsedTmpfsSizes_;
 }
@@ -600,10 +604,16 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
 
         attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
         // Do not set disk_request allocation attributes in case of NBD disk.
-        if (auto& diskRequest = userJobSpec->DiskRequest; diskRequest && !diskRequest->NbdDisk) {
-            attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
-            attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
-            attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+        for (const auto& [_, volume] : userJobSpec->Volumes) {
+            if (!volume->DiskRequest) {
+                continue;
+            }
+
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+                attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
+                attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
+                attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+            }
         }
         attributes.PortCount = userJobSpec->PortCount;
         attributes.AllocateJobProxyRpcServerPort = userJobSpec->EnableShuffleServiceInJobProxy;
@@ -860,20 +870,33 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     joblet->ResourceLimits = neededResources.ToJobResources();
 
     auto userJobSpec = GetUserJobSpec();
-    if (userJobSpec && userJobSpec->DiskRequest) {
-        auto diskQuota = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
-        // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
-        if (!userJobSpec->DiskRequest->NbdDisk) {
-            neededResources.DiskQuota() = diskQuota;
+    if (userJobSpec) {
+        for (const auto& [_, volume] : userJobSpec->Volumes) {
+            if (!volume->DiskRequest) {
+                continue;
+            }
+
+            auto diskRequest = volume->DiskRequest->TryGetConcrete<TDiskRequestConfig>();
+            if (!diskRequest) {
+                continue;
+            }
+
+            auto diskQuota = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
+            // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
+            if (volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+                neededResources.DiskQuota() = diskQuota;
+            }
+            joblet->DiskRequestAccount = diskRequest->Account;
+            joblet->DiskQuota = std::move(diskQuota);
         }
-        joblet->DiskRequestAccount = userJobSpec->DiskRequest->Account;
-        joblet->DiskQuota = diskQuota;
     }
 
     if (userJobSpec) {
         i64 totalTmpfsSize = 0;
-        for (const auto& volume : userJobSpec->TmpfsVolumes) {
-            totalTmpfsSize += volume->Size;
+        for (const auto& [_, volume] : userJobSpec->Volumes) {
+            if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
+            }
         }
         YT_VERIFY(joblet->UserJobMemoryReserveFactor.has_value());
 
@@ -2072,15 +2095,24 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
         return;
     }
 
-    for (int index = 0; index < std::ssize(userJobSpec->TmpfsVolumes); ++index) {
+    for (const auto& [name, volume] : userJobSpec->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        auto tmpfsDiskRequest = volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>();
+        if (!tmpfsDiskRequest) {
+            continue;
+        }
+
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
-            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", index)).ValueOrThrow());
+            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); //COMPAT
         if (!maxUsedTmpfsSize) {
             continue;
         }
 
-        auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[index];
+        auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[name];
         if (!maxTmpfsSize || *maxTmpfsSize < *maxUsedTmpfsSize) {
             maxTmpfsSize = *maxUsedTmpfsSize;
         }
@@ -2270,8 +2302,14 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
         // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
-        if (userJobSpec->DiskRequest && !userJobSpec->DiskRequest->NbdDisk) {
-            resultWithQuota.DiskQuota() = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
+        for (const auto& [name, volume] : userJobSpec->Volumes) {
+            if (!volume->DiskRequest) {
+                continue;
+            }
+
+            if (auto diskRequest = volume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>()) {
+                resultWithQuota.DiskQuota() = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
+            }
         }
     }
     return resultWithQuota;
