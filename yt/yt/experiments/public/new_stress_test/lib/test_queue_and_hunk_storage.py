@@ -2,10 +2,11 @@ from .logger import logger
 
 import yt.wrapper as yt
 
-from yt.common import YtError
+from yt.common import YtError, wait
 from lib.schema import RandomStringGenerator
 
 import copy
+import logging
 import random
 
 RSG = RandomStringGenerator()
@@ -61,6 +62,15 @@ class Queue:
         # TODO: use data table.
         for row in rows:
             self.written_row_count[row["$tablet_index"]] += 1
+
+        def check_written():
+            tablet_infos = yt.get_tablet_infos(self.path, list(range(self.tablet_count)))["tablets"]
+            for tablet_index in range(self.tablet_count):
+                if tablet_infos[tablet_index]["total_row_count"] != self.written_row_count[tablet_index]:
+                    return False
+            return True
+
+        wait(check_written)
 
     def flush(self):
         logger.info(f"Flushing queue {self.path}")
@@ -155,6 +165,8 @@ def is_unmounted_error(err):
 
 
 def test_queue_and_hunk_storage(base_path, spec, attributes, args):
+    logging.getLogger('Yt').setLevel(logging.DEBUG)
+
     queues = {}
     hunk_storages = {}
     removed_queue_count = 0
