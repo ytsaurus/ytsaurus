@@ -161,6 +161,8 @@
 #include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/type_registry.h>
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_set.h>
+
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -7984,7 +7986,18 @@ bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
 {
     return std::ranges::any_of(
         GetUserJobSpecs(),
-        [] (const auto& userJobSpec) { return userJobSpec->DiskRequest && userJobSpec->DiskRequest->Account; });
+        [] (const auto& userJobSpec) {
+            return std::ranges::any_of(
+                userJobSpec->Volumes,
+                [] (const auto& volume) {
+                    if (!volume.second->DiskRequest) {
+                        return false;
+                    }
+
+                    auto diskRequest = volume.second->DiskRequest->template TryGetConcrete<TLocalDiskRequest>();
+                    return diskRequest && diskRequest->Account;
+                });
+        });
 }
 
 void TOperationControllerBase::InitAccountResourceUsageLeases()
@@ -7992,30 +8005,37 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
     THashSet<std::string> accounts;
 
     for (const auto& userJobSpec : GetUserJobSpecs()) {
-        if (auto& diskRequest = userJobSpec->DiskRequest) {
-            auto mediumDirectory = GetMediumDirectory();
-            if (!diskRequest->MediumName) {
+        for (const auto& [_, volume] : userJobSpec->Volumes) {
+            if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
                 continue;
             }
-            auto mediumName = *diskRequest->MediumName;
-            auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
-            if (!mediumDescriptor) {
-                THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
-            }
-            diskRequest->MediumIndex = mediumDescriptor->Index;
 
-            if (Config_->ObligatoryAccountMedia.contains(mediumName)) {
-                if (!diskRequest->Account) {
-                    THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium")
+            if (auto diskRequest = volume->DiskRequest->template TryGetConcrete<TDiskRequestConfig>()) {
+                auto mediumDirectory = GetMediumDirectory();
+                if (!diskRequest->MediumName) {
+                    continue;
+                }
+                auto mediumName = *diskRequest->MediumName;
+                auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+                if (!mediumDescriptor) {
+                    THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
+                }
+                diskRequest->MediumIndex = mediumDescriptor->Index;
+
+                if (Config_->ObligatoryAccountMedia.contains(mediumName)) {
+                    if (!diskRequest->Account) {
+                        THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium")
+                            << TErrorAttribute("medium_name", mediumName);
+                    }
+                }
+                if (Config_->DeprecatedMedia.contains(mediumName) &&
+                        volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+                    THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                         << TErrorAttribute("medium_name", mediumName);
                 }
-            }
-            if (Config_->DeprecatedMedia.contains(mediumName) && !diskRequest->NbdDisk) {
-                THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
-                    << TErrorAttribute("medium_name", mediumName);
-            }
-            if (diskRequest->Account) {
-                accounts.insert(*diskRequest->Account);
+                if (diskRequest->Account) {
+                    accounts.insert(*diskRequest->Account);
+                }
             }
         }
     }
@@ -10236,17 +10256,92 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_porto_memory_tracking(jobSpecConfig->UsePortoMemoryTracking);
 
     if (Config_->EnableTmpfs) {
-        for (const auto& volume : jobSpecConfig->TmpfsVolumes) {
-            ToProto(jobSpec->add_tmpfs_volumes(), *volume);
+        // COMPAT(krasovav)
+        std::vector<TTmpfsVolumeConfigPtr> orderedTmpfsVolumeConfigs;
+        orderedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
+        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+            const auto& tmpfsVolume = jobSpecConfig->Volumes[volumeMount->VolumeId];
+
+            if (!tmpfsVolume->DiskRequest) {
+                continue;
+            }
+
+            auto tmpfsDiskRequest = tmpfsVolume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>();
+            if (!tmpfsDiskRequest) {
+                continue;
+            }
+
+            auto volume = New<TTmpfsVolumeConfig>();
+            volume->Path = volumeMount->MountPath;
+            volume->Size = tmpfsDiskRequest->DiskSpace;
+
+            YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
+            orderedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
+        }
+
+        for (auto& tmpfsDiskRequest : orderedTmpfsVolumeConfigs) {
+            if (!tmpfsDiskRequest) {
+                break;
+            }
+            ToProto(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
         }
     }
 
-    if (auto& diskRequest = jobSpecConfig->DiskRequest) {
+    // COMPAT(krasovav)
+    for (const auto& [_, volume] : jobSpecConfig->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        if (!volume->DiskRequest->TryGetConcrete<TDiskRequestConfig>()) {
+            continue;
+        }
+
+        auto diskRequest = New<TOldDiskRequestConfig>();
+
+        if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
+            *diskRequest = *nbdDiskRequest;
+        } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
+            *diskRequest = *localDiskRequest;
+        } else {
+            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
+        }
+
         ToProto(jobSpec->mutable_disk_request(), *diskRequest);
         if (diskRequest->InodeCount) {
             jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }
     }
+
+    // COMPAT(krasovav)
+    YT_VERIFY(CountOfNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
+
+    absl::flat_hash_set<std::string> volumesNotAllowedToBeCreate;
+    for (const auto& [name, volume] : jobSpecConfig->Volumes) {
+        if (!volume->DiskRequest) {
+            continue;
+        }
+
+        if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs && !Config_->EnableTmpfs) {
+            volumesNotAllowedToBeCreate.insert(name);
+        }
+
+    }
+
+    for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+        if (!volumesNotAllowedToBeCreate.contains(volumeMount->VolumeId)) {
+            ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
+        }
+    }
+
+    auto* protoVolumes = jobSpec->mutable_volumes();
+    for (const auto& [name, volume]: jobSpecConfig->Volumes) {
+        if (!volumesNotAllowedToBeCreate.contains(name)) {
+            auto& protoVolume = (*protoVolumes)[name];
+            ToProto(&protoVolume, *volume);
+        }
+    }
+
     if (jobSpecConfig->InterruptionSignal) {
         jobSpec->set_interruption_signal(*jobSpecConfig->InterruptionSignal);
         jobSpec->set_signal_root_process_only(jobSpecConfig->SignalRootProcessOnly);
@@ -11474,7 +11569,19 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
         // Resolve internal docker image into base layers.
         layerPaths = GetLayerPathsFromDockerImage(Host_->GetClient(), dockerImage);
     }
-    std::copy(userJobSpec->LayerPaths.begin(), userJobSpec->LayerPaths.end(), std::back_inserter(layerPaths));
+
+    {
+        // User can order several identical layers.
+        THashSet<TRichYPath> allLayersFromJobSpec;
+        for (const auto& [_, volume] : userJobSpec->Volumes) {
+            for (const auto& layer : volume->Layers) {
+                if (allLayersFromJobSpec.insert(layer->Path).second) {
+                    layerPaths.push_back(layer->Path);
+                }
+            }
+        }
+    }
+
     if (layerPaths.empty() && Spec_->DefaultBaseLayerPath) {
         layerPaths.insert(layerPaths.begin(), *Spec_->DefaultBaseLayerPath);
     }

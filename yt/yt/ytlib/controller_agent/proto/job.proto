@@ -192,6 +192,19 @@ message TSidecarJobSpec
     optional TGracefulShutdownSpec graceful_shutdown = 6;
 }
 
+message TVolume
+{
+    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 1;
+    repeated TFileDescriptor layers = 2;
+}
+
+message TVolumeMount
+{
+    required string volume_id = 1;
+    required string mount_path = 2;
+    required bool is_read_only = 3 [default = false];
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -242,7 +255,7 @@ message TUserJobSpec
     optional int64 tmpfs_size = 22;
     optional string tmpfs_path = 23;
 
-    repeated TTmpfsVolume tmpfs_volumes = 41;
+    repeated TTmpfsVolume tmpfs_volumes = 41 [deprecated = true];
 
     // COMPAT(gritukan): Drop it when nodes and controller agents
     // will be fresh enough.
@@ -359,6 +372,9 @@ message TUserJobSpec
     optional bool close_stdout_if_unused = 88;
 
     optional bool restrict_porto_place = 89;
+
+    map<string, TVolume> volumes = 90;
+    repeated TVolumeMount job_volume_mounts = 91;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

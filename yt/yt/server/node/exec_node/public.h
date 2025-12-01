@@ -174,9 +174,9 @@ struct TNumaNodeInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EVolumeType,
-    ((Overlay)  (0))
+    ((Local)    (0))
     ((Nbd)      (1))
-    ((SquashFS) (2))
+ // Reserved    (2))
     ((Tmpfs)    (3))
 );
 

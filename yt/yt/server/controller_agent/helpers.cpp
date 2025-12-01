@@ -169,16 +169,26 @@ void BuildFileSpecs(
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        NProto::TFileDescriptor* descriptor;
+        NProto::TFileDescriptor* oldDescriptor;
         if (file.GpuCheck) {
-            descriptor = jobSpec->add_gpu_check_volume_layers();
+            oldDescriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
-            descriptor = jobSpec->add_root_volume_layers();
+            oldDescriptor = jobSpec->add_root_volume_layers();
+            for (const auto& [name, volume] : config->Volumes) {
+                // COMPAT (krasovav)
+                for (const auto& layer : volume->Layers) {
+                    if (layer->Path == file.Path) {
+                        auto* newDescriptor = (*jobSpec->mutable_volumes())[name].add_layers();
+                        BuildFileSpec(newDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
+                        break;
+                    }
+                }
+            }
         } else {
-            descriptor = jobSpec->add_files();
+            oldDescriptor = jobSpec->add_files();
         }
 
-        BuildFileSpec(descriptor, file, config->CopyFiles, enableBypassArtifactCache);
+        BuildFileSpec(oldDescriptor, file, config->CopyFiles, enableBypassArtifactCache);
     }
 }
 

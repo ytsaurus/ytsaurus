@@ -116,6 +116,49 @@ void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
     }
 }
 
+template <class Config>
+void RegisterDiskSpace(TYsonStructRegistrar<Config>& registrar)
+{
+    registrar.Parameter("disk_space", &Config::DiskSpace);
+}
+
+template <class Config>
+void RegisterLocalDisk(TYsonStructRegistrar<Config>& registrar)
+{
+    registrar.Parameter("inode_count", &Config::InodeCount)
+        .GreaterThan(0)
+        .Default();
+    registrar.Parameter("medium_name", &Config::MediumName)
+        .NonEmpty()
+        .Default();
+    registrar.Parameter("account", &Config::Account)
+        .NonEmpty()
+        .Default();
+
+    registrar.Postprocessor([&] (Config* config) {
+        if (config->Account && !config->MediumName) {
+            THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
+        }
+    });
+}
+
+template <class Config>
+void RegisterNbdDisk(TYsonStructRegistrar<Config>& registrar)
+{
+    registrar.Parameter("nbd_disk", &Config::NbdDisk)
+        .Default();
+
+    registrar.Postprocessor([&] (Config* config) {
+        static constexpr i64 MaxNbdDiskSize = 60_GB;
+        // NBD disk size shall not exceed MaxNbdDiskSize.
+        if (config->NbdDisk && config->DiskSpace > MaxNbdDiskSize) {
+            THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
+                << TErrorAttribute("max_disk_space", MaxNbdDiskSize)
+                << TErrorAttribute("disk_space", config->DiskSpace);
+        }
+    });
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -510,18 +553,6 @@ void TTmpfsVolumeConfig::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path);
 }
 
-void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
-{
-    protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
-    protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
-}
-
-void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume)
-{
-    tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
-    tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNbdDiskConfig::Register(TRegistrar registrar)
@@ -552,37 +583,39 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
     });
 }
 
+void TStorageRequestBase::Register(TRegistrar registrar)
+{
+    RegisterDiskSpace(registrar);
+}
+
+void TTmpfsStorageRequest::Register(TRegistrar /*registrar*/)
+{}
+
 void TDiskRequestConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("disk_space", &TThis::DiskSpace);
-    registrar.Parameter("inode_count", &TThis::InodeCount)
-        .Default();
-    registrar.Parameter("medium_name", &TThis::MediumName)
-        .NonEmpty()
-        .Default();
-    registrar.Parameter("account", &TThis::Account)
-        .NonEmpty()
-        .Default();
-    registrar.Parameter("nbd_disk", &TThis::NbdDisk)
-        .Default();
+    RegisterLocalDisk(registrar);
+}
 
-    registrar.Postprocessor([&] (TDiskRequestConfig* config) {
-        static constexpr i64 MaxNbdDiskSize = 60_GB;
-        // NBD disk size shall not exceed MaxNbdDiskSize.
-        if (config->NbdDisk && config->DiskSpace > MaxNbdDiskSize) {
-            THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk")
-                << TErrorAttribute("max_disk_space", MaxNbdDiskSize)
-                << TErrorAttribute("disk_space", config->DiskSpace);
-        }
-        if (config->Account && !config->MediumName) {
-            THROW_ERROR_EXCEPTION("\"medium_name\" is required in disk request if account is specified");
-        }
-    });
+void TLocalDiskRequest::Register(TRegistrar /*registrar*/)
+{}
+
+void TNbdDiskRequest::Register(TRegistrar registrar)
+{
+    RegisterNbdDisk(registrar);
+}
+
+void TOldDiskRequestConfig::Register(TRegistrar registrar)
+{
+    RegisterDiskSpace(registrar);
+
+    RegisterLocalDisk(registrar);
+
+    RegisterNbdDisk(registrar);
 }
 
 void ToProto(
     NProto::TDiskRequest* protoDiskRequest,
-    const TDiskRequestConfig& diskRequestConfig)
+    const TOldDiskRequestConfig& diskRequestConfig)
 {
     protoDiskRequest->set_disk_space(diskRequestConfig.DiskSpace);
     if (diskRequestConfig.InodeCount) {
@@ -1224,6 +1257,37 @@ void TDistributedJobOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TVolumeMount::Register(TRegistrar registrar)
+{
+    registrar.Parameter("volume_id", &TThis::VolumeId)
+        .NonEmpty()
+        .Default();
+    registrar.Parameter("mount_path", &TThis::MountPath)
+        .NonEmpty()
+        .Default();
+    registrar.Parameter("is_read_only", &TThis::IsReadOnly)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TVolume::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_request", &TThis::DiskRequest)
+        .Default();
+    registrar.Parameter("layers", &TThis::Layers)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLayer::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("task_title", &TThis::TaskTitle)
@@ -1411,6 +1475,12 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("sidecars", &TThis::Sidecars)
         .Default();
 
+    registrar.Parameter("volumes", &TThis::Volumes)
+        .Default();
+
+    registrar.Parameter("job_volumes_mounts", &TThis::JobVolumeMounts)
+        .Default();
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if (spec->InterruptionSignal) {
             if (!FindSignalIdBySignalName(*spec->InterruptionSignal)) {
@@ -1437,13 +1507,139 @@ void TUserJobSpec::Register(TRegistrar registrar)
             spec->TmpfsSize = std::nullopt;
         }
 
-        i64 totalTmpfsSize = 0;
-        for (const auto& volume : spec->TmpfsVolumes) {
-            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volume->Path)) {
-                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
-                    volume->Path);
+        std::vector<TTmpfsVolumeConfigPtr> oldTmpfsVolumes;
+        TOldDiskRequestConfigPtr oldDiskRequestConfig;
+        std::vector<NYPath::TRichYPath> oldLayerPaths;
+
+        // This is necessary so that the fields("disk_request", "tmpfs", "layers") are not removed from the specification,
+        // so that the user is not afraid of not seeing them there.
+        if (spec->IsFirstPostprocessorDone) {
+            oldTmpfsVolumes = std::move(spec->TmpfsVolumes);
+            oldDiskRequestConfig = std::move(spec->DiskRequest);
+            oldLayerPaths = std::move(spec->LayerPaths);
+        }
+
+        if (!spec->TmpfsVolumes.empty() && !spec->Volumes.empty()) {
+            THROW_ERROR_EXCEPTION(
+                "Option \"tmpfs_volumes\" cannot be specified simultaneously with \"volumes\"")
+                << TErrorAttribute("tmpfs_volumes", spec->TmpfsVolumes)
+                << TErrorAttribute("volumes", spec->Volumes);
+        }
+
+        if (spec->DiskSpaceLimit && spec->DiskRequest) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
+                "together with \"disk_request\"")
+                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
+                << TErrorAttribute("inode_limit", spec->InodeLimit)
+                << TErrorAttribute("disk_request", spec->DiskRequest);
+        }
+
+
+        if (spec->DiskSpaceLimit && !spec->Volumes.empty()) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"disk_space_limit\" cannot be specified "
+                "together with \"volumes\" which contains not only tmpfs volumes")
+                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
+                << TErrorAttribute("inode_limit", spec->InodeLimit)
+                << TErrorAttribute("volumes", spec->Volumes);
+        }
+
+        if (spec->DiskRequest && !spec->Volumes.empty()) {
+            THROW_ERROR_EXCEPTION(
+                "Option \"disk_request\" cannot be specified simultaneously with \"volumes\"")
+                << TErrorAttribute("disk_request", spec->DiskRequest)
+                << TErrorAttribute("volumes", spec->Volumes);
+        }
+
+        if (!spec->LayerPaths.empty() && !spec->Volumes.empty()) {
+            THROW_ERROR_EXCEPTION(
+                "Option \"layer_paths\" cannot be specified simultaneously with \"volumes\"")
+                << TErrorAttribute("layer_paths", spec->DiskRequest)
+                << TErrorAttribute("volumes", spec->Volumes);
+        }
+
+        THashSet<std::string> requestedVolumeIds;
+        for (const auto& volumeMount : spec->JobVolumeMounts) {
+            requestedVolumeIds.insert(volumeMount->VolumeId);
+            if (!spec->Volumes.contains(volumeMount->VolumeId)) {
+                THROW_ERROR_EXCEPTION("Volume was ordered but not described")
+                    << TErrorAttribute("volume_id", volumeMount->VolumeId);
             }
-            totalTmpfsSize += volume->Size;
+        }
+
+        for (const auto& [id, volume] : spec->Volumes) {
+            if (!requestedVolumeIds.contains(id)) {
+                THROW_ERROR_EXCEPTION("Volume was described, but not used")
+                    << TErrorAttribute("volume_id", id);
+            }
+        }
+
+        auto makeNewNameForVolume = [index = 0] () mutable {
+            return ToString(index++);
+        };
+
+        TVolumePtr newVolume;
+        TVolumeMountPtr newVolumeMount;
+        std::optional<std::string> newNameForNewVolume = makeNewNameForVolume();
+        if (spec->DiskRequest || spec->DiskSpaceLimit || !spec->LayerPaths.empty()) {
+            newVolume = New<TVolume>();
+
+            newVolumeMount = New<TVolumeMount>();
+            newVolumeMount->MountPath = "/";
+            newVolumeMount->VolumeId = *newNameForNewVolume;
+            newVolumeMount->IsReadOnly = false;
+        }
+
+        if (spec->DiskRequest) {
+            if (spec->DiskRequest->NbdDisk) {
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
+                *diskRequest = spec->DiskRequest;
+            } else {
+                newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
+                auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+                *diskRequest = spec->DiskRequest;
+            }
+        }
+
+        for (const auto& volumeFromOldSpec : spec->TmpfsVolumes) {
+            auto nameForNewVolume = makeNewNameForVolume();
+
+            auto volumeMount = New<TVolumeMount>();
+            volumeMount->MountPath = volumeFromOldSpec->Path;
+            volumeMount->VolumeId = nameForNewVolume;
+            volumeMount->IsReadOnly = false;
+            spec->JobVolumeMounts.push_back(std::move(volumeMount));
+
+            auto newVolume = New<TVolume>();
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
+            (*newVolume->DiskRequest)->DiskSpace = volumeFromOldSpec->Size;
+            spec->Volumes[nameForNewVolume] = std::move(newVolume);
+        }
+
+        for (const auto& volumeMount : spec->JobVolumeMounts) {
+            auto it = spec->Volumes.find(volumeMount->VolumeId);
+            if (!it->second->DiskRequest || it->second->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                continue;
+            }
+
+            if (!NFS::IsPathRelativeAndInvolvesNoTraversal(volumeMount->MountPath)) {
+                THROW_ERROR_EXCEPTION("Tmpfs path %v does not point inside the sandbox directory",
+                    volumeMount->MountPath);
+            }
+        }
+
+        i64 totalTmpfsSize = 0;
+        int tmpfsVolumeIndex = 0;
+        for (auto& [_, volume] : spec->Volumes) {
+            if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                continue;
+            }
+            totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
+
+            // COMPAT (krasovav)
+            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
         }
 
         // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
@@ -1454,9 +1650,14 @@ void TUserJobSpec::Register(TRegistrar registrar)
         }
 
         std::vector<std::string_view> tmpfsPaths;
-        tmpfsPaths.reserve(spec->TmpfsVolumes.size());
-        for (const auto& volume: spec->TmpfsVolumes) {
-            tmpfsPaths.push_back(volume->Path);
+        tmpfsPaths.reserve(spec->Volumes.size());
+        for (const auto& volumeMount : spec->JobVolumeMounts) {
+            auto leftVolumeIt = spec->Volumes.find(volumeMount->VolumeId);
+            if (!leftVolumeIt->second->DiskRequest || leftVolumeIt->second->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                continue;
+            }
+
+            tmpfsPaths.push_back(volumeMount->MountPath);
         }
 
         //! Check that no volume path is a prefix of another volume path.
@@ -1485,19 +1686,13 @@ void TUserJobSpec::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
         }
 
-        if (spec->DiskSpaceLimit && spec->DiskRequest) {
-            THROW_ERROR_EXCEPTION(
-                "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
-                "together with \"disk_request\"")
-                << TErrorAttribute("disk_space_limit", spec->DiskSpaceLimit)
-                << TErrorAttribute("inode_limit", spec->InodeLimit)
-                << TErrorAttribute("disk_request", spec->DiskRequest);
-        }
-
         if (spec->DiskSpaceLimit) {
-            spec->DiskRequest = New<TDiskRequestConfig>();
-            spec->DiskRequest->DiskSpace = *spec->DiskSpaceLimit;
-            spec->DiskRequest->InodeCount = spec->InodeLimit;
+            newVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Local);
+            auto diskRequest = newVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Local>();
+
+            diskRequest->DiskSpace = *spec->DiskSpaceLimit;
+            diskRequest->InodeCount = spec->InodeLimit;
+
             spec->DiskSpaceLimit = std::nullopt;
             spec->InodeLimit = std::nullopt;
         }
@@ -1513,6 +1708,30 @@ void TUserJobSpec::Register(TRegistrar registrar)
         if (spec->EnableShuffleServiceInJobProxy && !spec->EnableRpcProxyInJobProxy) {
             THROW_ERROR_EXCEPTION("Option \"enable_shuffle_service_in_job_proxy\" cannot be enabled when \"enable_rpc_proxy_in_job_proxy\" is disabled");
         }
+
+        auto copyLayersToVolume = [] (TVolumePtr& volume, const std::vector<NYPath::TRichYPath>& layerPaths) {
+            for (const auto& layerPath : layerPaths) {
+                auto newLayer = New<TLayer>();
+                newLayer->Path = layerPath;
+                volume->Layers.push_back(std::move(newLayer));
+            }
+        };
+
+        if (!spec->LayerPaths.empty()) {
+            copyLayersToVolume(newVolume, spec->LayerPaths);
+        }
+
+        if (newVolume) {
+            spec->Volumes[*newNameForNewVolume] = std::move(newVolume);
+            spec->JobVolumeMounts.push_back(std::move(newVolumeMount));
+        }
+
+        if (!spec->IsFirstPostprocessorDone) {
+            oldTmpfsVolumes = std::move(spec->TmpfsVolumes);
+            oldDiskRequestConfig = std::move(spec->DiskRequest);
+            oldLayerPaths = std::move(spec->LayerPaths);
+        }
+        spec->IsFirstPostprocessorDone = true;
     });
 }
 
@@ -3239,6 +3458,68 @@ void FromProto(
 {
     queryFilterOptions->EnableChunkFilter = protoQueryFilterOptions.enable_chunk_filter();
     queryFilterOptions->EnableRowFilter = protoQueryFilterOptions.enable_row_filter();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStorageRequestBase& TNbdDiskRequest::operator=(TOldDiskRequestConfigPtr& oldConfig)
+{
+    *static_cast<TDiskRequestConfig*>(this) = oldConfig;
+    NbdDisk = oldConfig->NbdDisk;
+    return *this;
+}
+
+TStorageRequestBase& TLocalDiskRequest::operator=(TOldDiskRequestConfigPtr& oldConfig)
+{
+    *static_cast<TDiskRequestConfig*>(this) = oldConfig;
+    return *this;
+}
+
+TStorageRequestBase& TDiskRequestConfig::operator=(TOldDiskRequestConfigPtr& oldConfig)
+{
+    *static_cast<TStorageRequestBase*>(this) = oldConfig;
+    InodeCount = oldConfig->InodeCount;
+    MediumName = oldConfig->MediumName;
+    MediumIndex = oldConfig->MediumIndex;
+    Account = oldConfig->Account;
+    return *this;
+}
+
+TStorageRequestBase& TStorageRequestBase::operator=(TOldDiskRequestConfigPtr& oldConfig)
+{
+    DiskSpace = oldConfig->DiskSpace;
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOldDiskRequestConfig& TOldDiskRequestConfig::operator=(const TNbdDiskRequest& config)
+{
+    *this = static_cast<const TDiskRequestConfig&>(config);
+    NbdDisk = config.NbdDisk;
+    return *this;
+}
+
+TOldDiskRequestConfig& TOldDiskRequestConfig::operator=(const TLocalDiskRequest& config)
+{
+    *this = static_cast<const TDiskRequestConfig&>(config);
+    return *this;
+}
+
+TOldDiskRequestConfig& TOldDiskRequestConfig::operator=(const TDiskRequestConfig& config)
+{
+    *this = static_cast<const TStorageRequestBase&>(config);
+    InodeCount = config.InodeCount;
+    MediumName = config.MediumName;
+    MediumIndex = config.MediumIndex;
+    Account = config.Account;
+    return *this;
+}
+
+TOldDiskRequestConfig& TOldDiskRequestConfig::operator=(const TStorageRequestBase& config)
+{
+    DiskSpace = config.DiskSpace;
+    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
