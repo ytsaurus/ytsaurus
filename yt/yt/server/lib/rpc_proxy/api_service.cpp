@@ -104,7 +104,6 @@
 #include <library/cpp/yt/misc/cast.h>
 
 #include <algorithm>
-#include <ranges>
 
 namespace NYT::NRpcProxy {
 
@@ -1261,7 +1260,7 @@ private:
             using TResult = typename decltype(future)::TValueType;
 
             future.Subscribe(
-                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
                     if (!resultOrError.IsOK()) {
                         HandleError(resultOrError);
                         return;
@@ -1368,17 +1367,21 @@ private:
             count,
             clockClusterTag);
 
-        const auto& connection = client->GetNativeConnection();
+        auto connection = client->GetNativeConnection();
         if (clockClusterTag == InvalidCellTag) {
             connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
         }
 
-        const auto& timestampProvider = connection->GetTimestampProvider();
-
         ExecuteCall(
             context,
-            [=, Logger = Logger] {
-                return timestampProvider->GenerateTimestamps(count, clockClusterTag).AsUnique().Apply(
+            [
+                connection = std::move(connection),
+                clockClusterTag,
+                count,
+                Logger = Logger
+            ] {
+                const auto& timestampProvider = connection->GetTimestampProvider();
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
