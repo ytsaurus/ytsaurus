@@ -464,20 +464,6 @@ public:
     {
         YT_LOG_INFO("Started preparing artifacts");
 
-        if (UserJobEnvironment_->HasRootFS()) {
-            YT_VERIFY(Config_->RootPath);
-
-            auto sandboxPath = CombinePaths(
-                *Config_->RootPath,
-                Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
-
-            if (!NFS::Exists(sandboxPath)) {
-                YT_LOG_DEBUG("Creating sandbox path (Path: %v)",
-                    sandboxPath);
-                RunTool<TCreateDirectoryAsRootTool>(sandboxPath);
-            }
-        }
-
         // Prepare user artifacts.
         for (const auto& file : UserJobSpec_.files()) {
             if (!file.bypass_artifact_cache() && !file.copy_file()) {
@@ -518,20 +504,23 @@ public:
 
         YT_LOG_INFO("Preparing artifact");
 
-        auto sandboxPath = CombinePaths(
-            Host_->GetPreparationPath(),
-            GetSandboxRelPath(ESandboxKind::User));
-        auto artifactPath = CombinePaths(sandboxPath, artifactName);
-
+        TString sandboxPath;
         if (UserJobEnvironment_->HasRootFS()) {
             YT_VERIFY(Config_->RootPath);
-            auto sandboxPath = CombinePaths(
+            sandboxPath = CombinePaths(
                 *Config_->RootPath,
                 Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)));
-            artifactPath = CombinePaths(sandboxPath, artifactName);
-            YT_LOG_INFO("Copy artifact directly to rootFS (ArtifactPath %v)",
-                artifactPath);
+        } else {
+            sandboxPath = CombinePaths(
+                Host_->GetPreparationPath(),
+                GetSandboxRelPath(ESandboxKind::User));
         }
+
+        YT_VERIFY(NFS::Exists(sandboxPath));
+        auto artifactPath = CombinePaths(sandboxPath, artifactName);
+
+        YT_LOG_INFO("Copy artifact (ArtifactPath: %v)",
+            artifactPath);
 
         auto onError = [&] (const TError& error) {
             Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
