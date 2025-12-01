@@ -23,6 +23,7 @@ DEFINE_ENUM(ESequoiaReign,
     ((FromObjectIdResolve)                 (12))
     ((FromObjectIdResolveLinkTarget)       (13))
     ((AnnotationAttribute)                 (14))
+    ((CompositeNodeReadAccessControl)      (15))
 );
 
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");

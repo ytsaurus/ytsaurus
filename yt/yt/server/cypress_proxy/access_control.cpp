@@ -84,6 +84,10 @@ void LogAndThrowAuthorizationError(
         resultSubjectName);
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 ESecurityAction FastCheckPermission(const TUserDescriptorPtr& user)
 {
     if (user->Name == RootUserName ||
@@ -98,10 +102,6 @@ ESecurityAction FastCheckPermission(const TUserDescriptorPtr& user)
 
     return ESecurityAction::Undefined;
 }
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 TMatchAceSubjectCallback CreateMatchAceSubjectCallback(
     TUserDescriptorPtr user,
@@ -228,9 +228,9 @@ class TSubtreePermissionChecker
 public:
     TSubtreePermissionChecker(
         EPermission permission,
-        TMatchAceSubjectCallback matchAceSubjectCallback)
-        : MatchAceSubjectCallback_(std::move(matchAceSubjectCallback))
-        , Underlying_(permission, MatchAceSubjectCallback_)
+        const TMatchAceSubjectCallback* matchAceSubjectCallback,
+        const TPermissionCheckBasicOptions* options)
+        : Underlying_(permission, *matchAceSubjectCallback, options)
     { }
 
     void Put(const TAccessControlDescriptor* acd)
@@ -252,8 +252,6 @@ public:
     }
 
 private:
-    TMatchAceSubjectCallback MatchAceSubjectCallback_;
-
     using TChecker = NSecurityServer::TSubtreePermissionChecker<
         TSerializableAccessControlEntry,
         const TMatchAceSubjectCallback&>;
@@ -329,11 +327,14 @@ TPermissionCheckResult CheckPermissionForSubtree(
         return MakeFastCheckPermissionResponse(fastAction, TPermissionCheckBasicOptions{});
     }
 
+    TPermissionCheckBasicOptions options;
+    auto matchAceSubjectCallback = CreateMatchAceSubjectCallback(
+        std::move(user),
+        std::move(userDirectory));
     TSubtreePermissionChecker checker(
         permission,
-        CreateMatchAceSubjectCallback(
-            std::move(user),
-            std::move(userDirectory)));
+        &matchAceSubjectCallback,
+        &options);
 
     auto subtreeNodes = TRange(nodeSubtree.Nodes);
 
@@ -436,6 +437,87 @@ TSerializableAccessControlList ComputeEffectiveAclForNode(
     }
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+ESecurityAction TIntermediateReadPermissionCheckResult::GetAction() const
+{
+    return ObjectAction_;
+}
+
+TIntermediateReadPermissionCheckResult TIntermediateReadPermissionCheckResult::Put(
+    const TAccessControlDescriptor& acd,
+    const TMatchAceSubjectCallback& matchAceSubjectCallback) const
+{
+    auto inheritedDescendatsAction = acd.Inherit ? DescendatsAction_ : ESecurityAction::Undefined;
+    auto inheritedImmediateDescendatsAction = acd.Inherit ? ImmediateDescendantsAction_ : ESecurityAction::Undefined;
+
+    // Fast path.
+    if (acd.Acl.Entries.empty() &&
+        inheritedDescendatsAction == ESecurityAction::Allow &&
+        inheritedImmediateDescendatsAction != ESecurityAction::Deny)
+    {
+        return TIntermediateReadPermissionCheckResult(
+            /*objectAction*/ ESecurityAction::Allow,
+            /*immediateDescendatsAction*/ ESecurityAction::Undefined,
+            /*descendatsAction*/ ESecurityAction::Allow);
+    }
+
+    auto options = TPermissionCheckBasicOptions{.AllowUndefinedResultAction = true};
+    auto checker = TSubtreePermissionChecker(
+        EPermission::Read,
+        &matchAceSubjectCallback,
+        &options);
+
+    auto trivialAcd = TAccessControlDescriptor{};
+
+    checker.Put(&acd);
+    auto currentAction = checker.CheckPermission().Action;
+
+    checker.Put(&trivialAcd);
+    auto immediateDescendantsAction = checker.CheckPermission().Action;
+
+    checker.Put(&trivialAcd);
+    auto descendantsAction = checker.CheckPermission().Action;
+
+    auto objectAction = [=] {
+        if (currentAction == ESecurityAction::Deny ||
+            inheritedImmediateDescendatsAction == ESecurityAction::Deny ||
+            inheritedDescendatsAction == ESecurityAction::Deny)
+        {
+            return ESecurityAction::Deny;
+        }
+
+        if (currentAction == ESecurityAction::Allow ||
+            inheritedImmediateDescendatsAction == ESecurityAction::Allow ||
+            inheritedDescendatsAction == ESecurityAction::Allow)
+        {
+            return ESecurityAction::Allow;
+        }
+
+        return ESecurityAction::Deny;
+    }();
+
+    if (descendantsAction != ESecurityAction::Deny &&
+        inheritedDescendatsAction != ESecurityAction::Undefined)
+    {
+        descendantsAction = inheritedDescendatsAction;
+    }
+
+    return TIntermediateReadPermissionCheckResult(
+        objectAction,
+        immediateDescendantsAction,
+        descendantsAction);
+}
+
+TIntermediateReadPermissionCheckResult::TIntermediateReadPermissionCheckResult(
+    ESecurityAction objectAction,
+    ESecurityAction immediateDescendantsAction,
+    ESecurityAction descendatsAction)
+    : ObjectAction_(objectAction)
+    , ImmediateDescendantsAction_(immediateDescendantsAction)
+    , DescendatsAction_(descendatsAction)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

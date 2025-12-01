@@ -84,6 +84,13 @@ private:
             }
         };
 
+        if (!NodeIdToChildren_.contains(nodeId)) {
+            // Access denied.
+            maybeWriteKey();
+            VisitEntity(nodeId);
+            return;
+        }
+
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
             auto nodeIter = NodesWithAttributes_.find(nodeId);
             if (nodeIter == NodesWithAttributes_.end() && !CalculateOpaqueness_) {
