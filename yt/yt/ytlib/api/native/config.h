@@ -164,6 +164,8 @@ struct TSequoiaConnectionConfig
     NYTree::TYPath SequoiaRootPath;
     TDuration SequoiaTransactionTimeout;
 
+    TSlruCacheConfigPtr ClientCache;
+
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
 
     static void Register(TRegistrar registrar);
