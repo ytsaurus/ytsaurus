@@ -57,8 +57,10 @@ protected:
     static constexpr i32 Inf32 = std::numeric_limits<i32>::max();
     static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
 
+    // Use `ya test --test-param yt_log_level=trace` to override.
+    // Use at least ELogLevel::Debug to enable Cdebug.
     static constexpr bool EnableDebugOutput = false;
-    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
+    std::reference_wrapper<IOutputStream> Cdebug = Cnull;
 };
 
 class TSortedChunkPoolTestBase
