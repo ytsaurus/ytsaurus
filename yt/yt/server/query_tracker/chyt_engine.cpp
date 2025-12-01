@@ -331,7 +331,7 @@ private:
             Config_->ProgressPollPeriod);
         progressPollerExecutor->Start();
 
-        rsp.Subscribe(BIND([progressPollerExecutor](TErrorOr<TExecuteQueryResponse> /*rsp*/) {
+        rsp.Subscribe(BIND([progressPollerExecutor] (TErrorOr<TExecuteQueryResponse> /*rsp*/) {
             YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
         }));
 

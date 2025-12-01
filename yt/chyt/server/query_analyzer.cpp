@@ -195,7 +195,7 @@ DB::ASTPtr CreateProperNullableComparator(
     } else {
         THROW_ERROR_EXCEPTION(
             "Unexpected cmp function name %v; "
-            "this is a bug; please, fill an issue in CHYT queue",
+            "this is a bug; please, file an issue in CHYT queue",
             cmpFunctionName);
     }
 }
@@ -640,11 +640,12 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
             index,
             encodedSpec.size());
 
-        std::string scalarName = Format("yt_table_%d", index);
+        std::string scalarName = Format("yt_table_%v", index);
         scalars[scalarName] = DB::Block{{
             DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)),
             std::make_shared<DB::DataTypeString>(),
-            "scalarName"}};
+            "scalarName",
+        }};
     }
 
     YT_VERIFY(isCompleteSubquery || !BoundJoinOptions_.FilterJoinedSubqueryBySortKey);
@@ -788,10 +789,10 @@ TQueryAnalyzer::TQueryAnalyzer(
     bool hasVirtualColumns)
     : DB::WithContext(std::move(context))
     , StorageContext_(storageContext)
-    , QueryInfo_(queryInfo)
     , Logger(logger)
     , OnlyAnalyze_(onlyAnalyze)
     , HasVirtualColumns_(hasVirtualColumns)
+    , QueryInfo_(queryInfo)
 {
     // When the query is not processed by InterpreterSelectQueryAnalyzer,
     // SelectQueryInfo does not contain query_tree and planner_context.
@@ -1136,7 +1137,7 @@ DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage(
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetOptimizedQueryProcessingStage method is already called; "
-            "this is a bug; please, fill an issue in CHYT queue");
+            "this is a bug; please, file an issue in CHYT queue");
     }
 
     if (!OptimizedQueryProcessingStage_) {
@@ -1145,11 +1146,11 @@ DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage(
             THROW_ERROR_EXCEPTION(
                 "setting chyt.execution.optimize_query_processing_stage is not set "
                 "but we're trying to optimize stage; "
-                "this is a bug; please, fill an issue in CHYT queue");
+                "this is a bug; please, file an issue in CHYT queue");
         }
         THROW_ERROR_EXCEPTION(
             "Unexpected call to get optimized query processing stage; "
-            "this is a bug; please, fill an issue in CHYT queue");
+            "this is a bug; please, file an issue in CHYT queue");
     }
     return *OptimizedQueryProcessingStage_;
 }
@@ -1366,7 +1367,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but Analyze method is already called; "
-            "this is a bug; please, fill an issue in CHYT queue");
+            "this is a bug; please, file an issue in CHYT queue");
     }
 
     const auto& settings = StorageContext_->Settings;
@@ -1444,7 +1445,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
             if (suitableForReadRangeInferring) {
                 result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
-                YT_LOG_DEBUG("Inferred %Qv read range for %v table", result.KeyReadRanges, storage->GetTables());
+                YT_LOG_DEBUG("Inferred read range for table (Table: %v, KeyReadRange: %v)", storage->GetTables(), result.KeyReadRanges);
             }
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
@@ -1477,7 +1478,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetSecondaryQueryBuilder method is already called; "
-            "this is a bug; please, fill an issue in CHYT queue");
+            "this is a bug; please, file an issue in CHYT queue");
     }
 
     YT_VERIFY(!OnlyAnalyze_);
@@ -1495,7 +1496,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
 
-        std::string scalarName = "yt_table_" + std::to_string(index);
+        std::string scalarName = Format("yt_table_%v", index);
 
         auto scalarNode = std::make_shared<DB::ConstantNode>(scalarName);
         auto scalarFunctionNode = std::make_shared<DB::FunctionNode>("__getScalar");
@@ -1515,9 +1516,10 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
 
     TBoundJoinOptions boundJoinOptions{};
     const auto& executionSettings = StorageContext_->Settings->Execution;
-    if (!TwoYTTableJoin_
-            && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_)
-            && JoinedByKeyColumns_) {
+    if (!TwoYTTableJoin_ &&
+        (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_) &&
+        JoinedByKeyColumns_)
+    {
         auto newTableExpressions = extractTableExpressionSequentially(queryTreeToDistribute->as<DB::QueryNode>()->getJoinTree());
 
         boundJoinOptions.FilterJoinedSubqueryBySortKey = true;
@@ -1560,7 +1562,7 @@ bool TQueryAnalyzer::IsJoinedByKeyColumns() const
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but IsJoinedByKeyColumns method is already called; "
-            "this is a bug; please, fill an issue in CHYT queue");
+            "this is a bug; please, file an issue in CHYT queue");
     }
     return JoinedByKeyColumns_;
 }

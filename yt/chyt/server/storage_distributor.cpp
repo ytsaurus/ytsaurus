@@ -573,7 +573,7 @@ private:
     std::vector<TSecondaryQuery> SecondaryQueries_;
     DB::Pipes Pipes_;
 
-    TSecondaryQueryReadTaskIteratorPtr TaskIterator_ = nullptr;
+    TSecondaryQueryReadTaskIteratorPtr TaskIterator_;
 
     void PrepareInput()
     {
@@ -714,7 +714,7 @@ private:
             "chyt.input_streams_per_secondary_query",
             InputStreamsPerQuery_);
 
-        i64 taskCount = std::max<int>(1, secondaryQueryCount * InputStreamsPerQuery_);
+        auto taskCount = std::max<int>(1, secondaryQueryCount * InputStreamsPerQuery_);
         if (SuitableForPullInputSpecsMode()) {
             taskCount = std::round(taskCount * QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
             YT_LOG_DEBUG(
@@ -996,7 +996,7 @@ public:
         if (toStage != DB::QueryProcessingStage::Complete) {
             THROW_ERROR_EXCEPTION(
                 "Unexpected query processing stage: %v; "
-                "it's a bug; please, fill an issue in CHYT queue",
+                "it's a bug; please, file an issue in CHYT queue",
                 toString(toStage));
         }
 
