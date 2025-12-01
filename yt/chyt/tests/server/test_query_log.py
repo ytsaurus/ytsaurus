@@ -3,7 +3,7 @@ from base import ClickHouseTestBase, Clique
 from yt_commands import (authors, create, exists, read_table, sync_unmount_table, get, alter_table, write_table, print_debug,
                          raises_yt_error)
 
-from yt.common import wait
+from yt.common import wait, update
 
 import yt.yson as yson
 
@@ -18,6 +18,7 @@ class TestQueryLog(ClickHouseTestBase):
                     "default": {
                         "enabled": root_dir is not None,
                         "max_rows_to_keep": max_rows_to_keep or 100000,
+                        "create_table_tablet_count": 1,
                     },
                 },
             },
@@ -52,6 +53,7 @@ class TestQueryLog(ClickHouseTestBase):
 
         table_path_0 = root_dir + "/query_log/0"
         table_path_1 = root_dir + "/query_log/1"
+        table_path_2 = root_dir + "/query_log/2"
 
         patch = self._get_query_log_patch(root_dir)
 
@@ -75,6 +77,25 @@ class TestQueryLog(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             clique.make_query("select 1")
             wait(lambda: exists(table_path_1))
+
+        assert not exists(table_path_2)
+
+        patch = update(
+            patch,
+            {
+                "yt": {
+                    "system_log_table_exporters": {
+                        "default": {
+                            "create_table_tablet_count": 2,
+                        },
+                    },
+                },
+            }
+        )
+        with Clique(1, config_patch=patch) as clique:
+            clique.make_query("select 1")
+            wait(lambda: exists(table_path_2))
+            assert get(table_path_2 + "/@tablet_count") == 2
 
     @authors("dakovalkov")
     def test_log_table_extender(self):

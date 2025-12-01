@@ -67,7 +67,6 @@ struct TReadPlanWithFilter final
 
     int GetReadColumnCount() const;
     bool SuitableForTwoStagePrewhere() const;
-    bool SuitableForDistinctReadOptimization() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TReadPlanWithFilter)
@@ -86,6 +85,8 @@ TReadPlanWithFilterPtr ExtractPrewhereOnlyReadPlan(const TReadPlanWithFilterPtr&
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan,  const TCompositeSettingsPtr& settings);
+
+bool SuitableForDistinctReadOptimization(const TReadPlanWithFilterPtr& readPlan, const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

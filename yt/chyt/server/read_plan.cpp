@@ -142,16 +142,6 @@ bool TReadPlanWithFilter::SuitableForTwoStagePrewhere() const
     return Steps.size() > 1 && !Steps.back().FilterInfo;
 }
 
-bool TReadPlanWithFilter::SuitableForDistinctReadOptimization() const
-{
-    for (int i = 0; i < std::ssize(Steps) - 1; i++) {
-        if (!Steps[i].FilterInfo || !Steps[i].FilterInfo->RemoveFilterColumn) {
-            return false;
-        }
-    }
-    return Steps.back().Columns.size() == 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadPlanWithFilterPtr BuildSimpleReadPlan(const std::vector<TColumnSchema>& columns)
@@ -281,6 +271,11 @@ DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, 
     }
 
     return blockWithFilter.Block;
+}
+
+bool SuitableForDistinctReadOptimization(const TReadPlanWithFilterPtr& readPlan, const TCompositeSettingsPtr& settings)
+{
+    return DeriveHeaderBlockFromReadPlan(readPlan, settings).columns() == 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
