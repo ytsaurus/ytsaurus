@@ -586,6 +586,7 @@ void TPartition::HandleWriteResponse(const TActorContext& ctx) {
 
     AnswerCurrentWrites(ctx);
     SyncMemoryStateWithKVState(ctx);
+    NotifyEndOffsetChanged();
 
     ChangeScaleStatusIfNeeded(AutopartitioningManager->GetScaleStatus(ScaleStatus));
 
@@ -1211,6 +1212,7 @@ bool TPartition::ExecRequest(TWriteMsg& p, ProcessParameters& parameters, TEvKey
             LOG_D("Already written message. Topic: '" << TopicName()
                     << "' Partition: " << Partition << " SourceId: '" << EscapeC(p.Msg.SourceId)
                     << "'. Message seqNo: " << p.Msg.SeqNo
+                    << ". InitialSeqNo: " << p.InitialSeqNo
                     << ". Committed seqNo: " << sourceId.CommittedSeqNo()
                     << ". Writing seqNo: " << sourceId.UpdatedSeqNo()
                     << ". EndOffset: " << BlobEncoder.EndOffset << ". CurOffset: " << curOffset << ". Offset: " << poffset

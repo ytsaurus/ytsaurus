@@ -3,8 +3,11 @@
 #include <contrib/ydb/core/formats/arrow/reader/position.h>
 #include <contrib/ydb/core/formats/arrow/reader/result_builder.h>
 #include <contrib/ydb/core/tx/columnshard/engines/scheme/versions/abstract_scheme.h>
+#include <contrib/ydb/core/tx/columnshard/engines/scheme/index_info.h>
+#include <contrib/ydb/core/scheme/scheme_type_info.h>
 #include <contrib/ydb/library/conclusion/status.h>
 #include <contrib/ydb/public/api/protos/ydb_status_codes.pb.h>
+#include <util/string/builder.h>
 
 namespace NKikimr::NOlap {
 
@@ -41,7 +44,16 @@ class TInsertMerger: public IMerger {
 private:
     using TBase = IMerger;
     virtual TYdbConclusionStatus OnEqualKeys(const NArrow::NMerger::TSortableBatchPosition& exists, const NArrow::NMerger::TSortableBatchPosition& /*incoming*/) override {
-        return TYdbConclusionStatus::Fail(Ydb::StatusIds::PRECONDITION_FAILED, "Conflict with existing key. " + exists.GetSorting()->DebugJson(exists.GetPosition()).GetStringRobust());
+        std::vector<NScheme::TTypeInfo> pkTypes;
+        for (auto&& nt : Schema->GetIndexInfo().GetPrimaryKeyColumns()) {
+            pkTypes.emplace_back(nt.second);
+        }
+
+        return TYdbConclusionStatus::Fail(
+            Ydb::StatusIds::PRECONDITION_FAILED,
+            TStringBuilder() << "Conflict with existing key. "
+                             << exists.GetSorting()->DebugJson(exists.GetPosition(), pkTypes).GetStringRobust()
+        );
     }
     virtual TYdbConclusionStatus OnIncomingOnly(const NArrow::NMerger::TSortableBatchPosition& /*incoming*/) override {
         return TYdbConclusionStatus::Success();

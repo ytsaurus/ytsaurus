@@ -213,6 +213,8 @@ struct TEvPQ {
         EvGetMLPConsumerStateRequest,
         EvGetMLPConsumerStateResponse,
         EvMLPConsumerUpdateConfig,
+        EvMLPDLQMoverResponse,
+        EvEndOffsetChanged,
         EvEnd
     };
 
@@ -1592,6 +1594,31 @@ struct TEvPQ {
 
         NKikimrPQ::TPQTabletConfig::TConsumer Config;
         std::optional<TDuration> RetentionPeriod;
+    };
+
+    struct TEvMLPDLQMoverResponse : TEventLocal<TEvMLPDLQMoverResponse, EvMLPDLQMoverResponse> {
+
+        TEvMLPDLQMoverResponse(Ydb::StatusIds::StatusCode status,
+             std::vector<std::pair<ui64, ui64>>&& movedMessages, TString&& errorDescription = "")
+            : Status(status)
+            , MovedMessages(std::move(movedMessages))
+            , ErrorDescription(std::move(errorDescription))
+        {
+        }
+
+        Ydb::StatusIds::StatusCode Status;
+        // offset->seqNo
+        std::vector<std::pair<ui64, ui64>> MovedMessages;
+        TString ErrorDescription;
+    };
+
+    struct TEvEndOffsetChanged : TEventLocal<TEvEndOffsetChanged, EvEndOffsetChanged> {
+        TEvEndOffsetChanged(ui64 offset)
+            : Offset(offset)
+        {
+        }
+
+        ui64 Offset;
     };
 };
 

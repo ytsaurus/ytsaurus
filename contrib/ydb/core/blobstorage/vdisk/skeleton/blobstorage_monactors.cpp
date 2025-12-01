@@ -10,6 +10,8 @@
 #include <contrib/ydb/library/actors/core/mon.h>
 #include <library/cpp/monlib/service/pages/templates.h>
 
+#include <contrib/ydb/core/blobstorage/vdisk/hulldb/base/hullbase_barrier.h>
+
 namespace NKikimr {
 
     ////////////////////////////////////////////////////////////////////////////

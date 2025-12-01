@@ -5,6 +5,7 @@ SRCS(
 )
 
 PEERDIR(
+    contrib/ydb/core/base
     contrib/ydb/core/protos
     yql/essentials/sql/v1
 )
