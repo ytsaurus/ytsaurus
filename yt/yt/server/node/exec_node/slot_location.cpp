@@ -116,7 +116,69 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
 TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const
 {
     return BIND([rootVolume, userId] {
-        NYT::NExecNode::CreateSlotDirectories(rootVolume, userId);
+        YT_VERIFY(rootVolume);
+        const auto& rootVolumeMountPath = rootVolume->GetPath();
+        YT_VERIFY(NFS::Exists(rootVolumeMountPath));
+
+        struct TDirectory {
+            TString Path;
+            bool RemoveIfExists;
+        };
+
+        static constexpr int DirectoryPermissions = 0777;
+
+        // NB: Paths are relative and ordered in the creation sequence.
+        // Must create directory before its subdirectory.
+        static const TDirectory Directories[] = {
+            {
+                .Path = "slot",
+                .RemoveIfExists = false
+            },
+            {
+                .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)),
+                .RemoveIfExists = false
+            },
+            {
+                .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::Tmp)),
+                .RemoveIfExists = true
+            },
+        };
+
+        const auto& Logger = ExecNodeLogger();
+        YT_LOG_DEBUG("Creating slot directories in root volume (RootPath: %v)",
+            rootVolumeMountPath);
+
+        int nodeUid = getuid();
+
+        auto createRootDirectoryConfig = [&]() {
+            auto rootConfig = New<NTools::TRootDirectoryConfig>();
+            rootConfig->SlotPath = rootVolumeMountPath;
+            rootConfig->UserId = nodeUid;
+            rootConfig->Permissions = DirectoryPermissions;
+
+            for (const auto& [relativePath, removeIfExists] : Directories) {
+                auto path = NFS::CombinePaths(rootVolumeMountPath, relativePath);
+
+                auto directory = New<NTools::TDirectoryConfig>();
+                directory->Path = path;
+                directory->UserId = userId;
+                directory->Permissions = DirectoryPermissions;
+                directory->RemoveIfExists = removeIfExists;
+                rootConfig->Directories.push_back(std::move(directory));
+            }
+
+            return rootConfig;
+        };
+
+        auto directoryBuilderConfig = New<NTools::TDirectoryBuilderConfig>();
+        directoryBuilderConfig->NodeUid = nodeUid;
+        directoryBuilderConfig->NeedRoot = true;
+        directoryBuilderConfig->RootDirectoryConfigs.push_back(createRootDirectoryConfig());
+
+        RunTool<NTools::TRootDirectoryBuilderTool>(directoryBuilderConfig);
+
+        YT_LOG_DEBUG("Created slot directories in root volume (RootPath: %v)",
+            rootVolumeMountPath);
     })
     .AsyncVia(ToolInvoker_)
     .Run();
