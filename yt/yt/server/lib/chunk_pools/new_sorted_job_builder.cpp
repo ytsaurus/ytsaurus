@@ -574,7 +574,9 @@ private:
         YT_LOG_DEBUG("Sorting primary endpoints (Count: %v)", endpoints.size());
         // We sort endpoints by their location. In each group of endpoints at the same point
         // we sort them by type: barriers first, then foreign endpoints, then primary ones.
-        std::sort(
+        // NB(coteeq): stable_sort is needed not to mess up row-sliced slices.
+        // See TSortedChunkPoolNewKeysTest::InterruptRowSlicedAfterAdjustment.
+        std::stable_sort(
             endpoints.begin(),
             endpoints.end(),
             [&] (const TPrimaryEndpoint& lhs, const TPrimaryEndpoint& rhs) {

@@ -142,10 +142,12 @@ TString TNewJobStub::GetDebugString() const
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 chunkIds.push_back(chunkSlice->GetInputChunk()->GetChunkId());
             }
-            builder.AppendFormat("{DataWeight: %v, LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v, ChunkIds: %v}",
+            builder.AppendFormat("{DataWeight: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v, ChunkIds: %v}",
                 dataSlice->GetDataWeight(),
                 dataSlice->LegacyLowerLimit(),
                 dataSlice->LegacyUpperLimit(),
+                dataSlice->LowerLimit(),
+                dataSlice->UpperLimit(),
                 dataSlice->GetInputStreamIndex(),
                 chunkIds);
         }
