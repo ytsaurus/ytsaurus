@@ -2739,3 +2739,21 @@ class TestDefaultGpuFullHostPreemption(YTEnvSetup):
         wait(lambda: len(real_job.get_running_jobs()) == 1)
         assert len(small_op.get_running_jobs()) == 2
         assert len(large_gpu_op.get_running_jobs()) == 1
+
+    @authors("severovv")
+    def test_correct_scheduling_below_fair_share(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        only_one_runs = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_segment": "default", "scheduling_tag_filter": nodes[0]},
+        )
+        wait(lambda: len(only_one_runs.get_running_jobs()) == 1)
+
+        must_run = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_segment": "default"},
+        )
+        wait(lambda: len(must_run.get_running_jobs()) == 1)

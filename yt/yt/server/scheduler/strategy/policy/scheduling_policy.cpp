@@ -1998,7 +1998,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     TJobResources availableResourceLimits;
 
     std::optional<TJobResources> fairShareLimits;
-    if (element->IsDefaultGpuFullHost()) {
+    if (GetStageType() == EAllocationSchedulingStage::PreemptiveDefaultGpuFullHost && element->IsDefaultGpuFullHost()) {
         fairShareLimits = element->GetTotalResourceLimits() *
             (element->Attributes().GetFairShare().Total + TResourceVector::Epsilon());
     }
