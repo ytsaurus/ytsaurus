@@ -18,14 +18,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TSecondaryQueryReadTaskPuller);
-
 TSecondaryQueryReadTaskPuller::TSecondaryQueryReadTaskPuller(
     TQueryContext* queryContext,
     DB::ReadTaskCallback nextTaskCallback)
-    : NextTaskCallback_(std::move(nextTaskCallback))
-    , QueryContext_(queryContext)
+    : QueryContext_(queryContext)
     , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
+    , NextTaskCallback_(std::move(nextTaskCallback))
 { }
 
 void TSecondaryQueryReadTaskPuller::RegisterOperand(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& initialTasks)
@@ -125,7 +123,7 @@ TSecondaryQueryReadTaskIterator::TSecondaryQueryReadTaskIterator(
 std::string TSecondaryQueryReadTaskIterator::NextTask()
 {
     auto currentIndex = Index_.fetch_add(1);
-    if (currentIndex >= EncodedReadTasks_.size()) {
+    if (currentIndex >= std::ssize(EncodedReadTasks_)) {
         return {};
     }
     return EncodedReadTasks_[currentIndex];

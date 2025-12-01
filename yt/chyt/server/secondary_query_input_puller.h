@@ -21,9 +21,9 @@ public:
     TFuture<TSecondaryQueryReadDescriptors> PullTask(int operandIndex);
 
 private:
-    const DB::ReadTaskCallback NextTaskCallback_;
     TQueryContext* QueryContext_;
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
+    const DB::ReadTaskCallback NextTaskCallback_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BufferLock_);
     std::vector<std::queue<TFuture<TSecondaryQueryReadDescriptors>>> Buffer_;
@@ -33,6 +33,8 @@ private:
 
     void DoPullAsync(std::vector<TPromise<TSecondaryQueryReadDescriptors>> taskPromises);
 };
+
+DEFINE_REFCOUNTED_TYPE(TSecondaryQueryReadTaskPuller);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +49,7 @@ public:
     std::string NextTask();
 
 private:
-    std::atomic<size_t> Index_ = 0;
+    std::atomic<int> Index_ = 0;
     std::vector<std::string> EncodedReadTasks_;
 };
 
