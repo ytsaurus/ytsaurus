@@ -90,7 +90,11 @@ void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPoo
 
 void TChunkPoolTestBase::SetUp()
 {
-    auto config = TLogManagerConfig::CreateStderrLogger(EnableDebugOutput ? ELogLevel::Trace : ELogLevel::Error);
+    auto defaultLogLevel = EnableDebugOutput ? ELogLevel::Trace : ELogLevel::Error;
+    auto logLevelParam = NGTest::GetTestParam("yt_log_level");
+    auto logLevel = logLevelParam ? ParseEnum<ELogLevel>(*logLevelParam) : defaultLogLevel;
+    Cdebug = logLevel <= ELogLevel::Debug ? Cerr : Cnull;
+    auto config = TLogManagerConfig::CreateStderrLogger(logLevel);
     config->AbortOnAlert = true;
     TLogManager::Get()->Configure(config, /*sync*/ true);
 }
