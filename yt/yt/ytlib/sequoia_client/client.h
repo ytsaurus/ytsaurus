@@ -88,6 +88,8 @@ struct ISequoiaClient
         const TSequoiaTransactionOptions& sequoiaTransactionOptions = {}) = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
+
+    virtual NApi::NNative::IClientPtr GetOrCreateAuthenticatedLocalClient(const NRpc::TAuthenticationIdentity& identity) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
