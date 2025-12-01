@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     serializer.cpp
     state.cpp
+    validate.cpp
 )
 
 PEERDIR(

@@ -1,4 +1,5 @@
 #include "serializer.h"
+#include "validate.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -300,6 +301,8 @@ INodePtr ConvertUnversionedValueToNode(const TUnversionedValue& value)
 
 TTableSchemaPtr GetYsonSchema(const TYsonStructPtr& ysonStruct)
 {
+    ValidateYsonStruct(ysonStruct);
+
     std::vector<TColumnSchema> columns;
 
     const auto* meta = ysonStruct->GetMeta();
@@ -312,8 +315,8 @@ TTableSchemaPtr GetYsonSchema(const TYsonStructPtr& ysonStruct)
         parameter->WriteTypeSchema(&consumer, {});
         consumer.Flush();
         auto logicalType = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonStringBuf(parameterSchema.Str())).LogicalType;
-        auto [type, required] = CastToV1Type(logicalType);
-        columns.push_back(TColumnSchema(key, type).SetRequired(required));
+        auto [type, _] = CastToV1Type(logicalType);
+        columns.push_back(TColumnSchema(key, type).SetRequired(false));
     }
     std::sort(columns.begin(), columns.end(), [] (const auto& l, const auto& r) {
         return l.Name() < r.Name();
