@@ -82,25 +82,44 @@ struct TTestSchemaYsonStruct
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("string", &TThis::String);
-        registrar.Parameter("nullable_sub", &TThis::Sub);
-        registrar.Parameter("required_sub", &TThis::RequiredSub);
-        registrar.Parameter("sub_list", &TThis::SubList);
-        registrar.Parameter("int_map", &TThis::IntMap);
-        registrar.Parameter("optional_int_map", &TThis::OptionalIntMap);
-        registrar.Parameter("string_list", &TThis::StringList);
-        registrar.Parameter("nullable_int", &TThis::NullableInt);
-        registrar.Parameter("uint", &TThis::Uint);
-        registrar.Parameter("bool", &TThis::Bool);
-        registrar.Parameter("char", &TThis::Char);
-        registrar.Parameter("byte", &TThis::Byte);
-        registrar.Parameter("ubyte", &TThis::Ubyte);
-        registrar.Parameter("short", &TThis::Short);
-        registrar.Parameter("ushort", &TThis::Ushort);
-        registrar.Parameter("proto", &TThis::Proto);
-        registrar.Parameter("yson_proto", &TThis::YsonProto);
-        registrar.Parameter("tuple", &TThis::Tuple);
-        registrar.Parameter("yson", &TThis::Yson);
+        registrar.Parameter("string", &TThis::String)
+            .Default();
+        registrar.Parameter("nullable_sub", &TThis::Sub)
+            .Default();
+        registrar.Parameter("required_sub", &TThis::RequiredSub)
+            .Default();
+        registrar.Parameter("sub_list", &TThis::SubList)
+            .Default();
+        registrar.Parameter("int_map", &TThis::IntMap)
+            .Default();
+        registrar.Parameter("optional_int_map", &TThis::OptionalIntMap)
+            .Default();
+        registrar.Parameter("string_list", &TThis::StringList)
+            .Default();
+        registrar.Parameter("nullable_int", &TThis::NullableInt)
+            .Default();
+        registrar.Parameter("uint", &TThis::Uint)
+            .Default();
+        registrar.Parameter("bool", &TThis::Bool)
+            .Default();
+        registrar.Parameter("char", &TThis::Char)
+            .Default();
+        registrar.Parameter("byte", &TThis::Byte)
+            .Default();
+        registrar.Parameter("ubyte", &TThis::Ubyte)
+            .Default();
+        registrar.Parameter("short", &TThis::Short)
+            .Default();
+        registrar.Parameter("ushort", &TThis::Ushort)
+            .Default();
+        registrar.Parameter("proto", &TThis::Proto)
+            .Default();
+        registrar.Parameter("yson_proto", &TThis::YsonProto)
+            .Default();
+        registrar.Parameter("tuple", &TThis::Tuple)
+            .Default();
+        registrar.Parameter("yson", &TThis::Yson)
+            .Default();
     }
 };
 
@@ -114,25 +133,25 @@ TEST(TYsonSerializeTest, YsonTableSchema)
     auto schema = GetYsonSchema(ysonStruct);
     auto expectedSchema = New<TTableSchema>(
         std::vector{
-            TColumnSchema("bool", ESimpleLogicalValueType::Boolean).SetRequired(true),
-            TColumnSchema("byte", ESimpleLogicalValueType::Int8).SetRequired(true),
-            TColumnSchema("char", ESimpleLogicalValueType::Int8).SetRequired(true),
-            TColumnSchema("int_map", ESimpleLogicalValueType::Any).SetRequired(true),
-            TColumnSchema("nullable_int", ESimpleLogicalValueType::Int64).SetRequired(false),
-            TColumnSchema("nullable_sub", ESimpleLogicalValueType::Any).SetRequired(false),
-            TColumnSchema("optional_int_map", ESimpleLogicalValueType::Any).SetRequired(false),
-            TColumnSchema("proto", ESimpleLogicalValueType::String).SetRequired(true),
-            TColumnSchema("required_sub", ESimpleLogicalValueType::Any).SetRequired(true),
-            TColumnSchema("short", ESimpleLogicalValueType::Int16).SetRequired(true),
-            TColumnSchema("string", ESimpleLogicalValueType::String).SetRequired(true),
-            TColumnSchema("string_list", ESimpleLogicalValueType::Any).SetRequired(true),
-            TColumnSchema("sub_list", ESimpleLogicalValueType::Any).SetRequired(true),
-            TColumnSchema("tuple", ESimpleLogicalValueType::Any).SetRequired(true),
-            TColumnSchema("ubyte", ESimpleLogicalValueType::Uint8).SetRequired(true),
-            TColumnSchema("uint", ESimpleLogicalValueType::Uint32).SetRequired(true),
-            TColumnSchema("ushort", ESimpleLogicalValueType::Uint16).SetRequired(true),
-            TColumnSchema("yson", ESimpleLogicalValueType::Any).SetRequired(false),
-            TColumnSchema("yson_proto", ESimpleLogicalValueType::Any).SetRequired(true),
+            TColumnSchema("bool", ESimpleLogicalValueType::Boolean),
+            TColumnSchema("byte", ESimpleLogicalValueType::Int8),
+            TColumnSchema("char", ESimpleLogicalValueType::Int8),
+            TColumnSchema("int_map", ESimpleLogicalValueType::Any),
+            TColumnSchema("nullable_int", ESimpleLogicalValueType::Int64),
+            TColumnSchema("nullable_sub", ESimpleLogicalValueType::Any),
+            TColumnSchema("optional_int_map", ESimpleLogicalValueType::Any),
+            TColumnSchema("proto", ESimpleLogicalValueType::String),
+            TColumnSchema("required_sub", ESimpleLogicalValueType::Any),
+            TColumnSchema("short", ESimpleLogicalValueType::Int16),
+            TColumnSchema("string", ESimpleLogicalValueType::String),
+            TColumnSchema("string_list", ESimpleLogicalValueType::Any),
+            TColumnSchema("sub_list", ESimpleLogicalValueType::Any),
+            TColumnSchema("tuple", ESimpleLogicalValueType::Any),
+            TColumnSchema("ubyte", ESimpleLogicalValueType::Uint8),
+            TColumnSchema("uint", ESimpleLogicalValueType::Uint32),
+            TColumnSchema("ushort", ESimpleLogicalValueType::Uint16),
+            TColumnSchema("yson", ESimpleLogicalValueType::Any),
+            TColumnSchema("yson_proto", ESimpleLogicalValueType::Any),
     });
     EXPECT_EQ(*schema, *expectedSchema);
 }
@@ -345,8 +364,8 @@ TEST(TYsonSerializeTest, ProtoSerialize)
     auto schema = GetYsonSchema(ysonStruct);
     auto expectedSchema = New<TTableSchema>(
         std::vector{
-            TColumnSchema("string_proto", EValueType::String).SetRequired(true),
-            TColumnSchema("yson_proto", EValueType::Any).SetRequired(true),
+            TColumnSchema("string_proto", EValueType::String),
+            TColumnSchema("yson_proto", EValueType::Any),
         }
     );
     EXPECT_EQ(*schema, *expectedSchema);
