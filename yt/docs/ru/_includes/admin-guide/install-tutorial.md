@@ -52,10 +52,9 @@ kubectl create secret generic yt-tutorial-secret \
 Типично, установку можно осуществить так:
 
 ```bash
-helm install oci://ghcr.io/ytsaurus/tutorial-chart \
+helm install ytsaurus-tutorial oci://ghcr.io/ytsaurus/tutorial-chart \
      --version {{tutorial-version}} \
-     ytsaurus-tutorial \
-     --set tutorial.args.proxy="http://http-proxies.default.svc.cluster.local" \
+      --set tutorial.args.proxy="http://http-proxies.default.svc.cluster.local" \
      -n <namespace>
 ```
 
