@@ -93,6 +93,7 @@ using NExecNode::EJobPhase;
 struct TCompletedJobSummary;
 
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
+using TConstProgressCounterPtr = TIntrusivePtr<const TProgressCounter>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

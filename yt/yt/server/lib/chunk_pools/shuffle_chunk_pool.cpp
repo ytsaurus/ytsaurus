@@ -11,6 +11,7 @@
 
 namespace NYT::NChunkPools {
 
+using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
@@ -32,11 +33,6 @@ class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
 {
-public:
-    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-    DEFINE_SIGNAL(void(), Completed);
-    DEFINE_SIGNAL(void(), Uncompleted);
-
 public:
     //! For persistence only.
     TShuffleChunkPool() = default;
@@ -179,10 +175,8 @@ private:
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
-        , public TJobSplittingBase
     {
     public:
-        DEFINE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
         DEFINE_SIGNAL_OVERRIDE(void(), Completed);
         DEFINE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
@@ -260,7 +254,7 @@ private:
         NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
             YT_VERIFY(!Runs_.empty());
-            YT_VERIFY(JobCounter->GetPending() > 0);
+            YT_VERIFY(JobCounter_->GetPending() > 0);
 
             NTableClient::TChunkStripeStatisticsVector result(1);
 
@@ -291,7 +285,7 @@ private:
 
         TCookie Extract(TNodeId /*nodeId*/) override
         {
-            if (JobCounter->GetPending() == 0) {
+            if (JobCounter_->GetPending() == 0) {
                 return IChunkPoolOutput::NullCookie;
             }
 
@@ -323,7 +317,7 @@ private:
 
             // NB(apollo1321): Actually, this data weight is uncompressed data size here.
             // This behaviour is incorrect and should be fixed in YT-26516.
-            list->SetFilteringPartitionTag(PartitionIndex_, run.DataWeight, run.RowCount);
+            list->SetFilteringPartitionTags({PartitionIndex_}, run.DataWeight, run.RowCount);
 
             list->SetApproximate(run.IsApproximate);
 
@@ -394,13 +388,25 @@ private:
         void CheckCompleted()
         {
             bool wasCompleted = IsCompleted_;
-            IsCompleted_ = Owner_->Finished && (JobCounter->GetCompletedTotal() == std::ssize(Runs_));
+            IsCompleted_ = Owner_->Finished && (JobCounter_->GetCompletedTotal() == std::ssize(Runs_));
             if (!wasCompleted && IsCompleted_) {
                 Completed_.Fire();
             } else if (wasCompleted && !IsCompleted_) {
                 Uncompleted_.Fire();
             }
         }
+
+        bool IsSplittable(TCookie /*cookie*/) const override
+        {
+            // TODO: Support intermediate partition jobs split.
+            return false;
+        }
+
+        void SubscribeChunkTeleported(const TCallback<void(TInputChunkPtr, std::any tag)>&) override
+        { }
+
+        void UnsubscribeChunkTeleported(const TCallback<void(TInputChunkPtr, std::any tag)>&) override
+        { }
 
     private:
         friend class TShuffleChunkPool;
@@ -499,9 +505,9 @@ private:
             TRun run;
             run.ElementaryIndexBegin = Runs_.empty() ? 0 : Runs_.back().ElementaryIndexEnd;
             run.ElementaryIndexEnd = run.ElementaryIndexBegin;
-            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter, /*value*/ 0);
-            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter, /*value*/ 0);
-            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter, /*value*/ 1);
+            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter_, /*value*/ 0);
+            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter_, /*value*/ 0);
+            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter_, /*value*/ 1);
             run.UpdateState();
             Runs_.push_back(run);
             ++Owner_->TotalJobCount_;

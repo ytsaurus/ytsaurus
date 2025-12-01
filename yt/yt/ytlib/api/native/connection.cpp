@@ -80,6 +80,7 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/ground_channel_wrapper.h>
@@ -249,10 +250,16 @@ public:
     {
         auto config = Config_.Acquire();
 
+        if (!Options_.ConnectionInvoker) {
+            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
+            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
+        }
+
         if (config->EnableDynamicCacheStickyGroupSize) {
             YT_LOG_INFO("Dynamic cache sticky group size enabled");
             StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
-                config->StickyGroupSizeCacheExpirationTimeout);
+                config->StickyGroupSizeCacheExpirationTimeout,
+                GetInvoker());
         }
 
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
@@ -265,11 +272,6 @@ public:
                 config->IdleChannelTtl),
             config->TvmId,
             Options_.TvmService);
-
-        if (!Options_.ConnectionInvoker) {
-            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
-            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
-        }
 
         MasterCellDirectory_ = NCellMasterClient::CreateCellDirectory(
             StaticConfig_,
@@ -956,6 +958,7 @@ public:
         DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
+        TimestampProvider_->Reconfigure(StaticConfig_->TimestampProvider->ApplyDynamic(dynamicConfig->TimestampProvider));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
@@ -1481,23 +1484,24 @@ bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
         TSharedRefArray::AreBitwiseEqual(Message, other.Message);
 }
 
-TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
-    : AdvisedStickyGroupSize_(New<TSyncExpiringCache<TKey, std::optional<int>>>(
-        BIND([] (const TKey& /*key*/) {
-            return std::optional<int>{};
-        }),
+////////////////////////////////////////////////////////////////////////////////
+
+TStickyGroupSizeCache::TStickyGroupSizeCache(
+    TDuration expirationTimeout,
+    IInvokerPtr invoker)
+    : Underlying_(New<TUnderlying>(
         expirationTimeout,
-        GetSyncInvoker()))
+        invoker))
 { }
 
 std::optional<int> TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
 {
-    return AdvisedStickyGroupSize_->Set(key, stickyGroupSize).value_or(std::nullopt);
+    return Underlying_->Put(key, stickyGroupSize).value_or(std::nullopt);
 }
 
 std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& key)
 {
-    return AdvisedStickyGroupSize_->Find(key).value_or(std::nullopt);
+    return Underlying_->Find(key).value_or(std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1532,19 +1536,20 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     }
 
     // Slow path.
-    TFuture<void> waitDone;
-    switch (mode)  {
-    case EInsistentGetRemoteConnectionMode::SyncOutOfBound:
-        waitDone = connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
-        break;
-    case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
-        waitDone = connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
-        break;
-    }
+    TFuture<void> waitDone = [&] {
+        switch (mode)  {
+            case EInsistentGetRemoteConnectionMode::Sync:
+                return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true);
+            case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync:
+                return connection->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture();
+        }
+        // NB: we don't put YT_ABORT in `default:` case, because we want compiler to check that all enum values are handled.
+        YT_ABORT();
+    }();
 
     return waitDone.Apply(BIND([=] {
-            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
-        }));
+        return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+    }));
 }
 
 IConnectionPtr FindRemoteConnection(

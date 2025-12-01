@@ -177,9 +177,9 @@ def build_resource_usage(component: str, add_component_to_title: bool):
         .row()
             .cell(
                 "Total VCPU" + title_suffix,
-                sensor("yt.resource_tracker.total_vcpu")
+                (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
                     .aggr("thread")
-                    .unit("UNIT_PERCENT"),
+                    .unit("UNIT_NONE"),
                 description=vcpu_description)
             .cell(
                 "Busiest thread pool" + title_suffix,
@@ -210,11 +210,11 @@ def build_extra_cpu(component: str):
         .row()
             .cell(
                 "VCPU by thread name",
-                sensor("yt.resource_tracker.total_vcpu")
+                (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
                     .aggr("host")
                     .all("thread")
                     .stack(True)
-                    .unit("UNIT_PERCENT"))
+                    .unit("UNIT_NONE"))
             .cell(
                 "Waitings in action queue",
                 MonitoringExpr(sensor("yt.action_queue.time.wait.max"))

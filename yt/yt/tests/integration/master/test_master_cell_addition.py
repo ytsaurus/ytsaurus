@@ -145,7 +145,7 @@ class TestMasterCellAdditionWithRemoteClusters(MasterCellAdditionWithRemoteClust
     DOWNTIME_ALL_COMPONENTS = True
 
     @authors("ponasenko-rs")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(350)
     def test_add_new_cell(self):
         set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
             "enable": True,

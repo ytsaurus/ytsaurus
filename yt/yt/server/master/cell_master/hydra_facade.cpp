@@ -307,7 +307,7 @@ public:
 
         auto expectedMutationCommitDuration = ExpectedMutationCommitDuration_.load(std::memory_order::acquire);
 
-        semaphore->AsyncAcquire(semaphoreSlotsToAquire).SubscribeUnique(
+        semaphore->AsyncAcquire(semaphoreSlotsToAquire).AsUnique().Subscribe(
             BIND(
                 [
                     =,

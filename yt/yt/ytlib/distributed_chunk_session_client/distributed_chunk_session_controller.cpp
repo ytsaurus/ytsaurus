@@ -424,7 +424,7 @@ private:
         auto req = proxy.FinishSession();
         ToProto(req->mutable_session_id(), SessionId_);
 
-        return req->Invoke().ApplyUnique(BIND(&TDistributedChunkSessionController::OnCoordinatorStopped, MakeStrong(this)));
+        return req->Invoke().AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnCoordinatorStopped, MakeStrong(this)));
     }
 
     void OnCoordinatorStopped(TErrorOr<TDistributedChunkSessionServiceProxy::TRspFinishSessionPtr>&& rspOrError)
@@ -444,7 +444,7 @@ private:
         }
 
         return AllSet(std::move(finishChunkFutures))
-            .ApplyUnique(BIND(&TDistributedChunkSessionController::OnAllNodesFinished, MakeStrong(this)));
+            .AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnAllNodesFinished, MakeStrong(this)));
     }
 
     std::vector<TNode*> OnAllNodesFinished(std::vector<TError>&& responses)
@@ -475,7 +475,7 @@ private:
         *req->mutable_chunk_meta() = ChunkMeta_;
         req->set_truncate_extra_blocks(true);
 
-        return req->Invoke().ApplyUnique(BIND(&TDistributedChunkSessionController::OnChunkFinished, MakeStrong(this), node));
+        return req->Invoke().AsUnique().Apply(BIND(&TDistributedChunkSessionController::OnChunkFinished, MakeStrong(this), node));
     }
 
     void OnChunkFinished(TNode* node, TErrorOr<TDataNodeServiceProxy::TRspFinishChunkPtr>&& rspOrError)

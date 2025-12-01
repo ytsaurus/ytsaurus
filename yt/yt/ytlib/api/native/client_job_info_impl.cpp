@@ -9,6 +9,7 @@
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/helpers.h>
 
 #include <yt/yt/client/job_tracker_client/helpers.h>
 #include <yt/yt/client/job_tracker_client/public.h>
@@ -347,7 +348,7 @@ public:
         auto query = GetJobTraceEventsQuery();
         auto selectOptions = GetDefaultSelectRowsOptions(Deadline_, AsyncLastCommittedTimestamp);
 
-        return OperationsArchiveClient_->SelectRows(query, selectOptions).ApplyUnique(BIND(
+        return OperationsArchiveClient_->SelectRows(query, selectOptions).AsUnique().Apply(BIND(
             [this, this_ = MakeStrong(this)] (TSelectRowsResult&& result) {
             const auto& rowset = result.Rowset;
             const auto& idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
@@ -820,16 +821,8 @@ void TClient::ValidateOperationAccess(
     NScheduler::TJobId jobId,
     NYTree::EPermissionSet permissions)
 {
-    auto acoName = TryGetString(operation.RuntimeParameters.AsStringBuf(), "/aco_name");
-    auto aclYson = TryGetAny(operation.RuntimeParameters.AsStringBuf(), "/acl");
-
-    TAccessControlRule accessControlRule;
-    if (aclYson) {
-        auto acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
-        accessControlRule.SetAcl(acl);
-    } else if (acoName) {
-        accessControlRule.SetAcoName(*acoName);
-    } else {
+    auto accessControlRule = TryGetAccessControlRuleFromOperation(operation);
+    if (!accessControlRule) {
         // We check against an empty ACL to allow only "superusers" and "root" access.
         YT_LOG_WARNING(
             "Failed to get ACL or ACO name from operation attributes; "
@@ -840,7 +833,7 @@ void TClient::ValidateOperationAccess(
     ValidateOperationAccess(
         operationId,
         jobId,
-        accessControlRule,
+        accessControlRule.value_or(TAccessControlRule()),
         permissions);
 }
 

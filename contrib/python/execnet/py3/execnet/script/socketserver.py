@@ -80,7 +80,7 @@ def bind_and_listen(hostport: str | tuple[str, int], execmodel: ExecModel):
     if hasattr(fcntl, "FD_CLOEXEC"):
         old = fcntl.fcntl(serversock.fileno(), fcntl.F_GETFD)
         fcntl.fcntl(serversock.fileno(), fcntl.F_SETFD, old | fcntl.FD_CLOEXEC)
-    # allow the address to be re-used in a reasonable amount of time
+    # allow the address to be reused in a reasonable amount of time
     if os.name == "posix" and sys.platform != "cygwin":
         serversock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 

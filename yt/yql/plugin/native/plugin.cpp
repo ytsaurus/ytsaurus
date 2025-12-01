@@ -18,8 +18,7 @@
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
-#include <yt/yql/providers/ytflow/gateway/yql_ytflow.h>
-#include <yt/yql/providers/ytflow/provider/yql_ytflow_provider.h>
+#include <yql/essentials/parser/pg_wrapper/interface/comp_factory.h>
 
 #include <yql/essentials/providers/common/codec/yql_codec_type_flags.h>
 #include <yql/essentials/providers/common/codec/yql_codec.h>
@@ -1018,6 +1017,7 @@ private:
                 NYql::GetCommonDqFactory(),
                 NYql::GetDqYtFactory(),
                 NKikimr::NMiniKQL::GetYqlFactory(),
+                GetPgFactory()
             });
 
             dataProvidersInit.push_back(

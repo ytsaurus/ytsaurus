@@ -1078,6 +1078,22 @@ wait $child_pid
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
         op.track()
 
+    @authors("krasovav")
+    def test_incorrect_interrupt_signal(self):
+        with pytest.raises(YtError):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "interruption_signal": "SIGINCORRECT",
+                            "exit_code": 10,
+                        }
+                    },
+                },
+            )
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):

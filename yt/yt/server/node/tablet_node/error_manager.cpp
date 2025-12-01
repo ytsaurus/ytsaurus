@@ -129,9 +129,6 @@ public:
             ActionQueue_->GetInvoker(),
             BIND(&TErrorManager::RemoveExpiredErrors, MakeWeak(this))))
         , DeduplicationCache_(New<TDeduplicationCache>(
-            BIND([] (const TDeduplicationKey& /*key*/) -> std::monostate {
-                return {};
-            }),
             std::nullopt,
             ActionQueue_->GetInvoker()))
     {
@@ -183,27 +180,29 @@ public:
         }
 
         TDeduplicationKey deduplicationKey(context, method, error.GetMessage());
-        if (!DeduplicationCache_->Find(deduplicationKey)) {
-            DeduplicationCache_->Set(std::move(deduplicationKey), {});
-
-            LogStructuredEventFluently(TabletErrorsLogger(), ELogLevel::Info)
-                .Item("tablet_cell_bundle").Value(*context.TabletCellBundle)
-                .Item("table_path").Value(*context.TablePath)
-                .Item("table_id").Value(context.TableId)
-                .Item("tablet_id").Value(context.TabletId)
-                .Item("timestamp").Value(now.MicroSeconds())
-                .Item("method").Value(method)
-                .Item("error").Value(error)
-            .Finish();
-        }
+        DeduplicationCache_->GetOrPut(
+            deduplicationKey,
+            [&] {
+                LogStructuredEventFluently(TabletErrorsLogger(), ELogLevel::Info)
+                    .Item("tablet_cell_bundle").Value(*context.TabletCellBundle)
+                    .Item("table_path").Value(*context.TablePath)
+                    .Item("table_id").Value(context.TableId)
+                    .Item("tablet_id").Value(context.TabletId)
+                    .Item("timestamp").Value(now.MicroSeconds())
+                    .Item("method").Value(method)
+                    .Item("error").Value(error)
+                .Finish();
+                return std::monostate();
+            });
     }
 
 private:
     IBootstrap* const Bootstrap_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_;
-    NConcurrency::TPeriodicExecutorPtr ExpiredErrorsCleanerExecutor_;
-    TIntrusivePtr<TDeduplicationCache> DeduplicationCache_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NConcurrency::TPeriodicExecutorPtr ExpiredErrorsCleanerExecutor_;
+    const TIntrusivePtr<TDeduplicationCache> DeduplicationCache_;
+
     std::atomic<TDuration> ErrorExpirationTimeout_;
 
     std::atomic<TInstant> LogNoContextLastTime_;

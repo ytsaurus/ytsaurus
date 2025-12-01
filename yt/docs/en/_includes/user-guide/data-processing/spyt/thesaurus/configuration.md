@@ -6,16 +6,16 @@ This section contains a list of configuration parameters that can be passed when
 
 Most of the options are available starting with version 1.23.0, unless otherwise specified.
 
-| **Name** | **Default value** | **Description** |
-| ------------------- | --------------- | ------------------------------------------------------------ |
+| **Parameter** | **Default value** | **Description** | **Starting with version** |
+| ------------------- | --------------- | ---------------------------|------------------------------ |
 | `spark.yt.write.batchSize` | `500000` | Size of data sent in a single `WriteTable` operation. |
 | `spark.yt.write.miniBatchSize` | `1000` | Size of a data block sent in `WriteTable`. |
 | `spark.yt.write.timeout` | `60 seconds` | Write timeout limit for a single data block. |
-| `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Writing of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. |
+| `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` before 1.75.2) | `true` | Writing of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. |
 | `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). |
 | `spark.hadoop.yt.timeout` | `300 seconds` | Timeout on reads from {{product-name}}. |
-| `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. |
+| `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. |
 | `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Maximum number of table ranges for selective reading. |
@@ -26,11 +26,13 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.globalTransaction.timeout` | `5 minutes` | Global transaction timeout. |
 | `spark.hadoop.yt.user` | - | {{product-name}} user name. |
 | `spark.hadoop.yt.token` | - | {{product-name}} user token. |
-| `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. |
+| `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. | 1.72.0 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use sorted table partitioning by key, required to optimize plans. |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Maximum number of partition joins when switching from reading by index to reading by key. |
-| `spark.yt.read.transactional` | `true` | Use shapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading perfomance |
+| `spark.yt.read.transactional` | `true` | Use shapshot lock for reading if transaction is not specified. It is recommended to turn this option off when reading immutable data to improve reading perfomance | 2.6.0 |
+| `spark.yt.read.ytDistributedReading.enabled` | `false` | Use distributed API for reading data from {{product-name}}. This method reduces the number of requests to the {{product-name}} master when reading data, but is not yet compatible with the `spark.yt.read.planOptimization.enabled` option | 2.8.0 |
+| `spark.yt.write.distributed.enabled` | `false` | Use distributed API for writing data to {{product-name}}. This method reduces the number of requests to the {{product-name}} master when writing data, but is only applicable to working with static tables | 2.8.0 |
 
 ## Options for launching tasks directly { #direct-submit }
 
@@ -64,6 +66,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.rpc.job.proxy.enabled` | true | Flag of using an RPC proxy embedded in a job proxy. | 2.6.0 |
 | `spark.ytsaurus.java.home` | `/opt/jdk[11,17]` | Path to the JDK home directory used in cluster containers. Depends on the JDK used on the client side. Allowed versions: JDK11 and JDK17. | 2.6.0 |
 | `spark.ytsaurus.shuffle.enabled` | false | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
+| `spark.ytsaurus.executor.state.poll.interval` | 20s | The period for checking the state of the operation with executors. If the operation is in a final status, the driver will be stopped | 2.8.0 |
 
 
 ## Configuration options for the {{product-name}} Shuffle service { #shuffle }

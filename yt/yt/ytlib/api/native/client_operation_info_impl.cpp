@@ -4,7 +4,6 @@
 #include "helpers.h"
 #include "list_operations.h"
 #include "private.h"
-#include "rpc_helpers.h"
 
 #include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
 #include <yt/yt/ytlib/scheduler/records/ordered_by_start_time.record.h>
@@ -21,8 +20,6 @@
 #include <yt/yt/client/api/rowset.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
-
-#include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/record_helpers.h>
@@ -1541,6 +1538,63 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCheckOperationPermissionResult TClient::DoCheckOperationPermission(
+    const std::string& user,
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+    NYTree::EPermission permission,
+    const TCheckOperationPermissionOptions& options)
+{
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    auto operationId = ParseOperationIdOrAlias(operationIdOrAlias, options, deadline);
+
+    TGetOperationOptions getOperationOptions;
+    getOperationOptions.Attributes = {"runtime_parameters"};
+    auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
+
+    if (!operationOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to get operation to check permission")
+            << TErrorAttribute("operation_id", operationId)
+            << operationOrError;
+    }
+
+    const auto& operation = operationOrError.ValueOrThrow();
+    auto accessControlRule = TryGetAccessControlRuleFromOperation(operation);
+    if (!accessControlRule) {
+        YT_LOG_WARNING(
+            "Failed to get ACL or ACO name from operation attributes; "
+            "checking against empty ACL (OperationId: %v)",
+            operation.Id);
+    }
+
+    auto error = NScheduler::CheckOperationAccess(
+        user,
+        operationId,
+        EPermissionSet(permission),
+        accessControlRule.value_or(TAccessControlRule()),
+        StaticPointerCast<IClient>(MakeStrong(this)),
+        Logger);
+
+    if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+        return TCheckOperationPermissionResult{
+            .Action = ESecurityAction::Deny,
+        };
+    }
+
+    if (!error.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to check operation permission")
+            << TErrorAttribute("operation_id", operationId)
+            << error;
+    }
+
+    return TCheckOperationPermissionResult{
+        .Action = ESecurityAction::Allow,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

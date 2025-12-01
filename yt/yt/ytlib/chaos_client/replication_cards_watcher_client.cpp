@@ -116,7 +116,7 @@ private:
             replicationCardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
-        return req->Invoke().ApplyUnique(
+        return req->Invoke().AsUnique().Apply(
             BIND(
                 &TReplicationCardsWatcherClient::OnReplicationCardWatchResponse,
                 MakeStrong(this),

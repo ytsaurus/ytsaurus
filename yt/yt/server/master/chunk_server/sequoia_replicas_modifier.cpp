@@ -55,14 +55,14 @@ public:
         ESequoiaTransactionType transactionType,
         TBootstrap* bootstrap,
         const TDynamicChunkManagerConfigPtr& config)
-        : Profile_(profile)
-        , TransactionType_(transactionType)
-        , Bootstrap_(bootstrap)
+        : TransactionType_(transactionType)
         , EnableSequoiaChunkRefresh_(config->SequoiaChunkReplicas->EnableSequoiaChunkRefresh)
         , ProcessRemovedSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->ProcessRemovedSequoiaReplicasOnMaster)
         , StoreSequoiaReplicasOnMaster_(config->SequoiaChunkReplicas->StoreSequoiaReplicasOnMaster)
         , ClearMasterRequest_(config->SequoiaChunkReplicas->ClearMasterRequest)
         , RetriableErrorCodes_(config->SequoiaChunkReplicas->RetriableErrorCodes)
+        , Bootstrap_(bootstrap)
+        , Profile_(profile)
     { }
 
     void SetModifyReplicasRequest(std::unique_ptr<TReqModifyReplicas>&& request)
@@ -93,20 +93,21 @@ public:
     }
 
 private:
+    const ESequoiaTransactionType TransactionType_;
+    const bool EnableSequoiaChunkRefresh_;
+    const bool ProcessRemovedSequoiaReplicasOnMaster_;
+    const bool StoreSequoiaReplicasOnMaster_;
+    const bool ClearMasterRequest_;
+    const std::vector<TErrorCode> RetriableErrorCodes_;
+
+    TBootstrap* const Bootstrap_;
+    TSequoiaReplicaModificationProfile& Profile_;
+
     std::unique_ptr<TReqModifyReplicas> Request_;
     std::unique_ptr<TReqReplaceLocationReplicas> ReplaceLocationRequest_;
     ISequoiaTransactionPtr Transaction_;
 
-    TSequoiaReplicaModificationProfile& Profile_;
-    ESequoiaTransactionType TransactionType_;
     NProfiling::TWallTimer Timer_;
-    TBootstrap* const Bootstrap_;
-
-    bool EnableSequoiaChunkRefresh_;
-    bool ProcessRemovedSequoiaReplicasOnMaster_;
-    bool StoreSequoiaReplicasOnMaster_;
-    bool ClearMasterRequest_;
-    std::vector<TErrorCode> RetriableErrorCodes_;
 
     TNodeId NodeId_;
 
@@ -369,7 +370,7 @@ private:
                         .ChunkId = chunkId,
                         .ReplicaIndex = addedReplica.ReplicaIndex,
                     },
-                    .Fake = true
+                    .Fake = true,
                 };
                 Transaction_->WriteRow(locationReplica);
             }
@@ -478,5 +479,7 @@ ISequoiaReplicasModifierPtr CreateSequoiaLocationReplicasReplacer(
     replicasModifier->SetReplaceLocationReplicasRequest(std::move(request));
     return replicasModifier;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

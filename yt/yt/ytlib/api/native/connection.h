@@ -205,13 +205,16 @@ public:
         bool operator == (const TKey& other) const;
     };
 
-    explicit TStickyGroupSizeCache(TDuration expirationTimeout);
+    TStickyGroupSizeCache(
+        TDuration expirationTimeout,
+        IInvokerPtr invoker);
 
     std::optional<int> UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
     std::optional<int> GetAdvisedStickyGroupSize(const TKey& key);
 
 private:
-    const TIntrusivePtr<TSyncExpiringCache<TKey, std::optional<int>>> AdvisedStickyGroupSize_;
+    using TUnderlying = TSyncExpiringCache<TKey, std::optional<int>>;
+    const TIntrusivePtr<TUnderlying> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
@@ -272,7 +275,7 @@ IConnectionPtr FindRemoteConnection(
     const std::optional<std::string>& clusterName);
 
 DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
-    (SyncOutOfBound)
+    (Sync)
     (WaitFirstSuccessfulSync)
 );
 
@@ -283,7 +286,7 @@ DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
     const std::string& clusterName,
-    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::SyncOutOfBound);
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,

@@ -1810,7 +1810,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     TJobResources availableResourceLimits;
 
     std::optional<TJobResources> fairShareLimits;
-    if (element->IsDefaultGpuFullHost()) {
+    if (GetStageType() == EAllocationSchedulingStage::PreemptiveDefaultGpuFullHost && element->IsDefaultGpuFullHost()) {
         fairShareLimits = element->GetTotalResourceLimits() *
             (element->Attributes().GetFairShare().Total + TResourceVector::Epsilon());
     }
@@ -2711,7 +2711,7 @@ TError TSchedulingPolicy::CheckOperationSchedulingInSeveralTreesAllowed(const TP
     return TError();
 }
 
-void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element) const
+void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -2719,7 +2719,7 @@ void TSchedulingPolicy::EnableOperation(const TPoolTreeOperationElement* element
     GetOperationSharedState(operationId)->Enable();
 }
 
-void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const
+void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

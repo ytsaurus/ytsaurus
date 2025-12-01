@@ -1216,7 +1216,7 @@ protected:
         }
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 [=, this, this_ = MakeStrong(this)]
                 (TErrorOr<TProbingResults>&& probingResultsOrError)
             {
@@ -1306,7 +1306,7 @@ private:
             }
 
             for (const auto& asyncResult : asyncResults) {
-                asyncResult.SubscribeUnique(BIND(
+                asyncResult.AsUnique().Subscribe(BIND(
                     &TProbingSessionState::ProcessPeerProbingResult,
                     MakeStrong(this)));
             }
@@ -1786,7 +1786,7 @@ private:
         }
 
         return results
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TSessionBase::EnrichProbingResultWithSuspicousNodes,
                 MakeStrong(this),
                 Passed(std::move(asyncSuspiciousResults)))
@@ -4174,7 +4174,7 @@ private:
         }
 
         return req->Invoke()
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 &TRequestBatcher::HandleGetBlockSetResponse,
                 MakeStrong(this),
                 queuedBatch.Session,

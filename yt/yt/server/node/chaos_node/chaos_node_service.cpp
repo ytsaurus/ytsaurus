@@ -330,9 +330,8 @@ private:
                 break;
         }
 
-        context->SetResponseInfo("ChaosObjectId: %v, Type: %v, ExistenceResult: %v",
+        context->SetResponseInfo("ChaosObjectId: %v, ExistenceResult: %v",
             chaosObjectId,
-            typeFromId,
             existenceResult);
         context->Reply();
     }

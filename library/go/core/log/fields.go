@@ -55,6 +55,8 @@ const (
 	FieldTypeStringer
 	// FieldTypeSkip is for not logged fields
 	FieldTypeSkip
+	// FieldTypeObject is for log object marshaler
+	FieldTypeObject
 
 	fieldTypeLast // service type for testing purposes
 )
@@ -177,6 +179,8 @@ func (f Field) Any() interface{} {
 	case FieldTypeStringer:
 		return f.Interface()
 	case FieldTypeSkip:
+		return f.Interface()
+	case FieldTypeObject:
 		return f.Interface()
 	default:
 		// For when new field type is not added to this func
@@ -427,6 +431,11 @@ func Skip(key string, value interface{}) Field {
 	return Field{key: key, ftype: FieldTypeSkip, iface: value}
 }
 
+// Object constructs field with object marshaler
+func Object(key string, value zapcore.ObjectMarshaler) Field {
+	return Field{key: key, ftype: FieldTypeObject, iface: value}
+}
+
 // Any tries to deduce interface{} underlying type and constructs Field from it.
 // Use of this function is ok only for the sole purpose of not repeating its entire code
 // or parts of it in user's code (when you need to log interface{} types with unknown content).
@@ -502,6 +511,8 @@ func Any(key string, value any) Field {
 		return Lazy(key, val)
 	case zapcore.ObjectMarshalerFunc:
 		return Lazy(key, val)
+	case zapcore.ObjectMarshaler:
+		return Object(key, val)
 	default:
 		return Field{key: key, ftype: FieldTypeAny, iface: value}
 	}

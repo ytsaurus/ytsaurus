@@ -57,7 +57,6 @@ type UserScript struct {
 
 	NetworkProject string `yson:"network_project,omitempty"`
 
-	EnableFuse             bool           `yson:"enable_fuse,omitempty"`
 	EnablePorto            string         `yson:"enable_porto,omitempty"`
 	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
 	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`

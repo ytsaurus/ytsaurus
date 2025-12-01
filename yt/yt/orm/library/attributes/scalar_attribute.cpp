@@ -477,7 +477,8 @@ class TComparisonVisitor final
     friend class TProtoVisitor<const std::pair<const Message*, const Message*>&, TComparisonVisitor>;
 
 public:
-    TComparisonVisitor()
+    explicit TComparisonVisitor(bool compareAbsentAsDefault)
+        : CompareAbsentAsDefault_(compareAbsentAsDefault)
     {
         SetAllowAsterisk(true);
         SetVisitEverythingAfterPath(true);
@@ -577,7 +578,6 @@ protected:
                     ParseCurrentListIndex(sizes.first),
                     ParseCurrentListIndex(sizes.second),
                     NAttributes::EErrorCode::MismatchingSize);
-
 
                 if (errorOrIndexParseResults.GetCode() == NAttributes::EErrorCode::MismatchingSize) {
                     // Probably just one is out of bounds.
@@ -709,13 +709,41 @@ protected:
                     : nullptr);
                     VisitMessage(next, EVisitReason::Manual);
             } else {
-                // One present, one missing.
-                NotEqual();
+                if (!CompareAbsentAsDefault_) {
+                    // One present, one missing.
+                    NotEqual();
+                    return;
+                }
+                const auto* defaultMessage = TTraits::TSubTraits::GetDefaultMessage(
+                    message.first,
+                    fieldDescriptor->containing_type());
+
+                const auto* messageWithPresentField =
+                    TTraits::TSubTraits::IsSingularFieldPresent(message.first, fieldDescriptor).Value()
+                    ? message.first
+                    : message.second;
+                YT_VERIFY(defaultMessage);
+                YT_VERIFY(messageWithPresentField);
+
+                if (!AreFieldsEquivalent(defaultMessage, messageWithPresentField, fieldDescriptor)) {
+                    NotEqual();
+                }
             }
             return;
         }
 
         TProtoVisitor::OnPresenceError(message, fieldDescriptor, reason, std::move(error));
+    }
+
+private:
+    bool CompareAbsentAsDefault_;
+
+    bool AreFieldsEquivalent(const Message* lhs, const Message* rhs, const FieldDescriptor* field)
+    {
+        MessageDifferencer differencer;
+        differencer.set_message_field_comparison(MessageDifferencer::MessageFieldComparison::EQUIVALENT);
+        std::vector<const FieldDescriptor*> fieldsToCompare{field};
+        return differencer.CompareWithFields(*lhs, *rhs, fieldsToCompare, fieldsToCompare);
     }
 }; // TComparisonVisitor
 
@@ -730,20 +758,28 @@ namespace NDetail {
 bool AreProtoMessagesEqual(
     const Message& lhs,
     const Message& rhs,
-    MessageDifferencer* messageDifferencer)
+    const TComparisonOptions& options)
 {
-    if (messageDifferencer) {
-        return messageDifferencer->Compare(lhs, rhs);
+    if (options.MessageDifferencer) {
+        return options.MessageDifferencer->Compare(lhs, rhs);
     }
-    return MessageDifferencer::Equals(lhs, rhs);
+    if (options.CompareAbsentAsDefault) {
+        return MessageDifferencer::Equivalent(lhs, rhs);
+    } else {
+        return MessageDifferencer::Equals(lhs, rhs);
+    }
 }
 
 bool AreProtoMessagesEqualByPath(
     const Message& lhs,
     const Message& rhs,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const TComparisonOptions& options)
 {
-    TComparisonVisitor visitor;
+    THROW_ERROR_EXCEPTION_IF(options.MessageDifferencer,
+        "Message differencer is not supported for comparing scalar attributes by path");
+
+    TComparisonVisitor visitor(options.CompareAbsentAsDefault);
     visitor.Visit(std::pair(&lhs, &rhs), path);
     return visitor.GetEqual();
 }
@@ -827,7 +863,8 @@ template <>
 bool AreScalarAttributesEqualByPath(
     const NYson::TYsonString& lhs,
     const NYson::TYsonString& rhs,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const TComparisonOptions& /*options*/)
 {
     if (path.empty()) {
         return lhs == rhs;

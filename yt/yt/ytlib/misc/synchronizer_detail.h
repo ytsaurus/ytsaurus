@@ -27,7 +27,7 @@ private:
     bool Started_ = false;
     bool Stopped_ = false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
-    TPromise<void> FirstSyncPromise_ = NewPromise<void>();
+    TPromise<void> FirstSuccessfulSyncPromise_ = NewPromise<void>();
 
     TFuture<void> DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately);
     void OnSync();

@@ -6,7 +6,7 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.specific_tags.tags import DuplicateTag
 from yt_dashboards.jobs_monitor import BYTES_LABEL
 
-from .resources import memory_guarantee, container_memory_usage
+from .resources import memory_guarantee, anon_memory_limit, anon_memory_usage, oom_tracker_threshold
 
 from ..common.sensors import *
 
@@ -32,7 +32,9 @@ dynamic memory almost always means that write throughput is too large.
         .row()
             .cell("Memory usage per category (not shown per-host)", MultiSensor(
                     memory_guarantee.alias("Container Memory Guarantee"),
-                    container_memory_usage.alias("Container Memory Usage"),
+                    anon_memory_limit.alias("Anon Memory Limit"),
+                    oom_tracker_threshold.alias("OOM tracker threshold"),
+                    anon_memory_usage.alias("Anon Memory Usage"),
                     MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                         .sensor_stack()
                         .all("category")).alias("{{category}}"))

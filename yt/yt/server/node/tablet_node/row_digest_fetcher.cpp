@@ -166,7 +166,7 @@ private:
         }
 
         AllSet(std::move(asyncRowDigestMetas))
-            .SubscribeUnique(BIND(
+            .AsUnique().Subscribe(BIND(
                 &TRowDigestFetcher::OnRowDigestMetaReceived,
                 MakeStrong(this),
                 std::move(stores))

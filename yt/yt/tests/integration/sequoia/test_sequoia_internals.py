@@ -226,6 +226,41 @@ class TestSequoiaInternals(YTEnvSetup):
         sleep(0.5)
         assert get(root) == expected_result
 
+    @authors("h0pless")
+    def test_get_opaques(self):
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
+        sleep(0.5)
+
+        root = "//tmp/root"
+        create("map_node", root)
+        set(f"{root}/@opaque", True)
+
+        create("map_node", f"{root}/child_1")
+        set(f"{root}/child_1/@opaque", False)
+        create("map_node", f"{root}/child_2")
+        set(f"{root}/child_2/@opaque", False)
+
+        create("map_node", f"{root}/child_1/grandchild_1")
+        set(f"{root}/child_1/grandchild_1/@opaque", True)
+
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
+        assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
+
+        root_id = get(f"{root}/@id")
+        child_1_id = get(f"{root}/child_1/@id")
+        child_2_id = get(f"{root}/child_2/@id")
+
+        expected_string = \
+            f'<"id"="{root_id}";"opaque"=%false;>' \
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
+        assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
+
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
+        sleep(0.5)
+
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%false;>{"grandchild_1"=<"opaque"=%false;>{}};"child_2"=<"opaque"=%false;>{};}'
+        assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
+
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")

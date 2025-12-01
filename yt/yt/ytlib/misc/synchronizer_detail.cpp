@@ -38,7 +38,7 @@ void TSynchronizerBase::Stop()
     YT_UNUSED_FUTURE(SyncExecutor_->Stop());
     auto error = TError("Synchronizer is stopped");
     promise.Set(error);
-    FirstSyncPromise_.TrySet(error);
+    FirstSuccessfulSyncPromise_.TrySet(error);
 }
 
 TFuture<void> TSynchronizerBase::Sync(bool force)
@@ -52,7 +52,7 @@ TFuture<void> TSynchronizerBase::Sync(bool force)
 
 TFuture<void> TSynchronizerBase::GetFirstSuccessfulSyncFuture()
 {
-    return FirstSyncPromise_.ToFuture();
+    return FirstSuccessfulSyncPromise_.ToFuture();
 }
 
 TFuture<void> TSynchronizerBase::DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately)
@@ -88,7 +88,7 @@ void TSynchronizerBase::OnSync()
     try {
         DoSync();
         promise.Set();
-        FirstSyncPromise_.TrySet();
+        FirstSuccessfulSyncPromise_.TrySet();
     } catch (const std::exception& ex) {
         TError error(ex);
         YT_LOG_DEBUG(error);

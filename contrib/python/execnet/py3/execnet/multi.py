@@ -82,7 +82,7 @@ class Group:
         """
         if self._gateways:
             raise ValueError(
-                "can not set execution models if " "gateways have been created already"
+                "can not set execution models if gateways have been created already"
             )
         if remote_execmodel is None:
             remote_execmodel = execmodel
@@ -177,7 +177,7 @@ class Group:
                         os.environ[name] = value
             """
             )
-            nice = spec.nice and int(spec.nice) or 0
+            nice = (spec.nice and int(spec.nice)) or 0
             channel.send((spec.chdir, nice, spec.env))
             channel.waitclose()
         return gw

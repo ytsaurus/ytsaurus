@@ -37,7 +37,8 @@ void TModuleState::AddFullHostBoundOperation(const TOperationPtr& operation)
     YT_VERIFY(operation->IsFullHost());
 
     InsertOrCrash(FullHostBoundOperations_, operation.Get());
-    // TODO(eshcherbin): Support changing needed allocation count in operations.
+    // Here we assume that operation's allocation count stays the same the whole time.
+    // TODO(eshcherbin): (!) Change this assumption to something more realistic.
     ReservedNodeCount_ += operation->GetInitialNeededAllocationCount();
 }
 
@@ -90,7 +91,6 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Support opportunistic jobs.
 TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateExecutor(
     IAssignmentPlanContext* context,
     TInstant now,
@@ -111,6 +111,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
     TForbidContextSwitchGuard contextSwitchGuard;
 
     InitializeModuleStates();
+
+    // TODO(eshcherbin): (!) Process nodes with resource overcommit and preempt extra assigments.
 
     ProcessFullHostModuleBoundOperations();
     ProcessRegularOperations();
@@ -182,7 +184,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     // Logging.
     YT_LOG_INFO("Initialized module states (ModuleStates: %v)", ModuleStates_);
 
-    // TODO(eshcherbin): Add alerts.
+    // TODO(eshcherbin): (!) Add alerts.
     if (!nodesWithUnknownModule.empty()) {
         int nodesWithUnknownModuleCount = std::ssize(nodesWithUnknownModule);
 
@@ -274,8 +276,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
 
         YT_VERIFY(operation->SchedulingModule());
 
-        // TODO(eshcherbin): Deal with modules that can change between updates.
-        // TODO(eshcherbin): Reconsider module if operation cannot be scheduled for too long.
+        // TODO(eshcherbin): (!) Deal with modules that can change between updates.
+        // TODO(eshcherbin): (!) Reconsider module if operation cannot be scheduled for too long.
         auto& moduleState = GetOrCrash(ModuleStates_, *operation->SchedulingModule());
         for (const auto& [allocationGroupName, allocationGroupResources] : operation->ReadyToAssignGroupedNeededResources()) {
             // First we try to schedule allocations without preemption.
@@ -743,6 +745,11 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
     TNode* node,
     const TJobResources& discount) const
 {
+    const auto& nodeTags = node->Descriptor()->Tags;
+    if (!Operation_->SchedulingTagFilter().CanSchedule(nodeTags)) {
+        return false;
+    }
+
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
     return CanSatisfyResourceRequest(node, discount) && CanSatisfyDiskRequest(node);
 }
@@ -899,7 +906,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
         nodeState.PreemptibleAssignments.pop_back();
         nodeState.PreemptibleResourceUsage -= preemptibleAssignment->ResourceUsage;
 
-        Host_->Context_->PreemptAssignment(preemptibleAssignment, PreemptionReason_, PreemptionDescription_);
+        Host_->Context_->PreemptAssignment(
+            preemptibleAssignment,
+            PreemptionReason_,
+            PreemptionDescription_);
 
         ++PreemptedAssignmentCount_;
     }

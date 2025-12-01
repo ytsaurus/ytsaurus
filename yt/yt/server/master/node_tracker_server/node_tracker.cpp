@@ -1518,7 +1518,10 @@ private:
 
             NodeRegistered_.Fire(node);
         } else if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is materialized with invalid state (NodeId: %v, State: %v)", node->GetId(), node->GetLocalState());
+            YT_LOG_ALERT("Node is materialized with invalid state (NodeId: %v, Address: %v, State: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                node->GetLocalState());
         }
         NodeReplicated_.Fire(node);
 
@@ -2365,14 +2368,18 @@ private:
     void EnsureNodeDisposedOrRestarted(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Restarted && node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v)", node->GetId());
+            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
         }
     }
 
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v)", node->GetId());
+            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
         }
     }
 
@@ -2444,8 +2451,9 @@ private:
         request.set_state(ToProto(state));
         node->SetLastGossipState(state);
 
-        YT_LOG_INFO("Sending node state (NodeId: %v, State: %v)",
+        YT_LOG_INFO("Sending node state (NodeId: %v, Address: %v, State: %v)",
             node->GetId(),
+            node->GetDefaultAddress(),
             state);
 
         multicellManager->PostToPrimaryMaster(request);

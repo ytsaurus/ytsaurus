@@ -20,7 +20,7 @@ from .run_operation_commands import (  # noqa
     run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce,
     run_join_reduce, run_remote_copy, run_operation)
 from .operation_commands import (  # noqa
-    get_operation_state, abort_operation, complete_operation,
+    get_operation_state, abort_operation, complete_operation, check_operation_permission,
     get_operation, list_operations, iterate_operations, list_operation_events)
 from .file_commands import read_file, write_file, smart_upload_file  # noqa
 from .transaction import Transaction, PingTransaction, get_current_transaction_id  # noqa

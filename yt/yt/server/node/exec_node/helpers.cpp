@@ -323,52 +323,72 @@ void TControllerAgentAffiliationInfo::ResetControllerAgent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId)
+void CreateSlotDirectories(const IVolumePtr& rootVolume, int userId)
 {
     YT_VERIFY(rootVolume);
     const auto& rootVolumeMountPath = rootVolume->GetPath();
     YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
-    auto rootConfig = New<NTools::TRootDirectoryConfig>();
-    rootConfig->SlotPath = rootVolumeMountPath;
-    rootConfig->UserId = userId;
-    rootConfig->Permissions = 0777;
+    struct TDirectory {
+        TString Path;
+        bool RemoveIfExists;
+    };
+
+    static constexpr int DirectoryPermissions = 0777;
 
     // NB: Paths are relative and ordered in the creation sequence. Must create directory before its subdirectory.
-    static const TString directoryPaths[] = {
-        "slot",
-        "slot/sandbox",
-        "slot/tmp",
-        "var",
-        "var/tmp",
+    static const TDirectory Directories[] = {
+        {
+                .Path = "slot",
+                .RemoveIfExists = false
+            },
+        {
+                .Path = "slot/sandbox",
+                .RemoveIfExists = false
+            },
+        {
+                .Path = "slot/tmp",
+                .RemoveIfExists = true
+            },
     };
 
     const auto& Logger = ExecNodeLogger();
-    YT_LOG_DEBUG("Creating directories in root volume (RootPath: %v, Directories: %v)",
-        rootVolumeMountPath,
-        directoryPaths);
+    YT_LOG_DEBUG("Creating slot directories in root volume (RootPath: %v)",
+        rootVolumeMountPath);
 
-    for (const auto& directoryPath : directoryPaths) {
-        auto directory = New<NTools::TDirectoryConfig>();
-        directory->Path = NFS::CombinePaths(
-            rootVolumeMountPath,
-            directoryPath);
-        directory->UserId = userId;
-        directory->Permissions = 0777;
-        directory->RemoveIfExists = false;
-        rootConfig->Directories.push_back(std::move(directory));
-    }
+    int nodeUid = getuid();
+
+    auto createRootDirectoryConfig = [&]() {
+        auto rootConfig = New<NTools::TRootDirectoryConfig>();
+        rootConfig->SlotPath = rootVolumeMountPath;
+        rootConfig->UserId = nodeUid;
+        rootConfig->Permissions = DirectoryPermissions;
+
+        for (const auto& [relativePath, removeIfExists] : Directories) {
+            auto path = NFS::CombinePaths(
+                rootVolumeMountPath,
+                relativePath);
+
+            auto directory = New<NTools::TDirectoryConfig>();
+            directory->Path = path;
+            directory->UserId = userId;
+            directory->Permissions = DirectoryPermissions;
+            directory->RemoveIfExists = removeIfExists;
+            rootConfig->Directories.push_back(std::move(directory));
+        }
+
+        return rootConfig;
+    };
 
     auto directoryBuilderConfig = New<NTools::TDirectoryBuilderConfig>();
-    directoryBuilderConfig->NodeUid = userId;
+    directoryBuilderConfig->NodeUid = nodeUid;
     directoryBuilderConfig->NeedRoot = true;
-    directoryBuilderConfig->RootDirectoryConfigs.push_back(std::move(rootConfig));
+    directoryBuilderConfig->RootDirectoryConfigs.push_back(createRootDirectoryConfig());
 
     RunTool<NTools::TRootDirectoryBuilderTool>(directoryBuilderConfig);
 
-    YT_LOG_DEBUG("Created directories in root volume (RootPath: %v, Directories: %v)",
-        rootVolumeMountPath,
-        directoryPaths);
+    YT_LOG_DEBUG("Created slot directories in root volume (RootPath: %v)",
+        rootVolumeMountPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -945,7 +945,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
         .Apply(BIND([=] {
             return req->Invoke();
         }))
-        .ApplyUnique(BIND([] (TDataNodeServiceProxy::TRspPutBlocksPtr&& rsp) {
+        .AsUnique().Apply(BIND([] (TDataNodeServiceProxy::TRspPutBlocksPtr&& rsp) {
             return TSendBlocksResult{.NetThrottling = false, .TargetNodePutBlocksResult = std::move(rsp)};
         }));
 }

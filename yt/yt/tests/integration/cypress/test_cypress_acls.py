@@ -5,7 +5,7 @@ from yt_commands import (
     create_account, create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member,
     remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
     set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
-    create_access_control_object, get_active_primary_master_leader_address, concatenate,
+    create_access_control_object, get_active_primary_master_leader_address, concatenate, get_driver,
     abort_transaction, unlock,
 )
 
@@ -2165,6 +2165,11 @@ class TestCypressAcls(CheckPermissionBase):
 class TestRowAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+    }
 
     def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True):
         return read_table(path, authenticated_user=user, omit_inaccessible_rows=omit_inaccessible_rows)
@@ -2235,6 +2240,77 @@ class TestRowAcls(YTEnvSetup):
         # Just check for sanity.
         with raises_yt_error():
             self._read("no_read")
+
+    @authors("coteeq")
+    def test_has_row_level_ace_attribute(self):
+        create_user("u")
+
+        def _create(path, acl=[], inherit_acl=False):
+            create(
+                "table",
+                path,
+                attributes={
+                    "inherit_acl": inherit_acl,
+                    "acl": acl,
+                    "schema": [
+                        {"name": "key", "type": "int64"},
+                        {"name": "value", "type": "string"},
+                    ],
+                    "external_cell_tag": 11,
+                },
+            )
+
+        _create(
+            "//tmp/with_rls",
+            acl=[
+                make_rl_ace("u", "key in (2, 3, 5, 7)"),
+                make_ace("allow", "u", "read"),
+            ],
+        )
+        _create(
+            "//tmp/without_rls",
+            acl=[
+                make_ace("allow", "u", "read"),
+            ],
+        )
+        create("map_node", "//tmp/dir")
+        set(
+            "//tmp/dir/@acl",
+            [
+                make_rl_ace("u", "key in (2, 3, 5, 7)"),
+                make_ace("allow", "u", "read"),
+            ],
+        )
+        _create(
+            "//tmp/dir/inherited_rls",
+            inherit_acl=True,
+        )
+
+        # Regular get.
+        assert get("//tmp/with_rls/@has_row_level_ace")
+        assert get("//tmp/with_rls/@has_row_level_ace", authenticated_user="u")
+        assert not get("//tmp/without_rls/@has_row_level_ace")
+        assert get("//tmp/dir/inherited_rls/@has_row_level_ace")
+
+        # Assert opaqueness.
+        assert get("//tmp/with_rls/@")["has_row_level_ace"] == yson.YsonEntity()
+
+        # Get by id.
+        def get_by_id(path, **kwargs):
+            id = get(f"{path}/@id")
+            return get(f"#{id}/@has_row_level_ace", **kwargs)
+
+        assert get_by_id("//tmp/with_rls")
+        assert get_by_id("//tmp/with_rls", authenticated_user="u")
+        assert not get_by_id("//tmp/without_rls")
+        assert get_by_id("//tmp/dir/inherited_rls")
+
+        # Get directly to the external cell.
+        id = get("//tmp/with_rls/@id")
+        external_cell_tag = get("//tmp/with_rls/@external_cell_tag")
+        driver = get_driver(external_cell_tag - 10)
+        with raises_yt_error("Attribute \"has_row_level_ace\" is not found"):
+            assert get("#" + id + "/@has_row_level_ace", driver=driver)
 
     @authors("coteeq")
     def test_row_ace_validation(self):

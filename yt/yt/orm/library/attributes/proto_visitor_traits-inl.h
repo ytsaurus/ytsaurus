@@ -241,7 +241,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         Y_UNUSED(message);
 
         if constexpr (std::is_const_v<TQualifiedMessage>) {
-            return NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor)->New();
+            return NProtoBuf::MessageFactory::generated_factory()->GetPrototype(descriptor);
         } else {
             return nullptr;
         }

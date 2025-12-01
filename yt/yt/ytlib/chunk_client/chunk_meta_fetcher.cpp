@@ -81,7 +81,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
     }
 
     return AllSucceeded(std::move(asyncResults))
-        .ApplyUnique(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+        .AsUnique().Apply(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
             .Via(Invoker_));
 }
 

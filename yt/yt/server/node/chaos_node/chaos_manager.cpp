@@ -433,7 +433,8 @@ public:
                 return FindChaosLease(chaosObjectId) ? EExistenceResult::Available : EExistenceResult::Absent;
 
             default:
-                THROW_ERROR_EXCEPTION("Unsupported object type: %v", objectType);
+                THROW_ERROR_EXCEPTION("Unsupported object type %Qlv", objectType)
+                    << TErrorAttribute("object_id", chaosObjectId);
         }
     }
 

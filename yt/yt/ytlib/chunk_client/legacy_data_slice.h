@@ -96,6 +96,7 @@ public:
 
     //! A tag that helps us restore the correspondence between
     //! the unread data slices and the original data slices.
+    // TODO(apollo1321): Remove this tag.
     std::optional<i64> Tag;
 
     //! Used to recover the original read ranges in task before serializing to job spec.

@@ -775,7 +775,7 @@ private:
                 backendReaders.ChunkReader,
                 chunkReadOptions,
                 /*prepareColumnMeta*/ true)
-                .ApplyUnique(BIND([
+                .AsUnique().Apply(BIND([
                     =,
                     this,
                     this_ = MakeStrong(this),
@@ -849,7 +849,7 @@ private:
             return VoidFuture;
         }
 
-        return filteringResultFuture.ApplyUnique(BIND([
+        return filteringResultFuture.AsUnique().Apply(BIND([
             =,
             this,
             this_ = MakeStrong(this),
@@ -1467,7 +1467,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
             .ClientOptions = chunkReadOptions,
         },
         requestedBlockIndexes)
-        .ApplyUnique(BIND(
+        .AsUnique().Apply(BIND(
             &TSortedChunkStore::OnXorKeyFilterBlocksRead,
             MakeStrong(this),
             codecId,

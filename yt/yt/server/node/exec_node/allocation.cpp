@@ -479,7 +479,7 @@ void TAllocation::SettleJob(bool isJobFirst)
     TWallTimer timer;
 
     controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
-        .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this), TWallTimer(), isJobFirst)
+        .AsUnique().Subscribe(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this), TWallTimer(), isJobFirst)
             .Via(Bootstrap_->GetJobInvoker()));
 }
 
@@ -813,7 +813,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
     if (settleNewJob) {
         AllSet(std::vector{job->GetCleanupFinishedEvent(), job->GetStoredEvent()})
-            .SubscribeUnique(BIND([
+            .AsUnique().Subscribe(BIND([
                 jobId = job->GetId(),
                 this,
                 this_ = MakeStrong(this)

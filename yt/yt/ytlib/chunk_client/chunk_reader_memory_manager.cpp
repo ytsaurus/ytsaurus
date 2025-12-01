@@ -139,7 +139,7 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
         GetFreeMemorySize());
 
     return AsyncSemaphore_->AsyncAcquire(size)
-        .ApplyUnique(BIND(ThrowOnDestroyed(&TChunkReaderMemoryManager::OnSemaphoreAcquired), MakeWeak(this)))
+        .AsUnique().Apply(BIND(ThrowOnDestroyed(&TChunkReaderMemoryManager::OnSemaphoreAcquired), MakeWeak(this)))
         .ToImmediatelyCancelable();
 }
 

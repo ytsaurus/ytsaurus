@@ -49,7 +49,7 @@ public:
         options.PingAncestors = false;
 
         return Client_->StartTransaction(ETransactionType::Master, options)
-            .ApplyUnique(BIND(&TShuffleManager::DoStartShuffle, MakeStrong(this), partitionCount)
+            .AsUnique().Apply(BIND(&TShuffleManager::DoStartShuffle, MakeStrong(this), partitionCount)
                 .AsyncVia(SerializedInvoker_));
     }
 

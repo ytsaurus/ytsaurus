@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NDataNode {
@@ -164,7 +166,11 @@ TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
     if (!DiskInfoProvider_) {
         return MakeFuture<std::vector<TDiskInfo>>({});
     }
-    return DiskInfoProvider_->GetYTDiskInfos();
+    return DiskInfoProvider_->GetYTDiskInfos()
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
+            CachedDiskInfos_.Store(diskInfos);
+            return diskInfos;
+        }));
 }
 
 TFuture<void> TLocationManager::UpdateDiskCache()
@@ -290,23 +296,16 @@ NYTree::IYPathServicePtr TLocationManager::CreateOrchidService()
 void TLocationManager::BuildOrchid(NYson::IYsonConsumer* consumer)
 {
     const auto& locations = ChunkStore_->Locations();
+
+    const auto& diskInfos = CachedDiskInfos_.Load();
+
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("store_locations")
-            .DoMapFor(locations, [&] (TFluentMap fluent, const auto& location) {
-                fluent
-                    .Item(ToString(location->GetUuid()))
-                    .BeginMap()
-                        // Maybe display more information
-                        .Item("index").Value(location->GetIndex())
-                        .Item("path").Value(location->GetPath())
-                        .Item("disk_family").Value(location->GetDiskFamily())
-                        .Item("medium").Value(location->GetMediumName())
-                        .Item("chunk_count").Value(location->GetChunkCount())
-                    .EndMap();
-            })
-            .Item("locations_count").Value(locations.size())
-        .EndMap();
+        .Item("disk_infos").List(diskInfos)
+        .Item("disk_count").Value(diskInfos.size())
+        .Item("store_locations").List(locations)
+        .Item("location_count").Value(locations.size())
+    .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -353,13 +353,13 @@ public:
                 defaultTimeout,
                 std::move(channelFuture.GetUnique()
                     .ValueOrDefault(nullptr)))
-            : channelFuture.ApplyUnique(BIND(
+            : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidency,
                 ObjectId_,
                 CellTag_,
                 defaultTimeout));
 
-        auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
+        auto fullLookupFuture = checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
@@ -400,7 +400,7 @@ private:
         ToProto(req->mutable_chaos_object_id(), objectId);
 
         return req->Invoke()
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 [
                     cellTag = cellTag
                 ] (TErrorOr<TChaosNodeServiceProxy::TRspFindChaosObjectPtr>&& rspOrError) {
@@ -483,13 +483,13 @@ private:
                 defaultTimeout,
                 std::move(channelFuture.GetUnique()
                     .ValueOrDefault(nullptr)))
-            : channelFuture.ApplyUnique(BIND(
+            : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,
                 ObjectId_,
                 CellTag_,
                 defaultTimeout));
 
-        auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
+        auto fullLookupFuture = checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
@@ -530,7 +530,7 @@ private:
         auto req = proxy.IsChaosObjectExistent();
         ToProto(req->mutable_chaos_object_id(), objectId);
 
-        return req->Invoke().ApplyUnique(BIND(
+        return req->Invoke().AsUnique().Apply(BIND(
             [
                 cellTag = cellTag
             ] (TErrorOr<TChaosNodeServiceProxy::TRspIsChaosObjectExistentPtr>&& rspOrError) {
@@ -577,7 +577,7 @@ private:
 
             foundFutures.push_back(
                 CheckResidency(std::move(channel), ObjectId_, timeout, cellTag)
-                .ApplyUnique(BIND([] (TErrorOr<TChaosObjectLocationResult>&& result) {
+                .AsUnique().Apply(BIND([] (TErrorOr<TChaosObjectLocationResult>&& result) {
                     if (!result.IsOK() || !result.Value().IsAbsent()) {
                         return result;
                     }
@@ -593,7 +593,7 @@ private:
             futureCellTags);
 
         return AnySucceeded(std::move(foundFutures))
-            .ApplyUnique(BIND(CombinedLookupHandler, ObjectId_, Type_));
+            .AsUnique().Apply(BIND(CombinedLookupHandler, ObjectId_, Type_));
     }
 
     static TErrorOr<TCellTag> CombinedLookupHandler(
@@ -725,7 +725,7 @@ public:
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
         YT_LOG_DEBUG("Requesting master cache");
-        return req->Invoke().ApplyUnique(BIND(
+        return req->Invoke().AsUnique().Apply(BIND(
             [
                 type = Type_,
                 objectId = ObjectId_

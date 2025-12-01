@@ -60,7 +60,9 @@ def add_hydra_persistence_uploader_job(scheduler):
 
     yt_client = hydra_persistence_uploader.get_yt_client(yt_proxy, yt_token_file)
 
-    hydra_persistence_uploader_job = hydra_persistence_uploader.MasterHydraPersistenceUploaderJob(setup, yt_client)
+    config = hydra_persistence_uploader.MasterHydraPersistenceUploaderConfig(do_upload_changelogs=False)
+
+    hydra_persistence_uploader_job = hydra_persistence_uploader.MasterHydraPersistenceUploaderJob(setup, yt_client, config)
 
     scheduler.add_job(
         hydra_persistence_uploader_job,

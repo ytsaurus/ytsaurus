@@ -378,10 +378,10 @@ public:
             return MakeFuture<std::vector<TTmpfsVolumeResult>>(std::move(error));
         }
 
-        std::vector<const TString*> tmpfsPaths;
+        std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(volumeParams.size());
         for (const auto& volume: volumeParams) {
-            tmpfsPaths.push_back(&volume.Path);
+            tmpfsPaths.push_back(volume.Path);
         }
 
         //! Check that no volume path is a prefix of another volume path.
@@ -402,7 +402,7 @@ public:
             /*uncancelable*/ false,
             [userSandBoxPath = std::move(userSandBoxPath), volumeParams, this, this_ = MakeStrong(this)] {
                 return VolumeManager_->PrepareTmpfsVolumes(userSandBoxPath, volumeParams)
-                    .ApplyUnique(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    .AsUnique().Apply(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                         if (!volumeResultsOrError.IsOK()) {
                             THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
                                 volumeResultsOrError);
@@ -631,11 +631,11 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
-    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const override
+    TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
 
-        return Location_->CreateVitalDirectories(rootVolume, userId);
+        return Location_->CreateSlotDirectories(rootVolume, userId);
     }
 
 private:

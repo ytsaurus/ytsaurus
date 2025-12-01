@@ -479,6 +479,28 @@ private:
                     "Modification of dynamic table " << outTableInfo.Name.Quote() << " is supported only by UPSERT or INSERT WITH TRUNCATE"));
                 return TStatus::Error;
             }
+
+            static const EYtSettingTypes unsupportedSettings = EYtSettingType::CompressionCodec
+                | EYtSettingType::ErasureCodec
+                | EYtSettingType::ReplicationFactor
+                | EYtSettingType::Media
+                | EYtSettingType::PrimaryMedium
+                | EYtSettingType::Expiration
+                | EYtSettingType::KeepMeta
+                | EYtSettingType::MonotonicKeys
+                | EYtSettingType::ColumnGroups
+                | EYtSettingType::SecurityTags;
+
+            for (const auto& setting : settings.Children()) {
+                if (setting->ChildrenSize() != 0) {
+                    auto parsedSetting = FromString<EYtSettingType>(setting->Child(0)->Content());
+                    if (unsupportedSettings.HasFlags(parsedSetting)) {
+                        ctx.AddError(TIssue(pos, TStringBuilder() <<
+                            "Setting " << parsedSetting << " is not supported for dynamic tables"));
+                        return TStatus::Error;
+                    }
+                }
+            }
         }
         if (mode == EYtWriteMode::Upsert && !notFlowDynamic) {
             ctx.AddError(TIssue(pos, TStringBuilder() <<
@@ -999,6 +1021,10 @@ private:
                     ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtCopy::CallableName() << " cannot be used with range selection"));
                     return TStatus::Error;
                 }
+                if (!path.QLFilter().Maybe<TCoVoid>()) {
+                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtCopy::CallableName() << " cannot be used with QLFilter"));
+                    return TStatus::Error;
+                }
                 auto tableInfo = TYtTableBaseInfo::Parse(path.Table());
                 if (!tableInfo->IsTemp) {
                     ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtCopy::CallableName() << " cannot be used with non-temporary tables"));
@@ -1096,7 +1122,7 @@ private:
 
         auto merge = TYtMerge(input);
 
-        if (!ValidateSettings(merge.Settings().Ref(), EYtSettingType::ForceTransform | EYtSettingType::SoftTransform | EYtSettingType::CombineChunks | EYtSettingType::Limit | EYtSettingType::KeepSorted | EYtSettingType::NoDq | EYtSettingType::QLFilter, ctx)) {
+        if (!ValidateSettings(merge.Settings().Ref(), EYtSettingType::ForceTransform | EYtSettingType::SoftTransform | EYtSettingType::CombineChunks | EYtSettingType::Limit | EYtSettingType::KeepSorted | EYtSettingType::NoDq, ctx)) {
             return TStatus::Error;
         }
 
@@ -1161,7 +1187,7 @@ private:
         }
 
         auto status = ValidateAndUpdateTransientOpBase(input, output, ctx, true,
-            EYtSettingType::KeyFilter | EYtSettingType::KeyFilter2 | EYtSettingType::Take | EYtSettingType::Skip | EYtSettingType::Sample | EYtSettingType::SysColumns);
+            EYtSettingType::KeyFilter | EYtSettingType::KeyFilter2 | EYtSettingType::Take | EYtSettingType::Skip | EYtSettingType::Sample | EYtSettingType::SysColumns | EYtSettingType::QLFilter);
         if (status.Level != TStatus::Ok) {
             return status;
         }
@@ -1180,8 +1206,7 @@ private:
             | EYtSettingType::BlockInputReady
             | EYtSettingType::BlockInputApplied
             | EYtSettingType::BlockOutputReady
-            | EYtSettingType::BlockOutputApplied
-            | EYtSettingType::QLFilter;
+            | EYtSettingType::BlockOutputApplied;
         if (!ValidateSettings(map.Settings().Ref(), accpeted, ctx)) {
             return TStatus::Error;
         }
@@ -1363,6 +1388,7 @@ private:
         EYtSettingTypes sectionSettings = EYtSettingType::KeyFilter | EYtSettingType::KeyFilter2 | EYtSettingType::Take | EYtSettingType::Skip | EYtSettingType::Sample;
         if (hasMapLambda) {
             sectionSettings |= EYtSettingType::SysColumns;
+            sectionSettings |= EYtSettingType::QLFilter;
         }
         auto status = ValidateAndUpdateTransientOpBase(input, output, ctx, true, sectionSettings);
         if (status.Level != TStatus::Ok) {
@@ -1381,8 +1407,7 @@ private:
             | EYtSettingType::KeySwitch
             | EYtSettingType::MapOutputType
             | EYtSettingType::ReduceInputType
-            | EYtSettingType::NoDq
-            | EYtSettingType::QLFilter;
+            | EYtSettingType::NoDq;
 
         if (hasMapLambda) {
             acceptedSettings |= EYtSettingType::BlockInputReady | EYtSettingType::BlockInputApplied;

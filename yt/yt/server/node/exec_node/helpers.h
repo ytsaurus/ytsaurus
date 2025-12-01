@@ -88,8 +88,7 @@ void SetNodeInfoToRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Create /slot, /var and other vital directories in root volume.
-void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId);
+void CreateSlotDirectories(const IVolumePtr& rootVolume, int userId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

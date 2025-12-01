@@ -36,6 +36,7 @@ static const std::string RealmIdAttributeKey = "realm_id";
 static const std::string LeaderIdAttributeKey = "leader_id";
 static const std::string LocalThrottlersAttributeKey = "local_throttlers";
 static const std::string GlobalThrottlersAttributeKey = "global_throttlers";
+static const double MinThorttlerLimit = 0.01;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1051,8 +1052,8 @@ private:
                 // Calculate new member limit.
                 auto newLimit = weight * totalLimit;
 
-                // If new limit is lower than one make it zero. This avoids rather little limit problem.
-                if (newLimit < 1) {
+                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
+                if (newLimit < MinThorttlerLimit) {
                     newLimit = 0;
                 }
 
@@ -1136,8 +1137,8 @@ private:
                 // Calculate new member limit.
                 auto newLimit = Min(localUsage.Rate, memberLimitThreshold) + freeLimit;
 
-                // If new limit is lower than one make it zero. This avoids rather little limit problem.
-                if (newLimit < 1) {
+                // Avoid infinitely small limits that might lead to and overflow when using them as a divisor.
+                if (newLimit < MinThorttlerLimit) {
                     newLimit = 0;
                 }
 

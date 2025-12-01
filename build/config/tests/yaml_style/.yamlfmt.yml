@@ -2,7 +2,10 @@ formatter:
   array_indent: 2
   indent: 4
   # retain_line_breaks: True
-  # retain_line_breaks_single: True
+  retain_line_breaks_single: True
   max_line_length: 124
   pad_line_comments: 2
   eof_newline: True
+  scan_folded_as_literal: true # https://github.com/google/yamlfmt/issues/280
+  disable_alias_key_correction: true # https://github.com/google/yamlfmt/issues/250
+  drop_merge_tag: true # https://github.com/google/yamlfmt/issues/102

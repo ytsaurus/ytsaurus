@@ -210,7 +210,7 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(const
     auto responseFutures = SendLocalSampleRequests(localChunksPath, TAttributeFilter(), limit);
 
     return AllSet(std::move(responseFutures))
-        .ApplyUnique(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
+        .AsUnique().Apply(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
             auto batchResponses = ExtractResponses(std::move(response));
 
             std::ranges::sort(batchResponses, [&] (const auto& lhs, const auto& rhs) {
@@ -267,7 +267,7 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalOldestPartMi
     auto limit = dynamicConfig->MaxChunksSampleSizePerCell;
 
     return AllSet(std::move(responseFutures))
-        .ApplyUnique(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
+        .AsUnique().Apply(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
         auto batchResponses = ExtractResponses(std::move(response));
 
         struct TMissingPartChunkInfo {

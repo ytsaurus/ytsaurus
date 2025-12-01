@@ -314,7 +314,7 @@ private:
             .Run();
 
         auto tabletInvoker = tablet->GetEpochAutomatonInvoker();
-        startRowIndexFuture.SubscribeUnique(
+        startRowIndexFuture.AsUnique().Subscribe(
             BIND([
                 tabletId,
                 slot = std::move(slot),
