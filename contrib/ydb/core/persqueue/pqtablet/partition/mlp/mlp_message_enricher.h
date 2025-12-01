@@ -3,6 +3,7 @@
 #include "mlp.h"
 #include "mlp_common.h"
 
+#include <contrib/ydb/core/base/tablet_pipecache.h>
 #include <contrib/ydb/core/persqueue/common/actor.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 #include <contrib/ydb/core/util/backoff.h>
@@ -12,10 +13,8 @@ namespace NKikimr::NPQ::NMLP {
 class TMessageEnricherActor : public TBaseActor<TMessageEnricherActor>
                             , public TConstantLogPrefix {
 
-    static constexpr TDuration Timeout = TDuration::Seconds(5);
-
 public:
-    TMessageEnricherActor(const TActorId& tabletActorId,
+    TMessageEnricherActor(ui64 tabletId,
                           const ui32 partitionId,
                           const TString& consumerName,
                           std::deque<TReadResult>&& replies);
@@ -25,22 +24,21 @@ public:
 
 private:
     void Handle(TEvPersQueue::TEvResponse::TPtr&);
-    void Handle(TEvPQ::TEvError::TPtr&);
-    void Handle(TEvents::TEvWakeup::TPtr&);
+    void Handle(TEvPipeCache::TEvDeliveryProblem::TPtr&);
 
     STFUNC(StateWork);
 
     void ProcessQueue();
+    void SendToPQTablet(std::unique_ptr<IEventBase> ev);
 
 private:
-    const TActorId TabletActorId;
+    const ui64 TabletId;
     const ui32 PartitionId;
     const TString ConsumerName;
     std::deque<TReadResult> Queue;
-    TBackoff Backoff;
-    ui64 Cookie = 0;
-
     std::unique_ptr<TEvPQ::TEvMLPReadResponse> PendingResponse;
+
+    bool FirstRequest = true;
 };
 
 } // namespace NKikimr::NPQ::NMLP

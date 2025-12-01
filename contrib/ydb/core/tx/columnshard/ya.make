@@ -41,6 +41,7 @@ PEERDIR(
     contrib/ydb/core/protos
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
+    contrib/ydb/core/tx/columnshard/backup
     contrib/ydb/core/tx/columnshard/blobs_action
     contrib/ydb/core/tx/columnshard/blobs_action/storages_manager
     contrib/ydb/core/tx/columnshard/blobs_reader

@@ -234,6 +234,7 @@ struct TPlanProps {
     TStageGraph StageGraph;
     int InternalVarIdx = 1;
     TScalarSubplans ScalarSubplans;
+    bool PgSyntax = false;
 };
 
 
@@ -266,6 +267,10 @@ class IOperator {
     virtual TVector<TInfoUnit> GetScalarSubplanIUs(TPlanProps& props) { Y_UNUSED(props); return {}; }
 
     const TTypeAnnotationNode* GetIUType(TInfoUnit iu);
+
+    virtual TVector<TExprNode::TPtr> GetLambdas() { return {}; }
+
+    virtual void ApplyReplaceMap(TNodeOnNodeOwnedMap map, TRBOContext & ctx) { Y_UNUSED(map); Y_UNUSED(ctx); }
 
     /***
      * Rename information units of this operator using a specified mapping
@@ -341,6 +346,8 @@ class TOpMap : public IUnaryOperator {
            bool project);
     virtual TVector<TInfoUnit> GetOutputIUs() override;
     virtual TVector<TInfoUnit> GetScalarSubplanIUs(TPlanProps& props) override;
+    virtual TVector<TExprNode::TPtr> GetLambdas() override;
+    virtual void ApplyReplaceMap(TNodeOnNodeOwnedMap map, TRBOContext & ctx) override;
 
     bool HasRenames() const;
     bool HasLambdas() const;
@@ -395,6 +402,8 @@ class TOpFilter : public IUnaryOperator {
     virtual TVector<TInfoUnit> GetOutputIUs() override;
     virtual TVector<TInfoUnit> GetScalarSubplanIUs(TPlanProps& props) override;
     virtual TString ToString(TExprContext& ctx) override;
+    virtual TVector<TExprNode::TPtr> GetLambdas() override;
+    virtual void ApplyReplaceMap(TNodeOnNodeOwnedMap map, TRBOContext & ctx) override;
 
     TVector<TInfoUnit> GetFilterIUs(TPlanProps& props) const;
     TConjunctInfo GetConjunctInfo(TPlanProps& props) const;
@@ -402,6 +411,8 @@ class TOpFilter : public IUnaryOperator {
 
     TExprNode::TPtr FilterLambda;
 };
+
+bool TestAndExtractEqualityPredicate(TExprNode::TPtr pred, TExprNode::TPtr& leftArg, TExprNode::TPtr& rightArg);
 
 class TOpJoin : public IBinaryOperator {
   public:
@@ -523,6 +534,8 @@ class TOpRoot : public IUnaryOperator {
 };
 
 TVector<TInfoUnit> IUSetDiff(TVector<TInfoUnit> left, TVector<TInfoUnit> right);
+
+TString PrintRBOExpression(TExprNode::TPtr expr, TExprContext & ctx);
 
 } // namespace NKqp
 } // namespace NKikimr
