@@ -1,0 +1,150 @@
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+cluster:
+  proxy: "http-proxies-lb.ytsaurus-dev.svc.cluster.local"
+  name: "ytsaurus"
+
+image:
+  repository: ghcr.io/ytsaurus/microservices
+  pullPolicy: Always
+  tag: "0.0.0-alpha"
+imagePullSecrets: []
+
+secretRefs: [ytsaurus-msvc]
+
+microservices:
+  resourceUsage:
+    enabled: true
+    image: {}
+    resources: {}
+    api:
+      enabled: true
+      service:
+        type: ClusterIP
+        port: 80
+        metricsPort: 81
+      config:
+        httpAddr: "[::]:80"
+        httpHandlerTimeout: 120s
+        debugHttpAddr: "[::]:81"
+        apiPrefix: "/"
+        cors:
+          allowedHosts: []
+          allowedHostSuffixes: []
+        authCookieName: "YTCypressCookie"
+        snapshotRoot: "//sys/admin/yt-microservices/resource_usage"
+        logToStderr: true
+        logsDir: "/resource-usage/logs"
+        logsStorageSize: 5Gi
+        excludedFields: []
+        updateSnapshotsOnEveryRequest: false
+        debugLogin: ""
+        disableAcl: false
+    preprocessing:
+      enabled: true
+      schedule: "0 * * * *"
+      successfulJobsHistoryLimit: 5
+      failedJobsHistoryLimit: 5
+      startingDeadlineSeconds: 5
+      concurrencyPolicy: "Forbid"
+      ttlSecondsAfterFinished: 43200
+    removeExcessive:
+      enabled: true
+      schedule: "0 0 * * *"
+      successfulJobsHistoryLimit: 5
+      failedJobsHistoryLimit: 5
+      startingDeadlineSeconds: 5
+      concurrencyPolicy: "Forbid"
+      ttlSecondsAfterFinished: 43200
+      config:
+        denominator: 1.4
+        stepSizeIncrease: 2.86
+        ignoreWindowSize: '{"days": 3}'
+        firstStepWindowSize: '{"weeks": 1}'
+        firstStepAllowedFrequency: '{"hours": 6}'
+    secretRefs: []
+  bulkAclChecker:
+    enabled: true
+    image: {}
+    resources: {}
+    api:
+      enabled: true
+      service:
+        type: ClusterIP
+        port: 80
+    preprocessing:
+      enabled: true
+      schedule: "0 * * * *"
+      successfulJobsHistoryLimit: 5
+      failedJobsHistoryLimit: 5
+      startingDeadlineSeconds: 5
+      concurrencyPolicy: "Forbid"
+      ttlSecondsAfterFinished: 43200
+    secretRefs: []
+  idToPathUpdater:
+    enabled: true
+    image: {}
+    resources: {}
+    config:
+      tmpPath: "//tmp/microservices/id_to_path_updater"
+      outputTable: "//sys/admin/yt-microservices/node_id_dict/data"
+      inputTablesSource: "//sys/admin/logs/export/master-access"
+    preprocessing:
+      enabled: true
+      schedule: "0 * * * *"
+      successfulJobsHistoryLimit: 5
+      failedJobsHistoryLimit: 5
+      startingDeadlineSeconds: 5
+      concurrencyPolicy: "Forbid"
+      ttlSecondsAfterFinished: 43200
+    secretRefs: []
+    init:
+      enabled: true
+      tabletCellBundle: sys
+      primaryMedium: default
+
