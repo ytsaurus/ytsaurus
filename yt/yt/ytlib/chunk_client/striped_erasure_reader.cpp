@@ -270,7 +270,7 @@ private:
         }
 
         auto partsFuture = AllSucceeded(std::move(partFutures))
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (std::vector<TBlock>&& parts) {
                     for (auto partIndex : *maybePartsToFetch) {
                         ValidateChecksum(getPartDescriptor(partIndex), &parts[partIndex]);
@@ -334,7 +334,7 @@ private:
         auto readerIndex = GetOrCrash(PartIndexToReaderIndex_, descriptor.PartIndex);
 
         return BlockFetcher_->FetchBlock(readerIndex, descriptor.SegmentIndex)
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND([=, this, this_ = MakeStrong(this)] (TBlock&& block) {
                     ValidateChecksum(descriptor, &block);
 

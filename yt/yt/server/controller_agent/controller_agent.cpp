@@ -236,8 +236,7 @@ public:
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
-        , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
-            BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
+        , ExecNodeDescriptorsByTagsCache_(New<TExecNodeDescriptorsByTagsCache>(
             Config_->SchedulingTagFilterExpireTimeout,
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
@@ -482,7 +481,7 @@ public:
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
 
-        CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
+        ExecNodeDescriptorsByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 
         JobReporter_->UpdateConfig(Config_->JobReporter);
 
@@ -984,7 +983,7 @@ public:
             return CachedExecNodeDescriptors_;
         }
 
-        auto result = CachedExecNodeDescriptorsByTags_->Get(filter);
+        auto result = GetExecNodeDescriptorsByTags(filter);
         return onlineOnly ? result.Available : result.All;
     }
 
@@ -992,7 +991,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return CachedExecNodeDescriptorsByTags_->Get(filter).MaxAvailableResources;
+        return GetExecNodeDescriptorsByTags(filter).MaxAvailableResources;
     }
 
     int GetAvailableExecNodeCount() const
@@ -1226,7 +1225,9 @@ private:
         TJobResources MaxAvailableResources;
     };
 
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>> CachedExecNodeDescriptorsByTags_;
+    using TExecNodeDescriptorsByTagsCache = TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>;
+    const TIntrusivePtr<TExecNodeDescriptorsByTagsCache> ExecNodeDescriptorsByTagsCache_;
+
     int AvailableExecNodeCount_ = 0;
 
     TControllerAgentTrackerServiceProxy SchedulerProxy_;
@@ -1529,7 +1530,7 @@ private:
 
         JobTracker_->Cleanup();
 
-        CachedExecNodeDescriptorsByTags_->Clear();
+        ExecNodeDescriptorsByTagsCache_->Clear();
 
         if (HeartbeatExecutor_) {
             YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
@@ -2197,37 +2198,41 @@ private:
     }
 
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
-    TFilteredExecNodeDescriptors FilterExecNodes(const TSchedulingTagFilter& filter) const
+    TFilteredExecNodeDescriptors GetExecNodeDescriptorsByTags(const TSchedulingTagFilter& filter) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
+        return ExecNodeDescriptorsByTagsCache_->GetOrPut(
+            filter,
+            [&] {
+                auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
 
-        TFilteredExecNodeDescriptors result;
-        result.All = New<TRefCountedExecNodeDescriptorMap>();
-        result.Available = New<TRefCountedExecNodeDescriptorMap>();
+                TFilteredExecNodeDescriptors result;
+                result.All = New<TRefCountedExecNodeDescriptorMap>();
+                result.Available = New<TRefCountedExecNodeDescriptorMap>();
 
-        TJobResources maxAvailableResources;
-        for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
-            if (filter.CanSchedule(descriptor->Tags)) {
-                YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
-                if (descriptor->CanSchedule({})) {
-                    YT_VERIFY(result.Available->emplace(nodeId, descriptor).second);
+                TJobResources maxAvailableResources;
+                for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
+                    if (filter.CanSchedule(descriptor->Tags)) {
+                        YT_VERIFY(result.All->emplace(nodeId, descriptor).second);
+                        if (descriptor->CanSchedule({})) {
+                            YT_VERIFY(result.Available->emplace(nodeId, descriptor).second);
+                        }
+                        maxAvailableResources = Max(maxAvailableResources, descriptor->ResourceLimits);
+                    }
                 }
-                maxAvailableResources = Max(maxAvailableResources, descriptor->ResourceLimits);
-            }
-        }
 
-        result.MaxAvailableResources = maxAvailableResources;
+                result.MaxAvailableResources = maxAvailableResources;
 
-        YT_LOG_DEBUG("Exec nodes filtered "
-            "(Formula: %v, MatchingNodeCount: %v, MatchingAvailableNodeCount: %v, MaxAvailableResources: %v)",
-            filter.GetBooleanFormula().GetFormula(),
-            result.All->size(),
-            result.Available->size(),
-            result.MaxAvailableResources);
+                YT_LOG_DEBUG("Exec nodes filtered "
+                    "(Formula: %v, MatchingNodeCount: %v, MatchingAvailableNodeCount: %v, MaxAvailableResources: %v)",
+                    filter.GetBooleanFormula().GetFormula(),
+                    result.All->size(),
+                    result.Available->size(),
+                    result.MaxAvailableResources);
 
-        return result;
+                return result;
+            });
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)

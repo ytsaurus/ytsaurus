@@ -62,6 +62,44 @@ using TNodeShardMasterHandshakeResultPtr = TIntrusivePtr<TNodeShardMasterHandsha
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Manages node shard sensors and is initialized when master is connected. This way only the active scheduler reports metrics.
+class TNodeShardGlobalSensors
+    : public TRefCounted
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HardConcurrentHeartbeatLimitReachedCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, SoftConcurrentHeartbeatLimitReachedCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, ConcurrentHeartbeatComplexityLimitReachedCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatWithScheduleAllocationsCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatAllocationCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatCounter);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatRequestProtoMessageBytes);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatResponseProtoMessageBytes);
+    DEFINE_BYREF_RO_PROPERTY(NProfiling::TCounter, HeartbeatRegisteredControllerAgentsBytes);
+
+    using TUnutilizedResourcesCounterByReason = TEnumIndexedArray<EUnutilizedResourceReason, TJobResourcesProfiler>;
+    DEFINE_BYREF_RW_PROPERTY(TUnutilizedResourcesCounterByReason, UnutilizedResourcesCounterByReason);
+
+public:
+    explicit TNodeShardGlobalSensors(TNodeShard* nodeShard);
+
+    void UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value);
+    void IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted);
+
+private:
+    TNodeShard* const NodeShard_;
+
+    using TRunningAllocationCounterKey = std::tuple<EAllocationState, /*poolTree*/ std::string>;
+    using TRunningAllocationCounters = THashMap<TRunningAllocationCounterKey, std::pair<i64, NProfiling::TGauge>>;
+    TRunningAllocationCounters RunningAllocationCounters_;
+
+    using TFinishedAllocationCounterKey = std::tuple</*aborted*/ bool, /*poolTree*/ std::string>;
+    using TFinishedAllocationCounters = THashMap<TFinishedAllocationCounterKey, NProfiling::TCounter>;
+    TFinishedAllocationCounters FinishedAllocationCounters_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeShard
     : public TRefCounted
 {
@@ -190,7 +228,9 @@ private:
         TJobResources Usage;
         TJobResources Limits;
     };
-    const TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>> CachedResourceStatisticsByTags_;
+
+    using TResourceStatisticsByTagsCache = TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>;
+    const TIntrusivePtr<TResourceStatisticsByTagsCache> ResourceStatisticsByTagsCache_;
 
     const NLogging::TLogger Logger;
 
@@ -225,25 +265,7 @@ private:
     std::atomic<int> JobReporterWriteFailuresCount_ = 0;
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = 0;
 
-    using TRunningAllocationCounterKey = std::tuple<EAllocationState, TString>;
-    using TRunningAllocationCounter = THashMap<TRunningAllocationCounterKey, std::pair<i64, NProfiling::TGauge>>;
-    TRunningAllocationCounter RunningAllocationCounter_;
-
-    using TFinishedAllocationCounterKey = std::tuple</*aborted*/ bool, TString>;
-    using TFinishedAllocationCounter = THashMap<TFinishedAllocationCounterKey, NProfiling::TCounter>;
-    TFinishedAllocationCounter FinishedAllocationCounter_;
-
-    NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
-    NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
-    NProfiling::TCounter ConcurrentHeartbeatComplexityLimitReachedCounter_;
-    NProfiling::TCounter HeartbeatWithScheduleAllocationsCounter_;
-    NProfiling::TCounter HeartbeatAllocationCount_;
-    NProfiling::TCounter HeartbeatCount_;
-    NProfiling::TCounter HeartbeatRequestProtoMessageBytes_;
-    NProfiling::TCounter HeartbeatResponseProtoMessageBytes_;
-    NProfiling::TCounter HeartbeatRegisteredControllerAgentsBytes_;
-
-    TEnumIndexedArray<EUnutilizedResourceReason, TJobResourcesProfiler> UnutilizedResourcesCounterByReason_;
+    TIntrusivePtr<TNodeShardGlobalSensors> GlobalSensors_;
 
     THashMap<TAllocationId, NStrategy::TAllocationUpdate> AllocationsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyAllocationCount_;
@@ -304,7 +326,7 @@ private:
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
-    TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
+    TResourceStatistics GetResourceStatisticsByTags(const TSchedulingTagFilter& filter) const;
 
     TExecNodePtr GetOrRegisterNode(
         NNodeTrackerClient::TNodeId nodeId,
@@ -341,9 +363,7 @@ private:
         NProto::NNode::TRspHeartbeat* response,
         NProto::TAllocationStatus* allocationStatus);
 
-    bool IsHeartbeatThrottlingWithComplexity(
-        const TExecNodePtr& node,
-        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy);
+    bool IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node);
     bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
     using TStateToAllocationList = TEnumIndexedArray<EAllocationState, std::vector<TAllocationPtr>>;
@@ -376,9 +396,6 @@ private:
         const TError& error,
         EAbortReason abortReason);
     void OnAllocationRunning(const TAllocationPtr& allocation, NProto::TAllocationStatus* status);
-
-    void UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value);
-    void IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted);
 
     void SetAllocationState(const TAllocationPtr& allocation, EAllocationState state);
 

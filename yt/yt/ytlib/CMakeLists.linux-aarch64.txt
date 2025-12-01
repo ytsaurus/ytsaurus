@@ -75,7 +75,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   cpp-containers-absl_flat_hash
   library-erasure-impl
   yt-library-containers
-  yt-library-constrained
   yt-library-disk_manager
   yt-library-process
   yt-library-random
@@ -1815,7 +1814,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   cpp-containers-absl_flat_hash
   library-erasure-impl
   yt-library-containers
-  yt-library-constrained
   yt-library-disk_manager
   yt-library-process
   yt-library-random

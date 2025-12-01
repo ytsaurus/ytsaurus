@@ -134,7 +134,7 @@ public:
 
     void OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config);
 
-    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const;
+    TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
 private:
     const TSlotLocationConfigPtr Config_;

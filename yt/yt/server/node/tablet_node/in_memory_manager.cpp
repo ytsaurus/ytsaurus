@@ -108,13 +108,16 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
+    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, buffer);
+
     i64 offset = 0;
 
     for (auto& block : blocks) {
-        auto slice = buffer.Slice(offset, offset + block.Data.Size());
+        // Slice the untracked and mutable buffer to avoid const_cast.
+        auto slice = TMutableRef(buffer).Slice(offset, offset + block.Data.Size());
         ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
+        block.Data = MarkUndumpable(trackedBuffer.Slice(offset, offset + block.Data.Size()));
         offset += block.Data.Size();
-        block.Data = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, std::move(slice));
     }
 }
 
@@ -124,25 +127,13 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     NChunkClient::TChunkId chunkId,
     NTabletClient::EInMemoryMode mode,
     int startBlockIndex,
-    std::vector<NChunkClient::TBlock> blocksWithCategory,
+    std::vector<NChunkClient::TBlock> blocks,
     const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
     const INodeMemoryTrackerPtr& memoryUsageTracker,
     const IMemoryUsageTrackerPtr& memoryTracker)
 {
-    CollocateInMemoryBlocks(blocksWithCategory, memoryUsageTracker);
-
-    std::vector<NChunkClient::TBlock> blocks;
-    blocks.reserve(blocksWithCategory.size());
-
-    for (const auto& block : blocksWithCategory) {
-        blocks.push_back(block);
-        blocks.back().Data = TrackMemory(memoryUsageTracker, EMemoryCategory::Unknown, block.Data);
-    }
-
-    for (auto& block : blocks) {
-        block.Data = MarkUndumpable(block.Data);
-    }
+    CollocateInMemoryBlocks(blocks, memoryUsageTracker);
 
     if (versionedChunkMeta->GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar &&
         mode == EInMemoryMode::Uncompressed)
@@ -153,7 +144,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
             : public NColumnarChunkFormat::IBlockDataProvider
         {
         public:
-            TBlockProvider(const std::vector<TBlock>& blocks)
+            explicit TBlockProvider(const std::vector<TBlock>& blocks)
                 : Blocks_(blocks)
             { }
 
@@ -198,8 +189,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
         versionedChunkMeta,
         lookupHashTable,
         std::move(metaMemoryTrackerGuard),
-        std::move(blocks),
-        std::move(blocksWithCategory));
+        std::move(blocks));
 }
 
 EBlockType GetBlockTypeFromInMemoryMode(EInMemoryMode mode)

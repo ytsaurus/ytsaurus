@@ -20,12 +20,14 @@ public:
     void Stop();
 
     TFuture<void> Sync(bool force = false);
+    TFuture<void> GetFirstSuccessfulSyncFuture();
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     bool Started_ = false;
     bool Stopped_ = false;
     TPromise<void> SyncPromise_ = NewPromise<void>();
+    TPromise<void> FirstSuccessfulSyncPromise_ = NewPromise<void>();
 
     TFuture<void> DoStart(TGuard<NThreading::TSpinLock>&& guard, bool syncImmediately);
     void OnSync();

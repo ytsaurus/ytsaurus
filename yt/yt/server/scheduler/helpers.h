@@ -75,7 +75,7 @@ struct TAllocationDescription
         EAllocationState State;
         std::string TreeId;
         bool Preempted;
-        TString PreemptionReason;
+        std::string PreemptionReason;
         TDuration PreemptionTimeout;
         TInstant PreemptibleProgressStartTime;
     };

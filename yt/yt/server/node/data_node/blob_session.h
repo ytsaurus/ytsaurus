@@ -54,7 +54,6 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
-        NNode::TLocationFairShareSlotPtr FairShareSlot;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();
@@ -90,12 +89,12 @@ private:
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
         bool enableCaching) override;
-    TFuture<NIO::TIOCounters> DoPerformPutBlocks(
+    TFuture<void> PreparePutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
-        bool enableCaching,
-        NNode::TLocationFairShareSlotPtr fairShareQueueSlot);
+        bool enableCaching);
+    void DoPerformPutBlocks(NNode::TLocationFairShareSlotPtr fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,

@@ -323,6 +323,8 @@ struct TPoolConfig
 
     std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
 
+    bool AllowChildrenGuarantees;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

@@ -2,6 +2,7 @@ package rpcclient
 
 import (
 	"context"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 
@@ -52,22 +53,25 @@ func (c *client) BeginTabletTx(
 	tx.InvokeMultiLookup = tx.doMultiLookup
 
 	tx.c = c
-
-	txTimeout := yson.Duration(c.conf.GetTxTimeout())
-
-	startOptions := &yt.StartTabletTxOptions{
-		Type:    yt.TxTypeTablet,
-		Sticky:  true,
-		Timeout: &txTimeout,
+	if opts == nil {
+		opts = &yt.StartTabletTxOptions{}
 	}
 
-	if opts != nil {
-		startOptions.Atomicity = opts.Atomicity
+	txTimeout := yson.Duration(c.conf.GetTxTimeout())
+	if opts.Timeout != nil {
+		txTimeout = *opts.Timeout
+	}
+
+	startOptions := &yt.StartTabletTxOptions{
+		Type:      yt.TxTypeTablet,
+		Sticky:    true,
+		Atomicity: opts.Atomicity,
+		Timeout:   &txTimeout,
 	}
 
 	tx.txID, tx.txStartTimestamp, err = tx.startTabletTx(ctx, startOptions)
 	tx.ctx = ctx
-	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.conf, c.stop, nil)
+	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, time.Duration(txTimeout), c.conf.GetTxPingPeriod(), c.stop, nil)
 
 	go tx.pinger.Run()
 

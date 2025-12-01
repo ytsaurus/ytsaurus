@@ -14,7 +14,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/client/transaction_client/public.h>
+// #include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -24,14 +24,12 @@
 
 namespace NYT::NControllerAgent {
 
-using namespace NApi;
 using namespace NChunkClient;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NScheduler;
-using namespace NSecurityClient;
-using namespace NTransactionClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -50,7 +48,7 @@ TString TrimCommandForBriefSpec(const TString& command)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr originalSpec)
+INodePtr UpdateSpec(INodePtr templateSpec, INodePtr originalSpec)
 {
     if (!templateSpec) {
         return originalSpec;
@@ -61,7 +59,7 @@ NYTree::INodePtr UpdateSpec(NYTree::INodePtr templateSpec, NYTree::INodePtr orig
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserFile::TUserFile(
-    NYPath::TRichYPath path,
+    TRichYPath path,
     std::optional<TTransactionId> transactionId,
     bool layer)
     : TUserObject(std::move(path), transactionId)
@@ -86,7 +84,7 @@ void TUserFile::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, Filesystem);
     PHOENIX_REGISTER_FIELD(11, AccessMethod);
     PHOENIX_REGISTER_FIELD(12, GpuCheck,
-        .SinceVersion(NControllerAgent::ESnapshotVersion::PrepareGpuCheckFSDuration));
+        .SinceVersion(ESnapshotVersion::PrepareGpuCheckFSDuration));
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);
@@ -94,7 +92,7 @@ PHOENIX_DEFINE_TYPE(TUserFile);
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpec(
-    NControllerAgent::NProto::TFileDescriptor* descriptor,
+    NProto::TFileDescriptor* descriptor,
     const TUserFile& file,
     bool copyFiles,
     bool enableBypassArtifactCache)
@@ -165,13 +163,13 @@ void BuildFileSpec(
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpecs(
-    NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    NProto::TUserJobSpec* jobSpec,
     const std::vector<TUserFile>& files,
     const TUserJobSpecPtr& config,
     bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
-        NControllerAgent::NProto::TFileDescriptor* descriptor;
+        NProto::TFileDescriptor* descriptor;
         if (file.GpuCheck) {
             descriptor = jobSpec->add_gpu_check_volume_layers();
         } else if (file.Layer) {
@@ -193,7 +191,7 @@ TString GetIntermediatePath(int streamIndex)
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const std::string& intermediateAccount,
-    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
+    const std::vector<TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     if (schemas.empty()) {
@@ -467,7 +465,7 @@ TPartitionTreeSkeleton BuildPartitionTreeSkeleton(int partitionCount, int maxPar
 
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+    const TMediumDirectoryPtr& mediumDirectory)
 {
     if (!diskRequestConfig->MediumName) {
         return CreateDiskQuotaWithoutMedium(diskRequestConfig->DiskSpace);

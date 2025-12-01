@@ -106,6 +106,8 @@ struct IUserSlot
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
 
+    virtual NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const = 0;
+
     virtual int GetSlotIndex() const = 0;
 
     virtual int GetUserId() const = 0;
@@ -145,7 +147,7 @@ struct IUserSlot
     //! Must be called before any action with slot.
     virtual void SetAllocationId(TAllocationId allocationId) = 0;
 
-    virtual void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
+    virtual TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserSlot)

@@ -271,7 +271,7 @@ private:
         if (auto maybeRowset = rowsetFuture.TryGetUnique()) {
             FinalizeSession(*maybeRowset);
         } else {
-            rowsetFuture.SubscribeUnique(BIND(
+            rowsetFuture.AsUnique().Subscribe(BIND(
                 &TFetchRowsSession::FinalizeSession,
                 MakeStrong(this)));
         }

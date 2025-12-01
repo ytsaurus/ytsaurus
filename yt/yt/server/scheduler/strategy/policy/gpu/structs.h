@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TAssignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): (!) Hide operation and node behind an interface so that
+// TODO(eshcherbin): Hide operation and node behind an interface so that
 // assignment plan update algorithm would not be able to change internal state.
 class TOperation final
 {
@@ -61,12 +61,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
     using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
-    DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, AssignmentCountPerGroup);
+    DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, EmptyAssignmentCountPerGroup);
 
+    // TODO(eshcherbin): (!) Support opportunistic jobs.
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
 
     // Works only for full-host module-bound operations and smaller gangs.
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<std::string>>, SpecifiedSchedulingModules);
+
+    DEFINE_BYREF_RO_PROPERTY(TSchedulingTagFilter, SchedulingTagFilter);
 
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Gang);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Starving);
@@ -83,8 +86,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
-    // TODO(eshcherbin): Should we consider that |ReadyToAssignGroupedNeededResources| is always equal to
-    // |InitialGroupedNeededResources| for full-host module-bound operations, which are not preemptible and have no assignments?
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
@@ -94,7 +95,8 @@ public:
         TOperationId id,
         EOperationType type,
         bool gang,
-        std::optional<THashSet<std::string>> specifiedSchedulingModules);
+        std::optional<THashSet<std::string>> specifiedSchedulingModules,
+        TSchedulingTagFilter schedulingTagFilter);
 
     void Initialize(const TAllocationGroupResourcesMap& initialGroupedNeededResources);
     bool IsInitialized() const;

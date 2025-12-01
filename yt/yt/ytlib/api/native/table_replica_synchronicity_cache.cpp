@@ -51,7 +51,7 @@ TFuture<TReplicaSynchronicitiesFetchResult> FetchChaosTableReplicaSynchronicitie
     return BIND(&GetSyncReplicationCard, connection, tableMountInfo->ReplicationCardId)
         .AsyncVia(GetCurrentInvoker())
         .Run()
-        .ApplyUnique(BIND([
+        .AsUnique().Apply(BIND([
             tableMountInfo,
             bannedReplicaTracker=connection->GetBannedReplicaTrackerCache()->GetTracker(tableMountInfo->TableId)
         ] (TReplicationCardPtr&& replicationCard) {
@@ -276,7 +276,7 @@ TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
     bool allowDummy)
 {
     return DoFetchReplicaSynchronicities(connection, tableMountInfo, options, allowDummy)
-        .ApplyUnique(BIND([] (TReplicaSynchronicitiesFetchResult&& result) {
+        .AsUnique().Apply(BIND([] (TReplicaSynchronicitiesFetchResult&& result) {
             return result.ReplicaSynchronicities;
         }));
 }

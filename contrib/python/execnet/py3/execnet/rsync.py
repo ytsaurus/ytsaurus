@@ -125,7 +125,7 @@ class RSync:
         if not self._channels:
             if raises:
                 raise OSError(
-                    "no targets available, maybe you " "are trying call send() twice?"
+                    "no targets available, maybe you are trying call send() twice?"
                 )
             return
         # normalize a trailing '/' away

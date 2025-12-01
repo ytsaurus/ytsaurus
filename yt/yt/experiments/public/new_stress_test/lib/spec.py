@@ -230,6 +230,14 @@ spec_template = {
         "max_failed_job_count": 1,
     },
 
+    "queue_and_hunk_storage": {
+        "unmount_probability": 0.2,
+        "change_hunk_storage_probability": 0.8,
+        "create_probability": 0.2,
+        "remove_probability": 0.2,
+        "flush_probability": 0.5,
+    },
+
     "replicated": {
         "min_sync_replicas": 1,
         "max_sync_replicas": None,

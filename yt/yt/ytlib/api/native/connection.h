@@ -205,13 +205,16 @@ public:
         bool operator == (const TKey& other) const;
     };
 
-    explicit TStickyGroupSizeCache(TDuration expirationTimeout);
+    TStickyGroupSizeCache(
+        TDuration expirationTimeout,
+        IInvokerPtr invoker);
 
     std::optional<int> UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
     std::optional<int> GetAdvisedStickyGroupSize(const TKey& key);
 
 private:
-    const TIntrusivePtr<TSyncExpiringCache<TKey, std::optional<int>>> AdvisedStickyGroupSize_;
+    using TUnderlying = TSyncExpiringCache<TKey, std::optional<int>>;
+    const TIntrusivePtr<TUnderlying> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
@@ -271,11 +274,19 @@ IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const std::optional<std::string>& clusterName);
 
-//! Synchornizes the directory (once) and retries the lookup if
-//! the cluster is missing in the directory at the moment.
+DEFINE_ENUM(EInsistentGetRemoteConnectionMode,
+    (Sync)
+    (WaitFirstSuccessfulSync)
+);
+
+//! Lookup cluster in directory, if cluster is missing wait for sync then retry lookup (once).
+//! `mode` parameter controls how waiting is done
+//!    - SyncOutOfBound -- run sync out of bound sync immediately.
+//!    - WaitFirstSuccessfulSync -- wait until
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName);
+    const std::string& clusterName,
+    EInsistentGetRemoteConnectionMode mode = EInsistentGetRemoteConnectionMode::Sync);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,

@@ -296,7 +296,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
             getCardOptions.BypassCache = true;
             static_cast<TReplicationCardFetchOptions&>(getCardOptions) = extendedFetchOptions;
 
-            Client_->GetReplicationCard(replicationCardId, getCardOptions).SubscribeUnique(
+            Client_->GetReplicationCard(replicationCardId, getCardOptions).AsUnique().Subscribe(
                 BIND([
                     requestId,
                     cache = Cache_,
@@ -435,7 +435,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
     auto futureCard = ReplicationCardUpdatesBatcher_->AddReplicationCardProgressesUpdate(std::move(
         replicationProgressUpdate));
 
-    auto futureResponse = futureCard.ApplyUnique(BIND([context, response] (TReplicationCardPtr&& card) {
+    auto futureResponse = futureCard.AsUnique().Apply(BIND([context, response] (TReplicationCardPtr&& card) {
         if (card) {
             ToProto(response->mutable_replication_card(), *card);
         }
@@ -461,7 +461,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
 
     auto futureAllCardsUpdated = AllSet(std::move(futureCards));
 
-    auto futureUpdateResult = futureAllCardsUpdated.ApplyUnique(BIND(
+    auto futureUpdateResult = futureAllCardsUpdated.AsUnique().Apply(BIND(
         [
             context,
             response,

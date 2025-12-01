@@ -32,7 +32,7 @@ $ pip install ytsaurus-spyt[all]
 ```bash
 $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-executors 5 --queue research yt:/<path to .py file or .jar file on cypress>
 ```
-При использовании локальных файлов:
+При использовании [локальных файлов](../../../../user-guide/data-processing/spyt/direct-submit/desc.md#submit-local):
 ```bash
 $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-executors 5 --queue research <path to .py file or .jar file on local drive>
 ```
@@ -43,12 +43,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 
 Назначение остальных опций соответствует их описанию в документации `spark-submit` (полный список выводится по команде `spark-submit --help`). Можно использовать почти все доступные опции за исключением следующих:
 
-- `--conf spark.dynamicAllocation.enabled` — в настоящий момент поддержка динамического выделения ресурсов не реализована, поэтому эту опцию лучше не выставлять в `true`;
-- `--py-files, --files, --archives` — с локальными файлами не работают, можно использовать только те, которые были предварительно загружены в Кипарис.
-
-Для использования History server в этом режиме его необходимо поднять отдельно согласно [инструкции](../../../../user-guide/data-processing/spyt/cluster/shs.md). Для получения диагностической информации также можно воспользоваться логами {{product-name}} операций. Следует учесть следующее:
-- Доступны только логи, которые пишутся в stderr, поэтому нужно сделать соответствующие настройки логирования в запускаемом Spark приложении.
-- В настоящий момент драйвер и экзекьюторы запускаются в разных {{product-name}} операциях, соответственно логи нужно смотреть и в той, и в другой.
+- `--files, --archives` — с локальными файлами не работают, можно использовать только те, которые были предварительно загружены в Кипарис.
 
 Конфигурационные параметры, доступные при запуске задач напрямую, можно найти [здесь](../../../../user-guide/data-processing/spyt/thesaurus/configuration.md#direct-submit)
 
@@ -57,19 +52,6 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 Начиная с версии Spark 3.4.0 при использовании сети с IPv6 адресами необходимо устанавливать переменную окружения `SPARK_PREFER_IPV6=true`
 
 {% endnote %}
-
-## Выполнение локальных файлов { #submit-local }
-
-Начиная с версии SPYT 2.4.0 при запуске задач напрямую в {{product-name}} можно указывать локальные файлы в качестве исполняемых модулей и зависимостей без их предварительной загрузки на Кипарис. В этом случае локальные файлы будут предварительно загружены в файловый кеш на Кипарисе и затем будут оттуда использованы в приложении. При повторном запуске будут использоваться уже закешированные файлы. Пример команды `spark-submit` для данного способа приведен ниже:
-
-```bash
-spark-submit --master ytsaurus://<cluster name> \
-             --deploy-mode cluster \
-             --num-executors 5 \
-             --executor-cores 4 \
-             --py-files ~/path/to/my/dependencies.py \
-             ~/path/to/my/script.py
-```
 
 ## Запуск standalone Spark кластера { #standalone }
 

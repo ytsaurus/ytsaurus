@@ -369,7 +369,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentType,
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentType, TJobEnvironmentConfigBase,
     ((Base)         (TJobEnvironmentConfigBase))
     ((Simple)     (TSimpleJobEnvironmentConfig))
     ((Porto)       (TPortoJobEnvironmentConfig))
@@ -540,6 +540,11 @@ struct TJobProxyInternalConfig
     bool EnablePerClusterChunkReaderStatistics;
     bool DumpSingleLocalClusterStatistics;
 
+    bool EnableGrpcServer;
+
+    NRpc::NGrpc::TServerConfigPtr GrpcServer;
+    TJobApiServiceConfigPtr JobApiService;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -589,12 +594,26 @@ struct TJobProxyDynamicConfig
     bool EnablePerClusterChunkReaderStatistics;
     bool DumpSingleLocalClusterStatistics;
 
+    bool EnableGrpcServer;
+
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobApiServiceConfig
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TJobApiServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobApiServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

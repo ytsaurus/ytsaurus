@@ -611,7 +611,7 @@ public:
         return tablet
             ->GetStoresUpdateCommitSemaphore()
             ->AsyncAcquire()
-            .ApplyUnique(
+            .AsUnique().Apply(
                 BIND(
                     ThrowOnDestroyed(&TTabletManager::OnStoresUpdateCommitSemaphoreAcquired),
                     MakeWeak(this),
@@ -3197,7 +3197,12 @@ private:
 
         auto reader = CreateWireProtocolReader(
             TSharedRef::FromString(request->sample_keys()),
-            New<TRowBuffer>(TSampleKeyListTag()));
+            New<TRowBuffer>(
+                TSampleKeyListTag(),
+                TChunkedMemoryPool::DefaultStartChunkSize,
+                Bootstrap_
+                    ->GetNodeMemoryUsageTracker()
+                    ->WithCategory(EMemoryCategory::TabletInternal)));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();

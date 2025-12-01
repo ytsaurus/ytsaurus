@@ -475,9 +475,9 @@ public:
 
         int lastVersion;
         while (true) {
-            auto [currentVersion, schema, mounted] = GetLatestTableInfo();
+            auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
 
-            if (currentVersion == -1 || schema != Schema_) {
+            if (currentVersion == -1 || schema != Schema_ || tabletCount != Config_->CreateTableTabletCount) {
                 ++currentVersion;
                 CreateVersionedTable(currentVersion);
                 mounted = MountVersionedTable(currentVersion);
@@ -570,6 +570,7 @@ private:
     {
         int Version = -1;
         TTableSchema Schema;
+        int TabletCount;
         bool Mounted = false;
     };
 
@@ -578,7 +579,7 @@ private:
         YT_LOG_DEBUG("Getting latest Cypress table info");
 
         TGetNodeOptions options;
-        options.Attributes = {"key", "schema", "tablet_state"};
+        options.Attributes = {"key", "schema",  "tablet_count", "tablet_state"};
 
         auto resultOrError = WaitFor(Client_->GetNode(GetLatestTablePath() + "/@", options));
 
@@ -591,13 +592,15 @@ private:
 
         int version = FromString<int>(result->GetChildValueOrThrow<TString>("key"));
         auto schema = result->GetChildValueOrThrow<TTableSchema>("schema");
+        int tabletCount = result->GetChildValueOrThrow<int>("tablet_count");
         bool mounted = (result->GetChildValueOrThrow<ETabletState>("tablet_state") == ETabletState::Mounted);
 
-        YT_LOG_DEBUG("Got latest Cypress table info (Version: %v, Mounted: %v)",
+        YT_LOG_DEBUG("Got latest Cypress table info (Version: %v, TabletCount: %v, Mounted: %v)",
             version,
+            tabletCount,
             mounted);
 
-        return {version, std::move(schema), mounted};
+        return {version, std::move(schema), tabletCount, mounted};
     }
 
     void CreateVersionedTable(int version)
@@ -617,6 +620,7 @@ private:
         attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
         attributes->Set("dynamic", true);
         attributes->Set("schema", Schema_);
+        attributes->Set("tablet_count", Config_->CreateTableTabletCount);
 
         options = {};
         options.Attributes = attributes;

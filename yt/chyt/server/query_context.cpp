@@ -433,92 +433,40 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
 
     SortUnique(pathsToFetch);
 
-    // Add attributes to ObjectAttributesSnapshot_.
-    auto addToSnapshot = [this] (std::vector<TYPath>&& paths, std::vector<TErrorOr<IAttributeDictionaryPtr>>&& attributes) {
-        YT_VERIFY(paths.size() == attributes.size());
-        for (size_t index = 0; index < paths.size(); ++index) {
-            ObjectAttributesSnapshot_.emplace(std::move(paths[index]), std::move(attributes[index]));
-        }
-    };
-
     if (CreatedTablePath && pathsToFetch.size() == 1 && pathsToFetch.front() == CreatedTablePath) {
         // Special case when ClickHouse fetches the table created in the current query.
         // This table exists only in the write transaction so far.
         auto attributes = FetchTableAttributes(pathsToFetch, WriteTransactionId);
-        addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+
+        // NB(coteeq): We do not do a preliminary permission check, because
+        // the permission here is always 'write' and RLS does not affect writes.
+        AddAttributesToSnapshot(
+            std::move(pathsToFetch),
+            std::move(attributes),
+            {TErrorOr(EPreliminaryCheckPermissionResult::RowLevelAceNotPresent)});
     } else if (QueryKind == EQueryKind::InitialQuery) {
-        auto lockMode = Settings->Execution->TableReadLockMode;
-
-        if (lockMode == ETableReadLockMode::Sync) {
-            // To speed up fetching, we fetch attributes and acquire snapshot locks in parallel.
-            // It may lead to inconsistency if we fetch attributes before locking the node,
-            // but we can detect it via revision attribute and refetch such paths.
-            auto locksFuture = DoAcquireSnapshotLocks(pathsToFetch);
-            auto attributesFuture = FetchTableAttributesAsync(pathsToFetch, NullTransactionId);
-
-            WaitForFast(AllSucceeded(std::vector{locksFuture.AsVoid(), attributesFuture.AsVoid()}))
-                .ThrowOnError();
-
-            SaveQueryReadTransaction();
-
-            auto locks = locksFuture.Get().Value();
-            auto attributes = attributesFuture.Get().Value();
-
-            std::vector<TYPath> pathsToRefetch;
-
-            for (size_t index = 0; index < pathsToFetch.size(); ++index) {
-                if (!locks[index].IsOK()) {
-                    ObjectAttributesSnapshot_.emplace(pathsToFetch[index], TError(locks[index]));
-                } else {
-                    auto lock = locks[index].Value();
-                    SnapshotLocks.emplace(pathsToFetch[index], lock);
-
-                    if (!attributes[index].IsOK()) {
-                        // Successfully locked, but got an error during fetching attributes.
-                        // Probably the table has been deleted. Need to refetch under the transaction.
-                        pathsToRefetch.push_back(pathsToFetch[index]);
-                    } else {
-                        auto id = attributes[index].Value()->Get<TObjectId>("id", NullObjectId);
-                        auto revision = attributes[index].Value()->Get<TRevision>("revision", NullRevision);
-
-                        if (id == lock.NodeId && revision == lock.Revision) {
-                            ObjectAttributesSnapshot_.emplace(pathsToFetch[index], attributes[index]);
-                        } else {
-                            // Object has changed. Need to refetch under the transaction.
-                            pathsToRefetch.push_back(pathsToFetch[index]);
-                        }
-                    }
-                }
+        switch (Settings->Execution->TableReadLockMode) {
+            case ETableReadLockMode::Sync: {
+                LockAndFetchAttributesSync(pathsToFetch);
+                break;
             }
-
-            // Finally, if we detected node changes, we need to refetch them again under the transaction.
-            if (!pathsToRefetch.empty()) {
-                auto attributes = FetchTableAttributes(pathsToRefetch, ReadTransactionId);
-                addToSnapshot(std::move(pathsToRefetch), std::move(attributes));
+            case ETableReadLockMode::BestEffort: {
+                LockAndFetchAttributesBestEffort(pathsToFetch);
+                break;
             }
-        } else { // lockMode == ETableReadLockMode::None || lockMode == ETableReadLockMode::BestEffort
-            auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
-
-            if (lockMode == ETableReadLockMode::BestEffort) {
-                std::vector<TYPath> pathsToLock;
-
-                for (size_t index = 0; index < pathsToFetch.size(); ++index) {
-                    if (attributes[index].IsOK() && attributes[index].Value()->Get<bool>("dynamic", false)) {
-                        pathsToLock.push_back(pathsToFetch[index]);
-                    }
-                }
-
-                // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
-                YT_UNUSED_FUTURE(DoAcquireSnapshotLocks(pathsToLock));
-                // But we do need to remember locks not to lock paths twice and to know whether to read
-                // a table under the transaction or not on worker instances.
-                // The exact lock value (node id/revision) matters only for Sync mode.
-                for (const auto& path : pathsToLock) {
-                    SnapshotLocks.emplace(path, TObjectLock{});
-                }
+            case ETableReadLockMode::None: {
+                auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
+                auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+                auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+                    .ValueOrThrow();
+                AddAttributesToSnapshot(
+                    std::move(pathsToFetch),
+                    std::move(attributes),
+                    std::move(preliminaryCheckPermissionResults));
+                break;
             }
-
-            addToSnapshot(std::move(pathsToFetch), std::move(attributes));
+            default:
+                YT_ABORT();
         }
     } else { // QueryKind == EQueryKind::SecondaryQuery || QueryKind == EQueryKind::NoQuery
         std::vector<TYPath> pathsToFetchFromCache;
@@ -534,20 +482,65 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             }
         }
 
+        auto userToCheckPermissionsFor = [&] {
+            if (User != "") {
+                return User;
+            }
+            // NB(coteeq): If we do not have a user at hand, use CHYT user from config
+            // (aka "yt-clickhouse"). This is only the case for a dictionary.
+            YT_VERIFY(QueryKind == EQueryKind::NoQuery);
+            auto rootUser = Client()->GetOptions().User;
+            YT_VERIFY(rootUser);
+            return TString(*rootUser);
+        }();
+
         auto attributesUnderTxFuture = FetchTableAttributesAsync(pathsToFetchUnderTx, ReadTransactionId);
+        // NB(coteeq): ACL always lives in the trunk, so we do not care about transactionality for permission checks.
+        // The separate checks are performed so we can match check results and attributes.
+        auto preliminaryCheckPermissionResultsFromCacheFuture = Host->PreliminaryCheckPermissions(
+            pathsToFetchFromCache,
+            userToCheckPermissionsFor);
+        auto preliminaryCheckPermissionResultsUnderTxFuture = Host->PreliminaryCheckPermissions(
+            pathsToFetchUnderTx,
+            userToCheckPermissionsFor);
+
         auto attributesFromCache = Host->GetObjectAttributes(pathsToFetchFromCache, Client());
-        auto attributesUnderTx = WaitForUniqueFast(attributesUnderTxFuture)
+
+        WaitFor(
+            AllSucceeded(
+                std::vector({
+                    attributesUnderTxFuture.AsVoid(),
+                    preliminaryCheckPermissionResultsFromCacheFuture.AsVoid(),
+                    preliminaryCheckPermissionResultsUnderTxFuture.AsVoid(),
+                })))
+            .ThrowOnError();
+
+        auto attributesUnderTx = attributesUnderTxFuture
+            .GetUnique()
             .ValueOrThrow();
 
-        addToSnapshot(std::move(pathsToFetchFromCache), std::move(attributesFromCache));
-        addToSnapshot(std::move(pathsToFetchUnderTx), std::move(attributesUnderTx));
+        auto preliminaryCheckPermissionResultsFromCache = preliminaryCheckPermissionResultsFromCacheFuture
+            .GetUnique()
+            .ValueOrThrow();
+        auto preliminaryCheckPermissionResultsUnderTx = preliminaryCheckPermissionResultsUnderTxFuture
+            .GetUnique()
+            .ValueOrThrow();
+
+        AddAttributesToSnapshot(
+            std::move(pathsToFetchFromCache),
+            std::move(attributesFromCache),
+            std::move(preliminaryCheckPermissionResultsFromCache));
+        AddAttributesToSnapshot(
+            std::move(pathsToFetchUnderTx),
+            std::move(attributesUnderTx),
+            std::move(preliminaryCheckPermissionResultsUnderTx));
     }
 
     std::vector<TErrorOr<IAttributeDictionaryPtr>> result;
     result.reserve(paths.size());
 
     for (const auto& path : paths) {
-        result.push_back(ObjectAttributesSnapshot_.at(path));
+        result.push_back(GetOrCrash(ObjectAttributesSnapshot_, path));
 
         const auto& attributesOrError = result.back();
         if (attributesOrError.IsOK()) {
@@ -671,7 +664,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLock
         {
             return DoAcquireSnapshotLocksAsync(pathsToLock, client, tx.Transaction->GetId(), logger);
         }))
-        .ApplyUnique(BIND([notSet = std::move(notSet), result = std::move(result)]
+        .AsUnique().Apply(BIND([notSet = std::move(notSet), result = std::move(result)]
             (std::vector<TErrorOr<TObjectLock>>&& newLocks) mutable
         {
             size_t curLock = 0;
@@ -684,6 +677,169 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLock
             YT_VERIFY(curLock == newLocks.size());
             return result;
         }));
+}
+
+void TQueryContext::LockAndFetchAttributesSync(std::vector<TYPath> pathsToFetch)
+{
+    // To speed up fetching, we fetch attributes and acquire snapshot locks in parallel.
+    // It may lead to inconsistency if we fetch attributes before locking the node,
+    // but we can detect it via revision attribute and refetch such paths.
+    auto locksFuture = DoAcquireSnapshotLocks(pathsToFetch);
+    auto attributesFuture = FetchTableAttributesAsync(pathsToFetch, NullTransactionId);
+    auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
+
+    WaitForFast(
+        AllSucceeded(
+            std::vector{
+                locksFuture.AsVoid(),
+                attributesFuture.AsVoid(),
+                preliminaryCheckPermissionResultsFuture.AsVoid(),
+            }))
+        .ThrowOnError();
+
+    SaveQueryReadTransaction();
+
+    auto locks = locksFuture.Get().Value();
+    auto attributes = attributesFuture.Get().Value();
+    auto preliminaryCheckPermissionResults = preliminaryCheckPermissionResultsFuture.Get().Value();
+
+    std::vector<TYPath> pathsToRefetch;
+    std::vector<TErrorOr<EPreliminaryCheckPermissionResult>> preliminaryResultsForRefetchedPaths;
+
+    auto addToRefetch = [&] (int index) {
+        YT_VERIFY(preliminaryCheckPermissionResults[index].IsOK());
+        pathsToRefetch.push_back(std::move(pathsToFetch[index]));
+        preliminaryResultsForRefetchedPaths.push_back(std::move(preliminaryCheckPermissionResults[index]));
+    };
+
+    for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+        if (!preliminaryCheckPermissionResults[index].IsOK()) {
+            AddAttributesToSnapshot(
+                std::move(pathsToFetch[index]),
+                std::move(attributes[index]),
+                std::move(preliminaryCheckPermissionResults[index]));
+        } else if (!locks[index].IsOK()) {
+            AddAttributesToSnapshot(
+                std::move(pathsToFetch[index]),
+                std::move(TError(locks[index])),
+                std::move(preliminaryCheckPermissionResults[index]));
+        } else {
+            auto lock = locks[index].Value();
+            SnapshotLocks.emplace(pathsToFetch[index], lock);
+
+            if (!attributes[index].IsOK()) {
+                // Successfully locked, but got an error during fetching attributes.
+                // Probably the table has been deleted. Need to refetch under the transaction.
+                addToRefetch(index);
+            } else {
+                auto id = attributes[index].Value()->Get<TObjectId>("id", NullObjectId);
+                auto revision = attributes[index].Value()->Get<TRevision>("revision", NullRevision);
+
+                if (id == lock.NodeId && revision == lock.Revision) {
+                    AddAttributesToSnapshot(
+                        std::move(pathsToFetch[index]),
+                        std::move(attributes[index]),
+                        std::move(preliminaryCheckPermissionResults[index]));
+                } else {
+                    // Object has changed. Need to refetch under the transaction.
+                    addToRefetch(index);
+                }
+            }
+        }
+    }
+
+    YT_VERIFY(pathsToRefetch.size() == preliminaryResultsForRefetchedPaths.size());
+
+    // Finally, if we detected node changes, we need to refetch them again under the transaction.
+    if (!pathsToRefetch.empty()) {
+        auto attributes = FetchTableAttributes(pathsToRefetch, ReadTransactionId);
+        AddAttributesToSnapshot(
+            std::move(pathsToRefetch),
+            std::move(attributes),
+            std::move(preliminaryResultsForRefetchedPaths));
+    }
+}
+
+void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsToFetch)
+{
+    auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
+    auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
+    std::vector<TYPath> pathsToLock;
+
+    for (size_t index = 0; index < pathsToFetch.size(); ++index) {
+        if (attributes[index].IsOK() && attributes[index].Value()->Get<bool>("dynamic", false)) {
+            pathsToLock.push_back(pathsToFetch[index]);
+        }
+    }
+
+    // In best_effort mode we acquire locks for dynamic tables asynchronously and do not wait for them.
+    YT_UNUSED_FUTURE(DoAcquireSnapshotLocks(pathsToLock));
+    // But we do need to remember locks not to lock paths twice and to know whether to read
+    // a table under the transaction or not on worker instances.
+    // The exact lock value (node id/revision) matters only for Sync mode.
+    for (const auto& path : pathsToLock) {
+        SnapshotLocks.emplace(path, TObjectLock{});
+    }
+
+    auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+            .ValueOrThrow();
+    AddAttributesToSnapshot(
+        std::move(pathsToFetch),
+        std::move(attributes),
+        std::move(preliminaryCheckPermissionResults));
+}
+
+void TQueryContext::AddAttributesToSnapshot(
+    TYPath path,
+    TErrorOr<IAttributeDictionaryPtr> attributes,
+    TErrorOr<EPreliminaryCheckPermissionResult> preliminaryCheckPermissionResult)
+{
+    if (!preliminaryCheckPermissionResult.IsOK()) {
+        ObjectAttributesSnapshot_.emplace(std::move(path), TError(std::move(preliminaryCheckPermissionResult)));
+    } else {
+        switch (preliminaryCheckPermissionResult.Value()) {
+            case EPreliminaryCheckPermissionResult::RowLevelAceNotPresent: {
+                ObjectAttributesSnapshot_.emplace(std::move(path), std::move(attributes));
+                break;
+            }
+            case EPreliminaryCheckPermissionResult::ResolveError:
+                // NB(coteeq): If preliminary check ended up with a resolve error,
+                // the trunk node must have been deleted and we have no chance to
+                // actually check RLS permissions (and get predicates for a user).
+                // So we just log the error and move on, hoping that this attack
+                // vector is unpopular enough.
+                // TODO(coteeq): We can actually save effective ACL in the lock
+                // object on master and use it to check permissions.
+                YT_LOG_WARNING(
+                    "Table was removed in trunk between locking and checking permissions (Path: %v)",
+                    path);
+                [[fallthrough]];
+            case EPreliminaryCheckPermissionResult::RowLevelAcePresent: {
+                if (attributes.IsOK()) {
+                    // Force reset row count, to disable "trivial count()" optimization.
+                    // This will make CH do a full scan for a simple "SELECT count() FROM ...",
+                    // but that is exactly what we want in case of RLS.
+                    attributes.Value()->Remove("row_count");
+                }
+                ObjectAttributesSnapshot_.emplace(std::move(path), std::move(attributes));
+            }
+        }
+    }
+}
+
+void TQueryContext::AddAttributesToSnapshot(
+    std::vector<TYPath>&& paths,
+    std::vector<TErrorOr<IAttributeDictionaryPtr>>&& attributes,
+    std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>&& preliminaryCheckPermissionResults)
+{
+    YT_VERIFY(paths.size() == attributes.size());
+    YT_VERIFY(paths.size() == preliminaryCheckPermissionResults.size());
+    for (size_t index = 0; index < paths.size(); ++index) {
+        AddAttributesToSnapshot(
+            std::move(paths[index]),
+            std::move(attributes[index]),
+            std::move(preliminaryCheckPermissionResults[index]));
+    }
 }
 
 TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
@@ -873,6 +1029,12 @@ void TQueryContext::SetReadTaskCallback(DB::ReadTaskCallback readTaskCallback)
         return;
     }
     ReadTaskPuller_ = New<TSecondaryQueryReadTaskPuller>(this, std::move(readTaskCallback));
+}
+
+void TQueryContext::RegisterOperandReadTasks(int operandIndex, std::vector<TSecondaryQueryReadDescriptors>&& tasks)
+{
+    YT_VERIFY(ReadTaskPuller_);
+    ReadTaskPuller_->RegisterOperand(operandIndex, std::move(tasks));
 }
 
 TCallback<TFuture<TSecondaryQueryReadDescriptors>()> TQueryContext::GetOperandReadTaskCallback(int operandIndex) const

@@ -68,7 +68,7 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const T
     static_cast<TMasterReadOptions&>(options) = *config->CypressReadOptions;
     auto result = Client_->GetNode(keyNodePath, options);
 
-    return result.ApplyUnique(BIND([] (TYsonString&& str) {
+    return result.AsUnique().Apply(BIND([] (TYsonString&& str) {
         auto keyInfo = ConvertTo<TKeyInfoPtr>(std::move(str));
         auto [ownerId, keyId] = std::visit([] (const auto& meta) {
             return std::pair(meta.OwnerId, meta.KeyId);
@@ -198,7 +198,7 @@ TFuture<void> TCypressKeyWriter::DoRegisterKey(TCypressKeyWriterConfigPtr config
     options.Attributes = std::move(attributes);
     options.Recursive = true;
     return Client_->CreateNode(keyNodePath, EObjectType::Document, options)
-        .ApplyUnique(BIND([this, keyInfoYson = ConvertToYsonString(keyInfo), keyNodePath = std::move(keyNodePath), this_ = MakeStrong(this)] (TNodeId&& /*nodeId*/) {
+        .AsUnique().Apply(BIND([this, keyInfoYson = ConvertToYsonString(keyInfo), keyNodePath = std::move(keyNodePath), this_ = MakeStrong(this)] (TNodeId&& /*nodeId*/) {
             return Client_->SetNode(keyNodePath, keyInfoYson);
         }))
         .Apply(BIND([ownerId = std::move(ownerId), keyId = std::move(keyId)] (const TError& error) {

@@ -482,6 +482,7 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRestarted, MakeWeak(this)));
+        nodeTracker->SubscribeNodeHostChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeHostChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeRackChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDataCenterChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
@@ -2612,9 +2613,10 @@ private:
 
         if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
             YT_LOG_ALERT(
-                "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v)",
+                "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v, NodeAddress: %v)",
                 chunkId,
-                node->GetId());
+                node->GetId(),
+                node->GetDefaultAddress());
             return nullptr;
         }
 
@@ -2624,7 +2626,7 @@ private:
             if (location->GetNode() == nullptr) {
                 YT_LOG_ALERT(
                     "Chunk location without a node encountered "
-                    "(LocationUuid: %v, NodeId: %v, Address: %v)",
+                    "(LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
                     locationUuid,
                     node->GetId(),
                     node->GetDefaultAddress());
@@ -2636,9 +2638,10 @@ private:
 
         YT_LOG_DEBUG(
             "Chunk confirmation request has invalid location UUID "
-            "(ChunkId: %v, NodeId: %v, LocationUuid: %v)",
+            "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
             chunkId,
             node->GetId(),
+            node->GetDefaultAddress(),
             locationUuid);
 
         return nullptr;
@@ -2856,22 +2859,25 @@ private:
 
             // TODO(aleksandra-zh): maybe all of this is normal for some reason and we should just dispose it, idk
             if (!location->Replicas().empty()) {
-                YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
+                YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, NodeAddress: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     location->GetEffectiveMediumIndex(),
                     location->Replicas().size());
                 DisposeLocation(location);
             }
             if (!location->UnapprovedReplicas().empty()) {
-                YT_LOG_ALERT("Cleared location still has unapproved replicas (NodeId: %v, LocationMediumIndex: %v, UnapprovedReplicasCount: %v)",
+                YT_LOG_ALERT("Cleared location still has unapproved replicas (NodeId: %v, NodeAddress: %v, LocationMediumIndex: %v, UnapprovedReplicasCount: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     location->GetEffectiveMediumIndex(),
                     location->UnapprovedReplicas().size());
                 DisposeLocation(location);
             }
             if (auto count = location->GetDestroyedReplicasCount()) {
-                YT_LOG_ALERT("Cleared location still has destroyed replicas (NodeId: %v, LocationMediumIndex: %v, DestroyedReplicasCount: %v)",
+                YT_LOG_ALERT("Cleared location still has destroyed replicas (NodeId: %v, NodeAddress: %v, LocationMediumIndex: %v, DestroyedReplicasCount: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     location->GetEffectiveMediumIndex(),
                     count);
                 DisposeLocation(location);
@@ -2941,6 +2947,11 @@ private:
         }
 
         ChunkPlacement_->OnNodeUpdated(node);
+    }
+
+    void OnNodeHostChanged(TNode* node, THost* /*oldHost*/)
+    {
+        OnNodeChanged(node);
     }
 
     void OnNodeRackChanged(TNode* node, TRack* /*oldRack*/)
@@ -3159,7 +3170,7 @@ private:
                 if (GetDynamicConfig()->DataNodeTracker->VerifyAllLocationsAreReportedInFullHeartbeats ||
                     location->GetState() == EChunkLocationState::Restarted) {
                     THROW_ERROR_EXCEPTION(
-                        "Node has not reported all locations, location %v has %v state",
+                        "Node has not reported all locations, location %v has %Qlv state",
                         location->GetUuid(),
                         location->GetState());
                 } else {
@@ -3465,12 +3476,14 @@ private:
             if (!IsObjectAlive(chunk)) {
                 // If the chunk is destroyed, all replicas for this chunk should be removed from location in TChunkManager::DestroyChunk.
                 YT_LOG_ALERT(
-                    "Restarted location has dead chunk replica (NodeId: %v, LocationUuid: %v)",
+                    "Restarted location has dead chunk replica (NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     location->GetUuid());
                 THROW_ERROR_EXCEPTION(
                     "Restarted location has dead chunk replica")
                     << TErrorAttribute("node_id", node->GetId())
+                    << TErrorAttribute("node_address", node->GetDefaultAddress())
                     << TErrorAttribute("location_uuid", location->GetUuid());
             }
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
@@ -3485,8 +3498,9 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
             if (chunkInfo.caused_by_medium_change()) {
                 YT_LOG_ALERT(
-                    "Chunk is added after node restart caused by medium change (NodeId: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    "Chunk is added after node restart caused by medium change (NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     chunkIdWithIndex.Id,
                     chunkIdWithIndex.ReplicaIndex);
                 continue;
@@ -3494,7 +3508,8 @@ private:
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndex.Id)) {
                 YT_LOG_ALERT(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeId: %v, NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    node->GetId(),
                     node->GetDefaultAddress(),
                     location->GetUuid(),
                     chunkIdWithIndex.Id,
@@ -3502,6 +3517,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Processing restarted location Sequoia chunk in non-Sequoia way")
                     << TErrorAttribute("node_id", node->GetId())
+                    << TErrorAttribute("node_address", node->GetDefaultAddress())
                     << TErrorAttribute("location_uuid", location->GetUuid())
                     << TErrorAttribute("chunk_id", chunkIdWithIndex.Id)
                     << TErrorAttribute("replica_index", chunkIdWithIndex.ReplicaIndex);
@@ -3603,8 +3619,9 @@ private:
             auto locationIndex = FromProto<TChunkLocationIndex>(chunkInfo.location_index());
             auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
             if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT("Dead location found when adding chunk replica (NodeId: %v, LocationIndex: %v, ChunkId: %v)",
+                YT_LOG_ALERT("Dead location found when adding chunk replica (NodeId: %v, NodeAddress: %v, LocationIndex: %v, ChunkId: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     locationIndex,
                     chunkId);
                     continue;
@@ -3640,8 +3657,9 @@ private:
             auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
 
             if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT("Dead location found when removing chunk replica (NodeId: %v, LocationIndex: %v, ChunkId: %v)",
+                YT_LOG_ALERT("Dead location found when removing chunk replica (NodeId: %v, NodeAddress: %v, LocationIndex: %v, ChunkId: %v)",
                     node->GetId(),
+                    node->GetDefaultAddress(),
                     locationIndex,
                     FromProto<TChunkId>(chunkInfo.chunk_id()));
                     continue;
@@ -5854,8 +5872,9 @@ private:
             // If node is offline or being disposed, we might have already cleared the corresponding location and
             // adding destroyed replica there again will just get it stuck there.
             if (!node->HasAliveLocalState()) {
-                YT_LOG_DEBUG("Skip adding replica to destroyed set as node is neither online nor registered (NodeId: %v, State: %v, ChunkId: %v)",
+                YT_LOG_DEBUG("Skip adding replica to destroyed set as node is neither online nor registered (NodeId: %v, NodeAddress: %v, State: %v, ChunkId: %v)",
                     replica.NodeId,
+                    node->GetDefaultAddress(),
                     node->GetLocalState(),
                     replica.ChunkId);
                 continue;

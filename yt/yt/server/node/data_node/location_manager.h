@@ -79,6 +79,7 @@ private:
     NThreading::TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
     NThreading::TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
     NThreading::TAtomicObject<std::vector<std::string>> FailedUnlinkedDiskIds_;
+    NThreading::TAtomicObject<std::vector<NDiskManager::TDiskInfo>> CachedDiskInfos_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 

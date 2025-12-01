@@ -337,7 +337,7 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
         NameTable_,
         MakeSharedRange(std::move(lookupKeys), RowBuffer_),
         options)
-        .ApplyUnique(BIND([&, this_ = MakeStrong(this)] (TSharedRange<TUnversionedRow>&& result) {
+        .AsUnique().Apply(BIND([&, this_ = MakeStrong(this)] (TSharedRange<TUnversionedRow>&& result) {
             SetInitialAndResultingRows(result);
         }));
 }
@@ -439,7 +439,7 @@ TFuture<void> TSecondaryIndexModifier::OnIndexModifications(std::function<void(
     for (int index = 0; index < std::ssize(IndexTableMountInfos_); ++index) {
         modificationRequestEvents.push_back(
             ProduceModificationsForIndex(index)
-                .ApplyUnique(BIND([
+                .AsUnique().Apply(BIND([
                     this,
                     this_ = MakeStrong(this),
                     index,
@@ -764,7 +764,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
         NameTable_,
         MakeSharedRange(indexKeys),
         options)
-        .ApplyUnique(BIND([
+        .AsUnique().Apply(BIND([
             uniqueIndexPath,
             extraIndexKeys = std::move(extraIndexKeys),
             indexKeys = std::move(indexKeys),
@@ -855,7 +855,7 @@ std::function<TLookupSignature> MakeLookuper(ITransactionPtr transaction)
         TLookupRowsOptions options)
     {
         return transaction->LookupRows(path, nameTable, keys, options)
-            .ApplyUnique(BIND([] (TUnversionedLookupRowsResult&& result) {
+            .AsUnique().Apply(BIND([] (TUnversionedLookupRowsResult&& result) {
                 return result.Rowset->GetRows();
             }));
     };

@@ -88,58 +88,51 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         Response_.RowLevelAcl.emplace();
     }
 
-    for (auto subject : ace.Subjects) {
-        auto adjustedSubject = MatchAceSubjectCallback_(subject);
-        if (!adjustedSubject) {
-            continue;
-        }
+    auto subjectId = MatchAceSubjectCallback_(ace);
+    if (!subjectId) {
+        return;
+    }
 
-        if (Any(ace.Permissions & NYTree::EPermission::FullRead)) {
-            YT_VERIFY(ace.Action == NSecurityClient::ESecurityAction::Allow);
-            FullReadExplicitlyGranted_ = true;
-        }
+    if (Any(ace.Permissions & NYTree::EPermission::FullRead)) {
+        YT_VERIFY(ace.Action == NSecurityClient::ESecurityAction::Allow);
+        FullReadExplicitlyGranted_ = true;
+    }
 
-        if (ace.Columns) {
-            // XXX(coteeq): Maybe we should ban ACEs with columns and action=deny?
-            // They do not seem to be helpful, but their absence may simplify
-            // logic a bit.
+    if (ace.Columns) {
+        // XXX(coteeq): Maybe we should ban ACEs with columns and action=deny?
+        // They do not seem to be helpful, but their absence may simplify
+        // logic a bit.
 
-            for (const auto& column : *ace.Columns) {
-                auto it = ColumnToResult_.find(column);
-                if (it == ColumnToResult_.end()) {
-                    continue;
-                }
-                auto& columnResult = it->second;
-                ProcessMatchingAceAction(
-                    &columnResult,
-                    ace.Action,
-                    adjustedSubject,
-                    objectId);
-                if (FullReadRequested_ && columnResult.Action == NSecurityClient::ESecurityAction::Deny) {
-                    RequestedFullReadButReadIsDenied_ = false;
-                    SetDeny(adjustedSubject, objectId);
-                    break;
-                }
+        for (const auto& column : *ace.Columns) {
+            auto it = ColumnToResult_.find(column);
+            if (it == ColumnToResult_.end()) {
+                continue;
             }
-        } else if (ace.RowAccessPredicate) {
-            Response_.RowLevelAcl->emplace_back(
-                *ace.RowAccessPredicate,
-                ace.InapplicableRowAccessPredicateMode
-                    .value_or(NSecurityClient::EInapplicableRowAccessPredicateMode::Fail));
-        } else {
+            auto& columnResult = it->second;
             ProcessMatchingAceAction(
-                &Response_,
+                &columnResult,
                 ace.Action,
-                adjustedSubject,
+                subjectId,
                 objectId);
-            if (Response_.Action == NSecurityClient::ESecurityAction::Deny) {
-                SetDeny(adjustedSubject, objectId);
+            if (FullReadRequested_ && columnResult.Action == NSecurityClient::ESecurityAction::Deny) {
+                RequestedFullReadButReadIsDenied_ = false;
+                SetDeny(subjectId, objectId);
                 break;
             }
         }
-
-        if (!ShouldProceed_) {
-            break;
+    } else if (ace.RowAccessPredicate) {
+        Response_.RowLevelAcl->emplace_back(
+            *ace.RowAccessPredicate,
+            ace.InapplicableRowAccessPredicateMode
+                .value_or(NSecurityClient::EInapplicableRowAccessPredicateMode::Fail));
+    } else {
+        ProcessMatchingAceAction(
+            &Response_,
+            ace.Action,
+            subjectId,
+            objectId);
+        if (Response_.Action == NSecurityClient::ESecurityAction::Deny) {
+            SetDeny(subjectId, objectId);
         }
     }
 }
@@ -298,21 +291,18 @@ void TSubtreePermissionChecker<TAccessControlEntry, TCallback>::TrackAce(
         return;
     }
 
-    for (auto subject : ace->Subjects) {
-        auto adjustedSubject = MatchAceSubjectCallback_(subject);
-        if (!adjustedSubject) {
-            continue;
-        }
-
-        MatchingAceTrace_.push_back({
-            .Entry = TMatchingAce{
-                .Ace = ace,
-                .ObjectId = objectId,
-            },
-            .Depth = CurrentDepth_,
-        });
-        break;
+    auto subjectId = MatchAceSubjectCallback_(*ace);
+    if (!subjectId) {
+        return;
     }
+
+    MatchingAceTrace_.push_back({
+        .Entry = TMatchingAce{
+            .Ace = ace,
+            .ObjectId = objectId,
+        },
+        .Depth = CurrentDepth_,
+    });
 }
 
 template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>

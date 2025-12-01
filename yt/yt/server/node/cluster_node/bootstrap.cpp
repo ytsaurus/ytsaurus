@@ -919,7 +919,8 @@ private:
         try {
             HugePageManager_ = CreateHugePageManager(
                 Config_->HugePageManager,
-                ClusterNodeProfiler().WithPrefix("/huge_page_manager"));
+                ClusterNodeProfiler().WithPrefix("/huge_page_manager"),
+                NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::HugePage));
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to initialize huge page manager");
         }

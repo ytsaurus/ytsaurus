@@ -1412,6 +1412,13 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
+        if (spec->InterruptionSignal) {
+            if (!FindSignalIdBySignalName(*spec->InterruptionSignal)) {
+                THROW_ERROR_EXCEPTION("Unexpected signal name")
+                    << TErrorAttribute("interruption_signal", spec->InterruptionSignal);
+            }
+        }
+
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(
                 "Options \"tmpfs_size\" and \"tmpfs_path\" cannot be specified "
@@ -1446,10 +1453,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("memory_limit", spec->MemoryLimit);
         }
 
-        std::vector<const TString*> tmpfsPaths;
+        std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(spec->TmpfsVolumes.size());
         for (const auto& volume: spec->TmpfsVolumes) {
-            tmpfsPaths.push_back(&volume->Path);
+            tmpfsPaths.push_back(volume->Path);
         }
 
         //! Check that no volume path is a prefix of another volume path.
@@ -2710,6 +2717,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("waiting_for_resources_on_node_timeout", &TThis::WaitingForResourcesOnNodeTimeout)
         .Default();
+
+    registrar.Parameter("allow_children_guarantees", &TThis::AllowChildrenGuarantees)
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(omgronny)

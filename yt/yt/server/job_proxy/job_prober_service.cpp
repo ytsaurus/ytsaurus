@@ -58,7 +58,7 @@ public:
 private:
     const TWeakPtr<IJobProbe> JobProxy_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, DumpInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, DumpInputContext)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo("TransactionId: %v", transactionId);
@@ -70,7 +70,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, GetStderr)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, GetStderr)
     {
         context->SetRequestInfo();
 
@@ -85,7 +85,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, PollJobShell)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, PollJobShell)
     {
         auto parameters = TYsonString(request->parameters());
 
@@ -108,7 +108,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, Interrupt)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, Interrupt)
     {
         Y_UNUSED(response);
 
@@ -119,7 +119,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, Fail)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, Fail)
     {
         Y_UNUSED(response);
 
@@ -132,7 +132,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, GracefulAbort)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, GracefulAbort)
     {
         Y_UNUSED(response);
 
@@ -145,7 +145,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NProto, DumpSensors)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, DumpSensors)
     {
         context->SetRequestInfo();
 

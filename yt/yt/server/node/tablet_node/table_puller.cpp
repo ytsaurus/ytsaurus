@@ -849,6 +849,8 @@ private:
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             << TErrorAttribute("row_timestamp", rowTimestamp)
                             << TErrorAttribute("progress_timestamp", progressTimestamp)
+                            << TErrorAttribute("tablet_id", TabletId_)
+                            << TErrorAttribute("table_path", tabletSnapshot->TablePath)
                             << HardErrorAttribute;
                     }
                 }
@@ -866,7 +868,8 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
-                        YT_LOG_ALERT("Could not identify timestamp column in pulled row. Timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
+                        YT_LOG_ALERT("Could not identify timestamp column in pulled row. "
+                            "Timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                             row,
                             *timestampColumnIndex);
                     }
@@ -874,7 +877,8 @@ private:
                     auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
 
                     if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
+                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response "
+                            "(RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
                             previousTimestamp,
                             row,
@@ -883,6 +887,8 @@ private:
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             << TErrorAttribute("row_timestamp", rowTimestamp)
                             << TErrorAttribute("previous_timestamp", previousTimestamp)
+                            << TErrorAttribute("tablet_id", TabletId_)
+                            << TErrorAttribute("table_path", tabletSnapshot->TablePath)
                             << HardErrorAttribute;
                     }
 
@@ -909,6 +915,8 @@ private:
                             << TErrorAttribute("current_row_count", currentRowCount)
                             << TErrorAttribute("result_set_row_count", rowCount)
                             << TErrorAttribute("end_replication_row_index", endReplicationRowIndex)
+                            << TErrorAttribute("tablet_id", TabletId_)
+                            << TErrorAttribute("table_path", tabletSnapshot->TablePath)
                             << HardErrorAttribute;
                     }
                 }

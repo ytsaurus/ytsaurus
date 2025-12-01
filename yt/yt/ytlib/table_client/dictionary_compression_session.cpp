@@ -88,7 +88,7 @@ public:
                 std::move(chunkReadOptions),
                 TErrorOr<THashMap<TChunkId, TRowDictionaryDecompressor>>(std::move(*maybeDecompressors)));
         } else {
-            decompressorsFuture.SubscribeUnique(BIND(
+            decompressorsFuture.AsUnique().Subscribe(BIND(
                 &TDictionaryDecompressionSession::DoDecompressValues,
                 MakeStrong(this),
                 /*decompressedValueCount*/ 0,

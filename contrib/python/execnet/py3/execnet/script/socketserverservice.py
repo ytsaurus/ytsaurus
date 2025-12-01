@@ -39,7 +39,7 @@ class SocketServerService(win32serviceutil.ServiceFramework):
         win32evtlogutil.AddSourceToRegistry(
             self._svc_display_name_, servicemanager.__file__, "Application"
         )
-        super.__init__(args)
+        super().__init__(args)
         self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
         self.WAIT_TIME = 1000  # in milliseconds
 

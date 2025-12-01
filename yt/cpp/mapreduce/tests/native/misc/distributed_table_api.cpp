@@ -70,3 +70,40 @@ TEST(DistributedWriteTable, WriteNode)
 
     EXPECT_EQ(reader->GetRow(), row);
 }
+
+TEST(DistributedWriteTable, WriteYaMR)
+{
+    TTestDistributedWriteTableFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto path = fixture.GetTablePath();
+
+    auto session = client->StartDistributedWriteTableSession(path, /*cookieCount*/ 1);
+    EXPECT_EQ(std::ssize(session.Cookies_), 1);
+
+    TYaMRRow row;
+    row.Key = "test_key";
+    row.SubKey = "test_subkey";
+    row.Value = "test_value";
+
+    {
+        const auto& cookie = session.Cookies_[0];
+        auto writer = client->CreateTableFragmentWriter<TYaMRRow>(cookie);
+
+        writer->AddRow(row);
+        writer->Finish();
+
+        auto writeResult = writer->GetWriteFragmentResult();
+
+        client->FinishDistributedWriteTableSession(session.Session_, /*results*/ {writeResult});
+    }
+
+    auto reader = client->CreateTableReader<TYaMRRow>(path);
+
+    auto actualRow = reader->GetRow();
+    EXPECT_EQ(actualRow.Key, row.Key);
+    EXPECT_EQ(actualRow.SubKey, row.SubKey);
+    EXPECT_EQ(actualRow.Value, row.Value);
+}
+
+////////////////////////////////////////////////////////////////////////////////

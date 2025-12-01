@@ -24,7 +24,7 @@ struct TSampleKeyList
     TSharedRange<TLegacyKey> Keys;
 
     void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
+    void Load(TLoadContext& context, const IMemoryUsageTrackerPtr& tracker);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSampleKeyList)

@@ -316,7 +316,7 @@ TFuture<void> TFetcherBase::Fetch()
         AllSucceeded(std::move(asyncNodeDescriptors))
             .AsVoid()
             .WithTimeout(Config_->NodeDirectorySynchronizationTimeout)
-            // TODO(pogorelov): Implement TFutureState<void>::SubscribeUnique and use it here.
+            // TODO(pogorelov): Implement TFuture<void>::AsUnique and use it here.
             .Apply(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
                 .AsyncVia(Invoker_)));
     auto future = Promise_.ToFuture();

@@ -51,6 +51,8 @@ DEFINE_ENUM(EMemoryCategory,
     ((ChunkReplicaCache)          (34))
     ((HeavyRequest)               (35))
     ((FetchTableRows)             (36))
+    ((HugePage)                   (37))
+    ((TabletInternal)             (38))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EMemoryCategory, Unrecognized);

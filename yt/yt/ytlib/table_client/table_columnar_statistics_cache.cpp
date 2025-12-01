@@ -81,7 +81,7 @@ void FormatValue(TStringBuilderBase* builder, const TTableKey& key, TStringBuf s
 template <>
 struct THash<NYT::NTableClient::TTableKey>
 {
-    size_t operator()(const NYT::NTableClient::TTableKey& key)
+    size_t operator()(const NYT::NTableClient::TTableKey& key) const
     {
         return THash<NYT::NObjectClient::TObjectId>()(key.ObjectId);
     }
@@ -105,12 +105,13 @@ public:
         TProfiler profiler)
         : TAsyncExpiringCache<TTableKey, TColumnarStatisticsEntry>(
             config,
+            invoker,
             logger,
             std::move(profiler))
-        , Config_(config)
-        , Client_(client)
-        , Invoker_(invoker)
-        , Logger(logger)
+        , Config_(std::move(config))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger))
     {
         YT_VERIFY(!Config_->RefreshTime);
     }
@@ -178,7 +179,7 @@ public:
 
         auto asyncResults = GetMany(missedKeys);
 
-        return asyncResults.ApplyUnique(BIND(&TImpl::CombineResult, MakeStrong(this), Passed(std::move(finalResults)), Passed(std::move(missedIndices))));
+        return asyncResults.AsUnique().Apply(BIND(&TImpl::CombineResult, MakeStrong(this), Passed(std::move(finalResults)), Passed(std::move(missedIndices))));
     }
 
     std::vector<TErrorOr<TNamedColumnarStatistics>> CombineResult(

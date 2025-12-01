@@ -13,9 +13,19 @@ import yt.yson as yson
 
 import builtins
 
+from concurrent.futures import ThreadPoolExecutor
+
 ##################################################################
 
 MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
+
+
+def map_in_parallel(mapper, args):
+    mapped = []
+    with ThreadPoolExecutor() as executor:
+        for r in executor.map(mapper, args):
+            mapped.append(r)
+    return mapped
 
 
 class ChaosTestBase(DynamicTablesBase):
@@ -157,7 +167,9 @@ class ChaosTestBase(DynamicTablesBase):
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         created_cells = []
         created_tables = []
-        for replica, replica_id in zip(replicas, replica_ids):
+
+        def alter_table_and_create_cell(zipped_args):
+            replica, replica_id = zipped_args
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
@@ -165,13 +177,22 @@ class ChaosTestBase(DynamicTablesBase):
             if create_tablet_cells and len(ls("//sys/tablet_cells", driver=driver)) == 0:
                 cell_id = create_tablet_cell(driver=driver)
                 created_cells.append((cell_id, driver))
-        for cell_id, driver in created_cells:
+
+        map_in_parallel(alter_table_and_create_cell, zip(replicas, replica_ids))
+
+        def wait_for_cell(created_cell):
+            cell_id, driver = created_cell
             wait_for_cells([cell_id], driver=driver)
+
+        map_in_parallel(wait_for_cell, created_cells)
+
         if mount_tables:
-            for path, driver in created_tables:
+            def mount_and_wait(created_table):
+                path, driver = created_table
                 mount_table(path, driver=driver)
-            for path, driver in created_tables:
                 wait_for_tablet_state(path, "mounted", driver=driver)
+
+            map_in_parallel(mount_and_wait, created_tables)
 
     def _create_replica_tables(self, replicas, replica_ids,
                                create_tablet_cells=True,
@@ -184,7 +205,8 @@ class ChaosTestBase(DynamicTablesBase):
                                trimmed_row_counts=None,
                                tablet_count=None,
                                external_cell_tag=None):
-        for replica, replica_id in zip(replicas, replica_ids):
+        def create_replica(zipped_args):
+            replica, replica_id = zipped_args
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             create_table = self._create_queue_table
@@ -216,6 +238,9 @@ class ChaosTestBase(DynamicTablesBase):
                 kwargs["external_cell_tag"] = external_cell_tag
 
             create_table(path, **kwargs)
+
+        map_in_parallel(create_replica, zip(replicas, replica_ids))
+
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
     def _sync_replication_era(self, card_id, replicas=None):
@@ -398,7 +423,7 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_do)
 
     def _init_replicated_table_tracker(self):
-        for driver in self._get_drivers():
+        def init_tracker(driver):
             set("//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker", True, driver=driver)
             set("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache", {
                 "expire_after_successful_update_time": 100,
@@ -408,11 +433,13 @@ class ChaosTestBase(DynamicTablesBase):
                 "expiration_period": 50,
             }, driver=driver)
 
+        map_in_parallel(init_tracker, self._get_drivers())
+
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
 
         # TODO(babenko): consider moving to yt_env_setup.py
-        for driver in self._get_drivers():
+        def setup_for_driver(driver):
             synchronizer_config = {
                 "enable": True,
                 "sync_period": 100,
@@ -430,6 +457,8 @@ class ChaosTestBase(DynamicTablesBase):
             chaos_nodes = self._list_chaos_nodes(driver)
             for chaos_node in chaos_nodes:
                 set("//sys/cluster_nodes/{0}/@user_tags/end".format(chaos_node), "chaos_cache", driver=driver)
+
+        map_in_parallel(setup_for_driver, self._get_drivers())
 
     def _get_schemas_by_name(self, schema_names):
         schemas = {

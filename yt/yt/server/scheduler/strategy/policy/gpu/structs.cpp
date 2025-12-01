@@ -41,10 +41,12 @@ TOperation::TOperation(
     TOperationId id,
     EOperationType type,
     bool gang,
-    std::optional<THashSet<std::string>> specifiedSchedulingModules)
+    std::optional<THashSet<std::string>> specifiedSchedulingModules,
+    TSchedulingTagFilter schedulingTagFilter)
     : Id_(id)
     , Type_(type)
     , SpecifiedSchedulingModules_(std::move(specifiedSchedulingModules))
+    , SchedulingTagFilter_(std::move(schedulingTagFilter))
     , Gang_(gang)
 { }
 
@@ -93,7 +95,7 @@ void TOperation::AddAssignment(const TAssignmentPtr& assignment)
 
     InsertOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ += assignment->ResourceUsage;
-    ++AssignmentCountPerGroup_[assignment->AllocationGroupName];
+    ++EmptyAssignmentCountPerGroup_[assignment->AllocationGroupName];
 
     auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
@@ -106,7 +108,7 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
 
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;
-    --GetOrCrash(AssignmentCountPerGroup_, assignment->AllocationGroupName);
+    --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
 }
 
 void TOperation::SetPreemptible(bool preemptible)

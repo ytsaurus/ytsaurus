@@ -22,7 +22,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.25.5")
+    api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yt:yt_proto:yt:core"))
 
     protobuf(files(File(buildProtoDir, "yt")))
@@ -31,7 +31,7 @@ dependencies {
 protobuf {
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.25.5"
+        artifact = "com.google.protobuf:protoc:4.33.0"
     }
 
 }
@@ -51,6 +51,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.proto")
         include("yt/yt_proto/yt/client/hive/proto/timestamp_map.proto")
         include("yt/yt_proto/yt/client/hive/proto/cluster_directory.proto")
+        include("yt/yt_proto/yt/client/job_proxy/proto/job_api_service.proto")
         include("yt/yt_proto/yt/client/node_tracker_client/proto/node.proto")
         include("yt/yt_proto/yt/client/node_tracker_client/proto/node_directory.proto")
         include("yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto")

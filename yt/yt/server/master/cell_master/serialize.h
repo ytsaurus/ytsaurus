@@ -172,6 +172,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveListNodes)                                              (3122))  // h0pless
     ((ChangeSequoiaChunkPurgatory)                                  (3123))  // grphil
     ((ChunkRequisitionActiveEntries)                                (3124))  // shakurov
+    ((AddHasRowLevelAceAttribute)                                   (3125))  // coteeq
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

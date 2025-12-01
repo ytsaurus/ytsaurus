@@ -106,7 +106,6 @@ TPartitionTags GetPartitionTags(const TProtoMessage& message)
     return *std::move(partitionTags);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

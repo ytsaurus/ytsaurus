@@ -3985,6 +3985,36 @@ for line in sys.stdin:
         assert len(tasks) == 2
         assert {"partition", "partition_reduce"} == {task["job_type"] for task in tasks}
 
+    @authors("apollo1321")
+    def test_many_empty_partitions_on_multiple_levels(self):
+        create("table", "//tmp/t_in")
+
+        rows = [{"x": i} for i in range(100)]
+        write_table("<append=%true>//tmp/t_in", rows)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            reduce_by=["x"],
+            reducer_command="cat",
+            spec={
+                "partition_count": 10000,
+                "max_partition_factor": 50,
+                # COMPAT(apollo1321)
+                "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
+            },
+        )
+
+        tasks = get(op.get_path() + "/@progress/tasks")
+
+        assert len(tasks) == 4
+
+        for i, task in enumerate(tasks[:3]):
+            assert task["task_name"] == f"partition({i})"
+        assert tasks[3]["task_name"] == "partition_reduce"
+
+        assert_items_equal(read_table("//tmp/t_out"), rows)
+
 
 ##################################################################
 

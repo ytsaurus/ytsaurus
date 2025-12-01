@@ -1055,6 +1055,9 @@ class TestMultipleAccessControl(YTEnvSetup):
         expect_queries([q1, q2], list_queries(authenticated_user="u1"))
         expect_queries([q2], list_queries(authenticated_user="u2"))
 
+
+@pytest.mark.enabled_multidaemon
+class TestTutorials(YTEnvSetup):
     @authors("kirsiv40")
     def test_tutorials_are_not_listed_with_standart_queries(self, query_tracker):
         create_user("u1")
@@ -1074,45 +1077,49 @@ class TestMultipleAccessControl(YTEnvSetup):
 
         q1 = start_query(
             "mock",
-            "complete_after",
+            "some_query",
+            draft=True,
             settings={"duration": 1000},
             access_control_objects=["nobody", "yet_another_nobody"],
-            annotations={"is_tutorial": True, "tutorial": True}
         )
         q2 = start_query(
             "mock",
-            "complete_after",
+            "some_query",
+            draft=True,
             settings={"duration": 1000},
             access_control_objects=["aco"],
-            annotations={"is_tutorial": "true", "tutorial": "true"}
         )
         q3 = start_query(
             "mock",
-            "complete_after",
-            settings={"duration": 1000, "is_tutorial": False},
+            "some_query",
+            draft=True,
+            settings={"duration": 1000},
             access_control_objects=["nobody", "yet_another_nobody"],
-            annotations={"is_tutorial": False, "tutorial": False}
+            annotations={"is_tutorial": False}
         )
         q4 = start_query(
             "mock",
-            "complete_after",
-            settings={"duration": 1000, "is_tutorial": False},
+            "some_query",
+            draft=True,
+            settings={"duration": 1000},
             access_control_objects=["aco"],
-            annotations={"is_tutorial": "false", "tutorial": "false"}
+            annotations={"is_tutorial": "false"}
         )
         q5 = start_query(
             "mock",
-            "complete_after",
-            settings={"duration": 1000, "is_tutorial": True},
+            "some_query",
+            draft=True,
+            settings={"duration": 1000},
             access_control_objects=["nobody", "yet_another_nobody"],
-            annotations={"is_tutorial": False, "tutorial": False}
+            annotations={"is_tutorial": True}
         )
         q6 = start_query(
             "mock",
-            "complete_after",
-            settings={"duration": 1000, "is_tutorial": True},
+            "some_query",
+            draft=True,
+            settings={"duration": 1000},
             access_control_objects=["aco"],
-            annotations={"is_tutorial": "false", "tutorial": "false"}
+            annotations={"is_tutorial": True}
         )
 
         def check_tutorial_queries():
@@ -1130,15 +1137,6 @@ class TestMultipleAccessControl(YTEnvSetup):
 
         check_tutorial_queries()
 
-        q1.track()
-        q2.track()
-        q3.track()
-        q4.track()
-        q5.track()
-        q6.track()
-
-        check_tutorial_queries()
-
     @authors("kirsiv40")
     def test_only_superusers_can_create_tutorials(self, query_tracker):
         create_user("u1_superuser")
@@ -1147,18 +1145,18 @@ class TestMultipleAccessControl(YTEnvSetup):
 
         u1q1 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
         u1q2 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
-        u1q3 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
-        u1q4 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+        u1q3 = start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
+        u1q4 = start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
 
         u2q1 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u2", access_control_objects=["nobody"])
         u2q2 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u2", access_control_objects=["everyone"])
-        u2q3 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
-        u2q4 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
+        u2q3 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
+        u2q4 = start_query("mock", "complete_after", settings={"duration": 1000}, annotations={"is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
 
         with raises_yt_error("superuser"):
-            start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
+            start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
         with raises_yt_error("superuser"):
-            start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
+            start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
 
         def check_tutorial_queries():
             expect_queries([u1q1, u1q2, u2q1, u2q2, u2q3, u2q4], list_queries(authenticated_user="u1_superuser"))
@@ -1174,14 +1172,52 @@ class TestMultipleAccessControl(YTEnvSetup):
 
         u1q1.track()
         u1q2.track()
-        u1q3.track()
-        u1q4.track()
         u2q1.track()
         u2q2.track()
         u2q3.track()
         u2q4.track()
 
         check_tutorial_queries()
+
+    @authors("mpereskokova")
+    def test_alter_tutorials(self, query_tracker):
+        create_user("u1_superuser")
+        create_user("u2")
+        add_member("u1_superuser", "superusers")
+
+        with raises_yt_error(""):
+            start_query("mock", "complete_after", annotations={"is_tutorial": True}, settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+
+        from_tutorial_to_ordinary = start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+        from_tutorial_to_tutorial = start_query("mock", "some_query", draft=True, annotations={"is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
+        from_ordinary_to_tutorial = start_query("mock", "some_query", draft=True, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+        ordinary_not_tutorial = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
+        ordinary_not_superuser = start_query("mock", "some_query", draft=True, authenticated_user="u2", access_control_objects=["everyone"])
+
+        # check that there are no tutorials in common search
+        expect_queries([from_ordinary_to_tutorial, ordinary_not_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u1_superuser"))
+        expect_queries([from_ordinary_to_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u2"))
+        expect_queries([from_ordinary_to_tutorial, ordinary_not_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u1_superuser", tutorial_filter=False))
+        expect_queries([from_ordinary_to_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u2", tutorial_filter=False))
+        expect_queries([from_tutorial_to_ordinary, from_tutorial_to_tutorial], list_queries(authenticated_user="u1_superuser", tutorial_filter=True))
+        expect_queries([from_tutorial_to_ordinary], list_queries(authenticated_user="u2", tutorial_filter=True))
+
+        from_tutorial_to_ordinary.alter(annotations={"is_tutorial": False}, authenticated_user="u1_superuser")
+        from_tutorial_to_tutorial.alter(access_control_objects=["everyone"], authenticated_user="u1_superuser")
+        from_ordinary_to_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
+        from_ordinary_to_tutorial.get()
+        with raises_yt_error("Tutorials should be in draft state"):
+            ordinary_not_tutorial.alter(annotations={"is_tutorial": True}, authenticated_user="u1_superuser")
+        with raises_yt_error("superuser"):
+            ordinary_not_superuser.alter(annotations={"is_tutorial": True}, authenticated_user="u2")
+
+        # check that there are no tutorials in common search
+        expect_queries([from_tutorial_to_ordinary, ordinary_not_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u1_superuser"))
+        expect_queries([from_tutorial_to_ordinary, ordinary_not_superuser], list_queries(authenticated_user="u2"))
+        expect_queries([from_tutorial_to_ordinary, ordinary_not_tutorial, ordinary_not_superuser], list_queries(authenticated_user="u1_superuser", tutorial_filter=False))
+        expect_queries([from_tutorial_to_ordinary, ordinary_not_superuser], list_queries(authenticated_user="u2", tutorial_filter=False))
+        expect_queries([from_tutorial_to_tutorial, from_ordinary_to_tutorial], list_queries(authenticated_user="u1_superuser", tutorial_filter=True))
+        expect_queries([from_tutorial_to_tutorial, from_ordinary_to_tutorial], list_queries(authenticated_user="u2", tutorial_filter=True))
 
 
 # Separate list to fit 480 seconds limit for a test class.
@@ -1546,6 +1582,15 @@ class TestAccessControlListRpcProxy(TestAccessControlList):
 @authors("mpereskokova")
 @pytest.mark.enabled_multidaemon
 class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
+class TestTutorialsRpcProxy(TestTutorials):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

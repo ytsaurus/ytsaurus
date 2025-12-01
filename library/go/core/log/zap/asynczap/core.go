@@ -31,6 +31,9 @@ type (
 
 		// Number of errors returned from underlying writer.
 		WriteErrors int
+
+		// Buffer queue size
+		QueueSize int
 	}
 )
 
@@ -100,6 +103,7 @@ func (c *Core) Stat() Stats {
 	return Stats{
 		DroppedRecords: int(atomic.LoadInt64(&c.w.droppedRecords)),
 		WriteErrors:    int(atomic.LoadInt64(&c.w.writeErrors)),
+		QueueSize:      int(c.w.q.loadSize()),
 	}
 }
 

@@ -65,7 +65,6 @@ public:
 
     DB::Block Convert(const NTableClient::IUnversionedRowBatchPtr& batch, TRange<DB::UInt8> filterHint)
     {
-        YT_VERIFY(!filterHint || std::ssize(filterHint) == batch->GetRowCount());
 
         int columnCount = HeaderBlock_.columns();
         // NB(max42): CHYT-256.
@@ -168,6 +167,7 @@ public:
             YT_VERIFY(OptimizeDistinctRead_ || std::ssize(*column) == batch->GetRowCount());
             block.getByPosition(columnIndex).column = std::move(column);
         }
+        YT_VERIFY(filterHint.empty() || block.rows() == 0 || filterHint.size() == block.rows());
 
         return block;
     }

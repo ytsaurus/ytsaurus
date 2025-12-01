@@ -134,6 +134,119 @@ void AddAllocationToAbort(NProto::NNode::TRspHeartbeat* response, const TAllocat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNodeShardGlobalSensors::TNodeShardGlobalSensors(TNodeShard* nodeShard)
+    : NodeShard_(nodeShard)
+{
+    auto globalProfiler = SchedulerProfiler().WithGlobal();
+    auto nodeShardProfiler = globalProfiler.WithTag("node_shard_id", ToString(nodeShard->GetId()));
+
+    {
+        auto nodeHeartbeatProfiler = nodeShardProfiler.WithPrefix("/node_heartbeat");
+
+        SoftConcurrentHeartbeatLimitReachedCounter_ = nodeHeartbeatProfiler
+            .WithTag("limit_type", "soft")
+            .Counter("/concurrent_limit_reached_count");
+        HardConcurrentHeartbeatLimitReachedCounter_ = nodeHeartbeatProfiler
+            .WithTag("limit_type", "hard")
+            .Counter("/concurrent_limit_reached_count");
+        ConcurrentHeartbeatComplexityLimitReachedCounter_ = nodeHeartbeatProfiler
+            .Counter("/concurrent_complexity_limit_reached_count");
+        HeartbeatWithScheduleAllocationsCounter_ = nodeHeartbeatProfiler
+            .Counter("/with_schedule_jobs_count");
+        HeartbeatAllocationCounter_ = nodeHeartbeatProfiler
+            .Counter("/job_count");
+        HeartbeatCounter_ = nodeHeartbeatProfiler
+            .Counter("/count");
+        HeartbeatRequestProtoMessageBytes_ = nodeHeartbeatProfiler
+            .Counter("/request/proto_message_bytes");
+        HeartbeatResponseProtoMessageBytes_ = nodeHeartbeatProfiler
+            .Counter("/response/proto_message_bytes");
+        HeartbeatRegisteredControllerAgentsBytes_ = nodeHeartbeatProfiler
+            .Counter("/response/proto_registered_controller_agents_bytes");
+    }
+
+    nodeShardProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
+        return NodeShard_->GetActiveAllocationCount();
+    });
+    nodeShardProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
+        return NodeShard_->GetSubmitToStrategyAllocationCount();
+    });
+    nodeShardProfiler.AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
+        return NodeShard_->GetTotalConcurrentHeartbeatComplexity();
+    });
+    nodeShardProfiler.AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
+        return NodeShard_->GetExecNodeCount();
+    });
+    nodeShardProfiler.AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
+        return NodeShard_->GetTotalNodeCount();
+    });
+
+    for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
+        UnutilizedResourcesCounterByReason_[reason].Init(
+            globalProfiler
+                .WithPrefix("/unutilized_node_resources")
+                .WithTag("reason", FormatEnum(reason)),
+            EMetricType::Counter);
+    }
+}
+
+void TNodeShardGlobalSensors::UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value)
+{
+    auto allocationState = allocation->GetState();
+
+    YT_VERIFY(allocationState <= EAllocationState::Running);
+
+    auto createGauge = [&] {
+        return SchedulerProfiler()
+            .WithTags(TTagSet(TTagList{
+                {ProfilingPoolTreeKey, allocation->GetTreeId()},
+                {"state", FormatEnum(allocationState)}
+            }))
+            .Gauge("/allocations/running_allocation_count");
+    };
+
+    TRunningAllocationCounterKey key(allocationState, allocation->GetTreeId());
+
+    auto it = RunningAllocationCounters_.find(key);
+    if (it == RunningAllocationCounters_.end()) {
+        it = RunningAllocationCounters_.emplace(
+            std::move(key),
+            std::pair(
+                0,
+                createGauge())).first;
+    }
+
+    auto& [count, gauge] = it->second;
+    count += value;
+    gauge.Update(count);
+}
+
+void TNodeShardGlobalSensors::IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted)
+{
+    auto createCounter = [&] {
+        return SchedulerProfiler()
+            .WithTags(TTagSet(TTagList{
+                {ProfilingPoolTreeKey, allocation->GetTreeId()},
+                {"aborted", std::string(FormatBool(aborted))},
+            }))
+            .Counter("/allocations/finished_allocation_count");
+    };
+
+    auto key = TFinishedAllocationCounterKey(aborted, allocation->GetTreeId());
+
+    auto it = FinishedAllocationCounters_.find(key);
+    if (it == end(FinishedAllocationCounters_)) {
+        it = FinishedAllocationCounters_.emplace(
+            std::move(key),
+            createCounter()).first;
+    }
+
+    auto& counter = it->second;
+    counter.Increment();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeShard::TNodeShard(
     int id,
     TSchedulerConfigPtr config,
@@ -152,8 +265,7 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
-    , CachedResourceStatisticsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>>(
-        BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
+    , ResourceStatisticsByTagsCache_(New<TResourceStatisticsByTagsCache>(
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NodeShardLogger().WithTag("NodeShardId: %v", Id_))
@@ -165,37 +277,7 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::SubmitAllocationsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitAllocationsToStrategyPeriod))
-{
-    const auto& globalSchedulerProfiler = SchedulerProfiler().WithGlobal();
-    SoftConcurrentHeartbeatLimitReachedCounter_ = globalSchedulerProfiler
-        .WithTag("limit_type", "soft")
-        .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    HardConcurrentHeartbeatLimitReachedCounter_ = globalSchedulerProfiler
-        .WithTag("limit_type", "hard")
-        .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    ConcurrentHeartbeatComplexityLimitReachedCounter_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/concurrent_complexity_limit_reached_count");
-    HeartbeatWithScheduleAllocationsCounter_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/with_schedule_jobs_count");
-    HeartbeatAllocationCount_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/job_count");
-    HeartbeatCount_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/count");
-    HeartbeatRequestProtoMessageBytes_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/request/proto_message_bytes");
-    HeartbeatResponseProtoMessageBytes_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/response/proto_message_bytes");
-    HeartbeatRegisteredControllerAgentsBytes_ = globalSchedulerProfiler
-        .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
-
-    for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
-        UnutilizedResourcesCounterByReason_[reason].Init(
-            globalSchedulerProfiler
-                .WithPrefix("/unutilized_node_resources")
-                .WithTag("reason", FormatEnum(reason)),
-            EMetricType::Counter);
-    }
-}
+{ }
 
 int TNodeShard::GetId() const
 {
@@ -215,7 +297,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
     SubmitAllocationsToStrategyExecutor_->SetPeriod(config->NodeShardSubmitAllocationsToStrategyPeriod);
     CachedExecNodeDescriptorsRefresher_->SetPeriod(config->NodeShardExecNodesCacheUpdatePeriod);
-    CachedResourceStatisticsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
+    ResourceStatisticsByTagsCache_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
 IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultPtr& result)
@@ -232,6 +314,9 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
     YT_VERIFY(!CancelableContext_);
     CancelableContext_ = New<TCancelableContext>();
     CancelableInvoker_ = CancelableContext_->CreateInvoker(GetInvoker());
+
+    YT_VERIFY(!GlobalSensors_);
+    GlobalSensors_ = New<TNodeShardGlobalSensors>(this);
 
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitAllocationsToStrategyExecutor_->Start();
@@ -283,7 +368,7 @@ void TNodeShard::DoCleanup()
 
     ActiveAllocationCount_ = 0;
 
-    RunningAllocationCounter_.clear();
+    GlobalSensors_.Reset();
 
     AllocationsToSubmitToStrategy_.clear();
 
@@ -475,7 +560,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     auto* request = &context->Request();
     auto* response = &context->Response();
 
-    HeartbeatRequestProtoMessageBytes_.Increment(request->ByteSizeLong());
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatRequestProtoMessageBytes().Increment(request->ByteSizeLong());
+    }
 
     int jobReporterWriteFailuresCount = 0;
     if (request->has_job_reporter_write_failures_count()) {
@@ -558,12 +645,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             return;
         }
 
-        if (Config_->UseHeartbeatSchedulingComplexityThrottling) {
-            isThrottlingActive = IsHeartbeatThrottlingWithComplexity(node, strategyProxy);
-        } else {
-            isThrottlingActive = IsHeartbeatThrottlingWithCount(node);
-            node->SetSchedulingHeartbeatComplexity(1);
-        }
+        int schedulingHeartbeatComplexity = strategyProxy->GetSchedulingHeartbeatComplexity();
+        node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
+
+        isThrottlingActive = Config_->UseHeartbeatSchedulingComplexityThrottling
+            ? IsHeartbeatThrottlingWithComplexity(node)
+            : IsHeartbeatThrottlingWithCount(node);
 
         response->set_operations_archive_version(ManagerHost_->GetOperationsArchiveVersion());
 
@@ -576,7 +663,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             EndNodeHeartbeatProcessing(node);
         }
 
-        HeartbeatResponseProtoMessageBytes_.Increment(response->ByteSizeLong());
+        if (GlobalSensors_) {
+            GlobalSensors_->HeartbeatResponseProtoMessageBytes().Increment(response->ByteSizeLong());
+        }
     });
 
     if (resourceLimits.GetUserSlots() > 0) {
@@ -676,7 +765,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     context->SetResponseInfo(
-        "NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v, SendRegisteredControllerAgents: %v",
+        "NodeShardId: %v, NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v, SendRegisteredControllerAgents: %v",
+        Id_,
         nodeId,
         descriptor.GetDefaultAddress(),
         node->GetSchedulingHeartbeatComplexity(),
@@ -692,7 +782,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     FillNodeProfilingTags(response, strategyProxy);
 
     if (!skipScheduleAllocations) {
-        HeartbeatWithScheduleAllocationsCounter_.Increment();
+        if (GlobalSensors_) {
+            GlobalSensors_->HeartbeatWithScheduleAllocationsCounter().Increment();
+        }
 
         node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
@@ -967,7 +1059,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
     if (nodeChangesCount > Config_->NodeChangesCountThresholdToUpdateCache) {
         UpdateExecNodeDescriptors();
-        CachedResourceStatisticsByTags_->Clear();
+        ResourceStatisticsByTagsCache_->Clear();
     }
 
     return errors;
@@ -1142,34 +1234,38 @@ TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationI
     return {};
 }
 
-TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TSchedulingTagFilter& filter)
+TNodeShard::TResourceStatistics TNodeShard::GetResourceStatisticsByTags(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto descriptors = CachedExecNodeDescriptors_.Acquire();
+    return ResourceStatisticsByTagsCache_->GetOrPut(
+        filter,
+        [&] {
+            auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
-    TResourceStatistics statistics;
-    for (const auto& [nodeId, descriptor] : *descriptors) {
-        if (descriptor->Online && descriptor->CanSchedule(filter)) {
-            statistics.Usage += descriptor->ResourceUsage;
-            statistics.Limits += descriptor->ResourceLimits;
-        }
-    }
-    return statistics;
+            TResourceStatistics statistics;
+            for (const auto& [nodeId, descriptor] : *descriptors) {
+                if (descriptor->Online && descriptor->CanSchedule(filter)) {
+                    statistics.Usage += descriptor->ResourceUsage;
+                    statistics.Limits += descriptor->ResourceLimits;
+                }
+            }
+            return statistics;
+        });
 }
 
 TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedResourceStatisticsByTags_->Get(filter).Limits;
+    return GetResourceStatisticsByTags(filter).Limits;
 }
 
 TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedResourceStatisticsByTags_->Get(filter).Usage;
+    return GetResourceStatisticsByTags(filter).Usage;
 }
 
 int TNodeShard::GetActiveAllocationCount() const
@@ -1706,8 +1802,10 @@ void TNodeShard::ProcessHeartbeatAllocations(
             }
         }
     }
-    HeartbeatAllocationCount_.Increment(request->allocations_size());
-    HeartbeatCount_.Increment();
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatAllocationCounter().Increment(request->allocations_size());
+        GlobalSensors_->HeartbeatCounter().Increment();
+    }
 
     if (shouldLogOngoingAllocations) {
         LogOngoingAllocationsOnHeartbeat(
@@ -1949,21 +2047,21 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     return allocation;
 }
 
-bool TNodeShard::IsHeartbeatThrottlingWithComplexity(
-    const TExecNodePtr& node,
-    const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy)
+bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
 {
-    int schedulingHeartbeatComplexity = strategyProxy->GetSchedulingHeartbeatComplexity();
-    node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
-
     if (ConcurrentHeartbeatComplexity_ >= Config_->SchedulingHeartbeatComplexityLimit) {
         YT_LOG_DEBUG("Heartbeat complexity limit reached (NodeAddress: %v, TotalHeartbeatComplexity: %v, CurrentComplexity: %v)",
             node->GetDefaultAddress(),
             ConcurrentHeartbeatComplexity_.load(),
-            schedulingHeartbeatComplexity);
-        ConcurrentHeartbeatComplexityLimitReachedCounter_.Increment();
+            node->GetSchedulingHeartbeatComplexity());
+
+        if (GlobalSensors_) {
+            GlobalSensors_->ConcurrentHeartbeatComplexityLimitReachedCounter().Increment();
+        }
+
         return true;
     }
+
     return false;
 }
 
@@ -1974,7 +2072,11 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
             node->GetDefaultAddress(),
             Config_->HardConcurrentHeartbeatLimit,
             ConcurrentHeartbeatCount_);
-        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
+
+        if (GlobalSensors_) {
+            GlobalSensors_->HardConcurrentHeartbeatLimitReachedCounter().Increment();
+        }
+
         return true;
     }
 
@@ -1985,7 +2087,11 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
             node->GetDefaultAddress(),
             Config_->SoftConcurrentHeartbeatLimit,
             ConcurrentHeartbeatCount_);
-        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+
+        if (GlobalSensors_) {
+            GlobalSensors_->SoftConcurrentHeartbeatLimitReachedCounter().Increment();
+        }
+
         return true;
     }
 
@@ -2046,7 +2152,7 @@ void TNodeShard::UpdateNodeResources(
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->ResourceUsage().GetUserSlots() > 0) {
-            CachedResourceStatisticsByTags_->Clear();
+            ResourceStatisticsByTagsCache_->Clear();
         }
 
         if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {
@@ -2285,73 +2391,28 @@ void TNodeShard::SubmitAllocationsToStrategy()
     }
 }
 
-void TNodeShard::UpdateRunningAllocationProfilingCounter(const TAllocationPtr& allocation, int value)
-{
-    auto allocationState = allocation->GetState();
-
-    YT_VERIFY(allocationState <= EAllocationState::Running);
-
-    auto createGauge = [&] {
-        return SchedulerProfiler().WithTags(TTagSet(TTagList{
-                {ProfilingPoolTreeKey, allocation->GetTreeId()},
-                {"state", FormatEnum(allocationState)}}))
-            .Gauge("/allocations/running_allocation_count");
-    };
-
-    TRunningAllocationCounterKey key(allocationState, allocation->GetTreeId());
-
-    auto it = RunningAllocationCounter_.find(key);
-    if (it == RunningAllocationCounter_.end()) {
-        it = RunningAllocationCounter_.emplace(
-            std::move(key),
-            std::pair(
-                0,
-                createGauge())).first;
-    }
-
-    auto& [count, gauge] = it->second;
-    count += value;
-    gauge.Update(count);
-}
-
-void TNodeShard::IncrementFinishedAllocationProfilingCounter(const TAllocationPtr& allocation, bool aborted)
-{
-    auto createCounter = [&] {
-        return SchedulerProfiler()
-            .WithTags(TTagSet(TTagList{
-                {ProfilingPoolTreeKey, allocation->GetTreeId()},
-                {"aborted", std::string(FormatBool(aborted))},
-            }))
-            .Counter("/allocations/finished_allocation_count");
-    };
-
-    auto key = TFinishedAllocationCounterKey(aborted, allocation->GetTreeId());
-
-    auto it = FinishedAllocationCounter_.find(key);
-    if (it == end(FinishedAllocationCounter_)) {
-        it = FinishedAllocationCounter_.emplace(
-            std::move(key),
-            createCounter()).first;
-    }
-
-    auto& counter = it->second;
-    counter.Increment();
-}
-
 void TNodeShard::SetAllocationState(const TAllocationPtr& allocation, const EAllocationState state)
 {
     YT_VERIFY(state != EAllocationState::Scheduled);
 
-    UpdateRunningAllocationProfilingCounter(allocation, -1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    }
     allocation->SetState(state);
-    UpdateRunningAllocationProfilingCounter(allocation, 1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    }
 }
 
 void TNodeShard::SetFinishedState(const TAllocationPtr& allocation, bool aborted)
 {
-    UpdateRunningAllocationProfilingCounter(allocation, -1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, -1);
+    }
     allocation->SetState(EAllocationState::Finished);
-    IncrementFinishedAllocationProfilingCounter(allocation, aborted);
+    if (GlobalSensors_) {
+        GlobalSensors_->IncrementFinishedAllocationProfilingCounter(allocation, aborted);
+    }
 }
 
 void TNodeShard::ProcessOperationInfoHeartbeat(
@@ -2393,12 +2454,14 @@ void TNodeShard::UpdateUnutilizedResourceCounters(
     for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
         if (unutilizedResources[reason]) {
             auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
-            UnutilizedResourcesCounterByReason_[reason].Update(
-                unutilizedVolume,
-                {
-                    {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},
-                    {ProfilingWithinHeartbeatKey, ToString(withinHeartbeat)},
-                });
+            if (GlobalSensors_) {
+                GlobalSensors_->UnutilizedResourcesCounterByReason()[reason].Update(
+                    unutilizedVolume,
+                    {
+                        {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},
+                        {ProfilingWithinHeartbeatKey, ToString(withinHeartbeat)},
+                    });
+            }
         }
     }
 
@@ -2486,8 +2549,10 @@ void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
         SetControllerAgentDescriptor(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
     }
 
-    HeartbeatRegisteredControllerAgentsBytes_.Increment(
-        response->registered_controller_agents().SpaceUsedExcludingSelfLong());
+    if (GlobalSensors_) {
+        GlobalSensors_->HeartbeatRegisteredControllerAgentsBytes().Increment(
+            response->registered_controller_agents().SpaceUsedExcludingSelfLong());
+    }
 }
 
 void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
@@ -2501,7 +2566,9 @@ void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)
     EmplaceOrCrash(node->IdToAllocation(), allocation->GetId(), allocation);
     ++ActiveAllocationCount_;
 
-    UpdateRunningAllocationProfilingCounter(allocation, 1);
+    if (GlobalSensors_) {
+        GlobalSensors_->UpdateRunningAllocationProfilingCounter(allocation, 1);
+    }
 
     YT_LOG_DEBUG(
         "Allocation registered "

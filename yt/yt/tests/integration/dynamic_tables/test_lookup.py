@@ -608,6 +608,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", chunk_reader={

@@ -117,12 +117,12 @@ public:
     virtual bool IsAlive() = 0;
 
 protected:
-    virtual void OnSidecarFinished(const TError& sidecarResult);
+    const std::string Name_;
+    const NScheduler::TSidecarJobSpecPtr Spec_;
+    const TWeakPtr<IJobProxyEnvironment> JobProxy_;
+    const std::function<void(TError)> FailedSidecarCallback_;
 
-    TString Name_;
-    NScheduler::TSidecarJobSpecPtr Spec_;
-    TWeakPtr<IJobProxyEnvironment> JobProxy_;
-    std::function<void(TError)> FailedSidecarCallback_;
+    virtual void OnSidecarFinished(const TError& sidecarResult);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSidecarEnvironmentBase)

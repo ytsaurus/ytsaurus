@@ -2,6 +2,7 @@
 
 from .logger import logger
 from .test_ordered import test_ordered_tables
+from .test_queue_and_hunk_storage import test_queue_and_hunk_storage
 from .test_queues import test_queues
 from .test_sorted import test_sorted_tables
 from .stateless_write import run_stateless_writer
@@ -117,6 +118,8 @@ def run_with_spec(base_path, spec, args):
             test_ordered_tables(base_path, spec, attributes, args)
         elif spec.table_type == "queues":
             test_queues(base_path, spec, attributes, args)
+        elif spec.table_type == "queue_and_hunk_storage":
+            test_queue_and_hunk_storage(base_path, spec, attributes, args)
     elif spec.mode == "stateless_write":
         assert False
         run_stateless_writer(base_path, spec, attributes, args)

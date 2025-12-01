@@ -10,6 +10,7 @@
 #include "shallow_merge_job.h"
 #include "signature_proxy.h"
 #include "simple_sort_job.h"
+#include "job_api_service.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
@@ -103,6 +104,8 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
+
+#include <yt/yt/core/rpc/grpc/server.h>
 
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
@@ -224,6 +227,17 @@ TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
     // TODO(babenko): migrate to std::string
     return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
+}
+
+std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
+{
+    constexpr std::string_view prefix = "unix:";
+
+    auto addresses = Config_->GrpcServer->Addresses;
+    YT_VERIFY(addresses.size() == 1);
+    YT_VERIFY(addresses[0]->Address.starts_with(prefix));
+
+    return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -582,6 +596,13 @@ void TJobProxy::DoRun()
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping RPC server");
     }
 
+
+    if (GrpcServer_ != nullptr) {
+        auto error = WaitFor(GrpcServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
+    }
+
     FillJobResult(&result);
     FillStderrResult(&result);
     ReportResult(
@@ -647,10 +668,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TString TJobProxy::AdjustPath(const TString& path) const
 {
-    YT_VERIFY(path.StartsWith(GetPreparationPath()));
-    auto pathSuffix = path.substr(GetPreparationPath().size() + 1);
-    auto adjustedPath = NFS::CombinePaths(GetSlotPath(), pathSuffix);
-    return adjustedPath;
+    return NFS::CombinePaths(GetSlotPath(), NFS::GetRelativePath(GetPreparationPath(), path));
 }
 
 NYTree::IYPathServicePtr TJobProxy::CreateOrchidService()
@@ -826,17 +844,34 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_->Start();
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
+        YT_VERIFY(Config_->GrpcServer->Addresses.size() == 1);
 
         InitializeOrchid();
 
+        auto jobApiService = CreateJobApiService(
+            Config_->JobApiService,
+            GetControlInvoker());
+
+        YT_LOG_INFO(
+            "Creating RPC and GRPC servers (RpcSocketPath: %v, GrpcSocketPath: %v)",
+            Config_->BusServer->UnixDomainSocketPath,
+            Config_->GrpcServer->Addresses[0]->Address);
+
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
+        RpcServer_->RegisterService(jobApiService);
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             OrchidRoot_,
             GetControlInvoker(),
             /*authenticator*/ nullptr));
 
         RpcServer_->Start();
+
+        if (Config_->EnableGrpcServer) {
+            GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
+            GrpcServer_->RegisterService(jobApiService);
+            GrpcServer_->Start();
+        }
 
         if (TvmBridge_) {
             YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", TvmBridge_->GetSelfTvmId());
@@ -1523,7 +1558,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
-        // TODO(yuryalekseev): Remove this after tasklets move to using default place.
+        // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
         environmentOptions.Places.push_back(All);
     }
 

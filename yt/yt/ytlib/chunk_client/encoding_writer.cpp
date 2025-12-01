@@ -63,7 +63,7 @@ void TEncodingWriter::WriteBlock(
     UncompressedSize_ += block.Size();
     SizeSemaphore_->Acquire(block.Size());
 
-    auto blockFuture = CodecSemaphore_->AsyncAcquire().ApplyUnique(
+    auto blockFuture = CodecSemaphore_->AsyncAcquire().AsUnique().Apply(
         BIND(
             ThrowOnDestroyed(&TEncodingWriter::DoCompressBlock),
             MakeWeak(this),
@@ -95,7 +95,7 @@ void TEncodingWriter::WriteBlock(
         UncompressedSize_ += part.Size();
     }
 
-    auto blockFuture = CodecSemaphore_->AsyncAcquire().ApplyUnique(
+    auto blockFuture = CodecSemaphore_->AsyncAcquire().AsUnique().Apply(
         BIND(
             &TEncodingWriter::DoCompressVector,
             MakeStrong(this),

@@ -80,6 +80,12 @@ $ yt set //sys/accounts/my_subaccount3/@resource_limits/node_count 2000
 Please note that total disk space managed with accounts isn't limited to the cluster's actual available space.
 One of the system administrator's responsibilities is to use account limits to make sure the cluster doesn't run out of physical disk space.
 
+{% note info %}
+
+We recommend setting a disk quota 2-3% of the total allocated quota in the cluster for each of the service accounts `tmp` and `intermediate`.
+
+{% endnote %}
+
 ### Managing computational quotas
 
 The scheduler is responsible for allocating computational resources in the cluster, but the descriptions of pool trees and pools (entities that store information about computational quotas) are stored in Cypress. We recommend reading the general [scheduler documentation](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) as well as our [help page on pool management](../../user-guide/data-processing/scheduler/manage-pools.md).

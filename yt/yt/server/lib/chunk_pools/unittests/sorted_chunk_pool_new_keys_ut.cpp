@@ -2647,6 +2647,136 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     ASSERT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
 }
 
+TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
+{
+    // Let's say the somewhere in the initial slicing we sliced a chunk by row
+    // indices inside SortedJobBuilder. The left part goes to one job, the right
+    // one goes to another job.
+    //
+    // Then, JSA did its job and fused these jobs together. What we have is
+    // a sequence of (two) slices that refer to the same key range, but are both
+    // row-sliced.
+    //
+    // Then, the ajusted job got interrupted and only read a part of the left
+    // row-sliced slice. We need to build jobs once again. And we should be
+    // very careful while sorting the endpoints (in terms of SortedJobBuilder)
+    // not to mix up row-sliced slices.
+    // Note that sort routing inside SortedJobBuilder::SortPrimaryEndpoints
+    // must be stable and its stableness will protect us from reordering slices.
+    //
+    // The concrete setup:
+    //
+    // chunk0 goes to job0 and is only needed to trigger JSA.
+    // chunk1 goes to job1.
+    // chunk2 is shared between job1 and job2 (via row slicing).
+    // chunk3 goes to job2.
+    //
+    // job0 triggers adjustment, job1 and job2 get fused into job3.
+    // job3 runs, but only reads chunk1 and a couple of rows from chunk2's left part.
+    // Now we have 3 slices:
+    //     - (s0) part of job1's part of chunk2
+    //     - (s1) job2's part of chunk2
+    //     - (s2) chunk3
+    // and we need to carefully reslice them.
+    //
+    //
+    //        chunk1                  chunk2               chunk3
+    //   [              ]    [    |       |           ]   [          ]
+    //   0             10    0    2       5          10   0         10
+    //   ^^^^^^^^^^^ job1 ^^^^^^^^^^^^^^^^
+    //                                    ^^^^^^^^^^^ job2 ^^^^^^^^^^^
+    //   ^^^^ job3's read part ^^^
+    //                            ^^^^^^^^ job3's unread part ^^^^^^^^
+    //                            <--s0--><-----s1---->   <----s2---->
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
+    CanAdjustDataWeightPerJob_ = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+    DataWeightPerJob_ = 750;
+    PrimaryDataWeightPerJob_ = 750;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    CreateChunkPool();
+
+    auto addSimpleChunk = [&] (TInputChunkPtr chunk) {
+        auto dataSlice = CreateDataSlice(chunk);
+        CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSlice);
+        AddDataSlice(std::move(dataSlice));
+    };
+
+    // chunk0.
+    addSimpleChunk(CreateChunk(BuildRow({0}), BuildRow({0}), 0, /*dataWeight*/ 750, /*rowCount*/ 10));
+
+    // chunk1.
+    addSimpleChunk(CreateChunk(BuildRow({1}), BuildRow({1}), 0, /*dataWeight*/ 500, /*rowCount*/ 10));
+    // chunk2.
+    addSimpleChunk(CreateChunk(BuildRow({2}), BuildRow({2}), 0, /*dataWeight*/ 500, /*rowCount*/ 10));
+    // chunk3.
+    addSimpleChunk(CreateChunk(BuildRow({3}), BuildRow({3}), 0, /*dataWeight*/ 500, /*rowCount*/ 10));
+
+    ChunkPool_->Finish();
+
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 3);
+
+    {
+        // Trigger adjustment.
+        auto adjustingCookie = ExtractCookie(TNodeId(0));
+        auto dataWeight = ChunkPool_->GetStripeList(adjustingCookie)->GetAggregateStatistics().DataWeight;
+        TCompletedJobSummary jobSummary;
+        jobSummary.TotalInputDataStatistics.emplace();
+        jobSummary.TotalInputDataStatistics->set_data_weight(dataWeight),
+        jobSummary.TimeStatistics.PrepareDuration = TDuration::Seconds(100);
+        jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(1);
+        ChunkPool_->Completed(adjustingCookie, jobSummary);
+    }
+
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
+
+    auto extractUnreadSlices = [] (const TChunkStripeListPtr& stripeList) {
+        YT_VERIFY(stripeList->Stripes().size() == 1u);
+        const auto& dataSlices = stripeList->Stripes()[0]->DataSlices();
+        YT_VERIFY(dataSlices.size() == 4u);
+        YT_VERIFY(dataSlices[0]->GetDataWeight() == 500);
+        YT_VERIFY(dataSlices[1]->GetDataWeight() == 250);
+        YT_VERIFY(dataSlices[2]->GetDataWeight() == 250);
+        YT_VERIFY(dataSlices[3]->GetDataWeight() == 500);
+
+        YT_VERIFY(dataSlices[1]->UpperLimit().RowIndex == 5);
+        YT_VERIFY(dataSlices[2]->LowerLimit().RowIndex == 5);
+
+        auto [_, unreadSecond] = dataSlices[1]->SplitByRowIndex(2);
+        return std::vector({
+            unreadSecond,  // s0
+            dataSlices[2], // s1
+            dataSlices[3], // s2
+        });
+    };
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        TCompletedJobSummary jobSummary;
+        jobSummary.InterruptionReason = EInterruptionReason::Preemption;
+        jobSummary.SplitJobCount = 2;
+        jobSummary.UnreadInputDataSlices = extractUnreadSlices(ChunkPool_->GetStripeList(cookie));
+        {
+            // Make JSA happy.
+            jobSummary.TotalInputDataStatistics.emplace();
+            jobSummary.TotalInputDataStatistics->set_data_weight(1000),
+            jobSummary.TimeStatistics.PrepareDuration = TDuration::Seconds(100);
+            jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(1);
+        }
+        ChunkPool_->Completed(cookie, jobSummary);
+    }
+
+    ExtractOutputCookiesWhilePossible();
+}
+
 class TSortedChunkPoolJobSizeAdjusterTest
     : public TSortedChunkPoolNewKeysTest
 {

@@ -1057,6 +1057,51 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@strong_guarantee_resources", {"cpu": 2})
         assert get("//sys/pool_trees/my_tree/nirvana/@min_share_resources/cpu", 2)
 
+    def test_children_guarantees_require_allow_children_guarantees_flag(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("parent", pool_tree="my_tree", wait_for_orchid=False)
+        create_pool("child", pool_tree="my_tree", parent_name="parent", wait_for_orchid=False)
+
+        # Set parent guarantee but don't allow children guarantees.
+        set("//sys/pool_trees/my_tree/parent/@strong_guarantee_resources", {"cpu": 100.0})
+        set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", False)
+
+        # Try to set child guarantee - should fail.
+        with raises_yt_error("does not allow children guarantees"):
+            set("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources", {"cpu": 10.0})
+
+        # Enable allow_children_guarantees flag.
+        set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", True)
+
+        # Now setting child guarantee should succeed.
+        set("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources", {"cpu": 10.0})
+        assert get("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources") == {"cpu": 10.0}
+
+        # Disable flag again - should fail because child already has guarantee.
+        with raises_yt_error("does not allow children guarantees"):
+            set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", False)
+
+        # Remove child guarantee first.
+        remove("//sys/pool_trees/my_tree/parent/child/@strong_guarantee_resources")
+
+        # Now disabling flag should succeed.
+        set("//sys/pool_trees/my_tree/parent/@allow_children_guarantees", False)
+        assert not get("//sys/pool_trees/my_tree/parent/@allow_children_guarantees")
+
+    def test_grandchildren_guarantees_require_allow_children_guarantees_flag(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("grandparent", pool_tree="my_tree", wait_for_orchid=False)
+        create_pool("parent", pool_tree="my_tree", parent_name="grandparent", wait_for_orchid=False)
+        create_pool("grandchild", pool_tree="my_tree", parent_name="parent", wait_for_orchid=False)
+
+        # Set grandparent guarantee but don't allow children guarantees.
+        set("//sys/pool_trees/my_tree/grandparent/@strong_guarantee_resources", {"cpu": 100.0})
+        set("//sys/pool_trees/my_tree/grandparent/@allow_children_guarantees", False)
+
+        # Try to set grandchild guarantee - should fail.
+        with raises_yt_error("is not configured at parent"):
+            set("//sys/pool_trees/my_tree/grandparent/parent/grandchild/@strong_guarantee_resources", {"cpu": 10.0})
+
 
 @authors("renadeen")
 @pytest.mark.enabled_multidaemon

@@ -1437,7 +1437,7 @@ TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNo
             BuildMultipleTransactionSelectCondition(CypressTransactionAncestry_),
         },
         .OrderBy = {"child_key"},
-    }).ApplyUnique(BIND([transactionDepths = std::move(transactionDepths)] (
+    }).AsUnique().Apply(BIND([transactionDepths = std::move(transactionDepths)] (
         std::vector<NRecords::TChildNode>&& records)
     {
         SortRecordsByTransactionDepth(&records, transactionDepths);

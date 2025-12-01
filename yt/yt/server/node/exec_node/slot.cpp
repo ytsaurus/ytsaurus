@@ -378,10 +378,10 @@ public:
             return MakeFuture<std::vector<TTmpfsVolumeResult>>(std::move(error));
         }
 
-        std::vector<const TString*> tmpfsPaths;
+        std::vector<std::string_view> tmpfsPaths;
         tmpfsPaths.reserve(volumeParams.size());
         for (const auto& volume: volumeParams) {
-            tmpfsPaths.push_back(&volume.Path);
+            tmpfsPaths.push_back(volume.Path);
         }
 
         //! Check that no volume path is a prefix of another volume path.
@@ -402,7 +402,7 @@ public:
             /*uncancelable*/ false,
             [userSandBoxPath = std::move(userSandBoxPath), volumeParams, this, this_ = MakeStrong(this)] {
                 return VolumeManager_->PrepareTmpfsVolumes(userSandBoxPath, volumeParams)
-                    .ApplyUnique(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    .AsUnique().Apply(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                         if (!volumeResultsOrError.IsOK()) {
                             THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
                                 volumeResultsOrError);
@@ -500,6 +500,23 @@ public:
         VerifyEnabled();
 
         return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
+    }
+
+    NRpc::NGrpc::TServerConfigPtr GetGrpcServerConfig() const override
+    {
+        VerifyEnabled();
+
+        auto shortPath = NFS::GetRelativePath(
+            Location_->GetSlotPath(SlotIndex_),
+            GetJobProxyGrpcUnixDomainSocketPath());
+
+        auto addressConfig = New<NRpc::NGrpc::TServerAddressConfig>();
+        addressConfig->Address = "unix:" + shortPath;
+
+        auto config = New<NRpc::NGrpc::TServerConfig>();
+        config->Addresses.push_back(std::move(addressConfig));
+
+        return config;
     }
 
     TFuture<void> PrepareSandboxDirectories(
@@ -614,11 +631,11 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
-    void CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const override
+    TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
 
-        return Location_->CreateVitalDirectories(rootVolume, userId);
+        return Location_->CreateSlotDirectories(rootVolume, userId);
     }
 
 private:
@@ -727,6 +744,16 @@ private:
                     << ex;
             }
         }
+    }
+
+    TString GetJobProxyGrpcUnixDomainSocketPath() const
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-grpc-%v", NodeTag_, SlotIndex_)});
     }
 };
 

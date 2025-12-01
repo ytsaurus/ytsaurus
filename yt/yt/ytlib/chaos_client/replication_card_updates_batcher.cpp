@@ -76,7 +76,7 @@ public:
         YT_VERIFY(barrierLockGuard);
 
         return StateLock_->AsyncAcquire(1)
-            .ApplyUnique(BIND(
+            .AsUnique().Apply(BIND(
                 [
                     progressUpdate = std::move(progressUpdate),
                     barrierLockGuard = std::move(barrierLockGuard),
@@ -599,7 +599,7 @@ private:
         }
 
         req->Invoke()
-            .SubscribeUnique(BIND(
+            .AsUnique().Subscribe(BIND(
                 [
                     promises = std::move(promises),
                     Logger = Logger
@@ -707,7 +707,7 @@ public:
 
             entry.ExtractCardPromise()
                 .SetFrom(req->Invoke()
-                    .ApplyUnique(BIND([] (TChaosNodeServiceProxy::TRspUpdateTableProgressPtr&& response) {
+                    .AsUnique().Apply(BIND([] (TChaosNodeServiceProxy::TRspUpdateTableProgressPtr&& response) {
                         return FromProto(*response);
                     })));
         }

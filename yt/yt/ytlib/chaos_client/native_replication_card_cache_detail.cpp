@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher_client.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
@@ -25,6 +26,7 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/balancing_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/config.h>
 #include <yt/yt/core/rpc/helpers.h>
@@ -241,7 +243,7 @@ TReplicationCardCache::TReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     NNative::IConnectionPtr connection,
     const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config)
+    : TAsyncExpiringCache(config, NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
     , Config_(std::move(config))
     , Connection_(connection)
     , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection), Config_))

@@ -113,12 +113,12 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
     JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
 }
 
-void TSlotLocation::CreateVitalDirectories(const IVolumePtr& rootVolume, int userId) const
+TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const
 {
-    BIND([rootVolume, userId] {
-        NYT::NExecNode::CreateVitalDirectories(rootVolume, userId);
+    return BIND([rootVolume, userId] {
+        NYT::NExecNode::CreateSlotDirectories(rootVolume, userId);
     })
-    .Via(HeavyInvoker_)
+    .AsyncVia(ToolInvoker_)
     .Run();
 }
 
@@ -926,7 +926,7 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
             }
         }
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
+        YT_LOG_WARNING(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
             LocationPath_,
             path);
         return false;

@@ -1139,7 +1139,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         Passed(std::move(heartbeatProcessingContext)))
         .AsyncVia(GetCancelableInvokerOrThrow())
         .Run()
-        .SubscribeUnique(BIND([this, context] (TErrorOr<THeartbeatProcessingResult>&& heartbeatProcessingResultOrError) {
+        .AsUnique().Subscribe(BIND([this, context] (TErrorOr<THeartbeatProcessingResult>&& heartbeatProcessingResultOrError) {
             if (!heartbeatProcessingResultOrError.IsOK()) {
                 context->Reply(std::move(heartbeatProcessingResultOrError));
                 return;

@@ -104,7 +104,9 @@ private:
             Config_->Host,
             Config_->Port));
         urlBuilder.AppendParam(TStringBuf("method"), method);
-        urlBuilder.AppendChar('&');
+        if (!Config_->UsePostRequests) {
+            urlBuilder.AppendChar('&');
+        }
 
         TSafeUrlBuilder paramsBuilder;
 

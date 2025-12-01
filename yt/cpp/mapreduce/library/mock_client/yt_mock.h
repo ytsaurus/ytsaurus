@@ -54,6 +54,8 @@ public:
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
 
     MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TNode>>, CreateNodeFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TYaMRRow>>, CreateYaMRFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<::google::protobuf::Message>>, CreateProtoFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&, const ::google::protobuf::Message*), (override));
 
     MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));
@@ -176,6 +178,8 @@ public:
     MOCK_METHOD(::TIntrusivePtr<IProtoWriterImpl>, CreateProtoWriter, (const TRichYPath&, const TTableWriterOptions&, const ::google::protobuf::Message*), (override));
 
     MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TNode>>, CreateNodeFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<TYaMRRow>>, CreateYaMRFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&), (override));
+    MOCK_METHOD(::TIntrusivePtr<ITableFragmentWriter<::google::protobuf::Message>>, CreateProtoFragmentWriter, (const TDistributedWriteTableCookie&, const TTableFragmentWriterOptions&, const ::google::protobuf::Message*), (override));
 
     MOCK_METHOD(IOperationPtr, Sort, (const TSortOperationSpec&, const TOperationOptions&), (override));
     MOCK_METHOD(IOperationPtr, Merge, (const TMergeOperationSpec&, const TOperationOptions&), (override));

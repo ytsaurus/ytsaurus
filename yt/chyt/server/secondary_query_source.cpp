@@ -1,6 +1,7 @@
 #include "secondary_query_source.h"
 
 #include "config.h"
+#include "columnar_conversion.h"
 #include "helpers.h"
 #include "host.h"
 #include "query_context.h"
@@ -334,9 +335,20 @@ public:
             for (int stepIndex = 0; stepIndex < std::ssize(ReadPlan_->Steps); ++stepIndex) {
                 const auto& step = ReadPlan_->Steps[stepIndex];
 
-                auto filterHint = (blockWithFilter.Filter.empty() || blockWithFilter.RowCountAfterFilter == batch->GetRowCount())
-                    ? TRange<DB::UInt8>()
-                    : TRange(blockWithFilter.Filter.data(), blockWithFilter.Filter.size());
+                bool filterEmpty = blockWithFilter.Filter.empty() || blockWithFilter.RowCountAfterFilter == batch->GetRowCount();
+                if (stepIndex == std::ssize(ReadPlan_->Steps) - 1 && Settings_->Execution->EnableOptimizeDistinctRead && !filterEmpty) {
+                    YT_VERIFY(step.Columns.size() == 1);
+                    if (auto columnarBatch = batch->TryAsColumnar()) {
+                        auto batchColumns = columnarBatch->MaterializeColumns();
+                        for (const auto* ytColumn : batchColumns) {
+                            if (ytColumn->Id == NameTable_->GetIdOrThrow(step.Columns[0].Name())) {
+                                ReduceFilterToDistinct(blockWithFilter.Filter, *ytColumn);
+                            }
+                        }
+                    }
+                }
+
+                auto filterHint = filterEmpty ? TRange<DB::UInt8>() : TRange(blockWithFilter.Filter.data(), blockWithFilter.Filter.size());
 
                 auto stepBlock = ConvertStepColumns(stepIndex, batch, filterHint);
 
@@ -349,6 +361,13 @@ public:
                     if (blockWithFilter.RowCountAfterFilter == 0) {
                         break;
                     }
+                }
+            }
+            for (const auto& step : ReadPlan_->Steps) {
+                if (step.FilterInfo) {
+                    // We can't remove filter column from block while running execute,
+                    // because block must contain at least one column to preserve row count.
+                    step.FilterInfo->RemoveColumnIfNeeded(blockWithFilter);
                 }
             }
 
@@ -434,8 +453,9 @@ protected:
     void Initialize()
     {
         Converters_.reserve(ReadPlan_->Steps.size());
-        for (const auto& step : ReadPlan_->Steps) {
-            Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, Settings_->Execution->EnableOptimizeDistinctRead);
+        for (int i = 0; i < std::ssize(ReadPlan_->Steps); ++i) {
+            bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Settings_->Execution->EnableOptimizeDistinctRead : false;
+            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());

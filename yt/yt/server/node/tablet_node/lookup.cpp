@@ -858,7 +858,7 @@ protected:
         , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-            ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            ChunkReadOptions_.NewHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
                     .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
@@ -1334,13 +1334,7 @@ void TLookupSession::AddTabletRequest(
                 : nullptr;
 
             if (InMemoryMode_ == EInMemoryMode::None) {
-                if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-                    ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
-                        THedgingUnit{
-                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
-                            .HunkChunk = false,
-                        });
-                }
+                // TODO(akozhikhov): Create hedging manager for regular blocks.
             }
 
             auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(ProfilingUser_);
@@ -1375,7 +1369,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
         // TODO(akozhikhov): Proper block fetcher: we may face unset futures here
         // presumably due to some issues with block fetching logic in old columnar readers.
         if (futures.size() != results.size()) {
-            return AllSet(std::move(futures)).ApplyUnique(BIND(
+            return AllSet(std::move(futures)).AsUnique().Apply(BIND(
                 &TLookupSession::ProcessResults,
                 MakeStrong(this)));
         }
@@ -1397,7 +1391,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
     return CancelableRunWithBoundedConcurrency(
         std::move(callbacks),
         MaxConcurrentSubqueries_)
-        .ApplyUnique(BIND(
+        .AsUnique().Apply(BIND(
             &TLookupSession::ProcessResults,
             MakeStrong(this)));
 }

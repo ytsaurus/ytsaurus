@@ -8,7 +8,6 @@ RECURSE(
     codegen
     codegen_api
     column_converters
-    constrained
     containers
     coredumper
     decimal

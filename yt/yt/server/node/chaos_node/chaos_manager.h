@@ -18,7 +18,7 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EExistenceResult, ui8,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EExistenceResult, i8,
     ((Available)   (0))
     ((Absent)      (1))
     ((NonExistent) (2))

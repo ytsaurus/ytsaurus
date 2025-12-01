@@ -465,7 +465,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
             })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
-                .SubscribeUnique(
+                .AsUnique().Subscribe(
                     BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
                         .Via(Invoker_));
         });
@@ -563,7 +563,7 @@ void TJob::Start() noexcept
         resolveFuture = MakeFuture(std::vector<TNameWithAddress>());
     }
 
-    resolveFuture.SubscribeUnique(
+    resolveFuture.AsUnique().Subscribe(
         BIND(&TJob::DoStart, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
 }
@@ -3068,6 +3068,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 
     proxyInternalConfig->BusServer = GetUserSlot()->GetBusServerConfig();
+    proxyInternalConfig->GrpcServer = GetUserSlot()->GetGrpcServerConfig();
 
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
     for (const auto& tmpfsVolume : TmpfsVolumes_) {
@@ -3271,6 +3272,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
+
+        proxyInternalConfig->EnableGrpcServer = proxyDynamicConfig->EnableGrpcServer;
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);

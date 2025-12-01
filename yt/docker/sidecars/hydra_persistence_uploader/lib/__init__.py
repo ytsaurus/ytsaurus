@@ -6,6 +6,7 @@ import logging
 import subprocess
 import socket
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from yt import yson
@@ -129,6 +130,14 @@ def get_yt_client(proxy, token_path):
     yt_client.config["write_parallel"]["enable"] = True
 
     return yt_client
+
+
+@dataclass
+class MasterHydraPersistenceUploaderConfig:
+    do_upload_snapshots: bool = True
+    snapshots_expiration_time_days: float = 1.0
+    do_upload_changelogs: bool = True
+    changelogs_expiration_time_days: float = 1.0
 
 
 class MasterHydraPersistenceUploaderJob(object):
@@ -376,7 +385,7 @@ class MasterHydraPersistenceUploaderJob(object):
 
             self._yt_client.create("file",
                                    snapshot_path_in_cypress,
-                                   attributes={"expiration_time": "{}".format(datetime.today() + timedelta(days=1)),
+                                   attributes={"expiration_time": "{}".format(datetime.today() + timedelta(days=self._config.snapshots_expiration_time_days)),
                                                # This field is for debug purposes.
                                                "hostname": self._setup.hostname,
                                                "checksum": snapshot_checksum,
@@ -439,7 +448,7 @@ class MasterHydraPersistenceUploaderJob(object):
 
             self._yt_client.create("file",
                                    changelog_path_in_cypress,
-                                   attributes={"expiration_time": "{}".format(datetime.today() + timedelta(days=1)),
+                                   attributes={"expiration_time": "{}".format(datetime.today() + timedelta(days=self._config.changelogs_expiration_time_days)),
                                                # This field is for debug purposes.
                                                "hostname": self._setup.hostname,
                                                "master_version": local_master_version})
@@ -482,8 +491,13 @@ class MasterHydraPersistenceUploaderJob(object):
         checksums_path = self.get_files_path_from_cypress(self._setup.checksums_cypress_subpath)
         meta_path = self.get_meta_path_from_cypress()
 
-        self.create_cypress_map_nodes_if_needed(
-            snapshots_path, changelogs_path, checksums_path, meta_path)
+        self.create_cypress_map_nodes_if_needed(checksums_path, meta_path)
+
+        if self._config.do_upload_snapshots:
+            self.create_cypress_map_nodes_if_needed(snapshots_path)
+
+        if self._config.do_upload_changelogs:
+            self.create_cypress_map_nodes_if_needed(changelogs_path)
 
         local_master_version = self.get_local_master_version()
 
@@ -491,12 +505,15 @@ class MasterHydraPersistenceUploaderJob(object):
             self._logger.debug("Hydra persistence upload is skipped due to master binary '%s' being missing and relative lock being taken", local_master_version)
             return False
 
-        self.run_master_snapshots_uploader(local_master_version)
-        self.run_master_changelogs_uploader(local_master_version)
+        if self._config.do_upload_snapshots:
+            self.run_master_snapshots_uploader(local_master_version)
+        if self._config.do_upload_changelogs:
+            self.run_master_changelogs_uploader(local_master_version)
 
-    def __init__(self, setup, yt_client, logger=None):
+    def __init__(self, setup, yt_client, config: MasterHydraPersistenceUploaderConfig = MasterHydraPersistenceUploaderConfig(), logger=None):
         self._setup = setup
         self._yt_client = yt_client
+        self._config = config
         self._logger = logger
         if self._logger is None:
             self._logger = log

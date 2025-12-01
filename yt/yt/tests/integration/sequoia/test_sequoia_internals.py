@@ -226,6 +226,41 @@ class TestSequoiaInternals(YTEnvSetup):
         sleep(0.5)
         assert get(root) == expected_result
 
+    @authors("h0pless")
+    def test_get_opaques(self):
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
+        sleep(0.5)
+
+        root = "//tmp/root"
+        create("map_node", root)
+        set(f"{root}/@opaque", True)
+
+        create("map_node", f"{root}/child_1")
+        set(f"{root}/child_1/@opaque", False)
+        create("map_node", f"{root}/child_2")
+        set(f"{root}/child_2/@opaque", False)
+
+        create("map_node", f"{root}/child_1/grandchild_1")
+        set(f"{root}/child_1/grandchild_1/@opaque", True)
+
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
+        assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
+
+        root_id = get(f"{root}/@id")
+        child_1_id = get(f"{root}/child_1/@id")
+        child_2_id = get(f"{root}/child_2/@id")
+
+        expected_string = \
+            f'<"id"="{root_id}";"opaque"=%false;>' \
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
+        assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
+
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
+        sleep(0.5)
+
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%false;>{"grandchild_1"=<"opaque"=%false;>{}};"child_2"=<"opaque"=%false;>{};}'
+        assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
+
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
         create("map_node", "//tmp/some_node")
@@ -646,6 +681,7 @@ class TestSequoiaInternals(YTEnvSetup):
         write_table("//tmp/a/b/c", [{"x": "hello"}])
         create("table", "//tmp/a/b/d")
         write_table("//tmp/a/b/d", [{"x": "hello2"}])
+        set("//tmp/a/@annotation", "test")
         for i in range(5):
             set(f"//tmp/a/{i}", i)
 
@@ -671,9 +707,10 @@ class TestSequoiaInternals(YTEnvSetup):
             assert both_usages["resource_usage"]["node_count"] == resource_usage["node_count"]
             assert both_usages["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
 
-            multiple_attributes = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage", "id", "creation_time"])
+            multiple_attributes = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage", "id", "creation_time", "annotation"])
             assert multiple_attributes["resource_usage"]["node_count"] == resource_usage["node_count"]
             assert multiple_attributes["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
+            assert type(multiple_attributes["annotation"]) is not yson.YsonEntity
 
         test_attributes_list("//tmp/a")
         test_attributes_list("//tmp/a/b")
@@ -692,7 +729,7 @@ class TestSequoiaInternals(YTEnvSetup):
         test_attribute_access("//tmp/a/b/c")
         test_attribute_access("//tmp/a/1")
 
-        get_result = get("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
+        get_result = get("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage", "annotation"])
         a_attr = get_result.attributes
         b_attr = get_result["b"].attributes
         c_attr = get_result["b"]["c"].attributes
@@ -705,6 +742,9 @@ class TestSequoiaInternals(YTEnvSetup):
         assert a_attr["resource_usage"]["node_count"] == 1
 
         assert a_attr["recursive_resource_usage"]["disk_space"] == c_attr["resource_usage"]["disk_space"] + d_attr["resource_usage"]["disk_space"]
+
+        assert type(a_attr["annotation"]) is not yson.YsonEntity
+        assert type(b_attr["annotation"]) is not yson.YsonEntity
 
         list_result = ls("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
         for child in list_result:
