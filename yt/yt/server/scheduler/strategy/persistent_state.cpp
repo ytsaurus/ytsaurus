@@ -31,6 +31,9 @@ void TPersistentTreeState::Register(TRegistrar registrar)
         .Alias("allocation_scheduler_state")
         .Alias("job_scheduler_state")
         .Default();
+
+    registrar.Parameter("gpu_scheduling_policy_state", &TThis::GpuSchedulingPolicyState)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

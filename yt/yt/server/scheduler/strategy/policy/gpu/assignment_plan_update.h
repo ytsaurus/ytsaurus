@@ -66,7 +66,7 @@ struct IAssignmentPlanContext
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
 
-    virtual void AddAssignment(
+    virtual void AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,

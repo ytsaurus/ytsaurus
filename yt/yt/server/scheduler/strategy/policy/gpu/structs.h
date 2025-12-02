@@ -107,8 +107,11 @@ public:
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
 
-    void AddAssignment(const TAssignmentPtr& assignment);
+    void AddPlannedAssignment(const TAssignmentPtr& assignment);
     void RemoveAssignment(const TAssignmentPtr& assignment);
+
+    //! Inserts assignment without modifying groupedNeededResources.
+    void AddAssignment(const TAssignmentPtr& assignment);
 
     void SetPreemptible(bool preemptible);
 
@@ -116,6 +119,8 @@ public:
     //! Operation may be not bound to any module but have running assignments (e.g. if operation briefly became preemptible).
     //! When choosing a module for such operation, we will either choose this module or preempt all assignments in it.
     std::optional<std::string> GetUsedSchedulingModule() const;
+
+    bool IsZeroAssignedUsage() const;
 
 private:
     int DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const;
