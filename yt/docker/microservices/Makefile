@@ -9,8 +9,7 @@ COMMIT_SHA = $(COMMIT_SHA_FETCH)
 TODAY = $(shell date -u +%Y-%m-%d)
 IMAGE_TAG = $(TODAY)-$(COMMIT_SHA)
 
-# TODO(ilyaibraev): remove -DOPENSOURCE=true later
-BUILD_FLAGS = -r -DOPENSOURCE=true
+BUILD_FLAGS = -r
 
 TEMP_DIR := $(shell mktemp -d)
 
