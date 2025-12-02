@@ -7,6 +7,7 @@ To enable automatic chunk merge, set the `@chunk_merger_mode` table attribute to
 - **shallow**: Merge chunks at the metadata level, without recompression. This approach works only if the chunks are "similar" enough (have the same sort order, schema, compression codec, etc.). The resulting chunk may also have too many [blocks](../../../../user-guide/storage/chunks.md#chunk-size) at a certain point.
 - **deep**: Merge chunks with full recompression (by reading all input chunks and writing to a new one). This mode is much more expensive than the previous one, but it allows you to merge chunks with different characteristics if they end up in the same table. You can also use this mode to remove small blocks or chunks in older formats.
 - **auto** (recommended): Merge chunks in shallow mode with rollback to deep mode in case of failure.
+- **none**: Disables chunks merge.
 
  We recommend using `auto` by default (other modes are allowed as well, but you should switch to them only if you have a good idea of why you need to do that):
 
@@ -18,6 +19,13 @@ If you need to merge all tables in a particular subtree, you can set the attribu
 
 ```bash
 $ yt set //home/dir_with_tables/@chunk_merger_mode auto
+```
+
+If you need to disable chunk merge for a particular subtree, you can set `@chunk_merger_mode` to `none`.
+
+```bash
+$ yt set //home/dir_with_tables/@chunk_merger_mode auto
+$ yt set //home/dir_with_tables/subdir/@chunk_merger_mode none
 ```
 
 {% note info "Note" %}
