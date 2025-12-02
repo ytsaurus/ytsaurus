@@ -112,11 +112,23 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 		locCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
 
+		ctlDefaultSpeclet := config.LocationControllerDefaultSpeclet[proxy]
+
 		loc.as = map[string]*agent.Agent{}
 		for family, cf := range cfs {
 			l := withName(loc.l, family)
 			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
-			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cf.Config)
+
+			cCfg := cf.Config
+			if defaultSpeclet := ctlDefaultSpeclet[family]; len(defaultSpeclet) > 0 {
+				newCfg, err := strawberry.AddDefaultSpecletToConfig(cCfg, defaultSpeclet)
+				if err != nil {
+					l.Fatal("failed to add default speclet for location", log.Error(err))
+				}
+				cCfg = newCfg
+			}
+
+			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cCfg)
 			a := agent.NewAgent(proxy, config.Token, loc.ytc, withName(l, "a"), c, &locCfg)
 			loc.as[family] = a
 		}
@@ -142,11 +154,12 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				RobotUsername:             config.Strawberry.RobotUsername,
 				AssignAdministerToCreator: config.Strawberry.AssignAdministerToCreatorOrDefault(),
 			},
-			ClusterInfos:    agentInfos,
-			LocationAliases: config.HTTPLocationAliases,
-			Token:           config.Token,
-			Endpoint:        config.HTTPAPIEndpointOrDefault(),
-			DisableAuth:     config.DisableAPIAuth,
+			ClusterInfos:                     agentInfos,
+			LocationAliases:                  config.HTTPLocationAliases,
+			LocationControllerDefaultSpeclet: config.LocationControllerDefaultSpeclet,
+			Token:                            config.Token,
+			Endpoint:                         config.HTTPAPIEndpointOrDefault(),
+			DisableAuth:                      config.DisableAPIAuth,
 		}
 		app.HTTPAPIServer = api.NewServer(apiConfig, l)
 	}

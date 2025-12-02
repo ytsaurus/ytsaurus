@@ -588,26 +588,33 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 		if clusterInfo.Family != family {
 			continue
 		}
+		proxy := clusterInfo.Proxy
 		ytc, err := ythttp.NewClient(&yt.Config{
 			Token:  cfg.Token,
-			Proxy:  clusterInfo.Proxy,
+			Proxy:  proxy,
 			Logger: l.Structured(),
 		})
 		if err != nil {
-			l.Fatal("failed to create yt client", log.Error(err), log.String("cluster", clusterInfo.Proxy))
+			l.Fatal("failed to create yt client", log.Error(err), log.String("cluster", proxy))
 		}
 
 		apiCfg := cfg.BaseAPIConfig
 		apiCfg.AgentInfo = clusterInfo
 
-		ctl := cf.Ctor(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, cf.Config)
+		locDefaultSpeclet := cfg.LocationControllerDefaultSpeclet[proxy][family]
+		ctlCfg, err := strawberry.AddDefaultSpecletToConfig(cf.Config, locDefaultSpeclet)
+		if err != nil {
+			l.Fatal("failed to add location default speclet", log.Error(err))
+		}
+
+		ctl := cf.Ctor(l, ytc, clusterInfo.StrawberryRoot, proxy, ctlCfg)
 
 		api := NewHTTPAPI(ytc, apiCfg, ctl, l, cfg.DisableAuth)
 
-		locationRouter := r.Route("/"+clusterInfo.Proxy, func(r chi.Router) {
+		locationRouter := r.Route("/"+proxy, func(r chi.Router) {
 			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.
 			// r.Use(ythttputil.CORS())
-			r.Use(auth.Auth(clusterInfo.Proxy, cfg.DisableAuth, l.Structured()))
+			r.Use(auth.Auth(proxy, cfg.DisableAuth, l.Structured()))
 
 			for _, cmdVar := range commands {
 				// NB: variable is not copied into closure by default.
@@ -625,7 +632,7 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 			}
 		})
 
-		for _, alias := range cfg.LocationAliases[clusterInfo.Proxy] {
+		for _, alias := range cfg.LocationAliases[proxy] {
 			r.Mount("/"+alias, locationRouter)
 		}
 	}

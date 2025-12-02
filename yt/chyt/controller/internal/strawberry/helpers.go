@@ -121,3 +121,22 @@ func getYSONTimePointerOrNil(t yson.Time) *yson.Time {
 		return &t
 	}
 }
+
+func AddDefaultSpecletToConfig(ctlCfgYson, defaultSpecletYson yson.RawValue) (yson.RawValue, error) {
+	if len(defaultSpecletYson) == 0 {
+		return ctlCfgYson, nil
+	}
+
+	var defaultSpeclet map[string]any
+	if err := yson.Unmarshal(defaultSpecletYson, &defaultSpeclet); err != nil {
+		return nil, fmt.Errorf("failed to parse default speclet yson: %w", err)
+	}
+
+	var ctlCfg map[string]any
+	if err := yson.Unmarshal(ctlCfgYson, &ctlCfg); err != nil {
+		return nil, fmt.Errorf("failed to parse controller config yson: %w", err)
+	}
+
+	ctlCfg["default_speclet"] = defaultSpeclet
+	return yson.Marshal(ctlCfg)
+}
