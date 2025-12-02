@@ -396,7 +396,7 @@ public:
             sessionId,
             useDedicatedAllocations);
 
-        // XXX(akozhikhov): Cannot use ApplyUnique without AsVoid() here. But this seems too heavy.
+        // XXX(akozhikhov): Cannot use AsUnique().Apply() without AsVoid() here. But this seems too heavy.
         future.AsVoid().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TError& /*error*/) {
             auto duration = requestTimer.GetElapsedTime();
             for (const auto& request : requests) {
