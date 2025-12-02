@@ -1,4 +1,4 @@
-from yt_chaos_test_base import ChaosTestBase, MAX_KEY
+from yt_chaos_test_base import ChaosTestBase, MAX_KEY, map_in_parallel
 
 from yt_env_setup import (
     Restarter,
@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver, create_user, make_ace, check_permission,
     get, set, ls, create, exists, remove, copy, move, start_transaction, commit_transaction,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, mount_table, wait_for_tablet_state,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
     create_replication_card, create_chaos_lease, alter_table_replica, abort_transaction,
@@ -39,7 +39,7 @@ from yt_driver_bindings import Driver
 import pytest
 import time
 from copy import deepcopy
-from itertools import zip_longest
+from itertools import zip_longest, product
 
 import builtins
 
@@ -4891,7 +4891,7 @@ class TestChaos(ChaosTestBase):
             {"name": "value", "type": "int64"},
         ])
 
-        for mode in ("sync", "async"):
+        def make_tables(mode):
             path = "//tmp/chaos_" + mode
             create(
                 "chaos_replicated_table",
@@ -4928,40 +4928,49 @@ class TestChaos(ChaosTestBase):
                 f"{path}_replica",
                 attributes={"dynamic": True, "schema": schema, "upstream_replica_id": replica_id},
                 driver=remote_driver)
-            sync_enable_table_replica(replica_id)
-            sync_mount_table(path)
-            sync_mount_table(f"{path}_replica", driver=remote_driver)
 
-        for kind in ("chaos", "regular"):
-            for mode in ("sync", "async"):
-                path = f"//tmp/{kind}_{mode}"
-                insert_rows(path, [{"key": 0, "value": 1}, {"key": 1, "value": 10}], require_sync_replica=False)
+            alter_table_replica(replica_id, enabled=True)
+            mount_table(path)
+            mount_table(f"{path}_replica", driver=remote_driver)
+
+            wait(lambda: get(f"#{replica_id}/@state") == "enabled")
+            wait_for_tablet_state(path, "mounted")
+            wait_for_tablet_state(f"{path}_replica", "mounted", driver=remote_driver)
+
+        map_in_parallel(make_tables, ("sync", "async"))
+
+        def insert_data(packed_args):
+            kind, mode = packed_args
+            path = f"//tmp/{kind}_{mode}"
+            insert_rows(path, [{"key": 0, "value": 1}, {"key": 1, "value": 10}], require_sync_replica=False)
+
+        map_in_parallel(insert_data, product(("chaos", "regular"), ("sync", "async")))
 
         hint = "with hint \"{require_sync_replica=%false;}\""
 
-        for left_mode in ("sync", "async"):
-            for right_mode in ("sync", "async"):
-                for left_kind in ("chaos", "regular"):
-                    for right_kind in ("chaos", "regular"):
-                        left_path = f"//tmp/{left_kind}_{left_mode}"
-                        right_path = f"//tmp/{right_kind}_{right_mode}"
-                        left_hint = hint if left_mode == "async" else ""
-                        right_hint = hint if right_mode == "async" else ""
+        def select_and_check(packed_args):
+            left_mode, right_mode, left_kind, right_kind = packed_args
+            left_path = f"//tmp/{left_kind}_{left_mode}"
+            right_path = f"//tmp/{right_kind}_{right_mode}"
+            left_hint = hint if left_mode == "async" else ""
+            right_hint = hint if right_mode == "async" else ""
 
-                        result = select_rows(f"""
-                            T.value + D.value as s from [{left_path}] AS T {left_hint}
-                            join [{right_path}] AS D {right_hint}
-                            on T.key + 1 = D.key""")
+            result = select_rows(f"""
+                T.value + D.value as s from [{left_path}] AS T {left_hint}
+                join [{right_path}] AS D {right_hint}
+                on T.key + 1 = D.key""")
 
-                        assert len(result) in (0, 1)
-                        if result:
-                            assert result[0]["s"] == 11
+            assert len(result) in (0, 1)
+            if result:
+                assert result[0]["s"] == 11
 
-                        select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
+            select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
 
-                        if left_mode == "async" or right_mode == "async":
-                            with raises_yt_error(yt_error_codes.NoInSyncReplicas):
-                                select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
+            if left_mode == "async" or right_mode == "async":
+                with raises_yt_error(yt_error_codes.NoInSyncReplicas):
+                    select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
+
+        map_in_parallel(select_and_check, product(("sync", "async"), ("sync", "async"), ("chaos", "regular"), ("chaos", "regular")))
 
     @authors("sabdenovch")
     def test_chaos_async_preference(self):
