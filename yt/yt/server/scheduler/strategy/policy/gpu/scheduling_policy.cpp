@@ -726,46 +726,42 @@ private:
             return;
         }
 
-        // TODO(eshcherbin): Add grouped resource demand and use it instead of initial grouped needed resources.
-        // Currently, this is a fallback, so that we are not blocked by this.
-        for (const auto& [allocationGroupName, allocationGroupResources] : *operation->InitialGroupedNeededResources()) {
-            auto it = operation->ReadyToAssignGroupedNeededResources().emplace(
-                allocationGroupName,
-                TAllocationGroupResources{.MinNeededResources = allocationGroupResources.MinNeededResources}).first;
+        // For an operation we want to maintain the following invariant:
+        //     ResourceUsage + EmptyAssignmentResources + ReadyToAssignResources ~= FairShare.
+        // Note that ResourceUsage + EmptyAssignmentResources == AssignedResourceUsage.
+        for (const auto& [neededAllocationGroupName, neededAllocationGroupResources] : GetGroupedNeededResources(operation, operationElement)) {
+            auto it = EmplaceOrCrash(
+                operation->ReadyToAssignGroupedNeededResources(),
+                neededAllocationGroupName,
+                TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources});
             auto& readyToAssignResources = it->second;
 
-            auto assignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), allocationGroupName);
-            auto allocationUsageShare = convertToShare(allocationGroupResources.MinNeededResources);
+            const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
+            const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
 
             YT_LOG_DEBUG(
-                "Updating operation resources for allocation group"
-                "(OperationId: %v, AllocationGroup %v, MinNeededResources %v, FairShare: %v, AllocationUsageShare: %v)",
+                "Updating operation resources for allocation group "
+                "(OperationId: %v, AllocationGroup: %v, NeededAllocationCount: %v, MinNeededResources: %v, "
+                "EmptyAssignmentCount: %v, FairShare: %v, AllocationUsageShare: %v)",
                 operation->GetId(),
-                allocationGroupName,
-                allocationGroupResources.MinNeededResources,
+                neededAllocationGroupName,
+                neededAllocationGroupResources.AllocationCount,
+                neededAllocationGroupResources.MinNeededResources,
+                emptyAssignmentCount,
                 fairShare,
                 allocationUsageShare);
-            while (true) {
-                bool noMoreAssignmentsNeeded = assignmentCount + readyToAssignResources.AllocationCount >= allocationGroupResources.AllocationCount;
-                bool fairShareExceeded = Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare);
 
-                // XXX(eshcherbin): This is a dirty hack, which we use to factor in the real demand of the operation.
-                // Remove it after honest grouped resource demand is added.
-                bool demandExceeded = Dominates(
-                    assignedUsageShare + readyToAssignShare + allocationUsageShare,
-                    operationElement->Attributes().DemandShare + TResourceVector::Epsilon());
-
+            while (emptyAssignmentCount + readyToAssignResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
                 YT_LOG_DEBUG(
-                    "Calculating allocationCount for allocationGroup"
-                    "(OperationId %v, AllocationGroup %v, NoMoreAssignmentsNeeded %v, FairShareExceeded %v, DemandExceeded %v, ReadyToAssignShare %v)",
+                    "Checking if fair share is exceeded before adding another assignment "
+                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, ReadyToAssignShare: %v, FairShare: %v)",
                     operation->GetId(),
-                    allocationGroupName,
-                    noMoreAssignmentsNeeded,
-                    fairShareExceeded,
-                    demandExceeded,
-                    readyToAssignShare);
+                    neededAllocationGroupName,
+                    assignedUsageShare,
+                    readyToAssignShare,
+                    fairShare);
 
-                if (noMoreAssignmentsNeeded || fairShareExceeded || demandExceeded) {
+                if (Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare)) {
                     break;
                 }
 
@@ -773,6 +769,38 @@ private:
                 readyToAssignShare += allocationUsageShare;
             }
         }
+    }
+
+    TAllocationGroupResourcesMap GetGroupedNeededResources(
+        const TOperationPtr& operation,
+        const TPoolTreeOperationElement* operationElement) const
+    {
+        // TODO(eshcherbin): In full mode just return operation's grouped needed resources.
+
+        // NB(eshcherbin): This is a temporary hack. In dry-run mode operation's needed resources are not consistent
+        // with the policy's percieved resource usage (because there are no allocations in the dry-run policy).
+        // Thus, we need to approximate the known total resource demand by fake grouped needed resources.
+        YT_VERIFY(operation->InitialGroupedNeededResources());
+
+        // For vanilla operations we pretend that they always want what they wanted in the very beginning.
+        if (operation->GetType() == EOperationType::Vanilla) {
+            return *operation->InitialGroupedNeededResources();
+        }
+
+        // For all other operations we pretend that all their allocations are uniform.
+        const auto& [allocationGroupName, allocationGroup] = *operation->InitialGroupedNeededResources()->begin();
+        auto approximateAllocationGroup = allocationGroup;
+        approximateAllocationGroup.AllocationCount = 0;
+
+        TJobResources approximateResourceDemand;
+        while (!Dominates(approximateResourceDemand, operationElement->ResourceDemand()) &&
+            approximateAllocationGroup.AllocationCount < allocationGroup.AllocationCount)
+        {
+            approximateResourceDemand += approximateAllocationGroup.MinNeededResources;
+            ++approximateAllocationGroup.AllocationCount;
+        }
+
+        return TAllocationGroupResourcesMap{{allocationGroupName, approximateAllocationGroup}};
     }
 
     void ResetOperationResources(const TOperationPtr& operation)
