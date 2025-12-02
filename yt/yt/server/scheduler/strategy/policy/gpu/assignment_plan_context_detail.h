@@ -13,7 +13,7 @@ class TAssignmentPlanContextBase
 public:
     explicit TAssignmentPlanContextBase(NLogging::TLogger logger);
 
-    void AddAssignment(
+    void AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,

@@ -220,7 +220,13 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
     // 2. Process priority full-host module-bound operations.
     std::vector<TOperationPtr> priorityOperationsToPlan;
     for (const auto& operation : fullHostModuleBoundOperations) {
-        if (operation->GetReadyToAssignNeededAllocationCount() > 0 && ShouldUsePriorityModuleBinding(operation)) {
+        if (!ShouldUsePriorityModuleBinding(operation)) {
+            continue;
+        }
+        // NB(yaishenka): We may lose module due to the Preemptible flag setting, so we need to restore it.
+        bool hasReadyToAssignAllocations = operation->GetReadyToAssignNeededAllocationCount() > 0;
+        bool shouldPlanModule = !operation->IsPreemptible() && !operation->SchedulingModule() && !operation->IsZeroAssignedUsage();
+        if (hasReadyToAssignAllocations || shouldPlanModule) {
             priorityOperationsToPlan.push_back(operation);
         }
     }
@@ -231,7 +237,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
     // NB(eshcherbin): Some operations could have been evicted, so we need to do a whole new pass over |fullHostModuleBoundOperations|.
     std::vector<TOperationPtr> regularOperationsToPlan;
     for (const auto& operation : fullHostModuleBoundOperations) {
-        if (operation->GetReadyToAssignNeededAllocationCount() > 0) {
+        // NB(yaishenka): We may lose module due to the Preemptible flag setting, so we need to restore it.
+        bool hasReadyToAssignAllocations = operation->GetReadyToAssignNeededAllocationCount() > 0;
+        bool shouldPlanModule = !operation->IsPreemptible() && !operation->SchedulingModule() && !operation->IsZeroAssignedUsage();
+        if (hasReadyToAssignAllocations || shouldPlanModule) {
             regularOperationsToPlan.push_back(operation);
         }
     }
@@ -784,7 +793,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TNode* node)
 {
-    Host_->Context_->AddAssignment(
+    Host_->Context_->AddPlannedAssignment(
         AllocationGroupName_,
         AllocationGroupResources_.MinNeededResources,
         Operation_.Get(),

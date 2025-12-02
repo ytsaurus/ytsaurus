@@ -296,6 +296,9 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1))
         .GreaterThanOrEqual(TDuration::Seconds(1));
 
+    registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
     registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
         for (const auto& module : config->Modules) {
             ValidateGpuSchedulingModuleName(module);

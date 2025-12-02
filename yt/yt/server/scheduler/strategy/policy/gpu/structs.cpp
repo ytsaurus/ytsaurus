@@ -89,13 +89,11 @@ int TOperation::GetReadyToAssignNeededAllocationCount() const
     return DoGetNeededAllocationCount(ReadyToAssignGroupedNeededResources_);
 }
 
-void TOperation::AddAssignment(const TAssignmentPtr& assignment)
+void TOperation::AddPlannedAssignment(const TAssignmentPtr& assignment)
 {
     YT_VERIFY(assignment->Operation == this);
 
-    InsertOrCrash(Assignments_, assignment);
-    AssignedResourceUsage_ += assignment->ResourceUsage;
-    ++EmptyAssignmentCountPerGroup_[assignment->AllocationGroupName];
+    AddAssignment(assignment);
 
     auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
@@ -109,6 +107,15 @@ void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;
     --GetOrCrash(EmptyAssignmentCountPerGroup_, assignment->AllocationGroupName);
+}
+
+void TOperation::AddAssignment(const TAssignmentPtr& assignment)
+{
+    YT_VERIFY(assignment->Operation == this);
+
+    InsertOrCrash(Assignments_, assignment);
+    AssignedResourceUsage_ += assignment->ResourceUsage;
+    ++EmptyAssignmentCountPerGroup_[assignment->AllocationGroupName];
 }
 
 void TOperation::SetPreemptible(bool preemptible)
@@ -128,6 +135,11 @@ std::optional<std::string> TOperation::GetUsedSchedulingModule() const
     }
 
     return (*Assignments_.begin())->Node->SchedulingModule();
+}
+
+bool TOperation::IsZeroAssignedUsage() const
+{
+    return Assignments_.empty();
 }
 
 int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
@@ -219,7 +231,9 @@ void TNode::RemoveAssignment(const TAssignmentPtr& assignment)
 void TNode::PreemptAssignment(const TAssignmentPtr& assignment)
 {
     RemoveAssignment(assignment);
-    InsertOrCrash(PreemptedAssignments_, assignment);
+
+    // TODO(yaishenka): Save assignments with allocations.
+    // InsertOrCrash(PreemptedAssignments_, assignment);
 }
 
 void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)

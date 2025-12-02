@@ -1060,6 +1060,7 @@ public:
         }
 
         result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
+        result->GpuSchedulingPolicyState = GpuSchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1086,6 +1087,7 @@ public:
         }
 
         SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
+        GpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
     }
 
     TError OnOperationMaterialized(TOperationId operationId) override

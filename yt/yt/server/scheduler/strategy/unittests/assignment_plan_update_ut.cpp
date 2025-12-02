@@ -1084,7 +1084,8 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
         EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
         EXPECT_EQ(1, operations[2]->GetReadyToAssignNeededAllocationCount());
 
-        EXPECT_TRUE(node->PreemptedAssignments().empty());
+        // TODO(yaishenka): Check after assignments with allocations appear.
+        // EXPECT_TRUE(node->PreemptedAssignments().empty());
         for (const auto& assignment : node->Assignments()) {
             EXPECT_FALSE(assignment->Preempted);
         }
@@ -1116,8 +1117,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
     EXPECT_EQ(0, operations[1]->GetReadyToAssignNeededAllocationCount());
     EXPECT_EQ(0, operations[2]->GetReadyToAssignNeededAllocationCount());
 
-    EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    EXPECT_EQ(preemptibleAssignment, *node->PreemptedAssignments().begin());
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
+    // EXPECT_EQ(preemptibleAssignment, *node->PreemptedAssignments().begin());
+
     EXPECT_TRUE(preemptibleAssignment->Preempted);
     EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptibleAssignment->PreemptionReason);
     EXPECT_TRUE(preemptibleAssignment->PreemptionDescription);
@@ -1156,7 +1159,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignmen
     EXPECT_EQ(1, operations[1]->GetReadyToAssignNeededAllocationCount());
 
     const auto& node = *nodes.begin();
-    EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
+
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
 
     EXPECT_TRUE(preemptibleAssignment->Preempted);
     EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptibleAssignment->PreemptionReason);
@@ -1193,7 +1198,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignment
     ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
 
     const auto& node = *nodes.begin();
-    EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
 
     for (const auto& assignment : preemptibleAssignments) {
         EXPECT_TRUE(assignment->Preempted);
@@ -1243,9 +1250,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
     EXPECT_EQ(UnitResources * 4, operations[1]->AssignedResourceUsage());
     EXPECT_EQ(UnitResources * 6, operations[2]->AssignedResourceUsage());
 
-    for (const auto& node : nodes) {
-        EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    }
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // for (const auto& node : nodes) {
+    //     EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
+    // }
 
     for (const auto& assignment : preemptibleAssignments) {
         EXPECT_TRUE(assignment->Preempted);
@@ -1290,7 +1298,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSeveralStarvingOperations)
     EXPECT_EQ(UnitResources * 1, operations[2]->AssignedResourceUsage());
 
     const auto& node = *nodes.begin();
-    EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
 
     for (const auto& assignment : preemptibleAssignments) {
         EXPECT_TRUE(assignment->Preempted);
@@ -1328,9 +1338,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDoNotPreemptMoreThanNeeded)
     EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(UnitResources * 1, operations[1]->AssignedResourceUsage());
 
-    for (const auto& node : nodes) {
-        EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
-    }
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // for (const auto& node : nodes) {
+    //     EXPECT_EQ(1, std::ssize(node->PreemptedAssignments()));
+    // }
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreemption)
@@ -1363,8 +1374,9 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreem
     ASSERT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
     ASSERT_EQ(UnitResources * 4, operations[3]->AssignedResourceUsage());
 
-    const auto& node = *nodes.begin();
-    EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // const auto& node = *nodes.begin();
+    // EXPECT_EQ(2, std::ssize(node->PreemptedAssignments()));
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfNodesDuringPreemption)
@@ -1572,10 +1584,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 
     auto smallAssignment = *operations[2]->Assignments().begin();
     const auto& expectedNode = smallAssignment->Node;
-    ASSERT_EQ(1, std::ssize(expectedNode->PreemptedAssignments()));
-    const auto& preemptedAssignment = *expectedNode->PreemptedAssignments().begin();
-    EXPECT_EQ(operations[0].Get(), preemptedAssignment->Operation);
-    EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptedAssignment->PreemptionReason);
+
+    // TODO(yaishenka): Check after assignments with allocations appear.
+    // ASSERT_EQ(1, std::ssize(expectedNode->PreemptedAssignments()));
+    // const auto& preemptedAssignment = *expectedNode->PreemptedAssignments().begin();
+    // EXPECT_EQ(operations[0].Get(), preemptedAssignment->Operation);
+    // EXPECT_EQ(EAllocationPreemptionReason::Preemption, preemptedAssignment->PreemptionReason);
 
     operations[2]->SetStarving(false);
     smallAssignment->Preemptible = true;

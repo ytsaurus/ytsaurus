@@ -14,7 +14,7 @@ TAssignmentPlanContextBase::TAssignmentPlanContextBase(TLogger logger)
     : Logger(std::move(logger))
 { }
 
-void TAssignmentPlanContextBase::AddAssignment(
+void TAssignmentPlanContextBase::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -27,7 +27,7 @@ void TAssignmentPlanContextBase::AddAssignment(
         node);
 
     assignment->Node->AddAssignment(assignment);
-    assignment->Operation->AddAssignment(assignment);
+    assignment->Operation->AddPlannedAssignment(assignment);
 
     YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
         assignment->AllocationGroupName,
