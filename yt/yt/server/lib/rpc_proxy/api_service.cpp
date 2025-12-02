@@ -1381,8 +1381,9 @@ private:
                 Logger = Logger
             ] {
                 const auto& timestampProvider = connection->GetTimestampProvider();
-                return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
-                    BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag)
+                    .AsUnique()
+                    .Apply(BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
                                 providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
