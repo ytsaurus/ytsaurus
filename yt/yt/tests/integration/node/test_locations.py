@@ -272,7 +272,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
         locations = get(f"//sys/cluster_nodes/{node}/orchid/data_node/location_manager/store_locations")
         location_indexes = builtins.set()
-        for location in locations.values():
+        for location in locations:
             index = location["index"]
             assert index > 0
             assert index not in location_indexes
@@ -290,7 +290,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
 
         locations = get(f"//sys/cluster_nodes/{node}/orchid/data_node/location_manager/store_locations")
-        for location in locations.values():
+        for location in locations:
             assert location["index"] == 0
 
         self.check_chunk_on_every_medium()
