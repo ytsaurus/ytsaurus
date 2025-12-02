@@ -1,11 +1,9 @@
-#include "chunk_pools_output_merger.h"
+#include "chunk_pool_outputs_merger.h"
 
 #include "chunk_pool.h"
 #include "helpers.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
-
-#include <util/generic/xrange.h>
 
 #include <util/random/random.h>
 
@@ -46,7 +44,7 @@ public:
     {
         ValidateLogger(Logger);
 
-        for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+        for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
             const auto& chunkPool = ChunkPools_[poolIndex];
 
             SubscribePoolPendingUpdated(poolIndex);
@@ -101,7 +99,7 @@ public:
         stripeLists.reserve(ChunkPools_.size());
 
         WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+            for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
                 const auto& chunkPool = ChunkPools_[poolIndex];
 
                 for (auto cookie = chunkPool->Extract(nodeId); cookie != NullCookie; cookie = chunkPool->Extract(nodeId)) {
@@ -165,7 +163,7 @@ public:
         YT_VERIFY(ExtractedCookie_ != IChunkPoolOutput::NullCookie);
 
         int totalSlices = 0;
-        for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+        for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
             for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
                 totalSlices += ChunkPools_[poolIndex]->GetStripeListSliceCount(extractedCookieId);
             }
@@ -189,7 +187,7 @@ public:
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
         WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+            for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
                 const auto& chunkPool = ChunkPools_[poolIndex];
                 for (auto extractedCookieId : UnderlyingChunkPoolCookies_[poolIndex]) {
                     chunkPool->Completed(extractedCookieId, jobSummary);
@@ -405,7 +403,7 @@ private:
     void ApplyAndVerifyNotCompleted(TAction&& action, TStringBuf actionName)
     {
         WithUpdateDisabled([&] {
-            for (int poolIndex : xrange(std::ssize(ChunkPools_))) {
+            for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
                 if (UnderlyingChunkPoolCookies_[poolIndex].empty()) {
                     continue;
                 }
@@ -529,7 +527,7 @@ void TChunkPoolsOutputsMerger::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(11, IsRunning_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        for (int poolIndex : xrange(std::ssize(this_->ChunkPools_))) {
+        for (int poolIndex : std::views::iota(0, std::ssize(this_->ChunkPools_))) {
             this_->SubscribePoolPendingUpdated(poolIndex);
         }
     });
@@ -541,7 +539,7 @@ PHOENIX_DEFINE_TYPE(TChunkPoolsOutputsMerger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPersistentChunkPoolOutputPtr MergeChunkPoolsOutputs(
+IPersistentChunkPoolOutputPtr MergeChunkPoolOutputs(
     std::vector<IPersistentChunkPoolOutputPtr> chunkPools,
     TSerializableLogger logger)
 {

@@ -1,7 +1,7 @@
 #include "chunk_pools_helpers.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/chunk_pools_output_merger.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool_outputs_merger.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -131,7 +131,7 @@ TEST_F(TChunkPoolOutputMergerTest, SimpleMerge)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -175,7 +175,7 @@ TEST_F(TChunkPoolOutputMergerTest, ExtractWithoutAllPoolsReady)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     // Don't finish pool2.
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     // Should be suspended because not all pools are ready.
     CheckJobCounter({.Total = 1, .Suspended = 1});
@@ -230,7 +230,7 @@ TEST_F(TChunkPoolOutputMergerTest, FailedJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -285,7 +285,7 @@ TEST_F(TChunkPoolOutputMergerTest, AbortedJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -341,7 +341,7 @@ TEST_F(TChunkPoolOutputMergerTest, LostJob)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -416,7 +416,7 @@ TEST_F(TChunkPoolOutputMergerTest, MergeMultiplePools)
     pool4->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk4)));
     pool4->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2, pool3, pool4}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2, pool3, pool4}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 4_KBs, .Pending = 4_KBs});
@@ -460,7 +460,7 @@ TEST_F(TChunkPoolOutputMergerTest, Persistence)
     pool2->Add(New<TChunkStripe>(BuildDataSliceByChunk(chunk2)));
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 2_KBs, .Pending = 2_KBs});
@@ -513,7 +513,7 @@ TEST_F(TChunkPoolOutputMergerTest, EmptyUnfinishedPool)
 
     auto pool2 = CreateUnorderedChunkPool();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     EXPECT_FALSE(Merger_->IsCompleted());
     EXPECT_EQ(Merger_->Extract(), IChunkPoolOutput::NullCookie);
@@ -558,7 +558,7 @@ TEST_F(TChunkPoolOutputMergerTest, PoolsWithMultipleStripes)
 
     EXPECT_EQ(1, pool2->GetJobCounter()->GetPending());
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 5_KBs, .Pending = 5_KBs});
@@ -615,7 +615,7 @@ TEST_F(TChunkPoolOutputMergerTest, PoolsWithMultipleJobs)
 
     EXPECT_EQ(3, pool2->GetJobCounter()->GetPending());
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     CheckJobCounter({.Total = 1, .Pending = 1});
     CheckDataWeightCounter({.Total = 5_KBs, .Pending = 5_KBs});
@@ -689,7 +689,7 @@ TEST_PI(
     }
     pool2->Finish();
 
-    Merger_ = MergeChunkPoolsOutputs({pool1, pool2}, GetTestLogger());
+    Merger_ = MergeChunkPoolOutputs({pool1, pool2}, GetTestLogger());
 
     bool bothEmpty = firstPoolEmpty && secondPoolEmpty;
 

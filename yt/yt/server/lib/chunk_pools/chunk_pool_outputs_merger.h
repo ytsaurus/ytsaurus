@@ -9,7 +9,7 @@ namespace NYT::NChunkPools {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Merges all job data into a single job.
-IPersistentChunkPoolOutputPtr MergeChunkPoolsOutputs(
+IPersistentChunkPoolOutputPtr MergeChunkPoolOutputs(
     std::vector<IPersistentChunkPoolOutputPtr> chunkPools,
     NLogging::TSerializableLogger logger);
 
