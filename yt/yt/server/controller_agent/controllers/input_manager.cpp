@@ -788,6 +788,13 @@ void TInputManager::FetchInputTablesAttributes()
                     .OmitInaccessibleRows = Host_->GetSpec()->OmitInaccessibleRows,
                     .PopulateSecurityTags = true,
                 });
+
+            for (const auto& table : cluster->InputTables()) {
+                if (table->Path.HasRowIndexInRanges() && table->RowLevelAcl) {
+                    THROW_ERROR_EXCEPTION("Cannot use ranges with \"row_index\" to read a table with row-level ACL")
+                        << TErrorAttribute("path", table->Path);
+                }
+            }
         });
 
         getBasicAttributesFutures.push_back(
