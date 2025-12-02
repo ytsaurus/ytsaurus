@@ -2030,14 +2030,12 @@ void Serialize(const TStoreLocation& location, IYsonConsumer* consumer)
 {
     NYT::NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item(ToString(location.GetUuid()))
-            .BeginMap()
-                .Item("index").Value(location.GetIndex())
-                .Item("path").Value(location.GetPath())
-                .Item("disk_family").Value(location.GetDiskFamily())
-                .Item("medium").Value(location.GetMediumName())
-                .Item("chunk_count").Value(location.GetChunkCount())
-            .EndMap()
+            .Item("locaion_uuid").Value(location.GetUuid())
+            .Item("index").Value(location.GetIndex())
+            .Item("path").Value(location.GetPath())
+            .Item("disk_family").Value(location.GetDiskFamily())
+            .Item("medium").Value(location.GetMediumName())
+            .Item("chunk_count").Value(location.GetChunkCount())
         .EndMap();
 }
 
