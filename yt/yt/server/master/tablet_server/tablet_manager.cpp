@@ -4266,11 +4266,13 @@ private:
             if (WeakRefTableReplicas_ && tabletBase->GetType() == EObjectType::Tablet) {
                 auto* tablet = tabletBase->As<TTablet>();
                 auto replicas = std::exchange(tablet->Replicas(), {});
-                for (auto&& [replica, replicaInfo] : replicas) {
+                for (auto& [replica, replicaInfo] : replicas) {
                     if (replica->GetObjectRefCounter() == 0) {
                         YT_LOG_ALERT("Skipped dead table replica (TabletId: %v, ReplicaId: %v)",
                             tablet->GetId(),
                             replica->GetId());
+                        // NB: Prevent TWeakObjectPtr::~TWeakObjectPtr from weak-unreferencing this zombie.
+                        Y_UNUSED(const_cast<TWeakObjectPtr<TTableReplica>&>(replica).Release());
                         continue;
                     }
                     Bootstrap_->GetObjectManager()->WeakRefObject(replica.Get());
