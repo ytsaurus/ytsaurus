@@ -14,6 +14,8 @@ default:
     cron-version: 0.0.3
     odin-version: 0.0.5
     tutorial-version: 0.0.2
+    sidecars-version: 0.0.1
+    ytmsvc-version: 0.0.1
 
 public:
   example_cluster: 'cluster_name'
