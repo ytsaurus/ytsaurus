@@ -33,6 +33,9 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     if (PrepareRootFSDuration) {
         statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
     }
+    if (PrepareGpuCheckFSDuration) {
+        statistics->AddSample("/time/prepare_gpu_check_fs"_SP, PrepareGpuCheckFSDuration->MilliSeconds());
+    }
     if (PrepareTmpfsDuration) {
         statistics->AddSample("/time/prepare_tmpfs"_SP, PrepareTmpfsDuration->MilliSeconds());
     }
