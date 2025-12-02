@@ -851,7 +851,8 @@ TJobResult TJobProxy::RunJob()
 
         auto jobApiService = CreateJobApiService(
             Config_->JobApiService,
-            GetControlInvoker());
+            GetControlInvoker(),
+            MakeWeak(this));
 
         YT_LOG_INFO(
             "Creating RPC and GRPC servers (RpcSocketPath: %v, GrpcSocketPath: %v)",
@@ -2056,6 +2057,11 @@ void TJobProxy::LogSystemStats() const
         TDuration(usageSelf.ru_stime),
         TDuration(usageChildren.ru_utime),
         TDuration(usageChildren.ru_stime));
+}
+
+void TJobProxy::OnProgressSaved(TInstant when)
+{
+    GetJobOrThrow()->OnProgressSaved(when);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

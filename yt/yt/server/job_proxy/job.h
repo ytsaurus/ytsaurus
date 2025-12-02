@@ -155,6 +155,8 @@ struct IJob
     //! TODO(bystrovserg): Use it after adding Close() method in archive reporter.
     virtual void FinalizeJobTrace() = 0;
 
+    virtual void OnProgressSaved(TInstant when) = 0;
+
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify
     //! variadic-size statistics kinds (namely, #OutputStatistics and #ChunkWriterStatistics).

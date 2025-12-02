@@ -49,6 +49,8 @@ public:
     bool HasJobTrace() const override;
     void FinalizeJobTrace() override;
 
+    void OnProgressSaved(TInstant when) override;
+
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;

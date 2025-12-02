@@ -699,6 +699,8 @@ private:
     i64 LastMajorPageFaultCount_ = 0;
     i64 PageFaultLimitOverflowCount_ = 0;
 
+    std::atomic<TInstant> LastProgressSaveTime_ = TInstant::Zero();
+
     TFuture<void> SpawnUserProcess()
     {
         WaitFor(Host_->GetUserJobContainerCreationThrottler()->Throttle(1))
@@ -1614,6 +1616,12 @@ private:
             info.JobIOInfo.BufferRowCount = UserJobReadController_->CurrentBufferRowCount();
         }
 
+        if (auto lastProgressSaveTime = LastProgressSaveTime_.load();
+            lastProgressSaveTime != TInstant::Zero())
+        {
+            info.LastProgressSaveTime = lastProgressSaveTime;
+        }
+
         return info;
     }
 
@@ -2031,6 +2039,11 @@ private:
     bool HasInputStatistics() const override
     {
         return JobType_ != EJobType::Vanilla;
+    }
+
+    void OnProgressSaved(TInstant when) override
+    {
+        LastProgressSaveTime_.store(when);
     }
 };
 

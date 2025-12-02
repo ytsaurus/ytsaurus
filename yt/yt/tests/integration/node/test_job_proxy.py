@@ -660,7 +660,11 @@ class TestJobProxyTlsCri(TestJobProxyTls):
     JOB_ENVIRONMENT_TYPE = "cri"
 
 
-class TestJobProxyJobApi(TestRpcProxyInJobProxyBase):
+class TestJobProxyJobApi(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
     DELTA_NODE_CONFIG = {
         "grpc_dispatcher": {
             # This is not necessary for the test, but helpful with debugging
@@ -668,16 +672,34 @@ class TestJobProxyJobApi(TestRpcProxyInJobProxyBase):
         },
     }
 
+    def run_job_proxy(
+        self,
+        time_limit=2000,
+        env_variable="YT_JOB_PROXY_SOCKET_PATH",
+    ):
+        op = run_test_vanilla(
+            with_breakpoint(f"echo ${env_variable} >&2; BREAKPOINT; sleep {time_limit}"),
+            task_patch={},
+        )
+        job_id = wait_breakpoint()[0]
+        socket_file = op.read_stderr(job_id).decode("ascii").strip()
+        release_breakpoint()
+
+        # NB, we return path of unix domain socket. Its path cannot be longer than ~108 chars.
+        # So we go to directory of this socket and use short relative path.
+        socket_directory = os.path.dirname(socket_file)
+        os.chdir(socket_directory)
+        return os.path.basename(socket_file), job_id
+
     @authors("dann239")
     def test_grpc_disabled_by_default(self):
-        socket_file = self.run_job_proxy(
-            enable_rpc_proxy=False,
+        socket_file, _ = self.run_job_proxy(
             env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
         )
         assert not os.path.exists(socket_file)
 
     @authors("dann239")
-    def test_progress_saved(self):
+    def test_progress_saved_grpc(self):
         update_nodes_dynamic_config({
             "exec_node": {
                 "job_controller": {
@@ -687,11 +709,17 @@ class TestJobProxyJobApi(TestRpcProxyInJobProxyBase):
                 },
             },
         })
-        socket_file = self.run_job_proxy(
-            enable_rpc_proxy=False,
+        socket_file, job_id = self.run_job_proxy(
             env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
         )
-        assert os.path.exists(socket_file)
+
+        node = ls("//sys/cluster_nodes")[0]
+        orchid_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/job_proxy"
+        orchid_key = "last_progress_save_time"
+
+        assert orchid_key not in get(orchid_path)
+
+        t0 = datetime.datetime.now(tz=datetime.timezone.utc)
 
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
@@ -700,3 +728,7 @@ class TestJobProxyJobApi(TestRpcProxyInJobProxyBase):
             TRspProgressSaved.FromString,
         )
         endpoint(TReqProgressSaved())
+
+        t1 = datetime.datetime.now(tz=datetime.timezone.utc)
+
+        assert t0 < datetime.datetime.fromisoformat(get(f"{orchid_path}/{orchid_key}")) < t1
