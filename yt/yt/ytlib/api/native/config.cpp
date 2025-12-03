@@ -140,6 +140,8 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
         .Default("//sys/sequoia");
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("client_cache", &TThis::ClientCache)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

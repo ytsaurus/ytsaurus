@@ -1587,7 +1587,7 @@ private:
         volumeProperties["layers"] = builder.Flush();
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto(EVolumeType::Overlay));
+        volumeMeta.set_type(ToProto(EVolumeType::Local));
 
         for (const auto& volumeOrLayer : overlayDataArray) {
             YT_ASSERT(!volumeOrLayer.GetPath().empty());
@@ -1618,7 +1618,7 @@ private:
         };
 
         TVolumeMeta volumeMeta;
-        volumeMeta.set_type(ToProto(EVolumeType::SquashFS));
+        volumeMeta.set_type(ToProto(EVolumeType::Local));
         volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
         volumeMeta.add_layer_paths(squashFSFilePath);
 
@@ -3001,7 +3001,7 @@ private:
 
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
-        const auto volumeType = EVolumeType::Overlay;
+        const auto volumeType = EVolumeType::Local;
         const auto& volumeId = VolumeMeta_.Id;
         const auto& volumePath = VolumeMeta_.MountPath;
 
@@ -3077,7 +3077,7 @@ private:
 
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
-        const auto volumeType = EVolumeType::SquashFS;
+        const auto volumeType = EVolumeType::Local;
         const auto& volumeId = VolumeMeta_.Id;
         const auto& volumePath = VolumeMeta_.MountPath;
 

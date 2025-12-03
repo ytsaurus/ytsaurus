@@ -62,7 +62,7 @@ struct TAccessControlDescriptor
 {
     NCypressClient::TNodeId NodeId;
     NSecurityClient::TSerializableAccessControlList Acl;
-    bool Inherit = false;
+    bool Inherit = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

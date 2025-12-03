@@ -12,6 +12,8 @@
 
 #include <contrib/ydb/public/api/protos/ydb_table.pb.h>
 
+#include <util/random/fast.h>
+
 namespace NKikimr::NDataShard::NKMeans {
 
 using NKikimr::NKMeans::IClusters;

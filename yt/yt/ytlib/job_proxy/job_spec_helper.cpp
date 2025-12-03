@@ -47,8 +47,8 @@ class TJobSpecHelper
     : public IJobSpecHelper
 {
 public:
-    TJobSpecHelper(const TJobSpec& jobSpec)
-        : JobSpec_(jobSpec)
+    TJobSpecHelper(TJobSpec jobSpec)
+        : JobSpec_(std::move(jobSpec))
     {
         const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
         JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonStringBuf(jobSpecExt.io_config()));
@@ -174,9 +174,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const NControllerAgent::NProto::TJobSpec& jobSpec)
+IJobSpecHelperPtr CreateJobSpecHelper(NControllerAgent::NProto::TJobSpec jobSpec)
 {
-    return New<TJobSpecHelper>(jobSpec);
+    return New<TJobSpecHelper>(std::move(jobSpec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

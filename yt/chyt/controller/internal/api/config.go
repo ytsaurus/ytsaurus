@@ -2,6 +2,7 @@ package api
 
 import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
@@ -39,9 +40,10 @@ func (c *APIConfig) ControllerMappingsOrDefault() map[string]string {
 type HTTPAPIConfig struct {
 	BaseAPIConfig APIConfig
 
-	ClusterInfos    []strawberry.AgentInfo
-	LocationAliases map[string][]string
-	Token           string
-	DisableAuth     bool
-	Endpoint        string
+	ClusterInfos                     []strawberry.AgentInfo
+	LocationAliases                  map[string][]string
+	LocationControllerDefaultSpeclet map[string]map[string]yson.RawValue
+	Token                            string
+	DisableAuth                      bool
+	Endpoint                         string
 }

@@ -5,6 +5,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NConcurrency;
@@ -154,7 +156,7 @@ private:
     {
         struct TMemoryInfo
         {
-            std::vector<std::optional<i64>> MaxTmpfsUsage;
+            absl::flat_hash_map<std::string, std::optional<i64>> MaxTmpfsUsage;
             std::optional<i64> MaxMemoryUsage;
             i64 MemoryReserve = 0;
 
@@ -201,23 +203,23 @@ private:
 
             auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
 
-            YT_VERIFY(userJobSpec->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
-
-            if (memoryInfo.MaxTmpfsUsage.empty()) {
-                memoryInfo.MaxTmpfsUsage.resize(maxUsedTmpfsSizes.size());
-            }
-
-            YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
-
-            for (int index = 0; index < std::ssize(maxUsedTmpfsSizes); ++index) {
-                auto tmpfsSize = maxUsedTmpfsSizes[index];
+            for (const auto& [name, tmpfsSize] : maxUsedTmpfsSizes) {
+                auto& maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[name];
                 if (tmpfsSize) {
-                    if (!memoryInfo.MaxTmpfsUsage[index]) {
-                        memoryInfo.MaxTmpfsUsage[index] = 0;
-                    }
-                    memoryInfo.MaxTmpfsUsage[index] = std::max(*memoryInfo.MaxTmpfsUsage[index], *tmpfsSize);
+                    maxTmpfsUsage = std::max(maxTmpfsUsage.value_or(0), *tmpfsSize);
                 }
             }
+
+            int countOfTmpfs = 0;
+            for (const auto& [_, volume] : userJobSpec->Volumes) {
+                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                    ++countOfTmpfs;
+                }
+            }
+
+
+            YT_VERIFY(countOfTmpfs == std::ssize(maxUsedTmpfsSizes));
+            YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
         }
 
         std::vector<TError> tmpfsErrors;
@@ -227,14 +229,12 @@ private:
 
         for (const auto& [task, memoryInfo] : memoryInfoPerTask) {
             const auto& jobSpec = memoryInfo.JobSpec;
-            const auto& tmpfsVolumes = jobSpec->TmpfsVolumes;
 
             bool skipTmpfsCheck = false;
             if (memoryInfo.MaxMemoryUsage) {
                 i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
 
-                for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
-                    auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
+                for (const auto& [name, maxTmpfsUsage] : memoryInfo.MaxTmpfsUsage) {
                     if (maxTmpfsUsage) {
                         memoryUsage += *maxTmpfsUsage;
                     }
@@ -276,13 +276,17 @@ private:
                 continue;
             }
 
-            for (int index = 0; index < std::ssize(tmpfsVolumes); ++index) {
-                auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
+            for (const auto& [name, volume] : jobSpec->Volumes) {
+                if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                    continue;
+                }
+
+                const auto maxTmpfsUsage = GetOrCrash(memoryInfo.MaxTmpfsUsage, name);
                 if (!maxTmpfsUsage) {
                     continue;
                 }
 
-                auto requestedTmpfsSize = tmpfsVolumes[index]->Size;
+                auto requestedTmpfsSize = (*volume->DiskRequest)->DiskSpace;
                 bool minUnusedSpaceThresholdOvercome = requestedTmpfsSize - *maxTmpfsUsage >
                     Config_->TmpfsAlertMinUnusedSpaceThreshold;
                 bool minUnusedSpaceRatioViolated = *maxTmpfsUsage < minUnusedSpaceRatio * requestedTmpfsSize;
@@ -292,7 +296,7 @@ private:
                         "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
                         task->GetVertexDescriptor(),
                         minUnusedSpaceRatio * 100.0,
-                        tmpfsVolumes[index]->Path)
+                        name)
                         << TErrorAttribute("max_used_tmpfs_size", *maxTmpfsUsage)
                         << TErrorAttribute("tmpfs_size", requestedTmpfsSize);
                     tmpfsErrors.push_back(error);

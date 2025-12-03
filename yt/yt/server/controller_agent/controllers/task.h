@@ -186,7 +186,7 @@ public:
 
     i64 GetInputDataSliceCount() const;
 
-    std::vector<std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
+    THashMap<std::string, std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
     bool HasUserJob() const;
@@ -429,7 +429,7 @@ private:
     TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
-    std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
+    THashMap<std::string, std::optional<i64>> MaximumUsedTmpfsSizes_;
 
     mutable std::optional<TExtendedJobResources> CachedMinNeededResources_;
 

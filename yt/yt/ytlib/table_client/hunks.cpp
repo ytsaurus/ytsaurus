@@ -2290,10 +2290,12 @@ public:
     THunkChunkPayloadWriter(
         const TWorkloadDescriptor& workloadDescriptor,
         THunkChunkPayloadWriterConfigPtr config,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         IChunkWriterPtr underlying,
         IChunkWriter::TWriteBlocksOptions underlyingOptions)
         : WorkloadDescriptor_(workloadDescriptor)
         , Config_(std::move(config))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Underlying_(std::move(underlying))
         , UnderlyingOptions_(std::move(underlyingOptions))
     {
@@ -2425,6 +2427,7 @@ public:
 private:
     const TWorkloadDescriptor WorkloadDescriptor_;
     const THunkChunkPayloadWriterConfigPtr Config_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const IChunkWriterPtr Underlying_;
     const IChunkWriter::TWriteBlocksOptions UnderlyingOptions_;
 
@@ -2505,7 +2508,10 @@ private:
         if (std::ssize(Buffer_) < minBlockSize) {
             Buffer_.Resize(minBlockSize);
         }
-        auto block = TSharedRef::MakeCopy<TBlockTag>(Buffer_.ToRef());
+
+        auto block = TrackMemory(
+            MemoryUsageTracker_,
+            TSharedRef::MakeCopy<TBlockTag>(Buffer_.ToRef()));
 
         Buffer_.Clear();
         ++BlockIndex_;
@@ -2520,12 +2526,14 @@ private:
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     const TWorkloadDescriptor& workloadDescriptor,
     THunkChunkPayloadWriterConfigPtr config,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     IChunkWriterPtr underlying,
     NChunkClient::IChunkWriter::TWriteBlocksOptions underlyingOptions)
 {
     return New<THunkChunkPayloadWriter>(
         workloadDescriptor,
         std::move(config),
+        std::move(memoryUsageTracker),
         std::move(underlying),
         std::move(underlyingOptions));
 }

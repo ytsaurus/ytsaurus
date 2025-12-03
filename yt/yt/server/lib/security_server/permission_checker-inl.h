@@ -140,7 +140,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
 template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>
 TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::GetResponse() &&
 {
-    if (Response_.Action == NSecurityClient::ESecurityAction::Undefined) {
+    if (Response_.Action == NSecurityClient::ESecurityAction::Undefined && !Options_->AllowUndefinedResultAction) {
         SetDeny(NObjectClient::NullObjectId, NObjectClient::NullObjectId);
     }
 
@@ -246,8 +246,10 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::SetDeny(
 template <class TAccessControlEntry, NDetail::CSubjectMatchCallback<TAccessControlEntry> TCallback>
 TSubtreePermissionChecker<TAccessControlEntry, TCallback>::TSubtreePermissionChecker(
     NYTree::EPermission permission,
-    TCallback matchAceSubjectCallback)
+    TCallback matchAceSubjectCallback,
+    const TPermissionCheckBasicOptions* options)
     : Permission_(permission)
+    , Options_(options)
     , MatchAceSubjectCallback_(std::move(matchAceSubjectCallback))
 { }
 
@@ -310,8 +312,7 @@ TPermissionCheckResult TSubtreePermissionChecker<TAccessControlEntry, TCallback>
 {
     using TPermissionChecker = TPermissionChecker<TAccessControlEntry, TCallback>;
 
-    TPermissionCheckBasicOptions options;
-    auto checker = TPermissionChecker(Permission_, MatchAceSubjectCallback_, &options);
+    auto checker = TPermissionChecker(Permission_, MatchAceSubjectCallback_, Options_);
 
     for (
         auto it = MatchingAceTrace_.rbegin();
@@ -323,7 +324,7 @@ TPermissionCheckResult TSubtreePermissionChecker<TAccessControlEntry, TCallback>
             break;
         }
 
-        checker.ProcessAce(*entry->Ace, entry->ObjectId, it->Depth);
+        checker.ProcessAce(*entry->Ace, entry->ObjectId, CurrentDepth_ - 1 - it->Depth);
     }
 
     return std::move(checker).GetResponse();

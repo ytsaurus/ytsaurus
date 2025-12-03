@@ -581,7 +581,7 @@ public:
         TLogger logger,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback,
-        std::shared_ptr<TReaderFactory> readerFactory = nullptr)
+        TReaderFactoryPtr readerFactory = nullptr)
         : TSecondaryQuerySourceBase(
             readPlan,
             traceContext,
@@ -589,8 +589,8 @@ public:
             settings,
             logger,
             statisticsCallback)
-        , CurrentReader_(std::move(reader))
         , ReaderFactory_(std::move(readerFactory))
+        , CurrentReader_(std::move(reader))
         , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
     {
         if (!CurrentReader_) {
@@ -627,8 +627,8 @@ public:
     }
 
 private:
+    const TReaderFactoryPtr ReaderFactory_;
     ISchemalessMultiChunkReaderPtr CurrentReader_;
-    std::shared_ptr<TReaderFactory> ReaderFactory_;
     TChunkReaderStatisticsPtr ChunkReaderStatistics_;
 
     const TRowBatchReadOptions Options_{

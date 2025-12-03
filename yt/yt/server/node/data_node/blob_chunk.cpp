@@ -983,14 +983,15 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                         YT_LOG_ALERT(
                             "Long live read session ("
                             "ChunkId: %v, FutureCount: %v, "
-                            "DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
+                            "DiskPromise: %v, DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
                             "EntryCount: %v, BlocksExtLoaded: %v, "
                             "SessionPromiseCanceled: %v, Finished: %v, "
                             "ReadLockCounter: %v)",
                             chunkId,
                             session->Futures.size(),
-                            session->DiskFetchPromise.IsSet(),
-                            session->DiskFetchPromise.IsCanceled(),
+                            static_cast<bool>(session->DiskFetchPromise),
+                            session->DiskFetchPromise && session->DiskFetchPromise.IsSet(),
+                            session->DiskFetchPromise && session->DiskFetchPromise.IsCanceled(),
                             session->EntryCount,
                             session->BlocksExt != nullptr,
                             session->SessionPromise.IsCanceled(),

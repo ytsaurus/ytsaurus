@@ -42,6 +42,8 @@
 #include <yt/yt/library/vector_hdrf/public.h>
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
+#include <yt/yt/server/node/exec_node/public.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -776,9 +778,6 @@ struct TTmpfsVolumeConfig
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsVolumeConfig)
 
-void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig);
-void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNbdDiskConfig
@@ -804,7 +803,7 @@ struct TNbdDiskConfig
 
 DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
 
-struct TDiskRequestConfig
+struct TOldDiskRequestConfig
     : public NYTree::TYsonStruct
 {
     //! Required disk space in bytes, may be enforced as a limit.
@@ -820,16 +819,21 @@ struct TDiskRequestConfig
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
 
-    REGISTER_YSON_STRUCT(TDiskRequestConfig);
+    TOldDiskRequestConfig& operator=(const TStorageRequestBase& config);
+    TOldDiskRequestConfig& operator=(const TDiskRequestConfig& config);
+    TOldDiskRequestConfig& operator=(const TLocalDiskRequest& config);
+    TOldDiskRequestConfig& operator=(const TNbdDiskRequest& config);
+
+    REGISTER_YSON_STRUCT(TOldDiskRequestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
+DEFINE_REFCOUNTED_TYPE(TOldDiskRequestConfig)
 
 void ToProto(
     NProto::TDiskRequest* protoDiskRequest,
-    const TDiskRequestConfig& diskRequestConfig);
+    const TOldDiskRequestConfig& diskRequestConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1343,6 +1347,36 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TVolumeMount
+    : public NYTree::TYsonStruct
+{
+    std::string VolumeId;
+    std::string MountPath;
+    bool IsReadOnly;
+
+    REGISTER_YSON_STRUCT(TVolumeMount);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolumeMount)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLayer
+    : public NYTree::TYsonStruct
+{
+    NYPath::TRichYPath Path;
+
+    REGISTER_YSON_STRUCT(TLayer);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLayer)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! +-------------------+---------------------+---------------------+
 //! | Value / Behaviour | Success             | Failure             |
 //! +-------------------+---------------------+---------------------+
@@ -1412,6 +1446,101 @@ DEFINE_REFCOUNTED_TYPE(TDistributedJobOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStorageRequestBase
+    : public NYTree::TYsonStruct
+{
+    i64 DiskSpace;
+
+    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+
+    REGISTER_YSON_STRUCT(TStorageRequestBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStorageRequestBase)
+
+struct TTmpfsStorageRequest
+    : public TStorageRequestBase
+{
+    // COMPAT (krasovav)
+    std::optional<int> TmpfsIndex;
+
+    REGISTER_YSON_STRUCT(TTmpfsStorageRequest);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsStorageRequest)
+
+struct TDiskRequestConfig
+    : public TStorageRequestBase
+{
+    //! Limit for disk inodes.
+    std::optional<i64> InodeCount;
+
+    std::optional<std::string> MediumName;
+    std::optional<int> MediumIndex;
+    std::optional<std::string> Account;
+
+    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+
+    REGISTER_YSON_STRUCT(TDiskRequestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
+
+struct TLocalDiskRequest
+    : public TDiskRequestConfig
+{
+    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+
+    REGISTER_YSON_STRUCT(TLocalDiskRequest);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocalDiskRequest)
+
+struct TNbdDiskRequest
+    : public TDiskRequestConfig
+{
+    TNbdDiskConfigPtr NbdDisk;
+
+    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    REGISTER_YSON_STRUCT(TNbdDiskRequest);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNbdDiskRequest)
+
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(StorageRequestConfig, NExecNode::EVolumeType, TStorageRequestBase,
+    ((Local)    (TLocalDiskRequest))
+    ((Nbd)      (TNbdDiskRequest))
+    ((Tmpfs)    (TTmpfsStorageRequest))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolume
+    : public NYTree::TYsonStruct
+{
+    std::optional<TStorageRequestConfig> DiskRequest;
+
+    std::vector<TLayerPtr> Layers;
+
+    REGISTER_YSON_STRUCT(TVolume);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TUserJobSpec
     : public NYTree::TYsonStruct
     , public virtual NPhoenix::TPolymorphicBase
@@ -1469,7 +1598,7 @@ struct TUserJobSpec
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
 
-    TDiskRequestConfigPtr DiskRequest;
+    TOldDiskRequestConfigPtr DiskRequest;
 
     bool CopyFiles;
 
@@ -1567,6 +1696,11 @@ struct TUserJobSpec
 
     //! Restrict places allowed for porto volumes and layers.
     bool RestrictPortoPlace;
+
+    THashMap<std::string, TVolumePtr> Volumes;
+    std::vector<TVolumeMountPtr> JobVolumeMounts;
+
+    bool IsFirstPostprocessorDone = false;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

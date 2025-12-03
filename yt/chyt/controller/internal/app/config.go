@@ -30,6 +30,10 @@ type Config struct {
 	// for specified location from LocationProxies.
 	LocationStrawberryOverrides map[string]agent.ConfigOverrides `yson:"location_strawberry_overrides"`
 
+	// LocationControllerDefaultSpeclet contains default speclet for specified location
+	// and controller family. It is used for more detailed definition of default configurations.
+	LocationControllerDefaultSpeclet map[string]map[string]yson.RawValue `yson:"location_controller_default_speclet"`
+
 	// Controllers contains a mapping from controller family to opaque controller configs.
 	Controllers map[string]yson.RawValue `yson:"controllers"`
 

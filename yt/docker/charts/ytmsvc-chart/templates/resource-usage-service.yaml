@@ -1,0 +1,21 @@
+{{- if and .Values.microservices.resourceUsage.enabled .Values.microservices.resourceUsage.api.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-resource-usage-service
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-usage
+spec:
+  type: {{ .Values.microservices.resourceUsage.api.service.type | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.microservices.resourceUsage.api.service.port }}
+      targetPort: http
+    - name: metrics
+      port: {{ .Values.microservices.resourceUsage.api.service.metricsPort }}
+      targetPort: metrics
+  selector:
+    {{- include "ytmsvc.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-usage
+{{- end }}

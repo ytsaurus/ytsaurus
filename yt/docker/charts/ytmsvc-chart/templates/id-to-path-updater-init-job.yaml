@@ -1,0 +1,56 @@
+{{- if .Values.microservices.idToPathUpdater.init.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-id-to-path-updater-init
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: id-to-path-updater-init
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    "helm.sh/hook-weight": "-6"
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "ytmsvc.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: id-to-path-updater-init
+    spec:
+      {{- with (.Values.microservices.idToPathUpdater.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Chart.Name }}-id-to-path-updater-init
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.idToPathUpdater.image "root" .) }}
+        imagePullPolicy: {{ .Values.microservices.idToPathUpdater.image.pullPolicy | default .Values.image.pullPolicy }}
+        args:
+          - "./init_id_to_path_updater"
+          - "--path"
+          - {{ .Values.microservices.idToPathUpdater.config.outputTable | quote }}
+          - "--tablet-cell-bundle"
+          - {{ .Values.microservices.idToPathUpdater.init.tabletCellBundle | quote }}
+          - "--primary-medium"
+          - {{ .Values.microservices.idToPathUpdater.init.primaryMedium | quote }}
+          - "--token-env-variable"
+          - "YT_ID_TO_PATH_TOKEN"
+        env:
+          - name: YT_PROXY
+            value: {{ .Values.cluster.proxy | quote }}
+        envFrom:
+        {{- with .Values.microservices.idToPathUpdater.secretRefs | default .Values.secretRefs }}
+          {{- range . }}
+          - secretRef:
+              name: {{ . }}
+          {{- end }}
+        {{- end }}
+        resources:
+          {{- toYaml (.Values.microservices.idToPathUpdater.resources | default .Values.resources) | nindent 10 }}
+      restartPolicy: OnFailure
+{{- end }}

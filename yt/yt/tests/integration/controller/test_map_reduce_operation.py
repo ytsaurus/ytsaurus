@@ -195,7 +195,7 @@ for line in sys.stdin:
             pytest.skip("This test requires new sorted pool")
 
     def skip_if_compat(self):
-        is_compat = "24_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        is_compat = "25_3" in getattr(self, "ARTIFACT_COMPONENTS", {})
         if is_compat:
             pytest.skip()
 
@@ -3653,8 +3653,6 @@ while True:
     )
     @authors("apollo1321")
     def test_disable_sorted_input_in_reducer(self, method):
-        self.skip_if_compat()
-
         reducer = b"""
 import sys
 
@@ -3755,8 +3753,6 @@ for key, count in counts.items():
 
     @authors("apollo1321")
     def test_disable_sorted_input_in_reducer_invalid_spec(self):
-        self.skip_if_compat()
-
         with raises_yt_error("Error parsing operation spec"):
             map_reduce(
                 in_="//tmp/t_in",
@@ -3774,8 +3770,6 @@ for key, count in counts.items():
         "with_intermediate_sort", [True, False],
     )
     def test_compute_pivot_keys_from_samples(self, with_intermediate_sort):
-        self.skip_if_compat()
-
         create("table", "//tmp/t_in")
         create(
             "table",
@@ -3860,7 +3854,6 @@ for key, count in counts.items():
         "with_intermediate_sort", [True, False],
     )
     def test_sort_by_table_index(self, sort_by_index_first, sort_order, with_intermediate_sort):
-        self.skip_if_compat()
         if with_intermediate_sort and sort_order == "descending":
             self.skip_if_legacy_sorted_pool()
 

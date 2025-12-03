@@ -30,9 +30,9 @@
 
 #include <Storages/StorageDummy.h>
 
+namespace NYT::NClickHouseServer {
 namespace {
 
-using namespace NYT;
 using namespace NYT::NQueryClient;
 using namespace NYT::NTableClient;
 
@@ -108,6 +108,8 @@ TConstExpressionPtr MakeFunctionExpression(const std::string& functionName, cons
     return New<TFunctionExpression>(EValueType::Null, functionName, arguments);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 {
     if (auto literalLhs = lhs->As<TLiteralExpression>()) {
@@ -171,18 +173,6 @@ bool Equal(TConstExpressionPtr lhs, TConstExpressionPtr rhs)
 
     return true;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-namespace NYT::NClickHouseServer {
-
-using namespace NYT::NQueryClient;
-using namespace NYT::NTableClient;
-using namespace NLogging;
-
-TLogger Logger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,4 +346,5 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NClickHouseServer

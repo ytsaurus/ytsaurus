@@ -5,6 +5,8 @@
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/interconnect/logging/logging.h>
 
+#include <util/generic/overloaded.h>
+
 #include <variant>
 
 #if defined (__linux__)

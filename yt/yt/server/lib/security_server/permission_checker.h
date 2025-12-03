@@ -26,6 +26,7 @@ struct TPermissionCheckBasicOptions
     //! Should be given whenever RegisterQueueConsumer permission is checked; defined vitality
     //! of the consumer to be registered.
     std::optional<bool> Vital;
+    bool AllowUndefinedResultAction = false;
 };
 
 //! Describes the result of a permission check for a single entity.
@@ -151,7 +152,8 @@ class TSubtreePermissionChecker
 public:
     TSubtreePermissionChecker(
         NYTree::EPermission permission,
-        TCallback matchAceSubjectCallback);
+        TCallback matchAceSubjectCallback,
+        const TPermissionCheckBasicOptions* options);
 
     template <std::ranges::input_range TAccessControlEntryRange>
         requires std::same_as<std::ranges::range_value_t<TAccessControlEntryRange>, TAccessControlEntry>
@@ -166,6 +168,7 @@ public:
 
 protected:
     const NYTree::EPermission Permission_;
+    const TPermissionCheckBasicOptions* Options_;
 
     TCallback MatchAceSubjectCallback_;
     int CurrentDepth_ = 0;

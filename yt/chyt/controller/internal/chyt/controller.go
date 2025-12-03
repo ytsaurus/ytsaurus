@@ -49,6 +49,7 @@ type Config struct {
 	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
 	ResourcesConfig           *ResourcesConfig     `yson:"resources_config"`
 	SecureVaultFiles          map[string]string    `yson:"secure_vault_files"`
+	DefaultSpeclet            *Speclet             `yson:"default_speclet"`
 }
 
 type controllerSnapshot struct {

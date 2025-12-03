@@ -224,7 +224,7 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 			env.YT,
 			env.StrawberryRoot,
 			"test",
-			nil),
+			/*config*/ nil),
 		config)
 
 	return agent

@@ -78,7 +78,6 @@ static constexpr int MinSampledBlockCountPerChunk = 3;
 
 DECLARE_REFCOUNTED_CLASS(TBuildCompressionDictionarySession)
 
-// TODO(akozhikhov): Proper memory management within session.
 class TBuildCompressionDictionarySession
     : public TRefCounted
 {
@@ -682,7 +681,9 @@ private:
                 Config_->ColumnDictionarySize,
                 columnInfo.Samples);
             if (dictionaryOrError.IsOK()) {
-                columnInfo.Dictionary = dictionaryOrError.Value();
+                columnInfo.Dictionary = TrackMemory(
+                    Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
+                    std::move(dictionaryOrError.Value()));
             } else {
                 YT_LOG_DEBUG(dictionaryOrError,
                     "Compression dictionary training error occurred; builder will skip corresponding column "
@@ -724,6 +725,7 @@ private:
         HunkWriter_ = CreateHunkChunkPayloadWriter(
             TWorkloadDescriptor(WorkloadCategory_),
             hunkWriterConfig,
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
             chunkWriter,
             /*underlyingOptions*/ {});
 

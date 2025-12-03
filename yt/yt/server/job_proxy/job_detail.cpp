@@ -183,6 +183,11 @@ bool TJob::HasJobTrace() const
 void TJob::FinalizeJobTrace()
 { }
 
+void TJob::OnProgressSaved(TInstant /*when*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)

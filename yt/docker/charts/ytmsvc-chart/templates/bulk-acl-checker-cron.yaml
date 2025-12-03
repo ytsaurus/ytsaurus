@@ -1,0 +1,74 @@
+{{- if and .Values.microservices.bulkAclChecker.enabled .Values.microservices.bulkAclChecker.preprocessing.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ytmsvc.cronjob.fullname" (dict "root" . "suffix" "bulk-acl-checker-preprocessing") }}
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: bulk-acl-checker-preprocessing
+spec:
+  schedule: {{ .Values.microservices.bulkAclChecker.preprocessing.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.microservices.bulkAclChecker.preprocessing.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.microservices.bulkAclChecker.preprocessing.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ .Values.microservices.bulkAclChecker.preprocessing.startingDeadlineSeconds }}
+  concurrencyPolicy: {{ .Values.microservices.bulkAclChecker.preprocessing.concurrencyPolicy | quote }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.microservices.bulkAclChecker.preprocessing.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "ytmsvc.commonLabels" . | nindent 12 }}
+            app.kubernetes.io/component: resource-usage-preprocessing
+        spec:
+          {{- with (.Values.microservices.bulkAclChecker.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+          - name: {{ .Chart.Name }}-{{ .Values.cluster.name | replace "_" "-" }}
+            securityContext:
+              {{- toYaml .Values.securityContext | nindent 14 }}
+            image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.bulkAclChecker.image "root" .) }}
+            imagePullPolicy: {{ .Values.microservices.bulkAclChecker.image.pullPolicy | default .Values.image.pullPolicy }}
+            args:
+              - "./bulk_acl_checker_roren"
+              - "full"
+              - {{ .Values.cluster.proxy | quote }}
+            env:
+              - name: YT_PROXY
+                value: {{ .Values.cluster.proxy | quote }}
+            envFrom:
+            {{- with .Values.microservices.bulkAclChecker.secretRefs | default .Values.secretRefs }}
+              {{- range . }}
+              - secretRef:
+                  name: {{ . }}
+              {{- end }}
+            {{- end }}
+            resources:
+              {{- toYaml (.Values.microservices.bulkAclChecker.resources | default .Values.resources) | nindent 14 }}
+            {{- with .Values.volumeMounts }}
+            volumeMounts:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+{{- end }}

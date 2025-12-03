@@ -1355,8 +1355,6 @@ TGangOperationController::TGangOperationController(
 {
     YT_LOG_DEBUG("Gang operation controller created (Incarnation: %v)", Incarnation_);
     GangOperationStartedCounter.Increment();
-
-    ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData{});
 }
 
 void TGangOperationController::RegisterMetadata(auto&& registrar)
@@ -1701,6 +1699,14 @@ void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(T
         jobError = std::nullopt;
     }
 
+    const auto& jobError = data.IncarnationSwitchInfo.TriggerJobError;
+    auto abortReason = data.IncarnationSwitchInfo.AbortReason;
+
+    if (abortReason && IsInterruptionAbortReason(*abortReason) && jobError) {
+        auto interruptionReason = jobError->Attributes().Find<NScheduler::EInterruptionReason>("interruption_reason");
+        data.IncarnationSwitchInfo.InterruptionReason = interruptionReason;
+    }
+
     auto event = TOperationEventReport{
         .OperationId = GetOperationId(),
         .Timestamp = TInstant::Now(),
@@ -1900,6 +1906,8 @@ void TGangOperationController::CustomMaterialize()
     for (const auto& task : Tasks_) {
         TotalGangSize_ += static_cast<const TGangTask*>(task.Get())->GetGangSize();
     }
+
+    ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData{});
 }
 
 void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, TIncarnationSwitchData data)

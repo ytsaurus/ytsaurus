@@ -302,7 +302,7 @@ void THunkTablet::OnStoreAllocationFailed(const TError& error)
     ActiveStorePromise_.TrySet(error);
 }
 
-void THunkTablet::LockTransaction(TTransactionId transactionId)
+void THunkTablet::LockTransactionOrThrow(TTransactionId transactionId)
 {
     YT_VERIFY(transactionId);
     if (LockTransactionId_) {

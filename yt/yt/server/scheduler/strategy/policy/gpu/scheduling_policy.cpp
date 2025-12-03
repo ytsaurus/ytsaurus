@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "assignment_plan_update.h"
+#include "persistent_state.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
@@ -94,7 +95,10 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeAddress));
+        auto it = EmplaceOrCrash(Nodes_, nodeId, New<TNode>(nodeAddress));
+        const auto& node = it->second;
+
+        ReviveNodeState(nodeId, node);
 
         YT_LOG_DEBUG("Node registered (NodeId: %v, NodeAddress: %v)",
             nodeId,
@@ -184,6 +188,46 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void ReviveNodeState(TNodeId nodeId, const TNodePtr& node)
+    {
+        auto maybeState = FindInitialNodePersistentState(nodeId);
+        if (!maybeState) {
+            return;
+        }
+
+        if (maybeState->SchedulingModule) {
+            node->SchedulingModule() = std::move(maybeState->SchedulingModule);
+        }
+
+        for (auto assignmentState : maybeState->AssignmentStates) {
+            TOperationPtr operation = GetOrDefault(DisabledOperations_, assignmentState->OperationId);
+            if (!operation) {
+                operation = GetOrDefault(EnabledOperations_, assignmentState->OperationId);
+            }
+
+            if (operation) {
+                auto assignment = New<TAssignment>(
+                    std::move(assignmentState->AllocationGroupName),
+                    std::move(assignmentState->ResourceUsage),
+                    operation.Get(),
+                    node.Get());
+
+                node->AddAssignment(assignment);
+                operation->AddAssignment(assignment);
+                continue;
+            }
+
+            EmplaceOrCrash(InitialOperationAssignments_[assignmentState->OperationId], assignmentState);
+        }
+
+        YT_LOG_DEBUG(
+            "Revived node's state "
+            "(NodeId: %v, NodeAddress: %v, SchedulingModule: %v)",
+            nodeId,
+            node->Address(),
+            node->SchedulingModule());
+    }
+
     void RegisterOperation(const TPoolTreeOperationElement* element) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -194,6 +238,52 @@ public:
             element->IsGang(),
             element->Spec()->SchedulingModules,
             element->GetSchedulingTagFilter());
+
+         if (auto maybeState = FindInitialOperationPersistentState(operation->GetId())) {
+            if (maybeState->SchedulingModule) {
+                operation->SchedulingModule() = std::move(maybeState->SchedulingModule);
+            }
+
+            for (auto assignmentState : InitialOperationAssignments_[operation->GetId()]) {
+                TNodePtr node = GetOrDefault(Nodes_, assignmentState->NodeId);
+                if (!node) {
+                    YT_LOG_DEBUG(
+                        "Dropped assignment because node is missing "
+                        "(OperationId: %v, NodeId: %v, AllocationGroupName: %v)",
+                        operation->GetId(),
+                        assignmentState->NodeId,
+                        assignmentState->AllocationGroupName);
+
+                    continue;
+                }
+
+                if (operation->SchedulingModule() && node->SchedulingModule() != operation->SchedulingModule()) {
+                    YT_LOG_DEBUG(
+                        "Drop assignment because node's scheduling module has changed "
+                        "(OperationId: %v, NodeId: %v, OldModule: %v, NewModule: %v)",
+                        operation->GetId(),
+                        assignmentState->NodeId,
+                        operation->SchedulingModule(),
+                        node->SchedulingModule());
+                    continue;
+                }
+
+                auto assignment = New<TAssignment>(
+                    std::move(assignmentState->AllocationGroupName),
+                    std::move(assignmentState->ResourceUsage),
+                    operation.Get(),
+                    node.Get());
+
+                node->AddAssignment(assignment);
+                operation->AddAssignment(assignment);
+            }
+
+            YT_LOG_DEBUG(
+                "Revived operation's state"
+                "(OperationId: %v, SchedulingModule: %v)",
+                operation->GetId(),
+                operation->SchedulingModule());
+        }
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 
@@ -348,6 +438,59 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void ReviveOperationState(TOperationPtr operation)
+    {
+        auto maybeState = FindInitialOperationPersistentState(operation->GetId());
+        if (!maybeState) {
+            return;
+        }
+
+        if (maybeState->SchedulingModule) {
+            operation->SchedulingModule() = std::move(maybeState->SchedulingModule);
+        }
+
+        for (auto assignmentState : InitialOperationAssignments_[operation->GetId()]) {
+            TNodePtr node = GetOrDefault(Nodes_, assignmentState->NodeId);
+            if (!node) {
+                YT_LOG_DEBUG(
+                    "Dropped assignment because node is missing "
+                    "(OperationId: %v, NodeId: %v, AllocationGroupName: %v)",
+                    operation->GetId(),
+                    assignmentState->NodeId,
+                    assignmentState->AllocationGroupName);
+
+                continue;
+            }
+
+            if (operation->SchedulingModule() && node->SchedulingModule() != operation->SchedulingModule()) {
+                YT_LOG_DEBUG(
+                    "Dropped assignment because node's scheduling module has changed "
+                    "(OperationId: %v, NodeId: %v, OldModule: %v, NewModule: %v)",
+                    operation->GetId(),
+                    assignmentState->NodeId,
+                    operation->SchedulingModule(),
+                    node->SchedulingModule());
+                operation->SchedulingModule().reset();
+                continue;
+            }
+
+            auto assignment = New<TAssignment>(
+                std::move(assignmentState->AllocationGroupName),
+                std::move(assignmentState->ResourceUsage),
+                operation.Get(),
+                node.Get());
+
+            node->AddAssignment(assignment);
+            operation->AddAssignment(assignment);
+        }
+
+        YT_LOG_DEBUG(
+            "Revived operation's state "
+            "(OperationId: %v,SchedulingModule: %v)",
+            operation->GetId(),
+            operation->SchedulingModule());
+    }
+
     void PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -425,18 +568,41 @@ public:
         PlanUpdateExecutor_->SetPeriod(Config_->PlanUpdatePeriod);
     }
 
-    void InitPersistentState(INodePtr /*persistentState*/) override
+    void InitPersistentState(INodePtr persistentState) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_UNIMPLEMENTED();
+        if (persistentState) {
+            try {
+                InitialPersistentState_ = ConvertTo<TPersistentStatePtr>(persistentState);
+            } catch (const std::exception& ex) {
+                InitialPersistentState_ = New<TPersistentState>();
+
+                // TODO(eshcherbin): Should we set scheduler alert instead? It'll be more visible this way,
+                // but it'll have to be removed manually
+                YT_LOG_WARNING(ex, "Failed to deserialize gpu scheduling policy persistent state; will ignore it");
+            }
+        } else {
+            InitialPersistentState_ = New<TPersistentState>();
+        }
+
+        auto now = TInstant::Now();
+        InitializationFromPersistentStateDeadline_ = now + Config_->InitializationTimeout;
+
+        YT_LOG_DEBUG(
+            "Initialized GPU scheduling policy persistent state (InitializationFromPersistentStateDeadline: %v)",
+            InitializationFromPersistentStateDeadline_);
     }
 
     INodePtr BuildPersistentState() const override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_UNIMPLEMENTED();
+        auto persistentState = PersistentState_
+            ? PersistentState_
+            : InitialPersistentState_;
+
+        return ConvertToNode(persistentState);
     }
 
     const TOperationMap& Operations() const override
@@ -463,11 +629,26 @@ private:
     TOperationMap EnabledOperations_;
     TOperationMap DisabledOperations_;
 
+    TInstant InitializationFromPersistentStateDeadline_;
+    TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
+    TPersistentStatePtr PersistentState_;
+
+    THashMap<TOperationId, THashSet<TPersistentAssignmentStatePtr>> InitialOperationAssignments_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void UpdateAssignmentPlan()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (auto now = TInstant::Now(); now <= InitializationFromPersistentStateDeadline_) {
+            YT_LOG_DEBUG(
+                "Skipping the update cycle during initialization (Now: %v, Deadline: %v)",
+                now,
+                InitializationFromPersistentStateDeadline_);
+
+            return;
+        }
 
         auto host = Host_.Lock();
         if (!host) {
@@ -493,6 +674,8 @@ private:
             Config_,
             Logger);
         updateExecutor.Run();
+
+        UpdatePersistentState();
     }
 
     // TODO(eshcherbin): Optimize not to recalculate preemptible assignments and ready to assign resources from scratch.
@@ -517,7 +700,7 @@ private:
 
         // Update preemptible allocations.
         if (operation->IsFullHostModuleBound()) {
-            operation->SetPreemptible(!operationElement->IsDemandFullySatisfied());
+            operation->SetPreemptible(Dominates(TResourceVector::Epsilon(), fairShare));
         } else {
             auto sortedAssignments = GetItems(operation->Assignments());
             // TODO(eshcherbin): Sort assignments by allocation start time.
@@ -543,46 +726,42 @@ private:
             return;
         }
 
-        // TODO(eshcherbin): Add grouped resource demand and use it instead of initial grouped needed resources.
-        // Currently, this is a fallback, so that we are not blocked by this.
-        for (const auto& [allocationGroupName, allocationGroupResources] : *operation->InitialGroupedNeededResources()) {
-            auto it = operation->ReadyToAssignGroupedNeededResources().emplace(
-                allocationGroupName,
-                TAllocationGroupResources{.MinNeededResources = allocationGroupResources.MinNeededResources}).first;
+        // For an operation we want to maintain the following invariant:
+        //     ResourceUsage + EmptyAssignmentResources + ReadyToAssignResources ~= FairShare.
+        // Note that ResourceUsage + EmptyAssignmentResources == AssignedResourceUsage.
+        for (const auto& [neededAllocationGroupName, neededAllocationGroupResources] : GetGroupedNeededResources(operation, operationElement)) {
+            auto it = EmplaceOrCrash(
+                operation->ReadyToAssignGroupedNeededResources(),
+                neededAllocationGroupName,
+                TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources});
             auto& readyToAssignResources = it->second;
 
-            auto assignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), allocationGroupName);
-            auto allocationUsageShare = convertToShare(allocationGroupResources.MinNeededResources);
+            const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
+            const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
 
             YT_LOG_DEBUG(
-                "Updating operation resources for allocation group"
-                "(OperationId: %v, AllocationGroup %v, MinNeededResources %v, FairShare: %v, AllocationUsageShare: %v)",
+                "Updating operation resources for allocation group "
+                "(OperationId: %v, AllocationGroup: %v, NeededAllocationCount: %v, MinNeededResources: %v, "
+                "EmptyAssignmentCount: %v, FairShare: %v, AllocationUsageShare: %v)",
                 operation->GetId(),
-                allocationGroupName,
-                allocationGroupResources.MinNeededResources,
+                neededAllocationGroupName,
+                neededAllocationGroupResources.AllocationCount,
+                neededAllocationGroupResources.MinNeededResources,
+                emptyAssignmentCount,
                 fairShare,
                 allocationUsageShare);
-            while (true) {
-                bool noMoreAssignmentsNeeded = assignmentCount + readyToAssignResources.AllocationCount >= allocationGroupResources.AllocationCount;
-                bool fairShareExceeded = Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare);
 
-                // XXX(eshcherbin): This is a dirty hack, which we use to factor in the real demand of the operation.
-                // Remove it after honest grouped resource demand is added.
-                bool demandExceeded = Dominates(
-                    assignedUsageShare + readyToAssignShare + allocationUsageShare,
-                    operationElement->Attributes().DemandShare + TResourceVector::Epsilon());
-
+            while (emptyAssignmentCount + readyToAssignResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
                 YT_LOG_DEBUG(
-                    "Calculating allocationCount for allocationGroup"
-                    "(OperationId %v, AllocationGroup %v, NoMoreAssignmentsNeeded %v, FairShareExceeded %v, DemandExceeded %v, ReadyToAssignShare %v)",
+                    "Checking if fair share is exceeded before adding another assignment "
+                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, ReadyToAssignShare: %v, FairShare: %v)",
                     operation->GetId(),
-                    allocationGroupName,
-                    noMoreAssignmentsNeeded,
-                    fairShareExceeded,
-                    demandExceeded,
-                    readyToAssignShare);
+                    neededAllocationGroupName,
+                    assignedUsageShare,
+                    readyToAssignShare,
+                    fairShare);
 
-                if (noMoreAssignmentsNeeded || fairShareExceeded || demandExceeded) {
+                if (Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare)) {
                     break;
                 }
 
@@ -590,6 +769,38 @@ private:
                 readyToAssignShare += allocationUsageShare;
             }
         }
+    }
+
+    TAllocationGroupResourcesMap GetGroupedNeededResources(
+        const TOperationPtr& operation,
+        const TPoolTreeOperationElement* operationElement) const
+    {
+        // TODO(eshcherbin): In full mode just return operation's grouped needed resources.
+
+        // NB(eshcherbin): This is a temporary hack. In dry-run mode operation's needed resources are not consistent
+        // with the policy's percieved resource usage (because there are no allocations in the dry-run policy).
+        // Thus, we need to approximate the known total resource demand by fake grouped needed resources.
+        YT_VERIFY(operation->InitialGroupedNeededResources());
+
+        // For vanilla operations we pretend that they always want what they wanted in the very beginning.
+        if (operation->GetType() == EOperationType::Vanilla) {
+            return *operation->InitialGroupedNeededResources();
+        }
+
+        // For all other operations we pretend that all their allocations are uniform.
+        const auto& [allocationGroupName, allocationGroup] = *operation->InitialGroupedNeededResources()->begin();
+        auto approximateAllocationGroup = allocationGroup;
+        approximateAllocationGroup.AllocationCount = 0;
+
+        TJobResources approximateResourceDemand;
+        while (!Dominates(approximateResourceDemand, operationElement->ResourceDemand()) &&
+            approximateAllocationGroup.AllocationCount < allocationGroup.AllocationCount)
+        {
+            approximateResourceDemand += approximateAllocationGroup.MinNeededResources;
+            ++approximateAllocationGroup.AllocationCount;
+        }
+
+        return TAllocationGroupResourcesMap{{allocationGroupName, approximateAllocationGroup}};
     }
 
     void ResetOperationResources(const TOperationPtr& operation)
@@ -628,6 +839,100 @@ private:
         for (const auto& assignment : GetItems(operation->Assignments())) {
             PreemptAssignment(assignment, preemptionReason, preemptionDescription);
         }
+    }
+
+    //! Returns false if Now > InitializationFromPersistentStateDeadline_ and drops persistentState
+    //! Returns false if InitialPersistentState_ is empty
+    //! Returns true otherwise
+    bool CheckInitializationTimeout()
+    {
+        if (Y_LIKELY(InitialPersistentState_->NodeStates.empty() && InitialPersistentState_->OperationStates.empty())) {
+            return false;
+        }
+
+        if (TInstant::Now() > InitializationFromPersistentStateDeadline_) {
+            InitialPersistentState_.Reset();
+            InitialOperationAssignments_.clear();
+            return false;
+        }
+
+        return true;
+    }
+
+    std::optional<TPersistentNodeState> FindInitialNodePersistentState(TNodeId nodeId)
+    {
+        std::optional<TPersistentNodeState> maybeState;
+
+        if (!CheckInitializationTimeout()) {
+            return maybeState;
+        }
+
+        auto it = InitialPersistentState_->NodeStates.find(nodeId);
+
+        if (it != InitialPersistentState_->NodeStates.end()) {
+            maybeState = std::move(it->second);
+            InitialPersistentState_->NodeStates.erase(it);
+        }
+
+        return maybeState;
+    }
+
+    std::optional<TPersistentOperationState> FindInitialOperationPersistentState(TOperationId operationId)
+    {
+        std::optional<TPersistentOperationState> maybeState;
+
+        if (!CheckInitializationTimeout()) {
+            return maybeState;
+        }
+
+        auto it = InitialPersistentState_->OperationStates.find(operationId);
+
+        if (it != InitialPersistentState_->OperationStates.end()) {
+            maybeState = std::move(it->second);
+            InitialPersistentState_->OperationStates.erase(it);
+        }
+
+        return maybeState;
+    }
+
+    void UpdatePersistentState()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        PersistentState_ = New<TPersistentState>();
+
+        for (const auto& [nodeId, node] : Nodes_) {
+            auto& nodePersistentState = PersistentState_->NodeStates[nodeId];
+            nodePersistentState.SchedulingModule = node->SchedulingModule();
+            nodePersistentState.Address = node->Address();
+
+            for (const auto& assignment : node->Assignments()) {
+                auto assignmentPersistentState = New<TPersistentAssignmentState>();
+                assignmentPersistentState->NodeId = nodeId;
+                assignmentPersistentState->OperationId = assignment->Operation->GetId();
+                assignmentPersistentState->AllocationGroupName = assignment->AllocationGroupName;
+                assignmentPersistentState->ResourceUsage = assignment->ResourceUsage;
+                assignmentPersistentState->CreationTime = assignment->CreationTime;
+
+                nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
+            }
+
+            YT_LOG_DEBUG("Updated persistent state for node (NodeId: %v)", nodeId);
+        }
+
+        auto updateOperationPersistentState = [&] (const auto& it) {
+            const auto& [operationId, operation] = it;
+            auto& operationPersistentState = PersistentState_->OperationStates[operationId];
+            operationPersistentState.SchedulingModule = operation->SchedulingModule();
+
+            YT_LOG_DEBUG(
+                "Updated persistent state for operation (OperationId: %v, SchedulingModule %v,  Enabled %v)",
+                operationId,
+                operation->SchedulingModule(),
+                operation->IsEnabled());
+        };
+
+        std::ranges::for_each(DisabledOperations_, updateOperationPersistentState);
+        std::ranges::for_each(EnabledOperations_, updateOperationPersistentState);
     }
 };
 
@@ -788,13 +1093,11 @@ public:
     }
 
     void InitPersistentState(INodePtr /*persistentState*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    { }
 
     INodePtr BuildPersistentState() const override
     {
-        YT_UNIMPLEMENTED();
+        return {};
     }
 
 private:

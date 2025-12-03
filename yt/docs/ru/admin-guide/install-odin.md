@@ -7,7 +7,7 @@ metadata:
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
-      content: 'https://ytsaurus.tech/docs/ru/admin-guide/install-cron'
+      content: 'https://ytsaurus.tech/docs/ru/admin-guide/install-odin'
     - property: 'article:tag'
       content: 'k8s'
     - property: 'article:modified_time'

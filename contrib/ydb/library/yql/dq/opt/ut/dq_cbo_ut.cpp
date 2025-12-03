@@ -378,7 +378,7 @@ Y_UNIT_TEST(DqOptimizeEquiJoinWithCostsNative) {
     TExprContext ctx;
     TBaseProviderContext pctx;
     std::function<IOptimizerNew*()> optFactory = [&]() {
-	TCBOSettings settings{};
+        TCBOSettings settings{};
         return MakeNativeOptimizerNew(pctx, settings, ctx, false);
     };
     _DqOptimizeEquiJoinWithCosts(optFactory, ctx);

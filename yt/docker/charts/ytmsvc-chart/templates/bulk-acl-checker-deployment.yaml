@@ -1,0 +1,74 @@
+{{- if and .Values.microservices.bulkAclChecker.enabled .Values.microservices.bulkAclChecker.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-bulk-acl-checker-api
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: bulk-acl-checker
+spec:
+  selector:
+    matchLabels:
+      {{- include "ytmsvc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: bulk-acl-checker
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ytmsvc.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bulk-acl-checker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (.Values.microservices.bulkAclChecker.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+            - "./bulk_acl_checker"
+            - "-i"
+            - "{{ .Values.cluster.name }}"
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.bulkAclChecker.image "root" .) }}
+          imagePullPolicy: {{ .Values.microservices.bulkAclChecker.image.pullPolicy | default .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.microservices.bulkAclChecker.api.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /liveness
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /liveness
+              port: http
+          env:
+            - name: YT_PROXY
+              value: "{{ .Values.cluster.proxy }}"
+            - name: YT_PROXY_URL_ALIASING_CONFIG
+              value: "{\"{{ .Values.cluster.name }}\"=\"{{ .Values.cluster.proxy }}\";}"
+          envFrom:
+          {{- with .Values.microservices.bulkAclChecker.secretRefs | default .Values.secretRefs }}
+            {{- range . }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml (.Values.microservices.bulkAclChecker.resources | default .Values.resources) | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

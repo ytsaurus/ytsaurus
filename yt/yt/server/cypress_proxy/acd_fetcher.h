@@ -20,12 +20,13 @@ public:
     std::vector<const TAccessControlDescriptor*> Fetch(
         TRange<TRange<TCypressNodeDescriptor>> joinedDescriptors);
 
+    std::vector<const TAccessControlDescriptor*> Fetch(
+        TRange<std::vector<TCypressChildDescriptor>> joinedDescriptors);
+
 private:
     const NSequoiaClient::ISequoiaTransactionPtr SequoiaTransaction_;
 
     THashMap<NCypressClient::TNodeId, TAccessControlDescriptor> NodeIdToAcd_;
-
-    static TAccessControlDescriptor MakeDefaultDescriptor(NCypressClient::TNodeId nodeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAcdFetcher)

@@ -12,6 +12,7 @@ GENERATE_ENUM_SERIALIZATION(sourceid_info.h)
 
 PEERDIR(
     library/cpp/monlib/service/pages
+    contrib/ydb/core/base
     contrib/ydb/core/persqueue/public
     contrib/ydb/core/persqueue/public/partition_key_range
     contrib/ydb/library/actors/core

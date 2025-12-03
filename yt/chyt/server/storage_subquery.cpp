@@ -219,7 +219,7 @@ public:
         } else {
             readPlan = BuildSimpleReadPlan(columnSchemas);
         }
-        SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= readPlan->SuitableForDistinctReadOptimization();
+        SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
         QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead);
 
         if (SubquerySpec_.InputSpecsTruncated) {
