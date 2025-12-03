@@ -8,6 +8,7 @@ RECURSE(
     job
     lib
     mkql_dq
+    mkql_ytflow
     opt
     proto
     provider
