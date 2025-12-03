@@ -2,9 +2,9 @@
 
 LIBRARY()
 
-VERSION(3.8.2)
+VERSION(3.8.3)
 
-ORIGINAL_SOURCE(https://github.com/libarchive/libarchive/archive/v3.8.2.tar.gz)
+ORIGINAL_SOURCE(https://github.com/libarchive/libarchive/archive/v3.8.3.tar.gz)
 
 LICENSE(
     "(CC0-1.0 OR OpenSSL OR Apache-2.0)" AND
