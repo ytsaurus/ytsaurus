@@ -198,6 +198,7 @@ public:
         auto& cookies = credentials.Cookies;
         cookies[BlackboxSessionIdCookieName] = ext.session_id();
         cookies[BlackboxSslSessionIdCookieName] = ext.ssl_session_id();
+        cookies[BlackboxSessguardCookieName] = ext.session_guard();
         credentials.UserIP = context.UserIP;
         return Underlying_->Authenticate(credentials).Apply(
             BIND([=] (const TAuthenticationResult& authResult) {
