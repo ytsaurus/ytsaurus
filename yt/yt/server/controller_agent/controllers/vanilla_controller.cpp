@@ -1699,6 +1699,14 @@ void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(T
         jobError = std::nullopt;
     }
 
+    const auto& jobError = data.IncarnationSwitchInfo.TriggerJobError;
+    auto abortReason = data.IncarnationSwitchInfo.AbortReason;
+
+    if (abortReason && IsInterruptionAbortReason(*abortReason) && jobError) {
+        auto interruptionReason = jobError->Attributes().Find<NScheduler::EInterruptionReason>("interruption_reason");
+        data.IncarnationSwitchInfo.InterruptionReason = interruptionReason;
+    }
+
     auto event = TOperationEventReport{
         .OperationId = GetOperationId(),
         .Timestamp = TInstant::Now(),

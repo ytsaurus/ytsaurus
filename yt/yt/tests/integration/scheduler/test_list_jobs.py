@@ -1278,6 +1278,43 @@ class TestListJobs(TestListJobsCommon):
         assert job_interrupted_incarnation["incarnation_switch_info"].get("trigger_job_error") is None
 
     @authors("bystrovserg")
+    def test_list_operation_events_interruption_failed(self):
+        command = """(trap "sleep 1000" SIGINT; BREAKPOINT)"""
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": "SIGINT",
+                        "signal_root_process_only": True,
+                        "restart_exit_code": 5,
+                        "gang_options": {},
+                    }
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        (job_id,) = wait_breakpoint()
+
+        interrupt_job(job_id, interrupt_timeout=2000)
+
+        wait(lambda: len(list_operation_events(op.id)) == 2)
+        event = list_operation_events(op.id)[1]
+        assert event["incarnation_switch_reason"] == "job_aborted"
+        assert event["incarnation_switch_info"]["trigger_job_id"] == job_id
+        assert event["incarnation_switch_info"]["abort_reason"] == "interruption_timeout"
+
+        assert event["incarnation_switch_info"].get("interruption_reason") is not None
+        assert event["incarnation_switch_info"]["interruption_reason"] == "user_request"
+
+        release_breakpoint()
+        op.track()
+
+    @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):
         def check_filter(expected_job_count, from_time=None, to_time=None):
             filters = {}
