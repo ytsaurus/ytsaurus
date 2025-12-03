@@ -199,26 +199,17 @@ void TransformWithIndexStatement(
                 << TErrorAttribute("index_table_path", indexTableInfo->Path);
         }
 
-        // COMPAT(sabdenovch)
-        if (indexIt->Kind == ESecondaryIndexKind::Unfolding && !indexIt->UnfoldedColumn) {
-            unfoldedColumn = &FindUnfoldingColumnAndValidate(
-                *tableSchema,
-                indexTableSchema,
-                indexIt->Predicate,
-                indexIt->EvaluatedColumnsSchema);
-        } else {
-            if (indexIt->UnfoldedColumn) {
-                unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
-            }
-
-            ValidateIndexSchema(
-                indexIt->Kind,
-                *tableSchema,
-                indexTableSchema,
-                indexIt->Predicate,
-                indexIt->EvaluatedColumnsSchema,
-                indexIt->UnfoldedColumn);
+        if (indexIt->UnfoldedColumn) {
+            unfoldedColumn = &indexTableSchema.GetColumn(*indexIt->UnfoldedColumn);
         }
+
+        ValidateIndexSchema(
+            indexIt->Kind,
+            *tableSchema,
+            indexTableSchema,
+            indexIt->Predicate,
+            indexIt->EvaluatedColumnsSchema,
+            indexIt->UnfoldedColumn);
     }
 
     if (!index.Alias) {

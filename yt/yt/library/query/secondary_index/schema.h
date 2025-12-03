@@ -16,12 +16,6 @@ void ValidateIndexSchema(
     const TTableSchemaPtr& evaluatedColumnsSchema,
     const std::optional<std::string> unfoldedColumnName = std::nullopt);
 
-const TColumnSchema& FindUnfoldingColumnAndValidate(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema,
-    const std::optional<std::string>& predicate,
-    const TTableSchemaPtr& evaluatedColumnsSchema);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateNoNameCollisions(const TTableSchema& lhs, const TTableSchema& rhs);
