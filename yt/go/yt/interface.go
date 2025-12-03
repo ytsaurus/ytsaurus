@@ -872,7 +872,9 @@ type RevokeTokenOptions struct{}
 
 type ListUserTokensOptions struct{}
 
-type WhoAmIOptions struct{}
+type WhoAmIOptions struct{
+	*ReadRetryOptions
+}
 
 type AddMaintenanceOptions struct {
 }
