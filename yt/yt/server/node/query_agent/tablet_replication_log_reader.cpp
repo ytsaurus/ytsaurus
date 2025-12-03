@@ -322,6 +322,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     TTimestamp upperTimestamp,
     i64 maxDataWeight,
     i64 readDataWeightLimit,
+    TInstant maxAllowedCommitInstant,
     TInstant requestDeadLine,
     IWireProtocolWriter* writer)
 {
@@ -340,6 +341,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
                 upperTimestamp,
                 maxDataWeight,
                 readDataWeightLimit,
+                maxAllowedCommitInstant,
                 requestDeadLine);
     } else {
         return NDetail::TOrderedRowBatchReader(
@@ -356,6 +358,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
                 upperTimestamp,
                 maxDataWeight,
                 readDataWeightLimit,
+                maxAllowedCommitInstant,
                 requestDeadLine);
     }
 }

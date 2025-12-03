@@ -82,6 +82,20 @@ public:
         return TDelayedExecutor::MakeDelayed(AllowedTime_ - now);
     }
 
+    TInstant GetMaxAllowedRecordTime(TInstant now) const override
+    {
+        if (Queue_.empty()) {
+            return TInstant::Max();
+        }
+
+        const auto& entry = Queue_.front();
+        if (now <= entry.ReplicationTime) {
+            return TInstant::Max();
+        }
+
+        return entry.LogRowRecordTime + (now - entry.ReplicationTime) * Config_->Ratio;
+    }
+
 private:
     const TRelativeReplicationThrottlerConfigPtr Config_;
 

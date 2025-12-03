@@ -663,6 +663,9 @@ private:
         auto pullerTabletId = request->has_puller_tablet_id()
             ? std::make_optional(FromProto<TTabletId>(request->puller_tablet_id()))
             : std::nullopt;
+        auto maxAllowedCommitInstant = request->has_max_allowed_commit_instant()
+            ? FromProto<TInstant>(request->max_allowed_commit_instant())
+            : TInstant::Max();
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -779,6 +782,7 @@ private:
                         upperTimestamp,
                         maxDataWeight,
                         Config_->PullRowsReadDataWeightLimit,
+                        maxAllowedCommitInstant,
                         requestDeadLine,
                         writer.get());
 

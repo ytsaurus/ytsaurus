@@ -3,12 +3,15 @@
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NQueryAgent {
 
 using namespace NTabletNode;
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NLogging;
 
 // Default chunk reading size.
@@ -37,6 +40,7 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
     TTimestamp upperTimestamp,
     i64 maxDataWeight,
     i64 readDataWeightLimit,
+    TInstant maxAllowedCommitInstant,
     TInstant requestDeadLine)
 {
     auto currentRowIndex = startRowIndex;
@@ -142,24 +146,28 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         break;
                     }
 
+                    bool maxAllowedCommitInstantExceeded =
+                        TimestampToInstant(timestamp).first > maxAllowedCommitInstant;
                     if (batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit ||
                         batchDataWeight >= maxDataWeight ||
                         timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit ||
                         isRequestDeadlineExceeded ||
-                        isDataWeightPerPullRowsLimitExceeded)
+                        isDataWeightPerPullRowsLimitExceeded ||
+                        maxAllowedCommitInstantExceeded)
                     {
                         readAllRows = false;
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
                             "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, "
                             "TimestampCountOverflow: %v, RequestDeadlineExceeded: %v, "
-                            "DataWeightLimitPerPullRowsIteration: %v)",
+                            "DataWeightLimitPerPullRowsIteration: %v, MaxAllowedCommitInstantExceeded: %v)",
                             TabletId_,
                             timestamp,
                             batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
                             batchDataWeight >= maxDataWeight,
                             timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit,
                             isRequestDeadlineExceeded,
-                            isDataWeightPerPullRowsLimitExceeded);
+                            isDataWeightPerPullRowsLimitExceeded,
+                            maxAllowedCommitInstantExceeded);
                         break;
                     }
 
