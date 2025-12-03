@@ -37,8 +37,11 @@ public:
     void Unlock(TTabletId tabletId);
     bool IsLockedByTablet(TTabletId tabletId) const;
 
+    bool CanLockExclusively(TTransactionId transactionId) const;
+    TTransactionId GetLockingTransactionId() const;
     TError TryLock(TTransactionId transactionId, EObjectLockMode lockMode);
     void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
+
     bool IsLocked() const;
 
     void SetWriter(NJournalClient::IJournalHunkChunkWriterPtr writer);
