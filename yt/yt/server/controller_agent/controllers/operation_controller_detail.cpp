@@ -1594,6 +1594,7 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
         }
 
         ReportControllerStateToArchive(joblet, EJobState::Aborted);
+        ReportFinishTimeToArchive(joblet);
 
         Host_->AbortJob(
             joblet->JobId,
