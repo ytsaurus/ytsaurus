@@ -880,6 +880,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto enableCollocatedDatNodeThrottling = TabletContext_->GetDynamicConfigManager()
             ->GetConfig()->TabletNode->EnableCollocatedDatNodeThrottling;
 
+        auto memoryUsageTracker = TabletContext_->GetNodeMemoryUsageTracker()->WithCategory(
+            EMemoryCategory::TabletBackground);
+
         auto storeWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
         storeWriterConfig->WorkloadDescriptor = workloadDescriptor;
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
@@ -895,6 +898,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         storeWriterOptions->ChunksEden = true;
         storeWriterOptions->ValidateResourceUsageIncrease = false;
         storeWriterOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
+        storeWriterOptions->MemoryUsageTracker = memoryUsageTracker;
         storeWriterOptions->Postprocess();
 
         auto hunkWriterConfig = CloneYsonStruct(tabletSnapshot->Settings.HunkWriterConfig);
@@ -955,6 +959,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
             workloadDescriptor,
             hunkWriterConfig,
+            memoryUsageTracker,
             hunkChunkWriter,
             /*underlyingOptions*/ {});
         auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(
@@ -979,7 +984,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             hunkChunkWriterStatistics,
             tabletSnapshot->DictionaryCompressionFactory,
             TClientChunkReadOptions{
-                // TODO(akozhikhov): Populate with memory tracker?
                 .WorkloadDescriptor = workloadDescriptor,
                 .ReadSessionId = TReadSessionId::Create(),
                 .HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
@@ -1061,7 +1065,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*mergeRowsOnFlush*/ false,
             /*useTtlColumn*/ false,
             /*mergeDeletionsOnFlush*/ false,
-            TabletContext_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground));
+            memoryUsageTracker);
 
         // Retained timestamp according to compactionRowMerger.
         auto newRetainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
