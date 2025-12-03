@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
@@ -14,6 +16,7 @@ namespace {
 
 using namespace NYT::NQueryAgent;
 using namespace NTableClient;
+using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NProfiling;
 
@@ -169,6 +172,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTimestamp CreateTransactionTimestamp(TInstant instant, int offset)
+{
+    return InstantToTimestamp(instant).first + offset;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void AppendReplicationLogRows(
     TTimestamp timestamp,
     int rowWeight,
@@ -225,7 +235,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
-        TInstant::Max());
+        TInstant::Max(),
+        TInstant::Max()
+    );
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_TRUE(reader.GetProcessedRows().empty());
@@ -261,6 +273,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -297,6 +310,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -313,7 +327,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
-        TInstant::Max());
+        TInstant::Max(),
+        TInstant::Max()
+    );
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 10ll);
@@ -351,6 +367,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -367,6 +384,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -405,6 +423,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -441,6 +460,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         16_GB,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -483,6 +503,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         120,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -499,6 +520,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         120,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -536,6 +558,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         120,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -553,6 +576,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
         NullTimestamp,
         /*maxDataWeight*/ 1_GB,
         120,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
@@ -604,6 +628,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
         3,
         /*maxDataWeight*/ 1_GB,
         10000,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -621,6 +646,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
         3,
         /*maxDataWeight*/ 1_GB,
         10000,
+        TInstant::Max(),
         TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
@@ -635,6 +661,77 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
     nodeMemoryTracker->ClearTrackers();
 }
 
+TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
+{
+    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    mountConfig->MaxRowsPerReplicationCommit = 1000;
+    mountConfig->MaxDataWeightPerReplicationCommit = 1000;
+    mountConfig->MaxTimestampsPerReplicationCommit = 1000;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
+    TLogger logger;
+
+    std::vector<TFakeRow> transactions;
+    auto borderTimestamp = CreateTransactionTimestamp(TInstant::Seconds(2), 0);
+    auto maxRowTimestamp = CreateTransactionTimestamp(TInstant::Seconds(4), 0);
+
+    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(1), 0), 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(borderTimestamp, 10, 10, &transactions);
+
+    AppendReplicationNotFittingLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0), 10, 10, &transactions);
+    AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0), 10, 10, &transactions);
+    AppendReplicationNotFittingLogRows(maxRowTimestamp, 10, 10, &transactions);
+
+    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+
+    auto result = reader.ReadReplicationBatch(
+        0,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Seconds(2),
+        TInstant::Max());
+
+    EXPECT_FALSE(result.ReadAllRows);
+
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, borderTimestamp);
+    EXPECT_EQ(reader.GetReadsCount(), 1);
+    EXPECT_EQ(result.EndReplicationRowIndex, 20);
+    CheckReaderContinious(reader, 10);
+
+    result = reader.ReadReplicationBatch(
+        20,
+        NullTimestamp,
+        /*maxDataWeight*/ 1_GB,
+        10000,
+        TInstant::Max(),
+        TInstant::Max());
+
+    EXPECT_TRUE(result.ReadAllRows);
+    EXPECT_EQ(result.ReadRowCount, 30ll);
+    EXPECT_EQ(result.ResponseRowCount, 10ll);
+    EXPECT_EQ(result.ResponseDataWeight, 100ll);
+    EXPECT_EQ(result.MaxTimestamp, maxRowTimestamp);
+    EXPECT_EQ(reader.GetReadsCount(), 3);
+    EXPECT_EQ(result.EndReplicationRowIndex, 50);
+
+    const auto& rowIds = reader.GetProcessedRows();
+    EXPECT_EQ(int(rowIds.size()), 20);
+    for (int index = 0; index < 10; ++index) {
+        EXPECT_EQ(rowIds[index], index);
+    }
+
+    for (int index = 10; index < int(rowIds.size()); ++index) {
+        EXPECT_EQ(rowIds[index], index + 20);
+    }
+
+    nodeMemoryTracker->ClearTrackers();
+}
 
 } // namespace
 } // namespace NYT::NTabletNode
