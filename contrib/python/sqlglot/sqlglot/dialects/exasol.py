@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing as t
 
-from sqlglot import exp, generator, parser, tokens
+from sqlglot import exp, generator, parser, tokens, transforms
 from sqlglot.dialects.dialect import (
     Dialect,
     NormalizationStrategy,
@@ -71,6 +71,42 @@ def _build_nullifzero(args: t.List) -> exp.If:
     return exp.If(this=cond, true=exp.Null(), false=seq_get(args, 0))
 
 
+# https://docs.exasol.com/db/latest/sql/select.htm#:~:text=If%20you%20have,local.x%3E10
+def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
+    if isinstance(expression, exp.Select):
+        aliases: dict[str, bool] = {}
+        for sel in expression.selects:
+            alias = sel.args.get("alias")
+
+            if isinstance(sel, exp.Alias) and alias:
+                aliases[alias.name] = bool(alias.args.get("quoted"))
+
+        table = expression.find(exp.Table)
+        table_ident = table.this if table else None
+
+        if (
+            table_ident
+            and table_ident.name.upper() == "LOCAL"
+            and not bool(table_ident.args.get("quoted"))
+        ):
+            table_ident.replace(exp.to_identifier(table_ident.name.upper(), quoted=True))
+
+        def prefix_local(node):
+            if isinstance(node, exp.Column) and not node.table:
+                if node.name in aliases:
+                    return exp.Column(
+                        this=exp.to_identifier(node.name, quoted=aliases[node.name]),
+                        table=exp.to_identifier("LOCAL", quoted=False),
+                    )
+            return node
+
+        for key in ("where", "group", "having"):
+            if arg := expression.args.get(key):
+                expression.set(key, arg.transform(prefix_local))
+
+    return expression
+
+
 DATE_UNITS = {"DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
 
 
@@ -115,6 +151,7 @@ class Exasol(Dialect):
     }
 
     class Tokenizer(tokens.Tokenizer):
+        IDENTIFIERS = ['"', ("[", "]")]
         KEYWORDS = {
             **tokens.Tokenizer.KEYWORDS,
             "USER": TokenType.CURRENT_USER,
@@ -197,6 +234,24 @@ class Exasol(Dialect):
             **dict.fromkeys(("GROUP_CONCAT", "LISTAGG"), lambda self: self._parse_group_concat()),
         }
 
+        def _parse_column(self) -> t.Optional[exp.Expression]:
+            column = super()._parse_column()
+            if not isinstance(column, exp.Column):
+                return column
+            table_ident = column.args.get("table")
+            if (
+                isinstance(table_ident, exp.Identifier)
+                and table_ident.name.upper() == "LOCAL"
+                and not bool(table_ident.args.get("quoted"))
+            ):
+                column.set("table", None)
+            return column
+
+        ODBC_DATETIME_LITERALS = {
+            "d": exp.Date,
+            "ts": exp.Timestamp,
+        }
+
     class Generator(generator.Generator):
         # https://docs.exasol.com/db/latest/sql_references/data_types/datatypedetails.htm#StringDataType
         STRING_TYPE_MAPPING = {
@@ -254,6 +309,7 @@ class Exasol(Dialect):
             exp.IntDiv: rename_func("DIV"),
             exp.TsOrDsDiff: _date_diff_sql,
             exp.DateTrunc: lambda self, e: self.func("TRUNC", e.this, unit_to_str(e)),
+            exp.DayOfWeek: lambda self, e: f"CAST(TO_CHAR({self.sql(e, 'this')}, 'D') AS INTEGER)",
             exp.DatetimeTrunc: timestamptrunc_sql(),
             exp.GroupConcat: lambda self, e: groupconcat_sql(
                 self, e, func_name="LISTAGG", within_group=True
@@ -307,7 +363,16 @@ class Exasol(Dialect):
             exp.MD5Digest: rename_func("HASHTYPE_MD5"),
             # https://docs.exasol.com/db/latest/sql/create_view.htm
             exp.CommentColumnConstraint: lambda self, e: f"COMMENT IS {self.sql(e, 'this')}",
+            exp.Select: transforms.preprocess(
+                [
+                    _add_local_prefix_for_aliases,
+                ]
+            ),
             exp.WeekOfYear: rename_func("WEEK"),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_date.htm
+            exp.Date: rename_func("TO_DATE"),
+            # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_timestamp.htm
+            exp.Timestamp: rename_func("TO_TIMESTAMP"),
         }
 
         def converttimezone_sql(self, expression: exp.ConvertTimezone) -> str:
