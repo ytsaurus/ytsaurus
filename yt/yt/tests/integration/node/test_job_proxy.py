@@ -672,6 +672,14 @@ class TestJobProxyJobApi(YTEnvSetup):
         },
     }
 
+    def setup_method(self, method):
+        super().setup_method(method)
+        self._work_dir = os.getcwd()
+
+    def teardown_method(self, method):
+        os.chdir(self._work_dir)
+        super().teardown_method(method)
+
     def run_job_proxy(
         self,
         time_limit=2000,
