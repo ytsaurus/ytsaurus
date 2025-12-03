@@ -30,6 +30,14 @@ public:
     //! either by shared of exclusive lock.
     bool IsLocked() const;
 
+    //! Checks whether object can be locked exclusively.
+    // NB: If already locked by the same transaction will also return |true|.
+    bool CanLockExclusively(TTransactionId transactionId) const;
+
+    //! Returns id of transaction that holds the lock, if any.
+    // NB: In case of shared mode lock will return one of such transaction ids.
+    TTransactionId GetLockingTransactionId() const;
+
     //! Serializes locking information.
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 

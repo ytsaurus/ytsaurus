@@ -71,7 +71,7 @@ public:
     void RotateActiveStore();
     void OnStoreAllocationFailed(const TError& error);
 
-    void LockTransaction(TTransactionId transactionId);
+    void LockTransactionOrThrow(TTransactionId transactionId);
     bool TryUnlockTransaction(TTransactionId transactionId);
     TTransactionId GetLockTransactionId() const;
 
