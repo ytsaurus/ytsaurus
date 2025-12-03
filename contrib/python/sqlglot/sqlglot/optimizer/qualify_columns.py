@@ -59,17 +59,13 @@ def qualify_columns(
     bigquery = dialect == "bigquery"
 
     for scope in traverse_scope(expression):
+        if dialect.PREFER_CTE_ALIAS_COLUMN:
+            pushdown_cte_alias_columns(scope)
+
         scope_expression = scope.expression
         is_select = isinstance(scope_expression, exp.Select)
 
-        if is_select and scope_expression.args.get("connect"):
-            # In Snowflake / Oracle queries that have a CONNECT BY clause, one can use the LEVEL
-            # pseudocolumn, which doesn't belong to a table, so we change it into an identifier
-            scope_expression.transform(
-                lambda n: n.this if isinstance(n, exp.Column) and n.name == "LEVEL" else n,
-                copy=False,
-            )
-            scope.clear_cache()
+        _separate_pseudocolumns(scope, pseudocolumns)
 
         resolver = Resolver(scope, schema, infer_schema=infer_schema)
         _pop_table_column_aliases(scope.ctes)
@@ -85,7 +81,11 @@ def qualify_columns(
             )
 
         _convert_columns_to_dots(scope, resolver)
-        _qualify_columns(scope, resolver, allow_partial_qualification=allow_partial_qualification)
+        _qualify_columns(
+            scope,
+            resolver,
+            allow_partial_qualification=allow_partial_qualification,
+        )
 
         if not schema.empty and expand_alias_refs:
             _expand_alias_refs(scope, resolver, dialect)
@@ -138,6 +138,28 @@ def validate_qualify_columns(expression: E) -> E:
         raise OptimizeError(f"Ambiguous columns: {all_unqualified_columns}")
 
     return expression
+
+
+def _separate_pseudocolumns(scope: Scope, pseudocolumns: t.Set[str]) -> None:
+    if not pseudocolumns:
+        return
+
+    has_pseudocolumns = False
+    scope_expression = scope.expression
+
+    for column in scope.columns:
+        name = column.name.upper()
+        if name not in pseudocolumns:
+            continue
+
+        if name != "LEVEL" or (
+            isinstance(scope_expression, exp.Select) and scope_expression.args.get("connect")
+        ):
+            column.replace(exp.Pseudocolumn(**column.args))
+            has_pseudocolumns = True
+
+    if has_pseudocolumns:
+        scope.clear_cache()
 
 
 def _unpivot_columns(unpivot: exp.Pivot) -> t.Iterator[exp.Column]:
@@ -488,10 +510,10 @@ def _select_by_pos(scope: Scope, node: exp.Literal) -> exp.Alias:
 
 def _convert_columns_to_dots(scope: Scope, resolver: Resolver) -> None:
     """
-    Converts `Column` instances that represent struct field lookup into chained `Dots`.
+    Converts `Column` instances that represent STRUCT or JSON field lookup into chained `Dots`.
 
-    Struct field lookups look like columns (e.g. "struct"."field"), but they need to be
-    qualified separately and represented as Dot(Dot(...(<table>.<column>, field1), field2, ...)).
+    These lookups may be parsed as columns (e.g. "col"."field"."field2"), but they need to be
+    normalized to `Dot(Dot(...(<table>.<column>, field1), field2, ...))` to be qualified properly.
     """
     converted = False
     for column in itertools.chain(scope.columns, scope.stars):
@@ -499,6 +521,7 @@ def _convert_columns_to_dots(scope: Scope, resolver: Resolver) -> None:
             continue
 
         column_table: t.Optional[str | exp.Identifier] = column.table
+        dot_parts = column.meta.pop("dot_parts", [])
         if (
             column_table
             and column_table not in scope.sources
@@ -514,12 +537,20 @@ def _convert_columns_to_dots(scope: Scope, resolver: Resolver) -> None:
                 # The struct is already qualified, but we still need to change the AST
                 column_table = root
                 root, *parts = parts
+                was_qualified = True
             else:
                 column_table = resolver.get_table(root.name)
+                was_qualified = False
 
             if column_table:
                 converted = True
-                column.replace(exp.Dot.build([exp.column(root, table=column_table), *parts]))
+                new_column = exp.column(root, table=column_table)
+
+                if dot_parts:
+                    # Remove the actual column parts from the rest of dot parts
+                    new_column.meta["dot_parts"] = dot_parts[2 if was_qualified else 1 :]
+
+                column.replace(exp.Dot.build([new_column, *parts]))
 
     if converted:
         # We want to re-aggregate the converted columns, otherwise they'd be skipped in
@@ -527,7 +558,11 @@ def _convert_columns_to_dots(scope: Scope, resolver: Resolver) -> None:
         scope.clear_cache()
 
 
-def _qualify_columns(scope: Scope, resolver: Resolver, allow_partial_qualification: bool) -> None:
+def _qualify_columns(
+    scope: Scope,
+    resolver: Resolver,
+    allow_partial_qualification: bool,
+) -> None:
     """Disambiguate columns, ensuring each column specifies a source"""
     for column in scope.columns:
         column_table = column.table
@@ -767,7 +802,7 @@ def _expand_stars(
             columns = resolver.get_source_columns(table, only_visible=True)
             columns = columns or scope.outer_columns
 
-            if pseudocolumns:
+            if pseudocolumns and is_bigquery:
                 columns = [name for name in columns if name.upper() not in pseudocolumns]
 
             if not columns or "*" in columns:
@@ -821,7 +856,7 @@ def _expand_stars(
 def _add_except_columns(
     expression: exp.Expression, tables, except_columns: t.Dict[int, t.Set[str]]
 ) -> None:
-    except_ = expression.args.get("except")
+    except_ = expression.args.get("except_")
 
     if not except_:
         return
@@ -901,36 +936,25 @@ def quote_identifiers(expression: E, dialect: DialectType = None, identify: bool
     )  # type: ignore
 
 
-def pushdown_cte_alias_columns(expression: exp.Expression) -> exp.Expression:
+def pushdown_cte_alias_columns(scope: Scope) -> None:
     """
     Pushes down the CTE alias columns into the projection,
 
     This step is useful in Snowflake where the CTE alias columns can be referenced in the HAVING.
 
-    Example:
-        >>> import sqlglot
-        >>> expression = sqlglot.parse_one("WITH y (c) AS (SELECT SUM(a) FROM ( SELECT 1 a ) AS x HAVING c > 0) SELECT c FROM y")
-        >>> pushdown_cte_alias_columns(expression).sql()
-        'WITH y(c) AS (SELECT SUM(a) AS c FROM (SELECT 1 AS a) AS x HAVING c > 0) SELECT c FROM y'
-
     Args:
-        expression: Expression to pushdown.
-
-    Returns:
-        The expression with the CTE aliases pushed down into the projection.
+        scope: Scope to find ctes to pushdown aliases.
     """
-    for cte in expression.find_all(exp.CTE):
-        if cte.alias_column_names:
+    for cte in scope.ctes:
+        if cte.alias_column_names and isinstance(cte.this, exp.Select):
             new_expressions = []
             for _alias, projection in zip(cte.alias_column_names, cte.this.expressions):
                 if isinstance(projection, exp.Alias):
-                    projection.set("alias", _alias)
+                    projection.set("alias", exp.to_identifier(_alias))
                 else:
                     projection = alias(projection, alias=_alias)
                 new_expressions.append(projection)
             cte.this.set("expressions", new_expressions)
-
-    return expression
 
 
 class Resolver:
@@ -1173,7 +1197,7 @@ class Resolver:
         args = self.scope.expression.args
 
         # Collect tables in order: FROM clause tables + joined tables up to current join
-        from_name = args["from"].alias_or_name
+        from_name = args["from_"].alias_or_name
         available_sources = {from_name: self.get_source_columns(from_name)}
 
         for join in args["joins"][: t.cast(int, join_ancestor.index) + 1]:
