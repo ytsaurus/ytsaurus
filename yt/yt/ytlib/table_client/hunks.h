@@ -473,6 +473,7 @@ DEFINE_REFCOUNTED_TYPE(IHunkChunkPayloadWriter)
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     const TWorkloadDescriptor& workloadDescriptor,
     THunkChunkPayloadWriterConfigPtr config,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     NChunkClient::IChunkWriterPtr underlying,
     NChunkClient::IChunkWriter::TWriteBlocksOptions underlyingOptions);
 

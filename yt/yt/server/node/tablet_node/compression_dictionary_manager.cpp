@@ -653,7 +653,6 @@ private:
     // TODO(akozhikhov): Specific workload category?
     const EWorkloadCategory WorkloadCategory_ = EWorkloadCategory::SystemTabletCompaction;
 
-    // TODO(akozhikhov): Memory usage tracker.
 
     i64 GetWeight(const TCompressionDictionaryCacheEntryPtr& entry) const override
     {
