@@ -139,34 +139,6 @@ public:
         }
     }
 
-    const TColumnSchema& FindUnfoldingColumnAndValidate()
-    {
-        const TColumnSchema* unfoldedColumn = nullptr;
-
-        auto typeMismatchCallback = [&] (const TColumnSchema& indexColumn, const TColumnSchema& tableColumn) {
-            if (!IsValidUnfoldedColumnPair(tableColumn.LogicalType(), indexColumn.LogicalType())) {
-                ThrowExpectedTypeMatch(indexColumn, tableColumn);
-            }
-
-            THROW_ERROR_EXCEPTION_IF(unfoldedColumn,
-                "Expected a single unfolded column, found at least two: %v, %v",
-                unfoldedColumn->Name(),
-                indexColumn.Name());
-
-            unfoldedColumn = &indexColumn;
-        };
-
-        ValidateIndexSchema(
-            typeMismatchCallback,
-            ThrowExpectedKeyColumn,
-            ThrowIfNonKey);
-
-        THROW_ERROR_EXCEPTION_IF(!unfoldedColumn,
-            "No candidate for unfolded column found in the index table schema");
-
-        return *unfoldedColumn;
-    }
-
 private:
     const ESecondaryIndexKind Kind_;
     const TTableSchema& TableSchema_;
@@ -393,22 +365,6 @@ void ValidateIndexSchema(
         evaluatedColumnsSchema,
         UnfoldedColumnName_)
         .Validate();
-}
-
-const TColumnSchema& FindUnfoldingColumnAndValidate(
-    const TTableSchema& tableSchema,
-    const TTableSchema& indexTableSchema,
-    const std::optional<std::string>& predicate,
-    const TTableSchemaPtr& evaluatedColumnsSchema)
-{
-    return TIndexSchemaValidator(
-        ESecondaryIndexKind::Unfolding,
-        tableSchema,
-        indexTableSchema,
-        predicate,
-        evaluatedColumnsSchema,
-        /*unfoldedColumnName*/ std::nullopt)
-        .FindUnfoldingColumnAndValidate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

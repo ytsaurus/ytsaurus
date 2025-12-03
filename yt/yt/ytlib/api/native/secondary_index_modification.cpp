@@ -229,26 +229,16 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
             }
         }
 
-        // COMPAT(sabdenovch)
-        if (descriptor.Kind == ESecondaryIndexKind::Unfolding && !indexMeta.UnfoldedColumn) {
-            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(
-                FindUnfoldingColumnAndValidate(
-                    *tableSchema,
-                    indexSchema,
-                    indexMeta.Predicate,
-                    indexMeta.EvaluatedColumnsSchema));
-        } else {
-            ValidateIndexSchema(
-                descriptor.Kind,
-                *tableSchema,
-                indexSchema,
-                indexMeta.Predicate,
-                indexMeta.EvaluatedColumnsSchema,
-                indexMeta.UnfoldedColumn);
+        ValidateIndexSchema(
+            descriptor.Kind,
+            *tableSchema,
+            indexSchema,
+            indexMeta.Predicate,
+            indexMeta.EvaluatedColumnsSchema,
+            indexMeta.UnfoldedColumn);
 
-            if (indexMeta.UnfoldedColumn) {
-                descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*indexMeta.UnfoldedColumn);
-            }
+        if (indexMeta.UnfoldedColumn) {
+            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*indexMeta.UnfoldedColumn);
         }
 
         for (const auto& column : indexSchema.Columns()) {
