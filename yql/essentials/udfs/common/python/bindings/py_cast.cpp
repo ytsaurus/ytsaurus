@@ -708,7 +708,7 @@ NUdf::TUnboxedValue FromPyData(
         }
         case NUdf::TDataType<NUdf::TInterval64>::Id: {
             const auto num = PyCast<i64>(value);
-            if (std::abs(num) > NUdf::MAX_INTERVAL64) {
+            if (num > NUdf::MAX_INTERVAL64 || num < -NUdf::MAX_INTERVAL64) {
                 throw yexception() << "Python object " << PyObjectRepr(value)
                 << " is out of range for Interval64";
             }
