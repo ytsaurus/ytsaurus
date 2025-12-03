@@ -21,6 +21,7 @@ import yt.wrapper as yt
 
 import yt.type_info as typing
 
+import mock
 import os
 import pytest
 import tempfile
@@ -1004,16 +1005,21 @@ class TestTableCommandsOperations(object):
         yt.transform(table)
         op = yt.list_operations(type="merge", attributes=["spec"])["operations"][0]
         assert op["spec"]["output_table_path"] == table
-        assert "data_size_per_job" not in op["spec"]
-        assert "data_weight_per_job" in op["spec"]
+        assert op["spec"]["data_size_per_job"] == op["spec"]["data_weight_per_job"]
         check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))
 
         yt.transform(table, other_table, spec={"data_size_per_job": 12345678})
         op = yt.list_operations(type="merge", attributes=["spec"])["operations"][0]
         assert op["spec"]["output_table_path"] == other_table
-        assert "data_weight_per_job" not in op["spec"]
-        assert op["spec"]["data_size_per_job"] == 12345678
+        assert op["spec"]["data_size_per_job"] == op["spec"]["data_weight_per_job"] == 12345678
         check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(other_table))
+
+        with mock.patch.dict(os.environ, {"YT_SPEC": "{data_size_per_job=23456789}"}):
+            yt.transform(table, other_table)
+            op = yt.list_operations(type="merge", attributes=["spec"])["operations"][0]
+            assert op["spec"]["output_table_path"] == other_table
+            assert op["spec"]["data_size_per_job"] == op["spec"]["data_weight_per_job"]
+            assert op["spec"]["data_size_per_job"] != 23456789
 
         yt.remove(other_table)
         assert yt.transform(table, other_table, compression_codec="zlib_6")
