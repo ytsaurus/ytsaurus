@@ -723,7 +723,7 @@ private:
                 break;
             } catch (const std::exception& e) {
                 Cerr << e.what() << Endl;
-                if (i < 100) {
+                if (i < 12) {
                     Sleep(TDuration::Seconds(5));  // sleep and retry
                 } else {
                     throw;  // throw and terminate
@@ -737,11 +737,11 @@ private:
             if (resultIndex < rows.size() && rows[resultIndex][0].AsString() == ClusterToLookup_ && rows[resultIndex][1].AsString() == GetClearNodeId(originalRow.Path)) {
                 Y_ENSURE(rows[resultIndex].GetCount() >= 3);
                 originalRow.Path = rows[resultIndex][2].AsString();
-                output.Add(originalRow);
                 ++resultIndex;
             } else {
-                output.Add(originalRow);
+                originalRow.Path = NYT::Format("//$unknown_nodes/%v", GetClearNodeId(originalRow.Path));
             }
+            output.Add(originalRow);
         }
         Y_ABORT_IF(resultIndex < rows.size());
         OriginalRows_.clear();
