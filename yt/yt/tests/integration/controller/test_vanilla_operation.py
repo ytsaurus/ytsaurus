@@ -760,6 +760,140 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 task_patch={"file_paths": ['<file_name="with_\0_byte">//some/path']}
             )
 
+    @authors("krasovav")
+    def test_duplicate_volumes_and_disk_request(self):
+        with raises_yt_error('Option "disk_request" cannot be specified simultaneously with "volumes"'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "disk_request": {
+                                "disk_space": 1024 * 1024,
+                            },
+                            "volumes" : {
+                                "a": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                            },
+                        }
+                    },
+                }
+            )
+
+    @authors("krasovav")
+    def test_duplicate_volumes_and_tmpfs_volumes(self):
+        with raises_yt_error('Option "tmpfs_volumes" cannot be specified simultaneously with "volumes"'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "tmpfs_volumes": [
+                                {
+                                    "path": "tmpfs",
+                                    "size": 1024 * 1024,
+                                },
+                            ],
+                            "volumes" : {
+                                "a": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                            },
+                        }
+                    },
+                }
+            )
+
+    @authors("krasovav")
+    def test_unused_volumes(self):
+        with raises_yt_error('Volume was described, but not used'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "volumes" : {
+                                "a": {
+                                    "disk_request": {
+                                        "type": "tmpfs",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                            },
+                        }
+                    },
+                }
+            )
+
+    @authors("krasovav")
+    def test_not_described_volumes(self):
+        with raises_yt_error('Volume was ordered but not described'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "job_volumes_mounts" : [
+                                {
+                                    "volume_id": "a",
+                                    "mount_path": "tmpfs",
+                                },
+                            ],
+                        }
+                    },
+                }
+            )
+
+    # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
+    @authors("krasovav")
+    def test_two_non_tmpfs_volumes(self):
+        with raises_yt_error('Volume request with 2 or more different not tmpfs disk request are not currently supported'):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "a": {
+                            "job_count": 1,
+                            "command": "cat",
+                            "job_volumes_mounts" : [
+                                {
+                                    "volume_id": "a",
+                                    "mount_path": "first",
+                                },
+                                {
+                                    "volume_id": "b",
+                                    "mount_path": "second",
+                                },
+                            ],
+                            "volumes" : {
+                                "a": {
+                                    "disk_request": {
+                                        "type": "local",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                                "b": {
+                                    "disk_request": {
+                                        "type": "local",
+                                        "disk_space": 1024 * 1024,
+                                    },
+                                },
+                            },
+                        }
+                    },
+                }
+            )
+
 
 @pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
