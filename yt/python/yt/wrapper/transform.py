@@ -186,10 +186,14 @@ def transform(
         }
         if "data_size_per_job" not in spec and "data_weight_per_job" not in spec:
             base_spec["data_weight_per_job"] = data_weight_per_job
+
         spec = update(
             base_spec,
             spec,
         )
+
+        # spread data_size/weight to override defaults from config:spec_defaults
+        spec["data_size_per_job"] = spec["data_weight_per_job"] = spec.get("data_weight_per_job") or spec.get("data_size_per_job")
 
         if job_splitting is not None:
             spec.update({"enable_job_splitting": job_splitting})
