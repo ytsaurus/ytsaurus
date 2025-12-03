@@ -389,6 +389,8 @@ private:
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         tablet->ValidateMountRevision(mountRevision);
 
+        auto transactionId = transaction->GetId();
+
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
             auto store = tablet->GetStoreOrThrow(storeId);
@@ -399,32 +401,42 @@ private:
                     storeId,
                     tabletId);
             }
+
+            if (!store->CanLockExclusively(transactionId)) {
+                THROW_ERROR_EXCEPTION(
+                    "Cannot exclusively lock store %v since it has already been locked by concurrent transaction %v",
+                    storeId,
+                    store->GetLockingTransactionId());
+            }
         }
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
-            Y_UNUSED(tablet->GetStoreOrThrow(storeId));
+            auto store = tablet->GetStoreOrThrow(storeId);
+
+            if (!store->CanLockExclusively(transactionId)) {
+                THROW_ERROR_EXCEPTION(
+                    "Cannot exclusively lock store %v since it has already been locked by concurrent transaction %v",
+                    storeId,
+                    store->GetLockingTransactionId());
+            }
         }
 
-        auto transactionId = transaction->GetId();
-        tablet->LockTransaction(transactionId);
+        tablet->LockTransactionOrThrow(transactionId);
 
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
             auto store = tablet->GetStore(storeId);
+            YT_VERIFY(store->TryLock(transactionId, EObjectLockMode::Exclusive).IsOK());
 
             // NB: Cannot throw here since store state is transient.
             YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
-
-            store->TryLock(transaction->GetId(), EObjectLockMode::Exclusive)
-                .ThrowOnError();
         }
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
             auto store = tablet->GetStore(storeId);
-            store->TryLock(transaction->GetId(), EObjectLockMode::Exclusive)
-                .ThrowOnError();
+            YT_VERIFY(store->TryLock(transactionId, EObjectLockMode::Exclusive).IsOK());
         }
 
         YT_LOG_DEBUG(

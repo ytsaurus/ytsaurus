@@ -27,27 +27,27 @@ TError TLockingState::TryLock(TTransactionId transactionId, EObjectLockMode lock
 {
     YT_VERIFY(HasHydraContext());
 
-    auto makeConflictError = [&] (TTransactionId concurrentTransactionId) {
+    auto makeConflictError = [&] () {
         return TError("Object %v is already locked by concurrent transaction %v",
             ObjectId_,
-            concurrentTransactionId);
+            GetLockingTransactionId());
     };
 
     auto locked = false;
     switch (lockMode) {
         case EObjectLockMode::Exclusive:
             if (ExclusiveLockTransactionId_ && ExclusiveLockTransactionId_ != transactionId) {
-                return makeConflictError(ExclusiveLockTransactionId_);
+                return makeConflictError();
             }
             if (!SharedLockTransactionIds_.empty()) {
-                return makeConflictError(*SharedLockTransactionIds_.begin());
+                return makeConflictError();
             }
             locked = ExclusiveLockTransactionId_ != transactionId;
             ExclusiveLockTransactionId_ = transactionId;
             break;
         case EObjectLockMode::Shared:
             if (ExclusiveLockTransactionId_) {
-                return makeConflictError(ExclusiveLockTransactionId_);
+                return makeConflictError();
             }
             locked = SharedLockTransactionIds_.insert(transactionId).second;
             break;
@@ -97,6 +97,31 @@ bool TLockingState::IsLocked() const
     return
         static_cast<bool>(ExclusiveLockTransactionId_) ||
         !SharedLockTransactionIds_.empty();
+}
+
+bool TLockingState::CanLockExclusively(TTransactionId transactionId) const
+{
+    return
+        (!ExclusiveLockTransactionId_ || ExclusiveLockTransactionId_ == transactionId) &&
+        SharedLockTransactionIds_.empty();
+}
+
+TTransactionId TLockingState::GetLockingTransactionId() const
+{
+    if (ExclusiveLockTransactionId_) {
+        return ExclusiveLockTransactionId_;
+    }
+
+    if (!SharedLockTransactionIds_.empty()) {
+        return *std::min(
+            SharedLockTransactionIds_.begin(),
+            SharedLockTransactionIds_.end(),
+            [] (const auto& first, const auto& second) {
+                return *first < *second;
+            });
+    }
+
+    return {};
 }
 
 int TLockingState::GetLockCount() const
