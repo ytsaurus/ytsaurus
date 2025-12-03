@@ -757,7 +757,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                     .DoMap([&] (NYTree::TFluentMap fluent) {
                         fluent
                             .Item("value").Value(*effectiveNode->TryGetExpirationTime())
-                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
+                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode->GetTrunkNode(), GetTransaction()));
                     });
             } else {
                 fluent.Item("time").Entity();
@@ -768,7 +768,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                     .DoMap([&] (NYTree::TFluentMap fluent) {
                         fluent
                             .Item("value").Value(*effectiveNode->TryGetExpirationTimeout())
-                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
+                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode->GetTrunkNode(), GetTransaction()));
                     });
             } else {
                 fluent.Item("timeout").Entity();

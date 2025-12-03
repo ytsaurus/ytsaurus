@@ -2598,6 +2598,15 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/m4/t4", attributes={"expiration_timeout": 20000})
         assert get("//tmp/m4/t4/@effective_expiration")["timeout"] == {"value": 20000, "path": "//tmp/m4/t4"}
 
+    @authors("h0pless")
+    def test_effective_expiration_time_transaction(self):
+        create("table", "//tmp/table")
+        tx = start_transaction()
+        set("//tmp/table/@expiration_timeout", 20000, tx=tx)
+
+        child_tx = start_transaction(tx=tx)
+        get("//tmp/table/@effective_expiration", tx=child_tx)["timeout"] == {"value": 20000, "path": "//tmp/table"}
+
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
     @not_implemented_in_sequoia
