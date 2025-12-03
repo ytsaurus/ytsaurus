@@ -54,8 +54,8 @@ You can find out the tablet's current settings at `//sys/tablets/x-x-x-x/orchid/
 
 The following attributes regulate flush behavior.
 
-| Name | Type | Default | Description
-||--|--|--|--|
+| Name | Type | Default | Description|
+|--|--|--|--|
 | dynamic_store_auto_flush_period | Duration* | 900,000 (15 min) | Frequency of forced flushes, when the dynamic store is flushed to the disk straight away, even if it hasn't reached its overflow threshold yet. |
 | dynamic_store_flush_period_splay | Duration | 60 000 (1 min) | Random shift for the period to avoid synchronization of different tablets. Real flush will come after `period + random(0, splay)`. |
 | merge_rows_on_flush | bool | false | Allows version merging and deletion of rows by TTL at flush. |
