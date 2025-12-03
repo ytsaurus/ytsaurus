@@ -717,7 +717,8 @@ private:
                 return TStatus::Error;
             }
 
-            if (contentRowSpecs && nextDescription.RowSpec) {
+            YQL_ENSURE(nextDescription.RowSpec);
+            if (contentRowSpecs) {
                 size_t from = 0;
                 if (initialWrite) {
                     const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
@@ -1962,8 +1963,8 @@ private:
             const TYtTableInfo tableInfo(drop.Table());
             YQL_ENSURE(tableInfo.Meta);
 
-            const bool isTable = drop.Ref().IsCallable(TYtDropTable::CallableName());
-            if (isTable) {
+            const bool isDropTable = drop.Ref().IsCallable(TYtDropTable::CallableName());
+            if (isDropTable) {
                 if (tableInfo.Meta->IsDynamic) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
                         "Drop of dynamic table " << tableInfo.Name.Quote() << " is not supported"));
@@ -1972,14 +1973,15 @@ private:
             } else {
                 if (!tableInfo.Meta->DoesExist) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
-                        "View " << tableInfo.Name.Quote() << " is not exists."));
+                        "View " << tableInfo.Name.Quote() << " does not exists."));
                     return TStatus::Error;
                 }
             }
 
-            if (tableInfo.Meta->SqlView.empty() != isTable) {
+            if (const bool isTable = tableInfo.Meta->SqlView.empty(); isTable != isDropTable) {
                 ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder()
-                    << "Drop of " << tableInfo.Name.Quote() << ' ' << (isTable ? "view" : "table") << " is not supported."));
+                    << "Drop of " << tableInfo.Name.Quote() << ' ' << (isTable ? "table" : "view")
+                    << " can not be done via DROP " << (isDropTable ? "TABLE" : "VIEW") << " statement."));
                 return TStatus::Error;
             }
 
@@ -1996,7 +1998,7 @@ private:
                 }
                 else if (nextMetadata->DoesExist) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
-                        (isTable ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction."));
+                        (isDropTable ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction."));
                     return TStatus::Error;
                 }
             }

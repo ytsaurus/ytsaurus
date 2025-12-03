@@ -1868,7 +1868,14 @@ class TestsDDL(TestQueriesYqlSimpleBase):
     def test_drop_view(self, query_tracker, yql_agent):
         self._test_simple_query("create view `//tmp/v0` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None)
         self._test_simple_query("drop view `//tmp/v0`;", None)
-        self._test_simple_query_error("drop view `//tmp/v0`;", "is not exists.")
+        self._test_simple_query_error("drop view `//tmp/v0`;", "does not exists.")
+
+    def test_wrong_drop(self, query_tracker, yql_agent):
+        self._test_simple_query("create view `//tmp/v1` as do begin select * from as_table([<|uvw:31.14|>]) end do;", None)
+        self._test_simple_query_error("drop table `//tmp/v1`;", 'Drop of "tmp/v1" view can not be done via DROP TABLE statement.')
+
+        self._test_simple_query("create table `//tmp/t1` (xyz Text not null);", None)
+        self._test_simple_query_error("drop view `//tmp/t1`;", 'Drop of "tmp/t1" table can not be done via DROP VIEW statement.')
 
 
 @authors("mpereskokova")
