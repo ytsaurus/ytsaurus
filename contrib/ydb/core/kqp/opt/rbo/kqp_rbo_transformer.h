@@ -32,7 +32,7 @@ class TKqpRewriteSelectTransformer : public TSyncTransformerBase {
 };
 
 TAutoPtr<IGraphTransformer> CreateKqpRewriteSelectTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
-                                                          TTypeAnnotationContext &typeCtx);
+                                                             TTypeAnnotationContext &typeCtx);
 
 class TKqpNewRBOTransformer : public TSyncTransformerBase {
   public:
@@ -45,9 +45,10 @@ class TKqpNewRBOTransformer : public TSyncTransformerBase {
         TypeCtx(typeCtx), 
         KqpCtx(*kqpCtx),
           RBO(
-              {// std::make_shared<TRenameStage>(),
+              { std::make_shared<TRuleBasedStage>(RuleStage1),
+                std::make_shared<TRenameStage>(),
                 std::make_shared<TConstantFoldingStage>(),
-               std::make_shared<TRuleBasedStage>(RuleStage1), std::make_shared<TRuleBasedStage>(RuleStage2)},
+                std::make_shared<TRuleBasedStage>(RuleStage2), std::make_shared<TRuleBasedStage>(RuleStage3)},
               kqpCtx, typeCtx, rboTypeAnnTransformer, typeAnnTransformer, peephole, funcRegistry) {}
 
     // Main method of the transformer
@@ -81,7 +82,7 @@ class TKqpRBOCleanupTransformer : public TSyncTransformerBase {
 
 TAutoPtr<IGraphTransformer> CreateKqpRBOCleanupTransformer(TTypeAnnotationContext &typeCtx);
 
-TExprNode::TPtr RewriteSelect(const TExprNode::TPtr &node, TExprContext &ctx, const TTypeAnnotationContext &typeCtx, bool pgSyntax=false);
+TExprNode::TPtr RewriteSelect(const TExprNode::TPtr &node, TExprContext &ctx, const TTypeAnnotationContext &typeCtx, const TKqpOptimizeContext& kqpCtx, bool pgSyntax=false);
 
 } // namespace NKqp
 } // namespace NKikimr

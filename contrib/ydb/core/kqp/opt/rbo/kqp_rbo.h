@@ -33,7 +33,7 @@ class IRule {
     virtual ~IRule() = default;
 
     TString RuleName;
-    ui32 Props = 0x00;
+    ui32 Props{0x00};
 };
 
 /**
@@ -60,7 +60,7 @@ class IRBOStage {
   public:
     virtual void RunStage(TOpRoot &root, TRBOContext &ctx) = 0;
     virtual ~IRBOStage() = default;
-    ui32 Props;
+    ui32 Props = 0x00;
 };
 
 /**
