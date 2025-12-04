@@ -59,6 +59,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoBranch(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
+    branchedNode->Constraints() = originatingNode->Constraints();
 }
 
 template <class TImpl>
@@ -70,6 +71,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMerge(
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     tableManager->ResetTableSchema(branchedNode);
+    originatingNode->Constraints() = branchedNode->Constraints();
 
     TBase::DoMerge(originatingNode, branchedNode);
 }
@@ -88,6 +90,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoClone(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
+    clonedTrunkNode->Constraints() = sourceNode->Constraints();
 }
 
 template <class TImpl>

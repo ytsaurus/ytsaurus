@@ -650,6 +650,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 {
     DeclareMutating();
 
+    if (request->has_constraints()) {
+        auto constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
+        THROW_ERROR_EXCEPTION("Alteration with constraints is not supported for chaos replicated tables")
+            << TErrorAttribute("constraints", constraints);
+    }
+
     TCompactTableSchemaPtr schema;
     TMasterTableSchemaId schemaId;
 

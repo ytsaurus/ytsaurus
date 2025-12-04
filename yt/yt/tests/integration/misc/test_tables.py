@@ -1640,7 +1640,7 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko")
     def test_dynamic_table_schema_required(self):
-        with raises_yt_error("Either \"schema\" or \"schema_id\" must be specified for dynamic tables"):
+        with raises_yt_error("Either \"schema\", \"schema_id\" or \"constrained_schema\" must be specified for dynamic tables"):
             create("table", "//tmp/t", attributes={"dynamic": True})
 
     @authors("savrus")

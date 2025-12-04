@@ -73,6 +73,7 @@
 #include <yt/yt/client/signature/signature.h>
 #include <yt/yt/client/signature/validator.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -2710,6 +2711,12 @@ private:
         }
         if (request->has_schema_id()) {
             options.SchemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        }
+        if (request->has_constrained_schema()) {
+            options.ConstrainedSchema = ConvertTo<TConstrainedTableSchema>(TYsonString(request->constrained_schema()));
+        }
+        if (request->has_constraints()) {
+            options.Constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
         }
         if (request->has_dynamic()) {
             options.Dynamic = request->dynamic();

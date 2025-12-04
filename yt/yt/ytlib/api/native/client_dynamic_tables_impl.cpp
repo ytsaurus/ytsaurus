@@ -13,6 +13,7 @@
 #include "private.h"
 
 #include <yt/yt/client/table_client/record_helpers.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
@@ -2364,12 +2365,33 @@ void TClient::DoAlterTable(
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
 
-    if (options.Schema) {
-        ToProto(req->mutable_schema(), *options.Schema);
-    }
     if (options.SchemaId) {
         ToProto(req->mutable_schema_id(), *options.SchemaId);
     }
+
+    if (options.ConstrainedSchema) {
+        if (options.Constraints) {
+            ValidateConstraintsMatch(*options.ConstrainedSchema, *options.Constraints);
+        }
+        if (options.Schema) {
+            if (options.ConstrainedSchema->TableSchema() != *options.Schema) {
+                THROW_ERROR_EXCEPTION("Both \"schema\" and \"constrained_schema\" specified and the schemas do not match")
+                    << TErrorAttribute("schema", *options.Schema)
+                    << TErrorAttribute("constrained_schema", *options.ConstrainedSchema);
+            }
+        }
+
+        ToProto(req->mutable_schema(), options.ConstrainedSchema->TableSchema());
+        ToProto(req->mutable_constraints(), options.ConstrainedSchema->ColumnToConstraint());
+    } else {
+        if (options.Constraints) {
+            ToProto(req->mutable_constraints(), *options.Constraints);
+        }
+        if (options.Schema) {
+            ToProto(req->mutable_schema(), *options.Schema);
+        }
+    }
+
     if (options.Dynamic) {
         req->set_dynamic(*options.Dynamic);
     }

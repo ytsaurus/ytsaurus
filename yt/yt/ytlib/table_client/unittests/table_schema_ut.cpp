@@ -644,6 +644,68 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConstrainedTableSchemaTest
+    : public ::testing::Test
+{ };
+
+TEST_F(TConstrainedTableSchemaTest, ValidateAlter)
+{
+    auto schema = TTableSchema({
+        TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("column1", EValueType::Int64),
+    });
+    {
+        TColumnStableNameToConstraintMap oldConstraints;
+        EmplaceOrCrash(oldConstraints, "column1", "BETWEEN 1 AND 3");
+
+        TColumnStableNameToConstraintMap newConstraints;
+        EmplaceOrCrash(newConstraints, "column2", "BETWEEN 2 AND 3");
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            "Constraint for unknown column");
+    }
+
+    {
+        TColumnStableNameToConstraintMap oldConstraints;
+        EmplaceOrCrash(oldConstraints, "column1", "BETWEEN 1 AND 3");
+
+        TColumnStableNameToConstraintMap newConstraints;
+        EmplaceOrCrash(newConstraints, "column1", "BETWEEN 2 AND 3");
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            "cannot be changed");
+    }
+
+    {
+        TColumnStableNameToConstraintMap constraints;
+        EmplaceOrCrash(constraints, "column1", "BETWEEN 1 AND 3");
+
+        auto newSchema = TTableSchema({
+            TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("column1", EValueType::String),
+        });
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ValidateConstrainedSchemaAlteration(schema, newSchema, constraints, constraints, /*isTableEmpty*/ false),
+            "Altering type for constrained column is forbidden");
+    }
+
+    {
+
+        TColumnStableNameToConstraintMap oldConstraints;
+        TColumnStableNameToConstraintMap newConstraints;
+        EmplaceOrCrash(newConstraints, "column1", "BETWEEN 2 AND 3");
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ValidateConstrainedSchemaAlteration(schema, schema, oldConstraints, newConstraints, /*isTableEmpty*/ false),
+            "Constraint cannot be added for existing column");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TInferSchemaTestCase = std::tuple<std::vector<const char*>, const char*, bool>;
 
 class TInferSchemaTest
