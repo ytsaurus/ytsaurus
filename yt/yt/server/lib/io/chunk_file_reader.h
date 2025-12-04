@@ -87,6 +87,8 @@ public:
 
     i64 GetMetaSize() const;
 
+    i64 GetBlockAlignment() const;
+
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
         TFairShareSlotId fairShareSlotId = {},
@@ -151,7 +153,7 @@ private:
 
     TFuture<TIOEngineHandlePtr> OpenDataFile(EDirectIOFlag useDirectIO);
     TIOEngineHandlePtr OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file);
-    EDirectIOFlag GetDirectIOFlag(bool useDirectIO);
+    EDirectIOFlag GetDirectIOFlag(bool useDirectIO) const;
 
     void DumpBrokenBlock(
         int blockIndex,

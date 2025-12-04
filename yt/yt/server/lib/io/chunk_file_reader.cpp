@@ -133,6 +133,15 @@ TFuture<std::vector<TBlock>> TChunkFileReader::ReadBlocks(
     }
 }
 
+i64 TChunkFileReader::GetBlockAlignment() const
+{
+    if (GetDirectIOFlag(/*useDirectIO*/ false) == EDirectIOFlag::On) {
+        return IOEngine_->GetBlockSize();
+    }
+
+    return GetPageSize();
+}
+
 i64 TChunkFileReader::GetMetaSize() const
 {
     auto metaFileName = FileName_ + ChunkMetaSuffix;
@@ -543,7 +552,7 @@ TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(EDirectIOFlag useDirectIO,
     return file;
 }
 
-EDirectIOFlag TChunkFileReader::GetDirectIOFlag(bool useDirectIO)
+EDirectIOFlag TChunkFileReader::GetDirectIOFlag(bool useDirectIO) const
 {
     auto policy = IOEngine_->UseDirectIOForReads();
     if (policy == EDirectIOPolicy::Never) {

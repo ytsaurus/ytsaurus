@@ -238,6 +238,11 @@ public:
         return GetCurrentEngine()->GetWriteRequestLimit();
     }
 
+    i64 GetBlockSize() const override
+    {
+        return GetCurrentEngine()->GetBlockSize();
+    }
+
 private:
     const TString LocationId_;
     const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
