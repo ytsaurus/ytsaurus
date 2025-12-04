@@ -496,12 +496,8 @@ protected:
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-                if (comparator) {
-                    dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
-                } else {
-                    dataSlice->TransformToNewKeyless();
-                }
+                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
+                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
 
                 TotalPrimaryInputDataSliceWeight_ += dataSlice->GetDataWeight();
                 TotalPrimaryInputDataSliceCompressedDataSize_ += dataSlice->GetCompressedDataSize();
