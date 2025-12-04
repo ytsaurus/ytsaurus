@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
-// TODO(eshcherbin): (!) Remove this include after TPostUpdateContext is not present in ISchedulingPolicy.
-#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
@@ -527,29 +525,25 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void PostUpdate(
         TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
-        TPostUpdateContext* /*postUpdateContext*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+        TPostUpdateContextPtr* /*postUpdateContext*/) override
+    { }
 
-    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    { }
 
     void UpdateConfig(TStrategyTreeConfigPtr treeConfig) override
     {
@@ -1058,29 +1052,25 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
+    TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* /*rootElement*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     void PostUpdate(
         TFairSharePostUpdateContext* /*fairSharePostUpdateContext*/,
-        TPostUpdateContext* /*postUpdateContext*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+        TPostUpdateContextPtr* /*postUpdateContext*/) override
+    { }
 
-    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* /*postUpdateContext*/) override
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContextPtr* /*postUpdateContext*/) override
     {
-        YT_UNIMPLEMENTED();
+        return nullptr;
     }
 
     virtual void OnResourceUsageSnapshotUpdate(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const TResourceUsageSnapshotPtr& /*resourceUsageSnapshot*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    { }
 
     void UpdateConfig(TStrategyTreeConfigPtr config) override
     {
