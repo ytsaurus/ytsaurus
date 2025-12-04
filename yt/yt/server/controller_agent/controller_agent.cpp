@@ -1495,6 +1495,10 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
+        JobMonitoringIndexManager_.RemoveAllOperations();
+
+        GangJobMonitoringDescriptorManager_.RemoveAllOperations();
+
         if (Connected_) {
             YT_LOG_WARNING(error, "Disconnecting scheduler");
 
