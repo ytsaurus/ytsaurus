@@ -38,10 +38,6 @@ class FacadeBase(ABC):
         pass
 
     @abstractmethod
-    def diff(self):
-        pass
-
-    @abstractmethod
     def show(self):
         pass
 
@@ -61,22 +57,13 @@ class FacadeBase(ABC):
     def json(self, file):
         pass
 
-    def try_diff(self):
-        try:
-            self.diff()
-        except Exception:
-            logger.exception(f"Failed to show diff for dashboard '{self.dashboard_name}' with backend '{self.get_backend_name()}'")
-
     def submit(self, need_confirmation, verbose):
-        self.try_diff()
         if need_confirmation:
             self._confirm('You are about to submit dashboard "{}" to {} (dashboard_id: {}), continue?'.format(
                 self.slug, self.get_backend_name(), self.dashboard_name))
         self.do_submit(verbose=verbose)
 
     def submit_cypress(self, need_confirmation, verbose, cypress_path, cypress_document_name):
-        self.try_diff()
-
         if cypress_document_name is None:
             cypress_document_name = self.slug
         dashboard_path = f"{cypress_path}/{cypress_document_name}"
