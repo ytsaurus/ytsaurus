@@ -41,6 +41,7 @@ IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr workerInvoker,
+    IInvokerPtr generateTimestampsInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
