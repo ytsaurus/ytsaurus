@@ -36,7 +36,9 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto TransactionCommitLocalWaitTime = TDuration::MilliSeconds(100);
-static constexpr auto TransactionCommitTotalWaitTime = TDuration::Minutes(1);
+static constexpr auto TransactionCommitTotalWaitTime = TDuration::Minutes(5);
+
+const TErrorAttribute OmitBackingOffAttribute("omit_backing_off", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +64,6 @@ public:
     }
 
 private:
-    IBootstrap* const Bootstrap_;
-    const TWeakPtr<ITabletSlot> TabletSlot_;
-
     class TScanSession
     {
     public:
@@ -93,17 +92,32 @@ private:
 
             YT_LOG_DEBUG("Scanning hunk tablet");
 
+            auto scanBackoffInstant = Tablet_->GetScanBackoffInstant();
+            if (TInstant::Now() < scanBackoffInstant) {
+                YT_LOG_DEBUG("Scan of tablet is backed off (TabletId: %v, RemainingBackoffTime: %v)",
+                    Tablet_->GetId(),
+                    (scanBackoffInstant - TInstant::Now()).Seconds());
+                return;
+            }
+
             try {
                 CheckNoTransactionLock();
+
                 MaybeAllocateStores();
                 MaybeRotateActiveStore();
                 MarkPassiveStoresAsSealable();
                 MaybeRemoveStores();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to scan hunk tablet")
+                TError error(ex);
+                auto omitBackingOff = error.Attributes().Get<bool>("omit_backing_off", false);
+                if (!omitBackingOff) {
+                    Tablet_->SetScanBackoffInstant(TInstant::Now() + Tablet_->MountConfig()->ScanBackoffPeriod);
+                }
+
+                TError wrappedError = TError("Failed to scan hunk tablet")
                     << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << ex;
-                YT_LOG_ERROR(error);
+                    << error;
+                YT_LOG_ERROR(wrappedError);
             }
         }
 
@@ -114,14 +128,15 @@ private:
 
         const NLogging::TLogger Logger;
 
-        void CheckNoTransactionLock()
+        void CheckNoTransactionLock() const
         {
             // NB: This is not critical for correctness. We wait until previously scheduled transactions are committed.
             // Such reordering may happen if after cell recovery some 2PC, started on previous iteration, has not finished yet
             // or if previous scan iteration has failed (i.g. due to timeouts to master) but has scheduled a transaction.
             if (auto transactionId = Tablet_->GetLockTransactionId()) {
                 THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
-                    << TErrorAttribute("transaction_id", transactionId);
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << OmitBackingOffAttribute;
             }
         }
 
@@ -293,7 +308,6 @@ private:
                 Tablet_->GetId()));
 
             NApi::TTransactionStartOptions transactionOptions;
-            transactionOptions.AutoAbort = false;
             transactionOptions.Attributes = std::move(transactionAttributes);
             transactionOptions.CoordinatorMasterCellTag = CellTagFromId(Tablet_->GetId());
             transactionOptions.ReplicateToMasterCellTags = TCellTagList();
@@ -331,7 +345,8 @@ private:
                 } else if (lockTransactionId) {
                     THROW_ERROR_EXCEPTION("Hunk tablet scanner encountered lock from unexpected transaction")
                         << TErrorAttribute("expected_transaction_id", transaction->GetId())
-                        << TErrorAttribute("actual_transaction_id", lockTransactionId);
+                        << TErrorAttribute("actual_transaction_id", lockTransactionId)
+                        << OmitBackingOffAttribute;
                 } else {
                     YT_LOG_DEBUG("Finished waiting for transaction to unlock tablet");
                     return;
@@ -349,7 +364,7 @@ private:
             try {
                 DoAllocateStores(storeCount);
             } catch (const std::exception& ex) {
-                auto error = TError("Hunk tablet scanner failed to allocated stores")
+                auto error = TError("Hunk tablet scanner failed to allocate stores")
                     << TError(ex);
                 Tablet_->OnStoreAllocationFailed(error);
                 THROW_ERROR(error);
@@ -364,6 +379,12 @@ private:
 
             YT_LOG_DEBUG("Allocating stores for hunk tablet (StoreCount: %v)",
                 storeCount);
+
+            const auto& writerOptions = Tablet_->StoreWriterOptions();
+            const auto& resourceLimitsManager = TabletSlot_->GetResourceLimitsManager();
+            resourceLimitsManager->ValidateResourceLimits(
+                writerOptions->Account,
+                writerOptions->MediumName);
 
             auto transaction = CreateTransaction();
             auto actionRequest = MakeActionRequest();
@@ -382,11 +403,6 @@ private:
             int chunkCount)
         {
             const auto& writerOptions = Tablet_->StoreWriterOptions();
-
-            const auto& resourceLimitsManager = TabletSlot_->GetResourceLimitsManager();
-            resourceLimitsManager->ValidateResourceLimits(
-                writerOptions->Account,
-                writerOptions->MediumName);
 
             auto masterChannel = Bootstrap_->GetClient()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Leader,
@@ -450,6 +466,9 @@ private:
             transaction->AddAction(TabletSlot_->GetCellId(), actionData);
         }
     };
+
+    IBootstrap* const Bootstrap_;
+    const TWeakPtr<ITabletSlot> TabletSlot_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
