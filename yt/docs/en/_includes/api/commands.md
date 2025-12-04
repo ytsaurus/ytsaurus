@@ -2747,7 +2747,7 @@ The table describes the `TJob` type, which contains information about the job re
 | `brief_statistics` | `map` | Summarized job statistics. |
 | `exec_attributes` | `map` | Metainformation about the job's initiation on the exec node. |
 | `monitoring_descriptor` | `string` | ID used by the monitoring system to store information about the job. |
-| `job_cookie` | `int` | Unique job index within the operation that serves as an implementation detail of the operation controller. In vanilla operations, it can be used to group workers: if a job is interrupted, the new job launched to replace it will have the same `job_cookie`. |
+| `job_cookie` | `int` | Unique job index within the operation task that serves as an implementation detail of the operation controller. In vanilla operations, it can be used to group workers: if a job is interrupted, the new job launched to replace it will have the same `job_cookie`. |
 | `operation_incarnation` | `string` | ID of the gang operation incarnation. |
 | `interruption_info` | `map` | Information about the reasons for the job's interruption. |
 | `archive_features` | `map` | Information about the job's archived attributes. |
