@@ -86,6 +86,7 @@ SRCS(
     chunk_client/public.cpp
     chunk_client/read_limit.cpp
     chunk_client/ready_event_reader_base.cpp
+    chunk_client/used_medium_index_set.cpp
 
     file_client/config.cpp
 

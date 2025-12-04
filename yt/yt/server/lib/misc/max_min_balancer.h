@@ -24,11 +24,17 @@ namespace NYT::NServer {
  *       shouldn't be called twice with equal arguments.)
  *  Indexes, pointers and iterators make ideal contenders.
  *
- *  The contender with the minimum weight is chosen via #TakeWinner().
- *  #TakeWinnerIf() may be used to find, among contenders matching given
+ *  The contender with the minimum weight is chosen via #ChooseWinner().
+ *  #ChooseWinnerIf() may be used to find, among contenders matching given
  *  predicate, the one with the minimum weight.
  *
- *  To increase the contender's weight, use #AddWeight().
+ *  If the initial value for all contenders is the neutral element for multiplication
+ *  over the weight type, #ChooseRangeWinner can be used to choose among a range
+ *  of potential contenders possibly not added to the balancer.
+ *
+ *  To increase the contender's weight, use #AddWeight() for elements known to exist.
+ *  #TryAddContender() may be used to initialalize contenders before increasing their weight.
+ *  This is useful in a lazy initialization setting.
  *
  *  Not thread safe.
  */
@@ -38,40 +44,48 @@ class TDecayingMaxMinBalancer
 public:
     TDecayingMaxMinBalancer(W decayFactor, TDuration decayInterval);
 
+    //! Adds a contender with an initial weight.
+    //! Contender must not be already added.
     void AddContender(T contender, W initialWeight = W());
+    //! Tries to add a contender with an initial weight.
+    //! Returns true if the contender was added, false if it was already present.
+    bool TryAddContender(T contender, W initialWeight = W());
 
-    // Returns null if there're no contenders.
-    std::optional<T> TakeWinner();
+    //! Selects winner between added contenders.
+    //! Returns null if there aren't any contenders.
+    //! Complexity: linear in the number of stored contenders.
+    std::optional<T> ChooseWinner();
 
-    // Returns null if there're no contenders or no contender satisfies #pred.
+    //! Selects winner between added contenders that satisfy #pred.
+    //! Returns null if there are no contenders or no contender satisfies #pred.
+    //! Complexity: linear in the number of stored contenders.
     template <typename P>
-    std::optional<T> TakeWinnerIf(P pred);
+    std::optional<T> ChooseWinnerIf(P pred);
 
+    //! Selects winner between potential contenders in the provided range.
+    //! If a contender was not added to the balancer, #defaultWeight will be used as its weight.
+    //! Complexity: linear in the size of the range.
+    //! NB: Results may be unexpected if #defaultWeight is not equal to both the initial weight
+    //! for all previously added contenders, as well as the neutral element for the multiplication
+    //! operation over the weight type. This holds true for most usecases, allowing to populate
+    //! contenders lazily.
+    template <typename R>
+    std::optional<T> ChooseRangeWinner(R range, W defaultWeight = W());
+
+    //! Increase weight of existing contender.
     void AddWeight(T winner, W extraWeight);
 
     void ResetWeights();
 
 private:
-    struct TWeighedContender
-    {
-        T Contender;
-        W Weight;
-
-        TWeighedContender(T contender, W weight);
-
-        bool operator<(const TWeighedContender& rhs) const { return Weight < rhs.Weight; }
-    };
-
     void MaybeDecay();
-
-    typename std::vector<TWeighedContender>::iterator FindContender(T contender);
 
     W DecayFactor_;
     NProfiling::TCpuDuration DecayInterval_;
     NProfiling::TCpuInstant NextDecayInstant_;
 
 protected: // for testing
-    std::vector<TWeighedContender> Contenders_;
+    THashMap<T, W> ContenderToWeight_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
