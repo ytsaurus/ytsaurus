@@ -20,7 +20,6 @@ TFuture<NTransactionClient::TTransactionId> StartCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressTransactionClient::NProto::TReqStartTransaction* request,
-    NRpc::TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
@@ -33,7 +32,6 @@ TFuture<void> DoomCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
-    NRpc::TAuthenticationIdentity authenticationIdentity,
     const NTransactionServer::NProto::TTransactionFinishRequest& request,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
@@ -48,7 +46,6 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
     bool force,
-    NRpc::TAuthenticationIdentity authenticationIdentity,
     NRpc::TMutationId mutationId,
     bool retry,
     IInvokerPtr invoker,
@@ -82,7 +79,6 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
     std::vector<NTransactionClient::TTransactionId> prerequisiteTransactionIds,
     NObjectClient::TCellTag primaryCellTag,
     NTransactionClient::TTimestamp commitTimestamp,
-    NRpc::TAuthenticationIdentity authenticationIdentity,
     NRpc::TMutationId mutationId,
     bool retry,
     IInvokerPtr invoker,

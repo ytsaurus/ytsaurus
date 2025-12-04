@@ -178,8 +178,9 @@ struct IConnection
     virtual NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) = 0;
 
     virtual bool IsSequoiaConfigured() = 0;
-    //! If Sequoia is not configured then this client will be failing each request.
-    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() = 0;
+    //! If Sequoia is not configured then this connection will produce clients
+    //! that fail each request.
+    virtual const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() = 0;
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
