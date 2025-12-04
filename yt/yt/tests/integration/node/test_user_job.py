@@ -2909,6 +2909,33 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         assert job1_descriptor == job2_descriptor
 
+    @authors("krasovav")
+    @pytest.mark.parametrize("use_gang_descriptor", [True, False])
+    def test_kill_scheduler(self, use_gang_descriptor):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "use_operation_id_based_descriptors_for_gangs_jobs": use_gang_descriptor,
+                    "enable": True,
+                },
+                "gang_options": {},
+            },
+        )
+
+        wait_breakpoint()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+        controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent_address)
+        used_descriptor_count = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/{}used_descriptor_count".format("gang_monitoring_descriptors/" if use_gang_descriptor else ""))
+        wait(lambda: used_descriptor_count.get() == 1)
+
+        release_breakpoint()
+
     @authors("eshcherbin")
     def test_no_sensors_after_job_finish(self):
         op = run_test_vanilla(

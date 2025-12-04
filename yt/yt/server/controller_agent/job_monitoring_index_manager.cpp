@@ -112,6 +112,26 @@ bool TJobMonitoringIndexManager::TryRemoveOperation(TOperationId operationId)
     return true;
 }
 
+void TJobMonitoringIndexManager::RemoveAllOperations()
+{
+    auto guard = TGuard(SpinLock_);
+
+    for (const auto& [operationId, indexes] : OperationIdToIndexes_) {
+        Size_ -= std::size(indexes);
+    }
+
+    YT_VERIFY(Size_ == 0);
+
+    OperationIdToIndexes_.clear();
+
+    // MaxSize_ may have been reduced by via dinconfig, but FreeIndices_.size() remains the same.
+    FreeIndices_.clear();
+    for (int i = 0; i < MaxSize_; ++i) {
+        FreeIndices_.insert(i);
+    }
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
