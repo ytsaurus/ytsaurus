@@ -20,7 +20,7 @@ bool AreAttributesRelated(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs);
 //! |path| must be free of asterisks.
 EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern, NYPath::TYPathBuf path);
 
-using TSplitResult = std::tuple<NYPath::TYPath, std::optional<NYPath::TYPath>>;
+using TSplitResult = std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>>;
 // return first literal from the path (with starting slash) if any.
 TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int rootLength = 1);
 // split pattern by asterisk
