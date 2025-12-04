@@ -165,6 +165,7 @@ message TReqAlter
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 5;
     optional NYT.NProto.TGuid schema_id = 6;
     optional uint64 clip_timestamp = 7;
+    optional TColumnNameToConstraintMap constraints = 8;
 }
 
 message TRspAlter

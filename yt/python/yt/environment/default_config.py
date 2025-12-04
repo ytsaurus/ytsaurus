@@ -139,6 +139,9 @@ def get_dynamic_master_config():
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
         },
+        "table_manager": {
+            "enable_column_constraints_for_tables": True,
+        },
 
         "multicell_manager": {
             "cell_statistics_gossip_period": 200,

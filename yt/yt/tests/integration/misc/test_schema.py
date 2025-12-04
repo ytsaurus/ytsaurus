@@ -1661,13 +1661,13 @@ class TestSchemaObjects(TestSchemaDeduplication):
         other_schema = make_schema([make_column("some_column", "int8")], unique_keys=False, strict=True)
 
         # Hitherto-unseen @schema and a mismatching @schema_id.
-        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and the schemas do not match"):
+        with raises_yt_error("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" attributes are specified and the schemas do not match"):
             create("table", "//tmp/table6", attributes={"schema_id": schema_id, "schema": other_schema})
 
         create("table", "//tmp/other_schema_holder", attributes={"schema": other_schema})
 
         # @schema and a mismatching @schema_id.
-        with raises_yt_error("Both \"schema\" and \"schema_id\" specified and they refer to different schemas"):
+        with raises_yt_error("Mix of \"schema\", \"constrained_schema\" and \"schema_id\" specified and they refer to different schemas"):
             create("table", "//tmp/table7", attributes={"schema_id": schema_id, "schema": other_schema})
 
         assert get("#" + schema_id + "/@ref_counter") == 3

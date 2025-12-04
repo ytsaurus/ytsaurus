@@ -6,6 +6,7 @@
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -521,6 +522,119 @@ TError ValidateComputedColumnsCompatibility(
     }
 
     return TError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Validates that no new constraints were added for columns that are already present in old table schema.
+static void ValidateNoNewConstraintsForExistingColumns(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    // For empty tables we allow constraints transitions.
+    if (isTableEmpty) {
+        return;
+    }
+
+    for (const auto& column : schema.Columns()) {
+        THROW_ERROR_EXCEPTION_IF(
+            newConstraints.contains(column.StableName()) && !oldConstraints.contains(column.StableName()),
+            "Constraint cannot be added for existing column %Qv",
+            column.StableName());
+    }
+}
+
+//! Validates that all constrained columns are present in schema.
+static void ValidateAllConstrainedColumnsExist(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& constraints)
+{
+    for (const auto& [column, constraint] : constraints) {
+        if (!schema.FindColumnByStableName(column)) {
+            THROW_ERROR_EXCEPTION("Constraint for unknown column %Qv was found", column)
+                << TErrorAttribute("constraint", constraint);
+        }
+    }
+}
+
+//! Validates that
+// - constraints expressions have remained the same or have been dropped.
+// - types of constrained columns have remained the same
+static void ValidateConstraintsCompatibility(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    // For empty tables we allow constraints transitions.
+    if (isTableEmpty) {
+        return;
+    }
+
+    for (const auto& [column, constraint] : newConstraints) {
+        auto it = oldConstraints.find(column);
+        if (it != oldConstraints.end() && it->second != constraint) {
+            THROW_ERROR_EXCEPTION("Constraint for column %Qv cannot be changed", column)
+                << TErrorAttribute("old_constraint", constraint)
+                << TErrorAttribute("new_constraint", it->second);
+        }
+    }
+
+    for (const auto& [column, constraint]: newConstraints) {
+        const auto* oldColumn = oldSchema.FindColumnByStableName(column);
+        const auto* newColumn = newSchema.FindColumnByStableName(column);
+
+        if (!newColumn || !oldColumn) {
+            continue;
+        }
+
+        const auto& oldType = oldColumn->LogicalType();
+        const auto& newType = newColumn->LogicalType();
+        auto typeChanged = (oldType && !newType)
+            || (!oldType && newType)
+            || (*oldType != *newType);
+
+        if (typeChanged) {
+            THROW_ERROR_EXCEPTION("Altering type for constrained column is forbidden")
+                << TErrorAttribute("column_name", column)
+                << TErrorAttribute("old_type", oldType)
+                << TErrorAttribute("new_type", newType)
+                << TErrorAttribute("column_constraint", constraint);
+        }
+    }
+}
+
+void ValidateConstraintsMatch(
+    const TConstrainedTableSchema& schema,
+    const TColumnNameToConstraintMap& constraints)
+{
+    if (schema.ColumnToConstraint() != constraints) {
+        THROW_ERROR_EXCEPTION("Received conflicting constraints")
+            << TErrorAttribute("schema_constraints", schema.ColumnToConstraint())
+            << TErrorAttribute("constraints", constraints);
+    }
+}
+
+void ValidateConstrainedSchemaAlteration(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const TColumnStableNameToConstraintMap& oldConstraints,
+    const TColumnStableNameToConstraintMap& newConstraints,
+    bool isTableEmpty)
+{
+    ValidateConstrainedSchemaCreation(newSchema, newConstraints);
+    ValidateNoNewConstraintsForExistingColumns(oldSchema, oldConstraints, newConstraints, isTableEmpty);
+    ValidateConstraintsCompatibility(oldSchema, newSchema, oldConstraints, newConstraints, isTableEmpty);
+}
+
+void ValidateConstrainedSchemaCreation(
+    const TTableSchema& schema,
+    const TColumnStableNameToConstraintMap& constraints)
+{
+    ValidateAllConstrainedColumnsExist(schema, constraints);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

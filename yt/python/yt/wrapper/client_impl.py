@@ -343,7 +343,7 @@ class YtClient(ClientState):
             self,
             path,
             schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None,
-            clip_timestamp=None):
+            clip_timestamp=None, constrained_schema=None, constraints=None):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -356,13 +356,16 @@ class YtClient(ClientState):
         :param str upstream_replica_id: upstream_replica_id
         :param dict replication_progress: replication progress for chaos dynamic table
         :param int clip_timestamp: new clip_timestamp to set on table
+        :param constrained_schema: new schema with constraints to set on table
+        :param dict constraints: constraint per column map for table schema
 
         """
         return client_api.alter_table(
             path,
             client=self,
             schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id,
-            replication_progress=replication_progress, clip_timestamp=clip_timestamp)
+            replication_progress=replication_progress, clip_timestamp=clip_timestamp, constrained_schema=constrained_schema,
+            constraints=constraints)
 
     def alter_table_replica(
             self,

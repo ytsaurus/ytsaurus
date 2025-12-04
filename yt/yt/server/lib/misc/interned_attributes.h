@@ -124,6 +124,8 @@
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
+    XX(ConstrainedSchema, constrained_schema) \
+    XX(Constraints, constraints) \
     XX(ContentRevision, content_revision) \
     XX(CoordinatorCellIds, coordinator_cell_ids) \
     XX(CorrelationId, correlation_id) \

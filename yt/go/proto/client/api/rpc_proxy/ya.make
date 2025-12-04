@@ -10,6 +10,7 @@ PEERDIR(
     yt/go/proto/client/hive
     yt/go/proto/client/node_tracker_client
     yt/go/proto/client/scheduler
+    yt/go/proto/client/table_chunk_format
     yt/go/proto/client/table_client
     yt/go/proto/client/tablet_client
 )
