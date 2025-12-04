@@ -222,6 +222,7 @@ struct TApiServiceDynamicConfig
     bool EnableAllocationTags;
 
     TQueryFeatureTogglesPtr QueryFeatureToggles;
+    bool EnableLowLatencyGenerateTimestampsInvoker;
 
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 

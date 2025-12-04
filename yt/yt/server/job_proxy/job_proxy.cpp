@@ -759,6 +759,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
+        ApiServiceThreadPool_->GetInvoker(),
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
