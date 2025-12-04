@@ -10,6 +10,7 @@
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
+#include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
@@ -1187,12 +1188,12 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
             YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v)",
                 expectedOperationIndices[opIndex],
-                treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
+                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
                 element->GetWeight());
 
             EXPECT_EQ(
                 expectedOperationIndices[opIndex],
-                treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex);
+                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex);
         }
 
         auto doCheckOrderDuringSchedulingStage = [&] (auto getBestOperation) {
@@ -1353,10 +1354,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
 
         auto sortedOperationElements = operationElements;
         SortBy(sortedOperationElements, [&] (const TPoolTreeOperationElementPtr& element) {
-            return treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
+            return GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
         });
 
-        const auto& schedulableOperations = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& schedulableOperations = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
         ASSERT_EQ(OperationCount, std::ssize(schedulableOperations));
 
         {
@@ -1466,7 +1467,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
-        const auto& schedulableOperations = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& schedulableOperations = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
         ASSERT_EQ(NewOperationCount, std::ssize(schedulableOperations));
 
         {
@@ -1935,9 +1936,9 @@ TEST_F(TSchedulingPolicyTest, TestGuaranteePriorityScheduling)
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
-        const auto& staticAttributesList = treeSnapshot->SchedulingPolicyState()->StaticAttributesList();
-        const auto& schedulableOperationsHigh = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::High];
-        const auto& schedulableOperationsMedium = treeSnapshot->SchedulingPolicyState()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
+        const auto& staticAttributesList = GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList();
+        const auto& schedulableOperationsHigh = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::High];
+        const auto& schedulableOperationsMedium = GetPoolTreeSnapshotState(treeSnapshot)->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
 
         EXPECT_EQ(std::ssize(expectedHighPriorityOperations), std::ssize(schedulableOperationsHigh));
         for (const auto& operationElement : expectedHighPriorityOperations) {

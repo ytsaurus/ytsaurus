@@ -315,7 +315,7 @@ bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssignment(
     TUpdateSchedulingSegmentsContext* context) const
 {
     const auto& treeSnapshot = context->TreeSnapshot;
-    const auto& attributes = treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(operationElement);
+    const auto& attributes = GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(operationElement);
     const auto& operation = context->OperationStates[operationElement->GetOperationId()];
     auto failingToAssignToModuleSince = operation->FailingToAssignToModuleSince;
 
@@ -348,7 +348,7 @@ THashMap<TSchedulingSegmentModule, TNonOwningOperationElementList> TSchedulingSe
             continue;
         }
 
-        const auto& attributes = treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element);
+        const auto& attributes = GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element);
         auto operationHasPriority = attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled;
         if (auto module = operation->SchedulingSegmentModule;
             module && !operationHasPriority)
