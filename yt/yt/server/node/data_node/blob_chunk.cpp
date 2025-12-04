@@ -452,24 +452,22 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
     }
 
-    auto alignedPendingDataSize = AlignUp<i64>(pendingDataSize, DefaultPageSize);
-
     if (diskFetchNeeded) {
         session->DiskFetchPromise = NewPromise<void>();
         session->Futures.push_back(session->DiskFetchPromise.ToFuture());
 
         auto readCallback = BIND([=, this, this_ = MakeStrong(this)] {
-            DoReadSession(session, alignedPendingDataSize);
+            DoReadSession(session, pendingDataSize);
         });
 
         const auto& outThrottler = Location_->GetOutThrottler(session->Options.WorkloadDescriptor);
-        if (outThrottler->TryAcquire(alignedPendingDataSize)) {
+        if (outThrottler->TryAcquire(pendingDataSize)) {
             session->Invoker->Invoke(std::move(readCallback));
         } else {
             YT_LOG_DEBUG("Disk read throttling is active (PendingDataSize: %v, WorkloadDescriptor: %v)",
-                alignedPendingDataSize,
+                pendingDataSize,
                 session->Options.WorkloadDescriptor);
-            auto throttleFuture = outThrottler->Throttle(alignedPendingDataSize);
+            auto throttleFuture = outThrottler->Throttle(pendingDataSize);
             session->Futures.push_back(throttleFuture.Apply(readCallback.AsyncVia(session->Invoker)));
         }
     }
@@ -494,14 +492,22 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     }
 }
 
+i64 TBlobChunkBase::GetAlignedPendingDataSize(i64 pendingDataSize)
+{
+    auto reader = GetReader();
+    return AlignUp<i64>(pendingDataSize, reader->GetBlockAlignment());
+}
+
 void TBlobChunkBase::DoReadSession(
     const TBlobChunkBase::TReadBlockSetSessionPtr& session,
     i64 pendingDataSize)
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
+    auto alignedPendingDataSize = GetAlignedPendingDataSize(pendingDataSize);
+
     const auto& memoryTracker = Location_->GetReadMemoryTracker();
-    auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, pendingDataSize);
+    auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, alignedPendingDataSize);
     if (!memoryGuardOrError.IsOK()) {
         YT_LOG_DEBUG("Read session aborted due to memory pressure");
         Location_->ReportThrottledRead();
@@ -527,7 +533,7 @@ void TBlobChunkBase::DoReadSession(
 
     // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
     auto fairShareSlotOrError = Location_->AddFairShareQueueSlot(
-        pendingDataSize,
+        alignedPendingDataSize,
         {},
         CreateHierarchyLevels(session->Options.FairShareTags));
 
@@ -540,7 +546,7 @@ void TBlobChunkBase::DoReadSession(
         std::move(memoryGuardOrError.Value()),
         EIODirection::Read,
         session->Options.WorkloadDescriptor,
-        pendingDataSize));
+        alignedPendingDataSize));
 
     DoReadBlockSet(session);
 }
