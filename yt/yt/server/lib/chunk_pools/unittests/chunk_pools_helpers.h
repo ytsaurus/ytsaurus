@@ -49,7 +49,7 @@ protected:
 
     void SetUp() override;
 
-    void CheckCounter(const NControllerAgent::TConstProgressCounterPtr& actual, const TExpectedCounter& expected);
+    static void CheckCounter(const NControllerAgent::TConstProgressCounterPtr& actual, const TExpectedCounter& expected);
 
     static NLogging::TLogger GetTestLogger();
 
