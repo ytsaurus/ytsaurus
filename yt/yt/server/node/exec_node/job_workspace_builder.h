@@ -105,7 +105,9 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager);
 
-    TFuture<TJobWorkspaceBuildingResult> Run();
+    TFuture<void> Run();
+
+    TJobWorkspaceBuildingResult ExtractResult();
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -114,6 +116,7 @@ protected:
     TJobWorkspaceBuildingContext Context_;
     const IJobDirectoryManagerPtr DirectoryManager_;
 
+    bool ResultExtracted_ = false;
     TJobWorkspaceBuildingResult ResultHolder_;
 
     TJobWorkspaceBuilderTimePoints TimePoints_;
