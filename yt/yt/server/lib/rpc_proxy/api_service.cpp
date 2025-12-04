@@ -650,6 +650,7 @@ public:
         TApiServiceConfigPtr config,
         IInvokerPtr controlInvoker,
         IInvokerPtr workerInvoker,
+        IInvokerPtr lowLatencyInvoker,
         NApi::NNative::IConnectionPtr connection,
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
@@ -680,6 +681,7 @@ public:
             : CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
         , ControlInvoker_(std::move(controlInvoker))
+        , LowLatencyInvoker_(std::move(lowLatencyInvoker))
         , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
@@ -708,7 +710,10 @@ public:
         // Rpc proxy can allow redirect read requests or read and write requests (or disallow redirecting completely).
         //
         // YT-24245
-        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        registerMethod(
+            EMultiproxyMethodKind::Write,
+            RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
+                .SetInvokerProvider(BIND(&TApiService::GetGenerateTimestampsInvoker, Unretained(this))));
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartTransaction));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
@@ -957,6 +962,7 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr LowLatencyInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
@@ -1353,6 +1359,14 @@ private:
             .first;
     }
 
+    IInvokerPtr GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
+    {
+        if (Config_.Acquire()->EnableLowLatencyGenerateTimestampsInvoker) {
+            return LowLatencyInvoker_;
+        }
+
+        return GetDefaultInvoker();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
     {
@@ -7652,6 +7666,7 @@ IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr workerInvoker,
+    IInvokerPtr lowLatencyInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -7669,6 +7684,7 @@ IApiServicePtr CreateApiService(
         std::move(config),
         std::move(controlInvoker),
         std::move(workerInvoker),
+        std::move(lowLatencyInvoker),
         std::move(connection),
         std::move(authenticator),
         std::move(proxyCoordinator),

@@ -57,6 +57,7 @@ private:
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const NConcurrency::IThreadPoolPtr WorkerPool_;
+    const NConcurrency::TActionQueuePtr LowLatencyActionQueue_;
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
