@@ -972,6 +972,13 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("inherit_acl").Value(false)
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Allow,
+                                securityManager->GetEveryoneGroup(),
+                                EPermissionSet(EPermission::Read)
+                            ))
+                        .EndList()
                     .EndMap());
 
             ScheduleCreateNode(
@@ -1112,7 +1119,11 @@ private:
             ScheduleCreateNode(
                 "//sys/public_keys/by_owner",
                 transactionId,
-                EObjectType::MapNode);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
             FlushScheduled();
 
