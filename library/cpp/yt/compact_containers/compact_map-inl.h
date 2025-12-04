@@ -18,37 +18,14 @@ private:
     friend class iterator;
     friend class const_iterator;
 
-    using TVecIter = std::conditional_t<IsConst, TVectorConstIterator, TVectorIterator>;
+    using TVecIter = std::conditional_t<IsConst, TArrayConstIterator, TArrayIterator>;
     using TMapIter = std::conditional_t<IsConst, TMapConstIterator, TMapIterator>;
     using TValueType = typename TCompactMap::value_type;
-    using TVectorValue = typename TCompactMap::TVectorValue;
-    using TSmallValue = std::conditional_t<IsConst, const TVectorValue, TVectorValue>;
-    using TSmallPointer = std::conditional_t<IsConst, const TVectorValue*, TVectorValue*>;
+    using TArrayValue = typename TCompactMap::TArrayValue;
+    using TSmallValue = std::conditional_t<IsConst, const TArrayValue, TArrayValue>;
+    using TSmallPointer = std::conditional_t<IsConst, const TArrayValue*, TArrayValue*>;
     using TReference = std::conditional_t<IsConst, const TValueType&, TValueType&>;
     using TPointer = std::conditional_t<IsConst, const TValueType*, TValueType*>;
-
-    static_assert(
-        sizeof(TVectorValue) == sizeof(TValueType),
-        "TCompactMap relies on identical layout of internal and public pair types");
-    static_assert(
-        alignof(TVectorValue) == alignof(TValueType),
-        "TCompactMap relies on identical layout of internal and public pair types");
-
-    static TReference VectorRef(TSmallValue& value)
-    {
-        // Technically, this violates strict aliasing rules, and is, therefore, undefined behavior.
-        // In practice, see the comment regarding value_type in the class header. It is defined
-        // with `may_alias` attribute to suppress optimizations based on type-based alias analysis.
-        return reinterpret_cast<TReference>(value);
-    }
-
-    static TPointer VectorPtr(TSmallPointer ptr)
-    {
-        // Technically, this violates strict aliasing rules, and is, therefore, undefined behavior.
-        // In practice, see the comment regarding value_type in the class header. It is defined
-        // with `may_alias` attribute to suppress optimizations based on type-based alias analysis.
-        return reinterpret_cast<TPointer>(ptr);
-    }
 
     union
     {
@@ -89,7 +66,7 @@ public:
     reference operator*() const
     {
         if (Small_) {
-            return VectorRef(*VIter);
+            return *VIter;
         }
         return *MIter;
     }
@@ -97,7 +74,7 @@ public:
     pointer operator->() const
     {
         if (Small_) {
-            return VectorPtr(&*VIter);
+            return &*VIter;
         }
         return &*MIter;
     }
@@ -162,7 +139,7 @@ private:
     friend class const_iterator;
     using TBase = typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::template TIteratorBase<false>;
 
-    explicit iterator(TVectorIterator it)
+    explicit iterator(TArrayIterator it)
         : TBase(it)
     { }
 
@@ -187,7 +164,7 @@ private:
     friend class TCompactMap<TKey, TValue, N, TCompare, TAllocator>;
     using TBase = typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::template TIteratorBase<true>;
 
-    explicit const_iterator(TVectorConstIterator it)
+    explicit const_iterator(TArrayConstIterator it)
         : TBase(it)
     { }
 
@@ -197,6 +174,164 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayData() -> TArrayIterator
+{
+    static_assert(sizeof(TStorage) == sizeof(TArrayValue), "Inline storage size mismatch");
+    static_assert(alignof(TStorage) == alignof(TArrayValue), "Inline storage alignment mismatch");
+    return reinterpret_cast<TArrayIterator>(ArrayStorage_.data());
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayData() const -> TArrayConstIterator
+{
+    return reinterpret_cast<TArrayConstIterator>(ArrayStorage_.data());
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayBegin() -> TArrayIterator
+{
+    return ArrayData();
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayBegin() const -> TArrayConstIterator
+{
+    return ArrayData();
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayEnd() -> TArrayIterator
+{
+    return ArrayData() + ArraySize_;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayEnd() const -> TArrayConstIterator
+{
+    return ArrayData() + ArraySize_;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+void TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ClearArray()
+{
+    auto* data = ArrayData();
+    for (size_type index = 0; index < ArraySize_; ++index) {
+        std::destroy_at(data + index);
+    }
+    ArraySize_ = 0;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+void TCompactMap<TKey, TValue, N, TCompare, TAllocator>::CopyArrayFrom(const TCompactMap& other)
+{
+    auto* data = ArrayData();
+    auto* otherData = other.ArrayData();
+
+    for (size_type index = 0; index < other.ArraySize_; ++index) {
+        std::construct_at(data + index, otherData[index]);
+    }
+    ArraySize_ = other.ArraySize_;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+void TCompactMap<TKey, TValue, N, TCompare, TAllocator>::MoveArrayFrom(TCompactMap&& other)
+{
+    auto* data = ArrayData();
+    auto* otherData = other.ArrayData();
+
+    for (size_type index = 0; index < other.ArraySize_; ++index) {
+        std::construct_at(data + index, std::move(otherData[index]));
+    }
+    ArraySize_ = other.ArraySize_;
+
+    other.ClearArray();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TCompactMap(const TCompactMap& other)
+    : Compare_(other.Compare_)
+    , Alloc_(other.Alloc_)
+{
+    if (other.IsSmall()) {
+        CopyArrayFrom(other);
+    } else {
+        Map_ = other.Map_;
+    }
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TCompactMap(TCompactMap&& other) noexcept(
+    std::is_nothrow_move_constructible_v<value_type> &&
+    std::is_nothrow_move_constructible_v<key_compare> &&
+    std::allocator_traits<allocator_type>::is_always_equal::value)
+    : Compare_(std::move(other.Compare_))
+    , Alloc_(std::move(other.Alloc_))
+{
+    if (other.IsSmall()) {
+        MoveArrayFrom(std::move(other));
+    } else {
+        Map_ = std::move(other.Map_);
+    }
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>&
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::operator=(const TCompactMap& other)
+{
+    if (this == &other) {
+        return *this;
+    }
+
+    ClearArray();
+    Map_.clear();
+
+    Compare_ = other.Compare_;
+    Alloc_ = other.Alloc_;
+
+    if (other.IsSmall()) {
+        CopyArrayFrom(other);
+    } else {
+        Map_ = other.Map_;
+    }
+
+    return *this;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>&
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::operator=(TCompactMap&& other) noexcept(
+    std::is_nothrow_move_constructible_v<value_type> &&
+    std::is_nothrow_move_constructible_v<key_compare> &&
+    std::allocator_traits<allocator_type>::is_always_equal::value)
+{
+    if (this == &other) {
+        return *this;
+    }
+
+    ClearArray();
+    Map_.clear();
+
+    Compare_ = std::move(other.Compare_);
+    Alloc_ = std::move(other.Alloc_);
+
+    if (other.IsSmall()) {
+        MoveArrayFrom(std::move(other));
+    } else {
+        Map_ = std::move(other.Map_);
+    }
+
+    return *this;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::~TCompactMap()
+{
+    ClearArray();
+}
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TCompactMap(const allocator_type& alloc)
@@ -220,20 +355,20 @@ TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TCompactMap(std::initializer
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 bool TCompactMap<TKey, TValue, N, TCompare, TAllocator>::empty() const
 {
-    return IsSmall() ? Vector_.empty() : Map_.empty();
+    return IsSmall() ? ArraySize_ == 0 : Map_.empty();
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::size_type
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::size() const
 {
-    return IsSmall() ? Vector_.size() : Map_.size();
+    return IsSmall() ? ArraySize_ : Map_.size();
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 void TCompactMap<TKey, TValue, N, TCompare, TAllocator>::clear()
 {
-    Vector_.clear();
+    ClearArray();
     Map_.clear();
 }
 
@@ -286,41 +421,97 @@ void TCompactMap<TKey, TValue, N, TCompare, TAllocator>::UpgradeToMap()
         return;
     }
 
-    Map_ = TMap(Compare_, Alloc_);
-    for (auto& item : Vector_) {
-        Map_.emplace(item.first, item.second);
+    TMap newMap(Compare_, Alloc_);
+    auto* data = ArrayData();
+    for (size_type index = 0; index < ArraySize_; ++index) {
+        newMap.emplace(data[index].first, std::move(data[index].second));
     }
 
-    Vector_.clear();
+    ClearArray();
+    Map_ = std::move(newMap);
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
-std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TVectorConstIterator, bool>
-TCompactMap<TKey, TValue, N, TCompare, TAllocator>::VectorLowerBound(const key_type& key) const
+std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TArrayConstIterator, bool>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayLowerBound(const key_type& key) const
 {
-    return VectorLowerBoundImpl(Vector_.begin(), Vector_.end(), key, Compare_);
+    return ArrayLowerBoundImpl(ArrayBegin(), ArrayEnd(), key, Compare_);
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
-std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TVectorIterator, bool>
-TCompactMap<TKey, TValue, N, TCompare, TAllocator>::VectorLowerBound(const key_type& key)
+std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TArrayIterator, bool>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayLowerBound(const key_type& key)
 {
-    return VectorLowerBoundImpl(Vector_.begin(), Vector_.end(), key, Compare_);
+    return ArrayLowerBoundImpl(ArrayBegin(), ArrayEnd(), key, Compare_);
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 template <class... TArgs>
-auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::EmplaceSmall(TVectorConstIterator pos, TArgs&&... args) -> TVectorIterator
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::EmplaceSmall(TArrayConstIterator pos, TArgs&&... args) -> TArrayIterator
 {
-    return Vector_.emplace(pos, std::forward<TArgs>(args)...);
+    auto index = static_cast<size_type>(pos - ArrayBegin());
+    auto* data = ArrayData();
+
+    // Simple path: emplace at the end.
+    if (index == ArraySize_) {
+        std::construct_at(data + ArraySize_, std::forward<TArgs>(args)...);
+        ++ArraySize_;
+        return data + index;
+    }
+
+    // Shift elements to make space at index.
+    std::construct_at(data + ArraySize_, std::move(data[ArraySize_ - 1]));
+    for (size_type i = ArraySize_ - 1; i > index; --i) {
+        std::destroy_at(data + i);
+        std::construct_at(data + i, std::move(data[i - 1]));
+    }
+
+    // Construct new element at index.
+    std::destroy_at(data + index);
+    std::construct_at(data + index, std::forward<TArgs>(args)...);
+
+    ++ArraySize_;
+    return data + index;
 }
 
 template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
-template <class TVectorIteratorType>
-std::pair<TVectorIteratorType, bool>
-TCompactMap<TKey, TValue, N, TCompare, TAllocator>::VectorLowerBoundImpl(
-    TVectorIteratorType begin,
-    TVectorIteratorType end,
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::EraseSmall(TArrayConstIterator pos) -> TArrayIterator
+{
+    return EraseSmall(pos, pos + 1);
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::EraseSmall(TArrayConstIterator first, TArrayConstIterator last) -> TArrayIterator
+{
+    auto start = static_cast<size_type>(first - ArrayBegin());
+    auto finish = static_cast<size_type>(last - ArrayBegin());
+    auto* data = ArrayData();
+
+    if (start == finish) {
+        return data + start;
+    }
+
+    // Destroy elements in [start, finish).
+    for (size_type index = start; index < finish; ++index) {
+        std::destroy_at(data + index);
+    }
+
+    // Shift elements from [finish, ArraySize_) to [start, ...).
+    for (size_type index = finish; index < ArraySize_; ++index) {
+        std::construct_at(data + start + (index - finish), std::move(data[index]));
+        std::destroy_at(data + index);
+    }
+
+    ArraySize_ -= (finish - start);
+    return data + start;
+}
+
+template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
+template <class TArrayIteratorType>
+std::pair<TArrayIteratorType, bool>
+TCompactMap<TKey, TValue, N, TCompare, TAllocator>::ArrayLowerBoundImpl(
+    TArrayIteratorType begin,
+    TArrayIteratorType end,
     const key_type& key,
     const key_compare& compare)
 {
@@ -339,14 +530,14 @@ typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::mapped_type&
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::Subscript(TKeyParam&& key)
 {
     if (IsSmall()) {
-        auto [vectorIt, found] = VectorLowerBound(key);
+        auto [arrayIt, found] = ArrayLowerBound(key);
 
         if (found) {
-            return vectorIt->second;
+            return arrayIt->second;
         }
 
-        if (Vector_.size() < N) {
-            auto inserted = EmplaceSmall(vectorIt, std::forward<TKeyParam>(key), mapped_type());
+        if (ArraySize_ < N) {
+            auto inserted = EmplaceSmall(arrayIt, std::forward<TKeyParam>(key), mapped_type());
             return inserted->second;
         }
 
@@ -363,7 +554,7 @@ auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::BeginImpl(TSelf* self)
 {
     using TResult = std::conditional_t<std::is_const_v<TSelf>, const_iterator, iterator>;
     if (self->IsSmall()) {
-        return TResult(self->Vector_.begin());
+        return TResult(self->ArrayBegin());
     }
     return TResult(self->Map_.begin());
 }
@@ -375,7 +566,7 @@ auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::EndImpl(TSelf* self)
 {
     using TResult = std::conditional_t<std::is_const_v<TSelf>, const_iterator, iterator>;
     if (self->IsSmall()) {
-        return TResult(self->Vector_.end());
+        return TResult(self->ArrayEnd());
     }
     return TResult(self->Map_.end());
 }
@@ -387,8 +578,8 @@ auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::FindImpl(TSelf* self, c
 {
     using TResult = std::conditional_t<std::is_const_v<TSelf>, const_iterator, iterator>;
     if (self->IsSmall()) {
-        auto [it, found] = self->VectorLowerBound(key);
-        return found ? TResult(it) : TResult(self->Vector_.end());
+        auto [it, found] = self->ArrayLowerBound(key);
+        return found ? TResult(it) : TResult(self->ArrayEnd());
     }
     return TResult(self->Map_.find(key));
 }
@@ -435,14 +626,14 @@ std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::iterator,
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::insert(const value_type& v)
 {
     if (IsSmall()) {
-        auto [vectorIt, found] = VectorLowerBound(v.first);
+        auto [arrayIt, found] = ArrayLowerBound(v.first);
 
         if (found) {
-            return {iterator(vectorIt), false};
+            return {iterator(arrayIt), false};
         }
 
-        if (Vector_.size() < N) {
-            auto inserted = EmplaceSmall(vectorIt, v.first, v.second);
+        if (ArraySize_ < N) {
+            auto inserted = EmplaceSmall(arrayIt, v.first, v.second);
             return {iterator(inserted), true};
         }
 
@@ -459,15 +650,15 @@ std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::iterator,
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::emplace(TArgs&&... args)
 {
     if (IsSmall()) {
-        TVectorValue value(std::forward<TArgs>(args)...);
-        auto [vectorIt, found] = VectorLowerBound(value.first);
+        TArrayValue value(std::forward<TArgs>(args)...);
+        auto [arrayIt, found] = ArrayLowerBound(value.first);
 
         if (found) {
-            return {iterator(vectorIt), false};
+            return {iterator(arrayIt), false};
         }
 
-        if (Vector_.size() < N) {
-            auto inserted = EmplaceSmall(vectorIt, std::move(value));
+        if (ArraySize_ < N) {
+            auto inserted = EmplaceSmall(arrayIt, std::move(value));
             return {iterator(inserted), true};
         }
 
@@ -512,15 +703,15 @@ template <class M>
 std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::iterator, bool> TCompactMap<TKey, TValue, N, TCompare, TAllocator>::insert_or_assign(const key_type& key, M&& obj)
 {
     if (IsSmall()) {
-        auto [vectorIt, found] = VectorLowerBound(key);
+        auto [arrayIt, found] = ArrayLowerBound(key);
         
         if (found) {
-            vectorIt->second = std::forward<M>(obj);
-            return {iterator(vectorIt), false};
+            arrayIt->second = std::forward<M>(obj);
+            return {iterator(arrayIt), false};
         }
 
-        if (Vector_.size() < N) {
-            auto inserted = EmplaceSmall(vectorIt, key, std::forward<M>(obj));
+        if (ArraySize_ < N) {
+            auto inserted = EmplaceSmall(arrayIt, key, std::forward<M>(obj));
             return {iterator(inserted), true};
         }
 
@@ -537,15 +728,15 @@ std::pair<typename TCompactMap<TKey, TValue, N, TCompare, TAllocator>::iterator,
 TCompactMap<TKey, TValue, N, TCompare, TAllocator>::TryEmplaceImpl(TKeyParam&& key, TArgs&&... args)
 {
     if (IsSmall()) {
-        auto [vectorIt, found] = VectorLowerBound(key);
+        auto [arrayIt, found] = ArrayLowerBound(key);
 
         if (found) {
-            return {iterator(vectorIt), false};
+            return {iterator(arrayIt), false};
         }
 
-        if (Vector_.size() < N) {
+        if (ArraySize_ < N) {
             auto inserted = EmplaceSmall(
-                vectorIt,
+                arrayIt,
                 std::piecewise_construct,
                 std::forward_as_tuple(std::forward<TKeyParam>(key)),
                 std::forward_as_tuple(std::forward<TArgs>(args)...));
@@ -563,13 +754,13 @@ template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::erase(const key_type& key) -> size_type
 {
     if (IsSmall()) {
-        auto [vectorIt, found] = VectorLowerBound(key);
+        auto [arrayIt, found] = ArrayLowerBound(key);
 
         if (!found) {
             return 0;
         }
 
-        Vector_.erase(vectorIt);
+        EraseSmall(arrayIt);
         return 1;
     }
 
@@ -586,7 +777,7 @@ template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::erase(const_iterator pos) -> iterator
 {
     if (IsSmall()) {
-        return iterator(Vector_.erase(pos.VIter));
+        return iterator(EraseSmall(pos.VIter));
     }
 
     return iterator(Map_.erase(pos.MIter));
@@ -596,7 +787,7 @@ template <class TKey, class TValue, size_t N, class TCompare, class TAllocator>
 auto TCompactMap<TKey, TValue, N, TCompare, TAllocator>::erase(const_iterator first, const_iterator last) -> iterator
 {
     if (IsSmall()) {
-        return iterator(Vector_.erase(first.VIter, last.VIter));
+        return iterator(EraseSmall(first.VIter, last.VIter));
     }
 
     return iterator(Map_.erase(first.MIter, last.MIter));

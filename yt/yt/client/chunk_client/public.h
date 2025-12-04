@@ -10,6 +10,8 @@
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 #include <library/cpp/yt/compact_containers/compact_map.h>
 
+#include <span>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,10 +135,12 @@ constexpr int DefaultIntermediateDataReplicationFactor = 2;
  *                              ^^
  *                              Legacy sentinels embedded into the real range for compatibility
  *
- * “Real” media correspond to actual master medium objects. Sentinels are special indexes
+ * "Real" media correspond to actual master medium objects. Sentinels are special indexes
  * that do not have associated medium objects and are used for special purposes across APIs.
  * Because GenericMediumIndex/AllMediaIndex sit inside the real range, |RealMediumIndexBound|
  * exceeds the plain count limit by 2, to keep room for |MaxMediumCount| real media.
+ * One must also avoid using comparison for checking the real-ness of a medium and must
+ * use |IsValidRealMediumIndex| instead.
  */
 //! Maximum allowed number of real (non-sentinel) media objects on a cluster.
 //! NB: The bound on medium *indexes* for associated master media objects is *not* equal to this value.
@@ -154,7 +158,7 @@ constexpr int MediumIndexBound = MaxMediumCount + 100;
 
 //! Returns a list of all sentinel medium indexes: |GenericMediumIndex|, |AllMediaIndex| and
 //! every reserved slot in |[RealMediumIndexBound, MediumIndexBound)|.
-std::vector<int> GetSentinelMediumIndexes();
+constexpr std::span<const int> GetSentinelMediumIndexes();
 //! Returns true if |mediumIndex| is a valid medium index for a master medium object,
 //! i.e. it falls in range |[0, RealMediumIndexBound)| and is not equal to any of the
 //! reserved sentinel values (see |IsSentinelMediumIndex|).
@@ -263,3 +267,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkFormat, i8,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
+
+#define PUBLIC_INL_H_
+#include "public-inl.h"
+#undef PUBLIC_INL_H_
