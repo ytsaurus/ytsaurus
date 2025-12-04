@@ -2433,12 +2433,12 @@ void TJob::RunWithWorkspaceBuilder()
 
     auto workspaceFuture = workspaceBuilder->Run();
     workspaceFuture.Subscribe(
-        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this), Passed(std::move(workspaceBuilder)))
             .Via(Invoker_));
     WorkspaceBuildingFuture_ = workspaceFuture.AsVoid();
 }
 
-void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
+void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuilder, const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -2447,21 +2447,20 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
+    YT_LOG_DEBUG_IF(!error.IsOK(), error, "Failed to build job workspace");
+
+    auto result = workspaceBuilder->ExtractResult();
+    RootVolume_ = std::move(result.RootVolume);
+    TmpfsVolumes_ = std::move(result.TmpfsVolumes);
+    GpuCheckVolume_ = std::move(result.GpuCheckVolume);
+    // Workspace builder may add or replace docker image.
+    DockerImage_ = std::move(result.DockerImage);
+    DockerImageId_ = std::move(result.DockerImageId);
+    SetupCommandCount_ = result.SetupCommandCount;
+
     GuardedAction(
         "OnWorkspacePreparationFinished",
         [&] {
-            // There may be a possible cancellation, but this is not happening now.
-            YT_VERIFY(resultOrError.IsOK());
-
-            auto& result = resultOrError.Value();
-            RootVolume_ = result.RootVolume;
-            TmpfsVolumes_ = result.TmpfsVolumes;
-            GpuCheckVolume_ = result.GpuCheckVolume;
-            // Workspace builder may add or replace docker image.
-            DockerImage_ = result.DockerImage;
-            DockerImageId_ = result.DockerImageId;
-            SetupCommandCount_ = result.SetupCommandCount;
-
             if (!result.LastBuildError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Job preparation failed")
                     << TErrorAttribute("job_id", GetId())
@@ -2828,9 +2827,10 @@ void TJob::Cleanup()
     };
 
     // Remove tmpfs volumes prior to root volume.
-    for (auto& volume: TmpfsVolumes_) {
+    for (auto& volume : TmpfsVolumes_) {
         removeVolume(volume.Volume);
     }
+
     removeVolume(RootVolume_);
     removeVolume(GpuCheckVolume_);
 
