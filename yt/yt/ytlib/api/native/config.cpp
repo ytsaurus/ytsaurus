@@ -132,8 +132,6 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         // COMPAT(babenko): drop once trunk_vs_25_2 are no more.
         .Default("<invalid>");
-    registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
-        .Default(TDuration::Seconds(5));
     registrar.Parameter("enable_ground_reign_validation", &TThis::EnableGroundReignValidation)
         .Default(true);
     registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
@@ -142,6 +140,10 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->ClientCache->Capacity = 1'000;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

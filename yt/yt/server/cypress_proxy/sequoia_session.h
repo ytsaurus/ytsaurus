@@ -90,7 +90,7 @@ public:
     //! Initializes Sequoia session and starts Sequoia tx.
     static TSequoiaSessionPtr Start(
         IBootstrap* bootstrap,
-        NRpc::TAuthenticationIdentity authenticationIdentity,
+        const NRpc::TAuthenticationIdentity& authenticationIdentity,
         NCypressClient::TTransactionId cypressTransactionId = NCypressClient::NullTransactionId,
         const std::vector<NCypressClient::TTransactionId>& cypressPrerequisiteTransactionIds = {});
 

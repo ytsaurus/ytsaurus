@@ -18,8 +18,9 @@
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -361,11 +362,9 @@ private:
         }
 
         Y_UNUSED(WaitFor(Bootstrap_
-            ->GetSequoiaClient()
-            ->StartTransaction(
-                ESequoiaTransactionType::GroundUpdateQueueFlush,
-                {},
-                {.AuthenticationIdentity = NRpc::GetRootAuthenticationIdentity()})
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
+            ->StartTransaction(ESequoiaTransactionType::GroundUpdateQueueFlush)
             .Apply(BIND([queue, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto& queueState = QueueStates_[queue];
 

@@ -291,7 +291,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override
     {
         YT_UNIMPLEMENTED();
     }

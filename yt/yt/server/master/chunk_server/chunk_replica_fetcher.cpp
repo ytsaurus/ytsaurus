@@ -20,6 +20,7 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -133,7 +134,8 @@ public:
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->SelectRows<NRecords::TLocationReplicas>(BuildSelectLocationSequoiaReplicasQuery(
                 Bootstrap_->GetCellTag(),
                 nodeId,
@@ -156,7 +158,8 @@ public:
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->SelectRows<NRecords::TLocationReplicas>({
                 .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
@@ -537,7 +540,8 @@ public:
         auto lastOKConfirmationTime = TInstant::Now() - Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ReplicaApproveTimeout;
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(recordKeys, columnFilter, timestamp)
             .Apply(BIND([retriableErrorCodes, lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
@@ -591,7 +595,8 @@ public:
         const auto& retriableErrorCodes = config->RetriableErrorCodes;
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->SelectRows<NRecords::TChunkRefreshQueue>(
                 Bootstrap_->GetCellTag(),
                 {
@@ -760,7 +765,8 @@ private:
         TFuture<std::vector<std::optional<NRecords::TChunkReplicas>>> replicaRecordsFuture;
         if (!transaction) {
             replicaRecordsFuture = Bootstrap_
-                ->GetSequoiaClient()
+                ->GetSequoiaConnection()
+                ->CreateClient(NRpc::GetRootAuthenticationIdentity())
                 ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter, timestamp);
         } else {
             replicaRecordsFuture = transaction->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter);

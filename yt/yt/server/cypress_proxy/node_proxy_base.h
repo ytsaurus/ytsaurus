@@ -5,8 +5,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/core/rpc/authentication_identity.h>
-
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NCypressProxy {

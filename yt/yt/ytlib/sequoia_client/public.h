@@ -83,6 +83,7 @@ struct TSequoiaResponseKeeper;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(ISequoiaConnection)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaClient)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 

@@ -32,6 +32,7 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
@@ -949,7 +950,9 @@ private:
                 auto error = CheckPrerequisitesAfterRequestInvocation(
                     header,
                     session,
-                    Owner_->Bootstrap_->GetSequoiaClient(),
+                    Owner_->Bootstrap_
+                        ->GetSequoiaConnection()
+                        ->CreateClient(AuthenticationIdentity_),
                     originalTargetPath,
                     prerequisiteRevisions,
                     prerequisiteTransactionIds);
