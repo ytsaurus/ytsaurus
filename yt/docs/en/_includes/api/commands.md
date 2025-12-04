@@ -1240,6 +1240,114 @@ PARAMETERS { "path" = "//tmp/node" }
 OUTPUT "Hello world"
 ```
 
+### partition_tables
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Split a set of tables into ranges of a specified size (similar to how tables are split in operations for distribution across jobs).
+- The command can be executed within a [transaction](#transactions).
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ---------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `paths` | Yes | | List of paths to tables in Cypress. |
+| `data_weight_per_partition` | Yes | | Desired size of one partition. |
+| `partition_mode` | No | `unordered` | Partitioning mode (`ordered`, `unordered`), corresponds to the mode of the map operation. |
+| `max_partition_count` | No | | Maximum number of partitions; this option takes precedence over `data_weight_per_partition`. |
+| `enable_cookies` | No | | The response will include a `cookie` field that can be used with the [read_table_partition](#read_table_partition) call. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`;
+- Value: a list of table partitions.
+
+Example:
+
+```
+PARAMETERS { "path" = "//tmp/node" ; "data_weight_per_partition"=200000000 ; }
+OUTPUT {
+    "partitions" = [
+        {
+            "table_ranges" = [
+                <
+                    "ranges" = [
+                        {
+                            "lower_limit" = {
+                                "row_index" = 0;
+                            };
+                            "upper_limit" = {
+                                "row_index" = 24569;
+                            };
+                        };
+                    ];
+                > "//home/dev/ermolovd/YT-11914";
+            ];
+            "aggregate_statistics" = {
+                "chunk_count" = 24569;
+                "data_weight" = 605020;
+                "row_count" = 24569;
+                "value_count" = 24569;
+                "compressed_data_size" = 491277;
+            };
+        };
+        {
+            "table_ranges" = [
+                <
+                    "ranges" = [
+                        {
+                            "lower_limit" = {
+                                "row_index" = 24569;
+                            };
+                            "upper_limit" = {
+                                "row_index" = 24570;
+                            };
+                        };
+                    ];
+                > "//home/dev/ermolovd/YT-11914";
+            ];
+            "aggregate_statistics" = {
+                "chunk_count" = 1;
+                "data_weight" = 25;
+                "row_count" = 1;
+                "value_count" = 1;
+                "compressed_data_size" = 20;
+            };
+        };
+    ];
+}
+```
+
+### read_table_partition
+
+Command properties: **Non-mutating**, **Heavy**.
+
+Semantics:
+
+- Retrieve records within a table range.
+- The range must be obtained in advance using the `[partition_tables](#partition_tables)` command with the `enable_cookies=%true` option.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ---------------- | ------------------------- | ------------ |
+| `cookie` | Yes | | Cookie corresponding to the table range, obtained from the [partition_tables](#partition_tables) call with the `enable_cookies=%true` option. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `tabular`;
+- Value: contents of the table range.
+
 ### select_rows
 
 Command properties: **Non-mutating**, **Heavy**.
