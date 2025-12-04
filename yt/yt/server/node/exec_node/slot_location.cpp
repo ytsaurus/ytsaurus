@@ -184,6 +184,41 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
     .Run();
 }
 
+TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandBoxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
+{
+    return BIND([userSandBoxPath, volumeParams] () {
+         // It is assumed that userSandBoxPath already exists.
+        for (const auto& volume: volumeParams) {
+            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
+            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandBoxPath, volume.Path));
+
+            const auto& Logger = ExecNodeLogger();
+            YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandBoxPath: %v, TmpfsUserSandBoxPath: %v)",
+                volume.Path,
+                userSandBoxPath,
+                tmpfsUserSandboxPath);
+
+            try {
+                if (tmpfsUserSandboxPath != userSandBoxPath) {
+                    // If we mount directory inside sandbox, it should not exist.
+                    if (NFS::Exists(tmpfsUserSandboxPath)) {
+                        THROW_ERROR_EXCEPTION("Tmpfs path %v already exists",
+                            tmpfsUserSandboxPath);
+                    }
+                }
+                NFS::MakeDirRecursive(tmpfsUserSandboxPath);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
+                    tmpfsUserSandboxPath,
+                    userSandBoxPath)
+                    << ex;
+            }
+        }
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
+}
+
 TFuture<void> TSlotLocation::Initialize()
 {
     return BIND([=, this, this_ = MakeStrong(this)] {
