@@ -4,6 +4,9 @@
 #include "max_min_balancer.h"
 #endif
 
+#include <algorithm>
+#include <ranges>
+
 namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,22 +50,20 @@ template <typename T, typename W>
 template <typename P>
 std::optional<T> TDecayingMaxMinBalancer<T, W>::ChooseWinnerIf(P pred)
 {
-    auto resultIt = std::find_if(
-        ContenderToWeight_.begin(),
-        ContenderToWeight_.end(),
-        [&] (const auto& w) { return pred(w.first); });
+    auto contenders = ContenderToWeight_
+        | std::views::filter([&] (const auto& contender) {
+            return pred(contender.first);
+        });
 
-    for (auto it = resultIt; it != ContenderToWeight_.end(); ++it) {
-        if (pred(it->first) && it->second < resultIt->second) {
-            resultIt = it;
-        }
-    }
+    auto resultIt = std::ranges::min_element(
+        contenders,
+        [] (const auto& lhs, const auto& rhs) {
+            return lhs.second < rhs.second;
+        });
 
-    if (resultIt == ContenderToWeight_.end()) {
-        return std::nullopt;
-    } else {
-        return resultIt->first;
-    }
+    return resultIt == std::ranges::end(contenders)
+        ? std::nullopt
+        : std::make_optional(resultIt->first);
 }
 
 template <typename T, typename W>

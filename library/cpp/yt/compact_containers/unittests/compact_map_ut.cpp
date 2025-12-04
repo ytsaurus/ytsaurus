@@ -870,6 +870,49 @@ TEST(TCompactMapTest, ZeroInlineCapacityBehavesLikeMap)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Move-only value support.
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMoveOnly
+{
+    int Value;
+
+    explicit TMoveOnly(int value)
+        : Value(value)
+    { }
+
+    TMoveOnly(const TMoveOnly&) = delete;
+    TMoveOnly& operator=(const TMoveOnly&) = delete;
+
+    TMoveOnly(TMoveOnly&&) = default;
+    TMoveOnly& operator=(TMoveOnly&&) = default;
+};
+
+TEST(TCompactMapTest, MoveOnlyValueSmallAndUpgrade)
+{
+    TCompactMap<int, TMoveOnly, 2> m;
+
+    auto [it1, inserted1] = m.emplace(1, 10);
+    ASSERT_TRUE(inserted1);
+    EXPECT_EQ(it1->second.Value, 10);
+
+    auto [it2, inserted2] = m.emplace(2, 20);
+    ASSERT_TRUE(inserted2);
+    EXPECT_EQ(it2->second.Value, 20);
+
+    // try_emplace should move-construct without copying.
+    auto [it3, inserted3] = m.try_emplace(3, 30);
+    ASSERT_TRUE(inserted3);
+    EXPECT_EQ(it3->second.Value, 30);
+
+    // All elements survive the upgrade to std::map.
+    EXPECT_EQ(m.size(), 3u);
+    EXPECT_EQ(m.find(1)->second.Value, 10);
+    EXPECT_EQ(m.find(2)->second.Value, 20);
+    EXPECT_EQ(m.find(3)->second.Value, 30);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT

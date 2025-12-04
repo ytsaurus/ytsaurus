@@ -1,21 +1,21 @@
 #pragma once
 
-#include "compact_vector.h"
-
+#include <array>
 #include <map>
 #include <initializer_list>
 #include <tuple>
 #include <utility>
 #include <algorithm>
+#include <memory>
 #include <type_traits>
 
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! A flat map that keeps up to N elements inline in a sorted TCompactVector,
-//! like TCompactFlatMap, but, unlike TCompactFlatMap, transparently falls back
-//! to std::map storage when the size exceeds N.
+//! A flat map that keeps up to N elements inline in a sorted buffer,
+//! similar to TCompactFlatMap, but, unlike TCompactFlatMap, transparently
+//! falls back to std::map storage when the size exceeds N.
 //!
 //! Be very careful, any modifying operation may invalidate all iterators.
 template <
@@ -29,13 +29,7 @@ class TCompactMap
 public:
     using key_type = TKey;
     using mapped_type = TValue;
-    // We store std::pair<TKey, TValue> in TCompactVector because of its copy-assignability requirement.
-    // The underlying storage type of std::map is, obviosly, std::pair<const TKey, TValue>.
-    // To provide a single iterator interface, we use reinterpret_cast to convert between pointers
-    // to values of these types, which should have the same layout on all sane compilers.
-    // However, this is still technically undefined behavior and a strict aliasing violation.
-    // Annotating it with may_alias should stop optimizations based on type-based alias analysis.
-    using value_type = std::pair<const TKey, TValue> alias_hack;
+    using value_type = std::pair<const TKey, TValue>;
     using key_compare = TCompare;
     using allocator_type = TAllocator;
     using size_type = std::size_t;
@@ -45,6 +39,17 @@ public:
 
     TCompactMap() = default;
     explicit TCompactMap(const allocator_type& alloc);
+    TCompactMap(const TCompactMap& other);
+    TCompactMap(TCompactMap&& other) noexcept(
+        std::is_nothrow_move_constructible_v<value_type> &&
+        std::is_nothrow_move_constructible_v<key_compare> &&
+        std::allocator_traits<allocator_type>::is_always_equal::value);
+    TCompactMap& operator=(const TCompactMap& other);
+    TCompactMap& operator=(TCompactMap&& other) noexcept(
+        std::is_nothrow_move_constructible_v<value_type> &&
+        std::is_nothrow_move_constructible_v<key_compare> &&
+        std::allocator_traits<allocator_type>::is_always_equal::value);
+    ~TCompactMap();
 
     template <class TIt>
     TCompactMap(TIt first, TIt last);
@@ -103,36 +108,49 @@ private:
     template <bool IsConst>
     class TIteratorBase;
 
-    // Inline vector stores pairs without const-qualified key, because its values have to be copy-assignable.
-    using TVector = TCompactVector<std::pair<TKey, TValue>, N>;
-    using TVectorValue = typename TVector::value_type;
+    using TArrayValue = value_type;
+    using TStorage = std::aligned_storage_t<sizeof(TArrayValue), alignof(TArrayValue)>;
+    using TArrayIterator = TArrayValue*;
+    using TArrayConstIterator = const TArrayValue*;
+    using TInlineStorage = std::array<TStorage, N>;
     using TMap = std::map<key_type, mapped_type, key_compare, allocator_type>;
-    using TVectorIterator = typename TVector::iterator;
-    using TVectorConstIterator = typename TVector::const_iterator;
     using TMapIterator = typename TMap::iterator;
     using TMapConstIterator = typename TMap::const_iterator;
 
-    TVector Vector_;
+    TInlineStorage ArrayStorage_;
+    size_type ArraySize_ = 0;
     TMap Map_;
     key_compare Compare_{};
     allocator_type Alloc_{};
 
-    // Returns if map part is empty (i.e. we are still using inline vector).
+    TArrayIterator ArrayData();
+    TArrayConstIterator ArrayData() const;
+    TArrayIterator ArrayBegin();
+    TArrayConstIterator ArrayBegin() const;
+    TArrayIterator ArrayEnd();
+    TArrayConstIterator ArrayEnd() const;
+    void ClearArray();
+    void CopyArrayFrom(const TCompactMap& other);
+    void MoveArrayFrom(TCompactMap&& other);
+
+    // Returns if map part is empty (i.e. we are still using inline array).
     bool IsSmall() const;
-    // Moves data from inline vector to map.
+    // Moves data from inline array to map.
     void UpgradeToMap();
 
-    // Performs binary search in inline vector. Returns iterator and found flag.
-    std::pair<TVectorConstIterator, bool> VectorLowerBound(const key_type& key) const;
-    std::pair<TVectorIterator, bool> VectorLowerBound(const key_type& key);
+    // Performs binary search in inline array. Returns iterator and found flag.
+    std::pair<TArrayConstIterator, bool> ArrayLowerBound(const key_type& key) const;
+    std::pair<TArrayIterator, bool> ArrayLowerBound(const key_type& key);
 
     template <class... TArgs>
-    TVectorIterator EmplaceSmall(TVectorConstIterator pos, TArgs&&... args);
+    TArrayIterator EmplaceSmall(TArrayConstIterator pos, TArgs&&... args);
+    TArrayIterator EraseSmall(TArrayConstIterator pos);
+    TArrayIterator EraseSmall(TArrayConstIterator first, TArrayConstIterator last);
 
-    template <class TVectorIteratorType>
-    static std::pair<TVectorIteratorType, bool> VectorLowerBoundImpl(
-        TVectorIteratorType begin,
-        TVectorIteratorType end,
+    template <class TArrayIteratorType>
+    static std::pair<TArrayIteratorType, bool> ArrayLowerBoundImpl(
+        TArrayIteratorType begin,
+        TArrayIteratorType end,
         const key_type& key,
         const key_compare& compare);
 

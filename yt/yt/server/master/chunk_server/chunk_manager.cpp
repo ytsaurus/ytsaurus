@@ -126,6 +126,7 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/used_medium_index_set.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
@@ -149,8 +150,6 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
-
-#include <yt/yt/core/misc/mex_set.h>
 
 #include <library/cpp/iterator/zip.h>
 
@@ -211,34 +210,6 @@ struct TChunkToLinkedListNode
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Initializes itself with all sentinels. Required because history has left us with
-//! sentinels inside the valid medium index range.
-class TUsedMediumIndexSet
-    : public TMexIntSet
-{
-public:
-    TUsedMediumIndexSet()
-        : TMexIntSet()
-    {
-        FillSentinels();
-    }
-
-    void Clear()
-    {
-        TMexIntSet::Clear();
-        FillSentinels();
-    }
-
-private:
-    void FillSentinels()
-    {
-        for (auto mediumIndex : GetSentinelMediumIndexes()) {
-            Insert(mediumIndex);
-        }
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
