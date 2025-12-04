@@ -273,6 +273,7 @@ private:
                 .ComputesByStages = &computesByStage,
                 .State = State_, // pass state to later inform when task is finished
                 .Database = msg.GetDatabase(),
+                .EnableWatermarks = msg.GetEnableWatermarks(),
                 .Query = query,
                 // TODO: block tracking mode is not set!
             };
@@ -378,6 +379,10 @@ private:
     }
 
     void HandleWork(TEvKqp::TEvInitiateShutdownRequest::TPtr& ev) {
+        if (!AppData()->FeatureFlags.GetEnableShuttingDownNodeState()) {
+            LOG_I("Feature flag EnableShuttingDownNodeState is disabled, ignoring shutdown request");
+            return;
+        }
         LOG_I("Prepare to shutdown: do not acccept any messages from this time");
         ShutdownState_.Reset(ev->Get()->ShutdownState.Get());
         Become(&TKqpNodeService::ShuttingDownState);
@@ -455,6 +460,8 @@ private:
             ptr->ReadResponseTimeout = TDuration::MilliSeconds(settings.GetIteratorResponseTimeoutMs());
         }
         ptr->MaxRetryDelay = TDuration::MilliSeconds(settings.GetMaxDelayMs());
+        ptr->MaxRowsProcessingStreamLookup = settings.GetMaxRowsProcessingStreamLookup();
+        ptr->MaxTotalBytesQuotaStreamLookup = settings.GetMaxTotalBytesQuotaStreamLookup();
         SetReadIteratorBackoffSettings(ptr);
     }
 
