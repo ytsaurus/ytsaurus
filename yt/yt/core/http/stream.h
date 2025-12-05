@@ -31,7 +31,7 @@ DEFINE_ENUM(EParserState,
 class THttpParser
 {
 public:
-    explicit THttpParser(http_parser_type parserType);
+    THttpParser(http_parser_type parserType, std::optional<EMethod> requestMethod);
 
     static http_parser_settings GetParserSettings();
 
@@ -60,6 +60,7 @@ private:
     TStringBuilder NextValue_;
 
     THeadersPtr Headers_;
+    std::optional<EMethod> RequestMethod_;
     THeadersPtr Trailers_;
 
     EParserState State_ = EParserState::Initialized;
@@ -93,6 +94,7 @@ public:
         const NNet::TNetworkAddress& remoteAddress,
         IInvokerPtr readInvoker,
         EMessageType messageType,
+        std::optional<EMethod> requestMethod,
         THttpIOConfigPtr config);
 
     EMethod GetMethod() override;
@@ -136,6 +138,7 @@ private:
     const NNet::IConnectionPtr Connection_;
     const NNet::TNetworkAddress RemoteAddress_;
     const EMessageType MessageType_;
+    const std::optional<EMethod> RequestMethod_;
     const THttpIOConfigPtr Config_;
     const IInvokerPtr ReadInvoker_;
 
