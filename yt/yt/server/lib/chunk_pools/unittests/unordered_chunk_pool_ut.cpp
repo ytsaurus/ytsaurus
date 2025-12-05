@@ -1443,6 +1443,45 @@ TEST_F(TUnorderedChunkPoolCountersTest, SingleRunningJobCounterRemainsAfterFinis
     CheckEverything(stripeLists);
 }
 
+TEST_F(TUnorderedChunkPoolCountersTest, JobCounterWithLostJob)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_GB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+
+    AddChunk(500_MB);
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 1, .Pending = 1});
+    auto cookie = ExtractCookie();
+    ASSERT_NE(cookie, IChunkPoolOutput::NullCookie);
+
+    TCompletedJobSummary summary{};
+    ChunkPool_->Completed(cookie, summary);
+
+    ASSERT_TRUE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 1, .Completed = 1});
+
+    ChunkPool_->Lost(cookie);
+    ASSERT_FALSE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 1, .Pending = 1, .Lost = 1});
+
+    cookie = ExtractCookie();
+    ASSERT_NE(cookie, IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 1, .Running = 1, .Lost = 1});
+
+    ChunkPool_->Completed(cookie, summary);
+    ASSERT_TRUE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 1, .Completed = 1, .Lost = 1});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedChunkPoolTestRandomized

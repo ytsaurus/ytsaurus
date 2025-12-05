@@ -47,8 +47,6 @@ public:
         for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
             const auto& chunkPool = ChunkPools_[poolIndex];
 
-            SubscribePoolPendingUpdated(poolIndex);
-
             chunkPool->GetJobCounter()->AddParent(ParentJobCounter_);
             chunkPool->GetDataWeightCounter()->AddParent(ParentDataWeightCounter_);
             chunkPool->GetRowCounter()->AddParent(ParentRowCounter_);
@@ -60,6 +58,8 @@ public:
 
             YT_LOG_DEBUG("Initialized chunk pool (PoolIndex: %v)", poolIndex);
         }
+
+        SubscribeOnUpdates();
 
         UpdateCounters();
 
@@ -122,7 +122,7 @@ public:
 
         IsRunning_ = true;
 
-        JobCounter_->AddRunning(1);
+        JobCounter_->AddRunning(+1);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
 
@@ -184,6 +184,8 @@ public:
             cookie,
             jobSummary.InterruptionReason);
 
+        YT_VERIFY(jobSummary.InterruptionReason == EInterruptionReason::None);
+
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
         WithUpdateDisabled([&] {
@@ -201,15 +203,13 @@ public:
             }
         });
 
-        JobCounter_->AddCompleted(1, jobSummary.InterruptionReason);
+        JobCounter_->AddCompleted(+1, jobSummary.InterruptionReason);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
 
         DataWeightCounter_->AddCompleted(statistics.DataWeight, jobSummary.InterruptionReason);
         RowCounter_->AddCompleted(statistics.RowCount, jobSummary.InterruptionReason);
         DataSliceCounter_->AddCompleted(ExtractedChunkStripeList_->GetSliceCount(), jobSummary.InterruptionReason);
-
-        IsCompleted_ = true;
 
         ResetRunningCounters();
         UpdateCounters();
@@ -220,8 +220,6 @@ public:
             statistics.DataWeight,
             statistics.RowCount,
             ExtractedChunkStripeList_->GetSliceCount());
-
-        Completed_.Fire();
     }
 
     void Failed(TCookie cookie) override
@@ -236,7 +234,7 @@ public:
             },
             "Failed");
 
-        JobCounter_->AddFailed(1);
+        JobCounter_->AddFailed(+1);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
         i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
@@ -271,7 +269,7 @@ public:
             },
             "Aborted");
 
-        JobCounter_->AddAborted(1, reason);
+        JobCounter_->AddAborted(+1, reason);
 
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
         i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
@@ -306,22 +304,23 @@ public:
             },
             "Lost");
 
-        JobCounter_->AddLost(1);
-
         auto statistics = ExtractedChunkStripeList_->GetAggregateStatistics();
         i64 sliceCount = ExtractedChunkStripeList_->GetSliceCount();
 
+        JobCounter_->AddLost(+1);
         DataWeightCounter_->AddLost(statistics.DataWeight);
         RowCounter_->AddLost(statistics.RowCount);
         DataSliceCounter_->AddLost(sliceCount);
 
-        IsCompleted_ = false;
+        JobCounter_->AddCompleted(-1);
+        DataWeightCounter_->AddCompleted(-statistics.DataWeight);
+        RowCounter_->AddCompleted(-statistics.RowCount);
+        DataSliceCounter_->AddCompleted(-sliceCount);
+
         ExtractedChunkStripeList_.Reset();
         ExtractedCookie_ = IChunkPoolOutput::NullCookie;
 
         UpdateCounters();
-
-        Uncompleted_.Fire();
 
         YT_LOG_DEBUG(
             "Job lost (Cookie: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
@@ -420,7 +419,7 @@ private:
         });
     }
 
-    std::array<TProgressCounter*, 4> GetAllCounters()
+    auto GetAllCounters() const
     {
         return std::to_array<TProgressCounter*>({
             JobCounter_.Get(),
@@ -430,11 +429,44 @@ private:
         });
     }
 
-    void SubscribePoolPendingUpdated(int poolIndex)
+    auto GetAllParentCounters() const
     {
-        ChunkPools_[poolIndex]->GetJobCounter()->SubscribePendingUpdated(BIND(
+        return std::to_array<TProgressCounter*>({
+            ParentJobCounter_.Get(),
+            ParentDataWeightCounter_.Get(),
+            ParentRowCounter_.Get(),
+            ParentDataSliceCounter_.Get(),
+        });
+    }
+
+    void SubscribeOnUpdates()
+    {
+        ParentJobCounter_->SubscribePendingUpdated(BIND(
             &TChunkPoolsOutputsMerger::UpdateCounters,
             MakeWeak(this)));
+
+        for (const auto& chunkPool : ChunkPools_) {
+            chunkPool->SubscribeCompleted(BIND(
+                &TChunkPoolsOutputsMerger::CheckCompleted,
+                MakeWeak(this)));
+            chunkPool->SubscribeUncompleted(BIND(
+                &TChunkPoolsOutputsMerger::CheckCompleted,
+                MakeWeak(this)));
+        }
+    }
+
+    void CheckCompleted()
+    {
+        bool wasCompleted = IsCompleted_;
+        IsCompleted_ = std::ranges::all_of(ChunkPools_, [] (const auto& chunkPool) { return chunkPool->IsCompleted(); });
+
+        if (!wasCompleted && IsCompleted_) {
+            YT_LOG_DEBUG("All pools completed, firing completed callback");
+            Completed_.Fire();
+        } else if (wasCompleted && !IsCompleted_) {
+            YT_LOG_DEBUG("Some pools become uncompleted, firing uncompleted callback");
+            Uncompleted_.Fire();
+        }
     }
 
     void UpdateCounters()
@@ -453,8 +485,16 @@ private:
             ParentJobCounter_->GetRunning(),
             ParentJobCounter_->GetCompletedTotal());
 
+        auto verifyCompletedZero = [&] {
+            for (auto* counter : GetAllParentCounters()) {
+                YT_VERIFY(counter->GetCompletedTotal() == 0);
+            }
+        };
+
         if (IsRunning_) {
-            YT_VERIFY(ParentJobCounter_->GetTotal() - ParentJobCounter_->GetCompletedTotal() == ParentJobCounter_->GetRunning());
+            YT_VERIFY(ParentJobCounter_->GetTotal() == ParentJobCounter_->GetRunning());
+            verifyCompletedZero();
+
             for (auto* counter : GetAllCounters()) {
                 counter->SetPending(0);
                 counter->SetSuspended(0);
@@ -462,20 +502,23 @@ private:
             YT_LOG_TRACE("Counters updated in running state");
         } else if (IsCompleted_) {
             YT_VERIFY(ParentJobCounter_->GetTotal() == ParentJobCounter_->GetCompletedTotal());
+
             for (auto* counter : GetAllCounters()) {
                 counter->SetPending(0);
                 counter->SetSuspended(0);
             }
             YT_LOG_TRACE("Counters updated in completed state");
-        } else if (ParentJobCounter_->GetTotal() - ParentJobCounter_->GetCompletedTotal() == ParentJobCounter_->GetPending()) {
+        } else if (ParentJobCounter_->GetTotal() == ParentJobCounter_->GetPending()) {
+            verifyCompletedZero();
+
             for (auto* counter : GetAllCounters()) {
                 counter->SetSuspended(0);
             }
 
             JobCounter_->SetPending(ParentJobCounter_->GetPending() == 0 ? 0 : 1);
-            DataWeightCounter_->SetPending(ParentDataWeightCounter_->GetTotal() - ParentDataWeightCounter_->GetCompletedTotal());
-            RowCounter_->SetPending(ParentRowCounter_->GetTotal() - ParentRowCounter_->GetCompletedTotal());
-            DataSliceCounter_->SetPending(ParentDataSliceCounter_->GetTotal() - ParentDataSliceCounter_->GetCompletedTotal());
+            DataWeightCounter_->SetPending(ParentDataWeightCounter_->GetTotal());
+            RowCounter_->SetPending(ParentRowCounter_->GetTotal());
+            DataSliceCounter_->SetPending(ParentDataSliceCounter_->GetTotal());
 
             YT_LOG_TRACE(
                 "Counters updated in pending state (JobPending: %v, DataWeightPending: %v, RowPending: %v, SlicePending: %v)",
@@ -483,17 +526,13 @@ private:
                 DataWeightCounter_->GetPending(),
                 RowCounter_->GetPending(),
                 DataSliceCounter_->GetPending());
-
-            if (JobCounter_->GetPending() == 0) {
-                IsCompleted_ = true;
-                YT_LOG_DEBUG("All jobs completed, marking as completed");
-                Completed_.Fire();
-            }
         } else {
-            JobCounter_->SetSuspended(1);
-            DataWeightCounter_->SetSuspended(ParentDataWeightCounter_->GetTotal() - ParentDataWeightCounter_->GetCompletedTotal());
-            RowCounter_->SetSuspended(ParentRowCounter_->GetTotal() - ParentRowCounter_->GetCompletedTotal());
-            DataSliceCounter_->SetSuspended(ParentDataSliceCounter_->GetTotal() - ParentDataSliceCounter_->GetCompletedTotal());
+            verifyCompletedZero();
+
+            JobCounter_->SetSuspended(ParentJobCounter_->GetTotal() > 0 ? 1 : 0);
+            DataWeightCounter_->SetSuspended(ParentDataWeightCounter_->GetTotal());
+            RowCounter_->SetSuspended(ParentRowCounter_->GetTotal());
+            DataSliceCounter_->SetSuspended(ParentDataSliceCounter_->GetTotal());
 
             for (auto* counter : GetAllCounters()) {
                 counter->SetPending(0);
@@ -505,6 +544,10 @@ private:
                 RowCounter_->GetSuspended(),
                 DataSliceCounter_->GetSuspended());
         }
+
+        CheckCompleted();
+
+        YT_VERIFY(JobCounter_->GetTotal() <= 1);
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolsOutputsMerger, 0xc40fe250);
@@ -522,14 +565,12 @@ void TChunkPoolsOutputsMerger::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, ParentRowCounter_);
     PHOENIX_REGISTER_FIELD(6, ParentDataSliceCounter_);
     PHOENIX_REGISTER_FIELD(7, ExtractedCookie_);
-    PHOENIX_REGISTER_FIELD(9, ExtractedChunkStripeList_);
-    PHOENIX_REGISTER_FIELD(10, IsCompleted_);
-    PHOENIX_REGISTER_FIELD(11, IsRunning_);
+    PHOENIX_REGISTER_FIELD(8, ExtractedChunkStripeList_);
+    PHOENIX_REGISTER_FIELD(9, IsCompleted_);
+    PHOENIX_REGISTER_FIELD(10, IsRunning_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        for (int poolIndex : std::views::iota(0, std::ssize(this_->ChunkPools_))) {
-            this_->SubscribePoolPendingUpdated(poolIndex);
-        }
+        this_->SubscribeOnUpdates();
     });
 }
 
