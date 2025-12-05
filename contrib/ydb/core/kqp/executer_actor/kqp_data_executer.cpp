@@ -316,7 +316,7 @@ public:
 
         ResponseEv->Snapshot = GetSnapshot();
 
-        if (!Locks.empty() || (TxManager && TxManager->HasLocks())) {
+        if (!Locks.empty() || TxManager) {
             if (LockHandle) {
                 ResponseEv->LockHandle = std::move(LockHandle);
             }
@@ -1882,7 +1882,8 @@ private:
                 }
 
                 if ((stageInfo.Meta.IsOlap() && HasDmlOperationOnOlap(tx.Body->GetType(), stage))) {
-                    auto error = TStringBuilder() << "Data manipulation queries do not support column shard tables.";
+                    auto error = TStringBuilder()
+                        << "Data manipulation queries with column-oriented tables are supported only by API QueryService.";
                     LOG_E(error);
                     ReplyErrorAndDie(Ydb::StatusIds::PRECONDITION_FAILED,
                         YqlIssue({}, NYql::TIssuesIds::KIKIMR_PRECONDITION_FAILED, error));
@@ -2814,13 +2815,17 @@ private:
             }
         }
 
+        auto counters = Counters->Counters->GetKqpCounters();
+        if (AppData()->FeatureFlags.GetEnableStreamingQueriesCounters() && !context->StreamingQueryPath.empty()) {
+            counters = counters->GetSubgroup("path", context->StreamingQueryPath);
+        }
         const auto& checkpointId = context->CheckpointId;
         CheckpointCoordinatorId = Register(MakeCheckpointCoordinator(
             ::NFq::TCoordinatorId(checkpointId, Generation),
             NYql::NDq::MakeCheckpointStorageID(),
             SelfId(),
             {},
-            Counters->Counters->GetKqpCounters()->GetSubgroup("path", context->StreamingQueryPath),
+            counters,
             graphParams,
             stateLoadMode,
             streamingDisposition).Release());

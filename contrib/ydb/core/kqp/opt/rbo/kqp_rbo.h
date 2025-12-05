@@ -12,9 +12,9 @@ using namespace NOpt;
 enum ERuleProperties: ui32 {
     RequireParents = 0x01,
     RequireTypes = 0x02,
-    RequireTableMeta = 0x04,
-    RequireCosts = 0x08,
-};
+    RequireMetadata = 0x04,
+    RequireStatistics = 0x08
+  };
 
 /**
  * Interface for transformation rule:
@@ -80,7 +80,7 @@ class TRuleBasedStage : public IRBOStage {
 class TRuleBasedOptimizer {
   public:
     TRuleBasedOptimizer(TVector<std::shared_ptr<IRBOStage>> stages, 
-                      const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
+                      TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
                       TTypeAnnotationContext &typeCtx, 
                       TAutoPtr<IGraphTransformer> rboTypeAnnTransformer, 
                       TAutoPtr<IGraphTransformer> typeAnnTransformer, 
@@ -97,7 +97,7 @@ class TRuleBasedOptimizer {
     TExprNode::TPtr Optimize(TOpRoot &root, TExprContext &ctx);
 
     TVector<std::shared_ptr<IRBOStage>> Stages;
-    const TKqpOptimizeContext &KqpCtx;
+    TKqpOptimizeContext &KqpCtx;
     TTypeAnnotationContext &TypeCtx;
     TAutoPtr<IGraphTransformer> RBOTypeAnnTransformer;
     TAutoPtr<IGraphTransformer> TypeAnnTransformer;
