@@ -81,6 +81,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(true);
 
+    registrar.Parameter("use_better_check_when_rewriting_path", &TThis::UseBetterCheckWhenRewritingPath)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("graft_synchronization_period", &TThis::GraftSynchronizationPeriod)
         .Alias("portal_synchronization_period")
         .Default(TDuration::Minutes(1));

@@ -67,6 +67,9 @@ struct TDynamicCypressManagerConfig
 
     bool EnableSymlinkCyclicityCheck;
 
+    // COMPAT(h0pless): YT-26842. Remove in 25.4.
+    bool UseBetterCheckWhenRewritingPath;
+
     // COMPAT(shakurov)
     bool AllowCrossShardDynamicTableCopying;
 
