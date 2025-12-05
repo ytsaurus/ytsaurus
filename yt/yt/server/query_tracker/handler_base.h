@@ -41,7 +41,8 @@ public:
         const NYPath::TYPath& stateRoot,
         const IInvokerPtr controlInvoker,
         const TEngineConfigBasePtr& config,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery);
+        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
+        const TDuration notIndexedQueriesTTL);
 
     //! Starts a transaction and validates that by the moment of its start timestamp,
     //! incarnation of a query is still the same. Context switch happens inside.
@@ -63,6 +64,7 @@ protected:
     const NLogging::TLogger Logger;
 
     const NConcurrency::TPeriodicExecutorPtr ProgressWriter_;
+    const TDuration NotIndexedQueriesTTL_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressSpinLock_);
     NYson::TYsonString Progress_ = NYson::TYsonString(TString("{}"));

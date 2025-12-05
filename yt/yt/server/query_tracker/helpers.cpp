@@ -33,7 +33,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 18);
     static_assert(TActiveQueryDescriptor::FieldCount == 23);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 18);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 19);
 
     TQuery query;
     // Note that some of the fields are twice optional.

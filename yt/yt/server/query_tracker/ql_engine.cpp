@@ -38,8 +38,9 @@ public:
         const NRecords::TActiveQuery& activeQuery,
         const TSelectRowsOptions& options,
         const IClientPtr& queryClient,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
         , Options_(options)
@@ -109,12 +110,14 @@ public:
             activeQuery,
             options,
             queryClient,
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TQLEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
@@ -123,6 +126,7 @@ private:
     const TActionQueuePtr ControlQueue_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
+    TDuration NotIndexedQueriesTTL_;
 
     static TSelectRowsOptions GetOptions(IAttributeDictionary* settings)
     {
