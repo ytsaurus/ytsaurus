@@ -1104,7 +1104,7 @@ public:
             auto alert = TError();
             if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
                 alert = TError(
-                    "Limit of  monitored user gangs jobs per controller agent reached, "
+                    "Limit of monitored user gangs jobs per controller agent reached, "
                     "some jobs may be not monitored")
                     << TErrorAttribute(
                         "limit_per_controller_agent",
@@ -1202,7 +1202,7 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
 
-    bool Connected_= false;
+    bool Connected_ = false;
     bool ConnectScheduled_ = false;
     std::atomic<TInstant> ConnectionTime_ = TInstant::Zero();
     TIncarnationId IncarnationId_;
