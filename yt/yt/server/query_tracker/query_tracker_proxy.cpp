@@ -348,9 +348,10 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     EngineProviders_[EQueryEngine::Yql] = CreateProxyYqlEngineProvider(StateClient_, StateRoot_);
 }
 
-void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config)
+void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config, const TDuration notIndexedQueriesTTL)
 {
     ProxyConfig_ = config;
+    NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
 }
 
 void TQueryTrackerProxy::StartQuery(
@@ -420,7 +421,7 @@ void TQueryTrackerProxy::StartQuery(
     if (options.Draft) {
         TString filterFactors;
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 18);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 19);
             TFinishedQueryPartial newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -437,6 +438,10 @@ void TQueryTrackerProxy::StartQuery(
                 .IsIndexed = isIndexed,
                 .IsTutorial = isTutorial,
             };
+            if (!isIndexed) {
+                newRecord.TTL = NotIndexedQueriesTTL_.MilliSeconds();
+            }
+
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
                 newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),

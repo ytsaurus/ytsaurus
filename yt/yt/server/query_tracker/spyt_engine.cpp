@@ -133,8 +133,9 @@ public:
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
@@ -672,21 +673,24 @@ public:
             ChannelFactory_,
             activeQuery,
             ClusterDirectory_,
-            ControlQueue_->GetInvoker());
+            ControlQueue_->GetInvoker(),
+            NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    TSpytEngineConfigPtr Config_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const IChannelFactoryPtr ChannelFactory_;
+    TSpytEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)

@@ -100,8 +100,9 @@ public:
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const TClusterDirectoryPtr& clusterDirectory,
-        const IInvokerPtr& controlInvoker)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const IInvokerPtr& controlInvoker,
+        const TDuration notIndexedQueriesTTL)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
         , Settings_(ConvertTo<TChytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
@@ -443,12 +444,13 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
+        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker(), NotIndexedQueriesTTL_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         ChytConfig_ = DynamicPointerCast<TChytEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
@@ -458,6 +460,7 @@ private:
     TChytEngineConfigPtr ChytConfig_;
     TClusterDirectoryPtr ClusterDirectory_;
     IChannelFactoryPtr ChannelFactory_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

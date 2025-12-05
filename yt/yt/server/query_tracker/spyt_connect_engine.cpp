@@ -126,8 +126,9 @@ public:
         const IInvokerPtr& controlInvoker,
         const TSpytConnectEngineConfigPtr& config,
         const TActiveQuery& activeQuery,
-        const TClusterDirectoryPtr& clusterDirectory
-    ) : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
+        const TClusterDirectoryPtr& clusterDirectory,
+        const TDuration notIndexedQueriesTTL)
+    : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
     , Settings_(ConvertTo<TSpytConnectSettingsPtr>(SettingsNode_))
     , SettingsHash_(ComputeSettingsHash())
     , Config_(config)
@@ -608,21 +609,24 @@ public:
             ControlQueue_->GetInvoker(),
             Config_,
             activeQuery,
-            ClusterDirectory_
+            ClusterDirectory_,
+            NotIndexedQueriesTTL_
         );
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config) override
+    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
     {
         Config_ = DynamicPointerCast<TSpytConnectEngineConfig>(config);
+        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
-    TSpytConnectEngineConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
+    TSpytConnectEngineConfigPtr Config_;
+    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateSpytConnectEngine(IClientPtr stateClient, TYPath stateRoot)
