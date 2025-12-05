@@ -187,8 +187,8 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
 TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandBoxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
 {
     return BIND([userSandBoxPath, volumeParams] () {
-         // It is assumed that userSandBoxPath already exists.
-        for (const auto& volume: volumeParams) {
+        // It is assumed that userSandBoxPath already exists.
+        for (const auto& volume : volumeParams) {
             // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
             auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandBoxPath, volume.Path));
 
