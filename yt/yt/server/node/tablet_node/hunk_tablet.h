@@ -79,6 +79,9 @@ public:
     void UnlockScan();
     bool IsLockedScan() const;
 
+    void SetScanBackoffInstant(TInstant backoffInstant);
+    TInstant GetScanBackoffInstant() const;
+
     void ValidateMountRevision(NHydra::TRevision mountRevision) const;
     void ValidateMounted(NHydra::TRevision mountRevision) const;
 
@@ -98,6 +101,7 @@ private:
     TTransactionId LockTransactionId_;
 
     bool LockedByScan_ = false;
+    TInstant ScanBackoffInstant_;
 
     //! Number of active writes. Tablet cannot be unmounted when
     //! write is in progress.

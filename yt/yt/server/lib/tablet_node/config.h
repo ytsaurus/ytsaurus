@@ -451,6 +451,8 @@ struct THunkStorageMountConfig
     TDuration StoreRotationPeriod;
     TDuration StoreRemovalGracePeriod;
 
+    TDuration ScanBackoffPeriod;
+
     REGISTER_YSON_STRUCT(THunkStorageMountConfig);
 
     static void Register(TRegistrar registrar);

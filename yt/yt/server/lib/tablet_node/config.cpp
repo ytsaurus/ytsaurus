@@ -551,6 +551,10 @@ void THunkStorageMountConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("store_removal_grace_period", &TThis::StoreRemovalGracePeriod)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("scan_backoff_period", &TThis::ScanBackoffPeriod)
+        .Default(TDuration::Minutes(1))
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

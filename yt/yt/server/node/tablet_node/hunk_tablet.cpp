@@ -356,6 +356,16 @@ bool THunkTablet::IsLockedScan() const
     return LockedByScan_;
 }
 
+void THunkTablet::SetScanBackoffInstant(TInstant backoffInstant)
+{
+    ScanBackoffInstant_ = std::max(ScanBackoffInstant_, backoffInstant);
+}
+
+TInstant THunkTablet::GetScanBackoffInstant() const
+{
+    return ScanBackoffInstant_;
+}
+
 int THunkTablet::GetWriteLockCount() const
 {
     return WriteLockCount_.load();
