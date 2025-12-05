@@ -70,7 +70,7 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
     }
     if (joblet->DistributedGroupInfo.Index == 0) {
         auto mainJobId = joblet->JobId;
-        auto it = TryEmplaceOrCrash(CookieToGroup_, joblet->OutputCookie);
+        auto it = EmplaceOrCrash(CookieToGroup_, joblet->OutputCookie, TGroup());
         auto& group = it->second;
 
         YT_LOG_DEBUG("Distributed job group created (MainJobId: %v, OutputCookie: %v)", mainJobId, joblet->OutputCookie);
@@ -233,4 +233,3 @@ PHOENIX_DEFINE_TYPE(TDistributedJobManager::TGroup);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
-
