@@ -283,8 +283,11 @@ struct IShuffleChunkPool
 {
     virtual IPersistentChunkPoolInputPtr GetInput() = 0;
     virtual IPersistentChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
+
+    // TODO(apollo1321): These methods should be removed. It is better to fix and use counters.
     virtual i64 GetTotalDataSliceCount() const = 0;
     virtual i64 GetTotalJobCount() const = 0;
+    virtual i64 GetTotalDataWeight() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShuffleChunkPool)

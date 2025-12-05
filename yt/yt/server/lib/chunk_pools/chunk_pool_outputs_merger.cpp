@@ -55,15 +55,13 @@ public:
             const auto& jobCounter = chunkPool->GetJobCounter();
             YT_VERIFY(jobCounter->GetRunning() == 0);
             YT_VERIFY(jobCounter->GetCompletedTotal() == 0);
-
-            YT_LOG_DEBUG("Initialized chunk pool (PoolIndex: %v)", poolIndex);
         }
 
         SubscribeOnUpdates();
 
         UpdateCounters();
 
-        YT_LOG_INFO("Chunk pool output merger created (PoolCount: %v)", ChunkPools_.size());
+        YT_LOG_INFO("Chunk pools outputs merger created (PoolCount: %v)", ChunkPools_.size());
     }
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -107,7 +105,8 @@ public:
                     stripeLists.push_back(chunkPool->GetStripeList(cookie));
                 }
 
-                YT_LOG_DEBUG(
+                YT_LOG_DEBUG_IF(
+                    !UnderlyingChunkPoolCookies_[poolIndex].empty(),
                     "Extracted cookies from pool (PoolIndex: %v, ExtractedCount: %v)",
                     poolIndex,
                     std::ssize(UnderlyingChunkPoolCookies_[poolIndex]));
