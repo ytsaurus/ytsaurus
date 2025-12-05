@@ -72,8 +72,9 @@ class FacadeBase(ABC):
             self._confirm('You are about to submit dashboard "{}" to cypress (backend_type: {}, dashboard_id: {}, cluster_proxy: {}, dashboard_path: {}), continue?'.format(
                 self.slug, self.get_backend_name(), self.dashboard_name, yt.config["proxy"]["url"], dashboard_path))
         serialized_dashboard = self.generate_serialized_dashboard(verbose=verbose)
-        yt.create("document", dashboard_path, ignore_existing=True)
-        yt.set(dashboard_path, serialized_dashboard)
+        client = yt.YtClient(config=yt.config.config)
+        client.create("document", dashboard_path, ignore_existing=True)
+        client.set(dashboard_path, serialized_dashboard)
         logger.info(f'Dashboard "{self.slug}" with backend "{self.get_backend_name()}" was submitted to cypress')
 
     @staticmethod
