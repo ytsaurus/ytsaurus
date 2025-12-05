@@ -10,6 +10,8 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     sync_compact_table, get_driver, make_externalized_tx_id, print_debug)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
@@ -68,6 +70,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@chunk_count") == 2
 
     @authors("savrus")
+    @not_implemented_in_sequoia
     def test_read_snapshot_lock(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", enable_dynamic_store_read=False)
@@ -297,6 +300,20 @@ class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMul
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSortedDynamicTablesReadTableSequoia(TestSortedDynamicTablesReadTableMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
     }
 
 

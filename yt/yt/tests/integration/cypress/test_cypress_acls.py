@@ -2718,16 +2718,3 @@ class TestCypressAclsSequoia(TestCypressAclsMulticell):
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
     }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    }
