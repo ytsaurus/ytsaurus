@@ -16,6 +16,7 @@
 #include <yt/yt/server/controller_agent/scheduling_context.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/chunk_pool_outputs_merger.h>
 #include <yt/yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
@@ -425,9 +426,13 @@ protected:
 
     int PartitionTreeDepth_ = 0;
 
-    int PartitionCount_ = 0;
+    // Expected number of partitions before merging.
+    // Actual count (UnorderedFinalPartitions_.size()) may be lower when merging is enabled.
+    int ExpectedPartitionCount_ = 0;
 
     int MaxPartitionFactor_ = 0;
+
+    std::optional<i64> DataWeightAfterPartition_;
 
     // Locality stuff.
 
@@ -461,6 +466,7 @@ protected:
     TJobIOConfigPtr UnorderedMergeJobIOConfig_;
 
     IJobSizeConstraintsPtr RootPartitionPoolJobSizeConstraints_;
+
     IPartitioningParametersEvaluatorPtr PartitioningParametersEvaluator_;
 
     //! i-th element is a multi chunk pool built over the inputs of i-th level partitions' shuffle chunk pools.
@@ -1821,43 +1827,119 @@ protected:
         return PartitionTasks_.back();
     }
 
-    void RegisterFinalPartition(
-        const TIntermediatePartitionPtr& intermediatePartition,
-        int physicalPartitionIndex,
-        IPersistentChunkPoolOutputPtr chunkPoolOutput,
-        EPartitionDispatchDecision dispatchDecision)
+    std::optional<i64> GetPartitionDataWeightForMerging() const
     {
-        InsertOrCrash(intermediatePartition->DispatchedPhysicalPartitions(), physicalPartitionIndex);
+        YT_VERIFY(!SimpleSortTask_);
+
+        if (!DataWeightAfterPartition_.has_value() || Spec_->PartitionCount.has_value()) {
+            return std::nullopt;
+        }
+
+        if (Spec_->PartitionDataWeight.has_value()) {
+            return *Spec_->PartitionDataWeight;
+        } else {
+            return Spec_->DataWeightPerShuffleJob;
+        }
+    }
+
+    void TryDispatchPhysicalPartitionsForProcessing(
+        const TIntermediatePartitionPtr& intermediatePartition,
+        TCompactVector<int, 1> physicalPartitionIndices,
+        bool isAllDataCollected)
+    {
+        YT_VERIFY(!physicalPartitionIndices.empty());
+        YT_ASSERT(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
+            return !intermediatePartition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex);
+        }));
+
+        auto chunkPoolOutput = [&] {
+            if (std::ssize(physicalPartitionIndices) == 1) {
+                return intermediatePartition->ShuffleChunkPool()->GetOutput(physicalPartitionIndices[0]);
+            }
+
+            std::vector<IPersistentChunkPoolOutputPtr> physicalPartitionsToMerge;
+            physicalPartitionsToMerge.reserve(std::ssize(physicalPartitionIndices));
+            for (int physicalPartitionIndex : physicalPartitionIndices) {
+                physicalPartitionsToMerge.push_back(intermediatePartition->ShuffleChunkPool()->GetOutput(physicalPartitionIndex));
+            }
+
+            return MergeChunkPoolOutputs(
+                std::move(physicalPartitionsToMerge),
+                Logger().WithTag(
+                    "Name: PartitionsMerger[%v][%v]",
+                    intermediatePartition->GetLevel(),
+                    intermediatePartition->GetIndex()));
+        }();
+
+        bool isManiac = std::ssize(physicalPartitionIndices) == 1 &&
+            intermediatePartition->IsPhysicalPartitionManiac(physicalPartitionIndices[0]);
+
+        auto dispatchDecision = [&] () -> std::optional<EPartitionDispatchDecision> {
+            if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && isAllDataCollected) {
+                return EPartitionDispatchDecision::Skip;
+            }
+            if (ShouldForceSortedMerge() || (!isManiac && chunkPoolOutput->GetJobCounter()->GetTotal() > 1)) {
+                return EPartitionDispatchDecision::IntermediateSortAndMerge;
+            }
+            if (isManiac && isAllDataCollected) {
+                return EPartitionDispatchDecision::NoSort;
+            }
+            if (isAllDataCollected) {
+                return EPartitionDispatchDecision::SortInSingleJob;
+            }
+            return std::nullopt;
+        }();
+
+        YT_VERIFY(!isAllDataCollected || dispatchDecision.has_value());
+
+        if (!dispatchDecision.has_value()) {
+            YT_VERIFY(std::ssize(physicalPartitionIndices) == 1);
+            YT_LOG_TRACE(
+                "Physical partition does not meet early dispatch criteria "
+                "(ParentPartitionLevel: %v, ParentPartitionIndex: %v, PhysicalPartitionIndex: %v, "
+                "PartitionJobCount: %v, PartitionDataWeight: %v, PartitionDataSliceCount: %v)",
+                intermediatePartition->GetLevel(),
+                intermediatePartition->GetIndex(),
+                physicalPartitionIndices[0],
+                chunkPoolOutput->GetJobCounter()->GetTotal(),
+                chunkPoolOutput->GetDataSliceCounter()->GetTotal(),
+                chunkPoolOutput->GetDataWeightCounter()->GetTotal());
+            return;
+        }
+
+        YT_VERIFY(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
+            return intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
+        }));
 
         auto finalPartition = New<TFinalPartition>(
             PartitionTreeDepth_,
             /*creationIndex*/ std::ssize(UnorderedFinalPartitions_),
-            dispatchDecision,
+            *dispatchDecision,
             std::move(chunkPoolOutput),
-            intermediatePartition->IsPhysicalPartitionManiac(physicalPartitionIndex));
+            isManiac);
 
         UnorderedFinalPartitions_.push_back(finalPartition);
-        YT_VERIFY(UnprocessedPhysicalPartitionsCount_ > 0);
-        --UnprocessedPhysicalPartitionsCount_;
 
-        YT_LOG_DEBUG(
-            "Created final partition from physical partition (ParentPartitionLevel: %v, "
-            "ParentPartitionIndex: %v, PhysicalPartitionIndex: %v, CreationIndex: %v, "
-            "DispatchDecision: %v, IsManiac: %v, PartitionDataWeight: %v, "
-            "UnprocessedPhysicalPartitionsCount: %v)",
-            intermediatePartition->GetLevel(),
-            intermediatePartition->GetIndex(),
-            physicalPartitionIndex,
-            finalPartition->GetCreationIndex(),
-            dispatchDecision,
-            finalPartition->IsManiac(),
-            finalPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal(),
-            UnprocessedPhysicalPartitionsCount_);
-
+        UnprocessedPhysicalPartitionsCount_ -= std::ssize(physicalPartitionIndices);
+        YT_VERIFY(UnprocessedPhysicalPartitionsCount_ >= 0);
         ++PartitionsDispatchStatistics_[finalPartition->GetDispatchDecision()];
         YT_VERIFY(Accumulate(PartitionsDispatchStatistics_, 0) == std::ssize(UnorderedFinalPartitions_));
 
-        int creationIndex = finalPartition->GetCreationIndex();
+        YT_LOG_DEBUG(
+            "Final partition created (ParentPartitionLevel: %v, ParentPartitionIndex: %v, CreationIndex: %v, DispatchDecision: %v, "
+            "IsManiac: %v, PartitionJobCount: %v, PartitionDataWeight: %v, PartitionDataSliceCount: %v, "
+            "UnprocessedPhysicalPartitionsCount: %v, DispatchStatistics: %v, PhysicalPartitionIndices: %v)",
+            intermediatePartition->GetLevel(),
+            intermediatePartition->GetIndex(),
+            finalPartition->GetCreationIndex(),
+            finalPartition->GetDispatchDecision(),
+            finalPartition->IsManiac(),
+            finalPartition->ChunkPoolOutput()->GetJobCounter()->GetTotal(),
+            finalPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal(),
+            finalPartition->ChunkPoolOutput()->GetDataSliceCounter()->GetTotal(),
+            UnprocessedPhysicalPartitionsCount_,
+            PartitionsDispatchStatistics_,
+            physicalPartitionIndices);
 
         switch (finalPartition->GetDispatchDecision()) {
             case EPartitionDispatchDecision::Skip:
@@ -1874,12 +1956,6 @@ protected:
                 IntermediateSortTask_->RegisterPartition(std::move(finalPartition));
                 break;
         }
-
-        YT_LOG_DEBUG(
-            "Final partition dispatched (CreationIndex: %v, DispatchStatistics: %v, UnprocessedPhysicalPartitionsCount: %v)",
-            creationIndex,
-            PartitionsDispatchStatistics_,
-            UnprocessedPhysicalPartitionsCount_);
     }
 
     // Attempts to determine and apply a dispatch decision for physical partitions of intermediate partition.
@@ -1887,53 +1963,51 @@ protected:
         const TIntermediatePartitionPtr& partition,
         bool isAllDataCollected)
     {
+        // NB(apollo1321): The greedy algorithm is optimal for sequential bin packing,
+        // where partitions order must be preserved. However, for hash-based partitioning,
+        // we can reorder partitions to achieve better packing.
+        i64 groupDataWeight = 0;
+        i64 groupDataSliceCount = 0;
+        TCompactVector<int, 1> physicalPartitionIndices;
+
+        auto endCurrentMerging = [&] {
+            if (physicalPartitionIndices.empty()) {
+                return;
+            }
+
+            TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices, isAllDataCollected);
+
+            groupDataWeight = 0;
+            groupDataSliceCount = 0;
+            physicalPartitionIndices.clear();
+        };
+
+        auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
+        YT_VERIFY(!isAllDataCollected || !Spec_->EnableMergingFinalPartitions || partitionDataWeightForMerging.has_value());
+
         for (int physicalPartitionIndex : xrange(partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
-               YT_LOG_TRACE(
-                    "Physical partition already dispatched "
-                    "(PartitionLevel: %v, PartitionIndex: %v, PhysicalPartitionIndex: %v)",
-                    partition->GetLevel(),
-                    partition->GetIndex(),
-                    physicalPartitionIndex);
+                endCurrentMerging();
                 continue;
             }
 
             auto chunkPoolOutput = partition->ShuffleChunkPool()->GetOutput(physicalPartitionIndex);
+            i64 dataWeight = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
+            i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
 
-            auto decision = [&] () -> std::optional<EPartitionDispatchDecision> {
-                bool isManiac = partition->IsPhysicalPartitionManiac(physicalPartitionIndex);
-
-                if (chunkPoolOutput->GetDataWeightCounter()->GetTotal() == 0 && isAllDataCollected) {
-                    return EPartitionDispatchDecision::Skip;
-                }
-                if (ShouldForceSortedMerge() || (!isManiac && chunkPoolOutput->GetJobCounter()->GetTotal() > 1)) {
-                    return EPartitionDispatchDecision::IntermediateSortAndMerge;
-                }
-                if (isManiac && isAllDataCollected) {
-                    return EPartitionDispatchDecision::NoSort;
-                }
-                if (isAllDataCollected) {
-                    return EPartitionDispatchDecision::SortInSingleJob;
-                }
-                return std::nullopt;
-            }();
-
-            if (!decision) {
-                YT_LOG_TRACE(
-                    "Physical partition does not meet early dispatch criteria "
-                    "(PartitionLevel: %v, PartitionIndex: %v, PhysicalPartitionIndex: %v, JobCount: %v)",
-                    partition->GetLevel(),
-                    partition->GetIndex(),
-                    physicalPartitionIndex,
-                    chunkPoolOutput->GetJobCounter()->GetTotal());
-            } else {
-                RegisterFinalPartition(
-                    partition,
-                    physicalPartitionIndex,
-                    std::move(chunkPoolOutput),
-                    *decision);
+            if (!Spec_->EnableMergingFinalPartitions ||
+                !isAllDataCollected ||
+                groupDataWeight + dataWeight > *partitionDataWeightForMerging)
+            {
+                endCurrentMerging();
             }
+
+            physicalPartitionIndices.push_back(physicalPartitionIndex);
+            groupDataWeight += dataWeight;
+            groupDataSliceCount += dataSliceCount;
         }
+
+        endCurrentMerging();
     }
 
     void OnPartitionProcessedByJobs(TIntermediatePartitionPtr partition)
@@ -1947,6 +2021,25 @@ protected:
             partition->GetIndex(),
             partition->GetPhysicalPartitionCount(),
             partition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
+
+        if (partition->GetLevel() == 0) {
+            // NB: Actually this is not data weight but uncompressed data size.
+            // This is a bug and should be fixed in YT-26839.
+            i64 dataWeightAfterPartition = partition->ShuffleChunkPool()->GetTotalDataWeight();
+            if (DataWeightAfterPartition_.has_value()) {
+                YT_VERIFY(dataWeightAfterPartition == *DataWeightAfterPartition_);
+            } else {
+                YT_LOG_DEBUG(
+                    "Computed data weight after partition phase "
+                    "(DataWeightAfterPartition: %v, InitialDataWeight: %v, InitialUncompressedDataSize: %v ActualSelectivityFactor: %v)",
+                    dataWeightAfterPartition,
+                    EstimatedInputStatistics_->DataWeight,
+                    EstimatedInputStatistics_->UncompressedDataSize,
+                    static_cast<double>(dataWeightAfterPartition) / EstimatedInputStatistics_->DataWeight);
+
+                DataWeightAfterPartition_ = dataWeightAfterPartition;
+            }
+        }
 
         if (partition->GetLevel() + 1 < std::ssize(IntermediatePartitionsByLevels_)) {
             for (const auto& childPartition : partition->Children()) {
@@ -2662,7 +2755,7 @@ protected:
             Spec_,
             Options_,
             GetOutputTablePaths().size(),
-            PartitionCount_);
+            ExpectedPartitionCount_);
         chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
         if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
@@ -2733,12 +2826,12 @@ protected:
             return partition;
         };
 
-        auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(PartitionCount_, MaxPartitionFactor_);
+        auto partitionTreeSkeleton = BuildPartitionTreeSkeleton(ExpectedPartitionCount_, MaxPartitionFactor_);
         PartitionTreeDepth_ = partitionTreeSkeleton.Depth;
         IntermediatePartitionsByLevels_.resize(PartitionTreeDepth_);
 
         YT_LOG_DEBUG("Building partition tree (FinalPartitionCount: %v, MaxPartitionFactor: %v, PartitionTreeDepth: %v)",
-            PartitionCount_,
+            ExpectedPartitionCount_,
             MaxPartitionFactor_,
             PartitionTreeDepth_);
 
@@ -2853,7 +2946,7 @@ protected:
     void AssignPartitionKeysToPartitions(const std::vector<TPartitionKey>& partitionKeys, bool setManiac)
     {
         YT_VERIFY(!SimpleSortTask_);
-        YT_VERIFY(PartitionCount_ == std::ssize(partitionKeys) + 1);
+        YT_VERIFY(ExpectedPartitionCount_ == std::ssize(partitionKeys) + 1);
 
         int currentKeyIndex = 0;
 
@@ -2945,7 +3038,7 @@ protected:
         YT_VERIFY(!IntermediatePartitionsByLevels_.empty() && !IntermediatePartitionsByLevels_[0].empty());
         visitPartition(IntermediatePartitionsByLevels_[0][0], visitPartition);
 
-        YT_VERIFY(currentKeyIndex == PartitionCount_);
+        YT_VERIFY(currentKeyIndex == ExpectedPartitionCount_);
     }
 
     virtual EJobType GetPartitionJobType(bool isRoot) const = 0;
@@ -2986,7 +3079,7 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(13, IntermediatePartitionsByLevels_);
     PHOENIX_REGISTER_FIELD(14, PartitionTreeDepth_);
-    PHOENIX_REGISTER_FIELD(15, PartitionCount_);
+    PHOENIX_REGISTER_FIELD(15, ExpectedPartitionCount_);
     PHOENIX_REGISTER_FIELD(16, MaxPartitionFactor_);
 
     PHOENIX_REGISTER_FIELD(17, AssignedPartitionsByNodeId_);
@@ -3287,16 +3380,16 @@ private:
             BuildSampleSchema(),
             OutputTables_[0]->TableUploadOptions.GetUploadSchema());
 
-        PartitionCount_ = partitionKeys.size() + 1;
-        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(PartitionCount_);
+        ExpectedPartitionCount_ = partitionKeys.size() + 1;
+        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(ExpectedPartitionCount_);
 
-        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v)",
-            PartitionCount_,
+        YT_LOG_DEBUG("Final partitioning parameters (ExpectedPartitionCount: %v, MaxPartitionFactor: %v)",
+            ExpectedPartitionCount_,
             MaxPartitionFactor_);
 
         CreateSortedMergeTask();
 
-        if (PartitionCount_ == 1) {
+        if (ExpectedPartitionCount_ == 1) {
             PrepareSimpleSortTask();
         } else {
             BuildPartitionTree();
@@ -3368,8 +3461,8 @@ private:
         FinishTaskInput(PartitionTasks_.front());
 
         YT_LOG_INFO(
-            "Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
-            PartitionCount_,
+            "Sorting with partitioning (ExpectedPartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
+            ExpectedPartitionCount_,
             RootPartitionPoolJobSizeConstraints_->GetJobCount(),
             RootPartitionPoolJobSizeConstraints_->GetDataWeightPerJob());
     }
@@ -3660,10 +3753,10 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig_->TableWriter->BlockSize * PartitionCount_,
+            PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
             stat.DataWeight);
 
-        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * PartitionCount_;
+        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
 
         outputBufferSize = std::min(
             outputBufferSize,
@@ -4230,7 +4323,7 @@ private:
         // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
         // but according to job size constraints there is nothing to do.
         if (RootPartitionPoolJobSizeConstraints_->GetJobCount() == 0) {
-            PartitionCount_ = 0;
+            ExpectedPartitionCount_ = 0;
             return;
         }
 
@@ -4239,20 +4332,21 @@ private:
             auto sampleSchema = BuildSampleSchema();
             partitionKeys = BuildPartitionKeys(sampleSchema, sampleSchema);
 
-            PartitionCount_ = partitionKeys.size() + 1;
+            ExpectedPartitionCount_ = partitionKeys.size() + 1;
         } else {
-            PartitionCount_ = PartitioningParametersEvaluator_->SuggestPartitionCount();
+            ExpectedPartitionCount_ = PartitioningParametersEvaluator_->SuggestPartitionCount();
         }
 
-        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(PartitionCount_);
+        MaxPartitionFactor_ = PartitioningParametersEvaluator_->SuggestMaxPartitionFactor(ExpectedPartitionCount_);
         BuildPartitionTree();
 
         if (!partitionKeys.empty()) {
             AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ false);
         }
 
-        YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v)",
-            PartitionCount_,
+        YT_LOG_DEBUG(
+            "Final partitioning parameters (ExpectedPartitionCount: %v, MaxPartitionFactor: %v)",
+            ExpectedPartitionCount_,
             MaxPartitionFactor_);
 
         CreateShufflePools();
@@ -4338,8 +4432,8 @@ private:
         ProcessInputs(PartitionTasks_[0], RootPartitionPoolJobSizeConstraints_);
         FinishTaskInput(PartitionTasks_[0]);
 
-        YT_LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
-            PartitionCount_,
+        YT_LOG_INFO("Map-reducing with partitioning (ExpectedPartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
+            ExpectedPartitionCount_,
             RootPartitionPoolJobSizeConstraints_->GetJobCount(),
             RootPartitionPoolJobSizeConstraints_->GetDataWeightPerJob());
     }
@@ -4635,9 +4729,9 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * PartitionCount_;
+        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * PartitionCount_,
+            reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
             PartitionJobIOConfig_->TableWriter->MaxBufferSize);
 
         TExtendedJobResources result;

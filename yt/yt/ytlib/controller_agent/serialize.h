@@ -100,6 +100,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StorePhysicalChildPartitionBounds)     (302120))
     ((UseMultiplePartitionTagsInChunkStripe) (302121))
     ((CreateFinalPartitionsLazily)           (302122))
+    ((SupportMergingFinalPartitions)         (302123))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

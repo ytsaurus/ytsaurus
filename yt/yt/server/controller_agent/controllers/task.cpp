@@ -974,7 +974,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
-        "Approximate: %v, FilteringPartitionTag: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
+        "Approximate: %v, FilteringPartitionTags: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
         "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
         "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, DistributedGroupInfo: %v)",
         joblet->JobId,
