@@ -138,11 +138,12 @@ private:
         auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
         auto enableSymlinkCyclicityCheck = GetDynamicCypressManagerConfig()->EnableSymlinkCyclicityCheck;
+        auto useBetterCheckWhenRewritingPath = GetDynamicCypressManagerConfig()->UseBetterCheckWhenRewritingPath;
         if (enableSymlinkCyclicityCheck) {
             //  Make sure originalLinkPath and originalTargetPath get resolved properly.
             auto* shard = context.Shard;
-            auto linkPath = shard->MaybeRewritePath(originalLinkPath);
-            auto targetPath = shard->MaybeRewritePath(originalTargetPath);
+            auto linkPath = shard->MaybeRewritePath(originalLinkPath, useBetterCheckWhenRewritingPath);
+            auto targetPath = shard->MaybeRewritePath(originalTargetPath, useBetterCheckWhenRewritingPath);
 
             static const std::string nullService;
             static const std::string nullMethod;

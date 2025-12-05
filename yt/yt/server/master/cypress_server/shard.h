@@ -61,7 +61,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path);
+    NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path, bool useBetterCheckWhenRewritingPath);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressShard)
