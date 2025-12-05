@@ -17,7 +17,8 @@ public:
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
-        TNode* node) override;
+        TNode* node,
+        bool preemptible = false) override;
 
     void PreemptAssignment(
         const TAssignmentPtr& assignment,

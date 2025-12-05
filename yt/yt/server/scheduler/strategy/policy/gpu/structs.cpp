@@ -32,6 +32,7 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
             .Item("allocation_group_name").Value(assignment.AllocationGroupName)
             .Item("resource_usage").Value(assignment.ResourceUsage.ToJobResources())
             .Item("creation_time").Value(assignment.CreationTime)
+            .Item("preemptible").Value(assignment.Preemptible)
         .EndMap();
 }
 
@@ -89,13 +90,21 @@ int TOperation::GetReadyToAssignNeededAllocationCount() const
     return DoGetNeededAllocationCount(ReadyToAssignGroupedNeededResources_);
 }
 
-void TOperation::AddPlannedAssignment(const TAssignmentPtr& assignment)
+int TOperation::GetExtraNeededAllocationCount() const
+{
+    return DoGetNeededAllocationCount(ExtraGroupedNeededResources_);
+}
+
+void TOperation::AddPlannedAssignment(const TAssignmentPtr& assignment, bool withExtraResources)
 {
     YT_VERIFY(assignment->Operation == this);
 
     AddAssignment(assignment);
 
-    auto& allocationGroupResources = GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
+    auto& allocationGroupResources = withExtraResources
+        ? GetOrCrash(ExtraGroupedNeededResources_, assignment->AllocationGroupName)
+        : GetOrCrash(ReadyToAssignGroupedNeededResources_, assignment->AllocationGroupName);
+
     YT_VERIFY(allocationGroupResources.AllocationCount > 0);
     --allocationGroupResources.AllocationCount;
 }

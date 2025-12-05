@@ -209,6 +209,7 @@ public:
                     std::move(assignmentState->ResourceUsage),
                     operation.Get(),
                     node.Get());
+                assignment->Preemptible = assignmentState->Preemptible;
 
                 node->AddAssignment(assignment);
                 operation->AddAssignment(assignment);
@@ -477,6 +478,7 @@ public:
                 std::move(assignmentState->ResourceUsage),
                 operation.Get(),
                 node.Get());
+            assignment->Preemptible = assignmentState->Preemptible;
 
             node->AddAssignment(assignment);
             operation->AddAssignment(assignment);
@@ -700,13 +702,22 @@ private:
             // TODO(eshcherbin): Sort assignments by allocation start time.
             std::ranges::sort(sortedAssignments, std::less<>(), [] (const TAssignmentPtr& assignment) { return assignment->AllocationGroupName; });
 
-            TResourceVector prefixUsageShare;
+            TResourceVector usageShare;
             for (const auto& assignment : sortedAssignments) {
-                // NB(eshcherbin): Assignment is preemptible if the total resource usage of all assignments before it is lower than fair share.
-                // In particular, the assignment which crosses the fair share boundary is not considered preemptible.
-                // TODO(eshcherbin): (!) For map operations, the assignment on the boundary should be preemptible.
-                assignment->Preemptible = Dominates(prefixUsageShare + TResourceVector::Epsilon(), fairShare);
-                prefixUsageShare += convertToShare(assignment->ResourceUsage);
+                // NB(yaishenka): Assignment is preemptible if total resource usage (including current assignment) is higher than fair share.
+                usageShare += convertToShare(assignment->ResourceUsage);
+                bool previousStatus = std::exchange(
+                    assignment->Preemptible,
+                    !Dominates(fairShare + TResourceVector::Epsilon(), usageShare));
+
+                if (previousStatus != assignment->Preemptible) {
+                    YT_LOG_DEBUG(
+                        "Changed assignment preemptible status (OperationId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
+                        operation->GetId(),
+                        assignment->Preemptible,
+                        fairShare,
+                        usageShare);
+                }
             }
         }
 
@@ -715,8 +726,12 @@ private:
         TResourceVector readyToAssignShare;
         operation->ReadyToAssignGroupedNeededResources().clear();
 
+        TResourceVector extraShare;
+        operation->ExtraGroupedNeededResources().clear();
+
         // Preemptible FHMB operations do not deserve resources.
         if (operation->IsFullHostModuleBound() && operation->IsPreemptible()) {
+            YT_LOG_DEBUG("Skipping FHMB operation because it is preemptible (OperationId: %v, FairShare: %v)", operation->GetId(), fairShare);
             return;
         }
 
@@ -724,11 +739,16 @@ private:
         //     ResourceUsage + EmptyAssignmentResources + ReadyToAssignResources ~= FairShare.
         // Note that ResourceUsage + EmptyAssignmentResources == AssignedResourceUsage.
         for (const auto& [neededAllocationGroupName, neededAllocationGroupResources] : GetGroupedNeededResources(operation, operationElement)) {
-            auto it = EmplaceOrCrash(
+            auto readyToAssignIt = EmplaceOrCrash(
                 operation->ReadyToAssignGroupedNeededResources(),
                 neededAllocationGroupName,
                 TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources});
-            auto& readyToAssignResources = it->second;
+            auto& readyToAssignResources = readyToAssignIt->second;
+
+            auto extraIt = operation->ExtraGroupedNeededResources().emplace(
+                neededAllocationGroupName,
+                TAllocationGroupResources{.MinNeededResources = neededAllocationGroupResources.MinNeededResources}).first;
+            auto& extraResources = extraIt->second;
 
             const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
             const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
@@ -745,22 +765,33 @@ private:
                 fairShare,
                 allocationUsageShare);
 
-            while (emptyAssignmentCount + readyToAssignResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
+            while (emptyAssignmentCount + readyToAssignResources.AllocationCount + extraResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
+                auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
+                bool belowFairShare = Dominates(fairShare + TResourceVector::Epsilon(), sumOfUsageShare);
+
                 YT_LOG_DEBUG(
                     "Checking if fair share is exceeded before adding another assignment "
-                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, ReadyToAssignShare: %v, FairShare: %v)",
+                    "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
+                    "ReadyToAssignShare: %v, FairShare: %v, ExtraShare: %v, SumOfUsageShare %v, BelowFairShare: %v)",
                     operation->GetId(),
                     neededAllocationGroupName,
                     assignedUsageShare,
                     readyToAssignShare,
-                    fairShare);
+                    fairShare,
+                    extraShare,
+                    sumOfUsageShare,
+                    belowFairShare);
 
-                if (Dominates(assignedUsageShare + readyToAssignShare + TResourceVector::Epsilon(), fairShare)) {
-                    break;
+                if (belowFairShare) {
+                    ++readyToAssignResources.AllocationCount;
+                    readyToAssignShare += allocationUsageShare;
+                } else {
+                    if (operation->IsFullHostModuleBound()) {
+                        break;
+                    }
+                    ++extraResources.AllocationCount;
+                    extraShare += allocationUsageShare;
                 }
-
-                ++readyToAssignResources.AllocationCount;
-                readyToAssignShare += allocationUsageShare;
             }
         }
     }
@@ -906,6 +937,7 @@ private:
                 assignmentPersistentState->AllocationGroupName = assignment->AllocationGroupName;
                 assignmentPersistentState->ResourceUsage = assignment->ResourceUsage;
                 assignmentPersistentState->CreationTime = assignment->CreationTime;
+                assignmentPersistentState->Preemptible = assignment->Preemptible;
 
                 nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
             }
