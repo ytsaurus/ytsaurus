@@ -4762,8 +4762,8 @@ for line in sys.stdin:
 '"""
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("enable_merging_final_partitions", [False, True])
-    def test_many_empty_partitions_on_multiple_levels(self, enable_merging_final_partitions):
+    @pytest.mark.parametrize("enable_final_partitions_merging", [False, True])
+    def test_many_empty_partitions_on_multiple_levels(self, enable_final_partitions_merging):
         create("table", "//tmp/t_in")
         rows = [{"x": i} for i in range(100)]
         write_table("<append=%true>//tmp/t_in", rows)
@@ -4775,7 +4775,7 @@ for line in sys.stdin:
             spec={
                 "partition_data_weight": 1,
                 "max_partition_factor": 20,
-                "enable_merging_final_partitions": enable_merging_final_partitions,
+                "enable_final_partitions_merging": enable_final_partitions_merging,
                 # COMPAT(apollo1321)
                 "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
             },
@@ -4797,14 +4797,14 @@ for line in sys.stdin:
                 sort_by=["x", "y"],
                 reducer_command="cat",
                 spec={
-                    "enable_merging_final_partitions": True,
+                    "enable_final_partitions_merging": True,
                     "partition_count": 100,
                 },
             )
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("enable_merging_final_partitions", [False, True])
-    def test_final_partitions_merging(self, enable_merging_final_partitions):
+    @pytest.mark.parametrize("enable_final_partitions_merging", [False, True])
+    def test_final_partitions_merging(self, enable_final_partitions_merging):
         create("table", "//tmp/t_in")
 
         rows = [{"x": i} for i in range(100)]
@@ -4818,7 +4818,7 @@ for line in sys.stdin:
             reducer_command="cat",
             mapper_command=self.FILTERING_MAPPER,
             spec={
-                "enable_merging_final_partitions": enable_merging_final_partitions,
+                "enable_final_partitions_merging": enable_final_partitions_merging,
                 "mapper": {"format": "json"},
                 "map_job_count": map_job_count,
                 "partition_data_weight": 100,
@@ -4833,7 +4833,7 @@ for line in sys.stdin:
         assert progress["partitions"]["completed"] == actual_partition_count
         assert progress["partition_reduce"]["total"] <= actual_partition_count
 
-        if enable_merging_final_partitions:
+        if enable_final_partitions_merging:
             assert len(progress["tasks"]) == 2
             assert actual_partition_count == 1
             assert progress["partition_reduce"]["total"] == 1
@@ -4857,7 +4857,7 @@ for line in sys.stdin:
             reducer_command="cat",
             mapper_command=self.FILTERING_MAPPER,
             spec={
-                "enable_merging_final_partitions": True,
+                "enable_final_partitions_merging": True,
                 "mapper": {"format": "json"},
                 "map_job_count": map_job_count,
                 "partition_data_weight": 35,
@@ -4899,7 +4899,7 @@ for line in sys.stdin:
             mapper_command=self.FILTERING_MAPPER,
             spec={
                 "enable_intermediate_output_recalculation": True,
-                "enable_merging_final_partitions": True,
+                "enable_final_partitions_merging": True,
                 "intermediate_data_replication_factor": 1,
                 "map_job_count": map_job_count,
                 "mapper": {"format": "json"},
@@ -4976,7 +4976,7 @@ for line in sys.stdin:
 
         common_spec = {
             "data_weight_per_sort_job": data_weight_per_sort_job,
-            "enable_merging_final_partitions": True,
+            "enable_final_partitions_merging": True,
         }
 
         match operation:

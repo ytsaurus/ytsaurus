@@ -2161,7 +2161,7 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .Default(1000)
         .GreaterThan(1);
 
-    registrar.Parameter("enable_merging_final_partitions", &TThis::EnableMergingFinalPartitions)
+    registrar.Parameter("enable_final_partitions_merging", &TThis::EnableFinalPartitionsMerging)
         .Default(false);
 
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
@@ -2200,10 +2200,10 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         }
 
         THROW_ERROR_EXCEPTION_IF(
-            spec->EnableMergingFinalPartitions && spec->PartitionCount.has_value(),
+            spec->EnableFinalPartitionsMerging && spec->PartitionCount.has_value(),
             "Option %Qv cannot be specified when %Qv is enabled",
             "partition_count",
-            "enable_merging_final_partitions");
+            "enable_final_partitions_merging");
     });
 }
 
