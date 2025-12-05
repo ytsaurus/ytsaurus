@@ -122,7 +122,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitUnrecognizedField(
 
     if (Self()->MissingFieldPolicy_ != EMissingFieldPolicy::Skip) {
         THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MissingField,
-            "Field %v not found in message %v",
+            "Field %Qv is not found in message %v",
             name,
             descriptor->full_name());
     }
