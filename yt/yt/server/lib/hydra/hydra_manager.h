@@ -165,7 +165,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual TVersion GetAutomatonVersion() const = 0;
+    virtual TAutomatonVersion GetAutomatonVersion() const = 0;
 
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!

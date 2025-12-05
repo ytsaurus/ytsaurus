@@ -510,7 +510,14 @@ public:
 
         if (persistent) {
             const auto* context = GetCurrentMutationContext();
-            transaction->SetPrepareRevision(context->GetVersion().ToRevision());
+
+            TVersion version = context->GetVersion();
+            // COMPAT(h0pless): HydraLogicalRecordId.
+            auto mutationReign = static_cast<ETabletReign>(context->Request().Reign);
+            if (mutationReign < ETabletReign::HydraLogicalRecordId) {
+                version = context->GetPhysicalVersion();
+            }
+            transaction->SetPrepareRevision(version.ToRevision());
         }
 
         if (state == ETransactionState::Active) {

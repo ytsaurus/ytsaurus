@@ -1479,7 +1479,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     const auto& tableManager = Bootstrap_->GetTableManager();
-    auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+    auto revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
     switch (key) {
         case EInternedAttributeKey::Atomicity: {

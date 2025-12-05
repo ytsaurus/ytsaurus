@@ -134,7 +134,7 @@
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
     XX(CumulativeStatistics, cumulative_statistics) \
-    XX(CurrentCommitRevision, current_commit_revision) \
+    XX(CurrentHydraVersion, current_hydra_version) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
     XX(CustomRuntimeData, custom_runtime_data) \

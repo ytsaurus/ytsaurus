@@ -325,7 +325,21 @@ public:
     TObjectId GenerateId(EObjectType type) const override
     {
         auto* mutationContext = GetCurrentMutationContext();
-        auto version = mutationContext->GetVersion();
+
+        TVersion version = mutationContext->GetVersion();
+
+        // COMPAT(h0pless): HydraLogicalRecordId.
+        constexpr int ChaosReignBase = 300000;
+        constexpr int ChaosReignHydraLogicalRecordId = 300301;
+        constexpr int TabletReignBase = 100000;
+        constexpr int TabletReignHydraLogicalRecordId = 101401;
+        auto mutationReign = mutationContext->Request().Reign;
+        if (ChaosReignBase < mutationReign && mutationReign < ChaosReignHydraLogicalRecordId) {
+            version = mutationContext->GetPhysicalVersion();
+        } else if (TabletReignBase < mutationReign && mutationReign < TabletReignHydraLogicalRecordId) {
+            version = mutationContext->GetPhysicalVersion();
+        }
+
         auto random = mutationContext->RandomGenerator()->Generate<ui64>();
         auto cellId = GetCellId();
         return TObjectId(

@@ -30,6 +30,9 @@ DEFINE_ENUM(EChaosReign,
     ((AddLastCoordinatorCommitTimestamp)        (300201)) // aleksandra-zh
     ((PersistTransactionSignature)              (300202)) // ponasenko-rs
     ((DoNotSkipCommenceNewEraIfNoReplicas)      (300203)) // gryzlov-ad
+    // 25.4 starts here
+    ((Start_25_4)                               (300300)) // h0pless
+    ((HydraLogicalRecordId)                     (300301)) // h0pless
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
