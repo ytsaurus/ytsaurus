@@ -71,7 +71,7 @@ private:
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
     TProgressCounterPtr JobCounter_;
 
-    TTask* Task_;
+    TTask* Task_ = nullptr;
 
     NLogging::TSerializableLogger Logger;
 
