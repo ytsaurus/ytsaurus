@@ -61,7 +61,7 @@ public:
 
         UpdateCounters();
 
-        YT_LOG_INFO("Chunk pools outputs merger created (PoolCount: %v)", ChunkPools_.size());
+        YT_LOG_INFO("Chunk pool outputs merger created (PoolCount: %v)", ChunkPools_.size());
     }
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override

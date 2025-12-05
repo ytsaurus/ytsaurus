@@ -1983,7 +1983,7 @@ protected:
         };
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
-        YT_VERIFY(!isAllDataCollected || !Spec_->EnableMergingFinalPartitions || partitionDataWeightForMerging.has_value());
+        YT_VERIFY(!isAllDataCollected || !Spec_->EnableFinalPartitionsMerging || partitionDataWeightForMerging.has_value());
 
         for (int physicalPartitionIndex : xrange(partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
@@ -1995,7 +1995,7 @@ protected:
             i64 dataWeight = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
             i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
 
-            if (!Spec_->EnableMergingFinalPartitions ||
+            if (!Spec_->EnableFinalPartitionsMerging ||
                 !isAllDataCollected ||
                 groupDataWeight + dataWeight > *partitionDataWeightForMerging)
             {
