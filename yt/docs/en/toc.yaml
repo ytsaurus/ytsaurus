@@ -287,6 +287,16 @@ items:
                href: user-guide/data-processing/spyt/overview.md
              - name: Launching Spark tasks in {{product-name}}
                href: user-guide/data-processing/spyt/launch.md
+             - name: Direct submit
+               items:
+               - name: Description
+                 href: user-guide/data-processing/spyt/direct-submit/desc.md
+               - name: Dynamic allocation
+                 href: user-guide/data-processing/spyt/direct-submit/dyn-allocation.md
+               - name: Diagnostics
+                 href: user-guide/data-processing/spyt/direct-submit/diagnostics.md
+               - name: History server
+                 href: user-guide/data-processing/spyt/direct-submit/shs.md
              - name: SPYT cluster
                items:
                - name: SPYT cluster
