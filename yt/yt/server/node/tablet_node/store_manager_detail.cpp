@@ -227,7 +227,15 @@ void TStoreManagerBase::DiscardAllStores()
     }
 
     const auto* context = GetCurrentMutationContext();
-    Tablet_->SetLastDiscardStoresRevision(context->GetVersion().ToRevision());
+
+    TVersion version = context->GetVersion();
+    // COMPAT(h0pless): HydraLogicalRecordId.
+    auto mutationReign = static_cast<ETabletReign>(context->Request().Reign);
+    if (mutationReign < ETabletReign::HydraLogicalRecordId) {
+        version = context->GetPhysicalVersion();
+    }
+
+    Tablet_->SetLastDiscardStoresRevision(version.ToRevision());
 }
 
 void TStoreManagerBase::RemoveStore(IStorePtr store)

@@ -309,7 +309,7 @@ private:
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+        auto revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
         THashMap<NRpc::IChannelPtr, NChunkClient::NProto::TReqTouchChunks> channelToTouchChunksRequest;
 

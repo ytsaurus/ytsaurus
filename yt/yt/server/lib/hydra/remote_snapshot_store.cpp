@@ -171,6 +171,7 @@ private:
                         "last_mutation_reign",
                         "read_only",
                         "logical_time",
+                        "last_logical_record_id",
                     };
 
                     auto requestNode = [&] (const TYPath& path) {
@@ -200,6 +201,9 @@ private:
                     Params_.Meta.set_read_only(attributes.Get<bool>("read_only", false));
                     // COMPAT(h0pless): HydraLogicalClock. Remove the default value.
                     Params_.Meta.set_logical_time(attributes.Get<ui64>("logical_time", 0));
+                    // COMPAT(h0pless): HydraLogicalRecordId. Remove the default value.
+                    auto lastLogicalRecordId = attributes.Get<ui64>("last_logical_record_id", Params_.Meta.last_record_id());
+                    Params_.Meta.set_last_logical_record_id(lastLogicalRecordId);
 
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
@@ -353,6 +357,7 @@ private:
                     attributes->Set("last_mutation_reign", Meta_.last_mutation_reign());
                     attributes->Set("read_only", Meta_.read_only());
                     attributes->Set("logical_time", Meta_.logical_time());
+                    attributes->Set("last_logical_record_id", Meta_.last_logical_record_id());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);

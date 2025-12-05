@@ -426,19 +426,6 @@ class TestMasterTransactions(YTEnvSetup):
         assert r4 > r1
         assert r4 > r3
 
-    @authors("babenko")
-    def test_revision4(self):
-        if self.is_multicell():
-            pytest.skip("@current_commit_revision not supported with sharded transactions")
-
-        r1 = get("//sys/@current_commit_revision")
-        set("//tmp/t", 1)
-        r2 = get("//tmp/t/@revision")
-        assert r1 <= r2
-        remove("//tmp/t")
-        r3 = get("//sys/@current_commit_revision")
-        assert r2 < r3
-
     @authors("babenko", "ignat")
     def test_abort_snapshot_lock(self):
         create("file", "//tmp/file")

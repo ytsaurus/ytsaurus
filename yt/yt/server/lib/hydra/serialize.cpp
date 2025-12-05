@@ -180,7 +180,11 @@ void DeserializeMutationRecord(
     XX(timestamp, ui64) \
     XX(last_segment_id, i32) \
     XX(last_record_id, i32) \
-    XX(last_mutation_term, i32)
+    XX(last_mutation_term, i32) \
+    XX(last_mutation_reign, i32) \
+    XX(read_only, bool) \
+    XX(logical_time, ui64) \
+    XX(last_logical_record_id, i32)
 
 void Serialize(
     const NProto::TSnapshotMeta& meta,
