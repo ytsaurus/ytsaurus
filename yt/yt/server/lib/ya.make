@@ -74,4 +74,5 @@ RECURSE(
     transaction_server
     transaction_supervisor
     user_job
+    cross_cluster_replicated_state
 )

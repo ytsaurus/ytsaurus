@@ -11,4 +11,5 @@ RECURSE(
     test_partition_reader
     test_rpc_api
     test_sequoia
+    test_cross_cluster_replicated_state
 )
