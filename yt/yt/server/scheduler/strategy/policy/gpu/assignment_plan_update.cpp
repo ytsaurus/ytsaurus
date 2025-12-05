@@ -116,6 +116,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
 
     ProcessFullHostModuleBoundOperations();
     ProcessRegularOperations();
+    ProcessRegularOperationsWithExtraResources();
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
@@ -635,6 +636,62 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
     }
 }
 
+void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperationsWithExtraResources()
+{
+    // 1. Initialize.
+    std::vector<TOperationPtr> operationsToPlan;
+    for (const auto& [_, operation] : Operations_ ) {
+        if (operation->IsFullHostModuleBound()) {
+            continue;
+        }
+
+        if (operation->GetExtraNeededAllocationCount() > 0) {
+            operationsToPlan.push_back(operation);
+        }
+    }
+
+    if (operationsToPlan.empty()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Planning non gang operations with extra resources (Count: %v)",
+        std::ssize(operationsToPlan));
+
+    // 2. Sort operations.
+    // TODO(yaishenka): YT-26812 schedule jobs with extra resources (above fair share) more evenly.
+    std::ranges::sort(
+        operationsToPlan,
+        [&] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
+            // Usually, vanilla operations are used for model training and map operations are used for batch inference.
+            bool lhsVanilla = lhs->GetType() == EOperationType::Vanilla;
+            bool rhsVanilla = rhs->GetType() == EOperationType::Vanilla;
+            if (lhsVanilla != rhsVanilla) {
+                return lhsVanilla;
+            }
+
+            // Operations with bigger allocations are processed first.
+            const auto& lhsAllocationResources = lhs->ExtraGroupedNeededResources().begin()->second.MinNeededResources;
+            const auto& rhsAllocationResources = rhs->ExtraGroupedNeededResources().begin()->second.MinNeededResources;
+            if (lhsAllocationResources.GetGpu() != rhsAllocationResources.GetGpu()) {
+                return lhsAllocationResources.GetGpu() > rhsAllocationResources.GetGpu();
+            }
+
+            // Finally, the bigger operation is, the sooner we want to process it.
+            return lhs->GetExtraNeededAllocationCount() > rhs->GetExtraNeededAllocationCount();
+        });
+
+    // 3. Plan assignments.
+    for (const auto& operation : operationsToPlan) {
+        for (const auto& [allocationGroupName, allocationGroupResources] : operation->ExtraGroupedNeededResources()) {
+            PlanPreemptibleAllocationGroup(
+                operation,
+                allocationGroupName,
+                allocationGroupResources,
+                &SchedulableNodes_);
+        }
+    }
+}
+
 void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
     const TOperationPtr& operation,
     EAllocationPreemptionReason preemptionReason,
@@ -718,6 +775,37 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreempti
         "AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
         planner.GetPlannedAssignmentCount(),
         planner.GetPreemptedAssignmentCount(),
+        allocationGroupName,
+        allocationGroupResources,
+        operation->GetId());
+}
+
+void TGpuAllocationAssignmentPlanUpdateExecutor::PlanPreemptibleAllocationGroup(
+    const TOperationPtr& operation,
+    const std::string& allocationGroupName,
+    const TAllocationGroupResources allocationGroupResources,
+    std::vector<TNode*>* availableNodes)
+{
+    if (allocationGroupResources.AllocationCount == 0) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Planning preemptible allocation group for operation (AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
+        allocationGroupName,
+        allocationGroupResources,
+        operation->GetId());
+
+    TAllocationGroupPlanner planner(
+        operation,
+        allocationGroupName,
+        allocationGroupResources,
+        availableNodes,
+        this,
+        /*preemptible*/ true);
+    planner.Run();
+
+    YT_LOG_DEBUG("Finished planning preemptible allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
+        planner.GetPlannedAssignmentCount(),
         allocationGroupName,
         allocationGroupResources,
         operation->GetId());
@@ -812,9 +900,11 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::TAllocation
     const std::string& allocationGroupName,
     const TAllocationGroupResources& allocationGroupResources,
     std::vector<TNode*>* availableNodes,
-    TGpuAllocationAssignmentPlanUpdateExecutor* host)
+    TGpuAllocationAssignmentPlanUpdateExecutor* host,
+    bool preemptible)
     : TAllocationGroupPlannerBase(operation, allocationGroupName, allocationGroupResources, host)
     , AvailableNodes_(availableNodes)
+    , Preemptible_(preemptible)
 {
     std::ranges::sort(
         *AvailableNodes_,
@@ -822,6 +912,16 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::TAllocation
             return lhs->GetUnassignedGpuCount() < rhs->GetUnassignedGpuCount();
         });
     NextNodeIt_ = AvailableNodes_->begin();
+}
+
+void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::AddAssignmentToNode(TNode* node)
+{
+    Host_->Context_->AddPlannedAssignment(
+        AllocationGroupName_,
+        AllocationGroupResources_.MinNeededResources,
+        Operation_.Get(),
+        node,
+        /*preemptible*/ Preemptible_);
 }
 
 TNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::FindBestAvailableNode()

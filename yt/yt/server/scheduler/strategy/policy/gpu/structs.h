@@ -63,8 +63,9 @@ public:
     using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
     DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, EmptyAssignmentCountPerGroup);
 
-    // TODO(eshcherbin): (!) Support opportunistic jobs.
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
+
+    DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ExtraGroupedNeededResources);
 
     // Works only for full-host module-bound operations and smaller gangs.
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<std::string>>, SpecifiedSchedulingModules);
@@ -106,8 +107,9 @@ public:
 
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
+    int GetExtraNeededAllocationCount() const;
 
-    void AddPlannedAssignment(const TAssignmentPtr& assignment);
+    void AddPlannedAssignment(const TAssignmentPtr& assignment, bool withExtraResources = false);
     void RemoveAssignment(const TAssignmentPtr& assignment);
 
     //! Inserts assignment without modifying groupedNeededResources.
