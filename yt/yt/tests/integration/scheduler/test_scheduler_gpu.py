@@ -15,6 +15,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_path,
+    scheduler_orchid_operation_path,
 )
 
 
@@ -846,11 +847,25 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBase):
             gpu_usage=3,
             preemptible=True)
 
-        # TODO(yaishenka): Not working without starving.
-        # set("//sys/cluster_nodes/{}/@user_tags".format(nodes[1]), ["gpu", "custom_tag"])
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[1]), ["gpu", "custom_tag"])
 
-        # self._wait_for_assignments_in_orchid(op2, assignment_count=0)
-        # self._wait_for_assignments_in_orchid(op1, assignment_count=3)
+        self._wait_for_assignments_in_orchid(op2, assignment_count=0)
+        self._wait_for_assignments_in_orchid(op1, assignment_count=2)
+
+    @authors("yaishenka")
+    def test_starving(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"scheduling_tag_filter": nodes[0]},
+        )
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/starvation_status") == "starving")
+
+        operation = self._get_operation_from_orchid(op)
+        assert operation["starving"]
 
 ##################################################################
 
