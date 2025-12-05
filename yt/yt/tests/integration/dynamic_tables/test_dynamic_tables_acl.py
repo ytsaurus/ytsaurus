@@ -6,6 +6,8 @@ from yt_commands import (
     select_rows, lookup_rows,
     delete_rows, trim_rows, sync_create_cells, sync_mount_table, create, read_table, sync_flush_table)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
@@ -221,6 +223,8 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("read_from_dynamic_store", [False, True])
     @pytest.mark.parametrize("omit_inaccessible_columns", [False, True])
+    # TODO(danilalexeev): YT-26788.
+    @not_implemented_in_sequoia
     def test_inaccessible_columns(self, read_from_dynamic_store, omit_inaccessible_columns):
         self._prepare_env()
 
@@ -289,6 +293,20 @@ class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSortedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }
 
@@ -383,5 +401,19 @@ class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestOrderedDynamicTablesAclSequoia(TestSortedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }

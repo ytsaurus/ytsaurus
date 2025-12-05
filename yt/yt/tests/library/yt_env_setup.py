@@ -1340,6 +1340,14 @@ class YTEnvSetup(object):
             multidaemon_config["daemons"][f"rpc_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cypress_proxy"]):
+            if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not cls._is_ground_cluster(cluster_index):
+                update_inplace(config, {
+                    "testing": {
+                        "enable_ground_update_queues_sync": True,
+                        "enable_user_directory_per_request_sync": True,
+                    },
+                })
+
             cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
@@ -2193,6 +2201,8 @@ class YTEnvSetup(object):
                             }
                         }
                     })
+            if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
+                config["sequoia_manager"]["enable_ground_update_queues"] = True
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi >= (24, 2):

@@ -21,22 +21,6 @@ class TestSequoiaReconstructor(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "user_directory_synchronizer": {
-            "sync_period": 100,
-            "sync_period_splay": 100,
-        },
-        "dynamic_config_manager": {
-            "update_period": 100,
-        },
-    }
-
     @authors("grphil")
     def test_simple_reconstruction(self):
         check_sequoia_tables_reconstruction(self)

@@ -2585,16 +2585,11 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
+class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsMirroredTx):
-    ENABLE_MULTIDAEMON = True
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
 
     CHUNK_HOST_CELL_TAGS = [12, 14]

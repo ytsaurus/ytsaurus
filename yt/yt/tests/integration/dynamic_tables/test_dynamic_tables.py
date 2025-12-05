@@ -3896,46 +3896,23 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
 
 
-class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    USE_SEQUOIA = True
-    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-
-class TestDynamicTablesSequoia(TestDynamicTablesMulticell):
+class TestDynamicTablesSequoia(TestDynamicTablesShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_SECONDARY_MASTER_CELLS = 3
+
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-        "tablet_manager": {
-            "leader_reassignment_timeout": 2000,
-            "peer_revocation_timeout": 3000,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
     }
 
 

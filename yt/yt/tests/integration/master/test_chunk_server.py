@@ -11,6 +11,8 @@ from yt_commands import (
 
 from yt_helpers import profiler_factory
 
+from yt_sequoia_helpers import cannot_be_implemented_in_sequoia, not_implemented_in_sequoia
+
 from yt.environment.helpers import assert_items_equal, are_items_equal
 import yt.yson as yson
 
@@ -1369,11 +1371,12 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/12", {"roles": ["cypress_node_host"]})
         with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
+    @cannot_be_implemented_in_sequoia("to be dropped")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host chunks"):
@@ -1390,6 +1393,7 @@ class TestChunkServerMulticell(TestChunkServer):
         remove("//t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
@@ -1470,6 +1474,7 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {
+            "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]},
             "13": {"roles": ["dedicated_chunk_host"]}})
@@ -1488,6 +1493,7 @@ class TestChunkServerMulticell(TestChunkServer):
         chunk_host_cell_tag = 11
 
         set("//sys/@config/multicell_manager/cell_descriptors", {
+            "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]}})
 
@@ -1546,16 +1552,16 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("cherepashka")
     def test_revoke_chunk_host_role_validation(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", True)
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host", "cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["chunk_host", "cypress_node_host"]})
         create("table", "//tmp/t", attributes={"external_cell_tag": 11})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"a": i}])
         with raises_yt_error("it still hosts chunks"):
-            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+            set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["dedicated_chunk_host", "cypress_node_host"]})
         with raises_yt_error("it still hosts chunks"):
-            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+            set("//sys/@config/multicell_manager/cell_descriptors/11", {"roles": ["cypress_node_host"]})
 
 
 class TestChunkServerPortal(TestChunkServerMulticell):
@@ -1565,6 +1571,21 @@ class TestChunkServerPortal(TestChunkServerMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["chunk_host"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestChunkServerSequoia(TestChunkServerMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host", "sequoia_node_host"]},
     }
 
 

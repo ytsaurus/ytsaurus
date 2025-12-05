@@ -1443,19 +1443,6 @@ class TestSchedulerRemoteCopyCommandsSequoiaRemote(TestSchedulerRemoteCopyComman
     }
     REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    }
-
 
 class TestSchedulerRemoteCopyCommandsSequoiaPrimary(TestSchedulerRemoteCopyCommands):
     USE_SEQUOIA = True
@@ -1469,19 +1456,6 @@ class TestSchedulerRemoteCopyCommandsSequoiaPrimary(TestSchedulerRemoteCopyComma
         "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["sequoia_node_host"]}
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }
 
 
@@ -1505,19 +1479,6 @@ class TestSchedulerRemoteCopyCommandsSequoia(TestSchedulerRemoteCopyCommands):
         "23": {"roles": ["sequoia_node_host"]}
     }
     REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
-    }
 
 
 ##################################################################
