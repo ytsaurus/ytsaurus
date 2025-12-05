@@ -688,6 +688,11 @@ private:
             return;
         }
 
+        operation->SetStarving(operationElement->GetStarvationStatus() != EStarvationStatus::NonStarving);
+        if (operation->IsStarving()) {
+            YT_LOG_DEBUG("Operation is starving (OperationId: %v)", operation->GetId());
+        }
+
         auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
             return TResourceVector::FromJobResources(allocationResources, operationElement->GetTotalResourceLimits());
         };
