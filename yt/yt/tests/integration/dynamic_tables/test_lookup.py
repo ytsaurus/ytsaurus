@@ -1211,7 +1211,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             return any([x["tags"].get("thread") == "Query" and x["tags"].get("bucket") == "bassein" and x["value"] > 0
                         for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
 
-        wait(_wait_metrics)
+        wait(_wait_metrics, timeout=60)
 
     @authors("coteeq")
     @not_implemented_in_sequoia
