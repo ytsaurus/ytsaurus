@@ -15,6 +15,7 @@ class Queue:
     def __init__(self, base_path, name, tablet_count):
         self.name = name
         self.path = f"{base_path}/{name}"
+        self.data_path = f"{base_path}/{name}.data"
         self.hunk_storage_name = None
         self.mounted = False
         self.hunk_storage_mounted = False
@@ -39,6 +40,15 @@ class Queue:
         logger.info(f"Creating queue {self.path}")
         yt.create("table", self.path, attributes=attributes)
 
+
+        attributes["schema"] = [
+            {"name": "tablet_index", "type": "int64", "sort_order": "ascending"},
+            {"name": "row_index", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        yt.create("table", self.data_path, attributes=attributes)
+        yt.mount_table(self.data_path, sync=True)
+
         if yt.exists(f"{self.path}/@external_cell_tag"):
             self.cell_tag = yt.get(f"{self.path}/@external_cell_tag")
 
@@ -58,10 +68,21 @@ class Queue:
     def write(self):
         logger.info(f"Writing to the queue {self.path}")
         rows = [{"value": RSG.generate(1024), "$tablet_index": random.choice(range(0, self.tablet_count))} for _ in range(10)]
-        yt.insert_rows(self.path, rows)
-        # TODO: use data table.
+        data_rows = []
+
+        new_written_row_count = [0] * self.tablet_count
         for row in rows:
-            self.written_row_count[row["$tablet_index"]] += 1
+            tablet_index = row["$tablet_index"]
+            row_index = self.written_row_count[tablet_index] + new_written_row_count[tablet_index]
+            data_rows += [{"value": row["value"], "tablet_index": tablet_index, "row_index": row_index}]
+            new_written_row_count[row["$tablet_index"]] += 1
+
+        with yt.Transaction(type="tablet"):
+            yt.insert_rows(self.path, rows)
+            yt.insert_rows(self.data_path, data_rows)
+
+        for tablet_index, row_count in enumerate(new_written_row_count):
+            self.written_row_count[tablet_index] += row_count
 
         def check_written():
             tablet_infos = yt.get_tablet_infos(self.path, list(range(self.tablet_count)))["tablets"]
@@ -81,18 +102,30 @@ class Queue:
     def read_and_check(self):
         logger.info(f"Reading everything from queue {self.path}")
 
-        # TODO: check data.
         for tablet_index in range(self.tablet_count):
-            offset = 0
+            actual_rows = []
             while True:
-                rows = list(yt.pull_queue(self.path, offset=offset, partition_index=tablet_index))
+                rows = list(yt.pull_queue(self.path, offset=len(actual_rows), partition_index=tablet_index))
                 if len(rows) == 0:
                     break
-                offset += len(rows)
+                actual_rows += rows
             written_row_count = self.written_row_count[tablet_index]
-            if offset != written_row_count:
-                raise YtError(f"From queue {self.path} from tablet {tablet_index} were read {offset} rows but {written_row_count} rows were written")
+            if len(actual_rows) != written_row_count:
+                raise YtError(f"From queue {self.path} from tablet {tablet_index} were read {len(actual_rows)} rows but {written_row_count} rows were written")
 
+            expected_rows = []
+            while True:
+                rows = list(yt.select_rows(f"select row_index, value from [{self.data_path}] where tablet_index = {tablet_index} order by row_index offset {len(expected_rows)} limit 100"))
+                if len(rows) == 0:
+                    break
+                expected_rows += rows
+
+            if len(actual_rows) != len(expected_rows):
+                raise YtError(f"Data table {self.data_path} contains {len(expected_rows)} rows for tablet {tablet_index} but queue {self.path} contains {len(actual_rows)} rows")
+
+            for expected_row, actual_row in zip(expected_rows, actual_rows):
+                if expected_row["value"] != actual_row["value"]:
+                    raise YtError(f"Row with value '{expected_row["value"]}' was expected in the queue {self.path} in the tablet {tablet_index} but value '{actual_row["value"]}' was read")
 
 
 class HunkStorage:
@@ -166,6 +199,8 @@ def is_unmounted_error(err):
 
 def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     logging.getLogger('Yt').setLevel(logging.DEBUG)
+
+    yt.config["backend"] = "rpc"
 
     queues = {}
     hunk_storages = {}
