@@ -145,8 +145,6 @@ public:
 
     void OnLost();
 
-    void Unregister();
-
 private:
     TProgressCounterPtr ProgressCounter_;
 
