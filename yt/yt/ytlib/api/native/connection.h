@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/signature/public.h>
+
 #include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -235,6 +237,9 @@ struct TConnectionOptions
 
     //! If non-null, provides a TVM service for authentication.
     NAuth::IDynamicTvmServicePtr TvmService;
+
+    //! If set, used as connection's signature generator instead of dummy.
+    NSignature::ISignatureGeneratorPtr SignatureGenerator;
 
     EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 

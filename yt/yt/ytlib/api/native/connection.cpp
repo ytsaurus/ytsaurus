@@ -93,6 +93,7 @@
 #include <yt/yt/client/sequoia_client/public.h>
 
 #include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/provided.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
@@ -243,7 +244,9 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
         // NB(pavook): we can't hurt anybody by generating fake signatures.
-        , SignatureGenerator_(GetDummySignatureGenerator())
+        , SignatureGenerator_(Options_.SignatureGenerator
+            ? Options_.SignatureGenerator
+            : GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -328,7 +331,16 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        ClusterDirectory_ = New<TClusterDirectory>(Options_);
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
@@ -1067,7 +1079,7 @@ private:
 
     std::string ShuffleServiceAddress_;
 
-    ISignatureGeneratorPtr SignatureGenerator_;
+    TAtomicIntrusivePtr<ISignatureGenerator> SignatureGenerator_;
 
     NSequoiaClient::ISequoiaConnectionPtr SequoiaConnection_;
 
@@ -1375,12 +1387,12 @@ private:
 
     ISignatureGeneratorPtr GetSignatureGenerator() const override
     {
-        return SignatureGenerator_;
+        return SignatureGenerator_.Acquire();
     }
 
     void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
     {
-        SignatureGenerator_ = std::move(signatureGenerator);
+        SignatureGenerator_.Store(signatureGenerator);
     }
 };
 
