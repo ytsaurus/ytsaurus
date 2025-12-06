@@ -2071,7 +2071,7 @@ private:
                     ->GetTableInfo(FromObjectId(indexInfo.TableId)));
             }
 
-            auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
+            auto indexTableInfos = WaitFor(AllSucceeded(indexTableInfoFutures).AsUnique())
                 .ValueOrThrow();
 
             auto indexModifier = CreateSecondaryIndexModifier(

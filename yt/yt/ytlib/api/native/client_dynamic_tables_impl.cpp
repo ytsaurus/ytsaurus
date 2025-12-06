@@ -382,7 +382,7 @@ std::vector<TTabletInfo> GetChaosTabletInfosImpl(
             << TErrorAttribute("table_replication_card_id", tableInfo->ReplicationCardId);
     }
 
-    auto result = WaitForUnique(AllSucceeded(std::move(tabletInfoFutures)))
+    auto result = WaitFor(AllSucceeded(std::move(tabletInfoFutures)).AsUnique())
         .ValueOrThrow();
 
     auto replicaTabletInfosIt = result.begin();

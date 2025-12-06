@@ -578,7 +578,7 @@ void TQueueAgent::Pass()
 
     std::vector<TReplicatedTableMappingTableRow> replicatedTableMappingRows;
     // NB: This table might not exist and we should still perform passes.
-    auto replicatedTableMappingRowsOrError = WaitForUnique(DynamicState_->ReplicatedTableMapping->Select());
+    auto replicatedTableMappingRowsOrError = WaitFor(DynamicState_->ReplicatedTableMapping->Select().AsUnique());
     if (replicatedTableMappingRowsOrError.IsOK()) {
         replicatedTableMappingRows = std::move(replicatedTableMappingRowsOrError.Value());
     } else {

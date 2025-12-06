@@ -223,7 +223,7 @@ private:
         while (true) {
             WaitForEnabled();
             auto asyncBatch = Batcher_->DequeueBatch();
-            auto batch = WaitForUnique(asyncBatch)
+            auto batch = WaitFor(asyncBatch.AsUnique())
                 .ValueOrThrow();
 
             if (batch.empty()) {
