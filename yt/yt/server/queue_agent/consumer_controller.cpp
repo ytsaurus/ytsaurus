@@ -176,7 +176,7 @@ private:
         }
 
         // Cannot throw unless cancellation occurs.
-        auto subConsumerSnapshotOrErrors = WaitForUnique(AllSet(std::move(subSnapshotFutures)))
+        auto subConsumerSnapshotOrErrors = WaitFor(AllSet(std::move(subSnapshotFutures)).AsUnique())
             .ValueOrThrow();
 
         for (const auto& [queueRef, subConsumerSnapshotOrError] : Zip(queueRefs, subConsumerSnapshotOrErrors)) {
