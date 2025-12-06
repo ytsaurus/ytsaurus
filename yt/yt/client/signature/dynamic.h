@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/client/signature/generator.h>
-#include <yt/yt/client/signature/validator.h>
+#include "generator.h"
+#include "validator.h"
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 

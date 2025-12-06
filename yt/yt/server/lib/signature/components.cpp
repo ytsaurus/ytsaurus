@@ -2,11 +2,12 @@
 
 #include "config.h"
 #include "cypress_key_store.h"
-#include "dynamic.h"
 #include "key_rotator.h"
 #include "private.h"
 #include "signature_generator.h"
 #include "signature_validator.h"
+
+#include <yt/yt/client/signature/dynamic.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
