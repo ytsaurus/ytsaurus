@@ -3,7 +3,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/config.h>
-#include <yt/yt/core/misc/new_hedging_manager.h>
+#include <yt/yt/core/misc/adaptive_hedging_manager.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
@@ -53,7 +53,7 @@ public:
         , Profiler_(std::move(profiler))
     { }
 
-    INewHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) override
+    IAdaptiveHedgingManagerPtr GetOrCreateHedgingManager(const THedgingUnit& hedgingUnit) override
     {
         {
             auto guard = ReaderGuard(SpinLock_);
@@ -76,19 +76,21 @@ public:
     {
         auto guard = ReaderGuard(SpinLock_);
         for (const auto& [hedgingUnit, hedgingManagerWithSensors] : HedgingUnitToHedgingManagerWithSensors_) {
-            auto statistics = hedgingManagerWithSensors.HedgingManager->CollectStatistics();
-            hedgingManagerWithSensors.PrimaryRequestCount.Increment(statistics.PrimaryRequestCount);
-            hedgingManagerWithSensors.SecondaryRequestCount.Increment(statistics.SecondaryRequestCount);
-            hedgingManagerWithSensors.QueuedRequestCount.Increment(statistics.QueuedRequestCount);
-            hedgingManagerWithSensors.MaxQueueSize.Update(statistics.MaxQueueSize);
-            hedgingManagerWithSensors.HedgingDelay.Update(statistics.HedgingDelay);
+            if (hedgingManagerWithSensors.HedgingManager) {
+                auto statistics = hedgingManagerWithSensors.HedgingManager->CollectStatistics();
+                hedgingManagerWithSensors.PrimaryRequestCount.Increment(statistics.PrimaryRequestCount);
+                hedgingManagerWithSensors.SecondaryRequestCount.Increment(statistics.SecondaryRequestCount);
+                hedgingManagerWithSensors.QueuedRequestCount.Increment(statistics.QueuedRequestCount);
+                hedgingManagerWithSensors.MaxQueueSize.Update(statistics.MaxQueueSize);
+                hedgingManagerWithSensors.HedgingDelay.Update(statistics.HedgingDelay);
+            }
         }
     }
 
 private:
     struct THedgingManagerWithSensors
     {
-        INewHedgingManagerPtr HedgingManager;
+        IAdaptiveHedgingManagerPtr HedgingManager;
 
         NProfiling::TCounter PrimaryRequestCount;
         NProfiling::TCounter SecondaryRequestCount;
@@ -125,7 +127,7 @@ private:
         }
 
         return THedgingManagerWithSensors{
-            .HedgingManager = CreateNewAdaptiveHedgingManager(std::move(config)),
+            .HedgingManager = CreateAdaptiveHedgingManager(std::move(config)),
 
             .PrimaryRequestCount = customizedProfiler.Counter("/primary_request_count"),
             .SecondaryRequestCount = customizedProfiler.Counter("/secondary_request_count"),
@@ -159,6 +161,7 @@ public:
         : Invoker_(std::move(invoker))
     {
         ScheduleDeleteExpiredRegistries();
+        ScheduleStatisticsCollection();
     }
 
     ITabletHedgingManagerRegistryPtr GetOrCreateTabletHedgingManagerRegistry(

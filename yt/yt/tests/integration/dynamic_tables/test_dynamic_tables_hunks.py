@@ -100,9 +100,12 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1,
                 "max_inflight_fragment_length": 60,
                 "max_inflight_fragment_count": 2,
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -1268,11 +1271,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("//tmp/m/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_table()
-        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"max_backup_request_ratio": 0.5})
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"secondary_request_ratio": 0.5})
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(5)]
@@ -1585,7 +1587,10 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -2266,7 +2271,10 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1,
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
                 "max_inflight_fragment_length": 60,
                 "max_inflight_fragment_count": 2,
             },
@@ -2288,7 +2296,10 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -3823,7 +3834,10 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
