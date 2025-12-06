@@ -1,6 +1,7 @@
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
+#include <yt/yt/client/api/distributed_table_client.h>
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -43,7 +44,7 @@ protected:
                 const auto proxyAddress = GetEnv(envKey);
                 HttpSetRootToken(proxyAddress, "root_token");
             }
-            WaitFor(ReadAccessClient_->SetNode("//sys/rpc_proxies/@config", TYsonString(TString(R"""(
+            WaitFor(ReadAccessClient_->SetNode("//sys/rpc_proxies/@config", TYsonString(TStringBuf(R"""(
                 {
                     api={
                         multiproxy={
@@ -54,11 +55,21 @@ protected:
                             };
                         };
                     };
+                    signature_components={
+                        generation={
+                            cypress_key_writer={};
+                            generator={};
+                            key_rotator={};
+                        };
+                        validation={
+                            cypress_key_reader={};
+                        };
+                    };
                 }
             )"""))))
                 .ThrowOnError();
 
-            WaitFor(WriteAccessClient_->SetNode("//sys/rpc_proxies/@config", TYsonString(TString(R"""(
+            WaitFor(WriteAccessClient_->SetNode("//sys/rpc_proxies/@config", TYsonString(TStringBuf(R"""(
                 {
                     api={
                         multiproxy={
@@ -67,6 +78,27 @@ protected:
                                     enabled_methods=read_and_write;
                                 };
                             };
+                        };
+                    };
+                    signature_components={
+                        generation={
+                            cypress_key_writer={};
+                            generator={};
+                            key_rotator={};
+                        };
+                        validation={
+                            cypress_key_reader={};
+                        };
+                    };
+                }
+            )"""))))
+                .ThrowOnError();
+
+            WaitFor(TargetClient_->SetNode("//sys/rpc_proxies/@config", TYsonString(TStringBuf(R"""(
+                {
+                    signature_components={
+                        validation={
+                            cypress_key_reader={};
                         };
                     };
                 }
@@ -343,6 +375,46 @@ TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)
             action(),
             testing::HasSubstr("Error getting user info"));
     }
+}
+
+TEST_F(TMultiproxyTest, TestSignaturesThroughMultiproxy)
+{
+    auto tablePath = "//home/test-signatures-through-multiproxy/table";
+    WaitFor(TargetClient_->CreateNode(tablePath, EObjectType::Table, {.Recursive = true}))
+        .ThrowOnError();
+
+    auto writeRedirectingClient = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target");
+
+    TDistributedWriteSessionStartOptions options;
+    options.CookieCount = 0;
+    auto sessionWithCookies = WaitFor(writeRedirectingClient->StartDistributedWriteSession(tablePath, options))
+        .ValueOrThrow();
+
+    WaitFor(writeRedirectingClient->FinishDistributedWriteSession(TDistributedWriteSessionWithResults{
+        .Session = std::move(sessionWithCookies.Session),
+        .Results = {}}))
+        .ThrowOnError();
+}
+
+TEST_F(TMultiproxyTest, TestSignaturesAreClusterSpecific)
+{
+    auto tablePath = "//home/test-signatures-are-cluster-specific/table";
+    WaitFor(TargetClient_->CreateNode(tablePath, EObjectType::Table, {.Recursive = true}))
+        .ThrowOnError();
+
+    auto writeRedirectingClient = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target");
+
+    TDistributedWriteSessionStartOptions options;
+    options.CookieCount = 0;
+    auto sessionWithCookies = WaitFor(writeRedirectingClient->StartDistributedWriteSession(tablePath, options))
+        .ValueOrThrow();
+
+    auto finishResult = WaitFor(TargetClient_->FinishDistributedWriteSession(TDistributedWriteSessionWithResults{
+        .Session = std::move(sessionWithCookies.Session),
+        .Results = {},
+    }));
+
+    EXPECT_THROW_WITH_SUBSTRING(finishResult.ThrowOnError(), "no child with key");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
