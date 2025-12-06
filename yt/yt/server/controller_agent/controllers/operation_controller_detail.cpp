@@ -8017,11 +8017,11 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     continue;
                 }
                 auto mediumName = *diskRequest->MediumName;
-                auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+                auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
                 if (!mediumDescriptor) {
                     THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
                 }
-                diskRequest->MediumIndex = mediumDescriptor->Index;
+                diskRequest->MediumIndex = mediumDescriptor->GetIndex();
 
                 if (Config_->ObligatoryAccountMedia.contains(mediumName)) {
                     if (!diskRequest->Account) {
