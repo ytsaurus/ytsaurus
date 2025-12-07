@@ -612,7 +612,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
-                "max_backup_request_ratio": 0.5,
+                "secondary_request_ratio": 0.5,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,
@@ -1642,7 +1642,7 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
         remove("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay")
-        set("//tmp/t/@chunk_reader/hedging_manager", {"max_backup_request_ratio": 1.0, "max_hedging_delay": 0})
+        set("//tmp/t/@chunk_reader/hedging_manager", {"secondary_request_ratio": 1.0, "max_hedging_delay": 0})
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 

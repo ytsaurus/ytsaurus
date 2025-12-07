@@ -823,7 +823,7 @@ protected:
         , PerformanceCounters_(tabletSnapshot->PerformanceCounters)
     {
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-            ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            ChunkReadOptions_.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
                     .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
@@ -1300,7 +1300,7 @@ void TLookupSession::AddTabletRequest(
 
             if (InMemoryMode_ == EInMemoryMode::None) {
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
-                    ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+                    ChunkReadOptions_.AdaptiveHedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
                             .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
