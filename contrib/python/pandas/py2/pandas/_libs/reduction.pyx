@@ -28,6 +28,15 @@ cdef _get_result_array(object obj, Py_ssize_t size, Py_ssize_t cnt):
 
     return np.empty(size, dtype='O')
 
+# Accessing the data member of ndarray is deprecated, but we depend on it.
+cdef extern from *:
+    """
+    static void PyArray_SET_DATA(PyArrayObject *arr, void * data) {
+        arr->data = data;
+    }
+    """
+    void PyArray_SET_DATA(ndarray arr, void * data)
+
 
 cdef class Reducer:
     """
@@ -103,7 +112,7 @@ cdef class Reducer:
         arr = self.arr
         chunk = self.dummy
         dummy_buf = chunk.data
-        chunk.data = arr.data
+        PyArray_SET_DATA(chunk, arr.data)
         labels = self.labels
         has_labels = labels is not None
         has_index = self.index is not None
@@ -156,7 +165,7 @@ cdef class Reducer:
                     it = <flatiter>PyArray_IterNew(result)
 
                 PyArray_SETITEM(result, PyArray_ITER_DATA(it), res)
-                chunk.data = chunk.data + self.increment
+                PyArray_SET_DATA(chunk, chunk.data + self.increment)
                 PyArray_ITER_NEXT(it)
         except Exception, e:
             if hasattr(e, 'args'):
@@ -164,7 +173,7 @@ cdef class Reducer:
             raise
         finally:
             # so we don't free the wrong memory
-            chunk.data = dummy_buf
+            PyArray_SET_DATA(chunk, dummy_buf)
 
         if result.dtype == np.object_:
             result = maybe_convert_objects(result)
@@ -466,17 +475,17 @@ cdef class Slider:
         self.orig_len = self.buf.shape[0]
         self.orig_stride = self.buf.strides[0]
 
-        self.buf.data = self.values.data
+        PyArray_SET_DATA(self.buf, self.values.data)
         self.buf.strides[0] = self.stride
 
     cpdef advance(self, Py_ssize_t k):
-        self.buf.data = <char*>self.buf.data + self.stride * k
+        PyArray_SET_DATA(self.buf, <char*>self.buf.data + self.stride * k)
 
     cdef move(self, int start, int end):
         """
         For slicing
         """
-        self.buf.data = self.values.data + self.stride * start
+        PyArray_SET_DATA(self.buf, self.values.data + self.stride * start)
         self.buf.shape[0] = end - start
 
     cpdef set_length(self, Py_ssize_t length):
@@ -485,7 +494,7 @@ cdef class Slider:
     cpdef reset(self):
 
         self.buf.shape[0] = self.orig_len
-        self.buf.data = self.orig_data
+        PyArray_SET_DATA(self.buf, self.orig_data)
         self.buf.strides[0] = self.orig_stride
 
 
@@ -595,7 +604,7 @@ cdef class BlockSlider:
             arr = self.blocks[i]
 
             # axis=1 is the frame's axis=0
-            arr.data = self.base_ptrs[i] + arr.strides[1] * start
+            PyArray_SET_DATA(arr, self.base_ptrs[i] + arr.strides[1] * start)
             arr.shape[1] = end - start
 
         # move and set the index
@@ -613,7 +622,7 @@ cdef class BlockSlider:
             arr = self.blocks[i]
 
             # axis=1 is the frame's axis=0
-            arr.data = self.base_ptrs[i]
+            PyArray_SET_DATA(arr, self.base_ptrs[i])
             arr.shape[1] = 0
 
 

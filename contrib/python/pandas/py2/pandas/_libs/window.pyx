@@ -13,6 +13,15 @@ from numpy cimport ndarray, int64_t, float64_t, float32_t
 cnp.import_array()
 
 
+# Accessing the data member of ndarray is deprecated, but we depend on it.
+cdef extern from *:
+    """
+    static void PyArray_SET_DATA(PyArrayObject *arr, void * data) {
+        arr->data = (char *)data;
+    }
+    """
+    void PyArray_SET_DATA(ndarray arr, void * data)
+
 cdef extern from "src/headers/cmath" namespace "std":
     bint isnan(float64_t) nogil
     bint notnan(float64_t) nogil
@@ -1645,12 +1654,12 @@ def roll_generic(object obj,
         oldbuf = <float64_t *>bufarr.data
         for i from (win - offset) <= i < (N - offset):
             buf = buf + 1
-            bufarr.data = <char *>buf
+            PyArray_SET_DATA(bufarr, buf)
             if counts[i] >= minp:
                 output[i] = func(bufarr, *args, **kwargs)
             else:
                 output[i] = NaN
-        bufarr.data = <char *>oldbuf
+        PyArray_SET_DATA(bufarr, oldbuf)
 
         # truncated windows at the end
         for i from int_max(N - offset, 0) <= i < N:
