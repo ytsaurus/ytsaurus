@@ -432,8 +432,6 @@ protected:
 
     int MaxPartitionFactor_ = 0;
 
-    std::optional<i64> DataWeightAfterPartition_;
-
     // Locality stuff.
 
     struct TLocalityEntry
@@ -1831,11 +1829,9 @@ protected:
     {
         YT_VERIFY(!SimpleSortTask_);
 
-        if (!DataWeightAfterPartition_.has_value() || Spec_->PartitionCount.has_value()) {
+        if (Spec_->PartitionCount.has_value()) {
             return std::nullopt;
-        }
-
-        if (Spec_->PartitionDataWeight.has_value()) {
+        } else if (Spec_->PartitionDataWeight.has_value()) {
             return *Spec_->PartitionDataWeight;
         } else {
             return Spec_->DataWeightPerShuffleJob;
@@ -1983,7 +1979,6 @@ protected:
         };
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
-        YT_VERIFY(!isAllDataCollected || !Spec_->EnableFinalPartitionsMerging || partitionDataWeightForMerging.has_value());
 
         for (int physicalPartitionIndex : xrange(partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
@@ -2021,25 +2016,6 @@ protected:
             partition->GetIndex(),
             partition->GetPhysicalPartitionCount(),
             partition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal());
-
-        if (partition->GetLevel() == 0) {
-            // NB: Actually this is not data weight but uncompressed data size.
-            // This is a bug and should be fixed in YT-26839.
-            i64 dataWeightAfterPartition = partition->ShuffleChunkPool()->GetTotalDataWeight();
-            if (DataWeightAfterPartition_.has_value()) {
-                YT_VERIFY(dataWeightAfterPartition == *DataWeightAfterPartition_);
-            } else {
-                YT_LOG_DEBUG(
-                    "Computed data weight after partition phase "
-                    "(DataWeightAfterPartition: %v, InitialDataWeight: %v, InitialUncompressedDataSize: %v ActualSelectivityFactor: %v)",
-                    dataWeightAfterPartition,
-                    EstimatedInputStatistics_->DataWeight,
-                    EstimatedInputStatistics_->UncompressedDataSize,
-                    static_cast<double>(dataWeightAfterPartition) / EstimatedInputStatistics_->DataWeight);
-
-                DataWeightAfterPartition_ = dataWeightAfterPartition;
-            }
-        }
 
         if (partition->GetLevel() + 1 < std::ssize(IntermediatePartitionsByLevels_)) {
             for (const auto& childPartition : partition->Children()) {

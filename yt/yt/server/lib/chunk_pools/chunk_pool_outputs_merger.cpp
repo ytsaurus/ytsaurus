@@ -178,11 +178,6 @@ public:
 
     void Completed(TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        YT_LOG_DEBUG(
-            "Marking job as completed (Cookie: %v, InterruptionReason: %v)",
-            cookie,
-            jobSummary.InterruptionReason);
-
         YT_VERIFY(jobSummary.InterruptionReason == EInterruptionReason::None);
 
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
@@ -223,8 +218,6 @@ public:
 
     void Failed(TCookie cookie) override
     {
-        YT_LOG_DEBUG("Marking job as failed (Cookie: %v)", cookie);
-
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
         ApplyAndVerifyNotCompleted(
@@ -258,8 +251,6 @@ public:
 
     void Aborted(TCookie cookie, EAbortReason reason) override
     {
-        YT_LOG_DEBUG("Aborting job (Cookie: %v, Reason: %v)", cookie, reason);
-
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
 
         ApplyAndVerifyNotCompleted(
@@ -293,8 +284,6 @@ public:
 
     void Lost(TCookie cookie) override
     {
-        YT_LOG_DEBUG("Marking job as lost (Cookie: %v)", cookie);
-
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ false, /*shouldBeCompleted*/ true);
 
         ApplyAndVerifyNotCompleted(
@@ -390,7 +379,7 @@ private:
     }
 
     template <class TFunc>
-    void WithUpdateDisabled(TFunc func)
+    void WithUpdateDisabled(TFunc&& func)
     {
         DisableUpdate_ = true;
         auto guard = Finally([&] { DisableUpdate_ = false; });

@@ -4696,7 +4696,7 @@ fi
 
 
 @pytest.mark.enabled_multidaemon
-class TestMaxParititonCount(YTEnvSetup):
+class TestMaxPartitionCount(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
