@@ -212,28 +212,30 @@ public:
                 ? FullHeartbeatSemaphore_
                 : LocationFullHeartbeatSemaphore_);
 
+        auto mutationBuilder = BIND([=, this, this_ = MakeStrong(this)] {
+            return CreateMutation(
+                Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                &preparedRequest->NonSequoiaRequest,
+                &preparedRequest->NonSequoiaResponse,
+                [&] {
+                    if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
+                        return &TDataNodeTracker::HydraFullDataNodeHeartbeat;
+                    } else {
+                        return &TDataNodeTracker::HydraProcessLocationFullHeartbeat;
+                    }
+                }(),
+                this);
+        });
+        auto replyCallback = BIND([=] (const TMutationResponse& /*response*/) {
+            auto* response = &context->Response();
+            response->Swap(&preparedRequest->NonSequoiaResponse);
+            context->Reply();
+        });
         hydraFacade->CommitMutationWithSemaphore(
             semaphore,
-            context,
-            BIND([=, this, this_ = MakeStrong(this)] {
-                return CreateMutation(
-                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
-                    &preparedRequest->NonSequoiaRequest,
-                    &preparedRequest->NonSequoiaResponse,
-                    [&] {
-                        if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
-                            return &TDataNodeTracker::HydraFullDataNodeHeartbeat;
-                        } else {
-                            return &TDataNodeTracker::HydraProcessLocationFullHeartbeat;
-                        }
-                    }(),
-                    this);
-            }),
-            BIND([=] (const TMutationResponse& /*response*/) {
-                auto* response = &context->Response();
-                response->Swap(&preparedRequest->NonSequoiaResponse);
-                context->Reply();
-            }),
+            std::move(context),
+            std::move(mutationBuilder),
+            std::move(replyCallback),
             semaphoreSlotsToAquire);
     }
 
@@ -367,22 +369,24 @@ public:
             ? IncrementalHeartbeatPerReplicasSemaphore_
             : IncrementalHeartbeatSemaphore_;
 
+        auto mutationBuilder = BIND([=, this, this_ = MakeStrong(this)] {
+            return CreateMutation(
+                Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                &preparedRequest->NonSequoiaRequest,
+                &preparedRequest->NonSequoiaResponse,
+                &TDataNodeTracker::HydraIncrementalDataNodeHeartbeat,
+                this);
+        });
+        auto replyCallback = BIND([=] (const TMutationResponse& /*response*/) {
+            auto* response = &context->Response();
+            response->Swap(&preparedRequest->NonSequoiaResponse);
+            context->Reply();
+        });
         hydraFacade->CommitMutationWithSemaphore(
             semaphore,
-            context,
-            BIND([=, this, this_ = MakeStrong(this)] {
-                return CreateMutation(
-                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
-                    &preparedRequest->NonSequoiaRequest,
-                    &preparedRequest->NonSequoiaResponse,
-                    &TDataNodeTracker::HydraIncrementalDataNodeHeartbeat,
-                    this);
-            }),
-            BIND([=] (const TMutationResponse& /*response*/) {
-                auto* response = &context->Response();
-                response->Swap(&preparedRequest->NonSequoiaResponse);
-                context->Reply();
-            }),
+            std::move(context),
+            std::move(mutationBuilder),
+            std::move(replyCallback),
             semaphoreSlotsToAquire);
     }
 
@@ -1023,7 +1027,6 @@ private:
             std::is_same_v<THeartbeatContextPtr, TCtxLocationFullHeartbeatPtr> ||
             std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>
         );
-        const auto& originalRequest = context->Request();
 
         const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
@@ -1033,6 +1036,8 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         auto doSplitRequest = BIND([&] {
+            auto& originalRequest = context->Request();
+
             auto preparedRequest = NewWithOffloadedDtor<THeartbeatRequest<THeartbeatContextPtr>>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
 
@@ -1075,6 +1080,12 @@ private:
                 preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
                 splitChunks(originalRequest.chunks());
             }
+
+            // TODO(aleksandra-zh): this is a temporary hack until something better is done
+            // with heavy request destruction hopefully in 25.4.
+            using TRequestType = std::decay_t<decltype(originalRequest)>;
+            TRequestType soonToBeDeadRequest;
+            soonToBeDeadRequest.Swap(&originalRequest);
 
             return preparedRequest;
         });
