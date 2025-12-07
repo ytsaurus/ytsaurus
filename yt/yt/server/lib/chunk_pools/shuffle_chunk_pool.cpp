@@ -172,11 +172,6 @@ public:
         return TotalJobCount_;
     }
 
-    i64 GetTotalDataWeight() const override
-    {
-        return TotalDataWeight_;
-    }
-
 private:
     using ERunState = EShuffleChunkPoolRunState;
 

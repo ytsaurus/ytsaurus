@@ -114,6 +114,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
         for (const auto& stripe : stripeList->Stripes()) {
             if (!hasPartitionTags) {
+                // This path is currently used only for tests.
                 result->AddStripe(stripe);
                 continue;
             }
