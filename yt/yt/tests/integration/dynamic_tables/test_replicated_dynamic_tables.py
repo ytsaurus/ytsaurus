@@ -728,6 +728,51 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set_banned_replica_clusters_and_wait([])
         set_banned_replica_clusters_and_wait([self.REPLICA_CLUSTER_NAME])
 
+    @authors("fomasha")
+    @pytest.mark.parametrize("mode", ["async", "sync"])
+    def test_per_cluster_tablet_replication_sync_replicas_count_orchid(self, mode):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": True})
+
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": mode})
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "sync"})
+
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2, replica_driver=self.primary_driver)
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        def has_sync_replicas(replica_cluster):
+            return get(f"//sys/cluster_nodes/{cell_node}/orchid/tablet_cells/{cell_id}/per_cluster_tablet_replication_status/{replica_cluster}/has_sync_replicas")
+
+        assert not has_sync_replicas(self.REPLICA_CLUSTER_NAME)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        timestamp = generate_timestamp()
+        wait(lambda: are_items_equal(
+            get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
+            [replica_id1, replica_id2]))
+
+        if mode == "sync":
+            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
+            False,
+            driver=self.replica_driver
+        )
+
+        wait(lambda: not has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
+            True,
+            driver=self.replica_driver
+        )
+
     @authors("babenko")
     def test_in_sync_replicas_with_sync_last_committed_timestamp(self):
         self._create_cells()
