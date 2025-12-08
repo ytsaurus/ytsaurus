@@ -1465,7 +1465,7 @@ TNodeId TClient::DoCreateNode(
     YT_ABORT();
 }
 
-TLockNodeResult TClient::DoLockNode(
+TLockNodeDetailedResult TClient::DoLockNodeDetailed(
     const TYPath& path,
     ELockMode mode,
     const TLockNodeOptions& options)
@@ -1499,10 +1499,26 @@ TLockNodeResult TClient::DoLockNode(
     auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspLock>(0)
         .ValueOrThrow();
 
-    return TLockNodeResult{
+    return TLockNodeDetailedResult{
         FromProto<TLockId>(rsp->lock_id()),
         FromProto<TNodeId>(rsp->node_id()),
+        FromProto<TTransactionId>(rsp->external_transaction_id()),
+        FromProto<TCellTag>(rsp->external_cell_tag()),
         FromProto<NHydra::TRevision>(rsp->revision()),
+    };
+}
+
+TLockNodeResult TClient::DoLockNode(
+    const TYPath& path,
+    ELockMode mode,
+    const TLockNodeOptions& options)
+{
+    auto result = DoLockNodeDetailed(path, mode, options);
+
+    return TLockNodeResult{
+        result.LockId,
+        result.NodeId,
+        result.Revision,
     };
 }
 

@@ -408,6 +408,11 @@ public: \
         NObjectClient::EObjectType type,
         const TCreateNodeOptions& options),
         (path, type, options))
+    IMPLEMENT_METHOD(TLockNodeDetailedResult, LockNodeDetailed, (
+        const NYPath::TYPath& path,
+        NCypressClient::ELockMode mode,
+        const TLockNodeOptions& options),
+        (path, mode, options))
     IMPLEMENT_METHOD(TLockNodeResult, LockNode, (
         const NYPath::TYPath& path,
         NCypressClient::ELockMode mode,

@@ -249,15 +249,6 @@ void TClusterBackupSession::StartTransaction()
         options);
     Transaction_ = WaitFor(asyncTransaction)
         .ValueOrThrow();
-
-    auto primaryMasterCellTag = Client_->GetNativeConnection()->GetPrimaryMasterCellTag();
-    if (CellTagFromId(Transaction_->GetId()) != primaryMasterCellTag) {
-        ExternalizedViaPrimaryCellTransactionId_ = MakeExternalizedTransactionId(
-            Transaction_->GetId(),
-            primaryMasterCellTag);
-    } else {
-        ExternalizedViaPrimaryCellTransactionId_ = Transaction_->GetId();
-    }
 }
 
 void TClusterBackupSession::LockInputTables()
@@ -265,9 +256,9 @@ void TClusterBackupSession::LockInputTables()
     TLockNodeOptions options;
     options.TransactionId = Transaction_->GetId();
 
-    std::vector<TFuture<TLockNodeResult>> asyncRsps;
+    std::vector<TFuture<TLockNodeDetailedResult>> asyncRsps;
     for (const auto& table : Tables_) {
-        asyncRsps.push_back(Client_->LockNode(table.SourcePath, ELockMode::Exclusive, options));
+        asyncRsps.push_back(Client_->LockNodeDetailed(table.SourcePath, ELockMode::Exclusive, options));
     }
 
     auto rspsOrErrors = WaitFor(AllSucceeded(asyncRsps));
@@ -280,6 +271,8 @@ void TClusterBackupSession::LockInputTables()
                 << TErrorAttribute("table_path", Tables_[tableIndex].SourcePath)
                 << TErrorAttribute("cluster_name", ClusterName_);
         }
+
+        Tables_[tableIndex].ExternalizedTransactionId = rsp.ExternalizedTransactionId;
     }
 }
 
@@ -288,7 +281,7 @@ void TClusterBackupSession::StartBackup()
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::StartBackup(FromObjectId(table.SourceTableId));
         req->set_timestamp(Timestamp_);
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
 
         EBackupMode mode;
 
@@ -360,7 +353,7 @@ void TClusterBackupSession::StartRestore()
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::StartRestore(FromObjectId(table.SourceTableId));
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         ToProto(req->mutable_replicas(), table.BackupableReplicas);
         batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
@@ -387,7 +380,7 @@ void TClusterBackupSession::WaitForCheckpoint()
         }
 
         auto req = TTableYPathProxy::CheckBackup(FromObjectId(table.SourceTableId));
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
 
@@ -491,7 +484,7 @@ void TClusterBackupSession::FinishBackups()
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::FinishBackup(FromObjectId(table.DestinationTableId));
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
@@ -508,7 +501,7 @@ void TClusterBackupSession::FinishRestores()
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::FinishRestore(FromObjectId(table.DestinationTableId));
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
@@ -527,7 +520,7 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
         auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@");
         const static std::vector<std::string> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
         ToProto(req->mutable_attributes()->mutable_keys(), ExtraAttributeKeys);
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
@@ -568,7 +561,7 @@ void TClusterBackupSession::FetchClonedReplicaIds()
         }
 
         auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@replicas");
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, table.ExternalizedTransactionId);
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
@@ -779,6 +772,7 @@ void TClusterBackupSession::ExecuteForAllTables(
     for (const auto& [cellTag, tableIndexes] : TableIndexesByCellTag_) {
         cellTags.push_back(cellTag);
 
+        THashSet<TTransactionId> prerequisiteTransactionIds;
         auto proxy = write
             ? Client_->CreateObjectServiceWriteProxy(cellTag)
             : Client_->CreateObjectServiceReadProxy(
@@ -787,15 +781,14 @@ void TClusterBackupSession::ExecuteForAllTables(
         auto batchReq = proxy.ExecuteBatch();
         for (int tableIndex : tableIndexes) {
             buildRequest(batchReq, Tables_[tableIndex]);
+            prerequisiteTransactionIds.insert(Tables_[tableIndex].ExternalizedTransactionId);
         }
 
         TPrerequisiteOptions prerequisiteOptions;
-        if (cellTag == Client_->GetNativeConnection()->GetPrimaryMasterCellTag()) {
-            prerequisiteOptions.PrerequisiteTransactionIds.push_back(Transaction_->GetId());
-        } else {
-            prerequisiteOptions.PrerequisiteTransactionIds.push_back(
-                ExternalizedViaPrimaryCellTransactionId_);
+        for (auto externalizedTransactionId : prerequisiteTransactionIds) {
+            prerequisiteOptions.PrerequisiteTransactionIds.push_back(externalizedTransactionId);
         }
+
         SetPrerequisites(batchReq, prerequisiteOptions);
 
         asyncRsps.push_back(batchReq->Invoke());
@@ -820,16 +813,6 @@ void TClusterBackupSession::ThrowWithClusterNameIfFailed(const TError& error) co
 {
     if (!error.IsOK()) {
         THROW_ERROR error << TErrorAttribute("cluster_name", ClusterName_);
-    }
-}
-
-TTransactionId TClusterBackupSession::GetExternalizedTransactionId(const TTableInfo& table) const
-{
-    auto primaryMasterCellTag = Client_->GetNativeConnection()->GetPrimaryMasterCellTag();
-    if (table.ExternalCellTag == primaryMasterCellTag) {
-        return Transaction_->GetId();
-    } else {
-        return ExternalizedViaPrimaryCellTransactionId_;
     }
 }
 
