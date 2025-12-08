@@ -66,8 +66,6 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <util/generic/xrange.h>
-
 #include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -1980,7 +1978,7 @@ protected:
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
 
-        for (int physicalPartitionIndex : xrange(partition->GetPhysicalPartitionCount())) {
+        for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
                 endCurrentMerging();
                 continue;
@@ -2951,7 +2949,7 @@ protected:
                 isPhysicalPartitionManiac.resize(intermediatePartition->GetPhysicalPartitionCount());
             }
 
-            for (int childIndex : xrange(intermediatePartition->GetPhysicalPartitionCount())) {
+            for (int childIndex : std::views::iota(0, intermediatePartition->GetPhysicalPartitionCount())) {
                 // Before visiting each child (except the first), record the boundary.
                 if (childIndex > 0) {
                     YT_VERIFY(currentKeyIndex > 0 && currentKeyIndex <= std::ssize(partitionKeys));
