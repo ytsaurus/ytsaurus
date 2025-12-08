@@ -47,7 +47,12 @@ class TResourceLimits;
 class TQueryFilterOptions;
 class TQuerySpec;
 class TDiskQuota;
+class TOldDiskRequest;
+class TStorageRequestCommonParameters;
+class TTmpfsStorageReuqest;
 class TDiskRequest;
+class TLocalDiskRequest;
+class TNbdDiskRequest;
 
 } // namespace NProto
 

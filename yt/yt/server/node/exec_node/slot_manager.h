@@ -92,7 +92,7 @@ public:
         const TSlotManagerDynamicConfigPtr& newConfig);
 
     //! Acquires a free slot, throws on error.
-    IUserSlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allow_idle_cpu_policy);
+    IUserSlotPtr AcquireSlot(NScheduler::NProto::TOldDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allow_idle_cpu_policy);
 
     class TSlotGuard
     {

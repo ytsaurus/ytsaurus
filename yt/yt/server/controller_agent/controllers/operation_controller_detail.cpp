@@ -10298,19 +10298,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             continue;
         }
 
-        auto diskRequest = New<TOldDiskRequestConfig>();
-
         if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            *diskRequest = *nbdDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *nbdDiskRequest);
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            *diskRequest = *localDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
             YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
-        }
-
-        ToProto(jobSpec->mutable_disk_request(), *diskRequest);
-        if (diskRequest->InodeCount) {
-            jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }
     }
 
