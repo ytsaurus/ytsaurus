@@ -52,7 +52,7 @@ arrow20::Result<int64_t> TS3ArrowRandomAccessFile::ReadAt(int64_t position, int6
     auto response = WaitFor(Client_->GetObject(request))
         .ValueOrThrow();
 
-    nbytes = std::min(nbytes, response.Data.Size());
+    nbytes = std::min(nbytes, static_cast<int64_t>(response.Data.Size()));
     std::memcpy(out, response.Data.Begin(), nbytes);
     return nbytes;
 }
