@@ -182,7 +182,9 @@ struct ITabletManager
 
     virtual void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase) = 0;
 
+    // COMPAT(akozhikhov): Old version for compatibility with 25.3
     virtual void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk) = 0;
+    virtual void NewOnHunkJournalChunkSealed(NChunkServer::TChunk* chunk) = 0;
 
     virtual void AttachDynamicStoreToTablet(TTablet* tablet, NChunkServer::TDynamicStore* dynamicStore) = 0;
 

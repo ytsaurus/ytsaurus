@@ -807,6 +807,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("use_new_on_hunk_journal_chunk_sealed_handler", &TThis::UseNewOnHunkJournalChunkSealedHandler)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

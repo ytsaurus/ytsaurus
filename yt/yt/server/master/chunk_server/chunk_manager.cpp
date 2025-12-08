@@ -6308,7 +6308,11 @@ private:
         // Journal hunk chunks require special treatment.
         if (chunk->GetSealable()) {
             const auto& tabletManager = Bootstrap_->GetTabletManager();
-            tabletManager->OnHunkJournalChunkSealed(chunk);
+            if (GetDynamicConfig()->UseNewOnHunkJournalChunkSealedHandler) {
+                tabletManager->NewOnHunkJournalChunkSealed(chunk);
+            } else {
+                tabletManager->OnHunkJournalChunkSealed(chunk);
+            }
             return;
         }
 

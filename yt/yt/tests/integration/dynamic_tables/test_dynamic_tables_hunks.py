@@ -2187,6 +2187,90 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert rows[:5] == pull_queue("//tmp/t", offset=0, partition_index=0, max_data_weight=200)
 
+    @authors("akozhikhov")
+    def test_seal_after_queue_copy(self):
+        sync_create_cells(1)
+
+        set("//sys/@config/chunk_manager/use_new_on_hunk_journal_chunk_sealed_handler", True)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+
+        copy("//tmp/t", "//tmp/t2")
+        assert get("//tmp/t/@chunk_count") == 1
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 1
+        assert get("//tmp/t2/@chunk_count") == 1
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 1
+
+        sync_unmount_table("//tmp/h")
+
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+        assert get("//tmp/t2/@chunk_count") == 2
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+
+    @authors("akozhikhov")
+    def test_seal_after_queue_branch(self):
+        sync_create_cells(1)
+
+        set("//sys/@config/chunk_manager/use_new_on_hunk_journal_chunk_sealed_handler", True)
+
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+
+        tx = start_transaction()
+        set("//tmp/t/@hunk_erasure_codec", "reed_solomon_3_3", tx=tx)
+        copy("//tmp/t", "//tmp/t2", tx=tx)
+
+        sync_unmount_table("//tmp/h")
+
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+
+        assert get("//tmp/t2/@chunk_count") == 2
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+
 
 ################################################################################
 

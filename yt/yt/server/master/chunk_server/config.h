@@ -787,6 +787,9 @@ struct TDynamicChunkManagerConfig
     // COMPAT(akozhikhov)
     bool AllowHunkJournalChunksToHaveMultipleParents;
 
+    // COMPAT(akozhikhov): Only in 25.3.
+    bool UseNewOnHunkJournalChunkSealedHandler;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -2559,6 +2559,122 @@ public:
         }
     }
 
+    void NewOnHunkJournalChunkSealed(TChunk* chunk) override
+    {
+        YT_VERIFY(chunk->IsSealed());
+
+        auto owningNodes = GetOwningNodes(chunk);
+        std::vector<TTableNode*> tableNodes;
+
+        for (auto* node : owningNodes) {
+            // NB: We skip hunk storage here, because there shall not be any shared chunk lists,
+            // also tablet (both regular and cumulatve) statistics does not make sence anyway, because
+            // sealed journal hunk chunks get removed from corresponding chunk lists almost immediately.
+            if (!IsTableType(node->GetType())) {
+                continue;
+            }
+
+            auto* tableNode = node->As<TTableNode>();
+            if (!tableNode->IsDynamic()) {
+                YT_LOG_ALERT("Static parent table node was encountered upon sealing of hunk journal chunk "
+                    "(ChunkId: %v, OwningNodeId: %v)",
+                    chunk->GetId(),
+                    node->GetId());
+                continue;
+            }
+
+            tableNodes.push_back(tableNode);
+        }
+
+        SortBy(tableNodes, [] (TTableNode* tableNode) {
+            return tableNode->GetId();
+        });
+
+        for (auto* table : tableNodes) {
+            for (auto tablet : table->Tablets()) {
+                auto tabletStatistics = tablet->GetTabletStatistics();
+                table->DiscountTabletStatistics(tabletStatistics);
+            }
+        }
+
+        // NB: We accumulate statistics to ancestors before copying shared chunk lists, because otherwise
+        // statistics are copied incorrectly as chunk manager is anaware of which chunk has just been sealed.
+        // NB: Here we omit updating cumulative statistics, because they do not make sence for hunk-related chunk lists,
+        // as each hunk chunk can be attached to multiple tablet-level chunk lists.
+        // TODO(akozhikhov): Completely drop cumulative statistics from hunk related chunk lists.
+        auto statistics = chunk->GetStatistics();
+        ++statistics.Rank;
+
+        auto hunkRootStatistics = statistics;
+        ++hunkRootStatistics.Rank;
+
+        THashSet<TChunkListId> hunkRootChunkListIds;
+        TChunkListId hunkStorageRootChunkListId;
+        THashSet<TChunkListId> parentChunkListIds;
+        for (const auto& [chunkParent, _] : chunk->Parents()) {
+            parentChunkListIds.insert(chunkParent->GetId());
+
+            const auto& hunkChunkList = chunkParent->AsChunkList();
+            if (hunkChunkList->GetKind() != EChunkListKind::Hunk &&
+                hunkChunkList->GetKind() != EChunkListKind::HunkTablet)
+            {
+                YT_LOG_ALERT("Parent chunk list of enexpected kind was encountered upon sealing of hunk journal chunk "
+                    "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
+                    chunk->GetId(),
+                    chunkParent->GetId(),
+                    hunkChunkList->GetKind());
+                continue;
+            }
+
+            hunkChunkList->Statistics().Accumulate(statistics);
+
+            for (const auto& hunkChunkListParent : hunkChunkList->Parents()) {
+                const auto& hunkRootChunkList = hunkChunkListParent->AsChunkList();
+                if (hunkRootChunkList->GetKind() != EChunkListKind::HunkRoot &&
+                    hunkRootChunkList->GetKind() != EChunkListKind::HunkStorageRoot)
+                {
+                    YT_LOG_ALERT("Grandparent chunk list of enexpected kind was encountered upon sealing of hunk journal chunk "
+                        "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
+                        chunk->GetId(),
+                        hunkChunkListParent->GetId(),
+                        hunkRootChunkList->GetKind());
+                    continue;
+                }
+
+                if (hunkRootChunkList->GetKind() == EChunkListKind::HunkStorageRoot) {
+                    YT_LOG_ALERT_IF(hunkStorageRootChunkListId,
+                        "Multiple ancestor hunk storage roots were encountered upon sealing of hunk journal chunk "
+                        "(ChunkId: %v, FirstParentId: %v, SecondParentId: %v)",
+                        chunk->GetId(),
+                        hunkStorageRootChunkListId,
+                        hunkRootChunkList->GetId());
+
+                    hunkStorageRootChunkListId = hunkRootChunkList->GetId();
+                    hunkRootChunkList->Statistics().Accumulate(hunkRootStatistics);
+                } else if (hunkRootChunkListIds.emplace(hunkRootChunkList->GetId()).second) {
+                    hunkRootChunkList->Statistics().Accumulate(hunkRootStatistics);
+                }
+            }
+        }
+
+        for (auto* table : tableNodes) {
+            RecomputeTableSnapshotStatistics(table);
+
+            for (auto tablet : table->Tablets()) {
+                if (parentChunkListIds.contains(tablet->GetHunkChunkList()->GetId())) {
+                    TabletChunkManager_->CopyChunkListIfShared(
+                        table,
+                        EChunkListContentType::Hunk,
+                        tablet->GetIndex(),
+                        tablet->GetIndex());
+                }
+
+                auto tabletStatistics = tablet->GetTabletStatistics();
+                table->AccountTabletStatistics(tabletStatistics);
+            }
+        }
+    }
+
     void OnHunkJournalChunkSealed(TChunk* chunk) override
     {
         YT_VERIFY(chunk->IsSealed());
@@ -2573,6 +2689,10 @@ public:
 
             auto* tableNode = node->As<TTableNode>();
             if (!tableNode->IsDynamic()) {
+                YT_LOG_ALERT("Upon sealing of hunk journal chunk encountered static parent table node "
+                    "(ChunkId: %v, OwningNodeId: %v)",
+                    chunk->GetId(),
+                    node->GetId());
                 continue;
             }
 
