@@ -608,12 +608,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
-                "max_backup_request_ratio": 0.5,
+                "secondary_request_ratio": 0.5,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,
@@ -1211,7 +1210,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             return any([x["tags"].get("thread") == "Query" and x["tags"].get("bucket") == "bassein" and x["value"] > 0
                         for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
 
-        wait(_wait_metrics)
+        wait(_wait_metrics, timeout=60)
 
     @authors("coteeq")
     @not_implemented_in_sequoia
@@ -1759,7 +1758,7 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
         remove("//tmp/t/@chunk_reader/lookup_rpc_hedging_delay")
-        set("//tmp/t/@chunk_reader/hedging_manager", {"max_backup_request_ratio": 1.0, "max_hedging_delay": 0})
+        set("//tmp/t/@chunk_reader/hedging_manager", {"secondary_request_ratio": 1.0, "max_hedging_delay": 0})
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 

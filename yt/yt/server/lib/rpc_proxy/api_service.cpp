@@ -73,6 +73,7 @@
 #include <yt/yt/client/signature/signature.h>
 #include <yt/yt/client/signature/validator.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -104,7 +105,6 @@
 #include <library/cpp/yt/misc/cast.h>
 
 #include <algorithm>
-#include <ranges>
 
 namespace NYT::NRpcProxy {
 
@@ -651,6 +651,7 @@ public:
         TApiServiceConfigPtr config,
         IInvokerPtr controlInvoker,
         IInvokerPtr workerInvoker,
+        IInvokerPtr lowLatencyInvoker,
         NApi::NNative::IConnectionPtr connection,
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
@@ -681,6 +682,7 @@ public:
             : CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
         , ControlInvoker_(std::move(controlInvoker))
+        , LowLatencyInvoker_(std::move(lowLatencyInvoker))
         , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
@@ -709,7 +711,10 @@ public:
         // Rpc proxy can allow redirect read requests or read and write requests (or disallow redirecting completely).
         //
         // YT-24245
-        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        registerMethod(
+            EMultiproxyMethodKind::Write,
+            RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
+                .SetInvokerProvider(BIND(&TApiService::GetGenerateTimestampsInvoker, Unretained(this))));
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartTransaction));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
@@ -958,6 +963,7 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr LowLatencyInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
@@ -1261,7 +1267,7 @@ private:
             using TResult = typename decltype(future)::TValueType;
 
             future.Subscribe(
-                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
                     if (!resultOrError.IsOK()) {
                         HandleError(resultOrError);
                         return;
@@ -1354,6 +1360,14 @@ private:
             .first;
     }
 
+    IInvokerPtr GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
+    {
+        if (Config_.Acquire()->EnableLowLatencyGenerateTimestampsInvoker) {
+            return LowLatencyInvoker_;
+        }
+
+        return GetDefaultInvoker();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)
     {
@@ -1368,18 +1382,23 @@ private:
             count,
             clockClusterTag);
 
-        const auto& connection = client->GetNativeConnection();
+        auto connection = client->GetNativeConnection();
         if (clockClusterTag == InvalidCellTag) {
             connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
         }
 
-        const auto& timestampProvider = connection->GetTimestampProvider();
-
         ExecuteCall(
             context,
-            [=, Logger = Logger] {
-                return timestampProvider->GenerateTimestamps(count, clockClusterTag).AsUnique().Apply(
-                    BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
+            [
+                connection = std::move(connection),
+                clockClusterTag,
+                count,
+                Logger = Logger
+            ] {
+                const auto& timestampProvider = connection->GetTimestampProvider();
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag)
+                    .AsUnique()
+                    .Apply(BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
                                 providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
@@ -2692,6 +2711,12 @@ private:
         }
         if (request->has_schema_id()) {
             options.SchemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        }
+        if (request->has_constrained_schema()) {
+            options.ConstrainedSchema = ConvertTo<TConstrainedTableSchema>(TYsonString(request->constrained_schema()));
+        }
+        if (request->has_constraints()) {
+            options.Constraints = FromProto<TColumnNameToConstraintMap>(request->constraints());
         }
         if (request->has_dynamic()) {
             options.Dynamic = request->dynamic();
@@ -7648,6 +7673,7 @@ IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr workerInvoker,
+    IInvokerPtr lowLatencyInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -7665,6 +7691,7 @@ IApiServicePtr CreateApiService(
         std::move(config),
         std::move(controlInvoker),
         std::move(workerInvoker),
+        std::move(lowLatencyInvoker),
         std::move(connection),
         std::move(authenticator),
         std::move(proxyCoordinator),

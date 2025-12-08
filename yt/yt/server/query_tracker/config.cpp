@@ -141,6 +141,8 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTTL)
+        .Default(TDuration::Hours(1));
     registrar.Parameter("ql_engine", &TThis::QLEngine)
         .DefaultNew();
     registrar.Parameter("yql_engine", &TThis::YqlEngine)
@@ -164,7 +166,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
-        .Default(20);
+        .Default(21);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)

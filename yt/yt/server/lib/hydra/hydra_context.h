@@ -15,19 +15,24 @@ class THydraContext
 {
 public:
     THydraContext(
-        TVersion version,
+        TLogicalVersion logicalVersion,
+        TPhysicalVersion physicalVersion,
+        TPhysicalVersion compatOnlyPhysicalVersion,
         TInstant timestamp,
         ui64 randomSeed,
         TSharedRef localHostNameOverride);
 
     THydraContext(
-        TVersion version,
+        TLogicalVersion logicalVersion,
+        TPhysicalVersion physicalVersion,
+        TPhysicalVersion compatOnlyPhysicalVersion,
         TInstant timestamp,
         ui64 randomSeed,
         TIntrusivePtr<TRandomGenerator> randomGenerator,
         TSharedRef localHostNameOverride);
 
-    TVersion GetVersion() const;
+    TLogicalVersion GetVersion() const;
+    TPhysicalVersion GetPhysicalVersion() const;
 
     TInstant GetTimestamp() const;
 
@@ -36,8 +41,13 @@ public:
 
     const TSharedRef& GetLocalHostName() const;
 
+protected:
+    explicit THydraContext(THydraContext* parent, TLogicalVersion childVersion);
+
 private:
-    const TVersion Version_;
+    const TLogicalVersion Version_;
+    // COMPAT(h0pless): HydraLogicalRecordId.
+    const TPhysicalVersion PhysicalVersion_;
 
     const TInstant Timestamp_;
 
@@ -45,6 +55,10 @@ private:
     const TIntrusivePtr<TRandomGenerator> RandomGenerator_;
 
     const TSharedRef LocalHostName_;
+
+    static TLogicalVersion MaybeRotateVersion(
+        TLogicalVersion logicalVersion,
+        TPhysicalVersion physicalVersion);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

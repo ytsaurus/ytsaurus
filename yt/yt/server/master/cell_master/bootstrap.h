@@ -117,7 +117,7 @@ public:
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
     bool IsSequoiaConfigured() const;
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const;
+    const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;

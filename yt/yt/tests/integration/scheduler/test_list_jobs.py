@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS_SERVICE, SCHEDULERS_SERVICE
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint,
@@ -160,6 +160,13 @@ class TestListJobsBase(YTEnvSetup):
         )
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
+
+    def _get_operation_incarnation(self, op):
+        wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
+        incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
+        print_debug(f"Current incarnation of operation {op.id} is {incarnation_id}")
+
+        return incarnation_id
 
 
 class TestListJobsCommon(TestListJobsBase):
@@ -1085,13 +1092,6 @@ class TestListJobs(TestListJobsCommon):
 
     @authors("bystrovserg")
     def test_operation_incarnation(self):
-        def get_operation_incarnation(op):
-            wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
-            incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
-            print_debug(f"Current incarnation of operation {op.id} is {incarnation_id}")
-
-            return incarnation_id
-
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
@@ -1102,7 +1102,7 @@ class TestListJobs(TestListJobsCommon):
 
         assert len(job_ids) == 2
 
-        incarnation = get_operation_incarnation(op)
+        incarnation = self._get_operation_incarnation(op)
 
         wait(lambda: len(list_jobs(op.id, verbose=False)["jobs"]) == 2)
 
@@ -1135,7 +1135,7 @@ class TestListJobs(TestListJobsCommon):
 
         assert len(builtins.set(job_ids) & builtins.set(new_job_ids)) == 0
 
-        new_incarnation = get_operation_incarnation(op)
+        new_incarnation = self._get_operation_incarnation(op)
 
         assert new_incarnation != incarnation
 
@@ -1178,6 +1178,70 @@ class TestListJobs(TestListJobsCommon):
             assert event_after[0]["incarnation"] == incarnation
 
     @authors("bystrovserg")
+    def test_incarnation_events_on_success_revive(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={"gang_options": {}},
+        )
+
+        wait_breakpoint(job_count=1)
+
+        op.wait_for_fresh_snapshot()
+
+        wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 1)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait_breakpoint(job_count=1)
+        release_breakpoint()
+
+        op.track()
+
+        assert len(list_operation_events(op.id, event_type="incarnation_started")) == 1
+
+    @authors("bystrovserg")
+    def test_incarnation_events_on_job_lack_after_revival(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
+
+        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=3)
+
+        # Will not start jobs while sleeping_op is running.
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_options": {}},
+            spec={"pool": "fake_pool"},
+        )
+
+        first_incarnation_id = self._get_operation_incarnation(op)
+
+        op.wait_for_fresh_snapshot()
+
+        wait(lambda: len(list_operation_events(op.id)) == 1)
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            sleeping_op.abort()
+
+        second_incarnation_id = self._get_operation_incarnation(op)
+
+        print_debug(f"First incarnation id: {first_incarnation_id}, second incarnation id: {second_incarnation_id}")
+
+        # Incarnation switch because there was no jobs for op
+        assert first_incarnation_id != second_incarnation_id
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(list_operation_events(op.id)) == 2)
+        event = list_operation_events(op.id)[1]
+        event["incarnation_switch_reason"] == "job_lack_after_revival"
+
+    @authors("bystrovserg")
     def test_list_operation_events_empty_trigger_job_error(self):
         exit_code = 17
 
@@ -1212,6 +1276,43 @@ class TestListJobs(TestListJobsCommon):
         assert job_interrupted_incarnation["incarnation_switch_reason"] == "job_interrupted"
         assert job_interrupted_incarnation["incarnation_switch_info"]["trigger_job_id"] == job_id_to_interrupt
         assert job_interrupted_incarnation["incarnation_switch_info"].get("trigger_job_error") is None
+
+    @authors("bystrovserg")
+    def test_list_operation_events_interruption_failed(self):
+        command = """(trap "sleep 1000" SIGINT; BREAKPOINT)"""
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": "SIGINT",
+                        "signal_root_process_only": True,
+                        "restart_exit_code": 5,
+                        "gang_options": {},
+                    }
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        (job_id,) = wait_breakpoint()
+
+        interrupt_job(job_id, interrupt_timeout=2000)
+
+        wait(lambda: len(list_operation_events(op.id)) == 2)
+        event = list_operation_events(op.id)[1]
+        assert event["incarnation_switch_reason"] == "job_aborted"
+        assert event["incarnation_switch_info"]["trigger_job_id"] == job_id
+        assert event["incarnation_switch_info"]["abort_reason"] == "interruption_timeout"
+
+        assert event["incarnation_switch_info"].get("interruption_reason") is not None
+        assert event["incarnation_switch_info"]["interruption_reason"] == "user_request"
+
+        release_breakpoint()
+        op.track()
 
     @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):

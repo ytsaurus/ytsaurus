@@ -24,6 +24,7 @@ type Config struct {
 	Command             *string           `yson:"command"`
 	AdditionalFiles     []string          `yson:"additional_files"`
 	RunAsUser           bool              `yson:"run_as_user"`
+	DefaultSpeclet      *Speclet          `yson:"default_speclet"`
 }
 
 const (

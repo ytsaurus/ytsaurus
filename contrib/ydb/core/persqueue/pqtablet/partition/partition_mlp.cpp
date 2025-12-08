@@ -130,14 +130,26 @@ void TPartition::InitializeMLPConsumers() {
 
         LOG_I("Creating MLP consumer '" << name << "'");
         auto actorId = RegisterWithSameMailbox(NMLP::CreateConsumerActor(
+            DbPath,
             TabletId,
             TabletActorId,
             Partition.OriginalPartitionId,
             SelfId(),
             consumer,
-            retentionPeriod(consumer)
+            retentionPeriod(consumer),
+            GetEndOffset()
         ));
         MLPConsumers.emplace(consumer.GetName(), actorId);
+    }
+}
+
+void TPartition::NotifyEndOffsetChanged() {
+    if (LastNotifiedEndOffset == GetEndOffset()) {
+        return;
+    }
+    LastNotifiedEndOffset = GetEndOffset();
+    for (auto [_, info] : MLPConsumers) {
+        Send(info.ActorId, new TEvPQ::TEvEndOffsetChanged(GetEndOffset()));
     }
 }
 

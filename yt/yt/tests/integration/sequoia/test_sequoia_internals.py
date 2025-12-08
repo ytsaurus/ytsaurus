@@ -86,19 +86,14 @@ class TestSequoiaInternals(YTEnvSetup):
         "13": {"roles": ["chunk_host"]},
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True
-        },
-    }
-
     DELTA_CYPRESS_PROXY_CONFIG = {
         "user_directory_synchronizer": {
             "sync_period": 100,
             "sync_period_splay": 100,
         },
-        "dynamic_config_manager": {
-            "update_period": 100,
+        "testing": {
+            "enable_ground_update_queues_sync": False,
+            "enable_user_directory_per_request_sync": False,
         },
     }
 

@@ -1210,7 +1210,6 @@ class TestCypressAcls(CheckPermissionBase):
             get("//tmp", authenticated_user="owner")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_list_with_attr_yt_7165(self):
         create_user("u")
         create("map_node", "//tmp/x")
@@ -1218,7 +1217,34 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/@inherit_acl", False)
         create("map_node", "//tmp/x/y")
         set("//tmp/x/y/@attr", "value")
+        assert check_permission("u", "read", "//tmp/x/y")["action"] == "deny"
         assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
+
+    @authors("danilalexeev")
+    def test_get_with_denied_subtree(self):
+        create_user("u")
+        set("//tmp", {"foo": {"var": 1}, "baz": {"bar": 2}}, force=True)
+        set("//tmp/foo/@inherit_acl", False)
+        assert get("//tmp", authenticated_user="u") == {"foo": yson.YsonEntity(), "baz": {"bar": 2}}
+        set("//tmp/baz/bar/@inherit_acl", False)
+        tt = get("//tmp", attributes=["id"], authenticated_user="u")
+        assert "id" not in tt["foo"].attributes
+        assert "id" in tt["baz"].attributes
+        assert "id" not in tt["baz"]["bar"].attributes
+
+    @authors("danilalexeev")
+    def test_get_with_inheritence_modes(self):
+        create_user("u")
+        set("//tmp", {"foo": {"bar": {"var": 2}}}, force=True)
+        set("//tmp/foo/@inherit_acl", False)
+        set("//tmp/foo/@acl/end", make_ace("allow", ["u"], "read", "descendants_only"))
+        assert get("//tmp/foo/bar", authenticated_user="u") == {"var": 2}
+
+        set("//tmp/foo/bar/@acl/end", make_ace("deny", ["u"], "read", "immediate_descendants_only"))
+        assert get("//tmp/foo/bar", authenticated_user="u") == {"var": yson.YsonEntity()}
+
+        set("//tmp/foo/@acl/end", make_ace("allow", ["u"], "read", "object_and_descendants"))
+        assert get("//tmp/foo", authenticated_user="u") == {"bar": {"var": yson.YsonEntity()}}
 
     @authors("savrus")
     @not_implemented_in_sequoia
@@ -2691,17 +2717,4 @@ class TestCypressAclsSequoia(TestCypressAclsMulticell):
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True,
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }

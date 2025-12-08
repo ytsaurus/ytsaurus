@@ -2383,11 +2383,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_query('select count() as cnt from "//tmp/t"', user="u") == [{"cnt": 1}]
 
-            with raises_yt_error("Cannot use ranges with row_index"):
+            with raises_yt_error("Cannot use ranges with \\\"row_index\\\""):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
 
             # Check again for sanity to account for various miscachings.
-            with raises_yt_error("Cannot use ranges with row_index"):
+            with raises_yt_error("Cannot use ranges with \\\"row_index\\\""):
                 clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
 
     @authors("coteeq")

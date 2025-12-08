@@ -207,6 +207,8 @@ struct TApiServiceDynamicConfig
 
     bool EnableAllocationTags;
 
+    bool EnableLowLatencyGenerateTimestampsInvoker;
+
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);
 
     static void Register(TRegistrar registrar);

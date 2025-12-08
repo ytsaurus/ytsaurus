@@ -63,8 +63,9 @@ public:
     using TAssignmentCountPerGroup = TCompactFlatMap<std::string, int, 8>;
     DEFINE_BYREF_RO_PROPERTY(TAssignmentCountPerGroup, EmptyAssignmentCountPerGroup);
 
-    // TODO(eshcherbin): (!) Support opportunistic jobs.
     DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ReadyToAssignGroupedNeededResources);
+
+    DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, ExtraGroupedNeededResources);
 
     // Works only for full-host module-bound operations and smaller gangs.
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashSet<std::string>>, SpecifiedSchedulingModules);
@@ -106,9 +107,13 @@ public:
 
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
+    int GetExtraNeededAllocationCount() const;
 
-    void AddAssignment(const TAssignmentPtr& assignment);
+    void AddPlannedAssignment(const TAssignmentPtr& assignment, bool withExtraResources = false);
     void RemoveAssignment(const TAssignmentPtr& assignment);
+
+    //! Inserts assignment without modifying groupedNeededResources.
+    void AddAssignment(const TAssignmentPtr& assignment);
 
     void SetPreemptible(bool preemptible);
 
@@ -116,6 +121,8 @@ public:
     //! Operation may be not bound to any module but have running assignments (e.g. if operation briefly became preemptible).
     //! When choosing a module for such operation, we will either choose this module or preempt all assignments in it.
     std::optional<std::string> GetUsedSchedulingModule() const;
+
+    bool IsZeroAssignedUsage() const;
 
 private:
     int DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const;

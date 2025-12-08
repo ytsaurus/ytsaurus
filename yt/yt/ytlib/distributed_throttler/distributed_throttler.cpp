@@ -1704,7 +1704,7 @@ private:
         options.AttributeKeys = {AddressAttributeKey, RealmIdAttributeKey};
 
         auto rspFuture = DiscoveryClient_->ListMembers(GroupId_, options);
-        auto rspOrError = WaitForUnique(rspFuture);
+        auto rspOrError = WaitFor(rspFuture.AsUnique());
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error updating leader");
             return;

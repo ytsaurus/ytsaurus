@@ -3,6 +3,8 @@
 #include "private.h"
 #include "pool_tree_element.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+
 #include <yt/yt/core/misc/atomic_ptr.h>
 
 namespace NYT::NScheduler::NStrategy {

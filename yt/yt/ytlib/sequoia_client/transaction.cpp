@@ -65,7 +65,7 @@ using NNative::IClientPtr;
 
 namespace {
 
-const auto& Logger = SequoiaClientLogger;
+constinit const auto Logger = SequoiaClientLogger;
 
 void ValidateSequoiaTableSchema(ESequoiaTable table, const TTableSchemaPtr& actualSchema)
 {
@@ -160,16 +160,16 @@ public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
         ESequoiaTransactionType type,
-        const NNative::IConnectionPtr& localConnection,
+        NNative::IClientPtr authenticatedLocalClient,
         IClientPtr groundClient,
         const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
-        , AuthenticatedLocalClient_(
-            localConnection->CreateNativeClient(
-                NNative::TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
+        , AuthenticatedLocalClient_(std::move(authenticatedLocalClient))
         , GroundClient_(std::move(groundClient))
-        , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
+        , SerializedInvoker_(
+            CreateSerializedInvoker(
+                AuthenticatedLocalClient_->GetConnection()->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
     { }
@@ -960,22 +960,21 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
-    const NNative::IConnectionPtr& localConnection,
+    NNative::IClientPtr authenticatedLocalClient,
     IClientPtr groundClient,
     TTransactionStartOptions transactionStartOptions,
     const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
-    YT_VERIFY(!sequoiaTransactionOptions.AuthenticationIdentity.User.empty());
 
     if (!transactionStartOptions.Timeout) {
-        auto connectionConfig = localConnection->GetConfig();
+        auto connectionConfig = authenticatedLocalClient->GetNativeConnection()->GetConfig();
         transactionStartOptions.Timeout = GetOrDefault(connectionConfig->SequoiaTransactionTypeToTimeout, type, std::nullopt);
     }
 
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-        localConnection,
+        std::move(authenticatedLocalClient),
         std::move(groundClient),
         sequoiaTransactionOptions);
     return transaction->Start(transactionStartOptions);

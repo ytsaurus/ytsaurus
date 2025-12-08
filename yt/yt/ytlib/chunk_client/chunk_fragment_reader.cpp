@@ -30,7 +30,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -1105,6 +1104,8 @@ private:
     std::optional<TError> CancelationError_;
     std::vector<TFuture<void>> PendingFutures_;
 
+    TInstant PrimaryRequestStartTime_;
+
 
     static bool IsFatalError(const TError& error)
     {
@@ -1339,19 +1340,6 @@ private:
         NextRound(/*isHedged*/ false);
     }
 
-    void OnHedgingDeadlineReached(TDuration delay)
-    {
-        // Shortcut.
-        if (Promise_.IsSet()) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            delay);
-
-        NextRound(/*isHedged*/ true);
-    }
-
     void NextRound(bool isHedged)
     {
         auto peerInfoToPlan = MakePlans();
@@ -1365,21 +1353,40 @@ private:
 
         RequestFragments(std::move(peerInfoToPlan), isHedged);
 
-        if (!isHedged && peerCount > 0) {
+        if (!isHedged) {
             // TODO(akozhikhov): Support cancellation of primary requests?
-            auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay;
-
-            if (hedgingDelay) {
-                if (*hedgingDelay == TDuration::Zero()) {
-                    OnHedgingDeadlineReached(*hedgingDelay);
+            PrimaryRequestStartTime_ = TInstant::Now();
+            if (Options_.AdaptiveHedgingManager) {
+                Options_.AdaptiveHedgingManager->RegisterRequest(
+                    Promise_.ToFuture().AsVoid(),
+                    BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeWeak(this))
+                        .Via(SessionInvoker_));
+            } else if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
+                if (hedgingDelay == TDuration::Zero()) {
+                    StartSecondaryRequest();
                 } else {
                     TDelayedExecutor::Submit(
-                        BIND(&TSimpleReadFragmentsSession::OnHedgingDeadlineReached, MakeStrong(this), *hedgingDelay),
+                        BIND(&TSimpleReadFragmentsSession::StartSecondaryRequest, MakeStrong(this)),
                         *hedgingDelay,
                         SessionInvoker_);
                 }
             }
         }
+    }
+
+    void StartSecondaryRequest()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
+        // Shortcut.
+        if (Promise_.IsSet()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
+            TInstant::Now() - PrimaryRequestStartTime_);
+
+        NextRound(/*isHedged*/ true);
     }
 
     THashMap<TPeerInfoPtr, TPerPeerPlanPtr> MakePlans()

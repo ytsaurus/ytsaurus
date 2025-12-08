@@ -13,11 +13,12 @@ class TAssignmentPlanContextBase
 public:
     explicit TAssignmentPlanContextBase(NLogging::TLogger logger);
 
-    void AddAssignment(
+    void AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
-        TNode* node) override;
+        TNode* node,
+        bool preemptible = false) override;
 
     void PreemptAssignment(
         const TAssignmentPtr& assignment,

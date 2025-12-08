@@ -32,7 +32,24 @@ func asMapNode(ysonNode any) (asMap map[string]any, err error) {
 	return
 }
 
-func getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+// Add missing keys from defaultsMapNode to configMapNode.
+func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any) map[string]any {
+	for key, defaultVal := range defaultsMapNode {
+		configVal, ok := configMapNode[key]
+		if !ok {
+			configMapNode[key] = defaultVal
+			continue
+		}
+		configValMap, configValIsMap := configVal.(map[string]any)
+		defaultValMap, defaultValIsMap := defaultVal.(map[string]any)
+		if configValIsMap && defaultValIsMap {
+			defaultValMap[key] = applyConfigDefaults(configValMap, defaultValMap)
+		}
+	}
+	return configMapNode
+}
+
+func getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet, defaultSpeclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
@@ -43,6 +60,10 @@ func getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (conf
 	configAsMap, err := asMapNode(config)
 	if err != nil {
 		return
+	}
+
+	if defaultSpeclet != nil {
+		configAsMap = applyConfigDefaults(configAsMap, defaultSpeclet.ClickHouseConfig)
 	}
 
 	if _, ok := configAsMap["path_to_regions_names_files"]; !ok {
@@ -102,6 +123,11 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	if err != nil {
 		return
 	}
+
+	if c.config.DefaultSpeclet != nil {
+		configAsMap = applyConfigDefaults(configAsMap, c.config.DefaultSpeclet.YTConfig)
+	}
+
 	if _, ok := configAsMap["clique_alias"]; !ok {
 		configAsMap["clique_alias"] = oplet.Alias()
 	}
@@ -295,7 +321,7 @@ func (c Controller) systemLogTableRootDir(alias string) ypath.Path {
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
 
-	clickhouseConfig, err := getPatchedClickHouseConfig(oplet, speclet)
+	clickhouseConfig, err := getPatchedClickHouseConfig(oplet, speclet, c.config.DefaultSpeclet)
 	if err != nil {
 		return fmt.Errorf("invalid clickhouse config: %v", err)
 	}

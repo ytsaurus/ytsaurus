@@ -2359,8 +2359,6 @@ def add_show_default_config_parser(add_parser):
 
 
 def detect_porto_layer(**kwargs):
-    if not yt.config["proxy"]["url"]:
-        raise yt.YtError("Missed '--proxy' flag")
     layers = yt.spec_builders.BaseLayerDetector._get_default_layer(None, layer_type="porto")
     print_to_output(", ".join(layers) if layers else "-")
 
@@ -3280,7 +3278,13 @@ def main_func():
         if key in func_args:
             func_args.pop(key)
 
-    args.func(**func_args)
+    try:
+        args.func(**func_args)
+    except yt.YtError as ex:
+        if "Cannot determine backend type" in ex.message:
+            raise yt.YtError("You should specify parameter `--proxy <...>` or env `YT_PROXY=<...>`")
+        else:
+            raise
 
     yt.config._cleanup()
 

@@ -976,7 +976,9 @@ private:
 
     void CheckCompleted()
     {
-        bool completed =
+        bool wasCompleted = IsCompleted_;
+
+        IsCompleted_ =
             Finished &&
             FreeDataWeightCounter_->GetTotal() == 0 &&
             JobCounter_->GetRunning() == 0 &&
@@ -984,13 +986,11 @@ private:
             JobCounter_->GetPending() == 0 &&
             JobCounter_->GetBlocked() == 0;
 
-        if (!IsCompleted_ && completed) {
+        if (!wasCompleted && IsCompleted_) {
             Completed_.Fire();
-        } else if (IsCompleted_ && !completed) {
+        } else if (wasCompleted && !IsCompleted_) {
             Uncompleted_.Fire();
         }
-
-        IsCompleted_ = completed;
     }
 
     PHOENIX_DECLARE_FRIEND();

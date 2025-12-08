@@ -1995,7 +1995,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        subrequest->Revision = hydraManager->GetAutomatonVersion().ToRevision();
+        subrequest->Revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalRead:

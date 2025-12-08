@@ -409,6 +409,7 @@ SRCS(
     security_client/proto/user_ypath.proto
 
     sequoia_client/client.cpp
+    sequoia_client/connection.cpp
     sequoia_client/helpers.cpp
     sequoia_client/ground_channel_wrapper.cpp
     sequoia_client/prerequisite_revision.cpp

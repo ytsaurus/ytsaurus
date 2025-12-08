@@ -82,8 +82,7 @@
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
-#include <yt/yt/ytlib/sequoia_client/ground_channel_wrapper.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -94,6 +93,7 @@
 #include <yt/yt/client/sequoia_client/public.h>
 
 #include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/provided.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
@@ -128,6 +128,7 @@ using namespace NAuth;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NDiscoveryClient;
 using namespace NHiveClient;
 using namespace NHydra;
 using namespace NJobProberClient;
@@ -137,18 +138,18 @@ using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NQueryTrackerClient;
 using namespace NQueueClient;
+using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSequoiaClient;
 using namespace NSignature;
 using namespace NTabletClient;
 using namespace NThreading;
 using namespace NTransactionClient;
-using namespace NYTree;
-using namespace NYson;
-using namespace NDiscoveryClient;
-using namespace NRpc;
-using namespace NYqlClient;
 using namespace NYPath;
+using namespace NYTree;
+using namespace NYqlClient;
+using namespace NYson;
 
 using std::placeholders::_1;
 
@@ -243,7 +244,9 @@ public:
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
         // NB(pavook): we can't hurt anybody by generating fake signatures.
-        , SignatureGenerator_(GetDummySignatureGenerator())
+        , SignatureGenerator_(Options_.SignatureGenerator
+            ? Options_.SignatureGenerator
+            : GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -328,7 +331,16 @@ public:
             MakeWeak(this),
             CreateNodeChannelFactory(ChannelFactory_, GetNetworks()));
 
-        ClusterDirectory_ = New<TClusterDirectory>(Options_);
+        auto clusterDirectoryOptions = Options_;
+        clusterDirectoryOptions.SignatureGenerator =
+            New<NSignature::TProvidedSignatureGenerator>(
+                BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        return this_->GetSignatureGenerator();
+                    }
+                    return GetDummySignatureGenerator();
+                }));
+        ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
             this,
@@ -418,6 +430,10 @@ public:
                 this,
                 Logger);
         }
+
+        SequoiaConnection_ = CreateSequoiaConnection(
+            config->SequoiaConnection,
+            MakeWeak(this));
 
         SyncReplicaCache_ = New<TSyncReplicaCache>(
             StaticConfig_->SyncReplicaCache,
@@ -966,6 +982,8 @@ public:
             ReplicationCardCache_->Reconfigure(StaticConfig_->ReplicationCardCache->ApplyDynamic(dynamicConfig->ReplicationCardCache));
         }
 
+        SequoiaConnection_->Reconfigure(dynamicConfig->SequoiaConnection);
+
         Config_.Store(dynamicConfig);
         Reconfigured_.Fire(dynamicConfig);
     }
@@ -980,54 +998,9 @@ public:
         return static_cast<bool>(Config_.Acquire()->SequoiaConnection);
     }
 
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    const ISequoiaConnectionPtr& GetSequoiaConnection() override
     {
-        // Fast path: return the cached client.
-        if (auto existingSequoiaClient = CachedSequoiaClient_.Acquire()) {
-            return existingSequoiaClient;
-        }
-
-        // Slow path: create a new client.
-        auto config = Config_.Acquire()->SequoiaConnection;
-        auto groundClientFuture = [&] {
-            if (config) {
-                return InsistentGetRemoteConnection(this, config->GroundClusterName)
-                    .Apply(BIND([] (const IConnectionPtr& groundConnection) -> IClientPtr {
-                        auto options = NNative::TClientOptions::Root();
-                        options.ChannelWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannel);
-                        options.ChannelFactoryWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannelFactory);
-                        return groundConnection->CreateNativeClient(options);
-                    }));
-            } else {
-                return MakeFuture<IClientPtr>(TError("Sequoia is not configured"));
-            }
-        }();
-
-        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
-            config,
-            this,
-            std::move(groundClientFuture));
-
-        if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
-            // This was a race.
-            return existingSequoiaClient;
-        }
-
-        YT_LOG_DEBUG("Sequoia client recreated");
-
-        if (config) {
-            // Keep this cached client for a while but reset it after a given period of time
-            // to ensure changes to cluster directory are propagated to sequoia clients.
-            TDelayedExecutor::Submit(
-                BIND([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        this_->CachedSequoiaClient_.Reset();
-                    }
-                }),
-                config->GroundClusterConnectionUpdatePeriod);
-        }
-
-        return sequoiaClient;
+        return SequoiaConnection_;
     }
 
 private:
@@ -1106,9 +1079,9 @@ private:
 
     std::string ShuffleServiceAddress_;
 
-    ISignatureGeneratorPtr SignatureGenerator_;
+    TAtomicIntrusivePtr<ISignatureGenerator> SignatureGenerator_;
 
-    TAtomicIntrusivePtr<NSequoiaClient::ISequoiaClient> CachedSequoiaClient_;
+    NSequoiaClient::ISequoiaConnectionPtr SequoiaConnection_;
 
     std::atomic<bool> Terminated_ = false;
 
@@ -1414,12 +1387,12 @@ private:
 
     ISignatureGeneratorPtr GetSignatureGenerator() const override
     {
-        return SignatureGenerator_;
+        return SignatureGenerator_.Acquire();
     }
 
     void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
     {
-        SignatureGenerator_ = std::move(signatureGenerator);
+        SignatureGenerator_.Store(signatureGenerator);
     }
 };
 

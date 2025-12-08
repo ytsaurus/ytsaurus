@@ -707,12 +707,19 @@ public:
                         const auto& [clusterName, replicationStatus] = *replicationStatusEntry;
                         bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
                             replicationStatus.ActiveReplicatorIterationCount != 0;
+                        bool hasSyncReplicas = replicationStatus.SyncReplicasCount != 0 ||
+                            replicationStatus.SyncToAsyncReplicasCount != 0 ||
+                            replicationStatus.AsyncToSyncReplicasCount != 0;
 
                         fluent.Item(clusterName)
                             .BeginMap()
                                 .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
                                 .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
                                 .Item("has_replication_activity").Value(hasReplicationActivity)
+                                .Item("sync_replicas_count").Value(replicationStatus.SyncReplicasCount)
+                                .Item("sync_to_async_replicas_count").Value(replicationStatus.SyncToAsyncReplicasCount)
+                                .Item("async_to_sync_replicas_count").Value(replicationStatus.AsyncToSyncReplicasCount)
+                                .Item("has_sync_replicas").Value(hasSyncReplicas)
                             .EndMap();
                     })
             .EndMap();
@@ -960,6 +967,9 @@ private:
     {
         int PreparedReplicatorTransactionCount = 0;
         int ActiveReplicatorIterationCount = 0;
+        int SyncReplicasCount = 0;
+        int AsyncToSyncReplicasCount = 0;
+        int SyncToAsyncReplicasCount = 0;
     };
 
     TTabletContext TabletContext_;
@@ -5688,6 +5698,25 @@ private:
 
                 if (replicaInfo.GetPreparedReplicationTransactionId()) {
                     replicaReplicationStatus.PreparedReplicatorTransactionCount++;
+                }
+
+                if (auto state = replicaInfo.GetState(); state == ETableReplicaState::Enabled || state == ETableReplicaState::Enabling) {
+                    switch (replicaInfo.GetMode()) {
+                        case ETableReplicaMode::Sync: {
+                            replicaReplicationStatus.SyncReplicasCount++;
+                            break;
+                        }
+                        case ETableReplicaMode::AsyncToSync: {
+                            replicaReplicationStatus.AsyncToSyncReplicasCount++;
+                            break;
+                        }
+                        case ETableReplicaMode::SyncToAsync: {
+                            replicaReplicationStatus.SyncToAsyncReplicasCount++;
+                            break;
+                        }
+                        default:
+                            break;
+                    }
                 }
 
                 auto replicator = replicaInfo.GetReplicator();

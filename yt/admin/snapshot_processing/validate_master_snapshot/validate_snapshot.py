@@ -143,7 +143,7 @@ class MasterSnapshotsValidator():
             ],
             spec={
                 "title": self._get_operation_title(snapshot_path),
-                "pool": "cron_master_snapshots",
+                "pool": self._scheduler_pool,
                 "max_failed_job_count": self._max_failed_jobs,
                 "mapper": {
                     "copy_files": True,
@@ -324,6 +324,7 @@ def _parse_arguments():
     parser.add_argument("--memory-limit-gbs", type=float, default=3)  # Most small clusters use 3 GiB
     parser.add_argument("--job-time-limit", type=int, default=90 * 60)  # 90m
     parser.add_argument("--validation-timeout", type=int, default=75 * 60)  # 75m
+    parser.add_argument("--scheduler-pool", type=str, default=None)
     parser.add_argument("--max-failed-jobs", type=int, default=3)
     parser.add_argument("--transaction-timeout", type=int, default=600 * 1000)  # 10m
     parser.add_argument("--transaction-ping-period", type=int, default=30 * 1000)  # 30s
@@ -414,6 +415,7 @@ def _prepare_snapshots_validator(yt_client, args):
         memory_limit_gbs=args.memory_limit_gbs,
         job_time_limit=args.job_time_limit,
         validation_timeout=args.validation_timeout,
+        scheduler_pool=args.scheduler_pool,
         max_failed_jobs=args.max_failed_jobs,
         transaction_timeout=args.transaction_timeout,
         transaction_ping_period=args.transaction_ping_period,

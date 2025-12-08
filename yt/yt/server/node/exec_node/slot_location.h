@@ -136,6 +136,8 @@ public:
 
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const;
 
+    TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandBoxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;

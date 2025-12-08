@@ -175,8 +175,12 @@ void TRecovery::DoRun()
         auto snapshotLastMutationReign = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_mutation_reign)
             .value_or(InvalidReign);
         auto snapshotReadOnly = snapshotMeta.read_only();
+        // COMPAT(h0pless): HydraLogicalClock. Remove the default value.
         auto logicalTime = YT_OPTIONAL_FROM_PROTO(snapshotMeta, logical_time, TLogicalTime)
             .value_or(TLogicalTime(0));
+        // COMPAT(h0pless): HydraLogicalRecordId. Remove the default value.
+        auto lastLogicalRecordId = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_logical_record_id, int)
+            .value_or(snapshotRecordId);
 
         YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
         YT_VERIFY(snapshotSequenceNumber >= currentState.SequenceNumber);
@@ -195,12 +199,13 @@ void TRecovery::DoRun()
                 ResponseKeeper_->Stop();
             }
 
+            auto automatonVersion = TAutomatonVersion(snapshotSegmentId, snapshotRecordId, lastLogicalRecordId);
             auto future = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run(snapshotId,
                     snapshotLastMutationTerm,
                     snapshotLastMutationReign,
-                    {snapshotSegmentId, snapshotRecordId},
+                    automatonVersion,
                     snapshotSequenceNumber,
                     snapshotReadOnly,
                     snapshotRandomSeed,
@@ -408,8 +413,8 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
 
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    if (automatonVersion.SegmentId == changelog->GetId()) {
-        currentRecordId = automatonVersion.RecordId;
+    if (automatonVersion.GetSegmentId() == changelog->GetId()) {
+        currentRecordId = automatonVersion.GetPhysicalVersion().Advance().RecordId;
     }
 
     while (currentRecordId < changelogRecordCount && DecoratedAutomaton_->GetSequenceNumber() < targetSequenceNumber) {

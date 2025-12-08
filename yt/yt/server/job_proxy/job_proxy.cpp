@@ -456,44 +456,45 @@ void TJobProxy::RetrieveJobSpec()
 {
     YT_LOG_INFO("Requesting job spec");
 
-    auto req = SupervisorProxy_->GetJobSpec();
-    ToProto(req->mutable_job_id(), JobId_);
+    auto resourceUsage = [this] () {
+        auto req = SupervisorProxy_->GetJobSpec();
+        ToProto(req->mutable_job_id(), JobId_);
 
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        YT_LOG_ERROR(rspOrError, "Failed to get job spec");
-        Abort(EJobProxyExitCode::GetJobSpecFailed);
-    }
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            YT_LOG_ERROR(rspOrError, "Failed to get job spec");
+            Abort(EJobProxyExitCode::GetJobSpecFailed);
+        }
 
-    const auto& rsp = rspOrError.Value();
+        const auto& rsp = rspOrError.Value();
 
-    if (rsp->job_spec().version() != GetJobSpecVersion()) {
-        YT_LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
-            GetJobSpecVersion(),
-            rsp->job_spec().version());
-        Abort(EJobProxyExitCode::InvalidSpecVersion);
-    }
+        if (rsp->job_spec().version() != GetJobSpecVersion()) {
+            YT_LOG_WARNING("Invalid job spec version (Expected: %v, Actual: %v)",
+                GetJobSpecVersion(),
+                rsp->job_spec().version());
+            Abort(EJobProxyExitCode::InvalidSpecVersion);
+        }
 
-    auto jobSpec = rsp->job_spec();
-    ChunkIdToOriginalSpec_ = PatchProxiedChunkSpecs(&jobSpec);
-    JobSpecHelper_ = CreateJobSpecHelper(jobSpec);
+        ChunkIdToOriginalSpec_ = PatchProxiedChunkSpecs(rsp->mutable_job_spec());
+        JobSpecHelper_ = CreateJobSpecHelper(std::move(*rsp->mutable_job_spec()));
 
-    const auto& resourceUsage = rsp->resource_usage();
+        Ports_ = FromProto<std::vector<int>>(rsp->ports());
+        JobProxyRpcServerPort_ = YT_OPTIONAL_FROM_PROTO(*rsp, job_proxy_rpc_server_port);
 
-    Ports_ = FromProto<std::vector<int>>(rsp->ports());
-    JobProxyRpcServerPort_ = YT_OPTIONAL_FROM_PROTO(*rsp, job_proxy_rpc_server_port);
+        return std::move(*rsp->mutable_resource_usage());
+    }();
 
     auto authenticatedUser = GetJobSpecHelper()->GetJobSpecExt().authenticated_user();
     YT_LOG_INFO(
         "Job spec received (JobType: %v, AuthenticatedUser: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
-        EJobType(rsp->job_spec().type()),
+        GetJobSpecHelper()->GetJobType(),
         authenticatedUser,
         resourceUsage.cpu(),
         resourceUsage.memory(),
         resourceUsage.network());
 
     // Job spec is copied intentionally.
-    LogJobSpec(rsp->job_spec());
+    LogJobSpec(GetJobSpecHelper()->GetJobSpec());
 
     auto totalMemoryReserve = resourceUsage.memory();
     CpuGuarantee_ = resourceUsage.cpu();
@@ -779,6 +780,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
+        ApiServiceThreadPool_->GetInvoker(),
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
@@ -850,7 +852,8 @@ TJobResult TJobProxy::RunJob()
 
         auto jobApiService = CreateJobApiService(
             Config_->JobApiService,
-            GetControlInvoker());
+            GetControlInvoker(),
+            MakeWeak(this));
 
         YT_LOG_INFO(
             "Creating RPC and GRPC servers (RpcSocketPath: %v, GrpcSocketPath: %v)",
@@ -2055,6 +2058,11 @@ void TJobProxy::LogSystemStats() const
         TDuration(usageSelf.ru_stime),
         TDuration(usageChildren.ru_utime),
         TDuration(usageChildren.ru_stime));
+}
+
+void TJobProxy::OnProgressSaved(TInstant when)
+{
+    GetJobOrThrow()->OnProgressSaved(when);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

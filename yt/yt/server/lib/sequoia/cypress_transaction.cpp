@@ -911,7 +911,6 @@ protected:
     const TCellId CoordinatorCellId_;
     const IInvokerPtr Invoker_;
     const TLogger Logger;
-    const TAuthenticationIdentity AuthenticationIdentity_;
 
     // Initialized once per class lifetime.
     ISequoiaTransactionPtr SequoiaTransaction_;
@@ -922,13 +921,11 @@ protected:
         TStringBuf description,
         std::string title,
         IInvokerPtr invoker,
-        TLogger logger,
-        TAuthenticationIdentity authenticationIdentity)
+        TLogger logger)
         : SequoiaClient_(std::move(sequoiaClient))
         , CoordinatorCellId_(coordinatorCellId)
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
-        , AuthenticationIdentity_(std::move(authenticationIdentity))
         , Description_(description)
         , Title_(std::move(title))
     {
@@ -982,7 +979,6 @@ private:
                 TransactionType,
                 options,
                 {
-                    .AuthenticationIdentity = AuthenticationIdentity_,
                     .SequenceTabletCommitSessions = true,
                     .EnableVerboseLogging = true,
                 })
@@ -1059,7 +1055,6 @@ public:
         ISequoiaClientPtr sequoiaClient,
         TCellId coordinatorCellId,
         NCypressTransactionClient::NProto::TReqStartTransaction request,
-        NRpc::TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
         : TSequoiaMutation(
@@ -1068,8 +1063,7 @@ public:
             "start",
             "Sequoia transaction: start Cypress transaction",
             std::move(invoker),
-            std::move(logger),
-            std::move(authenticationIdentity))
+            std::move(logger))
         , ParentId_(FromProto<TTransactionId>(request.parent_id()))
         , ReplicateToCellTags_(BuildReplicateToCellTags(
             CellTagFromId(coordinatorCellId),
@@ -1078,7 +1072,7 @@ public:
             FromProto<std::vector<TTransactionId>>(request.prerequisite_transaction_ids())))
         , Request_(BuildStartCypressTransactionRequest(
             std::move(request),
-            AuthenticationIdentity_))
+            SequoiaClient_->GetAuthenticationIdentity()))
     { }
 
 protected:
@@ -1589,7 +1583,6 @@ public:
         ISequoiaClientPtr sequoiaClient,
         TCellId coordinatorCellId,
         TTransactionId transactionId,
-        TAuthenticationIdentity authenticationIdentity,
         const NTransactionServer::NProto::TTransactionFinishRequest& request,
         IInvokerPtr invoker,
         TLogger logger)
@@ -1599,8 +1592,7 @@ public:
             "doom",
             Format("Sequoia transaction: mark Cypress transaction %Qv as doomed", transactionId),
             std::move(invoker),
-            std::move(logger),
-            std::move(authenticationIdentity))
+            std::move(logger))
         , TransactionId_(transactionId)
         , FinishRequest_(request)
     { }
@@ -1741,7 +1733,6 @@ protected:
         TCellId cypressTransactionCoordinatorCellId,
         TStringBuf description,
         TTransactionId transactionId,
-        TAuthenticationIdentity authenticationIdentity,
         TMutationId mutationId,
         bool retry,
         IInvokerPtr invoker,
@@ -1753,8 +1744,7 @@ protected:
             description,
             std::move(title),
             std::move(invoker),
-            std::move(logger),
-            std::move(authenticationIdentity))
+            std::move(logger))
         , TransactionId_(transactionId)
         , MutationId_(mutationId)
         , Retry_(retry)
@@ -1968,7 +1958,6 @@ public:
         TCellId cypressTransactionCoordinatorCellId,
         TTransactionId transactionId,
         bool force,
-        NRpc::TAuthenticationIdentity authenticationIdentity,
         TMutationId mutationId,
         bool retry,
         IInvokerPtr invoker,
@@ -1978,7 +1967,6 @@ public:
             cypressTransactionCoordinatorCellId,
             "abort",
             transactionId,
-            std::move(authenticationIdentity),
             mutationId,
             retry,
             std::move(invoker),
@@ -2001,7 +1989,6 @@ public:
             cypressTransactionCoordinatorCellId,
             "abort expired",
             transactionId,
-            GetRootAuthenticationIdentity(),
             /*mutationId*/ NullMutationId,
             /*retry*/ false,
             std::move(invoker),
@@ -2051,8 +2038,7 @@ protected:
             MakeTransactionActionData(BuildAbortCypressTransactionRequest(
                 TransactionId_,
                 Force_,
-                AuthenticationIdentity_)));
-
+                SequoiaClient_->GetAuthenticationIdentity())));
         AbortTransactionOnParticipants(replicas);
     }
 
@@ -2073,7 +2059,6 @@ public:
         std::vector<TTransactionId> prerequisiteTransactionIds,
         TCellTag primaryCellTag,
         TTimestamp commitTimestamp,
-        NRpc::TAuthenticationIdentity authenticationIdentity,
         TMutationId mutationId,
         bool retry,
         IInvokerPtr invoker,
@@ -2083,7 +2068,6 @@ public:
             cypressTransactionCoordinatorCellId,
             "commit",
             transactionId,
-            std::move(authenticationIdentity),
             mutationId,
             retry,
             std::move(invoker),
@@ -2127,7 +2111,7 @@ protected:
                 TransactionId_,
                 CommitTimestamp_,
                 PrerequisiteTransactionIds_,
-                AuthenticationIdentity_)));
+                SequoiaClient_->GetAuthenticationIdentity())));
 
         CommitTransactionOnParticipants(replicas);
     }
@@ -2196,9 +2180,7 @@ protected:
                 transactionIds,
                 destinationCellTags),
             std::move(invoker),
-            std::move(logger),
-            // TODO(shakurov): consider issuing replication request from authenticated user.
-            GetRootAuthenticationIdentity())
+            std::move(logger))
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
     {
@@ -2290,7 +2272,6 @@ TFuture<TTransactionId> StartCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     NCypressTransactionClient::NProto::TReqStartTransaction* request,
-    TAuthenticationIdentity authenticationIdentity,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2298,7 +2279,6 @@ TFuture<TTransactionId> StartCypressTransaction(
         std::move(sequoiaClient),
         cypressTransactionCoordinatorCellId,
         std::move(*request),
-        std::move(authenticationIdentity),
         std::move(invoker),
         std::move(logger))
         ->Apply();
@@ -2308,7 +2288,6 @@ TFuture<void> DoomCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
-    TAuthenticationIdentity authenticationIdentity,
     const NTransactionServer::NProto::TTransactionFinishRequest& request,
     IInvokerPtr invoker,
     TLogger logger)
@@ -2317,7 +2296,6 @@ TFuture<void> DoomCypressTransaction(
         sequoiaClient,
         cypressTransactionCoordinatorCellId,
         transactionId,
-        std::move(authenticationIdentity),
         request,
         std::move(invoker),
         std::move(logger))
@@ -2329,7 +2307,6 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
     bool force,
-    TAuthenticationIdentity authenticationIdentity,
     TMutationId mutationId,
     bool retry,
     IInvokerPtr invoker,
@@ -2340,7 +2317,6 @@ TFuture<TSharedRefArray> AbortCypressTransaction(
         cypressTransactionCoordinatorCellId,
         transactionId,
         force,
-        std::move(authenticationIdentity),
         mutationId,
         retry,
         std::move(invoker),
@@ -2371,7 +2347,6 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
     std::vector<NTransactionClient::TTransactionId> prerequisiteTransactionIds,
     TCellTag primaryCellTag,
     TTimestamp commitTimestamp,
-    TAuthenticationIdentity authenticationIdentity,
     TMutationId mutationId,
     bool retry,
     IInvokerPtr invoker,
@@ -2384,7 +2359,6 @@ TFuture<TSharedRefArray> CommitCypressTransaction(
         std::move(prerequisiteTransactionIds),
         primaryCellTag,
         commitTimestamp,
-        std::move(authenticationIdentity),
         mutationId,
         retry,
         std::move(invoker),

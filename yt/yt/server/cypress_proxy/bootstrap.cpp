@@ -161,9 +161,9 @@ public:
         return NativeConnection_->IsSequoiaConfigured();
     }
 
-    ISequoiaClientPtr GetSequoiaClient() const override
+    const ISequoiaConnectionPtr& GetSequoiaConnection() const override
     {
-        return NativeConnection_->GetSequoiaClient();
+        return NativeConnection_->GetSequoiaConnection();
     }
 
     NApi::IClientPtr GetRootClient() const override

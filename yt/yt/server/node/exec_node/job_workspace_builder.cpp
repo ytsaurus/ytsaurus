@@ -241,7 +241,7 @@ void TJobWorkspaceBuilder::SetNowTime(std::optional<TInstant>& timeField)
     UpdateTimePoints_.Fire(TimePoints_);
 }
 
-TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
+TFuture<void> TJobWorkspaceBuilder::Run()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -253,19 +253,28 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) -> TJobWorkspaceBuildingResult {
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
             YT_LOG_INFO(result, "Job workspace building finished");
 
             ResultHolder_.LastBuildError = result;
-            return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 
-    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TJobWorkspaceBuildingResult>&) {
+    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
         // Drop reference to close race with check in TJob::Cleanup() on cancellation.
         Context_.Slot.Reset();
     }).Via(Invoker_));
 
     return future;
+}
+
+//! Extract and move the workspace building result.
+//! Can only be called once after Run() completes.
+TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
+{
+    if (std::exchange(ResultExtracted_, true)) {
+        YT_LOG_FATAL("Result has already been extracted");
+    }
+    return std::move(ResultHolder_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -573,14 +582,18 @@ private:
                         YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
                             MakeFormattableView(volumeResults,
                                 [] (auto* builder, const TTmpfsVolumeResult& result) {
-                                    builder->AppendFormat("{TmpfsPath: %v}", result.Path);
+                                    builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                        result.Path,
+                                        result.Volume->GetPath());
                             }));
 
                         ResultHolder_.TmpfsVolumes = std::move(volumeResults);
 
                         SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-                    }).AsyncVia(Invoker_));
-            }).AsyncVia(Invoker_));
+                    }).AsyncVia(Invoker_))
+                    .ToUncancelable();
+            }).AsyncVia(Invoker_))
+            .ToUncancelable();
     }
 
     TFuture<void> DoPrepareGpuCheckVolume() override

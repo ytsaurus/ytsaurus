@@ -1,4 +1,4 @@
-from yt_chaos_test_base import ChaosTestBase, MAX_KEY
+from yt_chaos_test_base import ChaosTestBase, MAX_KEY, map_in_parallel
 
 from yt_env_setup import (
     Restarter,
@@ -10,7 +10,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver, create_user, make_ace, check_permission,
     get, set, ls, create, exists, remove, copy, move, start_transaction, commit_transaction,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table, mount_table, wait_for_tablet_state,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
     create_replication_card, create_chaos_lease, alter_table_replica, abort_transaction,
@@ -39,17 +39,17 @@ from yt_driver_bindings import Driver
 import pytest
 import time
 from copy import deepcopy
-from itertools import zip_longest
+from itertools import zip_longest, product
 
 import builtins
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaos(ChaosTestBase):
     # TODO(nadya73): split this test suite.
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 40
-    NUM_SCHEDULERS = 1
     NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
     NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 1
 
@@ -302,7 +302,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
         ]
         self._create_chaos_tables(cell_id, replicas)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
+        _, _, remote_driver1 = self._get_drivers()
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
@@ -321,7 +321,7 @@ class TestChaos(ChaosTestBase):
         ]
         self._create_chaos_tables(cell_id, replicas)
         link("//tmp/t", "//tmp/l")
-        _, remote_driver0, remote_driver1 = self._get_drivers()
+        _, _, remote_driver1 = self._get_drivers()
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/l", values)
@@ -410,7 +410,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         def _pull_rows(progress_timestamp):
             return pull_rows(
@@ -683,7 +683,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         def _pull_rows(upper_timestamp=0, response_parameters=None):
             return pull_rows(
@@ -726,7 +726,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        self._create_chaos_tables(cell_id, replicas)
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
@@ -749,7 +749,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": mode, "enabled": False, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
         assert orchid["replication_card"]["replicas"][replica_ids[0]]["mode"] == mode
@@ -964,7 +964,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
         def _pull_rows(replica_index, versioned=False):
             rows = pull_rows(
@@ -1724,195 +1724,6 @@ class TestChaos(ChaosTestBase):
 
         values0[0]["new_value"] = None
         assert select_rows("* from [//tmp/crt]") == values0 + values1
-
-    @authors("ashishkin")
-    def test_chaos_table_remove_column(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
-        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
-
-        # create chaos tables federation
-        schema = yson.YsonList([
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"},
-            {"name": "value2", "type": "string"},
-        ])
-        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
-
-        def _validate_schema(schema, path, driver=None):
-            actual_schema = get(f"{path}/@schema", driver=driver)
-            assert actual_schema.attributes["unique_keys"]
-            for column, actual_column in zip_longest(schema, actual_schema):
-                for name, value in column.items():
-                    assert actual_column[name] == value
-        _validate_schema(schema, "//tmp/crt")
-
-        replicas = [
-            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
-        ]
-        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
-        self._create_replica_tables(replicas, replica_ids, schema=schema)
-
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-        _validate_schema(schema, "//tmp/t", driver=remote_driver0)
-        _validate_schema(schema, "//tmp/q", driver=remote_driver0)
-        _validate_schema(schema, "//tmp/t", driver=remote_driver1)
-        _validate_schema(schema, "//tmp/q", driver=remote_driver1)
-
-        card_id = get("//tmp/crt/@replication_card_id")
-        self._sync_replication_era(card_id, replicas)
-
-        def _filter_rows(rows, schema):
-            columns = builtins.set([c["name"] for c in schema])
-            for row in rows:
-                row_columns = list(row.keys())
-                for column in row_columns:
-                    if column not in columns:
-                        del row[column]
-            return rows
-
-        def _check_write(values_row, schema):
-            values = [values_row]
-            keys = [{"key": values_row["key"]}]
-            insert_rows("//tmp/crt", values, update=True)
-            wait(lambda: _filter_rows(lookup_rows("//tmp/crt", keys), schema) == values)
-
-        def _check_read_replica(values_row, replica_path, remote_driver, schema):
-            values = _filter_rows([values_row], schema)
-            keys = [{"key": values_row["key"]}]
-            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema) == values)
-
-        # check data written and can be read
-        values0 = {"key": 0, "value": "0", "value2": "10"}
-        _check_write(values0, schema)
-        _check_read_replica(values0, "//tmp/t", remote_driver1, schema)
-
-        new_schema = yson.YsonList([
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"},
-        ])
-        # alter chaos_replicated_table schema
-        alter_table("//tmp/crt", schema=new_schema)
-        _validate_schema(new_schema, "//tmp/crt")
-
-        new_replicas = [
-            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
-            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
-        ]
-        new_replica_ids = [None] * len(new_replicas)
-
-        # create queue replicas
-        for i, r in enumerate(new_replicas):
-            if r["content_type"] == "data":
-                continue
-            new_replica_ids[i] = self._create_chaos_table_replica(new_replicas[i], table_path="//tmp/crt")
-            self._create_replica_tables([new_replicas[i]], [new_replica_ids[i]], schema=new_schema)
-            _validate_schema(new_schema, "//tmp/q.new", get_driver(cluster=r["cluster_name"]))
-
-        def _remove_replica(replica_id, driver):
-            alter_table_replica(replica_id, enabled=False, driver=driver)
-            wait(lambda: get(f"#{replica_id}/@state", driver=driver) == "disabled")
-            remove(f"#{replica_id}", driver=driver)
-
-        def _remove_table(path, driver):
-            sync_unmount_table(path, driver=driver)
-            remove(path, driver=driver)
-
-        def _get_replica_indexes(cluster_name, replicas):
-            data_replica_index = -1
-            queue_replica_index = -1
-            for i, r in enumerate(replicas):
-                if r["cluster_name"] == cluster_name:
-                    if r["content_type"] == "data":
-                        data_replica_index = i
-                    elif r["content_type"] == "queue":
-                        queue_replica_index = i
-            assert data_replica_index != -1 and queue_replica_index != -1
-            return (data_replica_index, queue_replica_index)
-
-        def _migrate_replica_cluster(cluster_name):
-            data_replica_index, queue_replica_index = _get_replica_indexes(cluster_name, replicas)
-            new_replica = new_replicas[data_replica_index]
-            driver = get_driver(cluster=cluster_name)
-
-            create(
-                "table",
-                "//tmp/t.new",
-                schema=make_schema(new_schema, unique_keys=True),
-                driver=driver,
-            )
-
-            timestamp = generate_timestamp(driver=driver)
-            wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[data_replica_index]}/replication_lag_timestamp") > timestamp)
-            sync_unmount_table("//tmp/t", driver=driver)
-            merge(
-                in_="//tmp/t",
-                out=f"<output_timestamp={timestamp}>//tmp/t.new",
-                mode="ordered",
-                schema_inference_mode="from_output",
-                driver=driver
-            )
-            replication_progress = get("//tmp/t/@replication_progress", driver=driver)
-            new_replica_ids[data_replica_index] = self._create_chaos_table_replica(
-                new_replica,
-                table_path="//tmp/crt",
-                replication_progress=replication_progress
-            )
-
-            alter_table(
-                "//tmp/t.new",
-                dynamic=True,
-                upstream_replica_id=new_replica_ids[data_replica_index],
-                replication_progress=replication_progress,
-                driver=driver
-            )
-            sync_mount_table("//tmp/t.new", driver=driver)
-
-            # remove old replicas and tables
-            for i in (data_replica_index, queue_replica_index):
-                _remove_replica(replica_ids[i], driver)
-            for t in ("//tmp/t", "//tmp/q"):
-                _remove_table(t, driver)
-
-            # check old data is present in new data replica
-            _check_read_replica(values0, "//tmp/t.new", driver, new_schema)
-
-        _migrate_replica_cluster("remote_1")
-
-        # check read/write new data
-        values1 = {"key": 1, "value": "1"}
-        _check_write(values1, new_schema)
-        _check_read_replica(values1, "//tmp/t.new", remote_driver1, new_schema)
-
-        def _switch_cluster_mode(cluster_name, replicas, replica_ids, mode):
-            data_replica_index, queue_replica_index = _get_replica_indexes(cluster_name, replicas)
-            alter_table_replica(replica_ids[data_replica_index], mode=mode)
-            alter_table_replica(replica_ids[queue_replica_index], mode=mode)
-
-            if mode == "sync":
-                replica_id = replica_ids[data_replica_index]
-                path = replicas[data_replica_index]["replica_path"]
-                driver = get_driver(cluster=cluster_name)
-
-                wait(lambda: replica_id in frozenset(get_in_sync_replicas(path, data=None, timestamp=MaxTimestamp, driver=driver)))
-
-        _switch_cluster_mode("remote_1", new_replicas, new_replica_ids, "sync")
-        _switch_cluster_mode("remote_0", replicas, replica_ids, "async")
-        self._sync_replication_era(card_id)
-        _migrate_replica_cluster("remote_0")
-
-        # check previously written
-        _check_read_replica(values1, "//tmp/t.new", remote_driver0, new_schema)
-
-        # check read/write new data
-        values2 = {"key": 2, "value": "2"}
-        _check_write(values2, new_schema)
-        _check_read_replica(values2, "//tmp/t.new", remote_driver0, new_schema)
-        _check_read_replica(values2, "//tmp/t.new", remote_driver1, new_schema)
 
     @authors("savrus")
     def test_invalid_chaos_table_data_access(self):
@@ -2875,39 +2686,6 @@ class TestChaos(ChaosTestBase):
         resume_coordinator(coordinator_cell_id)
         wait(lambda: not self._get_chaos_cell_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
-
-    @authors("savrus")
-    def test_nodes_restart(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
-        ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-
-        values0 = [{"key": 0, "value": "0"}]
-        insert_rows("//tmp/t", values0)
-        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0)
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-        with Restarter(self.Env, CHAOS_NODES_SERVICE):
-            pass
-
-        wait_for_chaos_cell(cell_id, self.get_cluster_names())
-        for driver in self._get_drivers():
-            cell_ids = get("//sys/tablet_cell_bundles/default/@tablet_cell_ids", driver=driver)
-            wait_for_cells(cell_ids, driver=driver)
-
-        assert lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0
-        self._sync_replication_era(card_id, replicas)
-
-        values1 = [{"key": 1, "value": "1"}]
-        insert_rows("//tmp/t", values1)
-        wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=remote_driver1) == values1)
 
     @authors("savrus")
     def test_replication_progress_attribute(self):
@@ -4891,7 +4669,7 @@ class TestChaos(ChaosTestBase):
             {"name": "value", "type": "int64"},
         ])
 
-        for mode in ("sync", "async"):
+        def make_tables(mode):
             path = "//tmp/chaos_" + mode
             create(
                 "chaos_replicated_table",
@@ -4928,40 +4706,49 @@ class TestChaos(ChaosTestBase):
                 f"{path}_replica",
                 attributes={"dynamic": True, "schema": schema, "upstream_replica_id": replica_id},
                 driver=remote_driver)
-            sync_enable_table_replica(replica_id)
-            sync_mount_table(path)
-            sync_mount_table(f"{path}_replica", driver=remote_driver)
 
-        for kind in ("chaos", "regular"):
-            for mode in ("sync", "async"):
-                path = f"//tmp/{kind}_{mode}"
-                insert_rows(path, [{"key": 0, "value": 1}, {"key": 1, "value": 10}], require_sync_replica=False)
+            alter_table_replica(replica_id, enabled=True)
+            mount_table(path)
+            mount_table(f"{path}_replica", driver=remote_driver)
+
+            wait(lambda: get(f"#{replica_id}/@state") == "enabled")
+            wait_for_tablet_state(path, "mounted")
+            wait_for_tablet_state(f"{path}_replica", "mounted", driver=remote_driver)
+
+        map_in_parallel(make_tables, ("sync", "async"))
+
+        def insert_data(packed_args):
+            kind, mode = packed_args
+            path = f"//tmp/{kind}_{mode}"
+            insert_rows(path, [{"key": 0, "value": 1}, {"key": 1, "value": 10}], require_sync_replica=False)
+
+        map_in_parallel(insert_data, product(("chaos", "regular"), ("sync", "async")))
 
         hint = "with hint \"{require_sync_replica=%false;}\""
 
-        for left_mode in ("sync", "async"):
-            for right_mode in ("sync", "async"):
-                for left_kind in ("chaos", "regular"):
-                    for right_kind in ("chaos", "regular"):
-                        left_path = f"//tmp/{left_kind}_{left_mode}"
-                        right_path = f"//tmp/{right_kind}_{right_mode}"
-                        left_hint = hint if left_mode == "async" else ""
-                        right_hint = hint if right_mode == "async" else ""
+        def select_and_check(packed_args):
+            left_mode, right_mode, left_kind, right_kind = packed_args
+            left_path = f"//tmp/{left_kind}_{left_mode}"
+            right_path = f"//tmp/{right_kind}_{right_mode}"
+            left_hint = hint if left_mode == "async" else ""
+            right_hint = hint if right_mode == "async" else ""
 
-                        result = select_rows(f"""
-                            T.value + D.value as s from [{left_path}] AS T {left_hint}
-                            join [{right_path}] AS D {right_hint}
-                            on T.key + 1 = D.key""")
+            result = select_rows(f"""
+                T.value + D.value as s from [{left_path}] AS T {left_hint}
+                join [{right_path}] AS D {right_hint}
+                on T.key + 1 = D.key""")
 
-                        assert len(result) in (0, 1)
-                        if result:
-                            assert result[0]["s"] == 11
+            assert len(result) in (0, 1)
+            if result:
+                assert result[0]["s"] == 11
 
-                        select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
+            select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
 
-                        if left_mode == "async" or right_mode == "async":
-                            with raises_yt_error(yt_error_codes.NoInSyncReplicas):
-                                select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
+            if left_mode == "async" or right_mode == "async":
+                with raises_yt_error(yt_error_codes.NoInSyncReplicas):
+                    select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
+
+        map_in_parallel(select_and_check, product(("sync", "async"), ("sync", "async"), ("chaos", "regular"), ("chaos", "regular")))
 
     @authors("sabdenovch")
     def test_chaos_async_preference(self):
@@ -5188,24 +4975,282 @@ class TestChaos(ChaosTestBase):
 ##################################################################
 
 
-class TestChaosRpcProxy(TestChaos):
-    ENABLE_MULTIDAEMON = False  # There are components restarts.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    DELTA_RPC_DRIVER_CONFIG = {
-        "table_mount_cache": {
-            "expire_after_successful_update_time": 0,
-            "expire_after_failed_update_time": 0,
-            "expire_after_access_time": 0,
-            "refresh_time": 0,
-            "expiration_period": 0,
+class TestChaosSpecial(ChaosTestBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_SCHEDULERS = 1
+    NUM_REMOTE_CLUSTERS = 2
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_1 = 1
+
+    DELTA_DRIVER_CONFIG = {
+        "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
         },
     }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "enable_read_from_async_replicas": True,
+            "chaos_residency_cache": {
+                "enable_client_mode" : True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+        "chaos_node": {
+            "replication_card_automaton_cache_expiration_time": 100
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_1 = {
+        "31": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
+    @authors("ashishkin")
+    def test_chaos_table_remove_column(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        # create chaos tables federation
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+            {"name": "value2", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        def _validate_schema(schema, path, driver=None):
+            actual_schema = get(f"{path}/@schema", driver=driver)
+            assert actual_schema.attributes["unique_keys"]
+            for column, actual_column in zip_longest(schema, actual_schema):
+                for name, value in column.items():
+                    assert actual_column[name] == value
+        _validate_schema(schema, "//tmp/crt")
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, schema=schema)
+
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+        _validate_schema(schema, "//tmp/t", driver=remote_driver0)
+        _validate_schema(schema, "//tmp/q", driver=remote_driver0)
+        _validate_schema(schema, "//tmp/t", driver=remote_driver1)
+        _validate_schema(schema, "//tmp/q", driver=remote_driver1)
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        def _filter_rows(rows, schema):
+            columns = builtins.set([c["name"] for c in schema])
+            for row in rows:
+                row_columns = list(row.keys())
+                for column in row_columns:
+                    if column not in columns:
+                        del row[column]
+            return rows
+
+        def _check_write(values_row, schema):
+            values = [values_row]
+            keys = [{"key": values_row["key"]}]
+            insert_rows("//tmp/crt", values, update=True)
+            wait(lambda: _filter_rows(lookup_rows("//tmp/crt", keys), schema) == values)
+
+        def _check_read_replica(values_row, replica_path, remote_driver, schema):
+            values = _filter_rows([values_row], schema)
+            keys = [{"key": values_row["key"]}]
+            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema) == values)
+
+        # check data written and can be read
+        values0 = {"key": 0, "value": "0", "value2": "10"}
+        _check_write(values0, schema)
+        _check_read_replica(values0, "//tmp/t", remote_driver1, schema)
+
+        new_schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        # alter chaos_replicated_table schema
+        alter_table("//tmp/crt", schema=new_schema)
+        _validate_schema(new_schema, "//tmp/crt")
+
+        new_replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
+        ]
+        new_replica_ids = [None] * len(new_replicas)
+
+        # create queue replicas
+        for i, r in enumerate(new_replicas):
+            if r["content_type"] == "data":
+                continue
+            new_replica_ids[i] = self._create_chaos_table_replica(new_replicas[i], table_path="//tmp/crt")
+            self._create_replica_tables([new_replicas[i]], [new_replica_ids[i]], schema=new_schema)
+            _validate_schema(new_schema, "//tmp/q.new", get_driver(cluster=r["cluster_name"]))
+
+        def _remove_replica(replica_id, driver):
+            alter_table_replica(replica_id, enabled=False, driver=driver)
+            wait(lambda: get(f"#{replica_id}/@state", driver=driver) == "disabled")
+            remove(f"#{replica_id}", driver=driver)
+
+        def _remove_table(path, driver):
+            sync_unmount_table(path, driver=driver)
+            remove(path, driver=driver)
+
+        def _get_replica_indexes(cluster_name, replicas):
+            data_replica_index = -1
+            queue_replica_index = -1
+            for i, r in enumerate(replicas):
+                if r["cluster_name"] == cluster_name:
+                    if r["content_type"] == "data":
+                        data_replica_index = i
+                    elif r["content_type"] == "queue":
+                        queue_replica_index = i
+            assert data_replica_index != -1 and queue_replica_index != -1
+            return (data_replica_index, queue_replica_index)
+
+        def _migrate_replica_cluster(cluster_name):
+            data_replica_index, queue_replica_index = _get_replica_indexes(cluster_name, replicas)
+            new_replica = new_replicas[data_replica_index]
+            driver = get_driver(cluster=cluster_name)
+
+            create(
+                "table",
+                "//tmp/t.new",
+                schema=make_schema(new_schema, unique_keys=True),
+                driver=driver,
+            )
+
+            timestamp = generate_timestamp(driver=driver)
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[data_replica_index]}/replication_lag_timestamp") > timestamp)
+            sync_unmount_table("//tmp/t", driver=driver)
+            merge(
+                in_="//tmp/t",
+                out=f"<output_timestamp={timestamp}>//tmp/t.new",
+                mode="ordered",
+                schema_inference_mode="from_output",
+                driver=driver
+            )
+            replication_progress = get("//tmp/t/@replication_progress", driver=driver)
+            new_replica_ids[data_replica_index] = self._create_chaos_table_replica(
+                new_replica,
+                table_path="//tmp/crt",
+                replication_progress=replication_progress
+            )
+
+            alter_table(
+                "//tmp/t.new",
+                dynamic=True,
+                upstream_replica_id=new_replica_ids[data_replica_index],
+                replication_progress=replication_progress,
+                driver=driver
+            )
+            sync_mount_table("//tmp/t.new", driver=driver)
+
+            # remove old replicas and tables
+            for i in (data_replica_index, queue_replica_index):
+                _remove_replica(replica_ids[i], driver)
+            for t in ("//tmp/t", "//tmp/q"):
+                _remove_table(t, driver)
+
+            # check old data is present in new data replica
+            _check_read_replica(values0, "//tmp/t.new", driver, new_schema)
+
+        _migrate_replica_cluster("remote_1")
+
+        # check read/write new data
+        values1 = {"key": 1, "value": "1"}
+        _check_write(values1, new_schema)
+        _check_read_replica(values1, "//tmp/t.new", remote_driver1, new_schema)
+
+        def _switch_cluster_mode(cluster_name, replicas, replica_ids, mode):
+            data_replica_index, queue_replica_index = _get_replica_indexes(cluster_name, replicas)
+            alter_table_replica(replica_ids[data_replica_index], mode=mode)
+            alter_table_replica(replica_ids[queue_replica_index], mode=mode)
+
+            if mode == "sync":
+                replica_id = replica_ids[data_replica_index]
+                path = replicas[data_replica_index]["replica_path"]
+                driver = get_driver(cluster=cluster_name)
+
+                wait(lambda: replica_id in frozenset(get_in_sync_replicas(path, data=None, timestamp=MaxTimestamp, driver=driver)))
+
+        _switch_cluster_mode("remote_1", new_replicas, new_replica_ids, "sync")
+        _switch_cluster_mode("remote_0", replicas, replica_ids, "async")
+        self._sync_replication_era(card_id)
+        _migrate_replica_cluster("remote_0")
+
+        # check previously written
+        _check_read_replica(values1, "//tmp/t.new", remote_driver0, new_schema)
+
+        # check read/write new data
+        values2 = {"key": 2, "value": "2"}
+        _check_write(values2, new_schema)
+        _check_read_replica(values2, "//tmp/t.new", remote_driver0, new_schema)
+        _check_read_replica(values2, "//tmp/t.new", remote_driver1, new_schema)
+
+    @authors("savrus")
+    def test_nodes_restart(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        card_id, _ = self._create_chaos_tables(cell_id, replicas)
+        _, _, remote_driver1 = self._get_drivers()
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        with Restarter(self.Env, CHAOS_NODES_SERVICE):
+            pass
+
+        wait_for_chaos_cell(cell_id, self.get_cluster_names())
+        for driver in self._get_drivers():
+            cell_ids = get("//sys/tablet_cell_bundles/default/@tablet_cell_ids", driver=driver)
+            wait_for_cells(cell_ids, driver=driver)
+
+        assert lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0
+        self._sync_replication_era(card_id, replicas)
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=remote_driver1) == values1)
 
     @authors("savrus")
     def test_insert_first(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
-        _, remote_driver0, remote_driver1 = self._get_drivers()
+        _, _, remote_driver1 = self._get_drivers()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
@@ -5232,10 +5277,49 @@ class TestChaosRpcProxy(TestChaos):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
+
+##################################################################
+
+
+class TestChaosSpecialMulticell(TestChaosSpecial):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+
+##################################################################
+
+
+class TestChaosSpecialRpcProxy(TestChaosSpecial):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestChaosRpcProxy(TestChaos):
+    ENABLE_MULTIDAEMON = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    DELTA_RPC_DRIVER_CONFIG = {
+        "table_mount_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0,
+            "expiration_period": 0,
+        },
+    }
+
     @authors("savrus")
     def test_in_sync_async_replicas(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
-        primary_driver, remote_driver0, _ = self._get_drivers()
+        _, remote_driver0, _ = self._get_drivers()
 
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -5505,9 +5589,10 @@ class TestChaosNativeProxy(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
-    NUM_SCHEDULERS = 1
 
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -5732,7 +5817,9 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMulticell(TestChaos):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {
@@ -5744,7 +5831,9 @@ class TestChaosMulticell(TestChaos):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaCluster(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
     NUM_CHAOS_NODES = 2
 
@@ -6252,6 +6341,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
     @authors("osidorkin")
     def test_forsake_revoking_coordinator(self):
@@ -6419,6 +6509,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosMetaClusterRpcProxy(TestChaosMetaCluster):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -6506,7 +6597,10 @@ class ChaosClockBase(ChaosTestBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosClock(ChaosClockBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("savrus")
     def test_invalid_clock(self):
         drivers = self._get_drivers()
@@ -6609,7 +6703,10 @@ class TestChaosClock(ChaosClockBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosClockRpcProxy(ChaosClockBase):
+    ENABLE_MULTIDAEMON = True
+
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -6734,7 +6831,10 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosSingleCluster(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
+
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
 

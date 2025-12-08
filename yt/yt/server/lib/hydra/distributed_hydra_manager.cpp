@@ -292,7 +292,7 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
-    TVersion GetAutomatonVersion() const override
+    TAutomatonVersion GetAutomatonVersion() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -476,8 +476,6 @@ public:
                             .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode);
                             // TODO(aleksandra-zh): add stuff.
                     })
-                    .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
-
                     .Item("state").Value(DecoratedAutomaton_->GetState())
 
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))

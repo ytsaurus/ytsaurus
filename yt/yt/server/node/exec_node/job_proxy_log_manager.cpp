@@ -186,7 +186,7 @@ private:
         auto guard = TAsyncSemaphoreGuard();
         if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {
             YT_LOG_INFO("Waiting semaphore to traverse job directory");
-            guard = WaitForUnique(AsyncSemaphore_->AsyncAcquire()).ValueOrThrow();
+            guard = WaitFor(AsyncSemaphore_->AsyncAcquire().AsUnique()).ValueOrThrow();
         }
 
         auto logsStoragePeriod = DynamicConfig_.Acquire()->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);

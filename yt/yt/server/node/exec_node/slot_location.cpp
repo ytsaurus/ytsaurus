@@ -116,9 +116,106 @@ void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& c
 TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const
 {
     return BIND([rootVolume, userId] {
-        NYT::NExecNode::CreateSlotDirectories(rootVolume, userId);
+        YT_VERIFY(rootVolume);
+        const auto& rootVolumeMountPath = rootVolume->GetPath();
+        YT_VERIFY(NFS::Exists(rootVolumeMountPath));
+
+        struct TDirectory {
+            TString Path;
+            bool RemoveIfExists;
+        };
+
+        static constexpr int DirectoryPermissions = 0777;
+
+        // NB: Paths are relative and ordered in the creation sequence.
+        // Must create directory before its subdirectory.
+        static const TDirectory Directories[] = {
+            {
+                .Path = "slot",
+                .RemoveIfExists = false
+            },
+            {
+                .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)),
+                .RemoveIfExists = false
+            },
+            {
+                .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::Tmp)),
+                .RemoveIfExists = true
+            },
+        };
+
+        const auto& Logger = ExecNodeLogger();
+        YT_LOG_DEBUG("Creating slot directories in root volume (RootPath: %v)",
+            rootVolumeMountPath);
+
+        int nodeUid = getuid();
+
+        auto createRootDirectoryConfig = [&]() {
+            auto rootConfig = New<NTools::TRootDirectoryConfig>();
+            rootConfig->SlotPath = rootVolumeMountPath;
+            rootConfig->UserId = nodeUid;
+            rootConfig->Permissions = DirectoryPermissions;
+
+            for (const auto& [relativePath, removeIfExists] : Directories) {
+                auto path = NFS::CombinePaths(rootVolumeMountPath, relativePath);
+
+                auto directory = New<NTools::TDirectoryConfig>();
+                directory->Path = path;
+                directory->UserId = userId;
+                directory->Permissions = DirectoryPermissions;
+                directory->RemoveIfExists = removeIfExists;
+                rootConfig->Directories.push_back(std::move(directory));
+            }
+
+            return rootConfig;
+        };
+
+        auto directoryBuilderConfig = New<NTools::TDirectoryBuilderConfig>();
+        directoryBuilderConfig->NodeUid = nodeUid;
+        directoryBuilderConfig->NeedRoot = true;
+        directoryBuilderConfig->RootDirectoryConfigs.push_back(createRootDirectoryConfig());
+
+        RunTool<NTools::TRootDirectoryBuilderTool>(directoryBuilderConfig);
+
+        YT_LOG_DEBUG("Created slot directories in root volume (RootPath: %v)",
+            rootVolumeMountPath);
     })
     .AsyncVia(ToolInvoker_)
+    .Run();
+}
+
+TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandBoxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
+{
+    return BIND([userSandBoxPath, volumeParams] () {
+        // It is assumed that userSandBoxPath already exists.
+        for (const auto& volume : volumeParams) {
+            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
+            auto tmpfsUserSandboxPath = NFS::GetRealPath(NFS::CombinePaths(userSandBoxPath, volume.Path));
+
+            const auto& Logger = ExecNodeLogger();
+            YT_LOG_DEBUG("Creating tmpfs directory (TmpfsPath: %v, UserSandBoxPath: %v, TmpfsUserSandBoxPath: %v)",
+                volume.Path,
+                userSandBoxPath,
+                tmpfsUserSandboxPath);
+
+            try {
+                if (tmpfsUserSandboxPath != userSandBoxPath) {
+                    // If we mount directory inside sandbox, it should not exist.
+                    if (NFS::Exists(tmpfsUserSandboxPath)) {
+                        THROW_ERROR_EXCEPTION("Tmpfs path %v already exists",
+                            tmpfsUserSandboxPath);
+                    }
+                }
+                NFS::MakeDirRecursive(tmpfsUserSandboxPath);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
+                    tmpfsUserSandboxPath,
+                    userSandBoxPath)
+                    << ex;
+            }
+        }
+    })
+    .AsyncVia(HeavyInvoker_)
     .Run();
 }
 

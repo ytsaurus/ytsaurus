@@ -79,10 +79,10 @@ TFlushFileRangeResponse DoFlushFileRange(
     bool enableSync,
     const TIOEngineSensorsPtr& sensors);
 
-TSharedMutableRef UnwrapAlignedBuffer(const TReadRequest& request, TSharedMutableRef& buffer)
+TSharedMutableRef UnwrapAlignedBuffer(const TReadRequest& request, TSharedMutableRef& buffer, int blockSize)
 {
     if (request.Handle->IsOpenForDirectIO()) {
-        auto outputBufferBegin = request.Offset % DefaultBlockSize;
+        auto outputBufferBegin = request.Offset % blockSize;
         auto outputBuffer = buffer.Slice(
             outputBufferBegin,
             outputBufferBegin + request.Size);
@@ -92,30 +92,36 @@ TSharedMutableRef UnwrapAlignedBuffer(const TReadRequest& request, TSharedMutabl
     }
 }
 
-std::vector<TSharedMutableRef> AllocateReadBuffers(
-    const std::vector<TReadRequest>& requests,
-    TRefCountedTypeCookie tagCookie,
-    bool useDedicatedAllocations)
+bool ShouldBeAligned(const std::vector<TReadRequest>& requests)
 {
-    bool shouldBeAligned = std::any_of(
+    return std::any_of(
         requests.begin(),
         requests.end(),
         [] (const TReadRequest& request) {
             return request.Handle->IsOpenForDirectIO();
         });
+}
+
+std::vector<TSharedMutableRef> AllocateReadBuffers(
+    const std::vector<TReadRequest>& requests,
+    TRefCountedTypeCookie tagCookie,
+    bool useDedicatedAllocations,
+    int blockSize)
+{
+    bool shouldBeAligned = ShouldBeAligned(requests);
 
     auto allocate = [&] (size_t size) {
         TSharedMutableRefAllocateOptions options{
             .InitializeStorage = false
         };
         return shouldBeAligned
-            ? TSharedMutableRef::AllocatePageAligned(size, options, tagCookie)
+            ? TSharedMutableRef::AllocateAligned(size, blockSize, options, tagCookie)
             : TSharedMutableRef::Allocate(size, options, tagCookie);
     };
 
     auto getAlignedRequestSize = [&] (auto& request) {
         return shouldBeAligned
-            ? AlignUp<i64>(request.Offset + request.Size, DefaultBlockSize) - AlignDown<i64>(request.Offset, DefaultBlockSize)
+            ? AlignUp<i64>(request.Offset + request.Size, blockSize) - AlignDown<i64>(request.Offset, blockSize)
             : request.Size;
     };
 
@@ -190,6 +196,7 @@ std::vector<TSharedMutableRef> AllocateReadBuffers(
 TInternalReadResponse DoRead(
     const TReadRequest& request,
     TSharedMutableRef buffer,
+    int directIoBlockSize,
     std::optional<i64> simulatedMaxBytesPerRead,
     i64 maxBytesPerRead,
     EWorkloadCategory category,
@@ -204,7 +211,7 @@ TInternalReadResponse DoRead(
     sensors->UpdateKernelStatistics();
 
     bool useDirectIO = request.Handle->IsOpenForDirectIO();
-    i64 blockSize = useDirectIO ? DefaultBlockSize : 1;
+    i64 blockSize = useDirectIO ? directIoBlockSize : 1;
     i64 toReadRemaining = std::ssize(buffer);
     i64 fileOffset = AlignDown<i64>(request.Offset, blockSize);
     i64 bufferOffset = 0;
@@ -271,7 +278,8 @@ TInternalReadResponse DoRead(
                     << TErrorAttribute("really_read", reallyRead)
                     << TErrorAttribute("file_offset", fileOffset)
                     << TErrorAttribute("file_size", request.Handle->GetLength())
-                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
+                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
+                    << TError::FromSystem();
             } else if (useDirectIO && fileOffset + reallyRead == request.Handle->GetLength()) {
                 toReadRemaining = 0;
                 break;
@@ -307,7 +315,8 @@ TInternalReadResponse DoRead(
             << TErrorAttribute("request_offset", request.Offset)
             << TErrorAttribute("file_offset", fileOffset)
             << TErrorAttribute("file_size", request.Handle->GetLength())
-            << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
+            << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
+            << TError::FromSystem();
     }
 
     return response;
@@ -610,6 +619,8 @@ struct TThreadPoolIOEngineConfig
     int WriteThreadCount;
     int FairShareThreadCount;
 
+    int DirectIOBlockSize;
+
     bool EnablePwritev;
     bool FlushAfterWrite;
     bool AsyncFlushAfterWrite;
@@ -639,6 +650,10 @@ struct TThreadPoolIOEngineConfig
         registrar.Parameter("fair_share_thread_count", &TThis::FairShareThreadCount)
             .GreaterThanOrEqual(1)
             .Default(4);
+
+        registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
+            .GreaterThan(0)
+            .Default(4_KB);
 
         registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
             .GreaterThanOrEqual(0)
@@ -834,18 +849,26 @@ public:
 
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
 
-        i64 paddedBytes = 0;
-        for (const auto& request : requests) {
-            paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
-        }
-        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations);
         auto config = Config_.Acquire();
+
+        i64 paddedBytes = 0;
+        bool shouldBeAligned = ShouldBeAligned(requests);
+
+        for (const auto& request : requests) {
+            if (shouldBeAligned) {
+                paddedBytes += GetPaddedSize(request.Offset, request.Size, config->DirectIOBlockSize);
+            } else {
+                paddedBytes += GetPaddedSize(request.Offset, request.Size, GetPageSize());
+            }
+        }
+
+        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations, config->DirectIOBlockSize);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             auto requestBuffer = buffers[index];
-            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index]);
+            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
 
-            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer)) {
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
                 auto future = BIND([=, this, this_ = MakeStrong(this), category = category, sessionId = sessionId] (
                     const TReadRequest& request,
                     TSharedMutableRef buffer,
@@ -864,6 +887,7 @@ public:
                     return DoRead(
                         std::move(request),
                         std::move(buffer),
+                        config->DirectIOBlockSize,
                         config->SimulatedMaxBytesPerRead,
                         config->MaxBytesPerRead,
                         category,
@@ -915,7 +939,7 @@ public:
         }
 
         std::vector<TFuture<TWriteResponse>> futures;
-        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
             auto future = BIND([=, this, this_ = MakeStrong(this)] (
                 const TWriteRequest &request,
                 TWallTimer timer,
@@ -969,7 +993,8 @@ public:
         TIOSessionId sessionId) override
     {
         std::vector<TFuture<TFlushFileRangeResponse>> futures;
-        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
+        auto config = Config_.Acquire();
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
             futures.push_back(
                 BIND(&DoFlushFileRange, std::move(slice), StaticConfig_->EnableSync, Sensors_)
                     .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
@@ -986,6 +1011,11 @@ public:
 
                 return response;
             }));
+    }
+
+    i64 GetBlockSize() const override
+    {
+        return Config_.Acquire()->DirectIOBlockSize;
     }
 
 private:
@@ -1059,20 +1089,27 @@ public:
         std::vector<TFuture<TInternalReadResponse>> futures;
         futures.reserve(requests.size());
 
+        auto config = Config_.Acquire();
+
         i64 paddedBytes = 0;
+        bool shouldBeAligned = ShouldBeAligned(requests);
+
         for (const auto& request : requests) {
-            paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
+            if (shouldBeAligned) {
+                paddedBytes += GetPaddedSize(request.Offset, request.Size, config->DirectIOBlockSize);
+            } else {
+                paddedBytes += GetPaddedSize(request.Offset, request.Size, GetPageSize());
+            }
         }
 
-        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations);
-        auto config = Config_.Acquire();
+        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations, config->DirectIOBlockSize);
         auto guard = Guard(Lock_);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             auto requestBuffer = buffers[index];
-            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index]);
+            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index], config->DirectIOBlockSize);
 
-            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer)) {
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer, config->DirectIOBlockSize)) {
                 auto slotId = requests[index].FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
@@ -1102,6 +1139,7 @@ public:
                     return DoRead(
                         std::move(request),
                         std::move(buffer),
+                        config->DirectIOBlockSize,
                         config->SimulatedMaxBytesPerRead,
                         config->MaxBytesPerRead,
                         category,
@@ -1163,7 +1201,7 @@ public:
         auto guard = Guard(Lock_);
         std::vector<TFuture<TWriteResponse>> futures;
         auto slotId = request.FairShareSlotId;
-        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TWriteResponse>(
                 slotId,
@@ -1260,9 +1298,10 @@ public:
         std::vector<TFuture<TFlushFileRangeResponse>> futures;
         auto slotId = request.FairShareSlotId;
 
+        auto config = Config_.Acquire();
         auto guard = Guard(Lock_);
 
-        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
                 slotId,
@@ -1380,6 +1419,11 @@ public:
                     YT_LOG_FATAL("Unknown request type (RequestType: %v)", requestType);
             }
         }
+    }
+
+    i64 GetBlockSize() const override
+    {
+        return Config_.Acquire()->DirectIOBlockSize;
     }
 
 private:

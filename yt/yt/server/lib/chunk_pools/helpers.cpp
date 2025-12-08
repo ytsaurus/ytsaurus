@@ -114,6 +114,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
         for (const auto& stripe : stripeList->Stripes()) {
             if (!hasPartitionTags) {
+                // This path is currently used only for tests.
                 result->AddStripe(stripe);
                 continue;
             }
@@ -140,7 +141,13 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
             }
         }
 
-        if (chunkIdsInStripeList.empty() || !hasPartitionTags) {
+        if (chunkIdsInStripeList.empty()) {
+            continue;
+        }
+
+        result->SetApproximate(result->IsApproximate() || stripeList->IsApproximate());
+
+        if (!hasPartitionTags) {
             continue;
         }
 
@@ -155,8 +162,6 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
     if (!partitionTags.empty()) {
         result->SetFilteringPartitionTags(TPartitionTags(partitionTags.begin(), partitionTags.end()), dataWeight, rowCount);
     }
-
-    // Approximate is dropped; doesn't appear to be necessary.
 
     return result;
 }

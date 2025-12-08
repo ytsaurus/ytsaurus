@@ -627,31 +627,6 @@ void AppendChunkTreeChild(
     chunkList->Children().push_back(child);
 }
 
-void AccumulateAncestorsStatistics(
-    TChunkTree* child,
-    const TChunkTreeStatistics& statisticsDelta)
-{
-    for (const auto& [parent, _] : child->AsChunk()->Parents()) {
-        auto mutableStatisticsDelta = statisticsDelta;
-
-        VisitUniqueAncestors(
-            parent->AsChunkList(),
-            [&] (TChunkList* parent, TChunkTree* child) {
-                ++mutableStatisticsDelta.Rank;
-                parent->Statistics().Accumulate(mutableStatisticsDelta);
-
-                if (parent->HasCumulativeStatistics()) {
-                    auto& cumulativeStatistics = parent->CumulativeStatistics();
-                    TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
-
-                    int index = GetChildIndex(parent, child);
-                    cumulativeStatistics.Update(index, entry);
-                }
-            },
-            child);
-    }
-}
-
 void AccumulateUniqueAncestorsStatistics(
     TChunkTree* child,
     const TChunkTreeStatistics& statisticsDelta)

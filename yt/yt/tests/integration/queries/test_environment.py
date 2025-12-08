@@ -638,3 +638,22 @@ class TestMigration(YTEnvSetup):
             assert len(rows_after_migration) == 1
             assert "is_tutorial" in rows_after_migration[0]
             assert str(rows_after_migration[0]["is_tutorial"]) == "false"
+
+    @authors("mpereskokova")
+    def test_ttl_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 20)
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "test_query_id"}])
+        insert_rows("//sys/query_tracker/finished_query_results", [{"query_id": "test_query_id", "result_index": 1}])
+
+        run_migration(client, 21)
+        for table in ["finished_queries", "finished_query_results"]:
+            assert exists(f"//sys/query_tracker/{table}")
+            rows_after_migration = list(select_rows(f"* from [//sys/query_tracker/{table}]"))
+            assert len(rows_after_migration) == 1

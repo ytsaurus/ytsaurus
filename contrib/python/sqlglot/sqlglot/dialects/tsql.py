@@ -25,6 +25,7 @@ from sqlglot.helper import seq_get
 from sqlglot.parser import build_coalesce
 from sqlglot.time import format_time
 from sqlglot.tokens import TokenType
+from sqlglot.typing.tsql import EXPRESSION_METADATA
 
 if t.TYPE_CHECKING:
     from sqlglot._typing import E
@@ -243,7 +244,7 @@ def _string_agg_sql(self: TSQL.Generator, expression: exp.GroupConcat) -> str:
 
 
 def _build_date_delta(
-    exp_class: t.Type[E], unit_mapping: t.Optional[t.Dict[str, str]] = None
+    exp_class: t.Type[E], unit_mapping: t.Optional[t.Dict[str, str]] = None, big_int: bool = False
 ) -> t.Callable[[t.List], E]:
     def _builder(args: t.List) -> E:
         unit = seq_get(args, 0)
@@ -259,12 +260,15 @@ def _build_date_delta(
             else:
                 # We currently don't handle float values, i.e. they're not converted to equivalent DATETIMEs.
                 # This is not a problem when generating T-SQL code, it is when transpiling to other dialects.
-                return exp_class(this=seq_get(args, 2), expression=start_date, unit=unit)
+                return exp_class(
+                    this=seq_get(args, 2), expression=start_date, unit=unit, big_int=big_int
+                )
 
         return exp_class(
             this=exp.TimeStrToTime(this=seq_get(args, 2)),
             expression=exp.TimeStrToTime(this=start_date),
             unit=unit,
+            big_int=big_int,
         )
 
     return _builder
@@ -412,10 +416,7 @@ class TSQL(Dialect):
 
     TIME_FORMAT = "'yyyy-mm-dd hh:mm:ss'"
 
-    ANNOTATORS = {
-        **Dialect.ANNOTATORS,
-        exp.Radians: lambda self, e: self._annotate_by_args(e, "this"),
-    }
+    EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
     TIME_MAPPING = {
         "year": "%Y",
@@ -426,9 +427,9 @@ class TSQL(Dialect):
         "week": "%W",
         "ww": "%W",
         "wk": "%W",
-        "isowk": "%IW",
-        "isoww": "%IW",
-        "iso_week": "%IW",
+        "isowk": "%V",
+        "isoww": "%V",
+        "iso_week": "%V",
         "hour": "%h",
         "hh": "%I",
         "minute": "%M",
@@ -574,7 +575,7 @@ class TSQL(Dialect):
         QUERY_MODIFIER_PARSERS = {
             **parser.Parser.QUERY_MODIFIER_PARSERS,
             TokenType.OPTION: lambda self: ("options", self._parse_options()),
-            TokenType.FOR: lambda self: ("for", self._parse_for()),
+            TokenType.FOR: lambda self: ("for_", self._parse_for()),
         }
 
         # T-SQL does not allow BEGIN to be used as an identifier
@@ -599,6 +600,9 @@ class TSQL(Dialect):
             ),
             "DATEADD": build_date_delta(exp.DateAdd, unit_mapping=DATE_DELTA_INTERVAL),
             "DATEDIFF": _build_date_delta(exp.DateDiff, unit_mapping=DATE_DELTA_INTERVAL),
+            "DATEDIFF_BIG": _build_date_delta(
+                exp.DateDiff, unit_mapping=DATE_DELTA_INTERVAL, big_int=True
+            ),
             "DATENAME": _build_formatted_time(exp.TimeToStr, full_format_mapping=True),
             "DATEPART": _build_formatted_time(exp.TimeToStr),
             "DATETIMEFROMPARTS": _build_datetimefromparts,
@@ -821,7 +825,6 @@ class TSQL(Dialect):
             args = [this, *self._parse_csv(self._parse_assignment)]
             convert = exp.Convert.from_arg_list(args)
             convert.set("safe", safe)
-            convert.set("strict", strict)
             return convert
 
         def _parse_column_def(
@@ -878,7 +881,7 @@ class TSQL(Dialect):
             this = super()._parse_id_var(any_token=any_token, tokens=tokens)
             if this:
                 if is_global:
-                    this.set("global", True)
+                    this.set("global_", True)
                 elif is_temporary:
                     this.set("temporary", True)
 
@@ -1035,7 +1038,6 @@ class TSQL(Dialect):
             exp.AutoIncrementColumnConstraint: lambda *_: "IDENTITY",
             exp.Chr: rename_func("CHAR"),
             exp.DateAdd: date_delta_sql("DATEADD"),
-            exp.DateDiff: date_delta_sql("DATEDIFF"),
             exp.CTE: transforms.preprocess([qualify_derived_table_outputs]),
             exp.CurrentDate: rename_func("GETDATE"),
             exp.CurrentTimestamp: rename_func("GETDATE"),
@@ -1238,12 +1240,12 @@ class TSQL(Dialect):
 
             if kind == "VIEW":
                 expression.this.set("catalog", None)
-                with_ = expression.args.get("with")
+                with_ = expression.args.get("with_")
                 if ctas_expression and with_:
                     # We've already preprocessed the Create expression to bubble up any nested CTEs,
                     # but CREATE VIEW actually requires the WITH clause to come after it so we need
                     # to amend the AST by moving the CTEs to the CREATE VIEW statement's query.
-                    ctas_expression.set("with", with_.pop())
+                    ctas_expression.set("with_", with_.pop())
 
             table = expression.find(exp.Table)
 
@@ -1301,6 +1303,10 @@ class TSQL(Dialect):
             func_name = "COUNT_BIG" if expression.args.get("big_int") else "COUNT"
             return rename_func(func_name)(self, expression)
 
+        def datediff_sql(self, expression: exp.DateDiff) -> str:
+            func_name = "DATEDIFF_BIG" if expression.args.get("big_int") else "DATEDIFF"
+            return date_delta_sql(func_name)(self, expression)
+
         def offset_sql(self, expression: exp.Offset) -> str:
             return f"{super().offset_sql(expression)} ROWS"
 
@@ -1355,7 +1361,7 @@ class TSQL(Dialect):
         def identifier_sql(self, expression: exp.Identifier) -> str:
             identifier = super().identifier_sql(expression)
 
-            if expression.args.get("global"):
+            if expression.args.get("global_"):
                 identifier = f"##{identifier}"
             elif expression.args.get("temporary"):
                 identifier = f"#{identifier}"

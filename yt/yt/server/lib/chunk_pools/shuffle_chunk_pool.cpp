@@ -102,6 +102,11 @@ public:
 
             chunkSpec->ReleaseBoundaryKeys();
             chunkSpec->ReleasePartitionsExt();
+
+            // Actually, this is not data weight.
+            // Partition writer reports uncompressed data size as data weight.
+            // Should be fixed in YT-26839.
+            TotalDataWeight_ += chunkSpec->GetDataWeight();
         }
 
         // NB(gritukan): It's quite expensive to update data slice counters during each stripe
@@ -253,7 +258,10 @@ private:
 
         NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
-            YT_VERIFY(!Runs_.empty());
+            if (Runs_.empty()) {
+                return {};
+            }
+
             YT_VERIFY(JobCounter_->GetPending() > 0);
 
             NTableClient::TChunkStripeStatisticsVector result(1);
@@ -571,6 +579,7 @@ private:
     i64 DataWeightThreshold_ = -1;
     i64 ChunkSliceThreshold_ = -1;
     i64 TotalJobCount_ = 0;
+    i64 TotalDataWeight_ = 0;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TShuffleChunkPool, 0xbacd518a);

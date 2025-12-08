@@ -105,8 +105,9 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
@@ -3369,11 +3370,11 @@ private:
         }
 
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
             ->StartTransaction(
                 ESequoiaTransactionType::ChunkConfirmation,
-                {.CellTag = Bootstrap_->GetCellTag()},
-                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
+                {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
@@ -5755,7 +5756,8 @@ private:
                         trimmedRowCount);
                     // Index is both replicator shard index and tablet index.
                     trimFutures.push_back(Bootstrap_
-                        ->GetSequoiaClient()
+                        ->GetSequoiaConnection()
+                        ->CreateClient(GetRootAuthenticationIdentity())
                         ->TrimTable(descriptor, index, trimmedRowCount));
                 }
                 auto trimResult = WaitFor(AllSucceeded(trimFutures));
@@ -5776,11 +5778,11 @@ private:
     TFuture<void> RemoveDeadSequoiaChunkReplicas(std::vector<TChunkId>&& chunkIds)
     {
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
             ->StartTransaction(
                 ESequoiaTransactionType::DeadChunkReplicaRemoval,
-                {.CellTag = Bootstrap_->GetCellTag()},
-                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
+                {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([chunkIds = std::move(chunkIds), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto sequoiaReplicas = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds, transaction))
                     .ValueOrThrow();

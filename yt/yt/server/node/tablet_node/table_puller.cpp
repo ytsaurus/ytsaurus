@@ -6,6 +6,7 @@
 #include "config.h"
 #include "error_manager.h"
 #include "private.h"
+#include "relative_replication_throttler.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
@@ -235,6 +236,8 @@ public:
             std::move(nodeInThrottler),
             ReplicationThrottler_
         }))
+        , RelativeThrottler_(CreateRelativeReplicationThrottler(
+            MountConfig_->RelativeReplicationThrottler))
         , MemoryTracker_(std::move(memoryTracker))
         , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
@@ -295,6 +298,7 @@ private:
 
     const IReconfigurableThroughputThrottlerPtr ReplicationThrottler_;
     const IThroughputThrottlerPtr Throttler_;
+    const IRelativeReplicationThrottlerPtr RelativeThrottler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
 
     const IErrorManagerPtr ErrorManager_;
@@ -542,7 +546,8 @@ private:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationCardPtr& replicationCard,
         const TRefCountedReplicationProgressPtr& replicationProgress,
-        TReplicaId lastPulledFromReplicaId)
+        TReplicaId lastPulledFromReplicaId,
+        TInstant now)
     {
         // If our progress is less than any queue replica progress, pull from that replica.
         // Otherwise pull from sync replica of oldest era corresponding to our progress.
@@ -558,12 +563,12 @@ private:
             constexpr auto message = "Will not pull rows since actual replication progress is behind replication card replica progress";
 
             // TODO(ponasenko-rs): Remove alerts after testing period.
-            if (Now() >= NextPermittedTimeForProgressBehindAlert_) {
+            if (now >= NextPermittedTimeForProgressBehindAlert_) {
                 YT_LOG_ALERT("%s (ReplicationProgress: %v, ReplicaInfo: %v)",
                     message,
                     static_cast<TReplicationProgress>(*replicationProgress),
                     *selfReplica);
-                NextPermittedTimeForProgressBehindAlert_ = Now() + TDuration::Days(1);
+                NextPermittedTimeForProgressBehindAlert_ = now + TDuration::Days(1);
             }
 
             return TError(message)
@@ -749,11 +754,33 @@ private:
             }
         }
 
+        TDuration relativeThrottleTime;
+        {
+            auto throttleFuture = RelativeThrottler_->Throttle();
+            if (throttleFuture.IsSet()) {
+                throttleFuture.Get().ThrowOnError();
+            } else {
+                // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
+                TEventTimerGuard timerGuard(counters->RelativeThrottlerThrottleTime);
+
+                YT_LOG_DEBUG("Started waiting for relative replication throttling");
+
+                WaitFor(throttleFuture)
+                    .ThrowOnError();
+                relativeThrottleTime = timerGuard.GetElapsedTime();
+
+                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
+                    relativeThrottleTime);
+            }
+        }
+
+        auto now = TInstant::Now();
         auto queueReplicaOrError = PickQueueReplica(
             tabletSnapshot,
             replicationCard,
             replicationProgress,
-            LastPulledFromReplicaId_);
+            LastPulledFromReplicaId_,
+            now);
 
         if (!queueReplicaOrError.IsOK()) {
             // This form of logging accepts only string literals.
@@ -792,6 +819,9 @@ private:
                 options.TableSchema = TableSchema_;
                 options.MemoryTracker = reservingTracker;
                 options.SelfTabletId = TabletId_;
+                // TODO(osidorkin): Reduce MaxTransactionCommitInstant if there is a big difference between
+                // ReplicationProgressMinTimestamp and now ReplicationProgressMaxTimestamp.
+                options.MaxTransactionCommitInstant = RelativeThrottler_->GetMaxAllowedRecordTime(now);
 
                 YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
                     "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
@@ -821,14 +851,25 @@ private:
             const auto& nameTable = result.Rowset->GetNameTable();
 
             YT_LOG_DEBUG("Pulled rows "
-                "(RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v, ThrottleTime: %v)",
+                "(RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v, "
+                "ThrottleTime: %v, RelativeThrottleTime: %v)",
                 rowCount,
                 dataWeight,
                 progress,
                 endReplicationRowIndexes,
-                throttleTime);
+                throttleTime,
+                relativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
+            auto currentBatchFirstTimestamp = GetReplicationProgressMinTimestamp(
+                *replicationProgress,
+                PivotKey_.Get(),
+                NextPivotKey_.Get());
+            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(
+                progress);
+            RelativeThrottler_->OnReplicationBatchProcessed(
+                currentBatchFirstTimestamp,
+                newReplicationTimestamp);
 
             // TODO(savrus) Remove this sanity check when pull rows is mature enough.
             if (result.Versioned) {

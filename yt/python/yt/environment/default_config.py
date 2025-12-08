@@ -134,10 +134,14 @@ def get_dynamic_master_config():
             "scion_removal_period": 1000,
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
+            "use_better_check_when_rewriting_path": True,
         },
 
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
+        },
+        "table_manager": {
+            "enable_column_constraints_for_tables": True,
         },
 
         "multicell_manager": {

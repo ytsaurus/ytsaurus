@@ -172,9 +172,11 @@ DB::Pipe CreateRemoteSource(
     bool isInsert = queryAst->as<DB::ASTInsertQuery>();
 
     DB::RemoteQueryExecutor::Extension extension;
-    extension.task_iterator = std::make_shared<std::function<std::string()>>(
-        [taskIterator = std::move(taskIterator)]() {
-                return taskIterator->NextTask();});
+    extension.task_iterator = std::make_shared<std::function<std::string()>>([
+        taskIterator = std::move(taskIterator)
+    ] {
+            return taskIterator->NextTask();
+    });
 
     auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),

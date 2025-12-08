@@ -161,9 +161,11 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/access_control.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/security_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/dynamic.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/generator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/provided.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/signature.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/validator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/generator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/adapters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/table_output.cpp
@@ -175,6 +177,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/column_rename_descriptor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/column_sort_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/comparator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/constrained_schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key_bound.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/key_bound_compressor.cpp

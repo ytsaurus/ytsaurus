@@ -332,7 +332,7 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
             return merge(**kwargs)
 
         def assert_throws(in_):
-            with raises_yt_error("Cannot use ranges with row_index"):
+            with raises_yt_error("Cannot use ranges with \"row_index\""):
                 run_merge(in_=in_, out="<create=%true>//tmp/t_out", authenticated_user="prime_user")
 
         assert_throws("//tmp/t[#1]")

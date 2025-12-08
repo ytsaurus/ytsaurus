@@ -72,6 +72,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -230,6 +231,13 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConstrainedSchema)
+        .SetReplicated(true)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Constraints)
+        .SetReplicated(true)
+        .SetOpaque(true));
+    // TODO(cherepashka): Support @constraints_id.
     descriptors->push_back(EInternedAttributeKey::SchemaId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
@@ -1190,6 +1198,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
 TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    auto dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
+
     const auto* table = GetThisImpl();
     auto chunkLists = table->GetChunkLists();
     bool isExternal = table->IsExternal();
@@ -1242,6 +1253,29 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
         case EInternedAttributeKey::Schema: {
             const auto& tableManager = Bootstrap_->GetTableManager();
             return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+        }
+
+        case EInternedAttributeKey::ConstrainedSchema: {
+            if (table->Constraints().empty()) {
+                return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+            }
+            return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
+                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                    auto tableSchema = heavySchemaOrError.ValueOrThrow();
+                    TConstrainedTableSchema schema(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit);
+                    return ConvertToYsonString(schema);
+                }));
+        }
+
+        case EInternedAttributeKey::Constraints: {
+            if (table->Constraints().empty()) {
+                return MakeFuture(ConvertToYsonString(TColumnNameToConstraintMap()));
+            }
+            return tableManager->GetHeavyTableSchemaAsync(table->GetSchema()->AsCompactTableSchema())
+                .Apply(BIND([columnToConstraint = table->Constraints(), dynamicConfig = std::move(dynamicConfig)] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
+                    auto tableSchema = heavySchemaOrError.ValueOrThrow();
+                    return ConvertToYsonString(MakeColumnNameToConstraintMap(*tableSchema, columnToConstraint, dynamicConfig->ColumnToConstraintLogLimit));
+                }));
         }
 
         case EInternedAttributeKey::QueueStatus:
@@ -1445,7 +1479,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     const auto& tableManager = Bootstrap_->GetTableManager();
-    auto revision = hydraManager->GetAutomatonVersion().ToRevision();
+    auto revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
 
     switch (key) {
         case EInternedAttributeKey::Atomicity: {
@@ -2122,6 +2156,13 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     struct TAlterTableOptions
     {
         TCompactTableSchemaPtr Schema;
+        // NB: Constants are handled differently in table creation and alteration operations due to differences in schema formats representations:
+        // When table is created schema is passed as YSON and when table is altered schema is passed as TTableSchemaExt.
+        // Addition of constants into TTableSchemaExt is undesirable, because schemas are currently stored as wire TTableSchemaExt
+        // on the master's side and it is not acceptable to have constrained schemas there.
+        // Therefore on table creation constrained schema validation is performed on the master's side.
+        // And on alteration it is partially performed on the client.
+        std::optional<TColumnNameToConstraintMap> ColumnToConstraint;
         std::optional<bool> Dynamic;
         std::optional<TTableReplicaId> UpstreamReplicaId;
         std::optional<ETableSchemaModification> SchemaModification;
@@ -2141,6 +2182,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_schema()) {
         options.Schema = New<TCompactTableSchema>(request->schema());
     }
+    if (request->has_constraints()) {
+        options.ColumnToConstraint = FromProto<TColumnNameToConstraintMap>(request->constraints());
+    }
+
     if (request->has_dynamic()) {
         options.Dynamic = request->dynamic();
     }
@@ -2160,14 +2205,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp = FromProto<TTimestamp>(request->clip_timestamp());
     }
 
-    auto maxSchemaMemoryUsageToLog = Bootstrap_
-        ->GetDynamicConfig()
-        ->TableManager
-        ->MaxSchemaMemoryUsageToLog;
+    auto dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TableManager;
+    auto maxSchemaMemoryUsageToLog = dynamicConfig->MaxSchemaMemoryUsageToLog;
+
+    if (options.ColumnToConstraint && !dynamicConfig->EnableColumnConstraintsForTables) {
+        THROW_ERROR_EXCEPTION("Alteration of tables with column constraints is prohibited by system administrator");
+    }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, "
-        "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
+        "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v, ColumnToConstraint: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
         options.SchemaModification,
@@ -2175,7 +2222,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog));
+        MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog),
+        MakeShrunkFormattableView(
+            options.ColumnToConstraint ? *options.ColumnToConstraint : TColumnNameToConstraintMap(),
+            TDefaultFormatter(),
+            dynamicConfig->ColumnToConstraintLogLimit));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();
@@ -2355,10 +2406,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
-        auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
+        auto oldTableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
         ValidateTableSchemaUpdateInternal(
-            *tableSchema,
+            *oldTableSchema,
             *newTableSchema,
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
@@ -2409,6 +2460,24 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             } else {
                 tabletManager->ValidateMakeTableStatic(table);
             }
+        }
+
+        std::optional<TColumnStableNameToConstraintMap> effectiveConstraints;
+        if (options.ColumnToConstraint) {
+            effectiveConstraints = MakeColumnStableNameToConstraintMap(
+                *newTableSchema,
+                std::move(*options.ColumnToConstraint),
+                config->TableManager->ColumnToConstraintLogLimit);
+        }
+        ValidateConstrainedSchemaAlteration(
+            *oldTableSchema,
+            *newTableSchema,
+            table->Constraints(),
+            effectiveConstraints ? *effectiveConstraints : table->Constraints(),
+            table->IsEmpty());
+
+        if (effectiveConstraints) {
+            table->Constraints() = std::move(*effectiveConstraints);
         }
     }
 

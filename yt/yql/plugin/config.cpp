@@ -41,7 +41,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"ErasureCodecCpu", "5.0"},
     {"AutoMerge", "relaxed"},
     {"QueryCacheMode", "normal"},
-    {"QueryCacheSalt", "YQL-10935"},
+    {"QueryCacheSalt", "YQLOVERYT-41"},
     {"UseSkiff", "1"},
     {"MaxInputTables", "1000"},
     {"MaxInputTablesForSortedMerge", "100"},

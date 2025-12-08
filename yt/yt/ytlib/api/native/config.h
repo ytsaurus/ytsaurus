@@ -159,10 +159,11 @@ struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
     std::string GroundClusterName;
-    TDuration GroundClusterConnectionUpdatePeriod;
     bool EnableGroundReignValidation;
     NYTree::TYPath SequoiaRootPath;
     TDuration SequoiaTransactionTimeout;
+
+    TSlruCacheConfigPtr ClientCache;
 
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
 

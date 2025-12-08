@@ -50,7 +50,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/hedging_manager.h>
+#include <yt/yt/core/misc/adaptive_hedging_manager.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -162,6 +162,8 @@ struct IRequestBatcher
     {
         std::vector<int> RequestedBlocks;
         TErrorOr<TGetBlocksResponsePtr> Response;
+        // This field is used only with hedging manager.
+        std::optional<bool> FromSecondaryPeer;
     };
 
     virtual TFuture<TPeerResponsePtr> ProbeBlockSet(const TRequest& request) = 0;
@@ -1275,6 +1277,7 @@ protected:
 
 private:
     friend class TRequestBatcher;
+    friend class THedgedRequest;
 
     class TProbingSessionState final
     {
@@ -2089,6 +2092,210 @@ public:
 
 private:
     friend class TRequestBatcher;
+    friend class THedgedRequest;
+
+    class THedgedRequest final
+    {
+    public:
+        THedgedRequest(
+            TIntrusivePtr<TReadBlockSetSession> session,
+            TPeer primaryPeer,
+            TPeer secondaryPeer,
+            std::vector<int> blockIndexes,
+            const TPeerList& peers)
+            : Session_(std::move(session))
+            , ThrottlingCondition_(Session_->GetThrottlingCondition())
+            , PrimaryPeer_(std::move(primaryPeer))
+            , SecondaryPeer_(std::move(secondaryPeer))
+            , BlockIndexes_(std::move(blockIndexes))
+            , Barriers_(Session_->FillP2PBarriers(peers, BlockIndexes_))
+        {
+            YT_VERIFY(Session_->SessionOptions_.AdaptiveHedgingManager);
+        }
+
+        TFuture<IRequestBatcher::TGetBlocksResult> Run()
+        {
+            Promise_.OnCanceled(BIND(&THedgedRequest::OnCanceled, MakeWeak(this)));
+
+            StartRequest(/*isPrimaryRequest*/ true);
+
+            auto future = Promise_.ToFuture();
+            if (!future.IsSet()) {
+                Session_->SessionOptions_.AdaptiveHedgingManager->RegisterRequest(
+                    future.As<void>(),
+                    BIND(&THedgedRequest::StartSecondaryRequest, MakeWeak(this))
+                        .Via(Session_->SessionInvoker_));
+            }
+
+            return future;
+        }
+
+    private:
+        const TIntrusivePtr<TReadBlockSetSession> Session_;
+
+        // NB: Same condition for both peers because we want to throttle either both or none of the requests.
+        const bool ThrottlingCondition_;
+        const TPeer PrimaryPeer_;
+        const TPeer SecondaryPeer_;
+        const std::vector<int> BlockIndexes_;
+        const std::vector<NProto::TP2PBarrier> Barriers_;
+        const TInstant StartTime_ = TInstant::Now();
+
+        TPromise<IRequestBatcher::TGetBlocksResult> Promise_ = NewPromise<IRequestBatcher::TGetBlocksResult>();
+
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
+        std::optional<TError> CancelationError_;
+        TCompactVector<TFuture<void>, 4> SessionFutures_;
+
+
+        void StartSecondaryRequest()
+        {
+            YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
+
+            if (Promise_.IsSet()) {
+                return;
+            }
+
+            const auto& Logger = Session_->Logger;
+            YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
+                TInstant::Now() - StartTime_);
+
+            StartRequest(/*isPrimaryRequest*/ false);
+        }
+
+        void StartRequest(bool isPrimaryRequest)
+        {
+            YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
+
+            auto future = ThrottleRequest(isPrimaryRequest);
+            if (future.IsSet()) {
+                OnRequestThrottled(isPrimaryRequest, future.Get());
+            } else {
+                future.Subscribe(BIND(&THedgedRequest::OnRequestThrottled,
+                    MakeStrong(this),
+                    isPrimaryRequest)
+                    .Via(Session_->SessionInvoker_));
+            }
+        }
+
+        // TODO(akozhikhov): Refactor and unify throttling methods in replication reader.
+        TFuture<void> ThrottleRequest(bool isPrimaryRequest)
+        {
+            YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
+
+            if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, ThrottlingCondition_)) {
+                YT_VERIFY(BlockIndexes_.size() <= Session_->BlockIndexes_.size());
+                // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
+                auto requestedBlocksEstimatedSize = *Session_->EstimatedSize_ * std::ssize(BlockIndexes_) / std::ssize(Session_->BlockIndexes_);
+                Session_->BytesThrottled_ = requestedBlocksEstimatedSize;
+
+                auto future = Session_->CombinedDataByteThrottler_->Throttle(requestedBlocksEstimatedSize);
+                SetSessionFuture(future);
+
+                return future;
+            } else {
+                return VoidFuture;
+            }
+        }
+
+        void OnRequestThrottled(
+            bool isPrimaryRequest,
+            const TError& throttlingResult)
+        {
+            YT_ASSERT_INVOKER_AFFINITY(Session_->SessionInvoker_);
+
+            if (Promise_.IsSet()) {
+                return;
+            }
+
+            if (!throttlingResult.IsOK()) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::ReaderThrottlingFailed,
+                    "Failed to apply throttling in reader")
+                    << throttlingResult;
+                Session_->OnSessionFailed(true, error);
+
+                if (!isPrimaryRequest) {
+                    error <<= TErrorAttribute(BackupFailedKey, true);
+                }
+
+                Promise_.TrySet(std::move(error));
+                return;
+            }
+
+            const auto& peer = GetPeer(isPrimaryRequest);
+            auto future = Session_->RequestBatcher_->GetBlockSet(
+                IRequestBatcher::TRequest{
+                    .Address = peer.Address,
+                    .Channel = Session_->GetChannel(peer.Address),
+                    .BlockIndexes = BlockIndexes_,
+                    .Session = Session_,
+                    .Barriers = Barriers_,
+                    .PrimaryPeer = peer,
+                    .BackupPeer = {},
+                },
+                // NB: This forbids block batching.
+                /*hedgingEnabled*/ true);
+
+            SetSessionFuture(future.As<void>());
+
+            future.AsUnique().Subscribe(BIND([
+                this,
+                this_ = MakeStrong(this),
+                isPrimaryRequest
+            ] (TErrorOr<IRequestBatcher::TGetBlocksResult>&& resultOrError) {
+                if (resultOrError.IsOK()) {
+                    auto result = std::move(resultOrError.Value());
+                    result.FromSecondaryPeer = !isPrimaryRequest;
+                    Promise_.TrySet(std::move(result));
+                } else {
+                    if (!isPrimaryRequest) {
+                        resultOrError <<= TErrorAttribute(BackupFailedKey, true);
+                    }
+                    Promise_.TrySet(std::move(resultOrError));
+                }
+            })
+                .Via(Session_->SessionInvoker_));
+        }
+
+        void OnCanceled(const TError& error)
+        {
+            decltype(SessionFutures_) sessionFutures;
+            {
+                auto guard = Guard(CancelationSpinLock_);
+
+                if (CancelationError_) {
+                    return;
+                }
+
+                CancelationError_ = error;
+                sessionFutures = SessionFutures_;
+            }
+
+            for (auto& sessionFuture : sessionFutures) {
+                sessionFuture.Cancel(error);
+            }
+        }
+
+        void SetSessionFuture(TFuture<void> sessionFuture)
+        {
+            auto guard = Guard(CancelationSpinLock_);
+
+            if (CancelationError_) {
+                guard.Release();
+
+                sessionFuture.Cancel(*CancelationError_);
+                return;
+            }
+
+            SessionFutures_.push_back(std::move(sessionFuture));
+        }
+
+        const TPeer& GetPeer(bool isPrimaryRequest) const
+        {
+            return isPrimaryRequest ? PrimaryPeer_ : SecondaryPeer_;
+        }
+    };
 
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
@@ -2309,7 +2516,7 @@ private:
             auto moreCandidates = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
-                /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
+                /*enableEarlyExit*/ !SessionOptions_.AdaptiveHedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
                 hasUnfetchedBlocks);
 
             if (moreCandidates.empty()) {
@@ -2467,7 +2674,10 @@ private:
             ? result.Value().Response
             : TErrorOr<TDataNodeServiceProxy::TRspGetBlockSetPtr>(result.Wrap());
 
-        bool backup = IsBackup(rspOrError);
+        bool backup = result.IsOK()
+            ? result.Value().FromSecondaryPeer.value_or(IsBackup(rspOrError))
+            : IsBackup(rspOrError);
+
         const auto& respondedPeer = backup ? *backupPeer : primaryPeer;
 
         if (!rspOrError.IsOK()) {
@@ -2614,49 +2824,59 @@ private:
         std::optional<TPeer> backupPeer,
         const TPeerList& peers)
     {
-        std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
-            ? std::make_optional(THedgingChannelOptions{
-                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay),
-                .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
-            })
-            : std::nullopt;
+        TFuture<IRequestBatcher::TGetBlocksResult> future;
+        if (backupPeer && SessionOptions_.AdaptiveHedgingManager) {
+            future = New<THedgedRequest>(
+                MakeStrong(this),
+                primaryPeer,
+                *backupPeer,
+                blockIndexes,
+                peers)->Run();
+        } else {
+            std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
+                ? std::make_optional(THedgingChannelOptions{
+                    .HedgingDelay = *ReaderConfig_->BlockRpcHedgingDelay,
+                    .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
+                })
+                : std::nullopt;
 
-        auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
-        YT_VERIFY(channel);
+            auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
+            YT_VERIFY(channel);
 
-        const auto& primaryAddress = primaryPeer.Address;
-        if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
-            // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we check BytesThrottled_ is zero.
-            // Still it protects us from bursty incoming traffic on the host.
-            // If estimated size was not given, we fallback to post-throttling on actual received size.
-            YT_VERIFY(blockIndexes.size() <= BlockIndexes_.size());
-            // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
-            auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
-            BytesThrottled_ = requestedBlocksEstimatedSize;
-            if (!SyncThrottle(CombinedDataByteThrottler_, requestedBlocksEstimatedSize)) {
-                CancelAllBlocks(
-                    blocks,
-                    TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
-                return FalseFuture;
+            const auto& primaryAddress = primaryPeer.Address;
+            if (ShouldThrottle(primaryAddress, GetThrottlingCondition())) {
+                // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
+                // In order not to throttle twice, we check BytesThrottled_ is zero.
+                // Still it protects us from bursty incoming traffic on the host.
+                // If estimated size was not given, we fallback to post-throttling on actual received size.
+                YT_VERIFY(blockIndexes.size() <= BlockIndexes_.size());
+                // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
+                auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
+                BytesThrottled_ = requestedBlocksEstimatedSize;
+                if (!SyncThrottle(CombinedDataByteThrottler_, requestedBlocksEstimatedSize)) {
+                    CancelAllBlocks(
+                        blocks,
+                        TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
+                    return FalseFuture;
+                }
             }
+
+            future = RequestBatcher_->GetBlockSet(
+                IRequestBatcher::TRequest{
+                    .Address = primaryAddress,
+                    .Channel = channel,
+                    .BlockIndexes = blockIndexes,
+                    .Session = MakeStrong(this),
+                    .Barriers = FillP2PBarriers(peers, blockIndexes),
+                    .PrimaryPeer = primaryPeer,
+                    .BackupPeer = backupPeer,
+                },
+                // If hedging is enabled, then get block batching is not allowed.
+                /*hedgingEnabled*/ hedgingOptions.has_value());
         }
 
-        auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
-            IRequestBatcher::TRequest{
-                .Address = primaryAddress,
-                .Channel = channel,
-                .BlockIndexes = blockIndexes,
-                .Session = MakeStrong(this),
-                .Barriers = FillP2PBarriers(peers, blockIndexes),
-                .PrimaryPeer = primaryPeer,
-                .BackupPeer = backupPeer,
-            },
-            // If hedging is enabled, then get block batching is not allowed.
-            /*hedgingEnabled*/ hedgingOptions.has_value());
-
-        SetSessionFuture(getBlockSetResponseFuture.As<void>());
-        return getBlockSetResponseFuture
+        SetSessionFuture(future.As<void>());
+        return future
             .Apply(BIND(
                 &TReadBlockSetSession::HandleBlocks,
                 MakeStrong(this),
@@ -2706,6 +2926,11 @@ private:
         }
 
         return barriers;
+    }
+
+    bool GetThrottlingCondition() const
+    {
+        return BytesThrottled_ == 0 && EstimatedSize_;
     }
 
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
@@ -2784,7 +3009,7 @@ private:
 
     int GetDesiredPeerCount() const
     {
-        return (SessionOptions_.NewHedgingManager || ReaderConfig_->BlockRpcHedgingDelay) ? 2 : 1;
+        return (SessionOptions_.AdaptiveHedgingManager || ReaderConfig_->BlockRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override
@@ -3215,7 +3440,7 @@ private:
         std::optional<THedgingChannelOptions> hedgingOptions;
         if (ReaderConfig_->MetaRpcHedgingDelay) {
             hedgingOptions = THedgingChannelOptions{
-                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->MetaRpcHedgingDelay),
+                .HedgingDelay = *ReaderConfig_->MetaRpcHedgingDelay,
                 .CancelPrimaryOnHedging = false,
             };
         }
@@ -3533,7 +3758,7 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             ReaderConfig_->ProbePeerCount,
-            /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
+            /*enableEarlyExit*/ !SessionOptions_.AdaptiveHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -3573,7 +3798,7 @@ private:
 
         std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->LookupRpcHedgingDelay
             ? std::make_optional(THedgingChannelOptions{
-                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->LookupRpcHedgingDelay),
+                .HedgingDelay = *ReaderConfig_->LookupRpcHedgingDelay,
                 .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryLookupRpcRequestOnHedging,
             })
             : std::nullopt;
@@ -3788,7 +4013,7 @@ private:
 
     int GetDesiredPeerCount() const
     {
-        return (SessionOptions_.NewHedgingManager || ReaderConfig_->LookupRpcHedgingDelay) ? 2 : 1;
+        return (SessionOptions_.AdaptiveHedgingManager || ReaderConfig_->LookupRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override

@@ -56,9 +56,8 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecondaryQueryReadTask
+struct TSecondaryQueryReadTask
 {
-public:
     std::vector<TSecondaryQueryReadDescriptors> OperandInputs;
 };
 

@@ -272,9 +272,9 @@ public:
                 return;
             }
 
-            frozenEdges = std::move(edgesToFreeze);
             YT_LOG_INFO("Freezing Hive edges (Edges: %v)",
                 edgesToFreeze);
+            frozenEdges = std::move(edgesToFreeze);
         });
     }
 

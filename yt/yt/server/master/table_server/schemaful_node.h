@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/client/table_client/constrained_schema.h>
+
 #include <yt/yt/core/misc/property.h>
 
 namespace NYT::NTableServer {
@@ -19,6 +21,7 @@ class TSchemafulNode
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(TMasterTableSchemaRawPtr, Schema);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnStableNameToConstraintMap, Constraints);
 
 public:
     virtual NSecurityServer::TAccount* GetAccount() const = 0;

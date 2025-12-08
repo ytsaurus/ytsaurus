@@ -20,7 +20,6 @@ PEERDIR(
     contrib/ydb/core/kqp/gateway/behaviour/streaming_query/common
     contrib/ydb/core/kqp/gateway/utils
     contrib/ydb/core/kqp/provider
-    contrib/ydb/core/kqp/proxy_service
     contrib/ydb/core/protos
     contrib/ydb/core/protos/schemeshard
     contrib/ydb/core/resource_pools
@@ -29,6 +28,7 @@ PEERDIR(
     contrib/ydb/core/tx/tx_proxy
     contrib/ydb/library/conclusion
     contrib/ydb/library/query_actor
+    contrib/ydb/library/table_creator
     contrib/ydb/services/metadata
     contrib/ydb/services/metadata/abstract
     contrib/ydb/services/metadata/manager

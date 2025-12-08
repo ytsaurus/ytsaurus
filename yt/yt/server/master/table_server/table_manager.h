@@ -143,14 +143,21 @@ public:
         NCypressClient::TVersionedNodeId nodeId,
         const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& tableSchemaFromConstrainedSchema = nullptr,
         bool isChunkSchema = false) = 0;
 
     virtual TCompactTableSchemaPtr ProcessSchemaFromAttributes(
         TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
+        const TCompactTableSchemaPtr& tableSchemaFromConstrainedSchema,
         bool dynamic,
         bool chaos,
         NCypressClient::TVersionedNodeId nodeId) = 0;
+
+    virtual NTableClient::TColumnStableNameToConstraintMap ProcessConstraintsFromAttributes(
+        const NTableClient::TTableSchema& schema,
+        std::optional<NTableClient::TConstrainedTableSchema> constrainedSchema,
+        std::optional<NTableClient::TColumnNameToConstraintMap> constraints) = 0;
 
     // Secondary index management.
     virtual TSecondaryIndex* CreateSecondaryIndex(

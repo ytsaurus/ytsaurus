@@ -62,7 +62,8 @@ TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize, bool enableSlic
 
 std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
     TReadRequest request,
-    const TSharedMutableRef& buffer) const
+    const TSharedMutableRef& buffer,
+    int directIoBlockSize) const
 {
     if (!EnableSlicing_) {
         return {
@@ -73,10 +74,10 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         };
     }
 
-    i64 blockSize = request.Handle->IsOpenForDirectIO() ? DefaultBlockSize : 1;
+    i64 blockSize = request.Handle->IsOpenForDirectIO() ? directIoBlockSize : 1;
 
     YT_VERIFY(std::ssize(buffer) >= request.Size);
-    return SliceRequest<TSlicedReadRequest>(request, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
+    return SliceRequest<TSlicedReadRequest>(request, directIoBlockSize, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
         YT_VERIFY(offset % blockSize == 0);
         YT_VERIFY(sliceSize % blockSize == 0);
 
@@ -88,14 +89,14 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
     });
 }
 
-std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request) const
+std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request, int directIoBlockSize) const
 {
     if (!EnableSlicing_) {
         return {std::move(request)};
     }
 
     NDetail::TBuffersIterator iterator(request.Buffers);
-    return SliceRequest<TWriteRequest>(request, [&] (TWriteRequest& slice, i64 offset, i64 sliceSize) {
+    return SliceRequest<TWriteRequest>(request, directIoBlockSize, [&] (TWriteRequest& slice, i64 offset, i64 sliceSize) {
         slice.Offset = offset;
         slice.Handle = request.Handle;
         slice.Flush = request.Flush;
@@ -103,13 +104,13 @@ std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request) const
     });
 }
 
-std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request) const
+std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request, int directIoBlockSize) const
 {
     if (!EnableSlicing_) {
         return {std::move(request)};
     }
 
-    return SliceRequest<TFlushFileRangeRequest>(request, [&] (TFlushFileRangeRequest& slice, i64 offset, i64 sliceSize) {
+    return SliceRequest<TFlushFileRangeRequest>(request, directIoBlockSize, [&] (TFlushFileRangeRequest& slice, i64 offset, i64 sliceSize) {
         slice.Handle = request.Handle;
         slice.Offset = offset;
         slice.Size = sliceSize;
@@ -117,9 +118,9 @@ std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeReque
 }
 
 template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandler>
-std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, TSliceHandler handleSlice) const
+std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handleSlice) const
 {
-    i64 blockSize = request.Handle->IsOpenForDirectIO() ? DefaultBlockSize : 1;
+    i64 blockSize = request.Handle->IsOpenForDirectIO() ? directIoBlockSize : 1;
     i64 desiredSize = AlignUp(DesiredRequestSize_, blockSize);
     i64 minSize = AlignUp(MinRequestSize_, blockSize);
 

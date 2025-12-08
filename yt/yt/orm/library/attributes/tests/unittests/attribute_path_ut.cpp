@@ -72,6 +72,8 @@ TEST(TAttributePathRootTest, GetAttribitePathRoot)
     EXPECT_EQ(TSplitResult("/spec/doozer", ""), GetAttributePathRoot("/spec/doozer", 2));
     EXPECT_EQ(TSplitResult("/spec/doozer/foo", ""), GetAttributePathRoot("/spec/doozer/foo", 3));
 
+    EXPECT_EQ(TSplitResult("", ""), GetAttributePathRoot("", 1));
+
     EXPECT_EQ(TSplitResult("/spec", ""), GetAttributePathRoot("/spec"));
     EXPECT_EQ(TSplitResult("", "/*/a/b"), GetAttributePathRoot("/*/a/b"));
     EXPECT_EQ(TSplitResult("", "/a/*/b"), GetAttributePathRoot("/a/*/b", 2));

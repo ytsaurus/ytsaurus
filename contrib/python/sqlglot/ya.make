@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(27.29.0)
+VERSION(28.0.0)
 
 LICENSE(MIT)
 
@@ -88,6 +88,13 @@ PY_SRCS(
     sqlglot/tokens.py
     sqlglot/transforms.py
     sqlglot/trie.py
+    sqlglot/typing/__init__.py
+    sqlglot/typing/bigquery.py
+    sqlglot/typing/hive.py
+    sqlglot/typing/presto.py
+    sqlglot/typing/snowflake.py
+    sqlglot/typing/spark2.py
+    sqlglot/typing/tsql.py
 )
 
 RESOURCE_FILES(

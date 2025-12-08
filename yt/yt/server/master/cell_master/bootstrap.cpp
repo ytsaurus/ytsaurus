@@ -386,9 +386,9 @@ bool TBootstrap::IsSequoiaConfigured() const
     return ClusterConnection_->IsSequoiaConfigured();
 }
 
-ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
+const ISequoiaConnectionPtr& TBootstrap::GetSequoiaConnection() const
 {
-    return ClusterConnection_->GetSequoiaClient();
+    return ClusterConnection_->GetSequoiaConnection();
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const

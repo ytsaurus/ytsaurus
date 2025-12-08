@@ -8,8 +8,9 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/ytlib/sequoia_client/helpers.h>
+#include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
@@ -78,11 +79,11 @@ public:
     TFuture<TRspModifyReplicas> ModifyReplicas() override
     {
         return Bootstrap_
-            ->GetSequoiaClient()
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->StartTransaction(
                 TransactionType_,
-                {.CellTag = Bootstrap_->GetCellTag()},
-                {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
+                {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
                 if (Request_) {
                     return DoModifyReplicas(transaction);

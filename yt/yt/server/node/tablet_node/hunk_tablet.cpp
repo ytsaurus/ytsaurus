@@ -302,7 +302,7 @@ void THunkTablet::OnStoreAllocationFailed(const TError& error)
     ActiveStorePromise_.TrySet(error);
 }
 
-void THunkTablet::LockTransaction(TTransactionId transactionId)
+void THunkTablet::LockTransactionOrThrow(TTransactionId transactionId)
 {
     YT_VERIFY(transactionId);
     if (LockTransactionId_) {
@@ -354,6 +354,16 @@ void THunkTablet::UnlockScan()
 bool THunkTablet::IsLockedScan() const
 {
     return LockedByScan_;
+}
+
+void THunkTablet::SetScanBackoffInstant(TInstant backoffInstant)
+{
+    ScanBackoffInstant_ = std::max(ScanBackoffInstant_, backoffInstant);
+}
+
+TInstant THunkTablet::GetScanBackoffInstant() const
+{
+    return ScanBackoffInstant_;
 }
 
 int THunkTablet::GetWriteLockCount() const

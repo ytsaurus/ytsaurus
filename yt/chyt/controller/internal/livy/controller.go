@@ -20,6 +20,7 @@ const (
 )
 
 type Config struct {
+	DefaultSpeclet *Speclet `yson:"default_speclet"`
 }
 
 type Controller struct {

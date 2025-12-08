@@ -132,10 +132,10 @@ public:
 
 private:
     const TStorageContext* StorageContext_;
-    DB::SelectQueryInfo QueryInfo_;
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
     const bool OnlyAnalyze_;
     const bool HasVirtualColumns_;
+    DB::SelectQueryInfo QueryInfo_;
 
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;

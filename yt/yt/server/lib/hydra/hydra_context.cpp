@@ -6,18 +6,19 @@
 
 #include <yt/yt/core/misc/error.h>
 
-#include <regex>
-
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraContext::THydraContext(
-    TVersion version,
+    TLogicalVersion logicalVersion,
+    TPhysicalVersion physicalVersion,
+    TPhysicalVersion compatOnlyPhysicalVersion,
     TInstant timestamp,
     ui64 randomSeed,
     TSharedRef localHostNameOverride)
-    : Version_(version)
+    : Version_(MaybeRotateVersion(logicalVersion, physicalVersion))
+    , PhysicalVersion_(compatOnlyPhysicalVersion)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(New<TRandomGenerator>(randomSeed))
@@ -25,21 +26,38 @@ THydraContext::THydraContext(
 { }
 
 THydraContext::THydraContext(
-    TVersion version,
+    TLogicalVersion logicalVersion,
+    TPhysicalVersion physicalVersion,
+    TPhysicalVersion compatOnlyPhysicalVersion,
     TInstant timestamp,
     ui64 randomSeed,
     TIntrusivePtr<TRandomGenerator> randomGenerator,
     TSharedRef localHostNameOverride)
-    : Version_(version)
+    : Version_(MaybeRotateVersion(logicalVersion, physicalVersion))
+    , PhysicalVersion_(compatOnlyPhysicalVersion)
     , Timestamp_(timestamp)
     , RandomSeed_(randomSeed)
     , RandomGenerator_(std::move(randomGenerator))
     , LocalHostName_(std::move(localHostNameOverride))
 { }
 
-TVersion THydraContext::GetVersion() const
+THydraContext::THydraContext(THydraContext* parent, TLogicalVersion childVersion)
+    : Version_(childVersion)
+    , PhysicalVersion_(parent->PhysicalVersion_)
+    , Timestamp_(parent->Timestamp_)
+    , RandomSeed_(parent->RandomSeed_)
+    , RandomGenerator_(parent->RandomGenerator_)
+    , LocalHostName_(parent->LocalHostName_)
+{ }
+
+TLogicalVersion THydraContext::GetVersion() const
 {
     return Version_;
+}
+
+TPhysicalVersion THydraContext::GetPhysicalVersion() const
+{
+    return PhysicalVersion_;
 }
 
 TInstant THydraContext::GetTimestamp() const
@@ -60,6 +78,21 @@ const TIntrusivePtr<TRandomGenerator>& THydraContext::RandomGenerator()
 const TSharedRef& THydraContext::GetLocalHostName() const
 {
     return LocalHostName_;
+}
+
+TLogicalVersion THydraContext::MaybeRotateVersion(
+    TLogicalVersion logicalVersion,
+    TPhysicalVersion physicalVersion)
+{
+    if (physicalVersion.SegmentId == logicalVersion.SegmentId) {
+        return logicalVersion;
+    }
+
+    // Version was rotated, possibly several times.
+    YT_VERIFY(physicalVersion.SegmentId > logicalVersion.SegmentId);
+    YT_VERIFY(physicalVersion.RecordId == 0);
+
+    return TLogicalVersion(physicalVersion.SegmentId, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

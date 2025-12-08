@@ -20,27 +20,22 @@ TAcdFetcher::TAcdFetcher(ISequoiaTransactionPtr sequoiaTransaction)
     : SequoiaTransaction_(std::move(sequoiaTransaction))
 { }
 
-std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
-    TRange<TRange<TCypressNodeDescriptor>> joinedDescriptors)
+std::vector<const TAccessControlDescriptor*> DoFetch(
+    ISequoiaTransactionPtr sequoiaTransaction,
+    auto nodeIds,
+    THashMap<TNodeId, TAccessControlDescriptor>& nodeIdToAcd)
 {
-    auto nodeIds = joinedDescriptors
-        | std::views::join
-        | std::views::transform(
-            [] (const TCypressNodeDescriptor& descriptor) -> TNodeId {
-                return descriptor.Id;
-            });
-
     std::vector<TNodeId> missingAcds;
     int nodeCount = 0;
     for (auto nodeId : nodeIds) {
-        if (!NodeIdToAcd_.contains(nodeId)) {
+        if (!nodeIdToAcd.contains(nodeId)) {
             missingAcds.push_back(nodeId);
         }
         ++nodeCount;
     }
 
     if (!missingAcds.empty()) {
-        auto fetchedAcds = FetchAcds(missingAcds, SequoiaTransaction_);
+        auto fetchedAcds = FetchAcds(missingAcds, sequoiaTransaction);
         for (auto&& [nodeId, acd] : Zip(missingAcds, fetchedAcds)) {
             if (!acd.has_value()) {
                 YT_LOG_DEBUG(
@@ -48,9 +43,9 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
                     nodeId);
                 // NB: Stale read of an object ACD is fine. Default descriptor
                 // acts as no permission rights were configured.
-                acd = MakeDefaultDescriptor(nodeId);
+                acd = TAccessControlDescriptor{.NodeId = nodeId};
             }
-            NodeIdToAcd_.emplace(nodeId, std::move(*acd));
+            nodeIdToAcd.emplace(nodeId, std::move(*acd));
         }
     }
 
@@ -60,16 +55,35 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
         nodeIds.end(),
         result.begin(),
         [&] (auto nodeId) -> const TAccessControlDescriptor* {
-            const auto& acd = GetOrCrash(NodeIdToAcd_, nodeId);
+            const auto& acd = GetOrCrash(nodeIdToAcd, nodeId);
             return &acd;
         });
 
     return result;
 }
 
-TAccessControlDescriptor TAcdFetcher::MakeDefaultDescriptor(TNodeId nodeId)
+std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
+    TRange<TRange<TCypressNodeDescriptor>> joinedDescriptors)
 {
-    return {.NodeId = nodeId, .Inherit = true};
+    auto nodeIds = joinedDescriptors
+        | std::views::join
+        | std::views::transform(
+            [] (const TCypressNodeDescriptor& descriptor) -> TNodeId {
+            return descriptor.Id;
+        });
+    return DoFetch(SequoiaTransaction_, nodeIds, NodeIdToAcd_);
+}
+
+std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
+    TRange<std::vector<TCypressChildDescriptor>> joinedDescriptors)
+{
+    auto nodeIds = joinedDescriptors
+        | std::views::join
+        | std::views::transform(
+            [] (const TCypressChildDescriptor& descriptor) -> TNodeId {
+            return descriptor.ChildId;
+        });
+    return DoFetch(SequoiaTransaction_, nodeIds, NodeIdToAcd_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

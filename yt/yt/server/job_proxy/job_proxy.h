@@ -90,6 +90,8 @@ public:
 
     bool TrySetCpuGuarantee(double cpuShare);
 
+    void OnProgressSaved(TInstant when);
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

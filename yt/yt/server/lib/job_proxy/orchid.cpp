@@ -27,6 +27,7 @@ void TJobProxyOrchidInfo::BuildOrchid(TFluentAny fluent) const
             &TJobIOOrchidInfo::BuildOrchid,
             JobIOInfo,
             std::placeholders::_1))
+        .OptionalItem("last_progress_save_time", LastProgressSaveTime)
     .EndMap();
 }
 

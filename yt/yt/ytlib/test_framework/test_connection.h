@@ -220,7 +220,7 @@ public:
     NApi::NNative::TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     bool IsSequoiaConfigured() override;
-    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
+    const NSequoiaClient::ISequoiaConnectionPtr& GetSequoiaConnection() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
 

@@ -165,6 +165,7 @@ message TAttributeSensor
 {
     optional string path = 1;
     optional EAttributeSensorPolicy policy = 2;
+    optional bool per_user = 3;
 }
 
 message TAccessControlEntry

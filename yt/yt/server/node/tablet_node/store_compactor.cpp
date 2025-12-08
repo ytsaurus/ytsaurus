@@ -462,20 +462,27 @@ private:
             StoreWriterConfig_->MinHashDigest = minHashDigestConfig->ChunkWriter;
         }
 
+        StoreWriterConfig_->Postprocess();
+
+        auto memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground);
+
         StoreWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.StoreWriterOptions);
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;
         StoreWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
-        StoreWriterOptions_->MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground);
+        StoreWriterOptions_->MemoryUsageTracker = memoryUsageTracker;
+        StoreWriterOptions_->Postprocess();
 
         HunkWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
         HunkWriterConfig_->MinUploadReplicationFactor = HunkWriterConfig_->UploadReplicationFactor;
         HunkWriterConfig_->EnableLocalThrottling = enableCollocatedDatNodeThrottling;
+        HunkWriterConfig_->Postprocess();
 
         HunkWriterOptions_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterOptions);
         HunkWriterOptions_->ValidateResourceUsageIncrease = false;
         HunkWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
+        HunkWriterOptions_->Postprocess();
 
         HunkChunkWriterStatistics_ = CreateHunkChunkWriterStatistics(
             TabletSnapshot_->Settings.MountConfig->EnableHunkColumnarProfiling,
@@ -497,6 +504,7 @@ private:
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
             TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category),
             HunkWriterConfig_,
+            memoryUsageTracker,
             HunkChunkWriter_,
             WriteBlocksOptions_);
         if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {

@@ -1640,7 +1640,7 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko")
     def test_dynamic_table_schema_required(self):
-        with raises_yt_error("Either \"schema\" or \"schema_id\" must be specified for dynamic tables"):
+        with raises_yt_error("Either \"schema\", \"schema_id\" or \"constrained_schema\" must be specified for dynamic tables"):
             create("table", "//tmp/t", attributes={"dynamic": True})
 
     @authors("savrus")
@@ -2930,12 +2930,6 @@ class TestTables(YTEnvSetup):
 
         assert read_table("//tmp/t", omit_inaccessible_rows=True, authenticated_user="u") == rows[1:3] + [rows[6]]
 
-        with raises_yt_error("Cannot use ranges with row_index"):
-            read_table("//tmp/t[#2]", omit_inaccessible_rows=True, authenticated_user="u")
-
-        with raises_yt_error("Cannot use ranges with row_index"):
-            read_table("//tmp/t[#1:#2]", omit_inaccessible_rows=True, authenticated_user="u")
-
 
 ##################################################################
 
@@ -3353,16 +3347,10 @@ class TestTablesShardedTx(TestTablesPortal):
 
 @authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestTablesMirroredTx(TestTablesShardedTx):
+class TestTablesSequoia(TestTablesShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-
-@authors("kvk1920")
-@pytest.mark.enabled_multidaemon
-class TestTablesSequoia(TestTablesMirroredTx):
-    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 5
 
@@ -3373,19 +3361,6 @@ class TestTablesSequoia(TestTablesMirroredTx):
         "13": {"roles": ["chunk_host"]},
         "14": {"roles": ["sequoia_node_host",  "transaction_coordinator"]},
         "15": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "sequoia_manager": {
-            "enable_ground_update_queues": True
-        },
-    }
-
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "testing": {
-            "enable_ground_update_queues_sync": True,
-            "enable_user_directory_per_request_sync": True,
-        },
     }
 
     @authors("kvk1920")

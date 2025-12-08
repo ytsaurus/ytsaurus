@@ -10,9 +10,9 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
@@ -26,9 +26,10 @@ namespace NYT::NSequoiaClient {
 
 using namespace NApi;
 using namespace NApi::NNative;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NQueryClient;
-using namespace NLogging;
+using namespace NRpc;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,13 +39,16 @@ class TSequoiaClient
 {
 public:
     TSequoiaClient(
-        NNative::TSequoiaConnectionConfigPtr config,
-        NNative::IConnectionPtr localConnection,
+        NNative::IClientPtr authenticatedLocalClient,
         TFuture<NNative::IClientPtr> groundClientFuture)
-        : Config_(std::move(config))
-        , LocalConnection_(std::move(localConnection))
+        : AuthenticatedLocalClient_(std::move(authenticatedLocalClient))
         , GroundClientFuture_(std::move(groundClientFuture))
     { }
+
+    NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const override
+    {
+        return AuthenticatedLocalClient_->GetOptions().GetAuthenticationIdentity();
+    }
 
     const TLogger& GetLogger() const override
     {
@@ -130,8 +134,7 @@ public:
 #undef XX
 
 private:
-    const NNative::TSequoiaConnectionConfigPtr Config_;
-    const NNative::IConnectionPtr LocalConnection_;
+    const NNative::IClientPtr AuthenticatedLocalClient_;
     const TFuture<NNative::IClientPtr> GroundClientFuture_;
 
     NNative::IClientPtr GetGroundClientOrThrow()
@@ -142,7 +145,7 @@ private:
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
     {
-        return NSequoiaClient::GetSequoiaTablePath(LocalConnection_, tablePathDescriptor);
+        return NSequoiaClient::GetSequoiaTablePath(AuthenticatedLocalClient_, tablePathDescriptor);
     }
 
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
@@ -231,7 +234,7 @@ private:
         return NDetail::StartSequoiaTransaction(
             this,
             type,
-            LocalConnection_,
+            AuthenticatedLocalClient_,
             GetGroundClientOrThrow(),
             transactionStartOptions,
             sequoiaTransactionOptions);
@@ -241,21 +244,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaClientPtr CreateSequoiaClient(
-    NNative::TSequoiaConnectionConfigPtr config,
-    NNative::IConnectionPtr localConnection,
+    NApi::NNative::IClientPtr localAuthenticatedClient,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
-    if (config && config->EnableGroundReignValidation) {
-        groundClientFuture = groundClientFuture
-            .Apply(BIND([=] (NNative::IClientPtr client) {
-                return ValidateClusterGroundReign(client, config->SequoiaRootPath)
-                    .Apply(BIND([=] { return client; }));
-            }));
-    }
-
     return New<TSequoiaClient>(
-        std::move(config),
-        std::move(localConnection),
+        std::move(localAuthenticatedClient),
         std::move(groundClientFuture));
 }
 

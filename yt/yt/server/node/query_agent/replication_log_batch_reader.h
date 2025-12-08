@@ -46,6 +46,7 @@ public:
         NTransactionClient::TTimestamp upperTimestamp,
         i64 maxDataWeight,
         i64 readDataWeightLimit,
+        TInstant maxAllowedCommitInstant,
         TInstant requestDeadLine);
 
 protected:

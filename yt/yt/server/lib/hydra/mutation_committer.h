@@ -166,7 +166,7 @@ private:
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
     i64 NextLoggedSequenceNumber_ = 0;
-    TVersion NextLoggedVersion_;
+    TPhysicalVersion NextLoggedVersion_;
 
     bool AcquiringChangelog_ = false;
 

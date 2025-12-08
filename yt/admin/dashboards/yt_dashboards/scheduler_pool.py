@@ -208,7 +208,7 @@ def _build_job_metrics(d, os_documentation):
                 SchedulerPools("yt.scheduler.pools.metrics.job_proxy_memory_mb.rate")
                     .legend_format("Job proxy memory"),
             )
-                .unit("UNIT_MEGABYTES")
+                .unit("UNIT_MEBIBYTES")
                 .stack(True))
             # TODO(eshcherbin): Add expressions and divide first two sensors by 1000.
             .cell("GPU", MultiSensor(

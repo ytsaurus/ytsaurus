@@ -539,7 +539,7 @@ private:
     template <class TSourceTag, class TCallback>
     void GuardedAction(const TSourceTag& sourceTag, const TCallback& action);
 
-    void OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError);
+    void OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuilder, const TError& error);
 
     // Stop job proxy and Porto containers.
     TFuture<void> StopJobProxy();

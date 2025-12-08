@@ -244,6 +244,8 @@ struct TGpuSchedulingPolicyConfig
 
     TDuration MinAssignmentPreemptibleDuration;
 
+    TDuration InitializationTimeout;
+
     REGISTER_YSON_STRUCT(TGpuSchedulingPolicyConfig);
 
     static void Register(TRegistrar registrar);

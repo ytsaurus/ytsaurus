@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/hydra/private.h>
 

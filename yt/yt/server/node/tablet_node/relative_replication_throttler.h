@@ -15,6 +15,7 @@ struct IRelativeReplicationThrottler
         NTransactionClient::TTimestamp firstRecordTimestamp,
         NTransactionClient::TTimestamp lastRecordTimestamp) = 0;
 
+    virtual TInstant GetMaxAllowedRecordTime(TInstant now) const = 0;
     virtual TFuture<void> Throttle() const = 0;
 };
 

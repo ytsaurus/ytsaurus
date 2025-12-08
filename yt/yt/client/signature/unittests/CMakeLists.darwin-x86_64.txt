@@ -48,6 +48,8 @@ target_link_options(unittester-client-signature PRIVATE
 
 target_sources(unittester-client-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/dummy_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/dynamic_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/provided_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/signature/unittests/signature_ut.cpp
 )
 

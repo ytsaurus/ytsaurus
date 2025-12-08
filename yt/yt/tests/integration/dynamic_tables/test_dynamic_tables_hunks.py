@@ -100,9 +100,12 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1,
                 "max_inflight_fragment_length": 60,
                 "max_inflight_fragment_count": 2,
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -1268,11 +1271,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("//tmp/m/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
 
     @authors("akozhikhov")
-    @pytest.mark.skip(reason="Fix with YT-23396")
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_table()
-        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"max_backup_request_ratio": 0.5})
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"secondary_request_ratio": 0.5})
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(5)]
@@ -1585,7 +1587,10 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -2198,6 +2203,84 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert rows[:5] == pull_queue("//tmp/t", offset=0, partition_index=0, max_data_weight=200)
 
+    @authors("akozhikhov")
+    def test_seal_after_queue_copy(self):
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+
+        copy("//tmp/t", "//tmp/t2")
+        assert get("//tmp/t/@chunk_count") == 1
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 1
+        assert get("//tmp/t2/@chunk_count") == 1
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 1
+
+        sync_unmount_table("//tmp/h")
+
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+        assert get("//tmp/t2/@chunk_count") == 2
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+
+    @authors("akozhikhov")
+    def test_seal_after_queue_branch(self):
+        sync_create_cells(1)
+        self._create_table(path="//tmp/t")
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 1
+        store_chunk_id = store_chunk_ids[0]
+        hunk_chunk_ids = [chunk_id for chunk_id in get("//tmp/t/@chunk_ids") if chunk_id != store_chunk_id]
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+        assert not get("#{}/@sealed".format(hunk_chunk_id))
+
+        tx = start_transaction()
+        set("//tmp/t/@hunk_erasure_codec", "reed_solomon_3_3", tx=tx)
+        copy("//tmp/t", "//tmp/t2", tx=tx)
+
+        sync_unmount_table("//tmp/h")
+
+        wait(lambda: get("#{}/@sealed".format(hunk_chunk_id)))
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+
+        commit_transaction(tx)
+
+        assert get("//tmp/t/@chunk_count") == 2
+        assert get("//tmp/t/@tablet_statistics/chunk_count") == 2
+
+        assert get("//tmp/t2/@chunk_count") == 2
+        assert get("//tmp/t2/@tablet_statistics/chunk_count") == 2
+
 
 ################################################################################
 
@@ -2266,7 +2349,10 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1,
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
                 "max_inflight_fragment_length": 60,
                 "max_inflight_fragment_count": 2,
             },
@@ -2288,7 +2374,10 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,
@@ -3823,7 +3912,10 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
             hunk_chunk_reader={
                 "max_hunk_count_per_read": 2,
                 "max_total_hunk_length_per_read": 60,
-                "fragment_read_hedging_delay": 1
+                "hedging_manager": {
+                    "secondary_request_ratio": 0.5,
+                    "max_hedging_delay": 1,
+                },
             },
             hunk_chunk_writer={
                 "desired_block_size": 50,

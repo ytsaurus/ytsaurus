@@ -24,6 +24,7 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     NTransactionClient::TTimestamp upperTimestamp,
     i64 maxDataWeight,
     i64 readDataWeightLimit,
+    TInstant maxAllowedCommitInstant,
     TInstant requestDeadLine,
     NTableClient::IWireProtocolWriter* writer);
 

@@ -1,0 +1,100 @@
+{{- if and .Values.microservices.resourceUsage.enabled .Values.microservices.resourceUsage.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-resource-usage-api
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-usage
+spec:
+  selector:
+    matchLabels:
+      {{- include "ytmsvc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: resource-usage
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ytmsvc.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/component: resource-usage
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (.Values.microservices.resourceUsage.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+            - "./resource_usage_api"
+            - "-config"
+            - "/etc/resource-usage/config.yaml"
+            {{- if .Values.microservices.resourceUsage.api.config.logToStderr }}
+            - "-log-to-stderr"
+            {{- else }}
+            - "-log-dir"
+            - {{ include "ytmsvc.resourceUsage.logsDir" . }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.resourceUsage.image "root" .) }}
+          imagePullPolicy: {{ .Values.microservices.resourceUsage.image.pullPolicy | default .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.microservices.resourceUsage.api.service.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.microservices.resourceUsage.api.service.metricsPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.microservices.resourceUsage.api.config.apiPrefix | trimSuffix "/" }}/ready
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.microservices.resourceUsage.api.config.apiPrefix | trimSuffix "/" }}/ready
+              port: http
+          volumeMounts:
+            - mountPath: /etc/resource-usage/config.yaml
+              name: config
+              readOnly: true
+              subPath: resource-usage-config.yaml
+            {{- if not .Values.microservices.resourceUsage.api.config.logToStderr }}
+            - name: logs
+              mountPath: {{ include "ytmsvc.resourceUsage.logsDir" . }}
+            {{- end }}
+          env:
+          - name: YT_PROXY
+            value: "{{ .Values.cluster.name }}"
+          - name: YT_PROXY_URL_ALIASING_CONFIG
+            value: "{\"{{ .Values.cluster.name }}\"=\"{{ .Values.cluster.proxy }}\";}"
+          envFrom:
+          {{- with .Values.microservices.resourceUsage.secretRefs | default .Values.secretRefs }}
+            {{- range . }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml (.Values.microservices.resourceUsage.resources | default .Values.resources) | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ytmsvc.fullname" . }}-resource-usage-config
+        {{- if not .Values.microservices.resourceUsage.api.config.logToStderr }}
+        - name: logs
+          emptyDir: {}
+        {{- end }}      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

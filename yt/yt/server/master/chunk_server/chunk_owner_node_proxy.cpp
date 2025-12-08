@@ -1867,6 +1867,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 node->GetVersionedId(),
                 chunkSchema,
                 chunkSchemaId,
+                /*tableSchemaFromConstrainedSchema*/ nullptr,
                 /*isChunkSchema*/ true);
 
             uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, chunkSchema, chunkSchemaId, uploadTransaction);

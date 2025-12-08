@@ -269,7 +269,7 @@ class MasterSnapshotExporter():
                     ],
                     spec={
                         "title": self._get_op_title(snapshot_path),
-                        "pool": "cron_master_snapshots",
+                        "pool": self._scheduler_pool,
                         "max_failed_job_count": self._max_failed_job_count,
                         "mapper": {
                             "copy_files": True,
@@ -317,7 +317,7 @@ class MasterSnapshotExporter():
             unified_export_path,
             spec={
                 "title": "Merge snapshot exports into a unified snapshot",
-                "pool": "cron_master_snapshots"
+                "pool": self._scheduler_pool,
             })
 
         self._yt_client.set(unified_export_path + "/@snapshot_creation_time", snapshot_creation_time)
@@ -352,6 +352,7 @@ def run():
     parser.add_argument("--job-cpu-limit", type=int, default=2)
     parser.add_argument("--memory-limit-gbs", type=float, default=3)  # Most small clusters use 3 GiB
     parser.add_argument("--job-execution-time-limit", type=int, default=90 * 60 * 1000)  # 90m
+    parser.add_argument("--scheduler-pool", type=str, default=None)
     parser.add_argument("--max-failed-job-count", type=int, default=3)
     parser.add_argument("--transaction-timeout", type=int, default=360 * 1000)
     # NB: This option is set to 1 because we want to consider only the newest snapshot of each cell
@@ -428,6 +429,7 @@ def run():
         job_cpu_limit=args.job_cpu_limit,
         memory_limit_gbs=args.memory_limit_gbs,
         job_execution_time_limit=args.job_execution_time_limit,
+        scheduler_pool=args.scheduler_pool,
         max_failed_job_count=args.max_failed_job_count,
         number_of_considered_snapshots=args.number_of_considered_snapshots,
         unified_export_path=unified_export_path,

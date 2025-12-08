@@ -27,6 +27,7 @@ SRCS(
     policy/gpu/scheduling_policy.cpp
     policy/gpu/structs.cpp
     policy/gpu/helpers.cpp
+    policy/gpu/persistent_state.cpp
 
     policy/helpers.cpp
     policy/operation_shared_state.cpp

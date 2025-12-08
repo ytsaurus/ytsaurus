@@ -15,7 +15,7 @@ from yt.common import YtError
 
 import yt.yson as yson
 
-from yt_error_codes import ResolveErrorCode
+from yt_error_codes import ResolveErrorCode, HunkTabletStoreToggleConflict
 
 import pytest
 
@@ -539,7 +539,15 @@ class TestHunkStorage(YTEnvSetup):
         assert len(hunk_chunk_ids) >= 2
         assert hunk_chunk_id in hunk_chunk_ids
 
-        unlock_hunk_store("//tmp/h", 0, hunk_chunk_id)
+        iteration = 0
+        while iteration < 10:
+            iteration += 1
+            try:
+                unlock_hunk_store("//tmp/h", 0, hunk_chunk_id)
+                break
+            except YtError as e:
+                if not e.contains_code(HunkTabletStoreToggleConflict):
+                    raise e
 
 
 @pytest.mark.enabled_multidaemon

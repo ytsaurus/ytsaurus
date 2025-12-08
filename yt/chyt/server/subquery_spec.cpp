@@ -5,7 +5,9 @@
 
 #include <yt/yt/client/table_client/config.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -39,8 +41,7 @@ void FillDataSliceDescriptors(
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
             ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
-            auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
-            YT_VERIFY(it != miscExtMap.end());
+            auto it = GetIteratorOrCrash(miscExtMap, chunkSlice->GetInputChunk()->GetChunkId());
             if (it->second) {
                 SetProtoExtension(
                     chunkSpec.mutable_chunk_meta()->mutable_extensions(),

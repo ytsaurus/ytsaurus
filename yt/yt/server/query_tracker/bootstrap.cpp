@@ -367,7 +367,7 @@ private:
         }
 
         if (QueryTrackerProxy_) {
-            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);
+            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig, newConfig->QueryTracker->NotIndexedQueriesTTL);
         }
 
         YT_LOG_DEBUG(

@@ -66,11 +66,12 @@ struct IAssignmentPlanContext
     virtual const TOperationMap& Operations() const = 0;
     virtual const TNodeMap& Nodes() const = 0;
 
-    virtual void AddAssignment(
+    virtual void AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
-        TNode* node) = 0;
+        TNode* node,
+        bool preemptible = false) = 0;
 
     virtual void PreemptAssignment(
         const TAssignmentPtr& assignment,
@@ -132,6 +133,7 @@ private:
 
     //! Other operations planning.
     void ProcessRegularOperations();
+    void ProcessRegularOperationsWithExtraResources();
 
     //! General assignment planning.
     void PreemptAllOperationAssignments(
@@ -153,6 +155,11 @@ private:
         TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
+    void PlanPreemptibleAllocationGroup(
+        const TOperationPtr& operation,
+        const std::string& allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
+        std::vector<TNode*>* availableNodes);
 
     class TAllocationGroupPlannerBase
     {
@@ -200,13 +207,16 @@ private:
             const std::string& allocationGroupName,
             const TAllocationGroupResources& allocationGroupResources,
             std::vector<TNode*>* availableNodes,
-            TGpuAllocationAssignmentPlanUpdateExecutor* host);
+            TGpuAllocationAssignmentPlanUpdateExecutor* host,
+            bool preemptible = false);
 
     private:
         std::vector<TNode*>* AvailableNodes_;
         std::vector<TNode*>::iterator NextNodeIt_;
+        const bool Preemptible_;
 
-        virtual TNode* FindBestAvailableNode() override;
+        void AddAssignmentToNode(TNode* node) override;
+        TNode* FindBestAvailableNode() override;
     };
 
     class TPreemptiveAllocationGroupPlanner

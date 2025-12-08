@@ -6,6 +6,7 @@ RECURSE(
     hive
     node_tracker_client
     scheduler
+    table_chunk_format
     table_client
     tablet_client
 )

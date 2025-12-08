@@ -8,9 +8,9 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NScheduler;
 using namespace NYTree;
 using namespace NYson;
-using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ i64 TProgressCounter::GetAbortedNonScheduled() const
 {
     i64 sum = 0;
     for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-        if (NScheduler::IsSchedulingReason(reason)) {
+        if (IsSchedulingReason(reason)) {
             sum += Aborted_[reason];
         }
     }

@@ -26,6 +26,7 @@ struct TJobIOOrchidInfo
 struct TJobProxyOrchidInfo
 {
     TJobIOOrchidInfo JobIOInfo;
+    std::optional<TInstant> LastProgressSaveTime;
 
     void BuildOrchid(NYTree::TFluentAny fluent) const;
 };

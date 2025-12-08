@@ -1,0 +1,166 @@
+{{- if and .Values.microservices.resourceUsage.enabled .Values.microservices.resourceUsage.preprocessing.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ytmsvc.cronjob.fullname" (dict "root" . "suffix" "resource-usage-preprocessing") }}
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-usage-preprocessing
+spec:
+  schedule: {{ .Values.microservices.resourceUsage.preprocessing.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.microservices.resourceUsage.preprocessing.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.microservices.resourceUsage.preprocessing.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ .Values.microservices.resourceUsage.preprocessing.startingDeadlineSeconds }}
+  concurrencyPolicy: {{ .Values.microservices.resourceUsage.preprocessing.concurrencyPolicy | quote }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.microservices.resourceUsage.preprocessing.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "ytmsvc.commonLabels" . | nindent 12 }}
+            app.kubernetes.io/component: resource-usage-preprocessing
+        spec:
+          {{- with (.Values.microservices.resourceUsage.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+          - name: {{ .Chart.Name }}-{{ .Values.cluster.name | replace "_" "-" }}
+            securityContext:
+              {{- toYaml .Values.securityContext | nindent 14 }}
+            image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.resourceUsage.image "root" .) }}
+            imagePullPolicy: {{ .Values.microservices.resourceUsage.image.pullPolicy | default .Values.image.pullPolicy }}
+            args:
+              - "./resource_usage_roren"
+              - "import-snapshot"
+              - {{ .Values.cluster.proxy | quote }}
+              - "--node-id-dict"
+              - {{ .Values.microservices.idToPathUpdater.config.outputTable | quote }}
+              - "--node-id-dict-cluster"
+              - {{ .Values.cluster.proxy | quote }}
+              - "--snapshot-id"
+              - "latest"
+            env:
+              - name: YT_PROXY
+                value: {{ .Values.cluster.proxy | quote }}
+            envFrom:
+            {{- with .Values.microservices.resourceUsage.secretRefs | default .Values.secretRefs }}
+              {{- range . }}
+              - secretRef:
+                  name: {{ . }}
+              {{- end }}
+            {{- end }}
+            resources:
+              {{- toYaml (.Values.microservices.resourceUsage.resources | default .Values.resources) | nindent 14 }}
+            {{- with .Values.volumeMounts }}
+            volumeMounts:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+{{- end }}
+
+---
+{{- if and .Values.microservices.resourceUsage.enabled .Values.microservices.resourceUsage.removeExcessive.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "ytmsvc.cronjob.fullname" (dict "root" . "suffix" "resource-usage-cleanup") }}
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: resource-usage-remove-excessive
+spec:
+  schedule: {{ .Values.microservices.resourceUsage.removeExcessive.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.microservices.resourceUsage.removeExcessive.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.microservices.resourceUsage.removeExcessive.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: {{ .Values.microservices.resourceUsage.removeExcessive.startingDeadlineSeconds }}
+  concurrencyPolicy: {{ .Values.microservices.resourceUsage.removeExcessive.concurrencyPolicy | quote }}
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.microservices.resourceUsage.removeExcessive.ttlSecondsAfterFinished }}
+      template:
+        metadata:
+          labels:
+            {{- include "ytmsvc.commonLabels" . | nindent 12 }}
+            app.kubernetes.io/component: resource-usage-preprocessing
+        spec:
+          {{- with (.Values.microservices.resourceUsage.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "ytmsvc.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+          - name: {{ .Chart.Name }}-{{ .Values.cluster.name | replace "_" "-" }}
+            securityContext:
+              {{- toYaml .Values.securityContext | nindent 14 }}
+            image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.resourceUsage.image "root" .) }}
+            imagePullPolicy: {{ .Values.microservices.resourceUsage.image.pullPolicy | default .Values.image.pullPolicy }}
+            args:
+              - "./resource_usage_roren"
+              - "remove-excessive"
+              - {{ .Values.cluster.proxy | quote }}
+              - "--denominator"
+              - {{ .Values.microservices.resourceUsage.removeExcessive.config.denominator | quote }}
+              - "--step-size-increase"
+              - {{ .Values.microservices.resourceUsage.removeExcessive.config.stepSizeIncrease | quote }}
+              - "--ignore-window-size"
+              - {{ .Values.microservices.resourceUsage.removeExcessive.config.ignoreWindowSize | quote }}
+              - "--first-step-window-size"
+              - {{ .Values.microservices.resourceUsage.removeExcessive.config.firstStepWindowSize | quote }}
+              - "--first-step-allowed-frequency"
+              - {{ .Values.microservices.resourceUsage.removeExcessive.config.firstStepAllowedFrequency | quote }}
+            env:
+              - name: YT_PROXY
+                value: {{ .Values.cluster.proxy | quote }}
+            envFrom:
+            {{- with .Values.microservices.resourceUsage.secretRefs | default .Values.secretRefs }}
+              {{- range . }}
+              - secretRef:
+                  name: {{ . }}
+              {{- end }}
+            {{- end }}
+            resources:
+              {{- toYaml (.Values.microservices.resourceUsage.resources | default .Values.resources) | nindent 14 }}
+            {{- with .Values.volumeMounts }}
+            volumeMounts:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+{{- end }}

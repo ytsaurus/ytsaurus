@@ -8,6 +8,8 @@ from yt_commands import (
     build_snapshot,
     multicell_sleep, raises_yt_error, get_driver)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 import yt_error_codes
 
 from yt.common import YtError
@@ -114,6 +116,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
     # TODO(ifsmirnov): YT-14310
     @authors("savrus")
+    # TODO(danilalexeev): YT-26788.
+    @not_implemented_in_sequoia
     def test_tablet_count_limit_create(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -605,12 +609,19 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
-@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTx):
+class TestDynamicTablesResourceLimitsSequoia(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+    }
 
 
 ##################################################################
@@ -878,6 +889,8 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             set("//tmp/t/@in_memory_mode", "none")
 
     @authors("ifsmirnov")
+    # TODO(danilalexeev): YT-26788.
+    @not_implemented_in_sequoia
     def test_balancer_cannot_exceed_tablet_count_limit(self):
         create_tablet_cell_bundle("b")
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)
@@ -1022,10 +1035,17 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
-@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
+class TestPerBundleAccountingSequoia(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 2
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+    }
