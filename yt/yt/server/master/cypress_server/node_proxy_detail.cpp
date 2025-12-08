@@ -639,7 +639,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::AccessTime);
     descriptors->push_back(EInternedAttributeKey::AccessCounter);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NativeContentRevision)
-        .SetExternal(isExternal));
+        .SetExternal(true)
+        .SetOpaque(true)
+        .SetPresent(isExternal));
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
         .SetOpaque(true));
