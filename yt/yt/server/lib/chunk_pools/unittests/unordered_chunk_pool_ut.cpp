@@ -1090,6 +1090,11 @@ protected:
         CheckCounter(ChunkPool_->GetJobCounter(), expected);
     }
 
+    void CheckDataWeightCounter(const TExpectedCounter& expected)
+    {
+        CheckCounter(ChunkPool_->GetDataWeightCounter(), expected);
+    }
+
     void AddChunk(i64 weight)
     {
         auto chunk = CreateChunk(
@@ -1460,6 +1465,8 @@ TEST_F(TUnorderedChunkPoolCountersTest, JobCounterWithLostJob)
 
     ChunkPool_->Finish();
     CheckJobCounter({.Total = 1, .Pending = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Pending = 500_MB});
+
     auto cookie = ExtractCookie();
     ASSERT_NE(cookie, IChunkPoolOutput::NullCookie);
 
@@ -1468,18 +1475,94 @@ TEST_F(TUnorderedChunkPoolCountersTest, JobCounterWithLostJob)
 
     ASSERT_TRUE(ChunkPool_->IsCompleted());
     CheckJobCounter({.Total = 1, .Completed = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Completed = 500_MB});
 
     ChunkPool_->Lost(cookie);
     ASSERT_FALSE(ChunkPool_->IsCompleted());
     CheckJobCounter({.Total = 1, .Pending = 1, .Lost = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Pending = 500_MB, .Lost = 500_MB});
 
     cookie = ExtractCookie();
     ASSERT_NE(cookie, IChunkPoolOutput::NullCookie);
     CheckJobCounter({.Total = 1, .Running = 1, .Lost = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Running = 500_MB, .Lost = 500_MB});
 
     ChunkPool_->Completed(cookie, summary);
     ASSERT_TRUE(ChunkPool_->IsCompleted());
     CheckJobCounter({.Total = 1, .Completed = 1, .Lost = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Completed = 500_MB, .Lost = 500_MB});
+}
+
+TEST_F(TUnorderedChunkPoolCountersTest, FailedAndAbortedJobs)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 400_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    CheckJobCounter({.Total = 0});
+    CheckDataWeightCounter({.Total = 0_MB});
+
+    AddChunk(500_MB);
+    CheckJobCounter({.Total = 2, .Pending = 1, .Blocked = 1});
+    CheckDataWeightCounter({.Total = 500_MB, .Pending = 500_MB});
+
+    AddChunk(600_MB);
+    CheckJobCounter({.Total = 3, .Pending = 2, .Blocked = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 1100_MB});
+
+    ChunkPool_->Finish();
+    CheckJobCounter({.Total = 3, .Pending = 3});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 1100_MB});
+
+    auto cookie1 = ExtractCookie();
+    ASSERT_NE(cookie1, IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 3, .Pending = 2, .Running = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 600_MB, .Running = 500_MB});
+
+    auto cookie2 = ExtractCookie();
+    ASSERT_NE(cookie2, IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Running = 2});
+    CheckDataWeightCounter({.Total = 1100_MB, .Running = 1100_MB});
+
+    ChunkPool_->Failed(cookie1);
+    ASSERT_FALSE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 2, .Pending = 1, .Running = 1, .Failed = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 500_MB, .Running = 600_MB, .Failed = 500_MB});
+
+    ChunkPool_->Aborted(cookie2, EAbortReason::Scheduler);
+    ASSERT_FALSE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 2, .Pending = 2, .Failed = 1, .Aborted = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 1100_MB, .Failed = 500_MB, .Aborted = 600_MB});
+
+    auto cookie3 = ExtractCookie();
+    ASSERT_NE(cookie3, IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Pending = 1, .Running = 1, .Failed = 1, .Aborted = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Pending = 500_MB, .Running = 600_MB, .Failed = 500_MB, .Aborted = 600_MB});
+
+    auto cookie4 = ExtractCookie();
+    ASSERT_NE(cookie4, IChunkPoolOutput::NullCookie);
+    CheckJobCounter({.Total = 2, .Running = 2, .Failed = 1, .Aborted = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Running = 1100_MB, .Failed = 500_MB, .Aborted = 600_MB});
+
+    TCompletedJobSummary summary{};
+    ChunkPool_->Completed(cookie3, summary);
+    ASSERT_FALSE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 2, .Running = 1, .Completed = 1, .Failed = 1, .Aborted = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Running = 500_MB, .Completed = 600_MB, .Failed = 500_MB, .Aborted = 600_MB});
+
+    ChunkPool_->Completed(cookie4, summary);
+    ASSERT_TRUE(ChunkPool_->IsCompleted());
+    CheckJobCounter({.Total = 2, .Completed = 2, .Failed = 1, .Aborted = 1});
+    CheckDataWeightCounter({.Total = 1100_MB, .Completed = 1100_MB, .Failed = 500_MB, .Aborted = 600_MB});
+
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 2);
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

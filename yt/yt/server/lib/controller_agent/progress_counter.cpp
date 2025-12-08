@@ -384,17 +384,17 @@ void TProgressCounterGuard::SetCompletedCategory(EInterruptionReason interruptio
 
 void TProgressCounterGuard::OnFailed()
 {
-    ProgressCounter_->AddFailed(+1);
+    ProgressCounter_->AddFailed(Value_);
 }
 
 void TProgressCounterGuard::OnAborted(EAbortReason abortReason)
 {
-    ProgressCounter_->AddAborted(+1, abortReason);
+    ProgressCounter_->AddAborted(Value_, abortReason);
 }
 
 void TProgressCounterGuard::OnLost()
 {
-    ProgressCounter_->AddLost(+1);
+    ProgressCounter_->AddLost(Value_);
 }
 
 void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
