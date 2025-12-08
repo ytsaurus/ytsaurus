@@ -29,7 +29,7 @@ TError TS3Medium::TryUpdateConfig(
     };
 
     try {
-        // TODO(pavel-bash): next step would be to allow changing these fields if the
+        // TODO(pavel-bash): Next step would be to allow changing these fields if the
         // medium is empty, i.e. there are no objects referencing it.
         checkRestrictedField("url", Config_->Url, newConfig->Url);
         checkRestrictedField("region", Config_->Region, newConfig->Region);

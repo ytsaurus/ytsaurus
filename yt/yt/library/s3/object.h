@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/farmhash/farm_hash.h>
+
 #include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NS3 {
@@ -18,10 +20,13 @@ public:
     //! Constructs descriptor from bucket and key, normalizing the key.
     //! Can throw if bucket or key is empty.
     TObjectDescriptor(TString bucket, TString key, bool allowEmptyKey = false);
-    
+
     //! Parses descriptor from URI, e.g. "s3://my-bucket/path/to/object".
     //! Can throw if URI schema is incorrect or bucket or key is empty.
     static TObjectDescriptor FromUri(const std::string& uri, bool allowEmptyKey = false);
+
+    //! Returns hash of bucket+key combination.
+    TFingerprint GetHash() const;
 
 public:
     // TODO(achulkov2): Switch to std::string.
@@ -29,6 +34,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TString, Key);
 
 private:
+    TFingerprint Hash_;
+
     // Remove leading '/' from Key_ if any and throw if bucket or key is empty.
     void NormalizeOrThrow(bool allowEmptyKey = false);
 };

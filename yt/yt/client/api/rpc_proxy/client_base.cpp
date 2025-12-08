@@ -809,6 +809,7 @@ TFuture<TAttachTableResult> TClientBase::AttachTable(
     }
     req->set_attach_mode(ToProto<int>(options.AttachMode));
     req->set_source_order(ToProto<int>(options.SourceOrder));
+    req->set_sample_strategy(ToProto<int>(options.SampleStrategy));
 
     ToProto(req->mutable_transactional_options(), options);
 

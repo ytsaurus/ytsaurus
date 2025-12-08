@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/api/table_client.h>
+
 #include <yt/yt/library/s3/client.h>
 
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/interfaces.h>
@@ -40,9 +42,30 @@ DEFINE_REFCOUNTED_TYPE(ITableChunkMetaGenerator)
 
 ////////////////////////////////////////////////////////////////////////////
 
+struct TArrowTableChunkMetaGeneratorOptions
+{
+    //! Seed to random number generator which chooses samples to be in the meta;
+    //! it's best to use the same seed for the same file/table as it will make
+    //! the process deterministic - the same samples will always be chosen during
+    //! the meta generation process. For instance, a full path to a file or a hash
+    //! of chunk ID may be used.
+    ui64 SampleRandomSeed = RandomNumber<ui64>();
+
+    //! This magic constant is taken from the default value of sampling rate
+    //! of TChunkWriterConfig; seems reasonable for now.
+    double SampleRate = 0.0001;
+
+    //! By default use the less precise but faster strategy.
+    NTableClient::EChunkMetaSampleGenerationStrategy SampleStrategy =
+        NTableClient::EChunkMetaSampleGenerationStrategy::Fast;
+};
+
+////////////////////////////////////////////////////////////////////////////
+
 ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
     EChunkFormat chunkFormat,
-    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile);
+    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile,
+    TArrowTableChunkMetaGeneratorOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////
 

@@ -152,4 +152,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCollectingValueConsumer
+    : public IValueConsumer
+{
+public:
+    explicit TCollectingValueConsumer(
+        TTableSchemaPtr schema = New<TTableSchema>());
+
+    explicit TCollectingValueConsumer(
+        TNameTablePtr nameTable,
+        TTableSchemaPtr schema = New<TTableSchema>());
+
+    const TNameTablePtr& GetNameTable() const override;
+
+    const TTableSchemaPtr& GetSchema() const override;
+
+    bool GetAllowUnknownColumns() const override;
+
+    void OnBeginRow() override;
+
+    void OnValue(const TUnversionedValue& value) override;
+
+    void OnEndRow() override;
+
+    TUnversionedRow GetRow(size_t rowIndex);
+
+    std::optional<TUnversionedValue> FindRowValue(size_t rowIndex, TStringBuf columnName) const;
+
+    TUnversionedValue GetRowValue(size_t rowIndex, TStringBuf columnName) const;
+
+    size_t Size() const;
+
+    const std::vector<TUnversionedOwningRow>& GetRowList() const;
+
+private:
+    const TTableSchemaPtr Schema_;
+    const TNameTablePtr NameTable_ = New<TNameTable>();
+
+    TUnversionedOwningRowBuilder Builder_;
+    std::vector<TUnversionedOwningRow> RowList_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

@@ -181,7 +181,7 @@ private:
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<TChunkToFetch> chunks)
     {
-        // TODO(pavel-bash): we should unify how the requests are dispatched
+        // TODO(pavel-bash): We should unify how the requests are dispatched
         // to the DataNodeService and to the OffshoreNodeService.
         bool isOffshoreNode = nodeId == OffshoreNodeId;
 

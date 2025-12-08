@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/client/api/table_client.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 namespace NYT::NChunkClient {
@@ -162,7 +164,14 @@ private:
     {
         // TODO(achulkov2): Path to read chunk file from needs to end up here.
         auto chunkFile = std::make_shared<TS3ArrowRandomAccessFile>(ChunkPlacement_.Bucket(), ChunkPlacement_.Key(), Client_);
-        auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(format, std::move(chunkFile));
+        auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(
+            format,
+            std::move(chunkFile),
+            TArrowTableChunkMetaGeneratorOptions{
+                // The GetHash() invocation should return the same hash as the one in
+                // attach_table.cpp file. This guarantees consistency of the generated samples.
+                .SampleRandomSeed = ChunkPlacement_.GetHash(),
+                .SampleStrategy = NTableClient::EChunkMetaSampleGenerationStrategy::Fast});
         chunkMetaGenerator->Generate();
         return MakeFuture(chunkMetaGenerator->GetChunkMeta());
     }

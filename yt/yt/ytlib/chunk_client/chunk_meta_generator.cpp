@@ -6,11 +6,19 @@
 
 #include <yt/yt/client/arrow/columnar_statistics.h>
 #include <yt/yt/client/arrow/schema.h>
+
 #include <yt/yt/client/table_client/merge_table_schemas.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/misc/random.h>
+
+#include <yt/yt/library/formats/arrow_parser.h>
 
 #include <yt/yt/library/erasure/public.h>
 
@@ -95,6 +103,11 @@ public:
         }
 
         {
+            TExtensionGuard<NTableClient::NProto::TSamplesExt> samplesExt(chunkMeta);
+            FillSamplesExt(*samplesExt);
+        }
+
+        {
             TExtensionGuard<NTableClient::NProto::TNameTableExt> nameTableExt(chunkMeta);
             FillNameTableExt(*nameTableExt);
         }
@@ -136,7 +149,7 @@ protected:
     virtual i64 GetDataWeight() const = 0;
 
     virtual i64 GetMaxDataBlockSize() const = 0;
-    
+
 protected:
     virtual void Prepare()
     { }
@@ -149,6 +162,7 @@ protected:
 
     virtual void FillBlocksExt(NProto::TBlocksExt& ext) = 0;
     virtual void FillDataBlockMetaExt(NTableClient::NProto::TDataBlockMetaExt& ext) = 0;
+    virtual void FillSamplesExt(NTableClient::NProto::TSamplesExt& ext) = 0;
 
     virtual void FillNameTableExt(NTableClient::NProto::TNameTableExt& ext)
     {
@@ -194,14 +208,23 @@ class TArrowChunkMetaGeneratorBase
 public:
     TArrowChunkMetaGeneratorBase(
         EChunkFormat chunkFormat,
-        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
+        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile,
+        TArrowTableChunkMetaGeneratorOptions options = {})
         : ChunkFormat_(chunkFormat)
         , ChunkFile_(std::move(chunkFile))
+        , Options_(std::move(options))
+        , RandomGenerator_(options.SampleRandomSeed)
+        , SampleThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Options_.SampleRate))
     { }
 
 protected:
     const EChunkFormat ChunkFormat_;
     const std::shared_ptr<arrow20::io::RandomAccessFile> ChunkFile_;
+    const TArrowTableChunkMetaGeneratorOptions Options_;
+
+    TRandomGenerator RandomGenerator_;
+    const ui64 SampleThreshold_;
+    std::vector<NTableClient::TUnversionedOwningRow> Samples_;
 
     EChunkFormat GetChunkFormat() const override
     {
@@ -233,6 +256,34 @@ protected:
     TNameTablePtr GetChunkNameTable() const override
     {
         return NTableClient::TNameTable::FromSchema(*GetChunkSchema());
+    }
+
+    void FillSamplesExt(NTableClient::NProto::TSamplesExt& ext) override
+    {
+        int rowCount = GetRowCount();
+        if (rowCount == 0) {
+            return;
+        }
+
+        THashSet<int> sampledRows;
+        int numRowsToSample = std::ceil(static_cast<double>(rowCount) * Options_.SampleRate);
+        while (std::ssize(sampledRows) < numRowsToSample) {
+            int rowIndex = RandomGenerator_.Generate<ui64>() % Samples_.size();
+            if (sampledRows.insert(rowIndex).second) {
+                // This approach is taken from the schemaless_chunk_writer and TruncateUnversionedValues
+                // is invoked with the same TUnversionedValueRangeTruncationOptions.
+                auto truncatedSampleValueBuffer = New<TRowBuffer>();
+                auto sampleValues = TruncateUnversionedValues(
+                    Samples_[rowIndex].Elements(),
+                    truncatedSampleValueBuffer, {.ClipAfterOverflow = false, .MaxTotalSize = MaxSampleSize});
+
+                auto entry = SerializeToString(sampleValues.Values);
+                ext.add_entries(entry);
+                ext.add_weights(sampleValues.Size);
+            }
+        }
+
+        YT_VERIFY(ext.entries_size() > 0);
     }
 };
 
@@ -275,15 +326,39 @@ protected:
             if (!batch) {
                 break;
             }
-            RowCount_ += batch->num_rows();
+
+            i64 batchRowCount = batch->num_rows();
+
+            RowCount_ += batchRowCount;
             MaxDataBlockSize_ = std::max(MaxDataBlockSize_, GetCurrentFileOffset(*streamingReader) - offset);
-            Blocks_.push_back({.Offset = offset, .RowCount = batch->num_rows()});
+            Blocks_.push_back({.Offset = offset, .RowCount = batchRowCount});
             // This may error as it is not as flexible as the type inference inside the batches, but we are willing to take the risk.
             // Might improve later.
             Schema_ = MergeTableSchemas(Schema_, NArrow::CreateYTTableSchemaFromArrowSchema(batch->schema()));
             ColumnarStatistics_ += NArrow::ExtractColumnarStatistics(batch);
+
+            // Decode the batch and save some samples to return them later; we will save the maximum amount
+            // from every batch as we don't know the total number of rows yet.
+            TCollectingValueConsumer consumer{GetChunkSchema()};
+            PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+
+            THashSet<int> sampledRows;
+            int numRowsToSample = std::ceil(static_cast<double>(batchRowCount) * Options_.SampleRate);
+            while (std::ssize(sampledRows) < numRowsToSample) {
+                // For sample_rate <= 0.001 - which is the limit in TChunkWriterConfig - the expected value
+                // of the number of calls to Generate method is ~numRowsToSample.
+                int rowIndex = RandomGenerator_.Generate<ui64>() % batchRowCount;
+                if (sampledRows.insert(rowIndex).second) {
+                    Samples_.emplace_back(consumer.GetRow(rowIndex));
+                }
+            }
         }
         Blocks_.push_back({.Offset = GetUnderlyingFileSize(), .RowCount = 0});
+
+        // With the algorithm above we should have more than enough rows to sample from, but
+        // just in case let's perform this sanity check.
+        int totalNumRowsToSample = std::ceil(static_cast<double>(GetRowCount()) * Options_.SampleRate);
+        YT_VERIFY(totalNumRowsToSample <= std::ssize(Samples_));
     }
 
     i64 GetRowCount() const override
@@ -333,10 +408,13 @@ class TJsonChunkMetaGenerator
     : public TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::json::StreamingReader>
 {
 public:
-    TJsonChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
+    TJsonChunkMetaGenerator(
+        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile,
+        TArrowTableChunkMetaGeneratorOptions options = {})
         : TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::json::StreamingReader>(
             EChunkFormat::TableUnversionedArrowJsonLines,
-            std::move(chunkFile))
+            std::move(chunkFile),
+            std::move(options))
     { }
 
 protected:
@@ -373,10 +451,13 @@ class TCsvChunkMetaGenerator
     : public TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::csv::StreamingReader>
 {
 public:
-    TCsvChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
+    TCsvChunkMetaGenerator(
+        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile,
+        TArrowTableChunkMetaGeneratorOptions options = {})
         : TArrowStreamingReaderChunkMetaGeneratorBase<arrow20::csv::StreamingReader>(
             EChunkFormat::TableUnversionedArrowCsv,
-            std::move(chunkFile))
+            std::move(chunkFile),
+            std::move(options))
     { }
 
 protected:
@@ -416,10 +497,13 @@ class TParquetChunkMetaGenerator
     : public TArrowChunkMetaGeneratorBase
 {
 public:
-    TParquetChunkMetaGenerator(std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile)
+    TParquetChunkMetaGenerator(
+        std::shared_ptr<arrow20::io::RandomAccessFile> chunkFile,
+        TArrowTableChunkMetaGeneratorOptions options = {})
         : TArrowChunkMetaGeneratorBase(
             EChunkFormat::TableUnversionedArrowParquet,
-            std::move(chunkFile))
+            std::move(chunkFile),
+            std::move(options))
     { }
 
 private:
@@ -461,7 +545,7 @@ private:
             auto rowGroupMeta = ParquetFileMeta_->RowGroup(rowGroupIndex);
 
             i64 rowGroupOffset = std::numeric_limits<i64>::max();
-            
+
             for (int columnIndex = 0; columnIndex < rowGroupMeta->num_columns(); ++columnIndex) {
                 auto columnChunkMeta = rowGroupMeta->ColumnChunk(columnIndex);
                 // Zero offsets in Parquet indicate that the offset is not applicable.
@@ -484,7 +568,7 @@ private:
         for (int rowGroupIndex = 0; rowGroupIndex < ParquetFileMeta_->num_row_groups(); ++rowGroupIndex) {
             auto startOffset = RowGroupOffsets_[rowGroupIndex];
             auto endOffset = RowGroupOffsets_[rowGroupIndex + 1];
-    
+
             if (startOffset < 0 || endOffset > GetUnderlyingFileSize() || startOffset >= endOffset) {
                 THROW_ERROR_EXCEPTION("Invalid row group offsets")
                     << TErrorAttribute("row_group_index", rowGroupIndex)
@@ -496,6 +580,27 @@ private:
 
             MaxRowGroupSize_ = std::max(MaxRowGroupSize_, endOffset - startOffset);
         }
+
+        // TODO(pavel-bash): Our goal is to only read the file(s) once during Prepare and don't touch
+        // them anymore. Before this line we only have read the meta of the file(s). In the lines
+        // that follow we perform the actual reading of the file(s) in order to collect samples in the separate
+        // functions. This approach works as we don't have any other data we need to collect from the file itself right now.
+        // However, if we need to add more info (e.g. first and last keys of the blocks), we will have to
+        // pack this code into a loop which reads every row group and performs some actions on it.
+        switch (Options_.SampleStrategy) {
+            case NTableClient::EChunkMetaSampleGenerationStrategy::Fast: {
+                ExtractSamplesPerRow();
+                break;
+            }
+            case NTableClient::EChunkMetaSampleGenerationStrategy::Precise: {
+                ExtractSamplesFullFile();
+                break;
+            }
+            default:
+                YT_ABORT();
+        }
+        // We must have extracted at least one sample if we have at least one row.
+        YT_VERIFY(GetRowCount() == 0 || !Samples_.empty());
     }
 
     i64 GetRowCount() const override
@@ -545,6 +650,112 @@ private:
         }
     }
 
+    std::unique_ptr<arrow20::RecordBatchReader> GetRecordBatchReaderOrThrow(const std::vector<int>& rowGroups)
+    {
+        auto recordBatchReaderResult = ArrowParquetFileReader_->GetRecordBatchReader(rowGroups);
+        PARQUET_THROW_NOT_OK(recordBatchReaderResult.status());
+
+        // This is the recommended way (from the docs) to unpack the arrow's result.
+        return std::move(recordBatchReaderResult).ValueOrDie();
+    }
+
+    //! In this algorithm we will understand roughly how many rows are to be included
+    //! in the result, and then take as equal amount of first rows in each row group
+    //! as possible. It's not the best if data is not shuffled or has some distribution
+    //! logic across a single row group, but at least it should be fast.
+    void ExtractSamplesPerRow()
+    {
+        if (GetRowCount() == 0) {
+            return;
+        }
+        int rowCount = GetRowCount();
+        int rowGroupsCount = ArrowParquetFileReader_->num_row_groups();
+
+        int numRowsToSample = std::ceil(static_cast<double>(rowCount) * Options_.SampleRate);
+        int numRowsToSamplePerGroup = std::ceil(static_cast<double>(numRowsToSample) / rowGroupsCount);
+
+        // We set the batch_size to the number of rows we want to read from every
+        // row group, so that one call to ReadNext reads exactly that amount or less.
+        i64 originalBatchSize = ArrowParquetFileReader_->properties().batch_size();
+        auto batchSizeGuard = Finally([this, originalBatchSize] {
+            ArrowParquetFileReader_->set_batch_size(originalBatchSize);
+        });
+        ArrowParquetFileReader_->set_batch_size(numRowsToSamplePerGroup);
+
+        std::unique_ptr<arrow20::RecordBatchReader> recordBatchReader;
+        std::shared_ptr<arrow20::RecordBatch> batch;
+        for (int rowGroupIndex = 0; rowGroupIndex < rowGroupsCount; ++rowGroupIndex) {
+            recordBatchReader = GetRecordBatchReaderOrThrow({rowGroupIndex});
+            PARQUET_THROW_NOT_OK(recordBatchReader->ReadNext(&batch));
+            if (!batch) {
+                continue;
+            }
+
+            TCollectingValueConsumer consumer{GetChunkSchema()};
+            PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+            for (const auto& row: consumer.GetRowList()) {
+                Samples_.emplace_back(row);
+            }
+        }
+
+        YT_VERIFY(!Samples_.empty());
+    }
+
+    //! In this algorithm we will read the whole file and throw a dice for every row,
+    //! thus making the result as precise as possible.
+    void ExtractSamplesFullFile()
+    {
+        if (GetRowCount() == 0) {
+            return;
+        }
+
+        std::unique_ptr<arrow20::RecordBatchReader> recordBatchReader;
+        std::shared_ptr<arrow20::RecordBatch> batch;
+
+        // Strangely, there's no GetRecordBatchReader() to just read all row groups,
+        // so we need to create this helper vector to specify all row groups.
+        std::vector<int> rowGroups(ArrowParquetFileReader_->num_row_groups());
+        std::iota(rowGroups.begin(), rowGroups.end(), 0);
+        recordBatchReader = GetRecordBatchReaderOrThrow(rowGroups);
+
+        PARQUET_THROW_NOT_OK(recordBatchReader->ReadNext(&batch));
+        while (batch != nullptr) {
+            // Throw a dice for every row in this batch without actually decoding the
+            // batch; if no rows were selected, we can just skip it.
+            THashSet<i64> selectedRows;
+            for (i64 rowIndex = 0; rowIndex < batch->num_rows(); ++rowIndex) {
+                if (RandomGenerator_.Generate<ui64>() < SampleThreshold_) {
+                    selectedRows.insert(rowIndex);
+                }
+            }
+
+            if (selectedRows.empty()) {
+                PARQUET_THROW_NOT_OK(recordBatchReader->ReadNext(&batch));
+                continue;
+            }
+
+            TCollectingValueConsumer consumer{GetChunkSchema()};
+            PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+            for (i64 rowIndex: selectedRows) {
+                Samples_.emplace_back(consumer.GetRow(rowIndex));
+            }
+
+            PARQUET_THROW_NOT_OK(recordBatchReader->ReadNext(&batch));
+        }
+
+        if (Samples_.empty()) {
+            // If no rows were selected, get a random row from a random row group's beginning.
+            rowGroups = {std::abs(RandomGenerator_.Generate<int>()) % ArrowParquetFileReader_->num_row_groups()};
+            recordBatchReader = GetRecordBatchReaderOrThrow(rowGroups);
+            PARQUET_THROW_NOT_OK(recordBatchReader->ReadNext(&batch));
+            YT_VERIFY(batch != nullptr);
+
+            TCollectingValueConsumer consumer{GetChunkSchema()};
+            PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+            Samples_.emplace_back(consumer.GetRow(std::abs(RandomGenerator_.Generate<int>()) % consumer.Size()));
+        }
+    }
+
     void FillAdditionalExtensions(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
         TExtensionGuard<NTableClient::NProto::TParquetFormatMetaExt> parquetFormatExt(chunkMeta);
@@ -562,15 +773,16 @@ private:
 
 ITableChunkMetaGeneratorPtr CreateArrowTableChunkMetaGenerator(
     EChunkFormat chunkFormat,
-    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile)
+    const std::shared_ptr<arrow20::io::RandomAccessFile>& chunkFile,
+    TArrowTableChunkMetaGeneratorOptions options)
 {
     switch (chunkFormat) {
         case EChunkFormat::TableUnversionedArrowJsonLines:
-            return New<TJsonChunkMetaGenerator>(chunkFile);
+            return New<TJsonChunkMetaGenerator>(chunkFile, std::move(options));
         case EChunkFormat::TableUnversionedArrowCsv:
-            return New<TCsvChunkMetaGenerator>(chunkFile);
+            return New<TCsvChunkMetaGenerator>(chunkFile, std::move(options));
         case EChunkFormat::TableUnversionedArrowParquet:
-            return New<TParquetChunkMetaGenerator>(chunkFile);
+            return New<TParquetChunkMetaGenerator>(chunkFile, std::move(options));
         default:
             THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv for arrow chunk meta generation", chunkFormat);
     }

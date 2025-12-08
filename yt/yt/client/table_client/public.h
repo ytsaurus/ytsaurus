@@ -453,6 +453,13 @@ struct TVersionedWriteOptions;
 DECLARE_REFCOUNTED_STRUCT(TFilesExternalSourceSpec)
 DECLARE_REFCOUNTED_STRUCT(TPrefixExternalSourceSpec)
 
+DEFINE_ENUM(EChunkMetaSampleGenerationStrategy,
+    // Faster algorithm with worse quality of samples.
+    (Fast)
+    // Slower algorithm with formally correct samples selection.
+    (Precise)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

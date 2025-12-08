@@ -2756,6 +2756,8 @@ message TReqAttachTable
 
     optional int32 source_order = 7; // NTableClient::EAttachTableSourceOrder
 
+    optional int32 sample_strategy = 8; // NTableClient::EChunkMetaSampleGenerationStrategy
+
     optional TTransactionalOptions transactional_options = 100;
 }
 

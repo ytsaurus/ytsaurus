@@ -5909,6 +5909,7 @@ private:
         }
         options.AttachMode = CheckedEnumCast<NApi::EAttachTableMode>(request->attach_mode());
         options.SourceOrder = CheckedEnumCast<NApi::EAttachTableSourceOrder>(request->source_order());
+        options.SampleStrategy = CheckedEnumCast<NTableClient::EChunkMetaSampleGenerationStrategy>(request->sample_strategy());
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

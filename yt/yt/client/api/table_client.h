@@ -7,6 +7,7 @@
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/external_source_spec.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
@@ -92,6 +93,13 @@ struct TAttachTableOptions
     //! In *sequential* attach mode, this guarantees that data from sources will appear in the table in the specified order.
     //! By default sources are processed in the order they are produced from the source spec, which may be unspecified.
     EAttachTableSourceOrder SourceOrder = EAttachTableSourceOrder::None;
+
+    //! Defines the algorithm to be used when sampling attached files/tables. For now
+    //! only plays a role when generating samples for Parquet files.
+    //! Note: setting this parameter to precise has no sense at the moment as the meta
+    //! generated during the attach process is not saved, and the on-fly generation
+    //! will not consider this parameter. The situation will change once we start saving meta.
+    NTableClient::EChunkMetaSampleGenerationStrategy SampleStrategy = NTableClient::EChunkMetaSampleGenerationStrategy::Fast;
 };
 
 struct TAttachedChunkInfo

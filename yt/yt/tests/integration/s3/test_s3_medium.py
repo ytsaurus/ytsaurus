@@ -32,6 +32,7 @@ import logging
 import random
 import builtins
 import string
+import json
 
 import yt.yson as yson
 import boto3
@@ -309,6 +310,32 @@ class TestS3MediumBase(YTEnvSetup):
         assert columnar_statistics["column_data_weights"][column_name] == data_weight
         assert columnar_statistics["column_min_values"][column_name] == min_value
         assert columnar_statistics["column_max_values"][column_name] == max_value
+
+    @staticmethod
+    def serialize_data_for_s3(data, output_file_format: str):
+        """
+        Serialize your data to be put into S3 as a file.
+        :param data: your data in format list[dict[str, any]]; this function performs no
+        validation of the data, so, for instance, if you use CSV format, but have different
+        counts of elements in the dictionaries, it's on you.
+        :param output_file_format: "parquet" | "jsonl" | "csv"
+        """
+        if output_file_format == "parquet":
+            return TestS3MediumBase.dump_arrow_table_as_bytes(
+                pa.Table.from_pandas(pandas.DataFrame.from_records(data))
+            )
+        elif output_file_format == "jsonl":
+            return "".join([
+                f"{json.dumps(row)}\n"
+                for row
+                in data])
+        elif output_file_format == "csv":
+            result = ",".join(data[0].keys()) + "\n"
+            for row in data:
+                result += ",".join(str(value) for value in row.values()) + "\n"
+            return result
+        else:
+            pytest.fail("Unknown format is passed to the function")
 
 
 ################################################################################
@@ -1667,9 +1694,9 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/out"), [record1, record2])
 
     @authors("pavel-bash")
-    def test_attach_and_sort(self):
-        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
-        # this test still works as expected (by actually retrieving the samples).
+    @pytest.mark.parametrize("file_format", ["parquet", "jsonl", "csv"])
+    @pytest.mark.parametrize("strategy", ["fast", "precise"])
+    def test_attach_and_sort(self, file_format, strategy):
         unsorted_input = [
             {"key": 420, "value": "hello"},
             {"key": 80085, "value": "howdy"},
@@ -1677,9 +1704,13 @@ class TestAttachTable(TestAttachTableBase):
             {"key": 1337, "value": "Ehehe"},
         ]
         bucket = self.get_s3_medium_bucket()
-        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
-            pa.Table.from_pandas(pandas.DataFrame.from_records(unsorted_input))
-        ))
+
+        file_name = "foo." + file_format
+        self.S3_CLIENT.put_object(
+            Bucket=bucket,
+            Key=file_name,
+            Body=self.serialize_data_for_s3(unsorted_input, file_format)
+        )
 
         attributes = {
             "primary_medium": self.get_s3_medium_name(),
@@ -1690,64 +1721,15 @@ class TestAttachTable(TestAttachTableBase):
         }
 
         create("table", "//tmp/imported", attributes=attributes)
-        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/{file_name}"]), sample_strategy=strategy)
 
         create("table", "//tmp/output", attributes=attributes)
 
         sort(in_="//tmp/imported", out="//tmp/output", sort_by=["key"])
-
         assert read_table("//tmp/output") == sorted(unsorted_input, key=lambda row: row["key"])
 
-    @authors("pavel-bash")
-    def test_attach_and_map_reduce(self):
-        # We want to test the fetcher over external data in this test case. However, it will only
-        # be used if data in the input table is sorted. When attaching, we cannot infer the schema
-        # with the sorted column (yet?), so this test firstly attaches, then sorts and only then
-        # performs a map-reduce operation, successfully invoking the fetcher at the end.
-        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
-        # this test still works as expected (by actually retrieving the samples).
-        unsorted_input = [
-            {"key": 420, "value": "hello"},
-            {"key": 80085, "value": "howdy"},
-            {"key": 1, "value": "hi"},
-            {"key": 1337, "value": "Ehehe"},
-        ]
-        bucket = self.get_s3_medium_bucket()
-        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
-            pa.Table.from_pandas(pandas.DataFrame.from_records(unsorted_input))
-        ))
-
-        attributes = {
-            "primary_medium": self.get_s3_medium_name(),
-            "schema": make_schema([
-                make_column("key", optional_type("int64"), type="int64", required=False),
-                make_column("value", optional_type("string"), type="string", required=False),
-            ])
-        }
-
-        create("table", "//tmp/imported", attributes=attributes)
-        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
-
-        create("table", "//tmp/intermediate", attributes={
-            "primary_medium": self.get_s3_medium_name(),
-        })
-
-        sort(in_="//tmp/imported", out="//tmp/intermediate", sort_by=["key"])
-
-        create("table", "//tmp/output", attributes={
-            "primary_medium": self.get_s3_medium_name(),
-        })
-
-        map_reduce(
-            in_="//tmp/intermediate",
-            out="//tmp/output",
-            reduce_by="key",
-            sort_by="key",
-            mapper_command="cat",
-            reducer_command="cat",
-        )
-
-        assert read_table("//tmp/output") == builtins.sorted(unsorted_input, key=lambda row: row["key"])
+        sort(in_="//tmp/imported", out="//tmp/output", sort_by=["value"])
+        assert read_table("//tmp/output") == sorted(unsorted_input, key=lambda row: row["value"])
 
     @authors("pavel-bash")
     def test_attach_and_partition_table(self):
@@ -1756,8 +1738,6 @@ class TestAttachTable(TestAttachTableBase):
 
         # This test works the same way as the previous one - attach, sort, perform operation - for
         # the same reasons.
-        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
-        # this test still works as expected (by actually retrieving the samples).
         unsorted_input = [
             {"key": 420, "value": "hello"},
             {"key": 80085, "value": "howdy"},
@@ -2510,6 +2490,11 @@ class TestAttachTable(TestAttachTableBase):
         used_space = get(f"//sys/accounts/{account}/@resource_usage/disk_space_per_medium/{self.get_s3_medium_name()}")
         assert used_space >= len(body)
 
+    # TODO(pavel-bash): Add test to check SampleStrategy parameter when the meta generated during attach
+    # will be saved so S3; we'll be able to read it and actually check which samples were selected.
+
+    # TODO(pavel-bash): Add test to check the sampling when we can infer the sorted schema of the
+    # attached tables (run an operation over an attached sorted table).
 
 ################################################################################
 

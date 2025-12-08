@@ -50,7 +50,7 @@ public:
         , StorageInvoker_(std::move(storageInvoker))
         , MediumDirectory_(std::move(mediumDirectory))
     {
-        // TODO(pavel-bash): when we need more methods (like GetBlockSet or GetChunkMeta), we can
+        // TODO(pavel-bash): When we need more methods (like GetBlockSet or GetChunkMeta), we can
         // retrieve their implementation from the commit 506d15f.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
@@ -128,7 +128,7 @@ private:
             request->sample_requests(),
             New<TS3ReaderConfig>());
 
-        // TODO(pavel-bash): now the process of individual samples retrieval happens only when we
+        // TODO(pavel-bash): Now the process of individual samples retrieval happens only when we
         // have read all the chunk metas for all the requests. It would be better if we refactor this
         // part, so that the sample retrieval will be performed right after its chunk meta is read.
         GetChunkMetasForRequests(request->sample_requests(), s3Readers)

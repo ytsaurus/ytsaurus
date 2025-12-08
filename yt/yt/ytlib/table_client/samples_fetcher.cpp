@@ -105,7 +105,7 @@ TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<TChunkT
 
 TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
-    // TODO(pavel-bash): we should unify how the requests are dispatched
+    // TODO(pavel-bash): We should unify how the requests are dispatched
     // to the DataNodeService and to the OffshoreNodeService.
     bool isOffshoreNode = nodeId == OffshoreNodeId;
 
@@ -137,18 +137,6 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChun
     std::vector<TChunkToFetch> requestedChunks;
 
     for (const auto& requestedChunk: chunks) {
-        if (!requestedChunk.Replica.GetSourceUri().empty()) {
-            // TODO(pavel-bash): for now we do not support the samples retrieval process for
-            // the external data - chunk meta isn't generated and/or saved anywhere, which
-            // will lead to a crash later. Some of the operations still work even without
-            // the samples (e.g. sort with small amount of data).
-            YT_LOG_INFO(
-                "Requested to fetch table samples, but it is not supported yet for the external data; "
-                "returning empty samples (SourceUri: %v)",
-                requestedChunk.Replica.GetSourceUri());
-            return VoidFuture;
-        }
-
         const auto& chunk = Chunks_[requestedChunk.ChunkIndex];
 
         currentSize += chunk->GetUncompressedDataSize();

@@ -13,6 +13,9 @@ TObjectDescriptor::TObjectDescriptor(TString bucket, TString key, bool allowEmpt
     , Key_(std::move(key))
 {
     NormalizeOrThrow(allowEmptyKey);
+
+    auto bucketKey = Bucket_ + Key_;
+    Hash_ = FarmHash(bucketKey.begin(), bucket.size());
 }
 
 TObjectDescriptor TObjectDescriptor::FromUri(const std::string& uri, bool allowEmptyKey)
@@ -31,6 +34,11 @@ TObjectDescriptor TObjectDescriptor::FromUri(const std::string& uri, bool allowE
         THROW_ERROR_EXCEPTION("Failed to parse S3 URI %Qv", uri)
             << ex;
     }
+}
+
+TFingerprint TObjectDescriptor::GetHash() const
+{
+    return Hash_;
 }
 
 void TObjectDescriptor::NormalizeOrThrow(bool allowEmptyKey)

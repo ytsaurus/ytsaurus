@@ -659,7 +659,10 @@ private:
             chunkFormat,
             std::make_shared<TS3ArrowRandomAccessFile>(
                 sourceS3Descriptor,
-                S3MediumDescriptor_->GetClient()));
+                S3MediumDescriptor_->GetClient()),
+            TArrowTableChunkMetaGeneratorOptions{
+                .SampleRandomSeed = sourceS3Descriptor.GetHash(),
+                .SampleStrategy = Options_.SampleStrategy});
 
         // NB: Possible context switch.
         chunkMetaGenerator->Generate();

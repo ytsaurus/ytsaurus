@@ -358,6 +358,12 @@ void TAttachTableCommand::Register(TRegistrar registrar)
             return command->Options.SourceOrder;
         })
         .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<EChunkMetaSampleGenerationStrategy>(
+        "sample_strategy",
+        [] (TThis* command) -> auto& {
+            return command->Options.SampleStrategy;
+        })
+        .Optional(/*init*/ false);
 
     registrar.Postprocessor([] (TThis* command) {
         // COMPAT(achulkov2)

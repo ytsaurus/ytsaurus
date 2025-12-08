@@ -385,4 +385,82 @@ void TWritingValueConsumer::OnEndRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCollectingValueConsumer::TCollectingValueConsumer(
+    TTableSchemaPtr schema)
+    : Schema_(std::move(schema))
+{ }
+
+TCollectingValueConsumer::TCollectingValueConsumer(
+    TNameTablePtr nameTable,
+    TTableSchemaPtr schema)
+    : Schema_(std::move(schema))
+    , NameTable_(std::move(nameTable))
+{ }
+
+const TNameTablePtr& TCollectingValueConsumer::GetNameTable() const
+{
+    return NameTable_;
+}
+
+const TTableSchemaPtr& TCollectingValueConsumer::GetSchema() const
+{
+    return Schema_;
+}
+
+bool TCollectingValueConsumer::GetAllowUnknownColumns() const
+{
+    return true;
+}
+
+void TCollectingValueConsumer::OnBeginRow()
+{ }
+
+void TCollectingValueConsumer::OnValue(const TUnversionedValue& value)
+{
+    Builder_.AddValue(value);
+}
+
+void TCollectingValueConsumer::OnEndRow()
+{
+    RowList_.emplace_back(Builder_.FinishRow());
+}
+
+TUnversionedRow TCollectingValueConsumer::GetRow(size_t rowIndex)
+{
+    return RowList_.at(rowIndex);
+}
+
+std::optional<TUnversionedValue> TCollectingValueConsumer::FindRowValue(size_t rowIndex, TStringBuf columnName) const
+{
+    TUnversionedRow row = RowList_.at(rowIndex);
+    auto id = GetNameTable()->GetIdOrThrow(columnName);
+
+    for (const auto& value : row) {
+        if (value.Id == id) {
+            return value;
+        }
+    }
+    return std::nullopt;
+}
+
+TUnversionedValue TCollectingValueConsumer::GetRowValue(size_t rowIndex, TStringBuf columnName) const
+{
+    auto row = FindRowValue(rowIndex, columnName);
+    if (!row) {
+        THROW_ERROR_EXCEPTION("Cannot find column %Qv", columnName);
+    }
+    return *row;
+}
+
+size_t TCollectingValueConsumer::Size() const
+{
+    return RowList_.size();
+}
+
+const std::vector<TUnversionedOwningRow>& TCollectingValueConsumer::GetRowList() const {
+    return RowList_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
