@@ -465,6 +465,8 @@ items:
              href: admin-guide/install-odin.md
            - name: Tutorial
              href: admin-guide/install-tutorial.md
+           - name: Microservices
+             href: admin-guide/install-ytmsvc.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
@@ -473,6 +475,8 @@ items:
             href: admin-guide/locations.md
           - name: Configuring server component logging
             href: admin-guide/logging.md
+          - name: Uploading snapshots to Cypress
+            href: admin-guide/persistence-uploader.md
        - name: Setting up SSO
          href: admin-guide/oauth.md
          when: audience == "public"
