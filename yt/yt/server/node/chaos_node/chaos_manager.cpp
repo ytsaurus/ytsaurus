@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
 #include "chaos_lease.h"
+#include "chaos_lease_manager.h"
 #include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
 #include "migrated_replication_card_remover.h"
@@ -31,7 +32,6 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chaos_client/helpers.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.h>
 
@@ -118,9 +118,6 @@ public:
             BIND(&TChaosManager::PeriodicMigrateLeftovers, MakeWeak(this)),
             Config_->LeftoverMigrationPeriod))
         , ReplicationCardWatcher_(slot->GetReplicationCardsWatcher())
-        , ChaosLeaseTracker_(CreateTransactionLeaseTracker(
-            Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
-            Logger))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -166,8 +163,6 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateChaosLease, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveChaosLease, Unretained(this)));
     }
 
     void Initialize() override
@@ -188,11 +183,6 @@ public:
     IYPathServicePtr GetOrchidService() const override
     {
         return OrchidService_;
-    }
-
-    virtual ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const override
-    {
-        return ChaosLeaseTracker_;
     }
 
     void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) override
@@ -347,12 +337,12 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
-    const std::vector<TCellId>& CoordinatorCellIds() override
+    const std::vector<TCellId>& CoordinatorCellIds() const override
     {
         return CoordinatorCellIds_;
     }
 
-    bool IsCoordinatorSuspended(TCellId coordinatorCellId) override
+    bool IsCoordinatorSuspended(TCellId coordinatorCellId) const override
     {
         return SuspendedCoordinators_.contains(coordinatorCellId);
     }
@@ -429,8 +419,14 @@ public:
                     ? EExistenceResult::Available
                     : EExistenceResult::Absent;
 
-            case EObjectType::ChaosLease:
-                return FindChaosLease(chaosObjectId) ? EExistenceResult::Available : EExistenceResult::Absent;
+            case EObjectType::ChaosLease: {
+                const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                if (chaosLeaseManager->GetState() != EChaosLeaseManagerState::Enabled) {
+                    return EExistenceResult::Absent;
+                }
+
+                return chaosLeaseManager->FindChaosLease(chaosObjectId) ? EExistenceResult::Available : EExistenceResult::NonExistent;
+            }
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported object type %Qlv", objectType)
@@ -458,52 +454,6 @@ public:
         }
     }
 
-    void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) override
-    {
-        auto mutation = CreateMutation(
-            HydraManager_,
-            context,
-            &TChaosManager::HydraCreateChaosLease,
-            this);
-        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
-    }
-
-    void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) override
-    {
-        auto mutation = CreateMutation(
-            HydraManager_,
-            context,
-            &TChaosManager::HydraRemoveChaosLease,
-            this);
-
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
-
-        auto removeFuture = mutation->Commit().AsVoid().Apply(BIND([this, this_ = MakeStrong(this), chaosLeaseId] {
-            auto chaosLease = GetChaosLeaseOrThrow(chaosLeaseId);
-            return chaosLease->RemovePromise().ToFuture();
-        }));
-        context->ReplyFrom(removeFuture);
-    }
-
-    void PingChaosLease(const TCtxPingChaosLeasePtr& context) override
-    {
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
-        bool pingAncestors = context->Request().ping_ancestors();
-
-        auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors, /*pingerAddress*/ std::nullopt);
-        context->Reply();
-    }
-
-    TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
-    {
-        auto* chaosLease = FindChaosLease(chaosLeaseId);
-        if (!chaosLease) {
-            ThrowChaosLeaseNotKnown(chaosLeaseId);
-        }
-
-        return chaosLease;
-    }
-
     TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) const override
     {
         switch (TypeFromId(chaosObjectId)) {
@@ -511,7 +461,10 @@ public:
                 return ReplicationCardMap_.Find(chaosObjectId);
 
             case EObjectType::ChaosLease:
-                return ChaosLeaseMap_.Find(chaosObjectId);
+            {
+                const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                return chaosLeaseManager->FindChaosLease(chaosObjectId);
+            }
 
             default:
                 return nullptr;
@@ -596,8 +549,6 @@ private:
     const TPeriodicExecutorPtr LeftoversMigrationExecutor_;
     const IReplicationCardsWatcherPtr ReplicationCardWatcher_;
 
-    const ITransactionLeaseTrackerPtr ChaosLeaseTracker_;
-
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
     TEntityMap<TChaosLease> ChaosLeaseMap_;
@@ -605,6 +556,9 @@ private:
     THashMap<TCellId, TInstant> SuspendedCoordinators_;
     THashMap<TReplicaId, TReplicaCounters> ReplicaCounters_;
     bool Suspended_ = false;
+
+    // COMPAT(gryzlov-ad)
+    bool MoveChaosLeasesToChaosLeaseManager_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -615,6 +569,7 @@ private:
 
         ReplicationCardMap_.SaveKeys(context);
         CollocationMap_.SaveKeys(context);
+        // COMPAT(gryzlov-ad)
         ChaosLeaseMap_.SaveKeys(context);
     }
 
@@ -626,6 +581,7 @@ private:
 
         ReplicationCardMap_.SaveValues(context);
         CollocationMap_.SaveValues(context);
+        // COMPAT(gryzlov-ad)
         ChaosLeaseMap_.SaveValues(context);
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
@@ -639,6 +595,7 @@ private:
 
         ReplicationCardMap_.LoadKeys(context);
         CollocationMap_.LoadKeys(context);
+        // COMPAT(gryzlov-ad)
         if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
             ChaosLeaseMap_.LoadKeys(context);
         }
@@ -652,6 +609,7 @@ private:
 
         ReplicationCardMap_.LoadValues(context);
         CollocationMap_.LoadValues(context);
+        // COMPAT(gryzlov-ad)
         if (context.GetVersion() >= EChaosReign::IntroduceChaosObjectAndLease) {
             ChaosLeaseMap_.LoadValues(context);
         }
@@ -660,6 +618,9 @@ private:
         Load(context, SuspendedCoordinators_);
         Load(context, Suspended_);
         MigratedReplicationCardRemover_->Load(context);
+
+        // COMPAT(gryzlov-ad)
+        MoveChaosLeasesToChaosLeaseManager_ = context.GetVersion() < EChaosReign::IntroduceChaosLeaseManager;
     }
 
     void Clear() override
@@ -691,25 +652,11 @@ private:
         MigratedReplicationCardRemover_->Start();
         ForeignMigratedReplicationCardRemover_->Start();
         Slot_->GetReplicatedTableTracker()->EnableTracking();
-        ChaosLeaseTracker_->Start();
-
-        // Recreate chaos leases.
-        for (const auto& [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
-            ChaosLeaseTracker_->RegisterTransaction(
-                chaosLeaseId,
-                chaosLease->GetParentId(),
-                chaosLease->GetTimeout(),
-                std::nullopt,
-                BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
-                    .Via(Slot_->GetAutomatonInvoker()));
-        }
     }
 
     void OnStopLeading() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        TChaosAutomatonPart::OnStopLeading();
 
         ChaosCellSynchronizer_->Stop();
         YT_UNUSED_FUTURE(CommencerExecutor_->Stop());
@@ -719,6 +666,49 @@ private:
         ForeignMigratedReplicationCardRemover_->Stop();
         Slot_->GetReplicatedTableTracker()->DisableTracking();
         ReplicationCardWatcher_->Stop();
+
+        TChaosAutomatonPart::OnStopLeading();
+    }
+
+    void OnBeforeSnapshotLoaded() override
+    {
+        TChaosAutomatonPart::OnBeforeSnapshotLoaded();
+
+        // COMPAT(gryzlov-ad)
+        MoveChaosLeasesToChaosLeaseManager_ = false;
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TChaosAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(gryzlov-ad)
+        if (MoveChaosLeasesToChaosLeaseManager_) {
+            auto getRootId = [&](TChaosLease* chaosLease) {
+                auto* currentChaosLease = chaosLease;
+                while (currentChaosLease && chaosLease->GetParentId()) {
+                    currentChaosLease = ChaosLeaseMap_.Find(chaosLease->GetParentId());
+                }
+
+                return currentChaosLease->GetId();
+            };
+
+            const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+            for (auto* chaosLease : GetValuesSortedByKey(ChaosLeaseMap_)) {
+                auto newChaosLease = std::make_unique<TChaosLease>(chaosLease->GetId());
+                newChaosLease->SetParentId(chaosLease->GetParentId());
+                newChaosLease->SetRootId(getRootId(chaosLease));
+                newChaosLease->SetTimeout(chaosLease->GetTimeout());
+                newChaosLease->SetState(chaosLease->GetState());
+                for (const auto& nestedLeaseId : chaosLease->NestedLeaseIds()) {
+                    newChaosLease->NestedLeaseIds().push_back(nestedLeaseId);
+                }
+
+                chaosLeaseManager->InsertChaosLease(std::move(newChaosLease));
+            }
+
+            ChaosLeaseMap_.Clear();
+        }
     }
 
     void OnRecoveryComplete() override
@@ -1058,7 +1048,7 @@ private:
 
         replicationCard->ValidateCollocationNotMigrating();
 
-        RevokeShortcuts(replicationCard);
+        RevokeShortcut(replicationCard);
 
         if (!IsDomesticReplicationCard(replicationCardId)) {
             const auto& hiveManager = Slot_->GetHiveManager();
@@ -1588,17 +1578,8 @@ private:
 
             // TODO(gryzlov-ad): Add common logic for removal to TChaosObjectBase
             if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
-                auto chaosLease = static_cast<TChaosLease*>(chaosObject);
-                if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
-                    YT_LOG_DEBUG("Chaos object removed after revoking all shortcuts (ChaosObjectId: %v, Type: %v)",
-                        chaosObjectId,
-                        TypeFromId(chaosObjectId));
-
-                    ChaosLeaseTracker_->UnregisterTransaction(chaosObjectId);
-                    auto chaosLeaseHolder = ChaosLeaseMap_.Release(chaosObjectId);
-
-                    chaosLeaseHolder->RemovePromise().Set();
-                }
+                auto* chaosLease = static_cast<TChaosLease*>(chaosObject);
+                Slot_->GetChaosLeaseManager()->HandleChaosLeaseStateTransition(chaosLease);
             }
         }
 
@@ -1651,7 +1632,7 @@ private:
         return SortHashMapByKeys(coordinatorToRequest);
     }
 
-    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects)
+    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1672,12 +1653,7 @@ private:
         }
     }
 
-    void RevokeShortcuts(TChaosObjectBase* chaosObject)
-    {
-        RevokeShortcuts(TRange(&chaosObject, 1));
-    }
-
-    void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
+    void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId>& coordinatorCellIds, bool strict = true) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1743,27 +1719,38 @@ private:
                 << TErrorAttribute("coordinator_cell_id", coordinatorCellId);
         }
 
-        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
-            auto state = replicationCard->GetState();
-            if (state == EReplicationCardState::RemoteCollocationAttachPrepared) {
-                YT_LOG_DEBUG("Skipping replication card since it is attaching to remote collocation "
-                    "(ReplicationCardId: %v, Era: %v)",
-                    replicationCard->GetId(),
-                    replicationCard->GetEra());
+        for (auto* chaosObject : GetSortedChaosObjects()) {
+            if (IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
+                auto* replicationCard = static_cast<TReplicationCard*>(chaosObject);
+                auto state = replicationCard->GetState();
+                if (state == EReplicationCardState::RemoteCollocationAttachPrepared) {
+                    YT_LOG_DEBUG("Skipping replication card since it is attaching to remote collocation "
+                        "(ReplicationCardId: %v, Era: %v)",
+                        replicationCard->GetId(),
+                        replicationCard->GetEra());
+                    continue;
+                }
+            // COMPAT(gryzlov-ad)
+            } else if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) < EChaosReign::IntroduceChaosLeaseManager) {
                 continue;
             }
 
-            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
-                it != replicationCard->Coordinators().end())
-            {
-                replicationCard->Coordinators().erase(it);
+            auto it = chaosObject->Coordinators().find(coordinatorCellId);
+            if (it == chaosObject->Coordinators().end()) {
+                continue;
+            }
 
-                YT_LOG_DEBUG("Forsaking coordinator (ReplicationCardId: %v, Era: %v, State: %v, Coordinator: %v)",
-                replicationCard->GetId(),
-                replicationCard->GetEra(),
-                replicationCard->GetState(),
+            YT_LOG_DEBUG("Forsaking coordinator (ChaosObjectId: %v, Type: %v, Era: %v, Coordinator: %v)",
+                chaosObject->GetId(),
+                TypeFromId(chaosObject->GetId()),
+                chaosObject->GetEra(),
                 coordinatorCellId);
 
+            chaosObject->Coordinators().erase(it);
+
+            if (IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
+                auto* replicationCard = static_cast<TReplicationCard*>(chaosObject);
+                auto state = replicationCard->GetState();
                 if (EqualToOneOf(
                     state,
                     EReplicationCardState::RevokingShortcutsForAlter,
@@ -1773,6 +1760,14 @@ private:
                 } else if (state == EReplicationCardState::Normal) {
                     UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
                 }
+            } else if (IsChaosLeaseType(TypeFromId(chaosObject->GetId()))) {
+                auto* chaosLease = static_cast<TChaosLease*>(chaosObject);
+                auto chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                chaosLeaseManager->HandleChaosLeaseStateTransition(chaosLease);
+            } else {
+                YT_LOG_FATAL("Unexpected chaos object %v with type %Qlv during ForsakeCoordinator",
+                    chaosObject->GetId(),
+                    TypeFromId(chaosObject->GetId()));
             }
         }
     }
@@ -1838,6 +1833,12 @@ private:
 
         if (suspendChaosCell) {
             YT_LOG_DEBUG("Suspending chaos cell");
+
+            // COMPAT(gryzlov-ad)
+            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) >= EChaosReign::IntroduceChaosLeaseManager) {
+                const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+                chaosLeaseManager->MakeStateTransition(EChaosLeaseManagerState::Enabled, EChaosLeaseManagerState::Disabling);
+            }
 
             Suspended_ = true;
         }
@@ -2208,14 +2209,14 @@ private:
             case EReplicationCardState::RevokingShortcutsForMigration:
                 YT_VERIFY(replicationCard->IsReadyToMigrate());
                 replicationCard->SetState(EReplicationCardState::RevokingShortcutsForMigration);
-                RevokeShortcuts(replicationCard);
+                RevokeShortcut(replicationCard);
                 HandleReplicationCardStateTransition(replicationCard);
                 break;
 
             case EReplicationCardState::RevokingShortcutsForAlter:
                 if (replicationCard->GetState() == EReplicationCardState::Normal) {
                     replicationCard->SetState(EReplicationCardState::RevokingShortcutsForAlter);
-                    RevokeShortcuts(replicationCard);
+                    RevokeShortcut(replicationCard);
                     HandleReplicationCardStateTransition(replicationCard);
                 } else {
                     YT_LOG_DEBUG("Skipping replication card state update (ReplicationCardId: %v, State: %v, NewState: %v)",
@@ -2440,17 +2441,22 @@ private:
         NChaosNode::NProto::TReqRevokeShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
 
-        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
-            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+        for (auto* chaosObject : GetSortedChaosObjects()) {
+            // COMPAT(gryzlov-ad)
+            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) < EChaosReign::IntroduceChaosLeaseManager
+                && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
+                continue;
+            }
+            if (!chaosObject->IsNormal()) {
                 continue;
             }
 
-            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
+            if (auto it = chaosObject->Coordinators().find(coordinatorCellId);
                 it && (it->second.State == EShortcutState::Granted || it->second.State == EShortcutState::Granting))
             {
                 auto* shortcut = req.add_shortcuts();
-                ToProto(shortcut->mutable_chaos_object_id(), replicationCard->GetId());
-                shortcut->set_era(replicationCard->GetEra());
+                ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
+                shortcut->set_era(chaosObject->GetEra());
 
                 it->second.State = EShortcutState::Revoking;
             }
@@ -2469,22 +2475,27 @@ private:
         NChaosNode::NProto::TReqGrantShortcuts req;
         ToProto(req.mutable_chaos_cell_id(), Slot_->GetCellId());
 
-        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
-            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+        for (auto* chaosObject : GetSortedChaosObjects()) {
+            // COMPAT(gryzlov-ad)
+            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) < EChaosReign::IntroduceChaosLeaseManager
+                && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
+                continue;
+            }
+            if (!chaosObject->IsNormal()) {
                 continue;
             }
 
-            if (auto it = replicationCard->Coordinators().find(coordinatorCellId);
+            if (auto it = chaosObject->Coordinators().find(coordinatorCellId);
                 !it || (it->second.State == EShortcutState::Revoked || it->second.State == EShortcutState::Revoking))
             {
                 auto* shortcut = req.add_shortcuts();
-                ToProto(shortcut->mutable_chaos_object_id(), replicationCard->GetId());
-                shortcut->set_era(replicationCard->GetEra());
+                ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
+                shortcut->set_era(chaosObject->GetEra());
 
                 if (it) {
                     it->second.State = EShortcutState::Granting;
                 } else {
-                    replicationCard->Coordinators().insert(std::pair(
+                    chaosObject->Coordinators().insert(std::pair(
                         coordinatorCellId,
                         TCoordinatorInfo{EShortcutState::Granting}));
                 }
@@ -2808,91 +2819,6 @@ private:
         }
     }
 
-    void HydraCreateChaosLease(
-        const TCtxCreateChaosLeasePtr& context,
-        NChaosClient::NProto::TReqCreateChaosLease* request,
-        NChaosClient::NProto::TRspCreateChaosLease* response)
-    {
-        auto chaosLeaseId = GenerateNewChaosLeaseId();
-        auto timeout = FromProto<TDuration>(request->timeout());
-        auto parentId = FromProto<TChaosLeaseId>(request->parent_id());
-
-        auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
-        if (parentId) {
-            auto parent = GetChaosLeaseOrThrow(parentId);
-
-            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval) {
-                THROW_ERROR_EXCEPTION("Failed to create chaos lease, since its parent is being removed")
-                    << TErrorAttribute("parent_chaos_lease_id", parentId);
-            }
-
-            chaosLease->SetParentId(parentId);
-            InsertOrCrash(parent->NestedLeases(), chaosLeaseId);
-        }
-
-        chaosLease->SetTimeout(timeout);
-        auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
-
-        ChaosLeaseTracker_->RegisterTransaction(
-            chaosLeaseId,
-            parentId,
-            timeout,
-            std::nullopt,
-            BIND(&TChaosManager::OnLeaseExpired, MakeWeak(this))
-                .Via(Slot_->GetAutomatonInvoker()));
-
-
-        YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
-            chaosLeaseId);
-
-        GrantShortcuts(chaosLeasePtr, CoordinatorCellIds_);
-
-        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
-
-        if (context) {
-            context->SetResponseInfo("ChaosLeaseId: %v",
-                chaosLeaseId);
-        }
-    }
-
-    void OnLeaseExpired(TChaosLeaseId chaosLeaseId)
-    {
-        NChaosClient::NProto::TReqRemoveChaosLease request;
-        ToProto(request.mutable_chaos_lease_id(), chaosLeaseId);
-        auto mutation = CreateMutation(HydraManager_, request);
-
-        YT_UNUSED_FUTURE(mutation->Commit());
-    }
-
-    void HydraRemoveChaosLease(
-        const TCtxRemoveChaosLeasePtr& /*context*/,
-        NChaosClient::NProto::TReqRemoveChaosLease* request,
-        NChaosClient::NProto::TRspRemoveChaosLease* /*response*/)
-    {
-        auto rootChaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-        auto* rootChaosLease = GetChaosLeaseOrThrow(rootChaosLeaseId);
-
-        if (rootChaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval) {
-            return;
-        }
-
-        std::vector<TChaosObjectBase*> chaosLeases;
-        chaosLeases.push_back(rootChaosLease);
-
-        for (int bfsPointer = 0; bfsPointer < std::ssize(chaosLeases); ++bfsPointer) {
-            auto* chaosLease = static_cast<TChaosLease*>(chaosLeases[bfsPointer]);
-            chaosLease->RemovePromise() = NewPromise<void>();
-            chaosLease->SetState(EChaosLeaseState::RevokingShortcutsForRemoval);
-
-            for (const auto& nestedChaosLeaseId : chaosLease->NestedLeases()) {
-                auto* nestedChaosLease = GetChaosLeaseOrThrow(nestedChaosLeaseId);
-                chaosLeases.push_back(nestedChaosLease);
-            }
-        }
-
-        RevokeShortcuts(chaosLeases);
-    }
-
     void UpdateReplicationCardCollocation(
         TReplicationCard* replicationCard,
         TReplicationCardCollocation* collocation,
@@ -3012,11 +2938,6 @@ private:
                 return replicaId;
             }
         }
-    }
-
-    TReplicationCardId GenerateNewChaosLeaseId()
-    {
-        return MakeChaosLeaseId(Slot_->GenerateId(EObjectType::ChaosLease));
     }
 
     void FireReplicationCardCollocationUpdated(TReplicationCardCollocation* collocation)
@@ -3363,6 +3284,28 @@ private:
 
         return syncQueuesCount;
     }
+
+    std::vector<TChaosObjectBase*> GetSortedChaosObjects()
+    {
+        auto replicationCards = GetValuesSortedByKey(ReplicationCardMap_);
+
+        auto chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        auto chaosLeases = GetValuesSortedByKey(chaosLeaseManager->ChaosLeases());
+
+        std::vector<TChaosObjectBase*> chaosObjects;
+        chaosObjects.reserve(replicationCards.size() + chaosLeases.size());
+
+        chaosObjects.insert(
+            chaosObjects.end(),
+            std::make_move_iterator(replicationCards.begin()),
+            std::make_move_iterator(replicationCards.end()));
+        chaosObjects.insert(
+            chaosObjects.end(),
+            std::make_move_iterator(chaosLeases.begin()),
+            std::make_move_iterator(chaosLeases.end()));
+
+        return chaosObjects;
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChaosManager, ReplicationCard, TReplicationCard, ReplicationCardMap_);
@@ -3377,7 +3320,7 @@ IChaosManagerPtr CreateChaosManager(
     IBootstrap* bootstrap)
 {
     return New<TChaosManager>(
-        config,
+        std::move(config),
         slot,
         bootstrap);
 }

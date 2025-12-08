@@ -115,14 +115,11 @@ struct IChaosManager
     virtual void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) = 0;
     virtual TFuture<void> ExecuteAlterTableReplica(const NChaosClient::NProto::TReqAlterTableReplica& request) = 0;
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
-    virtual void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) = 0;
-    virtual void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) = 0;
-    virtual void PingChaosLease(const TCtxPingChaosLeasePtr& context) = 0;
 
     virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
 
-    virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() = 0;
-    virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) = 0;
+    virtual const std::vector<NObjectClient::TCellId>& CoordinatorCellIds() const = 0;
+    virtual bool IsCoordinatorSuspended(NObjectClient::TCellId coordinatorCellId) const = 0;
 
     virtual void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) = 0;
 
@@ -140,12 +137,21 @@ struct IChaosManager
     virtual TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId colocationId) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChaosLease, TChaosLease);
-    virtual TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) = 0;
-
-    virtual NTransactionSupervisor::ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const = 0;
 
     virtual TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) const = 0;
     virtual EExistenceResult IsChaosObjectExistent(TChaosObjectId chaosObjectId) const = 0;
+
+    virtual void GrantShortcuts(
+        TChaosObjectBase* chaosObject,
+        const std::vector<NObjectClient::TCellId>& coordinatorCellIds,
+        bool strict = true) = 0;
+
+    virtual void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects) = 0;
+
+    void RevokeShortcut(TChaosObjectBase* chaosObject)
+    {
+        RevokeShortcuts(TRange(&chaosObject, 1));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

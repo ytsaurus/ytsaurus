@@ -4806,73 +4806,6 @@ class TestChaos(ChaosTestBase):
         hint = "\"{require_sync_replica=%false;}\""
         assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
-    @authors("gryzlov-ad")
-    def test_chaos_lease_basic(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
-        ]
-        self._create_chaos_tables(cell_id, replicas)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-
-        lease_id = create_chaos_lease(cell_id)
-        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
-
-        values = [{"key": 0, "value": "0"}]
-        insert_rows("//tmp/t", values, tx=tx)
-
-        commit_transaction(tx)
-
-        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
-        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
-
-        remove(f"#{lease_id}")
-
-        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
-
-        values = [{"key": 1, "value": "0"}]
-        insert_rows("//tmp/t", values, tx=tx)
-
-        with pytest.raises(YtError):
-            commit_transaction(tx)
-
-    @authors("gryzlov-ad")
-    def test_chaos_lease_two_coordinators(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-        another_cell_id = self._sync_create_chaos_cell()
-
-        wait(lambda: len(self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators")) == 2)
-
-        tx_count = 3
-
-        replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
-        ]
-        self._create_chaos_tables(cell_id, replicas)
-        _, remote_driver0, remote_driver1 = self._get_drivers()
-
-        lease_id = create_chaos_lease(cell_id)
-
-        def _get_shortcuts(cell_id):
-            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts")
-
-        wait(lambda: lease_id in _get_shortcuts(cell_id))
-        wait(lambda: lease_id in _get_shortcuts(another_cell_id))
-
-        txs = [start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id]) for i in range(tx_count)]
-        rows = [{"key": i, "value": str(i)} for i in range(tx_count)]
-
-        for tx, row in zip(txs, rows):
-            insert_rows("//tmp/t", [row], tx=tx)
-            commit_transaction(tx)
-
-        assert select_rows("* from [//tmp/t]") == rows
-
     @authors("savrus")
     def test_remount_table(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -4905,72 +4838,6 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
-
-    @authors("gryzlov-ad")
-    def test_chaos_lease_pings(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
-
-        first_ping_time = get(f"#{lease_id}/@last_ping_time")
-        ping_chaos_lease(lease_id)
-        last_ping_time = get(f"#{lease_id}/@last_ping_time")
-
-        assert first_ping_time < last_ping_time
-
-    @authors("gryzlov-ad")
-    def test_chaos_lease_expiration(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 1000})
-
-        wait(lambda: not self._chaos_lease_exists(lease_id))
-
-    @authors("gryzlov-ad")
-    def test_chaos_lease_errors(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        invalid_cell_id = generate_chaos_cell_id()
-        while cell_id == invalid_cell_id:
-            invalid_cell_id = generate_chaos_cell_id()
-
-        with raises_yt_error("No cell with tag"):
-            create_chaos_lease(invalid_cell_id)
-
-        lease_id = create_chaos_lease(cell_id)
-
-        def corrupt_id(original_id):
-            return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
-
-        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
-            create_chaos_lease(cell_id, attributes={"parent_id": corrupt_id(lease_id)})
-
-        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
-            ping_chaos_lease(corrupt_id(lease_id))
-
-        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
-            remove(f"#{corrupt_id(lease_id)}")
-
-    @authors("gryzlov-ad")
-    def test_chaos_lease_hierarchy(self):
-        cell_id = self._sync_create_chaos_bundle_and_cell()
-
-        root_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
-        child_lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000, "parent_id": root_lease_id})
-
-        first_ping_time = get(f"#{root_lease_id}/@last_ping_time")
-        ping_chaos_lease(child_lease_id, ping_ancestors=True)
-        last_ping_time = get(f"#{root_lease_id}/@last_ping_time")
-
-        assert first_ping_time < last_ping_time
-
-        ping_chaos_lease(child_lease_id, ping_ancestors=False)
-        unchanged_ping_time = get(f"#{root_lease_id}/@last_ping_time")
-
-        assert unchanged_ping_time == last_ping_time
-
-        remove(f"#{root_lease_id}")
-        assert not self._chaos_lease_exists(child_lease_id)
-        assert not self._chaos_lease_exists(root_lease_id)
-
 
 ##################################################################
 
@@ -6001,6 +5868,219 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_basic(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(alpha_cell, replicas)
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+
+        lease_id = create_chaos_lease(alpha_cell)
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values, tx=tx)
+
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+        remove(f"#{lease_id}")
+
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
+
+        values = [{"key": 1, "value": "0"}]
+        insert_rows("//tmp/t", values, tx=tx)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx)
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_two_coordinators(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+        drivers = {alpha_cell: remote_driver1, beta_cell: remote_driver2}
+
+        wait(lambda: len(self._get_chaos_cell_orchid(alpha_cell, "/chaos_manager/coordinators", driver=drivers[alpha_cell])) == 2)
+
+        tx_count = 3
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(alpha_cell, replicas)
+
+        lease_id = create_chaos_lease(alpha_cell)
+
+        def _get_shortcuts(cell_id):
+            return self._get_chaos_cell_orchid(cell_id, "/coordinator_manager/shortcuts", driver=drivers[cell_id])
+
+        wait(lambda: lease_id in _get_shortcuts(alpha_cell))
+        wait(lambda: lease_id in _get_shortcuts(beta_cell))
+
+        txs = [start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id]) for i in range(tx_count)]
+        rows = [{"key": i, "value": str(i)} for i in range(tx_count)]
+
+        for tx, row in zip(txs, rows):
+            insert_rows("//tmp/t", [row], tx=tx)
+            commit_transaction(tx)
+
+        assert select_rows("* from [//tmp/t]") == rows
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_pings(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 10000})
+
+        first_ping_time = get(f"#{lease_id}/@last_ping_time")
+        ping_chaos_lease(lease_id)
+        last_ping_time = get(f"#{lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_expiration(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 1000})
+
+        wait(lambda: not self._chaos_lease_exists(lease_id))
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_without_shortcuts(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+        drivers = {alpha_cell: remote_driver1, beta_cell: remote_driver2}
+
+        def get_chaos_lease_coordinators(cell_id, lease_id):
+            return self._get_chaos_cell_orchid(
+                cell_id,
+                f"/chaos_lease_manager/chaos_leases/{lease_id}/coordinators",
+                driver=drivers[cell_id])
+
+        def check_removal(expected_shortcuts_count):
+            lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 30000})
+            wait(lambda: len(get_chaos_lease_coordinators(alpha_cell, lease_id)) == expected_shortcuts_count)
+
+            remove(f"#{lease_id}")
+            wait(lambda: not self._chaos_lease_exists(lease_id))
+
+        check_removal(2)
+
+        suspend_coordinator(alpha_cell)
+        check_removal(1)
+
+        suspend_coordinator(beta_cell)
+        check_removal(0)
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_errors(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        invalid_cell_id = generate_chaos_cell_id()
+        while invalid_cell_id in [alpha_cell, beta_cell]:
+            invalid_cell_id = generate_chaos_cell_id()
+
+        with raises_yt_error("No cell with tag"):
+            create_chaos_lease(invalid_cell_id)
+
+        lease_id = create_chaos_lease(alpha_cell)
+
+        def corrupt_id(original_id):
+            return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            create_chaos_lease(alpha_cell, attributes={"parent_id": corrupt_id(lease_id)})
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            ping_chaos_lease(corrupt_id(lease_id))
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            remove(f"#{corrupt_id(lease_id)}")
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_hierarchy(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", alpha_cell)
+
+        root_lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 10000})
+        child_lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 10000, "parent_id": root_lease_id})
+
+        first_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+        ping_chaos_lease(child_lease_id, ping_ancestors=True)
+        last_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+        ping_chaos_lease(child_lease_id, ping_ancestors=False)
+        unchanged_ping_time = get(f"#{root_lease_id}/@last_ping_time")
+
+        assert unchanged_ping_time == last_ping_time
+
+        remove(f"#{root_lease_id}")
+        assert not self._chaos_lease_exists(child_lease_id)
+        assert not self._chaos_lease_exists(root_lease_id)
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_migration(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+        drivers = {alpha_cell: remote_driver1, beta_cell: remote_driver2}
+
+        orchids_paths = {
+            cell_id: self._get_chaos_cell_orchid_path(cell_id, driver=driver)
+            for cell_id, driver in drivers.items()
+        }
+
+        def get_chaos_lease_manager_state(cell_id):
+            state_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/internal/state"
+            return get(state_path, driver=drivers[cell_id])
+
+        def get_chaos_lease(cell_id, lease_id):
+            lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
+            return get(lease_path, driver=drivers[cell_id])
+
+        assert get_chaos_lease_manager_state(alpha_cell) == "enabled"
+        assert get_chaos_lease_manager_state(beta_cell) == "disabled"
+
+        with pytest.raises(YtError):
+            create_chaos_lease(beta_cell)
+
+        def check_suspend(enabled_cell, disabled_cell):
+            assert get_chaos_lease_manager_state(enabled_cell) == "enabled"
+            wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "disabled")
+
+            lease_id = create_chaos_lease(enabled_cell)
+            assert get_chaos_lease(enabled_cell, lease_id)["state"] == "normal"
+            with pytest.raises(YtError):
+                assert get_chaos_lease(disabled_cell, lease_id)
+
+            with pytest.raises(YtError):
+                assert suspend_chaos_cells([disabled_cell])
+
+            suspend_chaos_cells([enabled_cell])
+
+            wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
+            wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
+
+            wait(lambda: get_chaos_lease(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
+            with pytest.raises(YtError):
+                assert get_chaos_lease(enabled_cell, lease_id)
+
+        check_suspend(alpha_cell, beta_cell)
+        check_suspend(beta_cell, alpha_cell)
 
     @authors("savrus")
     @pytest.mark.parametrize("method", ["migrate", "suspend"])
