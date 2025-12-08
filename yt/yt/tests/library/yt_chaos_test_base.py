@@ -586,6 +586,6 @@ class ChaosTestBase(DynamicTablesBase):
         try:
             return exists(f"#{lease_id}")
         except YtError as err:
-            if err.contains_code(yt_error_codes.ChaosLeaseNotKnown):
+            if err.contains_code(yt_error_codes.ResolveErrorCode):
                 return False
             raise err

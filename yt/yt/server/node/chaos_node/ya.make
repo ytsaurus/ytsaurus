@@ -7,6 +7,7 @@ SRCS(
     bootstrap.cpp
     chaos_cell_synchronizer.cpp
     chaos_lease.cpp
+    chaos_lease_manager.cpp
     chaos_manager.cpp
     chaos_manager.proto
     chaos_node_service.cpp
