@@ -2,6 +2,8 @@ package ytmsvc
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"net/http"
 	"os"
 	"strings"
@@ -133,4 +135,11 @@ func TokenFromEnvVariable(tokenEnvVariable string) string {
 		tokenEnvVariable = "YT_TOKEN"
 	}
 	return os.Getenv(tokenEnvVariable)
+}
+
+func RandHexString(length int) string {
+	bytes := make([]byte, (length+1)/2)
+	_, _ = rand.Read(bytes)
+	hexStr := hex.EncodeToString(bytes)
+	return hexStr[:length]
 }
