@@ -103,6 +103,10 @@ struct TDynamicCypressManagerConfig
     // COMPAT(h0pless)
     bool UseProperBranchedParentInLockCopyDestination;
 
+    // COMPAT(h0pless): AddStrongerTxAccessValidationCheck.
+    // This is an panic button if stronger validation check causes issues.
+    bool UseWeakerAccessValidationCheck;
+
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 

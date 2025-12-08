@@ -2763,7 +2763,10 @@ void TNontemplateCypressNodeProxyBase::ValidateAccessTransaction()
         return;
     }
 
-    if (Object_->GetNativeCellTag() == Transaction_->GetNativeCellTag()) {
+    auto useWeakerAccessValidationCheck = GetDynamicCypressManagerConfig()->UseWeakerAccessValidationCheck;
+    if ((Transaction_->IsExternalized() || useWeakerAccessValidationCheck) &&
+        Object_->GetNativeCellTag() == Transaction_->GetNativeCellTag())
+    {
         return;
     }
 

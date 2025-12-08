@@ -77,6 +77,15 @@ struct TListJobsFromControllerAgentResult
     int TotalInProgressJobCount = 0;
 };
 
+struct TLockNodeDetailedResult
+{
+    NCypressClient::TLockId LockId;
+    NCypressClient::TNodeId NodeId;
+    NCypressClient::TTransactionId ExternalizedTransactionId = NCypressClient::NullTransactionId;
+    NObjectClient::TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
+    NHydra::TRevision Revision = NHydra::NullRevision;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

@@ -108,6 +108,12 @@ struct IClient
         NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 
+    // Returns some extra system fields when locking a node.
+    virtual TFuture<TLockNodeDetailedResult> LockNodeDetailed(
+        const NYPath::TYPath& path,
+        NCypressClient::ELockMode mode,
+        const TLockNodeOptions& options = {}) = 0;
+
     virtual TFuture<TSyncAlienCellsResult> SyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options = {}) = 0;
