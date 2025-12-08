@@ -613,32 +613,6 @@ void TOldDiskRequestConfig::Register(TRegistrar registrar)
     RegisterNbdDisk(registrar);
 }
 
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequest,
-    const TOldDiskRequestConfig& diskRequestConfig)
-{
-    protoDiskRequest->set_disk_space(diskRequestConfig.DiskSpace);
-    if (diskRequestConfig.InodeCount) {
-        protoDiskRequest->set_inode_count(*diskRequestConfig.InodeCount);
-    }
-    if (diskRequestConfig.MediumName) {
-        YT_VERIFY(diskRequestConfig.MediumIndex);
-        protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
-    }
-    if (diskRequestConfig.NbdDisk) {
-        auto* nbd_disk = protoDiskRequest->mutable_nbd_disk();
-        if (diskRequestConfig.NbdDisk->DataNodeAddress) {
-            nbd_disk->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
-        }
-        nbd_disk->set_data_node_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeRpcTimeout));
-        nbd_disk->set_master_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->MasterRpcTimeout));
-        nbd_disk->set_min_data_node_count(diskRequestConfig.NbdDisk->MinDataNodeCount);
-        nbd_disk->set_max_data_node_count(diskRequestConfig.NbdDisk->MaxDataNodeCount);
-        nbd_disk->set_data_node_nbd_service_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeNbdServiceRpcTimeout));
-        nbd_disk->set_data_node_nbd_service_make_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeNbdServiceMakeTimeout));
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TJobShell::Register(TRegistrar registrar)

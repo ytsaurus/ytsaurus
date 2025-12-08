@@ -831,10 +831,6 @@ struct TOldDiskRequestConfig
 
 DEFINE_REFCOUNTED_TYPE(TOldDiskRequestConfig)
 
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequest,
-    const TOldDiskRequestConfig& diskRequestConfig);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobShell

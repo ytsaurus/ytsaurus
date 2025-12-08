@@ -194,8 +194,12 @@ message TSidecarJobSpec
 
 message TVolume
 {
-    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 1;
-    repeated TFileDescriptor layers = 2;
+    repeated TFileDescriptor layers = 1;
+    oneof disk_request {
+        NYT.NScheduler.NProto.TLocalDiskRequest local_disk_request = 2;
+        NYT.NScheduler.NProto.TTmpfsStorageRequest tmpfs_storage_request = 3;
+        NYT.NScheduler.NProto.TNbdDiskRequest nbd_disk_request = 4;
+    }
 }
 
 message TVolumeMount
@@ -278,7 +282,7 @@ message TUserJobSpec
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
 
-    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 51;
+    optional NYT.NScheduler.NProto.TOldDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;
