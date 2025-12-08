@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,13 +62,10 @@ func MergeTags(leftTags map[string]string, rightTags map[string]string) map[stri
 		return leftTags
 	}
 
-	newTags := make(map[string]string)
-	for key, value := range leftTags {
-		newTags[key] = value
-	}
-	for key, value := range rightTags {
-		newTags[key] = value
-	}
+	newTags := make(map[string]string, len(leftTags)+len(rightTags))
+	maps.Copy(newTags, leftTags)
+	maps.Copy(newTags, rightTags)
+
 	return newTags
 }
 
