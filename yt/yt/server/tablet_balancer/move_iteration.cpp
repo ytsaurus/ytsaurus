@@ -89,8 +89,13 @@ public:
         return GroupConfig_;
     }
 
-    void Prepare(const TTableRegistryPtr& /*tableRegistry*/) override
+    void Prepare() override
     { }
+
+    TTableProfilingCounters& GetProfilingCounters(const TTable* table)
+    {
+        return BundleSnapshot_->TableRegistry->GetProfilingCounters(table, GroupName_);
+    }
 
 protected:
     const std::string BundleName_;
@@ -144,9 +149,9 @@ public:
         return subtypeName;
     }
 
-    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
+    void UpdateProfilingCounters(const TTable* table) override
     {
-        profilingCounters.OrdinaryMoves.Increment(1);
+        GetProfilingCounters(table).OrdinaryMoves.Increment(1);
     }
 };
 
@@ -195,9 +200,9 @@ public:
         return subtypeName;
     }
 
-    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
+    void UpdateProfilingCounters(const TTable* table) override
     {
-        profilingCounters.InMemoryMoves.Increment(1);
+        GetProfilingCounters(table).InMemoryMoves.Increment(1);
     }
 };
 
@@ -294,9 +299,9 @@ public:
         return GroupConfig_->Parameterized->ReplicaClusters.empty();
     }
 
-    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
+    void UpdateProfilingCounters(const TTable* table) override
     {
-        profilingCounters.ParameterizedMoves.Increment(1);
+        GetProfilingCounters(table).ParameterizedMoves.Increment(1);
     }
 };
 
@@ -327,7 +332,7 @@ public:
         return EBalancingMode::ReplicaMove;
     }
 
-    void Prepare(const TTableRegistryPtr& tableRegistry) override
+    void Prepare() override
     {
         if (BundleSnapshot_->ReplicaBalancingFetchFailed) {
             YT_LOG_DEBUG("Balancing tablets via replica move is not possible because "
@@ -359,8 +364,8 @@ public:
                 // TODO(alexelexa): detect bunned or unavaliable clusters and skip it.
 
                 for (const auto& minorTablePath : minorTablePaths) {
-                    auto it = tableRegistry->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
-                    THROW_ERROR_EXCEPTION_IF(it == tableRegistry->AlienTablePaths().end(),
+                    auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
+                    THROW_ERROR_EXCEPTION_IF(it == BundleSnapshot_->AlienTablePaths.end(),
                         "Not all tables was resolved. Table id for table %v on cluster %Qv was not found. "
                         "Check that table path is correct",
                         minorTablePath,
@@ -400,9 +405,9 @@ public:
         return !GroupConfig_->Parameterized->ReplicaClusters.empty();
     }
 
-    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
+    void UpdateProfilingCounters(const TTable* table) override
     {
-        profilingCounters.ReplicaMoves.Increment(1);
+        GetProfilingCounters(table).ReplicaMoves.Increment(1);
     }
 
 private:

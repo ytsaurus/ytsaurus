@@ -40,6 +40,11 @@ struct TBundleSnapshot final
     bool ReplicaBalancingFetchFailed = false;
     std::vector<std::string> PerformanceCountersKeys;
     TError NonFatalError;
+    TTableRegistryPtr TableRegistry;
+
+    using TAlienTableTag = std::tuple<TString, NYPath::TYPath>;
+    THashMap<TAlienTableTag, TTableId> AlienTablePaths;
+    THashMap<TTableId, TAlienTablePtr> AlienTables;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleSnapshot)
@@ -58,7 +63,6 @@ public:
 public:
     TBundleState(
         TString name,
-        TTableRegistryPtr tableRegistry,
         NApi::NNative::IClientPtr client,
         NHiveClient::TClientDirectoryPtr clientDirectory,
         NHiveClient::TClusterDirectoryPtr clusterDirectory,
@@ -81,8 +85,6 @@ public:
     TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
         const TString& groupName);
-
-    void RemoveSelfFromRegistry();
 
 private:
     struct TTabletCellInfo
@@ -131,6 +133,7 @@ private:
 
     TTabletCellBundlePtr Bundle_;
 
+    TAtomicIntrusivePtr<TBundleStateProviderConfig> Config_;
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;
 
@@ -165,6 +168,7 @@ private:
         const NYPath::TYPath& statisticsTablePath);
 
     void FetchReplicaStatistics(
+        const TBundleSnapshotPtr& bundleSnapshot,
         const THashSet<std::string>& allowedReplicaClusters,
         bool fetchReshard,
         bool fetchMove);
@@ -179,7 +183,10 @@ private:
         bool fetchPerformanceCounters,
         bool parameterizedBalancingEnabledDefault = false) const;
 
-    void FetchReplicaModes(const THashSet<TTableId>& majorTableIds, const THashSet<std::string>& allowedReplicaClusters);
+    void FetchReplicaModes(
+        const TBundleSnapshotPtr& bundleSnapshot,
+        const THashSet<TTableId>& majorTableIds,
+        const THashSet<std::string>& allowedReplicaClusters);
 
     void FetchPerformanceCountersFromTable(
         THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
