@@ -160,8 +160,12 @@ class Cli():
             return
 
         if args.command in ["diff", "show", "submit"]:
-            for cls in self.backend_classes.values():
-                cls.on_args_parsed(args)
+            if args.backend is not None:
+                for backend_name in args.backend:
+                    self.backend_classes[backend_name].on_args_parsed(args)
+            else:
+                for cls in self.backend_classes.values():
+                    cls.on_args_parsed(args)
 
         selected_dashboards = []
         if "all" in args.dashboards:
