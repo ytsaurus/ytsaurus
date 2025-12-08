@@ -101,6 +101,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((UseMultiplePartitionTagsInChunkStripe) (302121))
     ((CreateFinalPartitionsLazily)           (302122))
     ((SupportMergingFinalPartitions)         (302123))
+    ((DropUnusedOutputCookieGenerator)       (302124))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

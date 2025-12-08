@@ -32,12 +32,6 @@ using namespace NYson;
 
 namespace {
 
-// COMPAT(apollo1321): Remove in 25.2.
-DEFINE_ENUM(EUnorderedChunkPoolMode,
-    (Normal)
-    (AutoMerge)
-);
-
 DEFINE_ENUM(EFinishAddingStripesReason,
     (NoMoreStripes)
     (SufficientDataWeight)
@@ -501,8 +495,6 @@ private:
     };
 
     THashMap<TNodeId, TLocalityEntry> NodeIdToEntry_;
-
-    TIdGenerator OutputCookieGenerator_;
 
     i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max() / 4;
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max() / 4;
@@ -1013,13 +1005,6 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, ExtractedStripes_);
     PHOENIX_REGISTER_FIELD(9, MaxBlockSize_);
     PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_);
-    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_);
-    // COMPAT(apollo1321): Remove in 25.2.
-    registrar
-        .template VirtualField<12>("Mode_", [] (TThis* /*this_*/, auto& context) {
-            Load<EUnorderedChunkPoolMode>(context);
-        })
-        .BeforeVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing)();
     PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_);
     PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_);
@@ -1029,11 +1014,7 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_);
     PHOENIX_REGISTER_FIELD(20, FreeRowCounter_);
     PHOENIX_REGISTER_FIELD(21, IsCompleted_);
-
-    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
-
-    PHOENIX_REGISTER_DELETED_FIELD(23, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldUnorderedChunkPoolSlicing);
+    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_);
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
