@@ -1907,6 +1907,19 @@ class YtClient(ClientState):
             pipeline_path,
             client=self)
 
+    def ping_chaos_lease(
+            self,
+            chaos_lease_id):
+        """
+        Ping chaos lease.
+
+        :param str chaos_lease_id: chaos lease id.
+
+        """
+        return client_api.ping_chaos_lease(
+            chaos_lease_id,
+            client=self)
+
     def ping_distributed_write_session(
             self,
             session: DistributedWriteSessionPacketType,
