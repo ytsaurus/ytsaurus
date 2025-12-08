@@ -276,7 +276,6 @@ const std::vector<std::string> AdditionalPerformanceCountersKeys{
 
 TBundleState::TBundleState(
     TString name,
-    TTableRegistryPtr tableRegistry,
     NApi::NNative::IClientPtr client,
     TClientDirectoryPtr clientDirectory,
     TClusterDirectoryPtr clusterDirectory,
@@ -288,7 +287,7 @@ TBundleState::TBundleState(
     , ClientDirectory_(clientDirectory)
     , ClusterDirectory_(clusterDirectory)
     , Invoker_(invoker)
-    , TableRegistry_(std::move(tableRegistry))
+    , TableRegistry_(New<TTableRegistry>())
     , SelfClusterName_(std::move(clusterName))
     , Bundle_(New<TTabletCellBundle>(name))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
@@ -343,8 +342,6 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshot(
         groupsForReshardBalancing,
         allowedReplicaClusters);
 
-    TableRegistry_->DropAllAlienTables();
-
     try {
         UpdateState(dynamicConfig->FetchTabletCellsFromSecondaryMasters, iterationIndex);
     } catch (const std::exception& ex) {
@@ -395,6 +392,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshot(
         } else {
             try {
                 FetchReplicaStatistics(
+                    bundleSnapshot,
                     allowedReplicaClusters,
                     isReshardReplicaBalancingRequired,
                     isMoveReplicaBalancingRequired);
@@ -411,17 +409,13 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshot(
 
     bundleSnapshot->Bundle = Bundle_->DeepCopy();
     bundleSnapshot->PerformanceCountersKeys = PerformanceCountersKeys_;
+    bundleSnapshot->TableRegistry = TableRegistry_;
     return bundleSnapshot;
 }
 
 TBundleTabletBalancerConfigPtr TBundleState::GetConfig() const
 {
     return Bundle_->Config;
-}
-
-void TBundleState::RemoveSelfFromRegistry()
-{
-    TableRegistry_->RemoveBundle(Bundle_);
 }
 
 void TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
@@ -771,6 +765,7 @@ void TBundleState::FillTabletWithStatistics(const TTabletPtr& tablet, TTabletSta
 }
 
 void TBundleState::FetchReplicaStatistics(
+    const TBundleSnapshotPtr& bundleSnapshot,
     const THashSet<std::string>& allowedReplicaClusters,
     bool fetchReshard,
     bool fetchMove)
@@ -814,7 +809,9 @@ void TBundleState::FetchReplicaStatistics(
             const auto& table = tableResponses[index];
             if (table.Id) {
                 YT_VERIFY(table.CellTag);
-                TableRegistry_->AddAlienTablePath(cluster, tablePaths[index], table.Id);
+                EmplaceOrCrash(
+                    bundleSnapshot->AlienTablePaths,
+                    TBundleSnapshot::TAlienTableTag{cluster, tablePaths[index]}, table.Id);
                 EmplaceOrCrash(alienTables, table.Id, New<TAlienTable>(
                     tablePaths[index],
                     table.Id,
@@ -876,13 +873,13 @@ void TBundleState::FetchReplicaStatistics(
                 majorTable->AlienTables[cluster].push_back(table);
             }
 
-            TableRegistry_->AddAlienTable(std::move(table), majorTables);
+            EmplaceOrCrash(bundleSnapshot->AlienTables, table->Id, std::move(table));
         }
     }
 
     if (fetchReshard) {
         YT_LOG_DEBUG("Started fetching replica table modes (MajorTableCount: %v)", std::ssize(majorTableIds));
-        FetchReplicaModes(majorTableIds, allowedReplicaClusters);
+        FetchReplicaModes(bundleSnapshot, majorTableIds, allowedReplicaClusters);
         YT_LOG_DEBUG("Finished fetching replica table modes");
     }
 }
@@ -1162,6 +1159,7 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
 }
 
 void TBundleState::FetchReplicaModes(
+    const TBundleSnapshotPtr& bundleSnapshot,
     const THashSet<TTableId>& majorTableIds,
     const THashSet<std::string>& allowedReplicaClusters)
 {
@@ -1201,12 +1199,12 @@ void TBundleState::FetchReplicaModes(
 
         for (const auto& [cluster, tables] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
             for (const auto& minorTablePath : tables) {
-                auto minorTableIdIt = TableRegistry_->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
-                if (minorTableIdIt == TableRegistry_->AlienTablePaths().end()) {
+                auto minorTableIdIt = bundleSnapshot->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
+                if (minorTableIdIt == bundleSnapshot->AlienTablePaths.end()) {
                     continue;
                 }
 
-                auto minorTable = GetOrCrash(TableRegistry_->AlienTables(), minorTableIdIt->second);
+                auto minorTable = GetOrCrash(bundleSnapshot->AlienTables, minorTableIdIt->second);
                 auto [cellTag, replicaType] = getCellTag(minorTable);
                 if (cellTag == InvalidCellTag) {
                     continue;

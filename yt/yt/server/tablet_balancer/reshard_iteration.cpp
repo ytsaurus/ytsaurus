@@ -76,6 +76,11 @@ public:
         return DynamicConfig_;
     }
 
+    TTableProfilingCounters& GetProfilingCounters(const TTable* table)
+    {
+        return BundleSnapshot_->TableRegistry->GetProfilingCounters(table, GroupName_);
+    }
+
 protected:
     const std::string BundleName_;
     const TGroupName GroupName_;
@@ -106,9 +111,7 @@ public:
             GroupName_);
     }
 
-    void Prepare(
-        const TTabletBalancingGroupConfigPtr& /*groupConfig*/,
-        const TTableRegistryPtr& /*tableRegistry*/) override
+    void Prepare(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) override
     { }
 
     std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const override
@@ -187,16 +190,15 @@ public:
     }
 
     void UpdateProfilingCounters(
-        const TTable* /*table*/,
-        TTableProfilingCounters& profilingCounters,
+        const TTable* table,
         const TReshardDescriptor& descriptor) override
     {
         if (descriptor.TabletCount == 1) {
-            profilingCounters.TabletMerges.Increment(1);
+            GetProfilingCounters(table).TabletMerges.Increment(1);
         } else if (std::ssize(descriptor.Tablets) == 1) {
-            profilingCounters.TabletSplits.Increment(1);
+            GetProfilingCounters(table).TabletSplits.Increment(1);
         } else {
-            profilingCounters.NonTrivialReshards.Increment(1);
+            GetProfilingCounters(table).NonTrivialReshards.Increment(1);
         }
     }
 
@@ -232,9 +234,7 @@ public:
             GroupName_);
     }
 
-    void Prepare(
-        const TTabletBalancingGroupConfigPtr& groupConfig,
-        const TTableRegistryPtr& /*tableRegistry*/) override
+    void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) override
     {
         Resharder_ = CreateParameterizedResharder(
             BundleSnapshot_->Bundle,
@@ -286,13 +286,12 @@ public:
 
     void UpdateProfilingCounters(
         const TTable* table,
-        TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) override
     {
         if (descriptor.TabletCount == 1) {
-            profilingCounters.ParameterizedReshardMerges.Increment(1);
+            GetProfilingCounters(table).ParameterizedReshardMerges.Increment(1);
         } else if (std::ssize(descriptor.Tablets) == 1) {
-            profilingCounters.ParameterizedReshardSplits.Increment(1);
+            GetProfilingCounters(table).ParameterizedReshardSplits.Increment(1);
         } else {
             YT_LOG_ALERT(
                 "Non-trivial reshards are forbidden in parameterized balancing, "
@@ -345,9 +344,7 @@ public:
             GroupName_);
     }
 
-    void Prepare(
-        const TTabletBalancingGroupConfigPtr& groupConfig,
-        const TTableRegistryPtr& tableRegistry) override
+    void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) override
     {
         YT_VERIFY(TableToReferenceTable_.empty());
         YT_VERIFY(SelfReferenceTableIds_.empty());
@@ -389,7 +386,7 @@ public:
                 continue;
             }
 
-            if (auto response = FindReferenceTable(tableRegistry, table); response.AreAllReplicasValid) {
+            if (auto response = FindReferenceTable(table); response.AreAllReplicasValid) {
                 if (response.AlienReferenceTable) {
                     EmplaceOrCrash(TableToReferenceTable_, id, response.AlienReferenceTable);
                 } else {
@@ -444,16 +441,15 @@ public:
     }
 
     void UpdateProfilingCounters(
-        const TTable* /*table*/,
-        TTableProfilingCounters& profilingCounters,
+        const TTable* table,
         const TReshardDescriptor& descriptor) override
     {
         if (descriptor.TabletCount == 1) {
-            profilingCounters.ReplicaMerges.Increment(1);
+            GetProfilingCounters(table).ReplicaMerges.Increment(1);
         } else if (std::ssize(descriptor.Tablets) == 1) {
-            profilingCounters.ReplicaSplits.Increment(1);
+            GetProfilingCounters(table).ReplicaSplits.Increment(1);
         } else {
-            profilingCounters.ReplicaNonTrivialReshards.Increment(1);
+            GetProfilingCounters(table).ReplicaNonTrivialReshards.Increment(1);
         }
     }
 
@@ -477,7 +473,7 @@ private:
     };
 
     //! Returns nullptr if table is reference itself.
-    TReferenceTableSearchResponse FindReferenceTable(const TTableRegistryPtr& tableRegistry, const TTablePtr& table) const
+    TReferenceTableSearchResponse FindReferenceTable(const TTablePtr& table) const
     {
         struct TTableKey
         {
@@ -496,12 +492,12 @@ private:
         THashMap<TTableId, TAlienTablePtr> alienTables;
         for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
             for (const auto& minorTablePath : minorTablePaths) {
-                auto it = tableRegistry->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
-                THROW_ERROR_EXCEPTION_IF(it == tableRegistry->AlienTablePaths().end(),
+                auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
+                THROW_ERROR_EXCEPTION_IF(it == BundleSnapshot_->AlienTablePaths.end(),
                     "Not all tables was resolved. Table id for table %v was not found. Check that table path is correct",
                     minorTablePath);
 
-                auto minorTable = GetOrCrash(tableRegistry->AlienTables(), it->second);
+                auto minorTable = GetOrCrash(BundleSnapshot_->AlienTables, it->second);
                 EmplaceOrCrash(alienTables, minorTable->Id, minorTable);
 
                 if (!minorTable->ReplicaMode) {
