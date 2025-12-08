@@ -134,7 +134,7 @@ TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& str
 
             auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
 
-            YT_VERIFY(chunkIdsInStripeList.insert(chunkId).second);
+            InsertOrCrash(chunkIdsInStripeList, chunkId);
 
             if (seenChunkIds.insert(chunkId).second) {
                 result->AddStripe(stripe);
