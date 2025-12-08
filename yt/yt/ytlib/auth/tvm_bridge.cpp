@@ -78,6 +78,11 @@ public:
         return Config_->SelfTvmId;
     }
 
+    const TTvmServiceConfigPtr& GetConfig() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     std::string GetServiceTicket(const std::string& /*serviceAlias*/) override
     {
         YT_UNIMPLEMENTED();

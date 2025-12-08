@@ -108,6 +108,11 @@ private:
             : TvmId_(tvmId)
         { }
 
+        const TTvmServiceConfigPtr& GetConfig() override
+        {
+            THROW_ERROR_EXCEPTION("Not implemented");
+        }
+
         TTvmId GetSelfTvmId() override
         {
             return TvmId_;
