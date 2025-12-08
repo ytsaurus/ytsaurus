@@ -1563,6 +1563,7 @@ func writeWhoAmIOptions(w *yson.Writer, o *yt.WhoAmIOptions) {
 	if o == nil {
 		return
 	}
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func logWhoAmIOptions(o *yt.WhoAmIOptions) []log.Field {
@@ -1570,6 +1571,7 @@ func logWhoAmIOptions(o *yt.WhoAmIOptions) []log.Field {
 		return nil
 	}
 	fields := []log.Field{}
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
 	return fields
 }
 
@@ -6790,6 +6792,10 @@ func (p *WhoAmIParams) Log() []log.Field {
 
 func (p *WhoAmIParams) MarshalHTTP(w *yson.Writer) {
 	writeWhoAmIOptions(w, p.options)
+}
+
+func (p *WhoAmIParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
 }
 
 type GenerateTimestampParams struct {
