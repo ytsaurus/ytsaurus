@@ -120,6 +120,10 @@ This log contains entries for all requests handled by the HTTP proxy.
 | `out_bytes`                                  | Size of the response data in bytes                                                                                            |
 | `remote_address`                             | Address from which the request originated                                                                                     |
 
+### Delivery of structured master logs to Cypress { #structured_log_delivery }
+
+{% include [Delivery of structured master logs](structured-log-delivery.md) %}
+
 ## Configuring log rotation { #log_rotation }
 For debug and structured logs written to a file, you can configure the built-in rotation mechanism (the `rotationPolicy` field). The rotation settings are detailed in the table. If the `useTimestampSuffix` option isn't enabled, an index number is appended to the file names of old segments on rotation.
 
