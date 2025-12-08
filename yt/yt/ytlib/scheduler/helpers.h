@@ -148,7 +148,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateOperationAccessByAco(
+std::optional<TAccessControlRule> TryGetAccessControlRuleFromOperation(const NApi::TOperation& operation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError CheckOperationAccessByAco(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TJobId jobId,
@@ -157,7 +161,7 @@ void ValidateOperationAccessByAco(
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
-void ValidateOperationAccessByAcl(
+TError CheckOperationAccessByAcl(
     const std::optional<std::string>& user,
     TOperationId operationId,
     TJobId jobId,
@@ -176,6 +180,15 @@ void ValidateOperationAccess(
     const NLogging::TLogger& logger);
 
 void ValidateOperationAccess(
+    const std::optional<std::string>& user,
+    TOperationId operationId,
+    NYTree::EPermissionSet permissionSet,
+    const TAccessControlRule& accessControlRule,
+    const NApi::NNative::IClientPtr& client,
+    const NLogging::TLogger& logger);
+
+// Unlike ValidateOperationAccess returns an error rather than throwing it.
+TError CheckOperationAccess(
     const std::optional<std::string>& user,
     TOperationId operationId,
     NYTree::EPermissionSet permissionSet,

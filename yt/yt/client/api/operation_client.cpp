@@ -331,7 +331,8 @@ void Serialize(const TJobTraceEvent& traceEvent, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
-void Serialize(const TOperationEvent& operationEvent, NYson::IYsonConsumer* consumer) {
+void Serialize(const TOperationEvent& operationEvent, NYson::IYsonConsumer* consumer)
+{
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .Item("timestamp").Value(operationEvent.Timestamp)
@@ -339,6 +340,14 @@ void Serialize(const TOperationEvent& operationEvent, NYson::IYsonConsumer* cons
             .OptionalItem("incarnation", operationEvent.Incarnation)
             .OptionalItem("incarnation_switch_reason", operationEvent.IncarnationSwitchReason)
             .OptionalItem("incarnation_switch_info", operationEvent.IncarnationSwitchInfo)
+        .EndMap();
+}
+
+void Serialize(const TCheckOperationPermissionResult& result, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("action").Value(result.Action)
         .EndMap();
 }
 

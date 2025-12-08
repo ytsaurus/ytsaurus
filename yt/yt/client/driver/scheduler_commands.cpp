@@ -662,6 +662,28 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCheckOperationPermissionCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("user", &TThis::User);
+    registrar.Parameter("permission", &TThis::Permission);
+}
+
+void TCheckOperationPermissionCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->CheckOperationPermission(
+        User,
+        OperationIdOrAlias,
+        Permission,
+        Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(result));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGetJobCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
