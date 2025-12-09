@@ -246,6 +246,7 @@ struct TConsumerPartitionProfilingCounters
 
     TCounter RowsConsumed;
     TCounter DataWeightConsumed;
+    TGauge Offset;
     TGauge LagRows;
     TGauge LagDataWeight;
     TTimeGauge LagTime;
@@ -254,6 +255,7 @@ struct TConsumerPartitionProfilingCounters
     TConsumerPartitionProfilingCounters(const TProfiler& profiler, const TProfiler& aggregationProfiler)
         : RowsConsumed(profiler.Counter("/rows_consumed"))
         , DataWeightConsumed(profiler.Counter("/data_weight_consumed"))
+        , Offset(profiler.GaugeSummary("/offset"))
         , LagRows(profiler.GaugeSummary("/lag_rows", LagSummaryPolicy))
         , LagDataWeight(profiler.GaugeSummary("/lag_data_weight", LagSummaryPolicy))
         , LagTime(profiler.TimeGaugeSummary("/lag_time", LagSummaryPolicy))
@@ -363,6 +365,7 @@ public:
                         currentConsumerPartitionSnapshot->UnreadDataWeight);
                 }
 
+                profilingCounters.Offset.Update(currentConsumerPartitionSnapshot->NextRowIndex);
                 profilingCounters.LagRows.Update(currentConsumerPartitionSnapshot->UnreadRowCount);
                 SafeUpdate(profilingCounters.LagDataWeight, currentConsumerPartitionSnapshot->UnreadDataWeight);
                 profilingCounters.LagTime.Update(currentConsumerPartitionSnapshot->ProcessingLag);
