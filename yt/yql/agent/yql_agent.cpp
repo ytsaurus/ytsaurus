@@ -301,7 +301,7 @@ public:
         TStringBuf defaultVersionStringBuf;
         NYql::FormatLangVersion(std::min(NYql::GetMaxReleasedLangVersion(), maxYqlLangVersion), buffer, defaultVersionStringBuf);
         DefaultYqlUILangVersion_ = defaultVersionStringBuf;
-        YT_LOG_INFO("Deafult YQL language version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
+        YT_LOG_INFO("Default YQL language version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
         auto options = ConvertToOptions(
             Config_,
             singletonsConfigString,
