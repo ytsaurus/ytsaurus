@@ -96,7 +96,7 @@ private:
 
     i64 ComputeDataWeightAfterPartition() const
     {
-        return 1 + static_cast<i64>(TotalEstimatedInputDataWeight_ * Spec_->MapSelectivityFactor);
+        return SignedSaturationConversion(1. + TotalEstimatedInputDataWeight_ * Spec_->MapSelectivityFactor);
     }
 
     int SuggestPartitionCount() const
@@ -140,17 +140,18 @@ private:
     {
         // Rationale and details are on the wiki.
         // https://wiki.yandex-team.ru/yt/design/partitioncount/
-        i64 uncompressedBlockSize = static_cast<i64>(Options_->CompressedBlockSize / InputCompressionRatio_);
+        i64 uncompressedBlockSize = SignedSaturationConversion(Options_->CompressedBlockSize / InputCompressionRatio_);
         uncompressedBlockSize = std::max(std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize), 1l);
 
+        i64 dataWeightAfterPartition = ComputeDataWeightAfterPartition();
+
         // Product may not fit into i64.
-        i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight_ * Spec_->MapSelectivityFactor);
         double partitionDataWeight = sqrt(dataWeightAfterPartition) * sqrt(uncompressedBlockSize);
         partitionDataWeight = std::max(partitionDataWeight, static_cast<double>(Options_->MinPartitionWeight));
 
         i64 maxPartitionCount = Spec_->PartitionJobIO->TableWriter->MaxBufferSize / uncompressedBlockSize;
         // Use int64 during the initial stage to avoid overflow issues.
-        i64 partitionCount = std::min(static_cast<i64>(dataWeightAfterPartition / partitionDataWeight), maxPartitionCount);
+        i64 partitionCount = std::min(SignedSaturationConversion(dataWeightAfterPartition / partitionDataWeight), maxPartitionCount);
 
         if (partitionCount == 1 && TotalEstimatedInputUncompressedDataSize_ > Spec_->DataWeightPerShuffleJob) {
             // Sometimes data size can be much larger than data weight.
@@ -158,9 +159,9 @@ private:
             partitionCount = DivCeil(TotalEstimatedInputUncompressedDataSize_, Spec_->DataWeightPerShuffleJob);
         } else if (partitionCount > 1) {
             // Calculate upper limit for partition data weight.
-            i64 uncompressedSortedChunkSize = std::max<i64>(Spec_->SortJobIO->TableWriter->DesiredChunkSize / InputCompressionRatio_, 1);
-            i64 maxInputStreamsPerPartition = std::max<i64>(1, Spec_->MaxDataWeightPerJob / uncompressedSortedChunkSize);
-            i64 maxPartitionDataWeight = std::max<i64>(Options_->MinPartitionWeight, 0.9 * maxInputStreamsPerPartition * Spec_->DataWeightPerShuffleJob);
+            i64 uncompressedSortedChunkSize = std::max(SignedSaturationConversion(Spec_->SortJobIO->TableWriter->DesiredChunkSize / InputCompressionRatio_), 1l);
+            i64 maxInputStreamsPerPartition = std::max(Spec_->MaxDataWeightPerJob / uncompressedSortedChunkSize, 1l);
+            i64 maxPartitionDataWeight = std::max(Options_->MinPartitionWeight, SignedSaturationConversion((0.9 * maxInputStreamsPerPartition) * Spec_->DataWeightPerShuffleJob));
 
             if (dataWeightAfterPartition / partitionCount > maxPartitionDataWeight) {
                 partitionCount = dataWeightAfterPartition / maxPartitionDataWeight;
