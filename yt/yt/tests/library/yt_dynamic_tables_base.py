@@ -39,6 +39,50 @@ class DynamicTablesBase(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "rpc_server": {
+            "services": {
+                "TabletService": {
+                    "methods": {
+                        "Write": {
+                            "testing": {
+                                "random_delay": 30,
+                            },
+                        },
+                        "RegisterTransactionActions": {
+                            "testing": {
+                                "random_delay": 30,
+                            },
+                        },
+                    },
+                },
+                "TransactionSupervisorService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 30,
+                            },
+                        },
+                    },
+                },
+                "TransactionParticipantService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 30,
+                            },
+                        },
+                        "PrepareTransaction": {
+                            "testing": {
+                                "random_delay": 30,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
     class CellsDisabled():
         def __init__(self, clusters, tablet_bundles=[], chaos_bundles=[], area_ids=[]):
             self._clusters = clusters
