@@ -2867,7 +2867,6 @@ class TestBulkInsertShardedTxDynamicTablesLockingProtocol(TestDynamicTablesLocki
 @pytest.mark.enabled_multidaemon
 class TestBulkInsertMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMirroredTx):
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
         "controller_agent": {
             "register_lockable_dynamic_tables": True,
             "allow_bulk_insert_under_user_transaction": True,
