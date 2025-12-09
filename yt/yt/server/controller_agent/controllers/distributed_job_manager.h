@@ -8,7 +8,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Multiple jobs are created when CookieGroupSize is >1.
+//! Multiple jobs are created when DistributedJobOptions.Factor is > 1.
 //! The cookie group counts as completed when all the jobs successfully complete.
 //! When some jobs fail or abort, then it gets restarted.
 
@@ -45,7 +45,7 @@ public:
 
     TProgressCounterPtr GetProgressCounter() const override final;
 
-    int GetCookieGroupSize() const;
+    int GetDistributedJobFactor() const;
 
     void InitializeCounter();
 

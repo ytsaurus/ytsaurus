@@ -126,8 +126,8 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
-    "job_cookie_group_index",
-    "main_job_id",
+    "distributed_group_job_index",
+    "distributed_group_main_job_id",
     "operation_incarnation",
     "archive_features",
     "brief_statistics",
@@ -183,6 +183,8 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
+    "distributed_group_main_job_id",
+    "distributed_group_job_index",
     "operation_incarnation",
     "archive_features",
     "brief_statistics",
@@ -222,8 +224,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"monitoring_descriptor", {}},
     {"core_infos", {}},
     {"job_cookie", {}},
-    {"job_cookie_group_index", 64},
-    {"main_job_id", 64},
+    {"distributed_group_job_index", 65},
+    {"distributed_group_main_job_id", 65},
     {"brief_statistics", {}},
     {"statistics", {}},
     {"exec_attributes", {}},
@@ -397,7 +399,8 @@ private:
             LastTraceIdLo_ = records.back().Key.TraceIdLo;
         }
 
-        YT_LOG_DEBUG("Read job trace events batch (LastTraceId: %v, LastEventIndex: %v, BatchNumber: %v)",
+        YT_LOG_DEBUG(
+            "Read job trace events batch (LastTraceId: %v, LastEventIndex: %v, BatchNumber: %v)",
             TGuid(LastTraceIdHi_, LastTraceIdLo_),
             LastEventIndex_,
             BatchNumber_);
@@ -592,7 +595,9 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
         }
     } catch (const std::exception& ex) {
         auto error = TError(ex);
-        YT_LOG_DEBUG(error, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
+        YT_LOG_DEBUG(
+            error,
+            "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
         return error;
@@ -863,7 +868,9 @@ TJobSpec TClient::FetchJobSpec(
             return std::move(jobSpecFromProxyOrError).Value();
         }
 
-        YT_LOG_DEBUG(jobSpecFromProxyOrError, "Failed to fetch job spec from job node (JobId: %v)",
+        YT_LOG_DEBUG(
+            jobSpecFromProxyOrError,
+            "Failed to fetch job spec from job node (JobId: %v)",
             jobId);
     }
 
@@ -1140,7 +1147,8 @@ auto RetryJobIsNotRunning(
 
     auto rspOrError = invokeRequest();
     for (int retry = 0; needRetry(rspOrError) && retry < RetryCount; ++retry) {
-        YT_LOG_DEBUG("Job state is \"running\" but job phase is not, retrying "
+        YT_LOG_DEBUG(
+            "Job state is \"running\" but job phase is not, retrying "
             "(OperationId: %v, JobId: %v, Retry: %v, RetryCount: %v, RetryBackoff: %v, Error: %v)",
             operationId,
             jobId,
@@ -1704,11 +1712,11 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
     }
 
-    if (options.MainJobId) {
-        auto mainJobId = options.MainJobId.Underlying();
+    if (options.DistributedGroupMainJobId) {
+        auto mainJobId = options.DistributedGroupMainJobId.Underlying();
 
         builder->AddWhereConjunct(Format(
-            "(main_job_id_hi, main_job_id_lo) = (%vu, %vu)",
+            "(distributed_group_main_job_id_hi, distributed_group_main_job_id_lo) = (%vu, %vu)",
             mainJobId.Parts64[0],
             mainJobId.Parts64[1]));
     }
@@ -1863,7 +1871,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .PoolTree = record.PoolTree,
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
-            .JobCookieGroupIndex = record.JobCookieGroupIndex,
+            .DistributedGroupJobIndex = record.DistributedGroupJobIndex,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
             .GangRank = record.GangRank,
@@ -1931,8 +1939,14 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
         }
 
-        if (record.MainJobIdHi) {
-            job.MainJobId = TJobId(TGuid(*record.MainJobIdHi, *record.MainJobIdLo));
+        if (record.DistributedGroupMainJobIdHi) {
+            job.DistributedGroupMainJobId = TJobId(TGuid(
+                *record.DistributedGroupMainJobIdHi,
+                *record.DistributedGroupMainJobIdLo));
+        }
+
+        if (record.DistributedGroupJobIndex) {
+            job.DistributedGroupJobIndex = *record.DistributedGroupJobIndex;
         }
 
         if (record.ProbingJobCompetitionId) {
@@ -1992,7 +2006,7 @@ void TClient::AddSelectExpressions(
             continue;
         }
 
-        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "main_job_id") {
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "distributed_group_main_job_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
         } else if (attribute == "start_time" || attribute == "finish_time") {
@@ -2106,16 +2120,19 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     }
 
     auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
-    return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND(
-        [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
-        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(result.Rowset->GetNameTable());
-        auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
-        return ParseJobsFromArchiveResponse(
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND([
             operationId,
-            records,
-            idMapping,
-            /*needFullStatistics*/ attributes.contains("statistics"));
-    }));
+            attributes = std::move(attributes),
+            this_ = MakeStrong(this)
+        ] (const TSelectRowsResult& result) {
+            auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TPartialIdMapping(result.Rowset->GetNameTable());
+            auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
+            return ParseJobsFromArchiveResponse(
+                operationId,
+                records,
+                idMapping,
+                /*needFullStatistics*/ attributes.contains("statistics"));
+        }));
 }
 
 static void ParseJobsFromControllerAgentResponse(
@@ -2145,8 +2162,8 @@ static void ParseJobsFromControllerAgentResponse(
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
     auto needJobCookie = attributes.contains("job_cookie");
-    auto needJobCookieGroupIndex = attributes.contains("job_cookie_group_index");
-    auto needMainJobId = attributes.contains("main_job_id");
+    auto needDistributedGroupJobIndex = attributes.contains("distributed_group_job_index");
+    auto needDistributedGroupMainJobId = attributes.contains("distributed_group_main_job_id");
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
     auto needAllocationId = attributes.contains("allocation_id");
@@ -2227,12 +2244,18 @@ static void ParseJobsFromControllerAgentResponse(
         if (needJobCookie) {
             job.JobCookie = jobMapNode->FindChildValue<ui64>("job_cookie");
         }
-        if (needJobCookieGroupIndex) {
-            job.JobCookieGroupIndex = jobMapNode->FindChildValue<ui64>("job_cookie_group_index");
+        if (needDistributedGroupJobIndex) {
+            auto distributedGroupInfo = jobMapNode->FindChild("distributed_group_info");
+            if (distributedGroupInfo) {
+                job.DistributedGroupJobIndex = distributedGroupInfo->AsMap()->FindChildValue<ui64>("index");
+            }
         }
-        if (needMainJobId) {
-            if (auto mainJobId = jobMapNode->FindChildValue<TJobId>("main_job_id")) {
-                job.MainJobId = *mainJobId;
+        if (needDistributedGroupMainJobId) {
+            auto distributedGroupInfo = jobMapNode->FindChild("distributed_group_info");
+            if (distributedGroupInfo) {
+                if (auto mainJobId = distributedGroupInfo->AsMap()->FindChildValue<TJobId>("main_job_id")) {
+                    job.DistributedGroupMainJobId = *mainJobId;
+                }
             }
         }
         if (needMonitoringDescriptor) {
@@ -2266,7 +2289,8 @@ static void ParseJobsFromControllerAgentResponse(
         return;
     }
     if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
+        THROW_ERROR_EXCEPTION(
+            NApi::EErrorCode::UncertainOperationControllerState,
             "Error obtaining %Qv of operation %v from controller agent orchid",
             key,
             operationId)
@@ -2277,7 +2301,8 @@ static void ParseJobsFromControllerAgentResponse(
     auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
     *totalCount += items->GetChildren().size();
 
-    YT_LOG_DEBUG("Received %Qv jobs from controller agent (Count: %v)",
+    YT_LOG_DEBUG(
+        "Received %Qv jobs from controller agent (Count: %v)",
         key,
         items->GetChildren().size());
 
@@ -2288,7 +2313,12 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        auto mainJobId = jobMap->FindChildValue<TJobId>("main_job_id");
+        std::optional<TJobId> mainJobId;
+        if (auto distributedGroupInfo = jobMap->FindChild("distributed_group_info")) {
+            if (auto maybeMainJobId = distributedGroupInfo->AsMap()->FindChildValue<TJobId>("main_job_id")) {
+                mainJobId = *maybeMainJobId;
+            }
+        }
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
@@ -2302,7 +2332,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.State || options.State == state) &&
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
-            (!options.MainJobId || options.MainJobId == mainJobId) &&
+            (!options.DistributedGroupMainJobId || options.DistributedGroupMainJobId == mainJobId) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
@@ -2503,8 +2533,8 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
-    mergeNullableField(&TJob::JobCookieGroupIndex);
-    mergeNullableField(&TJob::MainJobId);
+    mergeNullableField(&TJob::DistributedGroupJobIndex);
+    mergeNullableField(&TJob::DistributedGroupMainJobId);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
     mergeNullableField(&TJob::GangRank);
@@ -2549,7 +2579,9 @@ static TError TryFillJobPools(
 
     auto operationOrError = WaitFor(client->GetOperation(operationId, getOperationOptions));
     if (!operationOrError.IsOK()) {
-        YT_LOG_DEBUG(operationOrError, "Failed to fetch operation to extract pools (OperationId: %v)",
+        YT_LOG_DEBUG(
+            operationOrError,
+            "Failed to fetch operation to extract pools (OperationId: %v)",
             operationId);
         return operationOrError;
     }
@@ -2557,9 +2589,11 @@ static TError TryFillJobPools(
     auto path = "/scheduling_options_per_pool_tree";
     auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationOrError.Value().RuntimeParameters.AsStringBuf(), path);
     if (!schedulingOptionsPerPoolTreeYson) {
-        YT_LOG_DEBUG("Operation runtime_parameters miss scheduling_options_per_pool_tree (OperationId: %v)",
+        YT_LOG_DEBUG(
+            "Operation runtime_parameters miss scheduling_options_per_pool_tree (OperationId: %v)",
             operationId);
-        return TError("Operation %v runtime_parameters miss scheduling_options_per_pool_tree",
+        return TError(
+            "Operation %v runtime_parameters miss scheduling_options_per_pool_tree",
             operationId);
     }
 
@@ -2743,7 +2777,9 @@ TListJobsResult TClient::DoListJobs(
     if (attributesToReturn.contains("pool")) {
         auto error = TryFillJobPools(this, operationId, TMutableRange(result.Jobs), Logger);
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Failed to fill job pools (OperationId: %v)",
+            YT_LOG_DEBUG(
+                error,
+                "Failed to fill job pools (OperationId: %v)",
                 operationId);
         }
     }
@@ -2789,7 +2825,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
         }
-        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "main_job_id") {
+        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "distributed_group_main_job_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {
@@ -2931,7 +2967,8 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
             YT_VERIFY(jobs.size() == 1);
             return jobs[0];
         } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION(NApi::EErrorCode::UncertainOperationControllerState,
+            THROW_ERROR_EXCEPTION(
+                NApi::EErrorCode::UncertainOperationControllerState,
                 "Error obtaining job %v of operation %v from controller agent",
                 jobId,
                 operationId)
@@ -3026,7 +3063,9 @@ TYsonString TClient::DoGetJob(
     if (attributes.contains("pool")) {
         auto error = TryFillJobPools(this, operationId, TMutableRange(&job, 1), Logger);
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Failed to fill job pool (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG(
+                error,
+                "Failed to fill job pool (OperationId: %v, JobId: %v)",
                 operationId,
                 jobId);
         }
