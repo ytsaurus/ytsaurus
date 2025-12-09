@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_digest.h>
 
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
+
 #include <yt/yt/library/row_merger/overlapping_reader.h>
 #include <yt/yt/library/row_merger/row_merger.h>
 #include <yt/yt/library/row_merger/versioned_row_merger.h>
@@ -144,8 +146,27 @@ std::tuple<std::function<IVersionedReaderPtr(int)>, std::vector<TLegacyOwningKey
 
         auto chunkState = New<TChunkState>(TChunkState{
             .BlockCache = blockCache,
+            .ChunkMeta = cachedVersionedChunkMeta,
             .TableSchema = schema,
         });
+
+        if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+                chunkState->BlockCache,
+                chunkState->ChunkMeta,
+                chunkReader->GetChunkId());
+
+            return NColumnarChunkFormat::CreateVersionedChunkReader(
+                MakeSingletonRowRange(lowerKey, upperKey),
+                AllCommittedTimestamp,
+                chunkState->ChunkMeta,
+                chunkState->TableSchema,
+                NTableClient::TColumnFilter(),
+                chunkState->ChunkColumnMapping,
+                blockManagerFactory,
+                /*produceAllVersions*/ true);
+        }
+
         return CreateVersionedChunkReader(
             CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
             TChunkReaderConfig::GetDefault(),
@@ -612,20 +633,40 @@ std::unique_ptr<IUniversalReader> CreateVersionedUniversalReader(
 
     auto chunkState = New<TChunkState>(TChunkState{
         .BlockCache = std::move(blockCache),
+        .ChunkMeta = cachedVersionedChunkMeta,
         .TableSchema = schema,
     });
-    auto versionedReader = CreateVersionedChunkReader(
-        CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
-        TChunkReaderConfig::GetDefault(),
-        std::move(chunkReader),
-        chunkState,
-        std::move(cachedVersionedChunkMeta),
-        /*chunkReadOptions*/ {},
-        lowerKey,
-        upperKey,
-        NTableClient::TColumnFilter(),
-        AllCommittedTimestamp,
-        true);
+
+    IVersionedReaderPtr versionedReader;
+
+    if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+        auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+            chunkState->BlockCache,
+            chunkState->ChunkMeta,
+            chunkReader->GetChunkId());
+        versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
+            MakeSingletonRowRange(lowerKey, upperKey),
+            AllCommittedTimestamp,
+            chunkState->ChunkMeta,
+            chunkState->TableSchema,
+            NTableClient::TColumnFilter(),
+            chunkState->ChunkColumnMapping,
+            blockManagerFactory,
+            /*produceAllVersions*/ true);
+    } else {
+        versionedReader = CreateVersionedChunkReader(
+            CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>()),
+            TChunkReaderConfig::GetDefault(),
+            std::move(chunkReader),
+            chunkState,
+            std::move(cachedVersionedChunkMeta),
+            /*chunkReadOptions*/ {},
+            lowerKey,
+            upperKey,
+            NTableClient::TColumnFilter(),
+            AllCommittedTimestamp,
+            true);
+    }
 
     WaitFor(versionedReader->Open())
         .ThrowOnError();
