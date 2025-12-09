@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/http/config.h>
+
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/net/address.h>
@@ -541,8 +543,14 @@ struct TJobProxyInternalConfig
     bool DumpSingleLocalClusterStatistics;
 
     bool EnableGrpcServer;
+    bool EnableHttpServer;
 
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
+
+    NHttp::TServerConfigPtr HttpServer;
+    std::string HttpServerUdsPath;
+    int HttpServerPollerThreadCount;
+
     TJobApiServiceConfigPtr JobApiService;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
@@ -595,6 +603,7 @@ struct TJobProxyDynamicConfig
     bool DumpSingleLocalClusterStatistics;
 
     bool EnableGrpcServer;
+    bool EnableHttpServer;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

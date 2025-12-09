@@ -93,6 +93,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
@@ -107,13 +108,18 @@
 
 #include <yt/yt/core/rpc/grpc/server.h>
 
+#include <yt/yt/core/rpc/http/server.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -238,6 +244,11 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
     return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
+}
+
+std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
+{
+    return AdjustPath(TString(Config_->HttpServerUdsPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -607,6 +618,12 @@ void TJobProxy::DoRun()
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
     }
 
+    if (HttpServer_ != nullptr) {
+        auto error = WaitFor(HttpServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping HTTP server");
+    }
+
     FillJobResult(&result);
     FillStderrResult(&result);
     ReportResult(
@@ -877,6 +894,18 @@ TJobResult TJobProxy::RunJob()
             GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
             GrpcServer_->RegisterService(jobApiService);
             GrpcServer_->Start();
+        }
+
+        if (Config_->EnableHttpServer) {
+            auto address = TNetworkAddress::CreateUnixDomainSocketAddress(NFS::GetShortestPath(Config_->HttpServerUdsPath));
+            auto poller = CreateThreadPoolPoller(Config_->HttpServerPollerThreadCount, Config_->HttpServer->ServerName);
+            auto acceptor = poller;
+            HttpServer_ = NRpc::NHttp::CreateServer(::NYT::NHttp::CreateServer(
+                Config_->HttpServer,
+                CreateListener(address, poller, acceptor),
+                poller));
+            HttpServer_->RegisterService(jobApiService);
+            HttpServer_->Start();
         }
 
         if (TvmBridge_) {

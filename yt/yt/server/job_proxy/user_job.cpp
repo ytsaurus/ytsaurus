@@ -1409,6 +1409,7 @@ private:
         }
 
         SetEnvironmentVariable("YT_JOB_PROXY_GRPC_SOCKET_PATH", ToString(Host_->GetJobProxyGrpcUnixDomainSocketPath()));
+        SetEnvironmentVariable("YT_JOB_PROXY_HTTP_SOCKET_PATH", ToString(Host_->GetJobProxyHttpUnixDomainSocketPath()));
 
         for (const auto& pair : UserJobSpec_.environment()) {
             SetEnvironmentVariable(formatter.Format(pair));

@@ -632,6 +632,16 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
+    std::string GetJobProxyHttpUnixDomainSocketPath() const override
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-http-%v", NodeTag_, SlotIndex_)});
+    }
+
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
