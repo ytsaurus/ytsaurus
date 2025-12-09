@@ -575,11 +575,18 @@ int TChunk::GetMaxReplicasPerFailureDomain(
 {
     switch (GetType()) {
         case EObjectType::Chunk: {
-            if (replicationFactorOverride) {
-                return *replicationFactorOverride;
+            if (GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->EnableRecalculationMaxReplicasPerFailureDomain) {
+                auto replicationFactor = replicationFactorOverride
+                    ? *replicationFactorOverride
+                    : GetAggregatedReplicationFactor(mediumIndex, registry);
+                return std::max(replicationFactor - 1, 1);
+            } else {
+                if (replicationFactorOverride) {
+                    return *replicationFactorOverride;
+                }
+                auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
+                return std::max(replicationFactor - 1, 1);
             }
-            auto replicationFactor = GetAggregatedReplicationFactor(mediumIndex, registry);
-            return std::max(replicationFactor - 1, 1);
         }
 
         case EObjectType::ErasureChunk: {
