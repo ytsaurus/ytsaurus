@@ -551,6 +551,15 @@ bool HasCompressionDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsInterruptionAbortReason(NScheduler::EAbortReason abortReason)
+{
+    return abortReason == NScheduler::EAbortReason::InterruptionTimeout ||
+        abortReason == NScheduler::EAbortReason::InterruptionFailed ||
+        abortReason == NScheduler::EAbortReason::InterruptionUnsupported;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControllerAgentConfigPtr& config)
 {
     spec->Sampling->MaxTotalSliceCount = spec->Sampling->MaxTotalSliceCount.value_or(config->MaxTotalSliceCount);
