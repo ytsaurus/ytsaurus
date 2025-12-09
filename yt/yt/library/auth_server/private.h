@@ -19,6 +19,7 @@ constexpr TStringBuf OAuthCookieRealm = "oauth:cookie";
 constexpr TStringBuf OAuthTokenRealm = "oauth:token";
 
 constexpr TStringBuf YCIamTokenRealm = "yciam:token";
+constexpr TStringBuf YCSessionCookieRealm = "yciam:cookie";
 
 ////////////////////////////////////////////////////////////////////////////////
 

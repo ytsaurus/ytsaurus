@@ -27,7 +27,7 @@ SRCS(
     oauth_cookie_authenticator.cpp
     oauth_token_authenticator.cpp
     oauth_service.cpp
-    yc_iam_token_authenticator.cpp
+    yc_authenticator.cpp
 )
 
 PEERDIR(
