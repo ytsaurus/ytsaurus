@@ -76,6 +76,7 @@ class GrafanaProxy():
         }
 
     def fetch_dashboard(self, dashboard_id):
+        logger.info("Fetching current dashboard from grafana")
         rsp = requests.get(
             f"{self.base_url}/api/dashboards/uid/{dashboard_id}",
             headers=self._prepare_headers())
@@ -89,7 +90,7 @@ class GrafanaProxy():
         try:
             current = self.fetch_dashboard(dashboard_id)
             current_dashboard = current["dashboard"]
-            logger.info("Current version: %s", current_dashboard["version"])
+            logger.info("Current version of uploaded dashboard: %s", current_dashboard["version"])
         except BaseException:
             current = {}
             current_dashboard = {}
@@ -108,6 +109,7 @@ class GrafanaProxy():
         elif "meta" in current and "folderUid" in current["meta"]:
             request["folderUid"] = current["meta"]["folderUid"]
 
+        logger.info("Submitting new dashboard to grafana")
         rsp = requests.post(
             f"{self.base_url}/api/dashboards/db",
             json=request,
