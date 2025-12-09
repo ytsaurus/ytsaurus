@@ -50,6 +50,7 @@ In addition to attributes common to all objects, Cypress nodes have additional a
 | `access_time` | `DateTime` | Node [most recent access](#time_attributes) time |
 | `expiration_time` | `DateTime` | Time [automatically to delete](#TTL) a node. Optional attribute |
 | `expiration_timeout` | `DateTime` | A timeout for the [automatic deletion](#TTL) of a node if it has not been accessed. Optional attribute |
+| `touch_time` | `DateTime` | The last time the node was accessed, used for [automatic deletion](#TTL) via `expiration_timeout`. Present only if `expiration_timeout` is set |
 | `access_counter` | `integer` | Number of times a node has been accessed since being created |
 | `revision` | `integer` | Node [revision](#time_attributes) |
 | `resource_usage` | `ClusterResources` | Cluster resources appropriated by a node |
@@ -65,7 +66,7 @@ The `creation_time` attribute stores the node create time. The `modification_tim
 
 When a node is created and every time a node is modified, the system updates its `revision` attribute. It stores a non-negative integer. The revision number is guaranteed to increase in a strictly monotonous manner over time. You can use revisions to verify that a node has not updated. `revision` updates together with `modification_time`.
 
-The `access_time` attribute stores the most recent node access time. Attribute access does not count. In addition, to improve performance, the system does not update this attribute for every access transaction but rather accumulates such transactions and updates `access_time` approximately once per second.
+The `access_time` attribute stores the time of the last access to the node's content. Access to attributes is not taken into account (access to an attribute is considered to be specifying the full path to the attribute within [YPath](../../../user-guide/storage/ypath.md)). Requests with the `suppress_access_tracking` option enabled are also not taken into account. To improve efficiency, the system does not change this attribute with each access, but accumulates access records and updates the `access_time` attribute at intervals of about a second.
 
 {% note warning "Attention" %}
 
@@ -91,7 +92,9 @@ In the event that a transaction creates or modifies a node, the above attributes
 
 Cypress can delete nodes automatically at a specified moment in time or if nodes are not accessed for a certain length of time. This feature is controlled by the `expiration_time` and the `expiration_timeout` attributes. By default, these attributes are not there, so the system will not delete a node automatically. For TTL to function, you need:
 - to set `expiration_time` to a moment in time when the node is to be deleted. If it is a composite node, this will also delete its entire subtree.
-- to set `expiration_timeout` to a time interval during which there have to be no attempts to access the node (and its entire subtree if it is a composite node) for it to be deleted.
+- to set `expiration_timeout` to a time interval during which there have to be no attempts to access the node (and its entire subtree if it is a composite node) for it to be deleted. The time from the `touch_time` attribute is used to track the time of the last node access.
+
+The `touch_time` attribute, similar to `access_time`, stores the time of the last access to the node. This attribute is present only for nodes that have the `expiration_timeout` attribute. Unlike `access_time`, `touch_time` is updated when accessing the node's attributes, as well as when accessing the node via {{web-interface}}. The `touch_time` attribute does not take into account changes to the node's children, i.e., the `touch_time` attribute of `map_node` does not change if there are accesses somewhere deep in the tree. Also, `touch_time` is not updated in requests with the `supress_expiration_timeout_renewal` option enabled.
 
 {% note warning "Attention" %}
 
