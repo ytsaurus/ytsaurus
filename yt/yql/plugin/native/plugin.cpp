@@ -467,7 +467,7 @@ public:
 
             DefaultYqlApiLangVersion_ = MinLangVersion;
             FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
-            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set (Version: %v)", versionStringBuf);
+            YQL_LOG(INFO) << Format("Default YQL version for API and CLI is set (Version: %v)", versionStringBuf);
 
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
