@@ -51,6 +51,7 @@ private:
         auto config = GetConfig();
         std::vector<int> reservedDescriptors;
         reservedDescriptors.push_back(STDOUT_FILENO);
+        reservedDescriptors.push_back(STDIN_FILENO);
         if (config->Pty) {
             reservedDescriptors.push_back(*config->Pty);
         }
@@ -74,8 +75,6 @@ private:
         } catch (const std::exception& ex) {
             Exit(ToUnderlying(EProgramExitCode::ExecutorStderrOpenError));
         }
-
-        std::vector<TString> logs;
 
         {
             std::vector<int> fdsToLeave;
@@ -241,7 +240,7 @@ private:
 
     void LogToStderr(const TString& message)
     {
-        auto logRecord = Format("%v (JobId: %v)", message, JobId_);
+        auto logRecord = Format("%v (JobId: %v)\n", message, JobId_);
 
         if (!ExecutorStderr_.IsOpen()) {
             Cerr << logRecord << Endl;

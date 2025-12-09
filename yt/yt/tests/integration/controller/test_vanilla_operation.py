@@ -506,7 +506,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("faucct")
     def test_table_output_distributed(self):
         create("table", "//tmp/t")
-        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+        with pytest.raises(YtError, match="echo: write error:"):
             vanilla(
                 spec={
                     "tasks": {

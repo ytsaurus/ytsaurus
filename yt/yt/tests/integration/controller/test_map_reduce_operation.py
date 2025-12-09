@@ -442,7 +442,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         write_table("//tmp/t_in", {"line": "some_data"})
-        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+        with pytest.raises(YtError, match="echo: write error:"):
             map_reduce(
                 in_="//tmp/t_in",
                 out=["//tmp/t_out"],
