@@ -2045,6 +2045,15 @@ private:
     {
         LastProgressSaveTime_.store(when);
     }
+
+    std::optional<TInstant> GetLastProgressSaveTime() override
+    {
+        if (auto time = LastProgressSaveTime_.load(); time != TInstant::Zero()) {
+            return time;
+        } else {
+            return std::nullopt;
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

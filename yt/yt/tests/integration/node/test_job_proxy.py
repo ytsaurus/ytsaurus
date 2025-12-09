@@ -6,7 +6,7 @@ from yt_commands import (
     ls, get, set, print_debug, authors, wait, wait_no_assert, raises_yt_error,
     wait_breakpoint, with_breakpoint, release_breakpoint,
     run_test_vanilla, create_user, create, remove, read_table,
-    get_driver, update_nodes_dynamic_config,
+    get_driver, update_nodes_dynamic_config, get_allocation_id_from_job_id,
 )
 
 from yt.common import update_inplace
@@ -717,17 +717,23 @@ class TestJobProxyJobApi(YTEnvSetup):
                 },
             },
         })
+
+        t0 = datetime.datetime.now(tz=datetime.timezone.utc)
+
         socket_file, job_id = self.run_job_proxy(
             env_variable="YT_JOB_PROXY_GRPC_SOCKET_PATH",
         )
 
+        allocation_id = get_allocation_id_from_job_id(job_id)
         node = ls("//sys/cluster_nodes")[0]
-        orchid_path = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/job_proxy"
-        orchid_key = "last_progress_save_time"
+        orchid_path_job_proxy = f"//sys/cluster_nodes/{node}/orchid/exec_node/job_controller/active_jobs/{job_id}/job_proxy"
+        orchid_key_job_proxy = "last_progress_save_time"
+        orchid_path_scheduler = f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time"
 
-        assert orchid_key not in get(orchid_path)
+        t1 = datetime.datetime.now(tz=datetime.timezone.utc)
 
-        t0 = datetime.datetime.now(tz=datetime.timezone.utc)
+        assert orchid_key_job_proxy not in get(orchid_path_job_proxy)
+        assert t0 < datetime.datetime.fromisoformat(get(orchid_path_scheduler)) < t1
 
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
@@ -737,6 +743,7 @@ class TestJobProxyJobApi(YTEnvSetup):
         )
         endpoint(TReqProgressSaved())
 
-        t1 = datetime.datetime.now(tz=datetime.timezone.utc)
+        t2 = datetime.datetime.now(tz=datetime.timezone.utc)
 
-        assert t0 < datetime.datetime.fromisoformat(get(f"{orchid_path}/{orchid_key}")) < t1
+        assert t1 < datetime.datetime.fromisoformat(get(f"{orchid_path_job_proxy}/{orchid_key_job_proxy}")) < t2
+        wait(lambda: datetime.datetime.fromisoformat(get(orchid_path_scheduler)) == datetime.datetime.fromisoformat(get(f"{orchid_path_job_proxy}/{orchid_key_job_proxy}")))

@@ -102,6 +102,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((CreateFinalPartitionsLazily)           (302122))
     ((SupportMergingFinalPartitions)         (302123))
     ((DropUnusedOutputCookieGenerator)       (302124))
+    ((StorePreemptibleProgressInJoblets)     (302125))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,7 +85,7 @@ struct TJoblet
     TInstant FinishTime;
     TInstant LastUpdateTime;
     TInstant LastStatisticsUpdateTime;
-    TInstant NodeJobStartTime;
+    TInstant PreemptibleProgressStartTime;
 
     std::optional<TDuration> WaitingForResourcesDuration;
 
@@ -217,7 +217,6 @@ struct TJoblet
 
     bool ShouldLogFinishedEvent() const;
     bool IsStarted() const noexcept;
-    bool IsJobStartedOnNode() const noexcept;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJoblet, 0x2301c8d6);
 };

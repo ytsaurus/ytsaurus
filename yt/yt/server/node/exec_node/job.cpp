@@ -1943,6 +1943,18 @@ TFuture<void> TJob::GetStoredEvent() const
     return StoredEventPromise_.ToFuture();
 }
 
+void TJob::SetLastProgressSaveTime(TInstant when)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    LastProgressSaveTime_ = when;
+}
+
+std::optional<TInstant> TJob::GetLastProgressSaveTime()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+    return LastProgressSaveTime_;
+}
+
 void TJob::OnEvictedFromAllocation() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -4547,6 +4559,10 @@ void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& 
 
     if (auto startTime = job->GetStartTime()) {
         status->set_start_time(startTime->GetValue());
+    }
+
+    if (auto lastProgressSaveTime = job->GetLastProgressSaveTime(); lastProgressSaveTime.has_value()) {
+        status->set_last_progress_save_time(ToProto(*lastProgressSaveTime));
     }
 
     status->set_status_timestamp(ToProto(TInstant::Now()));

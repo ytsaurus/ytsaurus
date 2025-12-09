@@ -344,6 +344,9 @@ private:
             job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
             job->SetStderrSize(stderrSize);
             job->SetHasJobTrace(hasJobTrace);
+            if (request->has_last_progress_save_time()) {
+                job->SetLastProgressSaveTime(FromProto<TInstant>(request->last_progress_save_time()));
+            }
         }
 
         context->Reply();

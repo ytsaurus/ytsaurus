@@ -188,6 +188,11 @@ void TJob::OnProgressSaved(TInstant /*when*/)
     YT_UNIMPLEMENTED();
 }
 
+std::optional<TInstant> TJob::GetLastProgressSaveTime()
+{
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
