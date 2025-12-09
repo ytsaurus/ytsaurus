@@ -1004,13 +1004,6 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
 
             AddSequentialInputSpec(jobSpec, joblet);
-
-            if (joblet->InputStripeList->GetOutputChunkPoolIndex()) {
-                if (joblet->DistributedGroupInfo.Index > 0) {
-                    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-                    jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
-                }
-            }
         }
 
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -1608,9 +1601,6 @@ protected:
             auto comparator = GetComparator(Controller_->Spec_->SortBy);
             AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
-            if (joblet->DistributedGroupInfo.Index > 0 && jobSpec->HasExtension(TJobSpecExt::job_spec_ext)) {
-                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->mutable_user_job_spec()->set_is_secondary_distributed(true);
-            }
         }
 
         void OnJobStarted(TJobletPtr joblet) override

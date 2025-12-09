@@ -1264,7 +1264,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         auto extendedStatistics = job->GetStatistics();
         statistics = std::move(extendedStatistics.Statistics);
 
-        if (job->HasInputStatistics()) {
+        if (job->HasInput()) {
             statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
             DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
@@ -1326,7 +1326,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 statistics.AddSample(path / "bytes"_L, pipeStatistics.Bytes);
             };
 
-            if (job->HasInputStatistics()) {
+            if (job->HasInput()) {
                 dumpPipeStatistics("/user_job/pipes/input"_SP, *pipeStatistics->InputPipeStatistics);
             }
             dumpPipeStatistics("/user_job/pipes/output/total"_SP, pipeStatistics->TotalOutputPipeStatistics);
