@@ -82,7 +82,7 @@ class DryRunGpuSchedulingPolicyTestBase(YTEnvSetup):
                 "mode": "dry_run",
                 "plan_update_period": 100,
                 "module_type": "data_center",
-                "modules": [DryRunGpuSchedulingPolicyTestBase.DATA_CENTER],
+                "modules": [self.DATA_CENTER],
                 "full_host_aggressive_preemption_timeout": 1000,
             },
             "preemptive_scheduling_backoff": 0,
@@ -95,16 +95,16 @@ class DryRunGpuSchedulingPolicyTestBase(YTEnvSetup):
         set("//sys/pool_trees/@default_tree", "gpu")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/default_pool_tree", default=None) == "gpu")
 
-        create_data_center(TestDryRunGpuSchedulingPolicy.DATA_CENTER)
-        create_rack(TestDryRunGpuSchedulingPolicy.RACK)
-        set("//sys/racks/{}/@data_center".format(TestDryRunGpuSchedulingPolicy.RACK), TestDryRunGpuSchedulingPolicy.DATA_CENTER)
+        create_data_center(self.DATA_CENTER)
+        create_rack(self.RACK)
+        set("//sys/racks/{}/@data_center".format(self.RACK), self.DATA_CENTER)
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{}/@rack".format(node), TestDryRunGpuSchedulingPolicy.RACK)
+            set("//sys/cluster_nodes/{}/@rack".format(node), self.RACK)
             set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
         for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestDryRunGpuSchedulingPolicy.DATA_CENTER)
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == self.DATA_CENTER)
 
-        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == TestDryRunGpuSchedulingPolicy.NUM_NODES)
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
 
     def _get_operation_from_orchid(self, operation, tree="gpu"):
         return get(scheduler_new_orchid_pool_tree_path(tree) + f"/gpu_assignment_plan/operations/{operation.id}")
@@ -807,52 +807,6 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBase):
             preemptible=True)
 
     @authors("yaishenka")
-    def test_plan_assignment_above_fair_share_with_tag(self):
-        nodes = list(ls("//sys/cluster_nodes"))
-        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["gpu", "custom_tag"])
-        create_pool(
-            "haha_pool",
-            pool_tree="gpu",
-            attributes={"mode": "fifo"},
-            wait_for_orchid=False,
-        )
-        op1 = run_sleeping_vanilla(
-            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-            job_count=2,
-            spec={
-                "pool": "haha_pool",
-                "scheduling_tag_filter": "custom_tag",
-            },
-        )
-
-        wait(lambda: len(op1.get_running_jobs()) == 1)
-        self._wait_for_operations_in_orchid(operation_count=1)
-
-        op2 = run_sleeping_vanilla(
-            task_patch={"gpu_limit": 3, "enable_gpu_layers": False},
-            job_count=1,
-            spec={
-                "pool": "haha_pool",
-            },
-        )
-
-        wait(lambda: len(op2.get_running_jobs()) == 1)
-        self._wait_for_assignments_in_orchid(op2, assignment_count=1)
-
-        assignment = self._get_operation_assignments_from_orchid(op2)[0]
-        self._check_assignment(
-            assignment=assignment,
-            operation_id=op2.id,
-            group_name="task",
-            gpu_usage=3,
-            preemptible=True)
-
-        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[1]), ["gpu", "custom_tag"])
-
-        self._wait_for_assignments_in_orchid(op2, assignment_count=0)
-        self._wait_for_assignments_in_orchid(op1, assignment_count=2)
-
-    @authors("yaishenka")
     def test_starving(self):
         nodes = list(ls("//sys/cluster_nodes"))
 
@@ -1079,5 +1033,59 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBase):
 
         self._wait_for_operations_in_orchid(operation_count=1)
         self._wait_for_assignments_in_orchid(op, assignment_count=1)
+
+##################################################################
+
+
+class TestPlanAssignmentAboveFairShare(DryRunGpuSchedulingPolicyTestBase):
+    NUM_NODES = 3
+
+    @authors("yaishenka")
+    def test_plan_assignment_above_fair_share_with_tag(self):
+        nodes = list(ls("//sys/cluster_nodes"))
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["gpu", "custom_tag"])
+        create_pool(
+            "haha_pool",
+            pool_tree="gpu",
+            attributes={"mode": "fifo"},
+            wait_for_orchid=False,
+        )
+        op1 = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=3,
+            spec={
+                "pool": "haha_pool",
+                "scheduling_tag_filter": "custom_tag",
+            },
+        )
+
+        wait(lambda: len(op1.get_running_jobs()) == 1)
+        self._wait_for_operations_in_orchid(operation_count=1)
+
+        op2 = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 3, "enable_gpu_layers": False},
+            job_count=1,
+            spec={
+                "pool": "haha_pool",
+            },
+        )
+
+        wait(lambda: len(op2.get_running_jobs()) == 1)
+        self._wait_for_assignments_in_orchid(op2, assignment_count=1)
+
+        assignment = self._get_operation_assignments_from_orchid(op2)[0]
+        self._check_assignment(
+            assignment=assignment,
+            operation_id=op2.id,
+            group_name="task",
+            gpu_usage=3,
+            preemptible=True)
+
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id, tree="gpu") + "/starvation_status") == "starving")
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(nodes[1]), ["gpu", "custom_tag"])
+
+        self._wait_for_assignments_in_orchid(op2, assignment_count=0)
+        self._wait_for_assignments_in_orchid(op1, assignment_count=2)
 
 ##################################################################
