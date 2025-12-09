@@ -40,6 +40,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/auth/config.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/config.h>
@@ -55,6 +57,10 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/core/logging/config.h>
+
+#include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -345,6 +351,26 @@ void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
 
 void TCellMasterProgramConfig::Register(TRegistrar /*registrar*/)
 { }
+
+void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServiceEnvValidation)
+{
+    config->EnablePortoResourceTracker = false;
+    config->DryRun->EnableDryRun = true;
+    config->DryRun->EnableHostNameValidation = false;
+
+    auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
+    loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
+
+    config->Snapshots->Path = NFS::GetDirectoryName(".");
+    config->Snapshots->CleanTemporaryFilesOnStoreInitialize = false;
+
+    if (skipTvmServiceEnvValidation) {
+        auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();
+        authManagerConfig->EnableValidation = false;
+        authManagerConfig->EnableSubmission = false;
+        authManagerConfig->TvmService = nullptr;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

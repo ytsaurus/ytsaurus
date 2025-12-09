@@ -5572,6 +5572,7 @@
   "yt/yt/server/scheduler/unittests/CMakeLists.linux-aarch64.txt":"",
   "yt/yt/server/scheduler/unittests/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/scheduler/unittests/CMakeLists.txt":"",
+  "yt/yt/server/sequoia_reconstructor/CMakeLists.txt":"",
   "yt/yt/server/tablet_balancer/CMakeLists.txt":"",
   "yt/yt/server/tcp_proxy/CMakeLists.txt":"",
   "yt/yt/server/timestamp_provider/CMakeLists.txt":"",
