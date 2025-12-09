@@ -2816,6 +2816,53 @@ Example:
 PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"{{pool-tree}}" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
 ```
 
+### check_operation_permission { #check_operation_permission }
+
+Command properties: **Idempotent**, **Lightweight**.
+
+Semantics:
+
+- Check if a user has a specific permission for an operation.
+
+Parameters:
+
+| **Parameter** | **Required** | **Default value** | **Description** |
+| ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
+| `operation_id` | Yes | | Operation identifier. |
+| `user` | Yes | | Username for which permission needs to be checked. |
+| `permission` | Yes | | Permission to check. Possible values: `read`, `manage`, `administer`. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `structured`.
+
+| **Parameter** | **Type** | **Description** |
+| ------------ | -------- | ------------ |
+| `action` | `string` | Permission check result. |
+
+{% note info "Note" %}
+
+Having `manage` permission for a pool allows you to perform some [actions](../../user-guide/data-processing/scheduler/manage-pools.md#allowed_pool_actions) on operations running in the pool without formal permissions for the operation. In such cases, the command will indicate that the user does not have permission, as it only checks the permissions for the operation itself.
+
+{% endnote %}
+
+Example:
+
+```bash
+PARAMETERS {
+    "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4";
+    "user" = "vasya";
+    "permission" = "manage";
+}
+OUTPUT {
+    "action" = "allow"
+}
+```
+
 ## Working with jobs
 
 {% note info "Note" %}
