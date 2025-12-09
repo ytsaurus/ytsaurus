@@ -23,6 +23,10 @@ TEST_SRCS(
     test_sidecar.py
 )
 
+PEERDIR(
+    contrib/python/httpx
+)
+
 END()
 
 RECURSE_FOR_TESTS(

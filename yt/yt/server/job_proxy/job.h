@@ -100,6 +100,7 @@ struct IJobHost
     virtual TString GetSlotPath() const = 0;
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyGrpcUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
