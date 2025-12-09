@@ -8,6 +8,7 @@ formatter:
   max_line_length: 124
   pad_line_comments: 2
   eof_newline: True
-  scan_folded_as_literal: true # https://github.com/google/yamlfmt/issues/280
-  disable_alias_key_correction: true # https://github.com/google/yamlfmt/issues/250
-  drop_merge_tag: true # https://github.com/google/yamlfmt/issues/102
+  scan_folded_as_literal: true  # https://github.com/google/yamlfmt/issues/280
+  disable_alias_key_correction: true  # https://github.com/google/yamlfmt/issues/250
+  drop_merge_tag: true  # https://github.com/google/yamlfmt/issues/102
+  trim_trailing_whitespace: true  # https://github.com/google/yamlfmt/issues/261
