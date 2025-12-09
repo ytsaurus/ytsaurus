@@ -309,7 +309,11 @@ TRunningJobSummary::TRunningJobSummary(NProto::TJobStatus* status)
     : TJobSummary(status)
     , Progress(status->progress())
     , StderrSize(status->stderr_size())
-{ }
+{
+    if (status->has_last_progress_save_time()) {
+        LastProgressSaveTime = FromProto<TInstant>(status->last_progress_save_time());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

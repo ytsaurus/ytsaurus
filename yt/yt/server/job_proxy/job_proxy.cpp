@@ -386,6 +386,9 @@ void TJobProxy::SendHeartbeat()
     req->set_stderr_size(job->GetStderrSize());
     req->set_has_job_trace(job->HasJobTrace());
     req->set_epoch(epoch);
+    if (auto time = job->GetLastProgressSaveTime(); time.has_value()) {
+        req->set_last_progress_save_time(ToProto(*time));
+    }
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
@@ -2063,6 +2066,7 @@ void TJobProxy::LogSystemStats() const
 void TJobProxy::OnProgressSaved(TInstant when)
 {
     GetJobOrThrow()->OnProgressSaved(when);
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -50,6 +50,7 @@ public:
     void FinalizeJobTrace() override;
 
     void OnProgressSaved(TInstant when) override;
+    std::optional<TInstant> GetLastProgressSaveTime() override;
 
 protected:
     const IJobHostPtr Host_;
