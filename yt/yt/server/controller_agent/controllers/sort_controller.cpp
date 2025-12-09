@@ -1073,9 +1073,6 @@ protected:
                 if (jobType == EJobType::PartitionReduce || jobType == EJobType::ReduceCombiner) {
                     auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                     jobSpecExt->set_partition_tag(partitionTag);
-                    if (joblet->DistributedGroupInfo.Index > 0) {
-                        jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
-                    }
                     reduceJobSpecExt->set_partition_tag(partitionTag);
                 } else {
                     auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -1700,9 +1697,6 @@ protected:
             auto comparator = GetComparator(Controller_->Spec_->SortBy);
             AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
-            if (joblet->DistributedGroupInfo.Index > 0 && jobSpec->HasExtension(TJobSpecExt::job_spec_ext)) {
-                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->mutable_user_job_spec()->set_is_secondary_distributed(true);
-            }
         }
 
         void OnJobStarted(TJobletPtr joblet) override

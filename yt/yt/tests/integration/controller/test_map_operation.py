@@ -1928,7 +1928,7 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi"""),
             spec={"mapper": {"distributed_job_options": {"factor": 2}}},
         )
         abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["distributed_group_main_job_id"])["distributed_group_main_job_id"])
@@ -1948,7 +1948,7 @@ print(json.dumps(input))
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then read row; echo $row; fi; BREAKPOINT; if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then cat; fi"""),
             spec={"mapper": {"distributed_job_options": {"factor": 2}}},
         )
         job_ids = wait_breakpoint(job_count=2)

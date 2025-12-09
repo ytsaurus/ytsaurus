@@ -170,7 +170,7 @@ std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() cons
     return std::nullopt;
 }
 
-bool TJob::HasInputStatistics() const
+bool TJob::HasInput() const
 {
     return true;
 }
