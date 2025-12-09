@@ -63,6 +63,6 @@ target_sources(yt-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/oauth_cookie_authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/oauth_token_authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/oauth_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/yc_iam_token_authenticator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/yc_authenticator.cpp
 )
 

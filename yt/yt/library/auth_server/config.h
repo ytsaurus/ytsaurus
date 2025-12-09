@@ -500,7 +500,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressCookieManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYCIAMTokenAuthenticatorConfig
+struct TYCAuthenticatorConfig
     : public NYTree::TYsonStruct
 {
     NHttp::TRetryingClientConfigPtr RetryingClient;
@@ -520,12 +520,12 @@ struct TYCIAMTokenAuthenticatorConfig
 
     std::string AuthenticateLoginField;
 
-    REGISTER_YSON_STRUCT(TYCIAMTokenAuthenticatorConfig);
+    REGISTER_YSON_STRUCT(TYCAuthenticatorConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYCIAMTokenAuthenticatorConfig)
+DEFINE_REFCOUNTED_TYPE(TYCAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -542,7 +542,7 @@ struct TAuthenticationManagerConfig
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
     TOAuthServiceConfigPtr OAuthService;
-    TYCIAMTokenAuthenticatorConfigPtr YCIAMTokenAuthenticator;
+    TYCAuthenticatorConfigPtr YCAuthenticator;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
     TCachingCypressUserManagerConfigPtr CypressUserManager;

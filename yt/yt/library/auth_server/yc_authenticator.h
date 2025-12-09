@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cookie_authenticator.h"
 #include "token_authenticator.h"
 #include "public.h"
 
@@ -13,8 +14,14 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITokenAuthenticatorPtr CreateYCIAMTokenAuthenticator(
-    TYCIAMTokenAuthenticatorConfigPtr config,
+ITokenAuthenticatorPtr CreateYCIamTokenAuthenticator(
+    TYCAuthenticatorConfigPtr config,
+    NConcurrency::IPollerPtr poller,
+    ICypressUserManagerPtr userManager,
+    NProfiling::TProfiler profiler = {});
+
+ICookieAuthenticatorPtr CreateYCSessionCookieAuthenticator(
+    TYCAuthenticatorConfigPtr config,
     NConcurrency::IPollerPtr poller,
     ICypressUserManagerPtr userManager,
     NProfiling::TProfiler profiler = {});

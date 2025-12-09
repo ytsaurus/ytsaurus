@@ -18,7 +18,8 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, AuthProfiler, "/auth");
 constexpr TStringBuf OAuthCookieRealm = "oauth:cookie";
 constexpr TStringBuf OAuthTokenRealm = "oauth:token";
 
-constexpr TStringBuf YCIAMTokenRealm = "yciam:token";
+constexpr TStringBuf YCIamTokenRealm = "yciam:token";
+constexpr TStringBuf YCSessionCookieRealm = "yciam:cookie";
 
 ////////////////////////////////////////////////////////////////////////////////
 
