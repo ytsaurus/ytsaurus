@@ -51,7 +51,7 @@ DEFINE_ENUM(ETabletReign,
     ((PersistSerializationStatus)                  (101210)) // ponasenko-rs
     // 25.3 starts here.
     ((Start_25_3)                                  (101300)) // community bot
-    ((UnforwardedTransactionActions)               (101301)) // ifsmirnov
+    ((NonForwardedTransactionActions)              (101301)) // ifsmirnov
     ((PersistPerRowSerializingTabletIds)           (101302)) // ponasenko-rs
     ((BoggleLatePrepare)                           (101303)) // akozhikhov
     ((DoNotAccountPureLocksAsWritesWithData)       (101304)) // ponasenko-rs
@@ -61,6 +61,7 @@ DEFINE_ENUM(ETabletReign,
     // 25.4 starts here.
     ((Start_25_4)                                  (101400)) // h0pless
     ((HydraLogicalRecordId)                        (101401)) // h0pless
+    ((PerTabletTxActionForwarding)                 (101402)) // ifsmirnov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

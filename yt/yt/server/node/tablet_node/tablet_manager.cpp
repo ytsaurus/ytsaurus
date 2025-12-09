@@ -285,30 +285,39 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers<TReqReplicateRows>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareReplicateRows, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitReplicateRows, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortReplicateRows, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareReplicateRows, Unretained(this)),
+                .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitReplicateRows, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortReplicateRows, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeReplicateRows, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqWritePulledRows>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitWritePulledRows, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortWritePulledRows, Unretained(this)),
-            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareWritePulledRows, Unretained(this)),
+                .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitWritePulledRows, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortWritePulledRows, Unretained(this)),
+                .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeWritePulledRows, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeWritePullRows, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqAdvanceReplicationProgress>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this)),
-            .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this)),
+            {
+                .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAdvanceReplicationProgress, Unretained(this)),
+                .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortAdvanceReplicationProgress, Unretained(this)),
+                .Serialize = BIND_NO_PROPAGATE(&TTabletManager::HydraSerializeAdvanceReplicationProgress, Unretained(this)),
+            },
+            BIND_NO_PROPAGATE(&TTabletManager::HydraNeedExternalizeAdvanceReplicationProgress, Unretained(this)),
         });
-        transactionManager->RegisterTransactionActionHandlers<TReqUpdateTabletStores>({
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateTabletStores>({{
             .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this)),
-        });
+        }});
         // Coordinator: TReqBoggleHunkTabletStoreLock, late prepare.
-        transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({
+        transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({{
             .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAndCommitBoggleHunkTabletStoreLock, Unretained(this)),
-        });
+        }});
 
         BackupManager_->Initialize();
 
@@ -3429,6 +3438,11 @@ private:
         FinalizeWritePulledRows(transaction, request, false);
     }
 
+    bool HydraNeedExternalizeWritePullRows(TTransaction* /*transaction*/, TReqWritePulledRows* request, TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
+    }
+
     void FinalizeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool inCommit)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -3701,6 +3715,14 @@ private:
             transaction->GetId());
     }
 
+    bool HydraNeedExternalizeAdvanceReplicationProgress(
+        TTransaction* /*transaction*/,
+        TReqAdvanceReplicationProgress* request,
+        TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
+    }
+
     void HydraAdvanceReplicationEra(
         TReqAdvanceReplicationEra* request)
     {
@@ -3969,6 +3991,14 @@ private:
             request->new_replication_timestamp());
 
         ReplicationTransactionFinished_.Fire(tablet, replicaInfo);
+    }
+
+    bool HydraNeedExternalizeReplicateRows(
+        TTransaction* /*transaction*/,
+        TReqReplicateRows* request,
+        TTabletId tabletId)
+    {
+        return tabletId == FromProto<TTabletId>(request->tablet_id());
     }
 
     void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* /*request*/)
