@@ -90,7 +90,7 @@ private:
                 s3ReaderConfig,
                 chunkId,
                 chunkFormat,
-                std::move(sourceUri));
+                replicaWithMedium);
         }
 
         return readers;

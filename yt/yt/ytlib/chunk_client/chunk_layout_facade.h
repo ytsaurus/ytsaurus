@@ -150,4 +150,6 @@ DEFINE_REFCOUNTED_TYPE(TChunkLayoutFacade)
 
 ////////////////////////////////////////////////////////////////////////////
 
+TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr chunkMeta);
+
 } // namespace NYT::NChunkClient

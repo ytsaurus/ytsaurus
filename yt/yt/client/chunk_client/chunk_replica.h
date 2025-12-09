@@ -18,6 +18,13 @@ void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The location of a replica meta.
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkMetaPersistence, i8,
+    ((None)      (0))
+    ((DataNode)  (1))
+    ((S3)        (2))
+);
+
 //! A compact representation of |(nodeId, replicaIndex, mediumIndex)| triplet.
 //! SourceUri is optional and is empty by default. It represents the source
 //! path for externally sourced data.
@@ -35,7 +42,8 @@ public:
         NNodeTrackerClient::TNodeId nodeId,
         int replicaIndex,
         int mediumIndex,
-        std::string sourceUri);
+        std::string sourceUri,
+        EChunkMetaPersistence metaPersistence);
 
     ui64 GetValue() const;
     NNodeTrackerClient::TNodeId GetNodeId() const;
@@ -43,9 +51,13 @@ public:
     int GetMediumIndex() const;
 
     TStringBuf GetSourceUri() const;
+    EChunkMetaPersistence GetMetaPersistence() const;
 
     TChunkReplica ToChunkReplica() const;
     static TChunkReplicaList ToChunkReplicas(const TChunkReplicaWithMediumList& replicasWithMedia);
+
+protected:
+    void InitMetaPersistenceFromNodeIdAndSourceUri();
 
 private:
     /*!
@@ -56,6 +68,7 @@ private:
      */
     ui64 Value_;
     std::string SourceUri_;
+    EChunkMetaPersistence MetaPersistence_ = EChunkMetaPersistence::None;
 
     explicit TChunkReplicaWithMedium(ui64 value);
 
@@ -97,6 +110,13 @@ public:
         NNodeTrackerClient::TNodeId nodeId,
         int replicaIndex,
         int mediumIndex,
+        TChunkLocationUuid locationUuid);
+    TChunkReplicaWithLocation(
+        NNodeTrackerClient::TNodeId nodeId,
+        int replicaIndex,
+        int mediumIndex,
+        std::string sourceUri,
+        EChunkMetaPersistence chunkMetaPersistence,
         TChunkLocationUuid locationUuid);
 
     TChunkLocationUuid GetChunkLocationUuid() const;

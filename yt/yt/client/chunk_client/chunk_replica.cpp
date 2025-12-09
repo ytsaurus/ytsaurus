@@ -30,6 +30,7 @@ void TChunkReplicaWithMedium::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, Value_)();
     PHOENIX_REGISTER_FIELD(2, SourceUri_)();
+    PHOENIX_REGISTER_FIELD(3, MetaPersistence_)();
 }
 
 PHOENIX_DEFINE_TYPE(TChunkReplicaWithMedium);
@@ -92,6 +93,8 @@ void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaI
     // NB: This will overwrite the `Value_` field.
     if (value.has_replica_spec()) {
         FromProto(static_cast<TChunkReplicaWithMedium*>(replica), value.replica_spec());
+    } else {
+        replica->InitMetaPersistenceFromNodeIdAndSourceUri();
     }
 }
 

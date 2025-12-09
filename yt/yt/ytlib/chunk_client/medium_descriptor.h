@@ -87,7 +87,8 @@ public:
 
     NS3::TObjectDescriptor GetChunkPlacement(TChunkId chunkId, const std::string& sourceUri) const;
 
-    NS3::TObjectDescriptor GetChunkMetaPlacement(TChunkId chunkId, const std::string& sourceUri) const;
+    //! `externallyAttached` should be true if the replica sourceUri is not empty.
+    NS3::TObjectDescriptor GetChunkMetaPlacement(TChunkId chunkId, bool externallyAttached) const;
 
 private:
     void FillProto(NProto::TMediumDirectory::TMediumDescriptor* protoItem) const override;

@@ -13,7 +13,7 @@ IChunkReaderPtr CreateS3Reader(
     TS3ReaderConfigPtr config,
     TChunkId chunkId,
     EChunkFormat chunkFormat,
-    std::string sourceUri);
+    TChunkReplicaWithMedium replicaWithMedium);
 
 IChunkReaderPtr TryCreateS3ReaderThrottlingAdapter(
     const IChunkReaderPtr& underlyingReader,

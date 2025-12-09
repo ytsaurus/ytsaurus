@@ -8,6 +8,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <library/cpp/yt/logging/logger.h>
+#include <library/cpp/yt/misc/cast.h>
 
 #include "private.h"
 
@@ -24,11 +25,15 @@ static_assert(
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium()
     : Value_(NNodeTrackerClient::InvalidNodeId.Underlying())
-{ }
+{
+    InitMetaPersistenceFromNodeIdAndSourceUri();
+}
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(ui64 value)
     : Value_(value)
-{ }
+{
+    InitMetaPersistenceFromNodeIdAndSourceUri();
+}
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     NNodeTrackerClient::TNodeId nodeId,
@@ -42,16 +47,19 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     YT_ASSERT(nodeId.Underlying() >= 0 && nodeId.Underlying() <= NNodeTrackerClient::MaxNodeId.Underlying());
     YT_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
     YT_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
+    InitMetaPersistenceFromNodeIdAndSourceUri();
 }
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     NNodeTrackerClient::TNodeId nodeId,
     int replicaIndex,
     int mediumIndex,
-    std::string sourceUri)
+    std::string sourceUri,
+    EChunkMetaPersistence metaPersistence)
     : TChunkReplicaWithMedium(nodeId, replicaIndex, mediumIndex)
 {
     SourceUri_ = std::move(sourceUri);
+    MetaPersistence_ = metaPersistence;
 }
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
@@ -87,15 +95,28 @@ Y_FORCE_INLINE TStringBuf TChunkReplicaWithMedium::GetSourceUri() const
     return SourceUri_;
 }
 
+Y_FORCE_INLINE EChunkMetaPersistence TChunkReplicaWithMedium::GetMetaPersistence() const
+{
+    return MetaPersistence_;
+}
+
 Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
 {
     return TChunkReplica(GetNodeId(), GetReplicaIndex());
+}
+
+Y_FORCE_INLINE void TChunkReplicaWithMedium::InitMetaPersistenceFromNodeIdAndSourceUri()
+{
+    MetaPersistence_ = GetNodeId() != NNodeTrackerClient::OffshoreNodeId
+        ? EChunkMetaPersistence::DataNode
+        : (SourceUri_.empty() ? EChunkMetaPersistence::S3 : EChunkMetaPersistence::None);
 }
 
 Y_FORCE_INLINE void ToProto(NProto::TChunkReplicaSpec* protoReplica, TChunkReplicaWithMedium replica)
 {
     protoReplica->set_value(replica.Value_);
     protoReplica->set_source_uri(TString(replica.SourceUri_));
+    protoReplica->set_meta_persistence(::NYT::ToProto<int>(replica.MetaPersistence_));
 }
 
 Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
@@ -109,11 +130,17 @@ Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, NProto::TChunkRe
     if (protoReplica.has_source_uri()) {
         replica->SourceUri_ = protoReplica.source_uri();
     }
+    if (protoReplica.has_meta_persistence()) {
+        replica->MetaPersistence_ = CheckedEnumCast<EChunkMetaPersistence>(protoReplica.meta_persistence());
+    } else {
+        replica->InitMetaPersistenceFromNodeIdAndSourceUri();
+    }
 }
 
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica)
 {
     replica->Value_ = protoReplica;
+    replica->InitMetaPersistenceFromNodeIdAndSourceUri();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +163,17 @@ Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation(
     int mediumIndex,
     TChunkLocationUuid locationUuid)
     : TChunkReplicaWithMedium(nodeId, replicaIndex, mediumIndex)
+    , ChunkLocationUuid_(locationUuid)
+{ }
+
+Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation(
+    NNodeTrackerClient::TNodeId nodeId,
+    int replicaIndex,
+    int mediumIndex,
+    std::string sourceUri,
+    EChunkMetaPersistence chunkMetaPersistence,
+    TChunkLocationUuid locationUuid)
+    : TChunkReplicaWithMedium(nodeId, replicaIndex, mediumIndex, std::move(sourceUri), chunkMetaPersistence)
     , ChunkLocationUuid_(locationUuid)
 { }
 

@@ -2,10 +2,12 @@
 #include "schemaless_table_uploader.h"
 #include "schemaless_block_writer.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_layout_facade.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_generator.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/s3_common.h>
+#include <yt/yt/ytlib/chunk_client/s3_writer.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -221,8 +223,7 @@ private:
         TTableSchemaPtr Schema;
         EExternalSourceFormat SourceFormat;
         EChunkFormat ChunkFormat;
-        // NB: Only contains extensions stored on master!
-        TRefCountedChunkMetaPtr MasterChunkMeta;
+        TRefCountedChunkMetaPtr Meta;
         i64 RowCount;
         i64 UncompressedDataSize;
         i64 CompressedDataSize;
@@ -678,17 +679,11 @@ private:
         // This is the full meta.
         auto chunkMeta = chunkMetaGenerator->GetChunkMeta();
 
-        // TODO(achulkov2): This is the place where we could store chunk meta somewhere if we wanted to.
-
-        // From this point on chunk meta is pruned to only contain extensions stored on master.
-        // This allows us to reduce the memory footprint of the command.
-        FilterProtoExtensions(chunkMeta->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
-
         return {
             .Schema = chunkMetaGenerator->GetChunkSchema(),
             .SourceFormat = sourceFormat,
             .ChunkFormat = chunkFormat,
-            .MasterChunkMeta = chunkMeta,
+            .Meta = chunkMeta,
             .RowCount = chunkMetaGenerator->GetRowCount(),
             .UncompressedDataSize = chunkMetaGenerator->GetUncompressedDataSize(),
             .CompressedDataSize = chunkMetaGenerator->GetCompressedDataSize(),
@@ -804,11 +799,19 @@ private:
             chunkInfo.UncompressedDataSize,
             chunkInfo.CompressedDataSize);
 
+        if (S3MediumDescriptor_->GetConfig()->Bucket) {
+            YT_LOG_DEBUG("Uploading generated meta to s3 (SourceUri: %v, ChunkFormat: %lv)",
+                sourceUri,
+                chunkInfo.ChunkFormat);
+            UploadChunkMetaToS3(S3MediumDescriptor_, sessionId, PrepareChunkMetaBlob(sessionId.ChunkId, chunkInfo.Meta));
+        }
+        FilterProtoExtensions(chunkInfo.Meta->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         auto replica = TChunkReplicaWithMedium(
             OffshoreNodeId,
             GenericChunkReplicaIndex,
             sessionId.MediumIndex,
-            sourceUri);
+            sourceUri,
+            S3MediumDescriptor_->GetConfig()->Bucket.empty() ? EChunkMetaPersistence::None : EChunkMetaPersistence::S3);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, Uploader_->UserObject.ExternalCellTag);
         TChunkServiceProxy proxy(channel);
@@ -819,6 +822,7 @@ private:
         // Otherwise, it could misinterpret them as "native" offshore replicas on S3 medium,
         // if it supports S3 medium but not source URIs.
         req->RequireServerFeature(EMasterFeature::OffshoreReplicaSourceUri);
+        req->RequireServerFeature(EMasterFeature::OffshoreReplicaMetaPersistence);
 
         GenerateMutationId(req);
 
@@ -829,8 +833,7 @@ private:
         // NB: This size must match with what is reported in EndUpload.
         req->mutable_chunk_info()->set_disk_space(chunkInfo.CompressedDataSize);
 
-        // This meta is already filtered to only contain extensions stored on master.
-        *req->mutable_chunk_meta() = *chunkInfo.MasterChunkMeta;
+        *req->mutable_chunk_meta() = *chunkInfo.Meta;
 
         auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
             TableWriterOptions_->MemoryUsageTracker,

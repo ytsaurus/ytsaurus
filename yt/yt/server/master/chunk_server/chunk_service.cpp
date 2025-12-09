@@ -144,6 +144,7 @@ public:
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
         DeclareServerFeature(EMasterFeature::OffshoreReplicaSourceUri);
+        DeclareServerFeature(EMasterFeature::OffshoreReplicaMetaPersistence);
     }
 
 private:

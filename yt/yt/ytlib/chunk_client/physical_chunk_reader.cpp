@@ -45,8 +45,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
             return CreateS3Reader(
                 s3MediumDescriptor, config, chunkId,
                 NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()),
-                std::string(offshoreReplica.GetSourceUri())
-            );
+                offshoreReplica);
         }
 
         THROW_ERROR_EXCEPTION("The medium %Qv is not supported for reading data", mediumDescriptor->GetName())

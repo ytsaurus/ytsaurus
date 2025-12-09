@@ -12,6 +12,7 @@ message TChunkReplicaSpec
 {
     required fixed64 value = 1;
     optional string source_uri = 2;
+    optional int32 meta_persistence = 3;
 }
 
 // Describes a portion of table chunk.

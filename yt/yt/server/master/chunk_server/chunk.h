@@ -192,7 +192,8 @@ public:
 
     void AddOffshoreReplica(
         TMediumPtrWithReplicaInfo replica,
-        TStringBuf sourceUri);
+        std::string sourceUri,
+        NChunkClient::EChunkMetaPersistence metaPersistence);
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;

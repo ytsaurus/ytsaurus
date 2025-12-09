@@ -248,19 +248,24 @@ TChunkLayoutFacade::TWriteRequest TChunkLayoutFacade::AddBlocks(const std::vecto
 
 TSharedMutableRef TChunkLayoutFacade::PrepareChunkMetaBlob()
 {
-    auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
+    auto buffer = ::NYT::NChunkClient::PrepareChunkMetaBlob(ChunkId_, ChunkMeta_);
+    MetaDataSize_ = buffer.Size();
+    return buffer;
+}
+
+TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr chunkMeta)
+{
+    auto metaData = SerializeProtoToRefWithEnvelope(*chunkMeta);
 
     TChunkMetaHeader_2 header;
     header.Signature = header.ExpectedSignature;
     header.Checksum = GetChecksum(metaData);
-    header.ChunkId = ChunkId_;
-
-    MetaDataSize_ = metaData.Size() + sizeof(header);
+    header.ChunkId = chunkId;
 
     struct TMetaBufferTag
     { };
 
-    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
+    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(metaData.Size() + sizeof(header), {.InitializeStorage = false});
     ::memcpy(buffer.Begin(), &header, sizeof(header));
     ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 

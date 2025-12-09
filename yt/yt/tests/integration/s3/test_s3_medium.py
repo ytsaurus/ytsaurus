@@ -235,6 +235,10 @@ class TestS3MediumBase(YTEnvSetup):
         return f"{prefix}chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}.meta"
 
     @classmethod
+    def get_chunk_generated_meta_path(cls, chunk_id, s3_medium_index=0, prefix=""):
+        return f"{prefix}generated-chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}.meta"
+
+    @classmethod
     def assert_chunk_exists_in_s3(cls, chunk_id, s3_medium_index=0, negate=False):
         bucket = cls.S3_MEDIA[s3_medium_index]["bucket"]
 
@@ -1194,7 +1198,57 @@ class TestAttachTable(TestAttachTableBase):
 
         attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
-        assert_items_equal(read_table("//tmp/imported"), records)
+        assert assert_items_equal(read_table("//tmp/imported"), records)
+        assert self.object_exists_in_s3(bucket, self.get_chunk_generated_meta_path(get("//tmp/imported/@chunk_ids")[0]))
+
+        self.S3_CLIENT.delete_object(Bucket=bucket, Key=self.get_chunk_generated_meta_path(get("//tmp/imported/@chunk_ids")[0]))
+        with pytest.raises(YtError):
+            read_table("//tmp/imported")
+
+    @authors("faucct")
+    def test_concatenate_different_mediums(self):
+        bucket = self.get_s3_medium_bucket()
+
+        create("table", "//tmp/written", attributes={"primary_medium": self.get_s3_medium_name()})
+        write_table("//tmp/written", {"a": "b"})
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"e": "f"}]))
+        ))
+        create("table", "//tmp/attached", attributes={"primary_medium": self.get_s3_medium_name()})
+        attach_table("//tmp/attached", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"g": "h"}]))
+        ))
+        create("table", "//tmp/attached_read_only", attributes={"primary_medium": "s3_read_only"})
+        attach_table("//tmp/attached_read_only", FilesExternalSourceSpec([f"s3://{bucket}/bar.parquet"]))
+
+        create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        concatenate(["//tmp/written", "//tmp/attached", "//tmp/attached_read_only"], "//tmp/out")
+
+
+        assert_items_equal(read_table("//tmp/out"), [{"a": "b"}, {"e": "f"}, {"g": "h"}])
+        assert get("//tmp/out/@chunk_ids") == [
+            get_singular_chunk_id("//tmp/written"),
+            get_singular_chunk_id("//tmp/attached"),
+            get_singular_chunk_id("//tmp/attached_read_only"),
+        ]
+
+    @authors("faucct")
+    def test_attach_to_read_only_bucket(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": "s3_read_only"})
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
+        assert read_table("//tmp/imported") == records
+        assert not self.object_exists_in_s3(bucket, self.get_chunk_generated_meta_path(get("//tmp/imported/@chunk_ids")[0]))
 
     @authors("faucct")
     def test_attach_and_merge(self):
@@ -1242,6 +1296,25 @@ class TestAttachTable(TestAttachTableBase):
 
         merge(in_="//tmp/imported{x}", out="//tmp/merged", mode="ordered", spec={"combine_chunks": True, "use_columnar_statistics": True, "use_chunk_slice_statistics": False})
         assert_items_equal(read_table("//tmp/merged"), [{"x": 1}, {"x": 2}])
+
+    @authors("faucct")
+    def test_attach_to_nonexistent_bucket(self):
+        medium_name = "s3_extra1"
+        create("table", "//tmp/imported", attributes={"primary_medium": medium_name})
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        set(f"//sys/media/{medium_name}/@config/bucket", "nonexistent")
+        # Wait for medium directory synchronizer to do its thing.
+        # TODO(achulkov2): This can be removed once/if we return medium directory entries along with chunk specs during fetch.
+        time.sleep(1)
+
+        with pytest.raises(YtError, match="The specified bucket does not exist"):
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_to_wrong_medium(self):
@@ -2574,7 +2647,7 @@ class TestAttachTableApiSpecification(TestAttachTableBase):
     @classmethod
     def check_source_spec(cls, source_spec, expected_row_letters, **kwargs):
         table_name = f"//tmp/imported_{uuid.uuid4().hex}"
-        attached_chunk_infos = attach_table(table_name, source_spec=source_spec, medium=cls.get_s3_medium_name(), **kwargs)
+        attached_chunk_infos = attach_table(table_name, source_spec=source_spec, medium=cls.get_s3_medium_name(index=1), **kwargs)
 
         assert_items_equal(read_table(table_name), [{"col": x} for x in expected_row_letters])
 

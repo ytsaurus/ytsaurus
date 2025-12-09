@@ -240,6 +240,7 @@ using TMediumPtrWithReplicaInfo = TPtrWithReplicaInfo<TMedium>;
 struct TOffshoreReplica {
     TMediumPtrWithReplicaInfo Replica;
     std::string SourceUri;
+    NChunkClient::EChunkMetaPersistence MetaPersistence;
 
     TMedium* GetMedium() const;
     int GetEffectiveMediumIndex() const;

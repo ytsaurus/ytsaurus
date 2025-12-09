@@ -28,10 +28,11 @@ DECLARE_REFCOUNTED_STRUCT(ICachingObjectService)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterFeature,
-    ((OverlayedJournals)            (0))
-    ((Portals)                      (1))
-    ((PortalExitSynchronization)    (2))
-    ((OffshoreReplicaSourceUri)     (3))
+    ((OverlayedJournals)               (0))
+    ((Portals)                         (1))
+    ((PortalExitSynchronization)       (2))
+    ((OffshoreReplicaSourceUri)        (3))
+    ((OffshoreReplicaMetaPersistence)  (4))
 );
 
 // Some objects must be created and removed atomically.

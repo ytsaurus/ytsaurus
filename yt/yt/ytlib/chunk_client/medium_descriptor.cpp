@@ -150,17 +150,26 @@ NS3::TObjectDescriptor TS3MediumDescriptor::GetChunkPlacement(TChunkId chunkId, 
         if (Config_->Bucket.Empty()) {
             THROW_ERROR_EXCEPTION("Cannot place chunks into S3 medium %Qv without a configured bucket", Name_);
         }
-        return NS3::TObjectDescriptor(
-            /*bucket*/ Config_->Bucket,
-            /*key*/ key);
+        return NS3::TObjectDescriptor(Config_->Bucket, key);
     }
 
     return NS3::TObjectDescriptor::FromUri(sourceUri);
 };
 
-NS3::TObjectDescriptor TS3MediumDescriptor::GetChunkMetaPlacement(TChunkId chunkId, const std::string& sourceUri) const
+NS3::TObjectDescriptor TS3MediumDescriptor::GetChunkMetaPlacement(TChunkId chunkId, bool externallyAttached) const
 {
-    auto chunkPlacement = GetChunkPlacement(chunkId, sourceUri);
+    if (externallyAttached) {
+        TString key = Config_->Prefix;
+        if (!key.empty() && !key.EndsWith("/")) {
+            key.push_back('/');
+        }
+        key += Format("generated-chunk-data/%02x/%02x/%v%v", chunkId.ReversedParts8[1], chunkId.ReversedParts8[0], chunkId, ChunkMetaSuffix);
+        if (Config_->Bucket.Empty()) {
+            THROW_ERROR_EXCEPTION("Cannot place chunks into S3 medium %Qv without a configured bucket", Name_);
+        }
+        return NS3::TObjectDescriptor(Config_->Bucket, key);
+    }
+    auto chunkPlacement = GetChunkPlacement(chunkId, /*sourceUri*/ {});
     return NS3::TObjectDescriptor(
         chunkPlacement.Bucket(),
         chunkPlacement.Key() + ChunkMetaSuffix);

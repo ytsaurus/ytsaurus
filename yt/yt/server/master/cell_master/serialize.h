@@ -272,6 +272,7 @@ DEFINE_ENUM(ETractoMasterReign,
     ((S3MediumPrefixes)                                             (2703))  // faucct
     ((ForbidChangingSomeS3MediumConfigFields)                       (2704))  // pavel-bash
     ((MaxMediumCountIncrease)                                       (2705))  // achulkov2
+    ((GeneratedReplicaMeta)                                         (2706))  // faucct
 );
 
 static_assert(TEnumTraits<ETractoMasterReign>::IsMonotonic, "Tracto Master reign enum is not monotonic");

@@ -159,6 +159,7 @@ void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TOffshoreRepli
 {
     protoValue->set_value(ToProto<ui64>(value.Replica));
     protoValue->set_source_uri(TString(value.SourceUri));
+    protoValue->set_meta_persistence(NYT::ToProto<int>(value.MetaPersistence));
 }
 
 void FormatValue(TStringBuilderBase* builder, TOffshoreReplica value, TStringBuf /*spec*/)
@@ -197,6 +198,11 @@ void TOffshoreReplica::Load(NCellMaster::TLoadContext& context)
     if (context.GetTractoVersion() >= ETractoMasterReign::ExternalFormatsAndOffshoreReplicaSourceUri) {
         Load(context, SourceUri);
     }
+    if (context.GetTractoVersion() >= ETractoMasterReign::GeneratedReplicaMeta) {
+        Load(context, MetaPersistence);
+    } else {
+        MetaPersistence = SourceUri.empty() ? EChunkMetaPersistence::S3 : EChunkMetaPersistence::None;
+    }
 }
 
 void TOffshoreReplica::Save(NCellMaster::TSaveContext& context) const
@@ -205,6 +211,7 @@ void TOffshoreReplica::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, Replica);
     Save(context, SourceUri);
+    Save(context, MetaPersistence);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

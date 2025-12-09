@@ -26,6 +26,11 @@ IChunkWriterPtr CreateS3Writer(
 
 // TODO(achulkov2): [PLater] Profiling, statistics.
 
+void UploadChunkMetaToS3(
+    TS3MediumDescriptorPtr mediumDescriptor,
+    TSessionId sessionId,
+    TSharedRef data);
+
 ////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

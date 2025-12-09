@@ -31,19 +31,23 @@ public:
         TS3ReaderConfigPtr config,
         TChunkId chunkId,
         EChunkFormat chunkFormat,
-        std::string sourceUri)
+        TChunkReplicaWithMedium replicaWithMedium)
         : MediumDescriptor_(std::move(mediumDescriptor))
         , Client_(MediumDescriptor_->GetClient())
         , Config_(std::move(config))
         , ChunkId_(std::move(chunkId))
         , ChunkFormat_(chunkFormat)
-        , SourceUri_(std::move(sourceUri))
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, SourceUri_))
-        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, SourceUri_))
-        , ChunkLayoutReader_(New<TChunkLayoutReader>(ChunkId_, ToString(ChunkPlacement_), ToString(ChunkMetaPlacement_), TChunkLayoutReader::TOptions{
-            // TODO(achulkov2): Drop this for offshore chunks with stored generated meta.
-            .ValidateBlockChecksums = SourceUri_.empty(),
-        }))
+        , ReplicaWithMedium_(std::move(replicaWithMedium))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, std::string(ReplicaWithMedium_.GetSourceUri())))
+        , ChunkLayoutReader_(New<TChunkLayoutReader>(
+            ChunkId_,
+            ToString(ChunkPlacement_),
+            ReplicaWithMedium_.GetMetaPersistence() == EChunkMetaPersistence::S3 ? ToString(GetChunkMetaPlacement()) : "",
+            TChunkLayoutReader::TOptions{
+                // TODO(achulkov2): Drop this for offshore chunks with stored generated meta.
+                .ValidateBlockChecksums = ReplicaWithMedium_.GetSourceUri().empty(),
+            }
+        ))
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -95,15 +99,20 @@ private:
     const TS3ReaderConfigPtr Config_;
     const TChunkId ChunkId_;
     const EChunkFormat ChunkFormat_;
-    const std::string SourceUri_;
+    const TChunkReplicaWithMedium ReplicaWithMedium_;
     const NS3::TObjectDescriptor ChunkPlacement_;
-    const NS3::TObjectDescriptor ChunkMetaPlacement_;
     const TChunkLayoutReaderPtr ChunkLayoutReader_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MetaLock_);
     // TODO(achulkov2): [PLater] Think about caching metas in the native client. More likely this is a job for S3 proxies.
     TRefCountedChunkMetaPtr ChunkMeta_;
     TBlocksExtPtr BlocksExt_;
+
+    NS3::TObjectDescriptor GetChunkMetaPlacement() const
+    {
+        YT_VERIFY(ReplicaWithMedium_.GetMetaPersistence() == EChunkMetaPersistence::S3);
+        return MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, /*externallyAttached*/ !ReplicaWithMedium_.GetSourceUri().empty());
+    }
 
     IInvokerPtr GetSessionInvoker(const TReadBlocksOptions& options) const
     {
@@ -179,8 +188,9 @@ private:
     TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile()
     {
         NS3::TGetObjectRequest request;
-        request.Bucket = ChunkMetaPlacement_.Bucket();
-        request.Key = ChunkMetaPlacement_.Key();
+        auto chunkMetaPlacement = GetChunkMetaPlacement();
+        request.Bucket = chunkMetaPlacement.Bucket();
+        request.Key = chunkMetaPlacement.Key();
 
         return Client_->GetObject(request)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
@@ -191,8 +201,7 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> FetchOrGenerateMeta()
     {
-        // TODO(achulkov2): This logic will change and improve as we start storing generated metas for offshore chunks.
-        return SourceUri_.empty()
+        return ReplicaWithMedium_.GetMetaPersistence() == EChunkMetaPersistence::S3
             ? FetchMetaFromMetaFile()
             : GenerateMetaFromChunkFile(ChunkFormat_);
     }
@@ -244,7 +253,7 @@ IChunkReaderPtr CreateS3Reader(
     TS3ReaderConfigPtr config,
     TChunkId chunkId,
     EChunkFormat chunkFormat,
-    std::string sourceUri)
+    TChunkReplicaWithMedium replicaWithMedium)
 {
     YT_VERIFY(IsRegularChunkId(chunkId));
 
@@ -258,7 +267,7 @@ IChunkReaderPtr CreateS3Reader(
         std::move(config),
         std::move(chunkId),
         chunkFormat,
-        std::move(sourceUri));
+        std::move(replicaWithMedium));
 }
 
 ////////////////////////////////////////////////////////////////////////////

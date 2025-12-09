@@ -669,7 +669,7 @@ public:
             Logger))
         , ChunkMetaUploadSession_(New<TS3SimpleUploadSession>(
             Client_,
-            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId, {}),
+            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId, /*externallyAttached*/ false),
             TDispatcher::Get()->GetWriterInvoker(),
             Logger))
     { }
@@ -746,6 +746,8 @@ public:
             OffshoreNodeId,
             GenericChunkReplicaIndex,
             SessionId_.MediumIndex,
+            /*sourceUri*/ "",
+            EChunkMetaPersistence::S3,
             InvalidChunkLocationUuid);
         
         return {
@@ -825,6 +827,24 @@ IChunkWriterPtr CreateS3Writer(
         std::move(config),
         sessionId,
         std::move(blockCache));
+}
+
+
+void UploadChunkMetaToS3(
+    TS3MediumDescriptorPtr mediumDescriptor,
+    TSessionId sessionId,
+    TSharedRef data)
+{
+    YT_VERIFY(IsRegularChunkId(sessionId.ChunkId));
+    YT_VERIFY(sessionId.MediumIndex == mediumDescriptor->GetIndex());
+
+    auto metaUploadSession = New<TS3SimpleUploadSession>(
+        mediumDescriptor->GetClient(),
+        mediumDescriptor->GetChunkMetaPlacement(sessionId.ChunkId, /*externallyAttached*/ true),
+        TDispatcher::Get()->GetWriterInvoker(),
+        ChunkClientLogger().WithTag("ChunkId: %v", sessionId.ChunkId));
+    WaitFor(metaUploadSession->Upload(data))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////
