@@ -409,8 +409,9 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
     }
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
-        "Unexpected relative path specifier %v",
-        GetToken());
+        "Unexpected repeated field relative path specifier at %v (producing an index of %v)",
+        Self()->GetTokenizerPrefix(),
+        index);
 }
 
 template <typename TWrappedMessage, typename TSelf>
