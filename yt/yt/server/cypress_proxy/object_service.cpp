@@ -336,6 +336,8 @@ private:
         if (!Owner_->GetDynamicConfig()->AllowBypassMasterResolve) {
             PredictNonMaster();
             InvokeMasterRequests(/*beforeSequoiaResolve*/ true);
+        } else {
+            PredictNonSequoia();
         }
 
         InvokeSequoiaRequests();
@@ -402,6 +404,19 @@ private:
 
             if (mutating != mutatingSubrequest && Owner_->GetDynamicConfig()->AlertOnMixedReadWriteBatch) {
                 YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
+            }
+        }
+    }
+
+    void PredictNonSequoia()
+    {
+        for (auto& subrequest : Subrequests_) {
+            // NB: it's not just an optimization. On master startup cluster
+            // directory is synchronized via GetClusterMeta request. This
+            // request cannot be sent to Sequoia since Sequoia transactions
+            // don't work until cluster directory contains Ground cluster.
+            if (subrequest.RequestHeader->method() == "GetClusterMeta") {
+                subrequest.Target = ERequestTarget::Master;
             }
         }
     }
