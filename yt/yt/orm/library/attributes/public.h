@@ -85,6 +85,15 @@ DEFINE_ENUM(EMissingFieldPolicy,
     (ForceLeaf) // Visit the leaf field anyway, otherwise `Throw`.
 );
 
+// Relative indexes (|begin|, |end|, |before:| and |after:|) indicate positions at ends or between
+// entries in vectors and repeated fields. Using them to access existing entries (e.g., trying to
+// remove such a position) makes a malformed request.
+DEFINE_ENUM(ERelativeIndexPolicy,
+    (Allow)       // Pass the index to the appropriate handler.
+    (Throw)       // Throw an error.
+    (Reinterpret) // Convert to absolute index. COMPAT.
+);
+
 DEFINE_ENUM(EMergeAttributesMode,
     (Old)
     (New)

@@ -92,6 +92,11 @@ TStringBuf TPathVisitorMixin::GetTokenizerInput() const
     return Tokenizer_.GetInput();
 }
 
+TStringBuf TPathVisitorMixin::GetTokenizerPrefix() const
+{
+    return Tokenizer_.GetPrefix();
+}
+
 TStringBuf TPathVisitorMixin::GetToken() const
 {
     return Tokenizer_.GetToken();
@@ -142,6 +147,25 @@ TErrorOr<TIndexParseResult> TPathVisitorMixin::ParseCurrentListIndex(int size) c
 {
     Expect(NYPath::ETokenType::Literal);
     auto indexParseResult = ParseListIndex(Tokenizer_.GetToken(), size);
+
+    if (indexParseResult.IndexType == EListIndexType::Relative) {
+        switch (RelativeIndexPolicy_) {
+            case ERelativeIndexPolicy::Allow:
+                break;
+            case ERelativeIndexPolicy::Throw:
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+                    "Relative index %v is not allowed; use absolute index %v (or -1 instead of end)",
+                    GetToken(),
+                    indexParseResult.Index);
+            case ERelativeIndexPolicy::Reinterpret:
+                indexParseResult.IndexType = EListIndexType::Absolute;
+                if (Tokenizer_.GetToken() == "end" || Tokenizer_.GetToken().StartsWith("before:")) {
+                    // Reinterpret as |last|/actual previous position.
+                    indexParseResult.Index--;
+                }
+                break;
+        }
+    }
 
     if (indexParseResult.IsOutOfBounds(size)) {
         return TError(NAttributes::EErrorCode::OutOfBounds,
