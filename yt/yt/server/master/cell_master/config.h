@@ -343,6 +343,8 @@ struct TCellMasterProgramConfig
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 
+void TweakConfigForDryRun(TCellMasterProgramConfigPtr config, bool skipTvmServiceEnvValidation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDynamicCellMasterConfig
