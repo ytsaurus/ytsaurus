@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Optional, List
 
 if TYPE_CHECKING:
     from typing import Mapping
@@ -31,6 +31,7 @@ from .stream import ItemStream, _ChunkStream
 from .ypath import TablePath, YPath, ypath_join
 
 import yt.json_wrapper as json
+import yt.type_info as ti
 import yt.yson as yson
 import yt.logger as logger
 
@@ -1399,3 +1400,48 @@ def upload_orc(table, input_file, client=None):
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
     write_table(table, ItemStreamForArrowFormat(stream), raw=True, format="arrow", client=client)
+
+
+def infer_table_schema(table: Union[str, YPath], optional_only: Optional[List] = None, client=None) -> TableSchema:
+    """Infer table schema from table content.
+
+    :param table: path to table.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param optional_only: List of optional fields (by default - all)
+    """
+    table_schema = get_table_schema(table, client=client)
+    if table_schema.columns:
+        return table_schema
+
+    table_header_path = TablePath(table, ranges=[{'lower_limit': {'row_index': 0}, 'upper_limit': {"row_index": 1}}])
+
+    raw_data = b"".join(read_table(table_header_path, raw=True, format="yson", client=client))
+    if not raw_data:
+        return TableSchema()
+
+    data = next(yson.loads(raw_data, yson_type="list_fragment"))
+
+    def _get_type(name, value):
+        known_mapping = {
+            yson.yson_types.YsonString: ti.typing.String,
+            yson.yson_types.YsonUnicode: ti.typing.Utf8,
+        }
+        ti_type = known_mapping.get(
+            type(value),
+            ti.typing.PRIMITIVES_V1.get(
+                value.get_yson_type_str(),
+                ti.Yson
+            )
+        )
+        if ti_type == ti.Yson or not optional_only or name in optional_only:
+            ti_type = ti.Optional[ti_type]
+        return ti_type
+
+    table_schema = TableSchema()
+    for name, value in data.items():
+        table_schema.add_column(
+            name=name,
+            type=_get_type(name, value),
+        )
+
+    return table_schema

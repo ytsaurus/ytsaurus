@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, with_additional_threads)
+    YTEnvSetup, with_additional_threads, Restarter, MASTERS_SERVICE)
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
@@ -20,6 +20,8 @@ from yt_sequoia_helpers import (
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_helpers import profiler_factory
+
+from yt_driver_bindings import Driver
 
 import yt.yson as yson
 
@@ -2935,3 +2937,76 @@ class TestSequoiaTmpCleanup(YTEnvSetup):
 
     def test2(self):
         self._do_test()
+
+
+##################################################################
+
+
+class TestSequoiaClusterDirectoryInitialization(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
+    USE_SEQUOIA = True
+    NUM_SECONDARY_MASTER_CELLS = 1
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+        "response_keeper": {
+            "enable": True,
+        },
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+        },
+    }
+
+    @authors("kvk1920")
+    def test_cluster_directory_initialization(self):
+        # The problem this test is about:
+        # Cluster directory synchronizer in master sends ObjectService.Execute
+        # with GetClusterMeta to Cypress proxies. If
+        # "allow_bypass_master_resolve" is true then this request is considered
+        # as Sequoia by default. Every Sequoia request waits for sync with QUGM.
+        # But GUQM cannot be flushed until cluster directory contains Ground
+        # cluster.
+
+        create_user("u-1")
+
+        create("map_node", "//tmp/m")
+
+        set("//sys/@config/ground_update_queue_manager/queues/sequoia", {"pause_flush": True})
+
+        # This ACL update is stored at ground update queue but not flushed.
+        set("//tmp/m/@acl", [{"action": "allow", "permissions": ["read", "write"], "subjects": ["u-1"]}])
+
+        # Sync is impossible here because every request to Cypress has to sync
+        # with GUQM, but GUQM is paused. GUQM needs to be unpaused first.
+        with Restarter(self.Env, MASTERS_SERVICE, sync=False):
+            pass
+
+        # GUQM cannot be unpaused via regular driver since every request to
+        # Cypress waits for sync with GUQM on Cypress proxy. Therefore, request
+        # has to be sent to master directly.
+        config_without_cypress_proxy = deepcopy(self.Env.configs["driver"])
+        config_without_cypress_proxy["api_version"] = 4
+        del config_without_cypress_proxy["cypress_proxy"]
+        cypress_proxy_bypass_driver = Driver(config=config_without_cypress_proxy)
+
+        def try_reset_guqm_config():
+            print_debug("Trying to remove GUQM config...")
+            remove("//sys/@config/ground_update_queue_manager/queues/sequoia", driver=cypress_proxy_bypass_driver)
+            print_debug("GUQM config removed!")
+            return True
+
+        wait(try_reset_guqm_config, ignore_exceptions=True)
+
+        # From this point requests to Cypress should work as usual.
+
+        self.Env.synchronize()
+
+        # Just check that Sequoia resolve works.
+        assert get("//tmp/m/@acl")[0]["subjects"] == ["u-1"]

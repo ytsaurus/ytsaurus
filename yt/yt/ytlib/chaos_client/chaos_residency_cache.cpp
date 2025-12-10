@@ -9,11 +9,10 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/chaos_client/helpers.h>
-
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/chaos_client/helpers.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -499,8 +498,9 @@ private:
                 if (sameResidency.IsOK()) {
                     const auto& sameResidencyValue = sameResidency.Value();
                     if (sameResidencyValue.IsNonExistent()) {
-                        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such replication card")
-                            << TErrorAttribute("replication_card_id", ObjectId_);
+                        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos object")
+                            << TErrorAttribute("chaos_object_id", ObjectId_)
+                            << TErrorAttribute("chaos_object_type", TypeFromId(ObjectId_));
                     }
 
                     if (sameResidencyValue.IsPresent()) {
@@ -602,20 +602,15 @@ private:
         TErrorOr<TChaosObjectLocationResult>&& errorOrCellTag)
     {
         if (!errorOrCellTag.IsOK()) {
-            if (TypeFromId(objectId) == NObjectClient::EObjectType::ChaosLease) {
-                if (errorOrCellTag.InnerErrors().empty()) {
-                    return CreateChaosLeaseNotKnownError(objectId);
-                }
-            }
-
             return TError(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v", type, objectId)
                 << errorOrCellTag;
         }
 
         const auto& locationResult = errorOrCellTag.Value();
         if (locationResult.IsNonExistent()) {
-            return TError(NYTree::EErrorCode::ResolveError, "No such replication card")
-                << TErrorAttribute("replication_card_id", objectId);
+            return TError(NYTree::EErrorCode::ResolveError, "No such chaos object")
+                << TErrorAttribute("chaos_object_id", objectId)
+                << TErrorAttribute("chaos_object_type", TypeFromId(objectId));
         }
 
         return locationResult.GetCellTag();
@@ -641,6 +636,11 @@ private:
 
     std::vector<TCellTag> GetChaosCellTags(const ICellDirectoryPtr& cellDirectory)
     {
+        if (IsChaosLeaseType(TypeFromId(ObjectId_))) {
+            auto originCellTag = CellTagFromId(ObjectId_);
+            return {originCellTag, GetSiblingChaosCellTag(originCellTag)};
+        }
+
         std::vector<TCellTag> chaosCellTags;
 
         auto cellInfos = cellDirectory->GetRegisteredCells();

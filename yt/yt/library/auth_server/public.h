@@ -33,7 +33,7 @@ DECLARE_REFCOUNTED_STRUCT(TOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingOAuthTokenAuthenticatorConfig)
-DECLARE_REFCOUNTED_STRUCT(TYCIamTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_STRUCT(TYCAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TStringReplacementConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressUserManagerConfig)
@@ -116,19 +116,20 @@ constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
 constexpr TStringBuf BlackboxSessguardCookieName = "sessguard";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
 constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
+constexpr TStringBuf YCSessionCookieName = "yc_session";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(
     // User error.
     ((InvalidUserCredentials)       (30000))
-    // YT communication error with YC Iam service.
-    ((YCIamProtocolError)           (30001))
+    // YT communication error with YC Auth service.
+    ((YCProtocolError)           (30001))
     // Server error.
-    ((YCIamRetryableServerError)    (30002))
+    ((YCRetryableServerError)    (30002))
     // Unexpected errors.
-    ((UnexpectedClientYCIamError)   (30003))
-    ((UnexpectedServerYCIamError)   (30004))
+    ((UnexpectedClientYCError)   (30003))
+    ((UnexpectedServerYCError)   (30004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

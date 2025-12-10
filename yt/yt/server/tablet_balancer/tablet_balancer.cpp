@@ -178,7 +178,6 @@ private:
 
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IActionManagerPtr ActionManager_;
-    TTableRegistryPtr TableRegistry_;
     IClusterStateProviderPtr ClusterStateProvider_;
 
     TAtomicIntrusivePtr<TTabletBalancerDynamicConfig> DynamicConfig_;
@@ -304,7 +303,6 @@ TTabletBalancer::TTabletBalancer(
     , PivotPickerPool_(CreateThreadPool(
         Config_->PivotPickerThreadPoolSize,
         "PivotKeysPicker"))
-    , TableRegistry_(New<TTableRegistry>())
     , DynamicConfig_(TAtomicIntrusivePtr(New<TTabletBalancerDynamicConfig>()))
     , ParameterizedBalancingScheduler_(
         Config_->ParameterizedTimeoutOnStart,
@@ -397,7 +395,6 @@ void TTabletBalancer::BalancerIteration()
     RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
     ActionCountLimiter_ = TScheduledActionCountLimiter{
         .GroupLimit = dynamicConfig->MaxActionsPerGroup};
-    TableRegistry_->DropAllAlienTables();
 
     auto allowedReplicaClusters = dynamicConfig->AllowedReplicaClusters;
     allowedReplicaClusters.insert(Bootstrap_->GetClusterName());
@@ -787,7 +784,6 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
             name,
             New<TBundleState>(
                 name,
-                TableRegistry_,
                 Bootstrap_->GetClient(),
                 Bootstrap_->GetClientDirectory(),
                 Bootstrap_->GetClusterDirectory(),
@@ -803,14 +799,13 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
     }
 
     // Find bundles that are not in the list of bundles (probably deleted)
-    // and erase them and all their tables.
+    // and erase them.
     for (auto it = Bundles_.begin(); it != Bundles_.end();) {
         if (currentBundles.contains(it->first)) {
             ++it;
             continue;
         }
 
-        it->second->RemoveSelfFromRegistry();
         Bundles_.erase(it++);
     }
     return newBundles;
@@ -1124,7 +1119,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
         return;
     }
 
-    reshardIteration->Prepare(groupConfig, TableRegistry_);
+    reshardIteration->Prepare(groupConfig);
 
     auto tables = reshardIteration->GetTablesToReshard(reshardIteration->GetBundle());
     Shuffle(tables.begin(), tables.end());
@@ -1227,10 +1222,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
                 table->Path,
                 descriptor.CorrelationId);
 
-            reshardIteration->UpdateProfilingCounters(
-                table,
-                TableRegistry_->GetProfilingCounters(table, reshardIteration->GetGroupName()),
-                descriptor);
+            reshardIteration->UpdateProfilingCounters(table, descriptor);
         }
     }
 
@@ -1256,7 +1248,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
         groupTag,
         moveIteration->GetBalancingMode()));
 
-    moveIteration->Prepare(TableRegistry_);
+    moveIteration->Prepare();
 
     auto descriptors = WaitFor(moveIteration->ReassignTablets(WorkerPool_->GetInvoker()))
         .ValueOrThrow();
@@ -1277,8 +1269,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
 
             auto tablet = GetOrCrash(moveIteration->GetBundle()->Tablets, descriptor.TabletId);
 
-            moveIteration->UpdateProfilingCounters(
-                TableRegistry_->GetProfilingCounters(tablet->Table, moveIteration->GetGroupName()));
+            moveIteration->UpdateProfilingCounters(tablet->Table);
 
             ++actionCount;
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",

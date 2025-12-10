@@ -344,6 +344,9 @@ private:
             }
 
             auto& shortcut = Shortcuts_[chaosObjectId];
+            if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                shortcut.CellId = chaosCellId;
+            }
 
             if (shortcut.Era != era) {
                 YT_LOG_ALERT("Revoking shortcut with invalid era "

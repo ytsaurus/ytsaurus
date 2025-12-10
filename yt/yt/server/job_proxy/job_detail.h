@@ -44,12 +44,13 @@ public:
     TSharedRef DumpSensors() override;
     TJobProxyOrchidInfo GetOrchidInfo() override;
     std::optional<TJobEnvironmentCpuStatistics> GetUserJobCpuStatistics() const override;
-    bool HasInputStatistics() const override;
+    bool HasInput() const override;
 
     bool HasJobTrace() const override;
     void FinalizeJobTrace() override;
 
     void OnProgressSaved(TInstant when) override;
+    std::optional<TInstant> GetLastProgressSaveTime() override;
 
 protected:
     const IJobHostPtr Host_;

@@ -4,7 +4,7 @@ except ImportError:
     pass
 from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, get_table_schema  # noqa
 from .table_commands import (  # noqa
-    create_temp_table, write_table, read_table, read_blob_table,
+    create_temp_table, write_table, read_table, read_blob_table, infer_table_schema,
     write_table_structured, read_table_structured, partition_tables, dump_parquet, upload_parquet, dump_orc, upload_orc)
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa

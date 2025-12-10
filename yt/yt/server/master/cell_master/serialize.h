@@ -176,6 +176,7 @@ DEFINE_ENUM(EMasterReign,
     ((ColumnConstraintsForTablesOnMaster)                           (3126))  // cherepashka
     ((HydraLogicalRecordId)                                         (3127))  // h0pless
     ((FixStatisticsAccountingUponHunkJournalChunkSeal)              (3128))  // akozhikhov
+    ((AddStrongerTxAccessValidationCheck)                           (3129))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

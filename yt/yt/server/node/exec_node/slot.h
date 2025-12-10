@@ -121,6 +121,7 @@ struct IUserSlot
     virtual std::string GetMediumName() const = 0;
 
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
         TJobId jobId,
@@ -163,7 +164,7 @@ IUserSlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
-    NScheduler::NProto::TDiskRequest diskRequest,
+    NScheduler::NProto::TOldDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 
 ////////////////////////////////////////////////////////////////////////////////

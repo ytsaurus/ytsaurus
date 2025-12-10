@@ -93,6 +93,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
@@ -107,13 +108,18 @@
 
 #include <yt/yt/core/rpc/grpc/server.h>
 
+#include <yt/yt/core/rpc/http/server.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
+
+#include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -238,6 +244,11 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
     return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
+}
+
+std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
+{
+    return AdjustPath(TString(Config_->HttpServerUdsPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -386,6 +397,9 @@ void TJobProxy::SendHeartbeat()
     req->set_stderr_size(job->GetStderrSize());
     req->set_has_job_trace(job->HasJobTrace());
     req->set_epoch(epoch);
+    if (auto time = job->GetLastProgressSaveTime(); time.has_value()) {
+        req->set_last_progress_save_time(ToProto(*time));
+    }
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 }
@@ -602,6 +616,12 @@ void TJobProxy::DoRun()
         auto error = WaitFor(GrpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
+    }
+
+    if (HttpServer_ != nullptr) {
+        auto error = WaitFor(HttpServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping HTTP server");
     }
 
     FillJobResult(&result);
@@ -874,6 +894,18 @@ TJobResult TJobProxy::RunJob()
             GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
             GrpcServer_->RegisterService(jobApiService);
             GrpcServer_->Start();
+        }
+
+        if (Config_->EnableHttpServer) {
+            auto address = TNetworkAddress::CreateUnixDomainSocketAddress(NFS::GetShortestPath(Config_->HttpServerUdsPath));
+            auto poller = CreateThreadPoolPoller(Config_->HttpServerPollerThreadCount, Config_->HttpServer->ServerName);
+            auto acceptor = poller;
+            HttpServer_ = NRpc::NHttp::CreateServer(::NYT::NHttp::CreateServer(
+                Config_->HttpServer,
+                CreateListener(address, poller, acceptor),
+                poller));
+            HttpServer_->RegisterService(jobApiService);
+            HttpServer_->Start();
         }
 
         if (TvmBridge_) {
@@ -1232,7 +1264,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         auto extendedStatistics = job->GetStatistics();
         statistics = std::move(extendedStatistics.Statistics);
 
-        if (job->HasInputStatistics()) {
+        if (job->HasInput()) {
             statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
             DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode"_SP, &statistics);
         }
@@ -1294,7 +1326,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 statistics.AddSample(path / "bytes"_L, pipeStatistics.Bytes);
             };
 
-            if (job->HasInputStatistics()) {
+            if (job->HasInput()) {
                 dumpPipeStatistics("/user_job/pipes/input"_SP, *pipeStatistics->InputPipeStatistics);
             }
             dumpPipeStatistics("/user_job/pipes/output/total"_SP, pipeStatistics->TotalOutputPipeStatistics);
@@ -2063,6 +2095,7 @@ void TJobProxy::LogSystemStats() const
 void TJobProxy::OnProgressSaved(TInstant when)
 {
     GetJobOrThrow()->OnProgressSaved(when);
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

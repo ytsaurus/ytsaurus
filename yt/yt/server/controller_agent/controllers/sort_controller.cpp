@@ -66,8 +66,6 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <util/generic/xrange.h>
-
 #include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -1006,13 +1004,6 @@ protected:
             AddOutputTableSpecs(jobSpec, joblet);
 
             AddSequentialInputSpec(jobSpec, joblet);
-
-            if (joblet->InputStripeList->GetOutputChunkPoolIndex()) {
-                if (joblet->DistributedGroupInfo.Index > 0) {
-                    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-                    jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
-                }
-            }
         }
 
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -1610,9 +1601,6 @@ protected:
             auto comparator = GetComparator(Controller_->Spec_->SortBy);
             AddParallelInputSpec(jobSpec, joblet, comparator);
             AddOutputTableSpecs(jobSpec, joblet);
-            if (joblet->DistributedGroupInfo.Index > 0 && jobSpec->HasExtension(TJobSpecExt::job_spec_ext)) {
-                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->mutable_user_job_spec()->set_is_secondary_distributed(true);
-            }
         }
 
         void OnJobStarted(TJobletPtr joblet) override
@@ -1980,7 +1968,7 @@ protected:
 
         auto partitionDataWeightForMerging = GetPartitionDataWeightForMerging();
 
-        for (int physicalPartitionIndex : xrange(partition->GetPhysicalPartitionCount())) {
+        for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
                 endCurrentMerging();
                 continue;
@@ -2951,7 +2939,7 @@ protected:
                 isPhysicalPartitionManiac.resize(intermediatePartition->GetPhysicalPartitionCount());
             }
 
-            for (int childIndex : xrange(intermediatePartition->GetPhysicalPartitionCount())) {
+            for (int childIndex : std::views::iota(0, intermediatePartition->GetPhysicalPartitionCount())) {
                 // Before visiting each child (except the first), record the boundary.
                 if (childIndex > 0) {
                     YT_VERIFY(currentKeyIndex > 0 && currentKeyIndex <= std::ssize(partitionKeys));

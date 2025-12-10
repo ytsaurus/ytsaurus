@@ -333,7 +333,8 @@ public:
             TDelayedExecutorCookie timeLimitCookie;
             if (UserJobSpec_.has_job_time_limit()) {
                 auto timeLimit = FromProto<TDuration>(UserJobSpec_.job_time_limit());
-                YT_LOG_INFO("Setting job time limit (Limit: %v)",
+                YT_LOG_INFO(
+                    "Setting job time limit (Limit: %v)",
                     timeLimit);
                 timeLimitCookie = TDelayedExecutor::Submit(
                     BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this))
@@ -393,17 +394,20 @@ public:
             std::optional<TDuration> finalizationTimeout;
             if (coreDumped) {
                 finalizationTimeout = Config_->CoreWatcher->FinalizationTimeout;
-                YT_LOG_INFO("Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
+                YT_LOG_INFO(
+                    "Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
                     finalizationTimeout);
             }
             auto coreResult = CoreWatcher_->Finalize(finalizationTimeout);
 
-            YT_LOG_INFO("Core watcher finalized (CoreDumpCount: %v)",
+            YT_LOG_INFO(
+                "Core watcher finalized (CoreDumpCount: %v)",
                 coreResult.CoreInfos.size());
 
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
-                    YT_LOG_INFO("Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
+                    YT_LOG_INFO(
+                        "Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
                         coreInfo.process_id(),
                         coreInfo.executable_name(),
                         coreInfo.size());
@@ -912,7 +916,8 @@ private:
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            YT_LOG_INFO("Input context chunk generated (ChunkId: %v, InputIndex: %v)",
+            YT_LOG_INFO(
+                "Input context chunk generated (ChunkId: %v, InputIndex: %v)",
                 contextChunkId,
                 index);
 
@@ -1016,7 +1021,8 @@ private:
                 } else {
                     auto pids = GetPidsForInterrupt();
 
-                    YT_LOG_INFO("Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
+                    YT_LOG_INFO(
+                        "Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
                         signal,
                         pids);
 
@@ -1159,6 +1165,14 @@ private:
 
     void PrepareInputTablePipe()
     {
+        if (!HasInput()) {
+            YT_LOG_DEBUG(
+                "Input table pipe is not needed (JobType: %v, IsSecondaryDistributed: %v)",
+                JobType_,
+                Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed());
+            return;
+        }
+
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
@@ -1409,6 +1423,7 @@ private:
         }
 
         SetEnvironmentVariable("YT_JOB_PROXY_GRPC_SOCKET_PATH", ToString(Host_->GetJobProxyGrpcUnixDomainSocketPath()));
+        SetEnvironmentVariable("YT_JOB_PROXY_HTTP_SOCKET_PATH", ToString(Host_->GetJobProxyHttpUnixDomainSocketPath()));
 
         for (const auto& pair : UserJobSpec_.environment()) {
             SetEnvironmentVariable(formatter.Format(pair));
@@ -1486,7 +1501,7 @@ private:
             statistics = CustomStatistics_;
         }
 
-        if (HasInputStatistics()) {
+        if (HasInput()) {
             if (auto dataStatistics = UserJobReadController_->GetDataStatistics()) {
                 result.TotalInputStatistics.DataStatistics = *dataStatistics;
             }
@@ -1577,7 +1592,7 @@ private:
         if (Prepared_) {
             IJob::TStatistics::TMultiPipeStatistics pipeStatistics;
 
-            if (HasInputStatistics()) {
+            if (HasInput()) {
                 pipeStatistics.InputPipeStatistics = {
                     .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
                     .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
@@ -1876,7 +1891,8 @@ private:
         }
 
         auto memoryLimit = UserJobSpec_.memory_limit();
-        YT_LOG_DEBUG("Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
+        YT_LOG_DEBUG(
+            "Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
             memoryUsage,
             memoryLimit);
 
@@ -1987,7 +2003,8 @@ private:
                 blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
-                YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
+                YT_LOG_INFO(
+                    "Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
                     blockIOStats->IOReadOps.value(),
                     blockIOStats->IOOps.value(),
                     UserJobSpec_.iops_threshold());
@@ -2016,6 +2033,10 @@ private:
     // NB(psushin): YT-5629.
     void BlinkInputPipe() const
     {
+        if (!HasInput()) {
+            return;
+        }
+
         // This method is called after preparation and before finalization.
         // Reader must be opened and ready, so open must succeed.
         // Still an error can occur in case of external forced sandbox clearance (e.g. in integration tests).
@@ -2036,14 +2057,23 @@ private:
         }
     }
 
-    bool HasInputStatistics() const override
+    bool HasInput() const override
     {
-        return JobType_ != EJobType::Vanilla;
+        return JobType_ != EJobType::Vanilla && !Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed();
     }
 
     void OnProgressSaved(TInstant when) override
     {
         LastProgressSaveTime_.store(when);
+    }
+
+    std::optional<TInstant> GetLastProgressSaveTime() override
+    {
+        if (auto time = LastProgressSaveTime_.load(); time != TInstant::Zero()) {
+            return time;
+        } else {
+            return std::nullopt;
+        }
     }
 };
 

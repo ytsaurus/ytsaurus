@@ -1,4 +1,4 @@
-#include "yc_iam_token_authenticator.h"
+#include "yc_authenticator.h"
 
 #include "config.h"
 #include "credentials.h"
@@ -63,12 +63,19 @@ bool IsServerHttpError(const NHttp::EStatusCode& code)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYCIamTokenAuthenticator
-    : public ITokenAuthenticator
+class TYCAuthenticatorBase
+    : public virtual TRefCounted
 {
-public:
-    TYCIamTokenAuthenticator(
-        TYCIamTokenAuthenticatorConfigPtr config,
+protected:
+    const TYCAuthenticatorConfigPtr Config_;
+    const NHttp::IRetryingClientPtr HttpClient_;
+    const ICypressUserManagerPtr UserManager_;
+    TCounter Calls_;
+    TCounter CallErrors_;
+    TEventTimer CallTime_;
+
+    TYCAuthenticatorBase(
+        TYCAuthenticatorConfigPtr config,
         IPollerPtr poller,
         ICypressUserManagerPtr userManager,
         TProfiler profiler)
@@ -81,41 +88,20 @@ public:
                     : NHttp::CreateClient(Config_->HttpClient, poller),
                 poller->GetInvoker()))
         , UserManager_(std::move(userManager))
-        , YCIamCalls_(profiler.Counter("/yc_iam_calls"))
-        , YCIamCallErrors_(profiler.Counter("/yc_iam_call_server_errors"))
-        , YCIamCallTime_(profiler.Timer("/yc_iam_call_time"))
+        , Calls_(profiler.Counter("/yc_calls"))
+        , CallErrors_(profiler.Counter("/yc_call_server_errors"))
+        , CallTime_(profiler.Timer("/yc_call_time"))
     { }
 
-    TFuture<TAuthenticationResult> Authenticate(
-        const TTokenCredentials& credentials) override
-    {
-        auto callId = TGuid::Create();
-        const auto& token = credentials.Token;
-        const auto& userIP = credentials.UserIP;
-        auto tokenHash = GetCryptoHash(token);
+    // Returns json tag name for authenticate request (`iam-token` or `yc-session-cookie`).
+    virtual TStringBuf GetAuthTagName() const = 0;
 
-        YT_LOG_DEBUG(
-            "Authenticating user with YC Iam token (TokenHash: %v, UserIP: %v, CallId: %v)",
-            tokenHash,
-            userIP,
-            callId);
+    // Returns authenticator name for logs.
+    virtual TStringBuf GetLogName() const = 0;
 
-        return BIND(&TYCIamTokenAuthenticator::DoAuthenticate, MakeStrong(this), token, callId)
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
-            .Run();
-    }
+    virtual TStringBuf GetRealm() const = 0;
 
-private:
-    const TYCIamTokenAuthenticatorConfigPtr Config_;
-    const NHttp::IRetryingClientPtr HttpClient_;
-    const ICypressUserManagerPtr UserManager_;
-
-    TCounter YCIamCalls_;
-    TCounter YCIamCallErrors_;
-    TEventTimer YCIamCallTime_;
-
-
-    TAuthenticationResult DoAuthenticate(const std::string& token, TGuid callId)
+    TAuthenticationResult DoAuthenticate(const std::string& tokenOrCookie, TGuid callId)
     {
         TSafeUrlBuilder builder;
         builder.AppendString(Format("%v://%v:%v/authenticate",
@@ -127,16 +113,17 @@ private:
         auto safeUrl = builder.FlushSafeUrl();
 
         static const auto retryChecker = BIND([] (const TError& error) {
-            return error.FindMatching(EErrorCode::YCIamRetryableServerError).has_value();
+            return error.FindMatching(EErrorCode::YCRetryableServerError).has_value();
         });
 
         auto jsonResponseChecker = CreateJsonResponseChecker(
             New<TJsonFormatConfig>(),
-            BIND(&TYCIamTokenAuthenticator::DoCheckYCIamServiceResponse, MakeStrong(this), callId),
+            BIND(&TYCAuthenticatorBase::DoCheckYCServiceResponse, MakeStrong(this), callId),
             retryChecker);
 
         YT_LOG_DEBUG(
-            "Calling YC Iam token authentication service to get user info (Url: %v, CallId: %v)",
+            "Calling YC %v authentication service to get user info (Url: %v, CallId: %v)",
+            GetLogName(),
             safeUrl,
             callId);
 
@@ -145,7 +132,7 @@ private:
 
         BuildYsonFluently(writer.get())
             .BeginMap()
-                .Item("iam-token").Value(token)
+                .Item(GetAuthTagName()).Value(tokenOrCookie)
             .EndMap();
 
         writer->Flush();
@@ -155,7 +142,7 @@ private:
         auto headers = New<THeaders>();
         headers->Add("Content-Type", "application/json");
 
-        YCIamCalls_.Increment();
+        Calls_.Increment();
         TWallTimer timer;
 
         auto result = WaitFor(HttpClient_->Post(
@@ -164,10 +151,10 @@ private:
             body,
             headers));
 
-        YCIamCallTime_.Record(timer.GetElapsedTime());
+        CallTime_.Record(timer.GetElapsedTime());
 
         if (!result.IsOK()) {
-            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC Iam token authentication call failed")
+            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC authentication call failed")
                 << result
                 << TErrorAttribute("call_id", callId);
             YT_LOG_WARNING(error);
@@ -178,7 +165,7 @@ private:
         auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->AuthenticateLoginField);
 
         YT_LOG_DEBUG(
-            "YC Iam user authenticated (Login: %v, CallId: %v)",
+            "YC authenticated (Login: %v, CallId: %v)",
             login,
             callId);
 
@@ -190,7 +177,7 @@ private:
                 Config_->DefaultUserTags);
 
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Failed to ensure YC Iam user existence (Name: %v, CallId: %v)", login, callId);
+                YT_LOG_WARNING(error, "Failed to ensure YC user existence (Name: %v, CallId: %v)", login, callId);
                 error <<= TErrorAttribute("call_id", callId);
                 THROW_ERROR error;
             }
@@ -198,11 +185,12 @@ private:
 
         return TAuthenticationResult{
             .Login = login,
-            .Realm = TString(YCIamTokenRealm),
+            .Realm = TString(GetRealm()),
         };
     }
 
-    TError DoCheckYCIamServiceResponse(TGuid callId, const NHttp::IResponsePtr& rsp, const INodePtr& rspNode) const
+private:
+    TError DoCheckYCServiceResponse(TGuid callId, const NHttp::IResponsePtr& rsp, const INodePtr& rspNode) const
     {
         const auto statusCode = rsp->GetStatusCode();
 
@@ -224,36 +212,38 @@ private:
                     case EStatusCode::BadRequest:
                     case EStatusCode::RangeNotSatisfiable:
                         error = TError(
-                            EErrorCode::YCIamProtocolError,
+                            EErrorCode::YCProtocolError,
                             "Communication issue between YT and YC Iam token authentication service");
                         break;
                     default:
                         error = TError(
-                            EErrorCode::UnexpectedClientYCIamError,
-                            "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
+                            EErrorCode::UnexpectedClientYCError,
+                            "YC authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                         YT_LOG_WARNING(
-                            "YC Iam token authentication call attempt failed (CallId: %v, StatusCode: %v)",
+                            "YC %s authentication call attempt failed (CallId: %v, StatusCode: %v)",
+                            GetLogName(),
                             callId,
                             statusCode);
                         break;
                 }
 
             } else {
-                YCIamCallErrors_.Increment();
+                CallErrors_.Increment();
                 YT_LOG_WARNING(
-                    "YC Iam token authentication service response has server error status code (CallId: %v, StatusCode: %v)",
+                    "YC %v authentication service response has server error status code (CallId: %v, StatusCode: %v)",
+                    GetLogName(),
                     callId,
                     statusCode);
 
                 if (IsRetryableHttpError(statusCode)) {
-                    YCIamCalls_.Increment();
+                    Calls_.Increment();
                     error = TError(
-                        EErrorCode::YCIamRetryableServerError,
-                        "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
+                        EErrorCode::YCRetryableServerError,
+                        "YC authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                 } else {
                     error = TError(
-                        EErrorCode::UnexpectedServerYCIamError,
-                        "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
+                        EErrorCode::UnexpectedServerYCError,
+                        "YC authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                 }
             }
 
@@ -261,14 +251,14 @@ private:
         }
 
         if (rspNode->GetType() != ENodeType::Map) {
-            return TError("YC Iam token authentication service response content has unexpected node type")
+            return TError("YC authentication service response content has unexpected node type")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
                 << TErrorAttribute("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(Config_->AuthenticateLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
-            return TError("YC Iam token authentication service response content has no login field or login node type is unexpected")
+            return TError("YC authentication service response content has no login field or login node type is unexpected")
                 << TErrorAttribute("login_field", Config_->AuthenticateLoginField);
         }
 
@@ -290,13 +280,150 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYCTokenAuthenticator
+    : public TYCAuthenticatorBase
+    , public ITokenAuthenticator
+{
+public:
+    TYCTokenAuthenticator(
+        TYCAuthenticatorConfigPtr config,
+        IPollerPtr poller,
+        ICypressUserManagerPtr userManager,
+        TProfiler profiler)
+        : TYCAuthenticatorBase(
+            std::move(config),
+            std::move(poller),
+            std::move(userManager),
+            std::move(profiler))
+    { }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TTokenCredentials& credentials) override
+    {
+        auto callId = TGuid::Create();
+        const auto& token = credentials.Token;
+        const auto& userIP = credentials.UserIP;
+        auto tokenHash = GetCryptoHash(token);
+
+        YT_LOG_DEBUG(
+            "Authenticating user with YC IAM token (TokenHash: %v, UserIP: %v, CallId: %v)",
+            tokenHash,
+            userIP,
+            callId);
+
+        return BIND(&TYCTokenAuthenticator::DoAuthenticate, MakeStrong(this), token, callId)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
+    }
+
+protected:
+    TStringBuf GetAuthTagName() const override
+    {
+        return "iam-token";
+    }
+
+    TStringBuf GetLogName() const override
+    {
+        return "IAM token";
+    }
+
+    TStringBuf GetRealm() const override
+    {
+        return YCIamTokenRealm;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYCCookieAuthenticator
+    : public TYCAuthenticatorBase
+    , public ICookieAuthenticator
+{
+public:
+    TYCCookieAuthenticator(
+        TYCAuthenticatorConfigPtr config,
+        IPollerPtr poller,
+        ICypressUserManagerPtr userManager,
+        TProfiler profiler)
+        : TYCAuthenticatorBase(
+            std::move(config),
+            std::move(poller),
+            std::move(userManager),
+            std::move(profiler))
+    { }
+
+    TFuture<TAuthenticationResult> Authenticate(
+        const TCookieCredentials& credentials) override
+    {
+        auto callId = TGuid::Create();
+        const auto& cookies = credentials.Cookies;
+        auto cookie = GetOrCrash(cookies, YCSessionCookieName);
+        const auto& userIP = credentials.UserIP;
+        auto cookieHash = GetCryptoHash(cookie);
+
+        YT_LOG_DEBUG(
+            "Authenticating user with YC session cookie (CookieHash: %v, UserIP: %v, CallId: %v)",
+            cookieHash,
+            userIP,
+            callId);
+
+        return BIND(&TYCCookieAuthenticator::DoAuthenticate, MakeStrong(this), cookie, callId)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
+    }
+
+    const std::vector<TStringBuf>& GetCookieNames() const override
+    {
+        static const std::vector<TStringBuf> cookieNames{
+            YCSessionCookieName,
+        };
+        return cookieNames;
+    }
+
+    bool CanAuthenticate(const TCookieCredentials& credentials) const override
+    {
+        return credentials.Cookies.contains(YCSessionCookieName);
+    }
+
+protected:
+    TStringBuf GetAuthTagName() const override
+    {
+        return "yc-session-cookie";
+    }
+
+    TStringBuf GetLogName() const override
+    {
+        return "yc_session cookie";
+    }
+
+    TStringBuf GetRealm() const override
+    {
+        return YCSessionCookieRealm;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ITokenAuthenticatorPtr CreateYCIamTokenAuthenticator(
-    TYCIamTokenAuthenticatorConfigPtr config,
+    TYCAuthenticatorConfigPtr config,
     IPollerPtr poller,
     ICypressUserManagerPtr userManager,
     TProfiler profiler)
 {
-    return New<TYCIamTokenAuthenticator>(
+    return New<TYCTokenAuthenticator>(
+        std::move(config),
+        std::move(poller),
+        std::move(userManager),
+        std::move(profiler));
+}
+
+ICookieAuthenticatorPtr CreateYCSessionCookieAuthenticator(
+    TYCAuthenticatorConfigPtr config,
+    IPollerPtr poller,
+    ICypressUserManagerPtr userManager,
+    TProfiler profiler)
+{
+    return New<TYCCookieAuthenticator>(
         std::move(config),
         std::move(poller),
         std::move(userManager),

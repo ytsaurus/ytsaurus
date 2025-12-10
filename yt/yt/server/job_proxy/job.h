@@ -100,6 +100,7 @@ struct IJobHost
     virtual TString GetSlotPath() const = 0;
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyGrpcUnixDomainSocketPath() const = 0;
+    virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
 
@@ -156,6 +157,7 @@ struct IJob
     virtual void FinalizeJobTrace() = 0;
 
     virtual void OnProgressSaved(TInstant when) = 0;
+    virtual std::optional<TInstant> GetLastProgressSaveTime() = 0;
 
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify
@@ -208,7 +210,7 @@ struct IJob
 
     virtual TStatistics GetStatistics() const = 0;
 
-    virtual bool HasInputStatistics() const = 0;
+    virtual bool HasInput() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

@@ -50,7 +50,7 @@ cluster:
   name: "ytsaurus"
 
 image:
-  repository: ghcr.io/ytsaurus/microservices
+  repository: ghcr.io/ytsaurus/ytmsvc
   pullPolicy: Always
   tag: "0.0.0-alpha"
 imagePullSecrets: []

@@ -43,6 +43,8 @@ public:
     {
         NYPath::TYPath SourcePath;
         NTableClient::TTableId SourceTableId;
+        // Externalized transaction should be used for direct requests to external cells.
+        NObjectClient::TTransactionId ExternalizedTransactionId;
         NObjectClient::TCellTag ExternalCellTag;
         NYTree::IAttributeDictionaryPtr Attributes;
 
@@ -124,8 +126,6 @@ private:
     const NLogging::TLogger Logger;
 
     NApi::NNative::ITransactionPtr Transaction_;
-    // Externalized transaction should be used for direct requests to external cells.
-    NTransactionClient::TTransactionId ExternalizedViaPrimaryCellTransactionId_;
 
     std::vector<TTableInfo> Tables_;
     THashMap<NObjectClient::TCellTag, std::vector<int>> TableIndexesByCellTag_;
@@ -152,8 +152,6 @@ private:
         TMasterReadOptions masterReadOptions = {});
 
     void ThrowWithClusterNameIfFailed(const TError& error) const;
-
-    NTransactionClient::TTransactionId GetExternalizedTransactionId(const TTableInfo& table) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

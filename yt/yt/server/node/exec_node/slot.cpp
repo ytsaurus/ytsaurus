@@ -69,7 +69,7 @@ public:
         const TString& nodeTag,
         ESlotType slotType,
         NClusterNode::TCpu requestedCpu,
-        NScheduler::NProto::TDiskRequest diskRequest,
+        NScheduler::NProto::TOldDiskRequest diskRequest,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -632,6 +632,16 @@ public:
             Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 
+    std::string GetJobProxyHttpUnixDomainSocketPath() const override
+    {
+        VerifyEnabled();
+
+        return NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-http-%v", NodeTag_, SlotIndex_)});
+    }
+
     TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const override
     {
         VerifyEnabled();
@@ -735,7 +745,7 @@ IUserSlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
-    NScheduler::NProto::TDiskRequest diskRequest,
+    NScheduler::NProto::TOldDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
     auto slot = NewWithOffloadedDtor<TUserSlot>(

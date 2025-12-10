@@ -1492,7 +1492,7 @@ private:
 
     void OnJobRunning(const TJobletPtr& joblet, std::unique_ptr<TRunningJobSummary> jobSummary);
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
-    void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
+    void UpdatePreemptibleProgressStartTime(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
     void ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const;

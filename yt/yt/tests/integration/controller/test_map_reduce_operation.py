@@ -442,7 +442,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
         write_table("//tmp/t_in", {"line": "some_data"})
-        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+        with pytest.raises(YtError, match="echo: write error:"):
             map_reduce(
                 in_="//tmp/t_in",
                 out=["//tmp/t_out"],
@@ -5014,3 +5014,265 @@ for line in sys.stdin:
                 assert False
 
         assert read_table("//tmp/t_out") == sorted(rows, key=lambda row : row["x"])
+
+
+##################################################################
+
+
+class TestSchedulerMapReduceCodegenComparator(TestSchedulerMapReduceBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    @authors("pavook")
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    @pytest.mark.parametrize("reduce_key_count,sort_key_count", [(1, 1), (1, 2), (2, 2)])
+    def test_map_reduce_with_codegen_comparator(self, comparator, reduce_key_count, sort_key_count):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "key1", "type": "int64"},
+                    {"name": "key2", "type": "string"},
+                    {"name": "value", "type": "int64"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+
+        rows = [
+            {"key1": 2, "key2": "b", "value": 1},
+            {"key1": 1, "key2": "a", "value": 2},
+            {"key1": 1, "key2": "b", "value": 3},
+            {"key1": 2, "key2": "a", "value": 4},
+            {"key1": 1, "key2": "a", "value": 5},
+        ]
+        write_table("//tmp/t_in", rows)
+
+        spec = {
+            "partition_count": 1,
+            "max_failed_job_count": 1,
+        }
+        spec["enable_codegen_comparator"] = comparator == "codegen"
+
+        key_names = ["key1", "key2"]
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=key_names[:sort_key_count],
+            reduce_by=key_names[:reduce_key_count],
+            reducer_command="cat",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        # Only check that output is sorted by the columns specified in sort_by
+        keys = [tuple(r[key_names[i]] for i in range(sort_key_count)) for r in result]
+        assert keys == sorted(keys)
+
+    @authors("pavook")
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    @pytest.mark.parametrize("key_type", ["int64", "uint64", "string", "double"])
+    def test_map_reduce_codegen_comparator_various_types(self, comparator, key_type):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": key_type},
+                    {"name": "value", "type": "int64"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+
+        if key_type == "int64":
+            rows = [{"key": 3, "value": 1}, {"key": 1, "value": 2}, {"key": 2, "value": 3}]
+            expected_keys = [1, 2, 3]
+        elif key_type == "uint64":
+            rows = [{"key": 3, "value": 1}, {"key": 1, "value": 2}, {"key": 2, "value": 3}]
+            expected_keys = [1, 2, 3]
+        elif key_type == "string":
+            rows = [{"key": "c", "value": 1}, {"key": "a", "value": 2}, {"key": "b", "value": 3}]
+            expected_keys = ["a", "b", "c"]
+        elif key_type == "double":
+            rows = [{"key": 3.0, "value": 1}, {"key": 1.0, "value": 2}, {"key": 2.0, "value": 3}]
+            expected_keys = [1.0, 2.0, 3.0]
+
+        write_table("//tmp/t_in", rows)
+
+        spec = {
+            "partition_count": 1,
+            "max_failed_job_count": 1,
+            "enable_codegen_comparator": comparator == "codegen",
+        }
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            reduce_by="key",
+            reducer_command="cat",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        result_keys = [r["key"] for r in result]
+        assert result_keys == expected_keys
+
+    @authors("pavook")
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    def test_map_reduce_with_reduce_combiner_codegen(self, comparator):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "int64"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i % 3, "value": i} for i in range(100)]
+        write_table("//tmp/t_in", rows)
+
+        spec = {
+            "partition_count": 1,
+            "data_size_per_sort_job": 1,
+            "max_failed_job_count": 1,
+            "force_reduce_combiners": True,
+            "enable_codegen_comparator": comparator == "codegen"
+        }
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="key",
+            reduce_by="key",
+            reduce_combiner_command="cat",
+            reducer_command="cat",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        assert len(result) == 100
+        keys = [r["key"] for r in result]
+        assert keys == sorted(keys)
+
+    @authors("pavook")
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    def test_map_reduce_codegen_with_bypass_stream(self, comparator):
+        """
+        This test verifies that schema selection for codegen works correctly
+        when bypass streams are present (it should use the first reducer input table,
+        not the bypass table).
+        """
+        schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "int64"},
+        ]
+        intermediate_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"schema": schema},
+        )
+        create("table", "//tmp/t_bypass")
+        create("table", "//tmp/t_out")
+
+        rows = [{"key": i, "value": i * 10} for i in range(50, 0, -1)]
+        write_table("//tmp/t_in", rows)
+
+        spec = {
+            "mapper": {
+                "output_streams": [
+                    {"schema": intermediate_schema},  # intermediate stream to shuffle/reduce (comes first)
+                    {"schema": schema},  # bypass stream (table 0)
+                ],
+            },
+            "partition_count": 1,
+            "max_failed_job_count": 1,
+            "mapper_output_table_count": 1,
+            "data_size_per_map_job": 10,
+            "enable_codegen_comparator": comparator == "codegen"
+        }
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_bypass", "//tmp/t_out"],
+            mapper_command="tee /proc/self/fd/4",
+            sort_by="key",
+            reduce_by="key",
+            reducer_command="cat",
+            spec=spec,
+        )
+
+        result = read_table("//tmp/t_out")
+        result_keys = [r["key"] for r in result]
+        assert result_keys == sorted([r["key"] for r in rows])
+
+        bypass = read_table("//tmp/t_bypass")
+        assert len(bypass) == len(rows)
+
+    @authors("pavook")
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    def test_map_reduce_codegen_with_multiple_mapper_streams(self, comparator):
+        schema = [
+            # all output_streams schemas should have the same sort columns.
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ]
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": schema,
+            },
+        )
+        create("table", "//tmp/t_bypass")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": i, "value": i * 10} for i in range(50)]
+        write_table("//tmp/t_in", rows)
+
+        spec = {
+            "mapper": {
+                "output_streams": [
+                    {"schema": schema},
+                    {"schema": schema},
+                ],
+                "format": "json",
+            },
+            "partition_count": 1,
+            "max_failed_job_count": 1,
+            "data_size_per_map_job": 10,
+            "enable_codegen_comparator": comparator == "codegen"
+        }
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t1", "//tmp/t2"],
+            mapper_command="tee /proc/self/fd/4",
+            sort_by="key",
+            reduce_by="key",
+            reducer_command="cat",
+            spec=spec,
+        )
+
+        stream1 = read_table("//tmp/t1")
+        stream1_keys = [r["key"] for r in stream1]
+        assert stream1_keys == sorted(stream1_keys), "Stream 1 should be sorted by key"
+        assert len(stream1) == 50
+
+        stream2 = read_table("//tmp/t2")
+        stream2_keys = [r["key"] for r in stream2]
+        assert stream2_keys == sorted(stream2_keys), "Stream 2 should be sorted by key"
+        assert len(stream2) == 50

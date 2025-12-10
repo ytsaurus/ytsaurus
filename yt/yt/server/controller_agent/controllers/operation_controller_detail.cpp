@@ -1536,7 +1536,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         result.RevivedAllocations.push_back(TOperationControllerReviveResult::TRevivedAllocation{
             .AllocationId = AllocationIdFromJobId(joblet->JobId),
             .StartTime = joblet->StartTime,
-            .PreemptibleProgressStartTime = joblet->NodeJobStartTime,
+            .PreemptibleProgressStartTime = joblet->PreemptibleProgressStartTime,
             .ResourceLimits = joblet->ResourceLimits,
             .DiskQuota = joblet->DiskQuota,
             .TreeId = joblet->TreeId,
@@ -3668,7 +3668,7 @@ bool TOperationControllerBase::WasJobGracefullyAborted(const std::unique_ptr<TAb
     return false;
 }
 
-void TOperationControllerBase::OnJobStartTimeReceived(
+void TOperationControllerBase::UpdatePreemptibleProgressStartTime(
     const TJobletPtr& joblet,
     const std::unique_ptr<TRunningJobSummary>& jobSummary)
 {
@@ -3692,9 +3692,13 @@ void TOperationControllerBase::OnJobStartTimeReceived(
         nodeJobStartTime = TInstant::Now() - totalDuration;
     }
 
-    if (nodeJobStartTime && !joblet->IsJobStartedOnNode()) {
-        joblet->NodeJobStartTime = nodeJobStartTime;
-        RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = nodeJobStartTime;
+    TInstant preemptibleProgressStartTime = nodeJobStartTime;
+    if (jobSummary->LastProgressSaveTime.has_value()) {
+        preemptibleProgressStartTime = *jobSummary->LastProgressSaveTime;
+    }
+    if (joblet->PreemptibleProgressStartTime < preemptibleProgressStartTime) {
+        joblet->PreemptibleProgressStartTime = preemptibleProgressStartTime;
+        RunningAllocationPreemptibleProgressStartTimes_[AllocationIdFromJobId(jobId)] = preemptibleProgressStartTime;
     }
 }
 
@@ -3814,7 +3818,7 @@ void TOperationControllerBase::OnJobRunning(
 
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
-    OnJobStartTimeReceived(joblet, jobSummary);
+    UpdatePreemptibleProgressStartTime(joblet, jobSummary);
 
     if (jobSummary->Statistics) {
         // We actually got fresh running job statistics.
@@ -10298,19 +10302,12 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             continue;
         }
 
-        auto diskRequest = New<TOldDiskRequestConfig>();
-
         if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            *diskRequest = *nbdDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *nbdDiskRequest);
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            *diskRequest = *localDiskRequest;
+            ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
             YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
-        }
-
-        ToProto(jobSpec->mutable_disk_request(), *diskRequest);
-        if (diskRequest->InodeCount) {
-            jobSpec->set_inode_limit(*diskRequest->InodeCount);
         }
     }
 

@@ -238,6 +238,9 @@ public:
     bool ShouldResend(TDuration maxDelay) const;
     TFuture<void> GetStoredEvent() const;
 
+    void SetLastProgressSaveTime(TInstant when);
+    std::optional<TInstant> GetLastProgressSaveTime();
+
     void OnEvictedFromAllocation() noexcept;
     void PrepareResourcesRelease() noexcept;
 
@@ -443,6 +446,8 @@ private:
     bool JobProxyCompleted_ = false;
 
     bool Started_ = false;
+
+    std::optional<TInstant> LastProgressSaveTime_;
 
     // IO statistics.
     i64 BytesRead_ = 0;

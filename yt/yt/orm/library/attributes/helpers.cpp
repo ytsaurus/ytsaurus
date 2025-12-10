@@ -87,7 +87,7 @@ NYTree::INodePtr ConvertProtobufToNode(
         "Cannot convert message of type %Qv represented by non-continuous wire string",
         UnreflectProtobufMessageType(rootType)->full_name());
     auto wireStringPart = wireStringPayload.LastOrEmptyPart();
-    const auto* payloadType = GetMessageTypeByYPath(rootType, path, /*allowAttributeDictionary*/ false);
+    const auto* payloadType = GetMessageTypeByYPath(rootType, path, /*allowAttributeDictionary*/ true);
     google::protobuf::io::ArrayInputStream protobufInputStream(
         wireStringPart.AsStringView().data(),
         wireStringPart.AsStringView().size());

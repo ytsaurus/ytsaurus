@@ -15,46 +15,54 @@ namespace NDetail {
 // Classification of containers passed to TPathVisitor::Visit. Make sure to drop qualifications on
 // the template parameters with std::remove_cvref_t to avoid mismatches.
 
+enum class EPathVisitorParamClass
+{
+    Vector,
+    Map,
+    Node,
+    Other
+};
+
 template <typename TVisitParam>
 struct TPathVisitorTraits
 {
-    static constexpr bool IsVector = false;
-    static constexpr bool IsMap = false;
+    static constexpr auto Class = EPathVisitorParamClass::Other;
 };
 
 template <typename TEntry>
 struct TPathVisitorTraits<std::vector<TEntry>>
 {
-    static constexpr bool IsVector = true;
-    static constexpr bool IsMap = false;
+    static constexpr auto Class = EPathVisitorParamClass::Vector;
 };
 
 template <typename TEntry, size_t N>
 struct TPathVisitorTraits<TCompactVector<TEntry, N>>
 {
-    static constexpr bool IsVector = true;
-    static constexpr bool IsMap = false;
+    static constexpr auto Class = EPathVisitorParamClass::Vector;
 };
 
 template <typename TKey, typename TValue>
 struct TPathVisitorTraits<std::unordered_map<TKey, TValue>>
 {
-    static constexpr bool IsVector = false;
-    static constexpr bool IsMap = true;
+    static constexpr auto Class = EPathVisitorParamClass::Map;
 };
 
 template <typename TKey, typename TValue>
 struct TPathVisitorTraits<std::map<TKey, TValue>>
 {
-    static constexpr bool IsVector = false;
-    static constexpr bool IsMap = true;
+    static constexpr auto Class = EPathVisitorParamClass::Map;
 };
 
 template <typename TKey, typename TValue>
 struct TPathVisitorTraits<THashMap<TKey, TValue>>
 {
-    static constexpr bool IsVector = false;
-    static constexpr bool IsMap = true;
+    static constexpr auto Class = EPathVisitorParamClass::Map;
+};
+
+template <std::derived_from<NYTree::INode> TNode>
+struct TPathVisitorTraits<TIntrusivePtr<TNode>>
+{
+    static constexpr auto Class = EPathVisitorParamClass::Node;
 };
 
 template <typename TValue>
@@ -113,11 +121,14 @@ void TPathVisitor<TSelf>::VisitGeneric(
     EVisitReason reason)
 {
     using TTraits = NDetail::TPathVisitorTraits<std::remove_cvref_t<TVisitParam>>;
+    constexpr auto paramClass = TTraits::Class;
 
-    if constexpr (TTraits::IsVector) {
+    if constexpr (paramClass == NDetail::EPathVisitorParamClass::Vector) {
         Self()->VisitVector(std::forward<TVisitParam>(target), reason);
-    } else if constexpr (TTraits::IsMap) {
+    } else if constexpr (paramClass == NDetail::EPathVisitorParamClass::Map) {
         Self()->VisitMap(std::forward<TVisitParam>(target), reason);
+    } else if constexpr (paramClass == NDetail::EPathVisitorParamClass::Node) {
+        Self()->VisitNode(std::forward<TVisitParam>(target), reason);
     } else {
         Self()->VisitOther(std::forward<TVisitParam>(target), reason);
     }
@@ -230,8 +241,8 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
     }
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
-        "Unexpected relative path specifier %v (producing an index of %v)",
-        Self()->GetToken(),
+        "Unexpected vector relative path specifier at %v (producing an index of %v)",
+        Self()->GetTokenizerPrefix(),
         index);
 }
 
@@ -390,6 +401,20 @@ void TPathVisitor<TSelf>::OnMapKeyError(
     }
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);
+}
+
+template <typename TSelf>
+template <typename TVisitParam>
+void TPathVisitor<TSelf>::VisitNode(
+    TVisitParam&& target,
+    EVisitReason reason)
+{
+    Y_UNUSED(target);
+    Y_UNUSED(reason);
+
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
+        "Cannot visit node %v",
+        TypeName<TVisitParam>());
 }
 
 template <typename TSelf>

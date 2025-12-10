@@ -18,6 +18,7 @@ RECURSE(
     query_tracker
     rpc_proxy
     scheduler
+    sequoia_reconstructor
     timestamp_provider
     cell_balancer
     tablet_balancer

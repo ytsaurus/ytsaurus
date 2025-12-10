@@ -80,7 +80,6 @@
 
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/ytlib/sequoia_client/connection.h>
 
@@ -98,6 +97,7 @@
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
@@ -974,7 +974,8 @@ public:
         DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
-        TimestampProvider_->Reconfigure(StaticConfig_->TimestampProvider->ApplyDynamic(dynamicConfig->TimestampProvider));
+        TimestampProvider_->Reconfigure(
+            GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));
@@ -1136,12 +1137,19 @@ private:
             .EndMap();
     }
 
-    void InitializeTimestampProvider()
+    TRemoteTimestampProviderConfigPtr GetTimestampProviderStaticConfig() const
     {
         auto timestampProviderConfig = StaticConfig_->TimestampProvider;
         if (!timestampProviderConfig) {
             timestampProviderConfig = CreateRemoteTimestampProviderConfig(StaticConfig_->PrimaryMaster);
         }
+
+        return timestampProviderConfig;
+    }
+
+    void InitializeTimestampProvider()
+    {
+        auto timestampProviderConfig = GetTimestampProviderStaticConfig();
 
         TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
             CreateNodeAddressesChannel(

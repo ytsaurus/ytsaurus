@@ -2417,7 +2417,8 @@ TFuture<void> ReplicateCypressTransactions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldMirrorTransactionAttributeToSequoia(const std::string& attributeName) {
+bool ShouldMirrorTransactionAttributeToSequoia(const std::string& attributeName)
+{
     return attributeName == "operation_type" ||
         attributeName == "operation_id" ||
         attributeName == "operation_title";

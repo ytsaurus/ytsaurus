@@ -6,6 +6,7 @@
 #include "serialize.h"
 #include "slot_manager.h"
 #include "chaos_manager.h"
+#include "chaos_lease_manager.h"
 #include "chaos_node_service.h"
 #include "coordinator_manager.h"
 #include "coordinator_service.h"
@@ -193,6 +194,13 @@ public:
         return ChaosManager_;
     }
 
+    const IChaosLeaseManagerPtr& GetChaosLeaseManager() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return ChaosLeaseManager_;
+    }
+
     const IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -260,6 +268,11 @@ public:
             this,
             Bootstrap_);
 
+        ChaosLeaseManager_ = CreateChaosLeaseManager(
+            Config_->ChaosLeaseManager,
+            this,
+            Bootstrap_);
+
         CoordinatorManager_ = CreateCoordinatorManager(
             Config_->CoordinatorManager,
             this,
@@ -289,6 +302,7 @@ public:
         CoordinatorService_ = CreateCoordinatorService(this, Bootstrap_->GetNativeAuthenticator());
 
         ChaosManager_->Initialize();
+        ChaosLeaseManager_->Initialize();
         CoordinatorManager_->Initialize();
     }
 
@@ -313,6 +327,7 @@ public:
 
         ReplicatedTableTracker_.Reset();
         ChaosManager_.Reset();
+        ChaosLeaseManager_.Reset();
         TransactionManager_.Reset();
 
         if (ChaosNodeService_) {
@@ -335,6 +350,7 @@ public:
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("chaos_manager", ChaosManager_->GetOrchidService())
+            ->AddChild("chaos_lease_manager", ChaosLeaseManager_->GetOrchidService())
             ->AddChild("coordinator_manager", CoordinatorManager_->GetOrchidService())
             ->AddChild("replicated_table_tracker", ReplicatedTableTracker_->GetOrchidService());
     }
@@ -445,6 +461,7 @@ private:
     const NProfiling::TTagIdList ProfilingTagIds_;
 
     IChaosManagerPtr ChaosManager_;
+    IChaosLeaseManagerPtr ChaosLeaseManager_;
     ICoordinatorManagerPtr CoordinatorManager_;
 
     ITransactionManagerPtr TransactionManager_;

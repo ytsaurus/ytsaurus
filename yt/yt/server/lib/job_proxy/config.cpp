@@ -475,10 +475,20 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
         .Default(false);
+    registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
+        .Default(false);
+
+    registrar.Parameter("grpc_server", &TThis::GrpcServer)
+        .DefaultNew();
+
+    registrar.Parameter("http_server", &TThis::HttpServer)
+        .DefaultNew();
+    registrar.Parameter("http_server_uds_path", &TThis::HttpServerUdsPath);
+    registrar.Parameter("http_server_poller_thread_count", &TThis::HttpServerPollerThreadCount)
+        .GreaterThan(0)
+        .Default(1);
 
     registrar.Parameter("job_api_service", &TThis::JobApiService)
-        .DefaultNew();
-    registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
@@ -558,6 +568,8 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_grpc_server", &TThis::EnableGrpcServer)
+        .Default(false);
+    registrar.Parameter("enable_http_server", &TThis::EnableHttpServer)
         .Default(false);
 }
 

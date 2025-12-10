@@ -1,7 +1,7 @@
 COMMIT_SHA_FETCH := $(shell git rev-parse HEAD)
 
 DOCKER_REGISTRY = ghcr.io
-DOCKER_REPOSITORY = ytsaurus/microservices
+DOCKER_REPOSITORY = ytsaurus/ytmsvc
 
 IMAGE_REPO = $(DOCKER_REGISTRY)/$(DOCKER_REPOSITORY)
 

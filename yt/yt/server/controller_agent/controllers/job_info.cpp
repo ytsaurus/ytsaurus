@@ -180,11 +180,6 @@ bool TJoblet::IsStarted() const noexcept
     return JobState.has_value();
 }
 
-bool TJoblet::IsJobStartedOnNode() const noexcept
-{
-    return NodeJobStartTime != TInstant();
-}
-
 void TJoblet::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobId);
@@ -192,7 +187,7 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(3, NodeDescriptor);
     PHOENIX_REGISTER_FIELD(4, StartTime);
     PHOENIX_REGISTER_FIELD(5, FinishTime);
-    PHOENIX_REGISTER_FIELD(6, NodeJobStartTime);
+    PHOENIX_REGISTER_FIELD(6, PreemptibleProgressStartTime);
     PHOENIX_REGISTER_FIELD(7, WaitingForResourcesDuration);
     PHOENIX_REGISTER_FIELD(8, JobState);
     PHOENIX_REGISTER_FIELD(9, InterruptionReason);

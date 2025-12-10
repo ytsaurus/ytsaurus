@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "config.h"
-#include "sequoia_reconstructor.h"
 #include "serialize.h"
 #include "snapshot_exporter.h"
 
@@ -70,21 +69,6 @@ public:
             .RequiredArgument("FILE");
         Opts_
             .AddLongOption(
-                "reconstruct-sequoia",
-                "Reconstructs sequoia tables from master snapshot\n"
-                "Expects path to snapshot")
-            .Handler0([&] { SequoiaReconstructorFlag_ = true; })
-            .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
-            .RequiredArgument("SNAPSHOT");
-        Opts_
-            .AddLongOption(
-                "sequoia-reconstructor-config",
-                "Path to config file (in YSON format) for sequoia reconstruction")
-            .Handler0([&] { SequoiaReconstructorConfigFlag_ = true; })
-            .StoreResult(&SequoiaReconstructorConfigPath_)
-            .RequiredArgument("FILE");
-        Opts_
-            .AddLongOption(
                 "validate-snapshot",
                 "Loads master snapshot in a dry run mode\n"
                 "Expects path to snapshot")
@@ -137,12 +121,9 @@ private:
     std::vector<std::string> SnapshotDumpScopeFilter_;
     bool ValidateSnapshotFlag_ = false;
     bool ExportSnapshotFlag_ = false;
-    bool SequoiaReconstructorFlag_ = false;
     TString LoadSnapshotPath_;
     bool ExportConfigFlag_ = false;
     TString ExportConfigPath_;
-    bool SequoiaReconstructorConfigFlag_ = false;
-    std::string SequoiaReconstructorConfigPath_;
     bool ReplayChangelogsFlag_ = false;
     std::vector<TString> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
@@ -163,17 +144,12 @@ private:
 
     bool IsLoadSnapshotMode() const
     {
-        return IsDumpSnapshotMode() || IsValidateSnapshotMode() || IsExportSnapshotMode() || IsSequoiaReconstructorMode();
+        return IsDumpSnapshotMode() || IsValidateSnapshotMode() || IsExportSnapshotMode();
     }
 
     bool IsExportSnapshotMode() const
     {
         return ExportSnapshotFlag_;
-    }
-
-    bool IsSequoiaReconstructorMode() const
-    {
-        return SequoiaReconstructorFlag_;
     }
 
     bool IsReplayChangelogsMode() const
@@ -204,14 +180,13 @@ private:
         if (static_cast<int>(IsDumpSnapshotMode()) +
             static_cast<int>(IsValidateSnapshotMode()) +
             static_cast<int>(IsExportSnapshotMode()) +
-            static_cast<int>(IsPrintCompatibilityInfoMode()) +
-            static_cast<int>(IsSequoiaReconstructorMode()) > 1)
+            static_cast<int>(IsPrintCompatibilityInfoMode()) > 1)
         {
-            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot', 'compatibility-info' and 'reconstruct-sequoia' are mutually exclusive");
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot', 'compatibility-info' are mutually exclusive");
         }
 
-        if ((IsDumpSnapshotMode() || IsExportSnapshotMode() || IsSequoiaReconstructorMode()) && IsReplayChangelogsMode()) {
-            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot', 'export-snapshot' or 'reconstruct-sequoia'");
+        if ((IsDumpSnapshotMode() || IsExportSnapshotMode()) && IsReplayChangelogsMode()) {
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot', 'export-snapshot'");
         }
 
         if (IsBuildSnapshotMode() && !IsReplayChangelogsMode() && !IsValidateSnapshotMode()) {
@@ -220,10 +195,6 @@ private:
 
         if (ExportSnapshotFlag_ && !ExportConfigFlag_) {
             THROW_ERROR_EXCEPTION("Option 'export-snapshot' requires 'export-config' to be set");
-        }
-
-        if (SequoiaReconstructorFlag_ && !SequoiaReconstructorConfigFlag_) {
-            THROW_ERROR_EXCEPTION("Option 'reconstruct-sequoia' requires 'sequoia-reconstructor-config' to be set");
         }
 
         if (IsReplayChangelogsMode()) {
@@ -241,22 +212,7 @@ private:
         auto config = GetConfig();
 
         if (IsDryRunMode()) {
-            config->EnablePortoResourceTracker = false;
-            config->DryRun->EnableDryRun = true;
-            config->DryRun->EnableHostNameValidation = false;
-
-            auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
-            loggingConfig->ShutdownGraceTimeout = TDuration::Seconds(10);
-
-            config->Snapshots->Path = NFS::GetDirectoryName(".");
-            config->Snapshots->CleanTemporaryFilesOnStoreInitialize = false;
-
-            if (SkipTvmServiceEnvValidationFlag_) {
-                auto authManagerConfig = config->GetSingletonConfig<NAuth::TNativeAuthenticationManagerConfig>();
-                authManagerConfig->EnableValidation = false;
-                authManagerConfig->EnableSubmission = false;
-                authManagerConfig->TvmService = nullptr;
-            }
+            TweakConfigForDryRun(config, SkipTvmServiceEnvValidationFlag_);
         }
 
         if (IsDumpSnapshotMode()) {
@@ -268,7 +224,7 @@ private:
             config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig());
         }
 
-        if (IsExportSnapshotMode() || IsSequoiaReconstructorMode()) {
+        if (IsExportSnapshotMode()) {
             config->SetSingletonConfig(NLogging::TLogManagerConfig::CreateQuiet());
         }
 
@@ -314,10 +270,6 @@ private:
             if (IsExportSnapshotMode()) {
                 // TODO(h0pless): maybe rename this to ExportState.
                 ExportSnapshot(bootstrap.get(), ExportConfigPath_);
-            }
-
-            if (IsSequoiaReconstructorMode()) {
-                ReconstructSequoia(bootstrap.get(), SequoiaReconstructorConfigPath_);
             }
 
             if (IsBuildSnapshotMode()) {

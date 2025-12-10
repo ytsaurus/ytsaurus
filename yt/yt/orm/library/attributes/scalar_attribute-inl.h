@@ -288,6 +288,23 @@ protected:
             reason);
     }
 
+
+    template<typename TVisitParam>
+    void VisitNode(
+        TVisitParam&& target,
+        EVisitReason reason)
+    {
+        Y_UNUSED(reason);
+
+        if (RemoveNodeByYPath(target, NYPath::TYPath{GetTokenizerInput()})) {
+            return;
+        }
+
+        THROW_ERROR_EXCEPTION_IF(GetMissingFieldPolicy() == EMissingFieldPolicy::Throw,
+            NAttributes::EErrorCode::MalformedPath,
+            "Path not found in yson tree");
+    }
+
     void VisitWholeMessage(
         NProtoBuf::Message* message,
         EVisitReason reason)
@@ -432,11 +449,16 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void ClearFieldByPath(T&& from, NYPath::TYPathBuf path)
+void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing, bool allowRelative)
 {
     TClearVisitor visitor;
     visitor.SetAllowAsterisk(true);
-    visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
+    if (skipMissing) {
+        visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
+    }
+    visitor.SetRelativeIndexPolicy(allowRelative
+        ? ERelativeIndexPolicy::Reinterpret
+        : ERelativeIndexPolicy::Throw);
     visitor.Visit(std::forward<T>(from), path);
 }
 

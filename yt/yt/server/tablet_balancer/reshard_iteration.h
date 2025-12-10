@@ -12,9 +12,7 @@ struct IReshardIteration
     : public TRefCounted
 {
     virtual void StartIteration() const = 0;
-    virtual void Prepare(
-        const TTabletBalancingGroupConfigPtr& groupConfig,
-        const TTableRegistryPtr& tableRegistry) = 0;
+    virtual void Prepare(const TTabletBalancingGroupConfigPtr& groupConfig) = 0;
     virtual void FinishIteration(int actionCount) const = 0;
 
     virtual std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) const = 0;
@@ -24,7 +22,6 @@ struct IReshardIteration
 
     virtual void UpdateProfilingCounters(
         const TTable* table,
-        TTableProfilingCounters& profilingCounters,
         const TReshardDescriptor& descriptor) = 0;
 
     virtual bool IsGroupBalancingEnabled(const TTabletBalancingGroupConfigPtr& /*groupConfig*/) const = 0;
