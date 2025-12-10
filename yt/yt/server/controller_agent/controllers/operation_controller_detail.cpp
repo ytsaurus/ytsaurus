@@ -8428,17 +8428,10 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetTotalJobCounter();
     return Format(
-        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-        "UnavailableInputChunks: %v",
-        jobCounter->GetTotal(),
-        jobCounter->GetRunning(),
-        jobCounter->GetCompletedTotal(),
+        "{JobCounter: %v, ControllerPendingJobCount: %v, UnavailableInputChunks: %v}",
+        GetTotalJobCounter(),
         GetPendingJobCount(),
-        jobCounter->GetFailed(),
-        jobCounter->GetAbortedTotal(),
-        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 

@@ -266,7 +266,7 @@ void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter
 {
     Format(
         builder,
-        "{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v}",
+        "{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v, U: %v}",
         counter->GetTotal(),
         counter->GetRunning(),
         counter->GetCompletedTotal(),
@@ -276,7 +276,8 @@ void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter
         counter->GetAbortedTotal(),
         counter->GetLost(),
         counter->GetInvalidated(),
-        counter->GetBlocked());
+        counter->GetBlocked(),
+        counter->GetUncategorized());
 }
 
 void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
