@@ -1451,7 +1451,7 @@ class YtClient(ClientState):
             table: "Union[str, YPath]",
             optional_only: "Optional[List]" = None) -> "TableSchema":
         """
-        Infer table schema.
+        Infer table schema from table content.
 
         :param table: path to table.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
