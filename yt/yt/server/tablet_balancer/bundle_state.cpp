@@ -1,8 +1,11 @@
 #include "bundle_state.h"
+
+#include "bootstrap.h"
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
 #include "table_registry.h"
+#include "tablet_action.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
@@ -274,21 +277,180 @@ const std::vector<std::string> AdditionalPerformanceCountersKeys{
     #undef XX
 };
 
+class TBundleState
+    : public IBundleState
+{
+public:
+    using TPerClusterPerformanceCountersTableSchemas = THashMap<TClusterName, NQueryClient::TTableSchemaPtr>;
+
+public:
+    TBundleState(
+        TString name,
+        IBootstrap* bootstrap,
+        IInvokerPtr invoker);
+
+    void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes) override;
+
+    TFuture<TBundleSnapshotPtr> GetBundleSnapshot(
+        const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+        const NYTree::IListNodePtr& nodeStatistics,
+        const THashSet<TGroupName>& groupsForMoveBalancing,
+        const THashSet<TGroupName>& groupsForReshardBalancing,
+        const THashSet<std::string>& allowedReplicaClusters,
+        int iterationIndex) override;
+
+    TBundleTabletBalancerConfigPtr GetConfig() const override;
+    ETabletCellHealth GetHealth() const override;
+    std::vector<TTabletActionId> GetUnfinishedActions() const override;
+
+private:
+    struct TTabletCellInfo
+    {
+        TTabletCellPtr TabletCell;
+        THashMap<TTabletId, TTableId> TabletToTableId;
+    };
+
+    struct TTableSettings
+    {
+        TTableTabletBalancerConfigPtr Config;
+        EInMemoryMode InMemoryMode;
+        bool Dynamic;
+        NTabletClient::TTableReplicaId UpstreamReplicaId;
+    };
+
+    struct TTabletStatisticsResponse
+    {
+        i64 Index;
+        TTabletId TabletId;
+
+        ETabletState State;
+        TTabletStatistics Statistics;
+        std::variant<
+            TTablet::TPerformanceCountersProtoList,
+            NTableClient::TUnversionedOwningRow> PerformanceCounters;
+        TTabletCellId CellId;
+        TInstant MountTime = TInstant::Zero();
+    };
+
+    struct TTableStatisticsResponse
+    {
+        std::vector<TTabletStatisticsResponse> Tablets;
+        std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+    };
+
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler_;
+
+    const NApi::NNative::IClientPtr Client_;
+    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
+    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
+    const IInvokerPtr Invoker_;
+    const TTableRegistryPtr TableRegistry_;
+    const std::string SelfClusterName_;
+
+    TTabletCellBundlePtr Bundle_;
+    NTabletClient::ETabletCellHealth Health_;
+    std::vector<TTabletActionId> UnfinishedActions_;
+
+    TAtomicIntrusivePtr<TBundleStateProviderConfig> Config_;
+    std::vector<TTabletCellId> CellIds_;
+    TBundleProfilingCountersPtr Counters_;
+
+    std::vector<std::string> PerformanceCountersKeys_;
+
+    void UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
+
+    THashMap<TTabletCellId, TTabletCellInfo> FetchTabletCells(
+        const NObjectClient::TCellTagList& cellTags) const;
+
+    THashMap<TTableId, TTablePtr> FetchBasicTableAttributes(
+        const THashSet<TTableId>& tableIds) const;
+    THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> GetNodeStatistics(
+        const NYTree::IListNodePtr& nodeStatistics,
+        const THashSet<std::string>& addresses) const;
+
+    TTabletCellInfo TabletCellInfoFromAttributes(
+        TTabletCellId cellId,
+        const NYTree::IAttributeDictionaryPtr& attributes) const;
+
+    TBundleSnapshotPtr DoGetBundleSnapshot(
+        const TTabletBalancerDynamicConfigPtr& dynamicConfig,
+        const NYTree::IListNodePtr& nodeStatistics,
+        const THashSet<TGroupName>& groupsForMoveBalancing,
+        const THashSet<TGroupName>& groupsForReshardBalancing,
+        const THashSet<std::string>& allowedReplicaClusters,
+        int iterationIndex);
+
+    void FetchStatistics(
+        const NYTree::IListNodePtr& nodeStatistics,
+        bool useStatisticsReporter,
+        const NYPath::TYPath& statisticsTablePath);
+
+    void FetchReplicaStatistics(
+        const TBundleSnapshotPtr& bundleSnapshot,
+        const THashSet<std::string>& allowedReplicaClusters,
+        bool fetchReshard,
+        bool fetchMove);
+
+    THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
+
+    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
+        const NApi::NNative::IClientPtr& client,
+        const THashSet<TTableId>& tableIds,
+        const THashSet<TTableId>& tableIdsToFetchPivotKeys,
+        const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
+        bool fetchPerformanceCounters,
+        bool parameterizedBalancingEnabledDefault = false) const;
+
+    void FetchReplicaModes(
+        const TBundleSnapshotPtr& bundleSnapshot,
+        const THashSet<TTableId>& majorTableIds,
+        const THashSet<std::string>& allowedReplicaClusters);
+
+    void FetchPerformanceCountersFromTable(
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const NYPath::TYPath& statisticsTablePath);
+
+    void FetchPerformanceCountersFromAlienTable(
+        const NApi::NNative::IClientPtr& client,
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const std::string& cluster);
+
+    void FillPerformanceCounters(
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const THashMap<TTableId, THashMap<TTabletId, NTableClient::TUnversionedOwningRow>>& tableToPerformanceCounters) const;
+    void FillTabletWithStatistics(const TTabletPtr& tablet, TTabletStatisticsResponse& tabletResponse) const;
+
+    bool IsTableBalancingEnabled(const TTableSettings& table) const;
+    bool IsReplicaBalancingEnabled(const TTableSettings& table) const;
+    bool IsReplicaBalancingEnabled(
+        const THashSet<TGroupName>& groupNames,
+        std::function<bool(const TTableTabletBalancerConfigPtr&)> isBalancingEnabled) const;
+    bool HasReplicaBalancingGroups() const;
+
+    TTableProfilingCounters InitializeProfilingCounters(
+        const TTable* table,
+        const TString& groupName) const;
+
+    static void SetTableStatistics(
+        const TTablePtr& table,
+        const TTableStatisticsResponse& tableStatistics);
+
+    THashSet<TTableId> GetReplicaBalancingMajorTables() const;
+};
+
 TBundleState::TBundleState(
     TString name,
-    NApi::NNative::IClientPtr client,
-    TClientDirectoryPtr clientDirectory,
-    TClusterDirectoryPtr clusterDirectory,
-    IInvokerPtr invoker,
-    std::string clusterName)
+    IBootstrap* bootstrap,
+    IInvokerPtr invoker)
     : Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
-    , Client_(client)
-    , ClientDirectory_(clientDirectory)
-    , ClusterDirectory_(clusterDirectory)
+    , Client_(bootstrap->GetClient())
+    , ClientDirectory_(bootstrap->GetClientDirectory())
+    , ClusterDirectory_(bootstrap->GetClusterDirectory())
     , Invoker_(invoker)
     , TableRegistry_(New<TTableRegistry>())
-    , SelfClusterName_(std::move(clusterName))
+    , SelfClusterName_(bootstrap->GetClusterName())
     , Bundle_(New<TTabletCellBundle>(name))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
@@ -297,7 +459,18 @@ void TBundleState::UpdateBundleAttributes(const IAttributeDictionary* attributes
 {
     Health_ = attributes->Get<ETabletCellHealth>("health");
     CellIds_ = attributes->Get<std::vector<TTabletCellId>>("tablet_cell_ids");
-    HasUntrackedUnfinishedActions_ = false;
+    UnfinishedActions_.clear();
+
+    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
+    for (auto actionMapNode : actions) {
+        auto state = ConvertTo<ETabletActionState>(actionMapNode->GetChildOrThrow("state"));
+        if (IsTabletActionFinished(state)) {
+            continue;
+        }
+
+        auto actionId = ConvertTo<TTabletActionId>(actionMapNode->GetChildOrThrow("tablet_action_id"));
+        UnfinishedActions_.push_back(actionId);
+    }
 
     try {
         Bundle_->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
@@ -418,6 +591,16 @@ TBundleTabletBalancerConfigPtr TBundleState::GetConfig() const
     return Bundle_->Config;
 }
 
+ETabletCellHealth TBundleState::GetHealth() const
+{
+    return Health_;
+}
+
+std::vector<TTabletActionId> TBundleState::GetUnfinishedActions() const
+{
+    return UnfinishedActions_;
+}
+
 void TBundleState::UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex)
 {
     THashMap<TTabletCellId, TTabletCellInfo> tabletCells;
@@ -524,27 +707,6 @@ bool TBundleState::IsReplicaBalancingEnabled(const TTableSettings& table) const
 
     const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
     return !groupConfig->Parameterized->ReplicaClusters.empty();
-}
-
-bool TBundleState::IsParameterizedBalancingEnabled() const
-{
-    for (const auto& [id, table] : Bundle_->Tables) {
-        if (table->InMemoryMode == EInMemoryMode::None) {
-            // Limits are not checked for ordinary tables.
-            continue;
-        }
-
-        auto groupName = table->GetBalancingGroup();
-        if (!groupName) {
-            continue;
-        }
-
-        const auto& groupConfig = GetOrCrash(Bundle_->Config->Groups, *groupName);
-        if (groupConfig->Type == EBalancingType::Parameterized && groupConfig->EnableMove) {
-            return true;
-        }
-    }
-    return false;
 }
 
 bool TBundleState::HasReplicaBalancingGroups() const
@@ -1439,6 +1601,19 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables() const
     }
 
     return majorTableIds;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBundleStatePtr CreateBundleState(
+    TString name,
+    IBootstrap* bootstrap,
+    IInvokerPtr invoker)
+{
+    return New<TBundleState>(
+        name,
+        bootstrap,
+        invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
