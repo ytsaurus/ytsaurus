@@ -2897,6 +2897,9 @@ void TChunkReplicator::OnRefresh()
             if (!IsObjectAlive(chunk)) {
                 continue;
             }
+            if (!chunk->IsConfirmed()) {
+                continue;
+            }
 
             chunksToRefresh.emplace_back(chunk);
             chunkIdToErrorCount[chunk->GetId()] = errorCount;
