@@ -1473,11 +1473,13 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("h0pless")
     def test_dedicated_chunk_host_roles_only(self):
+        # NB: Do not drop the "sequoia_node_host" role from cells to avoid
+        # the "cannot host Sequoia nodes" error.
         set("//sys/@config/multicell_manager/cell_descriptors", {
             "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
             "12": {"roles": ["dedicated_chunk_host"]},
-            "13": {"roles": ["dedicated_chunk_host"]}})
+            "13": {"roles": ["dedicated_chunk_host", "sequoia_node_host"]}})
 
         with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
