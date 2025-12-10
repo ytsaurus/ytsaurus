@@ -56,12 +56,12 @@ class _SchemaRuntimeCtx:
 
 
 def _create_row_py_schema(
-    py_type,                     # type: object
-    schema=None,                 # type: TableSchema | None
-    control_attributes=None,     # type: dict[str, str] | None
-    column_renaming=None,        # type: dict[str, str] | None
-    schema_runtime_context=None  # type: _SchemaRuntimeCtx | None
-):
+    py_type: typing.Type,
+    schema: typing.Optional[TableSchema] = None,
+    control_attributes: typing.Optional[typing.Dict[str, str]] = None,
+    column_renaming: typing.Optional[typing.Dict[str, str]] = None,
+    schema_runtime_context: typing.Optional[_SchemaRuntimeCtx] = None,
+) -> internal_schema.RowSchema:
     check_schema_module_available()
     if not schema_runtime_context:
         schema_runtime_context = _SchemaRuntimeCtx()

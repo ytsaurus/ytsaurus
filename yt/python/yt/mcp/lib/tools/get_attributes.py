@@ -84,13 +84,13 @@ A tool for getting named attributes from cluster node or cluster path or cluster
                         "name": "attributes",
                         "description": "Attribute/property names. One of " + ",".join(_ATTRIBUTES_ACCOUNT) + _ATTRIBUTES_DESCRIPTION_COMMON + """
 For attribute "resource_usage" returns account resources such as "node count"; "chunk count"; "tablet count";
-"tablet static memory"; total "disk space" in KiB and detalization by different mediums: "default" (means hdd space in KiB), "sdd blobs" (means sdd space in KiB), "ssd journals" (means ssd space in KiB);
+"tablet static memory"; total "disk space" in KiB and detalization by different mediums: "default" (means hdd space in KiB), "ssd blobs" (means ssd space in KiB), "ssd journals" (means ssd space in KiB);
 total "master memory" and detalization by "chunk host", "per cell" with detalization by specific cell id;
 "detailed master memory" with detalization by "nodes", "chunks", "attributes", "tables", "schemas".
 Output MUST retund in TiB.
 
 For attribute "resource_limits" returns account limits such as "node count"; "chunk count"; "tablet count"; "tablet static memory";
-"disk space per medium" with detalization by "default" (means hdd space in KiB), "ssd_blobs" (means sdd space in KiB), "ssd_journals" (means ssd space in KiB);
+"disk space per medium" with detalization by "default" (means hdd space in KiB), "ssd_blobs" (means ssd space in KiB), "ssd_journals" (means ssd space in KiB);
 "disk space" (total, any medium in KiB); "master memory" total and with detalization by "chunk host" and by specific cell id.
 
 For attribute "abc" returns "abc" entity properties such as "id", "name" (human readable), "slug" (computer readable).
@@ -102,7 +102,7 @@ For attribute "abc" returns "abc" entity properties such as "id", "name" (human 
             {
                 "name": "account_limits_disk",
                 "description": """
-A tool for getting account quota. It means disk quota and free space (hdd and sdd)
+A tool for getting account quota. It means disk quota and free space (hdd and ssd)
 
 `resource_limits.disk_space_per_medium.default` is account quota for HDD in KiB.
 `resource_limits.disk_space_per_medium.ssd_blobs` as account quota for SSD in KiB.
