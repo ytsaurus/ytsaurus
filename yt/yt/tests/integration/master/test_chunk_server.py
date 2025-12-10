@@ -1420,11 +1420,11 @@ class TestChunkServerMulticell(TestChunkServer):
     @pytest.mark.parametrize("to_concatenate", [True, False])
     def test_owning_nodes4(self, to_concatenate):
         def check_owning_nodes(object_id, owning_nodes):
-            cell_indicies = {0}  # primary cell
-            cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
+            cell_indices = {0}  # primary cell
+            cell_indices.add(get(f"#{object_id}/@native_cell_tag") - 10)
 
-            print_debug(f"Will check #{object_id} for {cell_indicies} cells")
-            for cell_index in cell_indicies:
+            print_debug(f"Will check #{object_id} for {cell_indices} cells")
+            for cell_index in cell_indices:
                 print_debug(f"Check #{object_id} for master cell {cell_index}, expect {owning_nodes} owning nodes")
                 wait(lambda: are_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes))
 
