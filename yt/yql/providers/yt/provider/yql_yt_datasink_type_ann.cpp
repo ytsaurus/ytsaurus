@@ -1998,7 +1998,7 @@ private:
                 }
                 else if (nextMetadata->DoesExist) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<
-                        (isDropTable ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction."));
+                        (isDropTable ? "Table" : "View") << ' ' << tableInfo.Name << " is modified and dropped in the same transaction"));
                     return TStatus::Error;
                 }
             }
