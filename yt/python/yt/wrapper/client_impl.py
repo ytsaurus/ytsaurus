@@ -16,6 +16,7 @@ from .format import Format
 from .job_commands import GetJobJobType, JobSpecType, ListJobTracesType, ListJobsType
 from .operation_commands import CheckOperationPermissionResultType, GetOperationOperationType, ListOperationsType, OperationState
 from .query_commands import Query
+from .schema.table_schema import TableSchema
 from .spec_builders import SpecCommonType, SpecMapReduceType, SpecMapType, SpecReduceType, SpecSortType
 from .ypath import YPath
 
@@ -1361,7 +1362,7 @@ class YtClient(ClientState):
 
     def get_table_schema(
             self,
-            table_path: Union[str, YPath]):
+            table_path: Union[str, YPath]) -> TableSchema:
         """
         Gets schema of table.
 
@@ -1444,6 +1445,23 @@ class YtClient(ClientState):
         return client_api.has_attribute(
             path, attribute,
             client=self)
+
+    def infer_table_schema(
+            self,
+            table: "Union[str, YPath]",
+            optional_only: "Optional[List]" = None) -> "TableSchema":
+        """
+        Infer table schema.
+
+        :param table: path to table.
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param optional_only: List of optional fields (by default - all)
+
+        """
+        return client_api.infer_table_schema(
+            table,
+            client=self,
+            optional_only=optional_only)
 
     def insert_rows(
             self,

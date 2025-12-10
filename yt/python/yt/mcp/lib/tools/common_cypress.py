@@ -54,7 +54,7 @@ A tool for common cypress method.
         return [
             {
                 "name": "get_table_schema",
-                "description": "A tool for getting table schema. Schema stored in \"value\" field, field \"attributes\" has schema flags \"strict\" and \"unique_keys\". Data size can by large",
+                "description": "A tool for getting table schema. Schema stored in \"value\" field, field \"attributes\" has schema flags \"strict\" and \"unique_keys\". Empty schema means error getting schema and tool \"infer_table_schema\" can infer schema from table conent",  # noqa
                 "input": [
                     {"name": "cluster"},
                     {
@@ -80,7 +80,39 @@ A tool for common cypress method.
                     },
                     {
                         "name": "table",
-                        "description": "Path to table",
+                        "description": "Path to table.",
+                    },
+                ]
+            },
+            {
+                "name": "sample_table",
+                "description": "A tool for getting sample of table content.",
+                "input": [
+                    {"name": "cluster"},
+                    {
+                        "name": "method",
+                        "description": "Method to call. Should be set to \"read_table\".",
+                        # "default": "PydanticUndefined",
+                    },
+                    {
+                        "name": "table",
+                        "description": "Path to table. Path should be appended with row selector \"[#0:#1]\" for data sampling (selecting first row)",
+                    },
+                ]
+            },
+            {
+                "name": "infer_table_schema",
+                "description": "Tool infers tables schema from its content.",
+                "input": [
+                    {"name": "cluster"},
+                    {
+                        "name": "method",
+                        "description": "Method to call. Should be set to \"infer_table_schema\".",
+                        # "default": "PydanticUndefined",
+                    },
+                    {
+                        "name": "table",
+                        "description": "Path to table.",
                     },
                 ]
             },
