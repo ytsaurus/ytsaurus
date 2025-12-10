@@ -98,7 +98,8 @@ public:
             for (const auto& header : request) {
                 std::string key(header.first);
                 std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-                if (!NRe2::TRe2::FullMatch(key, *Host_->GetConfig()->HttpHeaderBlacklist)) {
+                auto blacklist = Host_->GetConfig()->HttpHeaderBlacklist;
+                if (!blacklist || !NRe2::TRe2::FullMatch(key, *blacklist)) {
                     httpHeaders.emplace_back(header);
                 }
             }
