@@ -57,7 +57,8 @@ DEFINE_ENUM(ETabletReign,
     ((DoNotAccountPureLocksAsWritesWithData)       (101304)) // ponasenko-rs
     ((AddLastCoordinatorCommitTimestamp)           (101305)) // aleksandra-zh
     ((UpdateHunkTabletStoresFix)                   (101306)) // akozhikhov
-    ((FixLockingOrederUpdateHunkTabletStores)      (101307)) // akozhikhov
+    ((FixLockingOrderUpdateHunkTabletStores)       (101307)) // akozhikhov
+    ((PerTabletTxActionForwarding_25_3)            (101308)) // ifsmirnov
     // 25.4 starts here.
     ((Start_25_4)                                  (101400)) // h0pless
     ((HydraLogicalRecordId)                        (101401)) // h0pless
