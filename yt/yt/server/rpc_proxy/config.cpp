@@ -213,6 +213,8 @@ void TProxyMemoryLimits::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("heavy_request", &TThis::HeavyRequest)
         .Optional();
+    registrar.Parameter("rpc", &TThis::Rpc)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

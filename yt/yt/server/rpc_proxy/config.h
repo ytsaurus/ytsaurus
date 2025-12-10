@@ -103,6 +103,7 @@ struct TProxyMemoryLimits
 {
     std::optional<i64> Total;
     std::optional<i64> HeavyRequest;
+    std::optional<i64> Rpc;
 
     REGISTER_YSON_STRUCT(TProxyMemoryLimits);
 
