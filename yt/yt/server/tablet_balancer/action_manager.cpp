@@ -45,8 +45,9 @@ public:
     void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) override;
     void CreateActions(const std::string& bundleName) override;
 
-    bool HasUnfinishedActions(const std::string& bundleName) const override;
-    bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const override;
+    bool HasUnfinishedActions(
+        const std::string& bundleName,
+        const std::vector<TTabletActionId>& knownBundleActionIds) const override;
 
     bool HasPendingActions(const std::string& bundleName) const override;
     void CancelPendingActions(const std::string& bundleName) override;
@@ -89,8 +90,14 @@ private:
 
     int GetRunningActionCount() const;
 
+    bool AreAllActionsKnown(
+        const std::string& bundleName,
+        std::vector<TTabletActionId> actionIds) const;
+
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
+
     void MoveFinishedActionsFromRunningToFinished();
+
     const TBundleProfilingCounters& GetOrCreateProfilingCounters(const std::string& bundleName);
 };
 
@@ -274,42 +281,46 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
     return createdActionCount;
 }
 
-bool TActionManager::HasUnfinishedActions(const std::string& bundleName) const
+bool TActionManager::HasUnfinishedActions(
+    const std::string& bundleName,
+    const std::vector<TTabletActionId>& knownBundleActionIds) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
+    return PendingActionDescriptors_.contains(bundleName) ||
+        RunningActions_.contains(bundleName) ||
+        !AreAllActionsKnown(bundleName, knownBundleActionIds);
 }
 
-bool TActionManager::IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const
+bool TActionManager::AreAllActionsKnown(
+    const std::string& bundleName,
+    std::vector<TTabletActionId> actionIds) const
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
-        auto action = std::find_if(
-            it->second.begin(),
-            it->second.end(),
-            [actionId = actionId] (const TTabletActionPtr& action) {
-                return action->GetId() == actionId;
-            });
-
-        if (action != it->second.end()) {
-            return true;
+    auto collectActionIds = [] (const auto& actions) {
+        THashSet<TTabletActionId> actionIds;
+        for (const TTabletActionPtr& action : actions) {
+            actionIds.insert(action->GetId());
         }
+        return actionIds;
+    };
+
+    auto filterKnownActionIds = [&] (const THashSet<TTabletActionId>& knownActionIds) {
+        std::erase_if(actionIds, [&] (const TTabletActionId& actionId) {
+            return knownActionIds.contains(actionId);
+        });
+    };
+
+    if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
+        filterKnownActionIds(collectActionIds(it->second));
     }
 
     if (auto it = FinishedActions_.find(bundleName); it != FinishedActions_.end()) {
-        auto action = std::find_if(
-            it->second.begin(),
-            it->second.end(),
-            [actionId = actionId] (const TTabletActionPtr& action) {
-                return action->GetId() == actionId;
-            });
-
-        return action != it->second.end();
+        filterKnownActionIds(collectActionIds(it->second));
     }
 
-    return false;
+    return actionIds.empty();
 }
 
 bool TActionManager::HasPendingActions(const std::string& bundleName) const

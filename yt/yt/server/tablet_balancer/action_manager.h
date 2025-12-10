@@ -22,8 +22,9 @@ struct IActionManager
     virtual void ScheduleActionCreation(const std::string& bundleName, const TActionDescriptor& descriptor) = 0;
     virtual void CreateActions(const std::string& bundleName) = 0;
 
-    virtual bool HasUnfinishedActions(const std::string& bundleName) const = 0;
-    virtual bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const = 0;
+    virtual bool HasUnfinishedActions(
+        const std::string& bundleName,
+        const std::vector<TTabletActionId>& knownBundleActionIds) const = 0;
 
     virtual bool HasPendingActions(const std::string& bundleName) const = 0;
     virtual void CancelPendingActions(const std::string& bundleName) = 0;
