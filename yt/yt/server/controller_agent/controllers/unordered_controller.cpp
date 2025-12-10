@@ -95,7 +95,7 @@ public:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetPerStripeStatistics());

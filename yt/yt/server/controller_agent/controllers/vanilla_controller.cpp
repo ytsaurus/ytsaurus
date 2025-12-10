@@ -76,7 +76,7 @@ public:
 
     TUserJobSpecPtr GetUserJobSpec() const override;
 
-    TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override;
+    TExtendedJobResources GetJobNeededResources(const TJobletPtr& /*joblet*/) const override;
 
     TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
@@ -292,7 +292,7 @@ TUserJobSpecPtr TVanillaTask::GetUserJobSpec() const
     return Spec_;
 }
 
-TExtendedJobResources TVanillaTask::GetNeededResources(const TJobletPtr& /*joblet*/) const
+TExtendedJobResources TVanillaTask::GetJobNeededResources(const TJobletPtr& /*joblet*/) const
 {
     return GetMinNeededResourcesHeavy();
 }
