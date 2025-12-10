@@ -554,7 +554,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetPerStripeStatistics(), IsRoot());
             AddFootprintAndUserJobResources(result);
@@ -903,7 +903,7 @@ protected:
             }
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             const auto& stripeList = joblet->InputStripeList;
             auto statistics = stripeList->GetAggregateStatistics();
@@ -1429,7 +1429,7 @@ protected:
             }
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto resources = Controller_->GetSortedMergeResources(
                 joblet->InputStripeList->GetPerStripeStatistics());
@@ -1685,7 +1685,7 @@ protected:
             return 0;
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedMergeResources(
                 joblet->InputStripeList->GetPerStripeStatistics());
