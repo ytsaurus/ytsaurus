@@ -3493,6 +3493,66 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
+TEST_P(TProxyRoleManagement, TestCustomRedundantDataCenterCount)
+{
+    if (GetDataCenterCount() == 1) {
+        return;
+    }
+
+    auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 0;
+    auto dataCenters = GetDataCenters(input);
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
+
+    THashMap<std::string, THashSet<std::string>> roleToProxies;
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        roleToProxies[role.Mutation].insert(proxyName);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(roleToProxies["bigd"]));
+    EXPECT_EQ(0, std::ssize(roleToProxies[GetReleasedProxyRole("bigd")]));
+
+    // New round: set redundant_rpc_proxy_data_center_count to 1.
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 1;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    roleToProxies.clear();
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        roleToProxies[role.Mutation].insert(proxyName);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    EXPECT_EQ(0, std::ssize(roleToProxies["bigd"]));
+    EXPECT_EQ(2 * GetRedundantDataCenterCount(), std::ssize(roleToProxies[GetReleasedProxyRole("bigd")]));
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+
+    CheckEmptyAlerts(mutations);
+
+    // New round: set redundant_rpc_proxy_data_center_count to 3 and expect alerts.
+    input.Bundles["bigd"]->TargetConfig->RedundantRpcProxyDataCenterCount = 3;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(ssize(mutations.AlertsToFire), 1);
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "invalid_bundle_config");
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
 TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());

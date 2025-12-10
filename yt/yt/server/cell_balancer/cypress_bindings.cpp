@@ -91,6 +91,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("enable_drills_mode", &TThis::EnableDrillsMode)
         .Default(false);
+    registrar.Parameter("redundant_rpc_proxy_data_center_count", &TThis::RedundantRpcProxyDataCenterCount)
+        .Default();
     registrar.Parameter("forbidden_data_centers", &TThis::ForbiddenDataCenters)
         .Optional();
 }
