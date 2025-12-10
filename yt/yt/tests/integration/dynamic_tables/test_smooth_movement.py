@@ -8,7 +8,8 @@ from yt_commands import (
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
-    get_singular_chunk_id
+    get_singular_chunk_id,
+    create_table_replica, alter_table_replica,
 )
 
 from yt.common import YtError
@@ -507,6 +508,51 @@ class TestSmoothMovement(DynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
             insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
             commit_transaction(tx_id)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_replica_and_replicated_table_at_same_cell(self, mode):
+        cell_ids = sync_create_cells(2)
+        create(
+            "replicated_table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            })
+
+        r = create_table_replica("//tmp/t", "primary", "//tmp/r")
+        alter_table_replica(r, mode=mode, enabled=True)
+
+        self._create_sorted_table("//tmp/r", upstream_replica_id=r)
+
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        sync_mount_table("//tmp/r", cell_id=cell_ids[0])
+
+        # Run twice: move replica tablet away from replicated table tablet
+        # and then move it back.
+        all_rows = []
+        for iter in range(2):
+            with SmoothMovementHelper("//tmp/r").forwarding_context():
+                batch_size = 15
+                rows = [{"key": i, "value": str(i)} for i in range(iter * batch_size, (iter + 1) * batch_size)]
+                all_rows += rows
+                for row in rows:
+                    while True:
+                        try:
+                            insert_rows("//tmp/t", [row], require_sync_replica=False)
+                            break
+                        except YtError:
+                            time.sleep(0.1)
+                    time.sleep(0.5)
+
+            if mode == "sync":
+                assert_items_equal(select_rows("* from [//tmp/r]"), all_rows)
+            else:
+                wait(lambda: are_items_equal(select_rows("* from [//tmp/r]"), all_rows))
 
 ##################################################################
 

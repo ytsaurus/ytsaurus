@@ -93,17 +93,17 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers<TReqUpdateHunkTabletStores>({
+        transactionManager->RegisterTransactionActionHandlers<TReqUpdateHunkTabletStores>({{
             .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this)),
-        });
+        }});
 
-        transactionManager->RegisterTransactionActionHandlers<NTabletClient::NProto::TReqToggleHunkTabletStoreLock>({
+        transactionManager->RegisterTransactionActionHandlers<NTabletClient::NProto::TReqToggleHunkTabletStoreLock>({{
             .Prepare = BIND_NO_PROPAGATE(&THunkTabletManager::HydraPrepareToggleHunkTabletStoreLock, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&THunkTabletManager::HydraCommitToggleHunkTabletStoreLock, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&THunkTabletManager::HydraAbortToggleHunkTabletStoreLock, Unretained(this)),
-        });
+        }});
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, THunkTablet);
