@@ -122,7 +122,9 @@ public:
 
     const TProgressCounterPtr& GetJobCounter() const;
 
-    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
+    NScheduler::TCompositeNeededResources GetNeededResources() const;
+
+    void UpdateNeededResources();
 
     bool IsStderrTableEnabled() const;
 
@@ -202,7 +204,7 @@ public:
 
     virtual void SetupCallbacks();
 
-    virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
+    virtual TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const = 0;
 
     virtual NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const = 0;
     virtual NChunkPools::IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
@@ -301,7 +303,7 @@ protected:
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
 
-    NScheduler::TCompositeNeededResources CachedTotalNeededResources_;
+    NScheduler::TCompositeNeededResources CachedNeededResources_;
 
     virtual std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& context);
 
@@ -563,10 +565,8 @@ private:
     //! ClusterToNetworkBandwidthAvailabilityLock_ has to be taken prior to calling this method.
     void UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::TClusterName& clusterName, bool isAvailable);
 
-    NScheduler::TCompositeNeededResources GetTotalNeededResources(
-        i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
-
-    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDefaultDelta();
+    NScheduler::TCompositeNeededResources CalculateNeededResources() const;
+    void UpdateNeededResourcesParams();
 
     std::expected<TOutputCookieInfo, EScheduleFailReason>
     GetOutputCookieInfoForFirstJob(const TAllocation& allocation);

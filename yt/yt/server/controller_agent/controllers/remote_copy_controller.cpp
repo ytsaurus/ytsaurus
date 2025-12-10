@@ -195,7 +195,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }

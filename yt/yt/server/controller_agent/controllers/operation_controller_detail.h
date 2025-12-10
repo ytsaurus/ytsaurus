@@ -1405,7 +1405,7 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
-    void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
+    void UpdateNeededResources();
 
     void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& quota);
 
