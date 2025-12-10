@@ -1491,8 +1491,10 @@ private:
         if (!transaction->IsExternalizedFromThisCell()) {
             // COMPAT(ifsmirnov)
             auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            if (reign >= ETabletReign::NonForwardedTransactionActions &&
-                reign < ETabletReign::PerTabletTxActionForwarding)
+            if ((reign >= ETabletReign::NonForwardedTransactionActions &&
+                reign < ETabletReign::PerTabletTxActionForwarding_25_3) ||
+                (reign >= ETabletReign::Start_25_4 &&
+                reign < ETabletReign::PerTabletTxActionForwarding))
             {
                 transaction->SetHasNonForwardedActions(true);
             }
