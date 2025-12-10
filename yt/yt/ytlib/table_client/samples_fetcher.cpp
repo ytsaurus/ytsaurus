@@ -5,7 +5,6 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -105,22 +104,10 @@ TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<TChunkT
 
 TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
-    // TODO(pavel-bash): We should unify how the requests are dispatched
-    // to the DataNodeService and to the OffshoreNodeService.
-    bool isOffshoreNode = nodeId == OffshoreNodeId;
-
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
-    TOffshoreNodeServiceProxy offshoreProxy(GetNodeChannel(nodeId));
-    offshoreProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-
-    auto req = [&] {
-        if (isOffshoreNode) {
-            return offshoreProxy.GetTableSamples();
-        }
-        return proxy.GetTableSamples();
-    }();
+    auto req = proxy.GetTableSamples();
 
     // TODO(babenko): make configurable
     SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -156,6 +143,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChun
                 ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetLegacyKey());
             }
             ToProto(sampleRequest->mutable_replica_spec(), requestedChunk.Replica);
+            sampleRequest->set_chunk_format(::NYT::ToProto<i32>(chunk->GetChunkFormat()));
             currentSampleCount = sampleCount;
         }
     }

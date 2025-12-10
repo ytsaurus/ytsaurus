@@ -617,10 +617,7 @@ void TFetcherBase::OnCanceled(const TError& error)
 
 std::string TFetcherBase::GetNodeAddress(NNodeTrackerClient::TNodeId nodeId)
 {
-    if (nodeId == OffshoreNodeId) {
-        return "offshore-node-sentinel-address";
-    }
-    return NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
+    return GetPotentiallyOffshoreNodeDescriptor(NodeDirectory_, nodeId).GetDefaultAddress();
 }
 
 void TFetcherBase::MarkNodeDead(NNodeTrackerClient::TNodeId nodeId)

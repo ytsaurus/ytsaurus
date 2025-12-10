@@ -357,6 +357,11 @@ public:
 
     EMasterChannelKind ReadArchiveStateFrom;
 
+    //! If set, the replication reader will read offshore data through the
+    //! OffshoreNodeProxy; otherwise the data will be directly read through the
+    //! native client's connection to S3.
+    bool EnableReplicationReaderForOffshoreData;
+
     bool EnableDistributedReplicationCollocationAttachment;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);

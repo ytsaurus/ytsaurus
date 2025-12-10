@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/node_service/helpers.h>
 
-#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/s3_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -42,7 +42,10 @@ public:
         TMediumDirectoryPtr mediumDirectory)
         : TServiceBase(
             std::move(invoker),
-            TOffshoreNodeServiceProxy::GetDescriptor(),
+            // TOffshoreNodeService implements a subset of TDataNodeServiceProxy's
+            // methods, so we use its descriptor here; read more in the docs of
+            // TDataNodeServiceProxy.
+            TDataNodeServiceProxy::GetDescriptor(),
             OffshoreNodeProxyLogger(),
             TServiceOptions{
                 .Authenticator = std::move(authenticator),
@@ -50,11 +53,11 @@ public:
         , StorageInvoker_(std::move(storageInvoker))
         , MediumDirectory_(std::move(mediumDirectory))
     {
-        // TODO(pavel-bash): When we need more methods (like GetBlockSet or GetChunkMeta), we can
-        // retrieve their implementation from the commit 506d15f.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     }
 
 private:
@@ -62,8 +65,33 @@ private:
     TMediumDirectoryPtr MediumDirectory_;
 
     template <typename RequestType>
+    IChunkReaderPtr CreateS3ReaderForRequest(
+        const RequestType& request,
+        TS3ReaderConfigPtr s3ReaderConfig,
+        TChunkId chunkId)
+    {
+        auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
+        auto mediumDescriptor = MediumDirectory_
+            ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
+            ->template As<TS3MediumDescriptor>();
+
+        THROW_ERROR_EXCEPTION_IF(!request.has_chunk_format(),
+            "The chunk_format is not set or has unknown value");
+        auto chunkFormat = NYT::FromProto<EChunkFormat>(request.chunk_format());
+        THROW_ERROR_EXCEPTION_IF(chunkFormat == EChunkFormat::Unknown,
+            "The chunk_format field must not have unknown value for this request");
+
+        return CreateS3Reader(
+            std::move(mediumDescriptor),
+            s3ReaderConfig,
+            chunkId,
+            chunkFormat,
+            replicaWithMedium);
+    }
+
+    template <typename RequestsType>
     THashMap<TChunkId, IChunkReaderPtr> CreateS3ReadersForRequests(
-        const RepeatedPtrField<RequestType>& requests,
+        const RequestsType& requests,
         TS3ReaderConfigPtr s3ReaderConfig)
     {
         THashMap<TChunkId, IChunkReaderPtr> readers;
@@ -73,24 +101,10 @@ private:
                 continue;
             }
 
-            auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
-            auto mediumDescriptor = MediumDirectory_
-                ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
-                ->template As<TS3MediumDescriptor>();
-
-            auto sourceUri = std::string(replicaWithMedium.GetSourceUri());
-            auto chunkFormat = EChunkFormat::Unknown;
-            if (!sourceUri.empty()) {
-                chunkFormat = GetChunkFormatFromExternalSourceFormat(
-                    DeduceExternalSourceFormatOrThrow(sourceUri));
-            }
-
-            readers[chunkId] = CreateS3Reader(
-                std::move(mediumDescriptor),
+            readers[chunkId] = CreateS3ReaderForRequest(
+                request,
                 s3ReaderConfig,
-                chunkId,
-                chunkFormat,
-                replicaWithMedium);
+                chunkId);
         }
 
         return readers;
@@ -157,7 +171,8 @@ private:
                 }
 
                 context->Reply();
-            }).Via(StorageInvoker_));
+            })
+                .Via(StorageInvoker_));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
@@ -192,7 +207,8 @@ private:
                 }
 
                 context->Reply();
-            }).Via(StorageInvoker_));
+            })
+                .Via(StorageInvoker_));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -229,7 +245,76 @@ private:
                 }
 
                 context->Reply();
-            }).Via(StorageInvoker_));
+            })
+                .Via(StorageInvoker_));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
+
+        context->SetRequestInfo("ChunkId: %v, BlockIndexes: %v",
+            chunkId,
+            blockIndexes);
+
+        auto reader = CreateS3ReaderForRequest(*request, New<TS3ReaderConfig>(), chunkId);
+        reader->ReadBlocks({}, blockIndexes)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& blocks = resultsError.Value();
+                YT_VERIFY(blocks.size() == blockIndexes.size());
+
+                response->set_has_complete_chunk(true);
+                response->set_net_throttling(false);
+                response->set_net_queue_size(0);
+                response->set_disk_throttling(false);
+                response->set_disk_queue_size(0);
+
+                SetRpcAttachedBlocks(response, blocks);
+
+                context->SetResponseInfo("BlockCount: %v", blocks.size());
+
+                context->Reply();
+            })
+                .Via(StorageInvoker_));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+        context->SetRequestInfo("ChunkId: %v", chunkId);
+
+        auto reader = CreateS3ReaderForRequest(*request, New<TS3ReaderConfig>(), chunkId);
+        reader->GetMeta({})
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& meta = resultsError.Value();
+
+                *response->mutable_chunk_meta() = static_cast<NChunkClient::NProto::TChunkMeta>(*meta);
+
+                context->SetResponseInfo("MetaSize: %v", response->chunk_meta().ByteSize());
+
+                context->Reply();
+            })
+                .Via(StorageInvoker_));
     }
 };
 

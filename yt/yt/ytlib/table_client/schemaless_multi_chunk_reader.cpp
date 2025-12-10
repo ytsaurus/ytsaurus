@@ -105,9 +105,12 @@ namespace {
 TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
+    const TChunkSpec& chunkSpec,
     std::optional<int> partitionTag)
 {
-    // Download chunk meta.
+    // These extension tags are used to filter the meta which was read, e.g. if
+    // tag TNameExt isn't specified here, it will not be returned by the reader
+    // even if it was read from the node.
     std::vector<int> extensionTags{
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
@@ -120,6 +123,16 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     };
     if (chunkReadOptions.GranuleFilter) {
         extensionTags.push_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
+    }
+
+    // Add some tags depending on the chunk format. Currently those two conditions are
+    // identical, but they may evolve independently later, so we split them.
+    auto chunkFormat = NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format());
+    if (chunkFormat == NChunkClient::EChunkFormat::TableUnversionedArrowParquet) {
+        extensionTags.push_back(TProtoExtensionTag<NChunkClient::NProto::TBlocksExt>::Value);
+    }
+    if (chunkFormat == NChunkClient::EChunkFormat::TableUnversionedArrowParquet) {
+        extensionTags.push_back(TProtoExtensionTag<NProto::TParquetFormatMetaExt>::Value);
     }
 
     return chunkReader->GetMeta(
@@ -212,7 +225,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
-                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, chunkReadOptions, partitionTag);
+                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, chunkReadOptions, chunkSpec, partitionTag);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;

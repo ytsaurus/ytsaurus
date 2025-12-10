@@ -1,6 +1,8 @@
 #include "offshore_node_proxy_channel.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -34,16 +36,15 @@ public:
     TOffshoreNodeProxyChannelProvider(
         TOffshoreNodeProxyChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        IChannelPtr masterChannel)
+        NApi::NNative::IConnectionPtr connection)
         : Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , MasterChannel_(std::move(masterChannel))
-        , EndpointDescription_(Format("OffshoreNodeProxy@%v",
-            MasterChannel_->GetEndpointDescription()))
+        , Connection_(connection)
+        , EndpointDescription_(Format("OffshoreNodeProxy@%v", connection->GetClusterName()))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("offshore_node_proxy").Value(true)
-                .Items(MasterChannel_->GetEndpointAttributes())
+                .Item("cluster").Value(connection->GetClusterName())
             .EndMap()))
         , RefreshChannelExecutor_(New<TPeriodicExecutor>(
             GetCurrentInvoker(),
@@ -96,7 +97,7 @@ public:
 private:
     const TOffshoreNodeProxyChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
-    const IChannelPtr MasterChannel_;
+    const TWeakPtr<NApi::NNative::IConnection> Connection_;
 
     const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
@@ -108,9 +109,23 @@ private:
 
     TFuture<IChannelPtr> DoCreateChannel()
     {
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(MasterChannel_);
+        auto connection = Connection_.Lock();
+        if (!connection) {
+            return MakeFuture<IChannelPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+        }
+
+        // TODO(pavel-bash): maybe later it'll be a good idea to include those into Config.
+        NApi::TMasterReadOptions masterReadOptions;
+        masterReadOptions.ReadFrom = NApi::EMasterChannelKind::MasterCache;
 
         auto req = TYPathProxy::List("//sys/offshore_node_proxies/instances");
+        SetCachingHeader(req, connection, masterReadOptions);
+
+        TObjectServiceProxy proxy(
+            connection,
+            masterReadOptions.ReadFrom,
+            PrimaryMasterCellTagSentinel,
+            connection->GetStickyGroupSizeCache());
         return proxy.Execute(req)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYPathProxy::TRspListPtr& rsp) -> IChannelPtr {
                 auto addresses = ConvertTo<std::vector<std::string>>(TYsonString(rsp->value()));
@@ -143,12 +158,12 @@ private:
 IChannelPtr CreateOffshoreNodeProxyChannel(
     const TOffshoreNodeProxyChannelConfigPtr& config,
     IChannelFactoryPtr channelFactory,
-    IChannelPtr masterChannel)
+    NApi::NNative::IConnectionPtr connection)
 {
     auto channelProvider = New<TOffshoreNodeProxyChannelProvider>(
         config,
         std::move(channelFactory),
-        std::move(masterChannel));
+        std::move(connection));
     auto channel = CreateRoamingChannel(channelProvider);
 
     // TODO(achulkov2): Think about this properly. For now, I think we need these retries.

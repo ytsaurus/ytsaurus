@@ -252,7 +252,7 @@ public:
         OffshoreNodeProxyChannel_ = NOffshoreNodeProxy::CreateOffshoreNodeProxyChannel(
             config->OffshoreNodeProxy,
             ChannelFactory_,
-            GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+            this);
 
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(

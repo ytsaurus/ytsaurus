@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT::NOffshoreNodeProxy {
@@ -13,7 +14,7 @@ namespace NYT::NOffshoreNodeProxy {
 NRpc::IChannelPtr CreateOffshoreNodeProxyChannel(
     const TOffshoreNodeProxyChannelConfigPtr& config,
     NRpc::IChannelFactoryPtr channelFactory,
-    NRpc::IChannelPtr masterChannel);
+    NApi::NNative::IConnectionPtr connection);
 
 ////////////////////////////////////////////////////////////////////////////////
 

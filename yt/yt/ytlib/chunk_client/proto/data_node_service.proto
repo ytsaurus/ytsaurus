@@ -233,6 +233,10 @@ message TReqGetBlockSet
 
     optional uint64 ally_replicas_revision = 13;
 
+    optional TChunkReplicaSpec replica_spec = 14;
+
+    optional int32 chunk_format = 15; // EChunkFormat
+
     reserved 3, 4, 9;
 }
 
@@ -411,6 +415,10 @@ message TReqGetChunkMeta
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 8;
+
+    optional TChunkReplicaSpec replica_spec = 9;
+
+    optional int32 chunk_format = 10; // EChunkFormat
 }
 
 message TRspGetChunkMeta
@@ -475,6 +483,7 @@ message TReqGetTableSamples
         optional bytes lower_key = 3;
         optional bytes upper_key = 4;
         optional TChunkReplicaSpec replica_spec = 5;
+        optional int32 chunk_format = 6; // EChunkFormat
     }
 
     repeated TSampleRequest sample_requests = 1;
@@ -550,6 +559,7 @@ message TReqGetColumnarStatistics
         required NYT.NProto.TGuid chunk_id = 1;
         repeated int32 column_ids = 2;
         optional TChunkReplicaSpec replica_spec = 3;
+        optional int32 chunk_format = 4; // EChunkFormat
     }
 
     repeated TSubrequest subrequests = 2;

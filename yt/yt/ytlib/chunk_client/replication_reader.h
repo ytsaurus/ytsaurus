@@ -21,7 +21,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& seedReplicas);
+    const TChunkReplicaWithMediumList& seedReplicas,
+    EChunkFormat chunkFormat = EChunkFormat::Unknown);
 
 ////////////////////////////////////////////////////////////////////////////////
 

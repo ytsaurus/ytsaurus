@@ -404,13 +404,21 @@ private:
                         chunkIds[index]));
                     continue;
                 }
-                auto replicas = (
-                    subresponse.replica_specs_size() != 0
-                    ? TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replica_specs()))
-                    : subresponse.replicas_size() != 0
-                    ? TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()))
-                    : FromProto<TChunkReplicaList>(subresponse.legacy_replicas()));
-                auto replicasInfo = TAllyReplicasInfo::FromChunkReplicas(replicas, rsp->revision());
+
+                TAllyReplicasInfo replicasInfo;
+                if (subresponse.replica_specs_size() != 0) {
+                    replicasInfo = TAllyReplicasInfo::FromChunkReplicas(
+                        FromProto<TChunkReplicaWithMediumList>(subresponse.replica_specs()),
+                        rsp->revision());
+                } else if (subresponse.replicas_size() != 0) {
+                    replicasInfo = TAllyReplicasInfo::FromChunkReplicas(
+                        FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()),
+                        rsp->revision());
+                } else {
+                    replicasInfo = TAllyReplicasInfo::FromChunkReplicas(
+                        FromProto<TChunkReplicaList>(subresponse.legacy_replicas()),
+                        rsp->revision());
+                }
                 promises[index].TrySet(std::move(replicasInfo));
             }
         } else {

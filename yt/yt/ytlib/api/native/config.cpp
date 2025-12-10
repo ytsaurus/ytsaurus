@@ -445,6 +445,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("enable_replication_reader_for_offshore_data", &TThis::EnableReplicationReaderForOffshoreData)
+        .Default(false);
+
     registrar.Parameter("enable_distributed_replication_collocation_attachment", &TThis::EnableDistributedReplicationCollocationAttachment)
         .Default(false);
 }

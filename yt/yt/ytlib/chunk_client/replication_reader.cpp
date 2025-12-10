@@ -12,7 +12,6 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
-#include "s3_reader.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -192,7 +191,8 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        const TChunkReplicaWithMediumList& seedReplicas)
+        const TChunkReplicaWithMediumList& seedReplicas,
+        EChunkFormat chunkFormat)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -212,6 +212,7 @@ public:
             ChunkId_))
         , RequestBatcher_(CreateRequestBatcher(MakeWeak(this)))
         , InitialSeeds_(std::move(seedReplicas))
+        , ChunkFormat_(chunkFormat)
     {
         YT_VERIFY(NodeDirectory_);
 
@@ -322,6 +323,8 @@ private:
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
     TChunkReplicaWithMediumList InitialSeeds_;
 
+    const EChunkFormat ChunkFormat_;
+
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
@@ -379,7 +382,7 @@ private:
         FreshSeedsRevision_ = seedReplicas.Revision;
 
         for (auto replica : seedReplicas.Replicas) {
-            const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            const auto* nodeDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
             if (!nodeDescriptor) {
                 YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
                 continue;
@@ -515,6 +518,8 @@ protected:
     const IThroughputThrottlerPtr MediumThrottler_;
     const IThroughputThrottlerPtr CombinedDataByteThrottler_;
 
+    const EChunkFormat ChunkFormat_;
+
     const IRequestBatcherPtr RequestBatcher_;
 
     NLogging::TLogger Logger;
@@ -561,6 +566,7 @@ protected:
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IThroughputThrottlerPtr mediumThrottler,
+        EChunkFormat chunkFormat,
         IInvokerPtr sessionInvoker = {})
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
@@ -579,6 +585,7 @@ protected:
         , RpsThrottler_(std::move(rpsThrottler))
         , MediumThrottler_(std::move(mediumThrottler))
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
+        , ChunkFormat_(chunkFormat)
         , RequestBatcher_(reader->RequestBatcher_)
         , Logger(ChunkClientLogger().WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
@@ -721,12 +728,17 @@ protected:
             return false;
         }
 
-        auto optionalAddress = descriptor.FindAddress(Networks_);
-        if (!optionalAddress) {
-            YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
-                descriptor,
-                Networks_);
-            return false;
+        std::optional<std::string> optionalAddress;
+        if (replica.GetNodeId() != OffshoreNodeId) {
+            optionalAddress = descriptor.FindAddress(Networks_);
+            if (!optionalAddress) {
+                YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
+                    descriptor,
+                    Networks_);
+                return false;
+            }
+        } else {
+            optionalAddress = address;
         }
 
         TPeer peer{
@@ -794,6 +806,10 @@ protected:
             return nullptr;
         }
 
+        if (IsAddressOffshore(address)) {
+            return reader->Client_->GetNativeConnection()->GetOffshoreNodeProxyChannel();
+        }
+
         try {
             IChannelFactoryPtr channelFactory = reader->Client_->GetChannelFactory();
 
@@ -848,7 +864,10 @@ protected:
         RegisterError(error);
     }
 
-    TPeerList PickPeerCandidates(
+    //! Picks the #count peers from the peer queue; returns a pair of the selected
+    //! peers and a boolean showing if more calls to this function may happen during
+    //! the current pass.
+    std::pair<TPeerList, bool> PickPeerCandidates(
         const TReplicationReaderPtr& reader,
         int count,
         bool enableEarlyExit,
@@ -879,12 +898,25 @@ protected:
             }
 
             if ((!filter || filter(top.Peer.Address)) && !IsPeerBanned(top.Peer.Address)) {
-                candidates.push_back(top.Peer);
+                // Do not mix domestic and offshore peers in the result of this function.
+                if (!IsAddressOffshore(top.Peer.Address)) {
+                    // If the peer isn't offshore, we can just add it.
+                    candidates.push_back(top.Peer);
+                } else if (candidates.empty()) {
+                    // If the peer is offshore and it's the first peer we encounter, just return it.
+                    candidates.push_back(top.Peer);
+                    PeerQueue_.pop();
+                    return {candidates, false};
+                }
             }
 
             PeerQueue_.pop();
         }
-        return candidates;
+
+        YT_VERIFY(candidates.empty() || std::all_of(candidates.begin(), candidates.end(), [] (const auto& candidate) {
+            return !IsAddressOffshore(candidate.Address);
+        }));
+        return {candidates, true};
     }
 
     IChannelPtr MakePeersChannel(
@@ -1026,7 +1058,7 @@ protected:
         peerAddresses.reserve(seedReplicas.size());
 
         for (auto replica : seedReplicas) {
-            const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            const auto* descriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
             if (!descriptor) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNode,
@@ -1044,6 +1076,14 @@ protected:
                     descriptor->GetDefaultAddress()));
                 OnSessionFailed(/*fatal*/ true);
                 return false;
+            }
+
+            if (IsAddressOffshore(*address)) {
+                // Distinguish different replicas of offshore data by enriching the sentinel address
+                // with the medium index; like that they will be considered different peers, and
+                // select peers / ban peers functionalities will work on the replica level and not
+                // the whole offshore node level.
+                address->append(Format("@%v", replica.GetMediumIndex()));
             }
 
             peerDescriptors.push_back(descriptor);
@@ -1478,6 +1518,25 @@ private:
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
+        if (IsAddressOffshore(address)) {
+            // Method for probing offshore peers is not supported (yet), so we can
+            // consider them always available.
+            return MakeFuture(std::pair<TPeer, TErrorOrPeerProbeResult>{
+                peer,
+                TErrorOrPeerProbeResult{
+                    TPeerProbeResult{
+                        .NetThrottling = false,
+                        .DiskThrottling = false,
+                        .NetQueueSize = 0,
+                        .DiskQueueSize = 0,
+                        .PeerDescriptors = {},
+                        .AllyReplicas = {},
+                        .HasCompleteChunk = true
+                    }
+                }
+            });
+        }
+
         auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
             IRequestBatcher::TRequest{
                 .Address = address,
@@ -1701,6 +1760,7 @@ public:
                 : std::move(bandwidthThrottler)),
             std::move(rpsThrottler),
             std::move(mediumThrottler),
+            reader->ChunkFormat_,
             options.SessionInvoker)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(options.EstimatedSize)
@@ -1813,7 +1873,7 @@ private:
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
                 auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
-                auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
+                auto maybeSuggestedDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, peerNodeId);
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorAddress: %v)",
                         peerNodeId,
@@ -1948,7 +2008,7 @@ private:
                 return false;
             };
 
-            auto moreCandidates = PickPeerCandidates(
+            auto [moreCandidates, mayCallAgain] = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
                 /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
@@ -1958,6 +2018,10 @@ private:
                 break;
             }
             candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
+
+            if (!mayCallAgain) {
+                break;
+            }
         }
 
         return candidates;
@@ -2368,7 +2432,8 @@ public:
                 ? GetUnlimitedThrottler()
                 : std::move(bandwidthThrottler),
             std::move(rpsThrottler),
-            std::move(mediumThrottler))
+            std::move(mediumThrottler),
+            reader->ChunkFormat_)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
@@ -2439,7 +2504,8 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             /*count*/ 1,
-            /*enableEarlyExit*/ true);
+            /*enableEarlyExit*/ true)
+            .first;
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -2661,6 +2727,7 @@ public:
             reader->BandwidthThrottler_,
             reader->RpsThrottler_,
             reader->MediumThrottler_,
+            reader->ChunkFormat_,
             GetCurrentInvoker())
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
@@ -2730,7 +2797,8 @@ private:
         auto peers = PickPeerCandidates(
             reader,
             ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
-            /*enableEarlyExit*/ false);
+            /*enableEarlyExit*/ false)
+            .first;
         if (peers.empty()) {
             OnPassCompleted();
             return;
@@ -2769,6 +2837,8 @@ private:
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
         }
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+        ToProto(req->mutable_replica_spec(), peers[0].Replica);
+        req->set_chunk_format(::NYT::ToProto<i32>(ChunkFormat_));
 
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
@@ -2900,6 +2970,7 @@ public:
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(mediumThrottler),
+            reader->ChunkFormat_,
             std::move(sessionInvoker))
         , Options_(std::move(options))
         , LookupKeys_(std::move(lookupKeys))
@@ -3015,7 +3086,8 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             ReaderConfig_->ProbePeerCount,
-            /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
+            /*enableEarlyExit*/ !SessionOptions_.HedgingManager && !ReaderConfig_->LookupRpcHedgingDelay)
+            .first;
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -3607,6 +3679,9 @@ private:
             waitBarrier->CopyFrom(barrier);
         }
 
+        ToProto(req->mutable_replica_spec(), queuedBatch.Peers[0].Replica);
+        req->set_chunk_format(::NYT::ToProto<i32>(queuedBatch.Session->ChunkFormat_));
+
         return req->Invoke()
             .ApplyUnique(BIND(
                 &TRequestBatcher::HandleGetBlockSetResponse,
@@ -3762,14 +3837,16 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& seedReplicas)
+    const TChunkReplicaWithMediumList& seedReplicas,
+    EChunkFormat chunkFormat)
 {
     return New<TReplicationReader>(
         std::move(config),
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        seedReplicas);
+        seedReplicas,
+        chunkFormat);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3796,7 +3873,7 @@ IChunkReaderAllowingRepairPtr TryCreateReplicationReaderThrottlingAdapter(
     IThroughputThrottlerPtr mediumThrottler)
 {
     auto* underlyingReplicationReader = dynamic_cast<TReplicationReader*>(underlyingReader.Get());
-    
+
     if (!underlyingReplicationReader) {
         return nullptr;
     }

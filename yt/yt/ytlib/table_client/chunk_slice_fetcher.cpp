@@ -9,7 +9,6 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -181,15 +180,8 @@ private:
         NNodeTrackerClient::TNodeId nodeId,
         std::vector<TChunkToFetch> chunks)
     {
-        // TODO(pavel-bash): We should unify how the requests are dispatched
-        // to the DataNodeService and to the OffshoreNodeService.
-        bool isOffshoreNode = nodeId == OffshoreNodeId;
-
         TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
         proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-
-        TOffshoreNodeServiceProxy offshoreProxy(GetNodeChannel(nodeId));
-        offshoreProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
         std::vector<TFuture<void>> futures;
 
@@ -197,11 +189,7 @@ private:
         std::vector<TChunkToFetch> requestedChunks;
 
         auto createRequest = [&] {
-            if (isOffshoreNode) {
-                req = offshoreProxy.GetChunkSlices();
-            } else {
-                req = proxy.GetChunkSlices();
-            }
+            req = proxy.GetChunkSlices();
 
             // TODO(babenko): make configurable
             SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
@@ -266,6 +254,7 @@ private:
                 protoSliceRequest->set_slice_by_keys(sliceByKeys);
                 protoSliceRequest->set_key_column_count(comparator.GetLength());
                 ToProto(protoSliceRequest->mutable_replica_spec(), replica);
+                protoSliceRequest->set_chunk_format(::NYT::ToProto<i32>(chunk->GetChunkFormat()));
             }
 
             if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {

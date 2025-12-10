@@ -10,6 +10,11 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Proxy to both DataNodeService and OffshoreNodeService; it was decided to include one into
+//! the other as OffshoreNodeService currently implements a subset of DataNodeService's
+//! API methods and even uses identical signatures. This allows us to work with them
+//! in a more convenient and clean way. For instance, the code does not need to think
+//! where a given chunk/meta is read from, it's handled on the channel level.
 class TDataNodeServiceProxy
     : public NRpc::TProxyBase
 {
