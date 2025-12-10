@@ -9,6 +9,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
+#include <yt/yt/ytlib/columnar_chunk_format/versioned_chunk_reader.h>
+
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -164,18 +166,37 @@ private:
                 /*memoryTracker*/ nullptr)))
             .ValueOrThrow();
 
-        auto tableReader = CreateVersionedChunkReader(
-            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
-            TChunkReaderConfig::GetDefault(),
-            ChunkReader_,
-            InputChunkState_,
-            std::move(cachedVersionedChunkMeta),
-            /*chunkReadOptions*/ {},
-            MinKey(),
-            MaxKey(),
-            /*columnFilter*/ {},
-            AllCommittedTimestamp,
-            /*produceAllVersions*/ true);
+        IVersionedReaderPtr tableReader;
+
+        if (cachedVersionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
+            auto blockManagerFactory = NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
+                InputChunkState_->BlockCache,
+                InputChunkState_->ChunkMeta,
+                ChunkReader_->GetChunkId());
+
+            tableReader = NColumnarChunkFormat::CreateVersionedChunkReader(
+                MakeSingletonRowRange(MinKey(), MaxKey()),
+                AllCommittedTimestamp,
+                InputChunkState_->ChunkMeta,
+                InputChunkState_->TableSchema,
+                NTableClient::TColumnFilter(),
+                InputChunkState_->ChunkColumnMapping,
+                blockManagerFactory,
+                /*produceAllVersions*/ true);
+        } else {
+            tableReader = CreateVersionedChunkReader(
+                CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+                TChunkReaderConfig::GetDefault(),
+                ChunkReader_,
+                InputChunkState_,
+                std::move(cachedVersionedChunkMeta),
+                /*chunkReadOptions*/ {},
+                MinKey(),
+                MaxKey(),
+                /*columnFilter*/ {},
+                AllCommittedTimestamp,
+                /*produceAllVersions*/ true);
+        }
 
         WaitFor(tableReader->Open())
             .ThrowOnError();
