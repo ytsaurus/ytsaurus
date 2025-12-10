@@ -415,6 +415,42 @@ public:
         }
     }
 
+    bool RegisterExternalizerTablet(
+        TTransaction* transaction,
+        TTabletId tabletId,
+        TTransactionExternalizationToken externalizationToken) override
+    {
+        YT_VERIFY(HasHydraContext());
+        YT_VERIFY(!transaction->GetTransient());
+        YT_VERIFY(!transaction->IsExternalizedToThisCell());
+
+        auto it = transaction->ExternalizerTablets().find(tabletId);
+        if (it != transaction->ExternalizerTablets().end()) {
+            YT_VERIFY(it->second.ExternalizationToken == externalizationToken);
+            return false;
+        }
+
+        it = transaction->ExternalizerTablets().emplace(
+            tabletId,
+            TTransaction::TExternalizerTablet{
+                .ExternalizationToken = externalizationToken,
+            }).first;
+
+        for (const auto& action : transaction->Actions()) {
+            auto handler = GetOrDefault(
+                NeedActionExternalizationHandlers_,
+                action.Type,
+                {});
+
+            if (!handler || handler(transaction, action.Value, tabletId)) {
+                transaction->SetHasNonForwardedActions(true);
+                break;
+            }
+        }
+
+        return true;
+    }
+
     TFuture<void> RegisterTransactionActions(
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
@@ -500,10 +536,15 @@ public:
                 prepareSignature);
         }
 
-        if (transaction->IsExternalizedFromThisCell() && transaction->GetHasUnforwardedActions()) {
-            THROW_ERROR_EXCEPTION(
-                "Transaction %v is externalized but has actions which were not forwarded",
-                transactionId);
+        if (transaction->GetHasNonForwardedActions()) {
+            // COMPAT(ifsmirnov): this condition is necessary only for old transactions.
+            // Non-externalized transactions created after ETabletReign::PerTabletTxActionForwarding
+            // should never have nonforwarded action flag set. Remove the condition when 25.4 is deployed.
+            if (transaction->IsExternalizedFromThisCell()) {
+                THROW_ERROR_EXCEPTION(
+                    "Transaction %v is externalized but has actions which were not forwarded",
+                    transactionId);
+            }
         }
 
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
@@ -548,7 +589,14 @@ public:
                 YT_LOG_DEBUG("Forwarding externalized transaction prepare "
                     "(TransactionId: %v, ExternalizerTabletIds: %v, PrepareTimestamp: %v)",
                     transaction->GetId(),
-                    transaction->ExternalizerTablets(),
+                    MakeFormattableView(
+                        transaction->ExternalizerTablets(),
+                        [] (auto* builder, const auto& pair) {
+                            builder->AppendFormat(
+                                "%v:%v",
+                                pair.first,
+                                pair.second.ExternalizationToken);
+                        }),
                     options.PrepareTimestamp);
             }
 
@@ -888,6 +936,12 @@ public:
 
     void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
+        if (descriptor.NeedsExternalization) {
+            NeedActionExternalizationHandlers_.emplace(
+                descriptor.Type(),
+                std::move(descriptor.NeedsExternalization));
+        }
+
         TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
@@ -917,6 +971,8 @@ private:
     TEntityMap<TTransaction> TransientTransactionMap_;
     TEntityMap<TExternalizedTransaction> ExternalizedTransactionMap_;
     THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
+    THashMap<TString, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
+        NeedActionExternalizationHandlers_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
@@ -962,7 +1018,8 @@ private:
                                     fluent
                                         .Item().BeginMap()
                                             .Item("tablet_id").Value(pair.first)
-                                            .Item("externalization_token").Value(pair.second)
+                                            .Item("externalization_token").Value(
+                                                pair.second.ExternalizationToken)
                                         .EndMap();
                                 });
                     })
@@ -1257,8 +1314,13 @@ private:
 
         YT_VERIFY(!transaction->IsExternalizedToThisCell());
 
-        for (auto [tabletId, token] : transaction->ExternalizerTablets()) {
-            ForwardTransactionIfExternalized(transaction, tabletId, token, request, options);
+        for (auto [tabletId, tabletInfo] : transaction->ExternalizerTablets()) {
+            ForwardTransactionIfExternalized(
+                transaction,
+                tabletId,
+                tabletInfo.ExternalizationToken,
+                request,
+                options);
         }
 
         return true;
@@ -1341,8 +1403,41 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        for (const auto& protoData : request->actions()) {
-            auto data = FromProto<TTransactionActionData>(protoData);
+        std::vector<std::pair<TTabletId, int>> externalizedActionIndexes;
+
+        for (int index = 0; index < request->actions().size(); ++index) {
+            auto data = FromProto<TTransactionActionData>(request->actions()[index]);
+
+            if (transaction->IsExternalizedFromThisCell()) {
+                // Transaction actions may be specific to certain tablets, so we
+                // should be picky in what actions will be forwarded to each tablet.
+                auto handler = GetOrDefault(
+                    NeedActionExternalizationHandlers_,
+                    data.Type,
+                    {});
+
+                for (auto [tabletId, tabletInfo] : transaction->ExternalizerTablets()) {
+                    if (!handler || handler(transaction, data.Value, tabletId)) {
+                        externalizedActionIndexes.emplace_back(tabletId, index);
+                        YT_LOG_DEBUG("Forwarding transaction action "
+                            "(TransactionId: %v, Type: %v, TabletId: %v, ExternalizationToken: %v)",
+                            transaction->GetId(),
+                            data.Type,
+                            tabletId,
+                            tabletInfo.ExternalizationToken);
+                    } else {
+                        YT_LOG_DEBUG("Will not forward transaction action "
+                            "(TransactionId: %v, Type: %v, TabletId: %v, ExternalizationToken: %v)",
+                            transaction->GetId(),
+                            data.Type,
+                            tabletId,
+                            tabletInfo.ExternalizationToken);
+                    }
+                }
+            }
+
+            // #data is moved from so we store the action in the transaction
+            // after externalization is dealt with.
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %x)",
@@ -1351,12 +1446,55 @@ private:
                 signature);
         }
 
-        if (!ForwardTransactionIfExternalized(transaction, *request, /*options*/ {})) {
+        {
+            std::sort(externalizedActionIndexes.begin(), externalizedActionIndexes.end());
+            auto beginTabletRange = externalizedActionIndexes.begin();
+            auto endTabletRange = externalizedActionIndexes.begin();
+
+            for (auto tabletIt : GetSortedIterators(transaction->ExternalizerTablets())) {
+                auto tabletId = tabletIt->first;
+                auto token = tabletIt->second.ExternalizationToken;
+
+                while (endTabletRange != externalizedActionIndexes.end() &&
+                    endTabletRange->first == tabletId)
+                {
+                    ++endTabletRange;
+                }
+
+                if (beginTabletRange == endTabletRange) {
+                    continue;
+                }
+
+                // NB: Full copy is intentional. It is more expensive because
+                // action data is copied but less error prone when new fields
+                // are added to the request.
+                TReqRegisterTransactionActions clonedRequest(*request);
+                clonedRequest.clear_actions();
+
+                for (auto it = beginTabletRange; it != endTabletRange; ++it) {
+                    *clonedRequest.add_actions() = request->actions()[it->second];
+                }
+
+                ForwardTransactionIfExternalized(
+                    transaction,
+                    tabletId,
+                    token,
+                    std::move(clonedRequest),
+                    /*options*/ {});
+
+                beginTabletRange = endTabletRange;
+            }
+
+            YT_VERIFY(beginTabletRange == externalizedActionIndexes.end());
+        }
+
+        if (!transaction->IsExternalizedFromThisCell()) {
             // COMPAT(ifsmirnov)
-            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
-                ETabletReign::UnforwardedTransactionActions)
+            auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            if (reign >= ETabletReign::NonForwardedTransactionActions &&
+                reign < ETabletReign::PerTabletTxActionForwarding)
             {
-                transaction->SetHasUnforwardedActions(true);
+                transaction->SetHasNonForwardedActions(true);
             }
         }
 
@@ -1453,10 +1591,7 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        EmplaceOrCrash(
-            transaction->ExternalizerTablets(),
-            tabletId,
-            token);
+        RegisterExternalizerTablet(transaction, tabletId, token);
 
         YT_LOG_DEBUG("Transaction externalized "
             "(TabletId: %v, TransactionId: %v, ExternalizationToken: %v)",

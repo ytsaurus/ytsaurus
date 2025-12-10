@@ -259,15 +259,6 @@ public:
 
             if (transaction) {
                 AddTransientAffectedTablet(transaction, tablet);
-
-                if (!transaction->GetTransient() &&
-                    tablet->SmoothMovementData().ShouldForwardMutation() &&
-                    !transaction->ExternalizerTablets().contains(tablet->GetId()))
-                {
-                    THROW_ERROR_EXCEPTION("Attempted to write rows in a transaction which is "
-                        "persistent and should be externalized but is not")
-                        << TErrorAttribute("transaction_id", transaction->GetId());
-                }
             }
 
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
@@ -769,10 +760,8 @@ private:
 
         auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
 
-        auto [it, inserted] = transaction->ExternalizerTablets().emplace(tablet->GetId(), token);
-        if (!inserted) {
-            YT_VERIFY(it->second == token);
-        }
+        const auto& transactionManager = Host_->GetTransactionManager();
+        transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
 
         ToProto(request.mutable_transaction_externalization_token(), token);
         ToProto(
