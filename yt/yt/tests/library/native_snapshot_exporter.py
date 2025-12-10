@@ -90,7 +90,7 @@ class SnapshotBuilderBase:
         self.binary = os.path.join(self.bin_path, "ytserver-master")
         self.config_path = os.path.join(self.path_to_run, "configs", "master-0-0.yson")
 
-    def build_master_snapshot(self, set_read_only=False):
+    def build_master_snapshot(self, set_read_only=False) -> str:
         build_master_snapshots(set_read_only=set_read_only)
 
         self.snapshot_result_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0")
@@ -103,6 +103,7 @@ class SnapshotBuilderBase:
 
         self.snapshot_id = snapshots[-1].split(".")[0]
         self.snapshot_path = os.path.join(snapshot_dir, self.snapshot_id + ".snapshot")
+        return self.snapshot_id
 
     def validate_master_snapshot(self):
         changelog_dir = os.path.join(self.snapshot_result_dir, "changelogs")
