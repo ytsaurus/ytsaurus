@@ -3845,27 +3845,25 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetTotalJobCounter();
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
-            "Partitions = {T: %v, C: %v}, "
-            "PartitionJobs = %v, "
-            "IntermediateSortJobs = %v, "
-            "FinalSortJobs = %v, "
-            "SortedMergeJobs = %v, "
-            "UnorderedMergeJobs = %v, "
-            "UnavailableInputChunks: %v",
+            "{"
+            "Jobs: %v, "
+            "Partitions: {T: %v, C: %v}, "
+            "DispatchedPartitions: %v, "
+            "PartitionJobs: %v, "
+            "IntermediateSortJobs: %v, "
+            "FinalSortJobs: %v, "
+            "SortedMergeJobs: %v, "
+            "UnorderedMergeJobs: %v, "
+            "ControllerPendingJobCount: %v, "
+            "UnavailableInputChunks: %v"
+            "}",
             // Jobs
-            jobCounter->GetTotal(),
-            jobCounter->GetRunning(),
-            jobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            jobCounter->GetFailed(),
-            jobCounter->GetAbortedTotal(),
-            jobCounter->GetLost(),
+            GetTotalJobCounter(),
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
+            PartitionsDispatchStatistics_,
             // PartitionJobs
             GetPartitionJobCounter(),
             // IntermediateSortJobs
@@ -3876,6 +3874,7 @@ private:
             SortedMergeJobCounter_,
             // UnorderedMergeJobs
             UnorderedMergeJobCounter_,
+            GetPendingJobCount(),
             GetUnavailableInputChunkCount());
     }
 
@@ -4806,26 +4805,24 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetTotalJobCounter();
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
-            "Partitions = {T: %v, C: %v}, "
-            "MapJobs = %v, "
-            "SortJobs = %v, "
-            "PartitionReduceJobs = %v, "
-            "SortedReduceJobs = %v, "
-            "UnavailableInputChunks: %v",
+            "{"
+            "Jobs: %v, "
+            "Partitions: {T: %v, C: %v}, "
+            "DispatchedPartitions: %v, "
+            "MapJobs: %v, "
+            "SortJobs: %v, "
+            "PartitionReduceJobs: %v, "
+            "SortedReduceJobs: %v, "
+            "ControllerPendingJobCount: %v, "
+            "UnavailableInputChunks: %v"
+            "}",
             // Jobs
-            jobCounter->GetTotal(),
-            jobCounter->GetRunning(),
-            jobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            jobCounter->GetFailed(),
-            jobCounter->GetAbortedTotal(),
-            jobCounter->GetLost(),
+            GetTotalJobCounter(),
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
+            PartitionsDispatchStatistics_,
             // MapJobs
             GetPartitionJobCounter(),
             // SortJobs
@@ -4834,6 +4831,7 @@ private:
             FinalSortJobCounter_,
             // SortedReduceJobs
             SortedMergeJobCounter_,
+            GetPendingJobCount(),
             GetUnavailableInputChunkCount());
     }
 
