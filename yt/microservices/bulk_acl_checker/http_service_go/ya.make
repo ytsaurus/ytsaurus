@@ -9,7 +9,7 @@ SRCS(
     args.go
 )
 
-IF (OPENSOURCE OR RUN_MANUAL_TESTS)
+IF (OPENSOURCE)
     SRCS(
         args_external.go
         run_external.go
