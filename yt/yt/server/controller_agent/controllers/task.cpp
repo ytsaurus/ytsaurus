@@ -274,79 +274,16 @@ const TProgressCounterPtr& TTask::GetJobCounter() const
     return GetChunkPoolOutput()->GetJobCounter();
 }
 
-TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
+TCompositeNeededResources TTask::GetNeededResources() const
 {
-    if (!TaskHost_->GetSpec()->UseClusterThrottlers) {
-        return GetTotalNeededResourcesDefaultDelta();
-    }
-
-    if (UnavailableNetworkBandwidthToClustersStartTime_) {
-        UnavailableNetworkBandwidthToClustersDuration_ += TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
-    }
-
-    auto isNetworkBandwidthAvailable = true;
-    for (const auto& [clusterName, isAvailable] : GetClusterToNetworkBandwidthAvailability()) {
-        if (!isAvailable) {
-            isNetworkBandwidthAvailable = false;
-
-            YT_LOG_DEBUG("Network bandwidth to remote cluster is not available now so zero out needed resources "
-                "(Cluster: %v, OldMaxRunnableJobCount: %v)",
-                clusterName,
-                CurrentMaxRunnableJobCount_);
-            break;
-        }
-    }
-
-    if (!isNetworkBandwidthAvailable) {
-        UnavailableNetworkBandwidthToClustersStartTime_ = TInstant::Now();
-        // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
-        auto result = -CachedTotalNeededResources_;
-        CachedTotalNeededResources_ = {};
-        CurrentMaxRunnableJobCount_ = 0;
-        return result;
-    }
-
-    UnavailableNetworkBandwidthToClustersStartTime_.reset();
-
-    auto oldCurrentMaxRunnableJobCount = CurrentMaxRunnableJobCount_;
-    // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
-    CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
-
-    if (oldCurrentMaxRunnableJobCount != CurrentMaxRunnableJobCount_) {
-        YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
-            "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
-            oldCurrentMaxRunnableJobCount,
-            CurrentMaxRunnableJobCount_);
-    }
-
-    return TTask::GetTotalNeededResourcesDefaultDelta();
+    return CachedNeededResources_;
 }
 
-TCompositeNeededResources TTask::GetTotalNeededResourcesDefaultDelta()
+void TTask::UpdateNeededResources()
 {
-    auto oldValue = CachedTotalNeededResources_;
-    auto newValue = GetTotalNeededResources();
-    CachedTotalNeededResources_ = newValue;
-    return newValue - oldValue;
-}
-
-TCompositeNeededResources TTask::GetTotalNeededResources(i64 maxRunnableJobCount) const
-{
-    maxRunnableJobCount = std::min(CurrentMaxRunnableJobCount_, maxRunnableJobCount);
-
-    auto jobCount = GetPendingJobCount();
-    // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    TCompositeNeededResources result;
-
-    if (jobCount.DefaultCount != 0) {
-        result.DefaultResources = GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(jobCount.DefaultCount), maxRunnableJobCount);
-    }
-    for (const auto& [tree, count] : jobCount.CountByPoolTree) {
-        result.ResourcesByPoolTreeId[tree] = count == 0
-            ? TJobResources{}
-            : GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(count), maxRunnableJobCount);
-    }
-    return result;
+    // First update CurrentMaxRunnableJobCount_ only then update CachedNeededResources_.
+    UpdateNeededResourcesParams();
+    CachedNeededResources_ = CalculateNeededResources();
 }
 
 bool TTask::IsStderrTableEnabled() const
@@ -855,7 +792,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         }
     }
 
-    auto estimatedResourceUsage = GetNeededResources(joblet);
+    auto estimatedResourceUsage = GetJobNeededResources(joblet);
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
 
     TaskHost_->UpdateWriteBufferMemoryAlert(
@@ -1204,7 +1141,7 @@ void TTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, CachedPendingJobCount_);
     PHOENIX_REGISTER_FIELD(3, CachedTotalJobCount_);
 
-    PHOENIX_REGISTER_FIELD(4, CachedTotalNeededResources_);
+    PHOENIX_REGISTER_FIELD(4, CachedNeededResources_);
     PHOENIX_REGISTER_FIELD(5, CachedMinNeededResources_);
 
     PHOENIX_REGISTER_FIELD(6, CompletedFired_);
@@ -2825,6 +2762,69 @@ void TTask::UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::
 {
     YT_VERIFY(ClusterToNetworkBandwidthAvailabilityLock_.IsLockedByWriter());
     ClusterToNetworkBandwidthAvailability_[clusterName] = isAvailable;
+}
+
+TCompositeNeededResources TTask::CalculateNeededResources() const
+{
+    auto jobCount = GetPendingJobCount();
+    // NB: Don't call GetMinNeededResources if there are no pending jobs.
+    TCompositeNeededResources result;
+
+    if (jobCount.DefaultCount != 0) {
+        result.DefaultResources = GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(jobCount.DefaultCount), CurrentMaxRunnableJobCount_);
+    }
+    for (const auto& [tree, count] : jobCount.CountByPoolTree) {
+        result.ResourcesByPoolTreeId[tree] = count == 0
+            ? TJobResources{}
+            : GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(count), CurrentMaxRunnableJobCount_);
+    }
+    return result;
+}
+
+//! Update CurrentMaxRunnableJobCount_.
+void TTask::UpdateNeededResourcesParams()
+{
+    if (!TaskHost_->GetSpec()->UseClusterThrottlers) {
+        CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
+        return;
+    }
+
+    if (UnavailableNetworkBandwidthToClustersStartTime_) {
+        UnavailableNetworkBandwidthToClustersDuration_ += TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
+    }
+
+    const TClusterName* unavailableClusterName = nullptr;
+    auto clusterToAvailability = GetClusterToNetworkBandwidthAvailability();
+    for (const auto& [clusterName, isAvailable] : clusterToAvailability) {
+        if (!isAvailable) {
+            unavailableClusterName = &clusterName;
+            break;
+        }
+    }
+
+    if (unavailableClusterName) {
+        YT_LOG_DEBUG("Network bandwidth to remote cluster is not available so zero out maximum runnable jobs (Cluster: %v, OldMaxRunnableJobCount: %v)",
+            *unavailableClusterName,
+            CurrentMaxRunnableJobCount_);
+
+        UnavailableNetworkBandwidthToClustersStartTime_ = TInstant::Now();
+        // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
+        CurrentMaxRunnableJobCount_ = 0;
+        return;
+    }
+
+    UnavailableNetworkBandwidthToClustersStartTime_.reset();
+
+    auto oldCurrentMaxRunnableJobCount = CurrentMaxRunnableJobCount_;
+    // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
+    CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
+
+    if (oldCurrentMaxRunnableJobCount != CurrentMaxRunnableJobCount_) {
+        YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
+            "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
+            oldCurrentMaxRunnableJobCount,
+            CurrentMaxRunnableJobCount_);
+    }
 }
 
 void TTask::ValidateJobSizeConstraints(const TJobletPtr& joblet) const

@@ -276,7 +276,7 @@ TVertexDescriptorList TAutoMergeTask::GetAllVertexDescriptors() const
     return {"auto_merge", "shallow_auto_merge"};
 }
 
-TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
+TExtendedJobResources TAutoMergeTask::GetJobNeededResources(const TJobletPtr& joblet) const
 {
     auto result = TaskHost_->GetAutoMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
     AddFootprintAndUserJobResources(result);
