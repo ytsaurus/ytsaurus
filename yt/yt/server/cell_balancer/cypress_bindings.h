@@ -187,6 +187,7 @@ struct TBundleConfig
     bool InitChaosBundles;
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
+    std::optional<int> RedundantRpcProxyDataCenterCount;
 
     THashSet<std::string> ForbiddenDataCenters;
 
