@@ -510,6 +510,10 @@ void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimi
     MemoryUsageTracker_->SetCategoryLimit(
         EMemoryCategory::HeavyRequest,
         memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
+
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::Rpc,
+        memoryLimits->Rpc.value_or(staticLimits->Rpc.value_or(totalLimit)));
 }
 
 void TBootstrap::ReconfigureConnection(
