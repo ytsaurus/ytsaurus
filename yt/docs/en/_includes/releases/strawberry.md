@@ -13,7 +13,7 @@ Is released as a docker image.
 **Release date:** 2025-09-18
 
 
-### General Updates
+#### General Updates
 
 **Features:**
 
@@ -28,7 +28,7 @@ Is released as a docker image.
 **Release date:** 2025-08-20
 
 
-### General Updates
+#### General Updates
 
 **Features:**
 
@@ -39,13 +39,13 @@ Is released as a docker image.
 - Fixed pool validation. (Commit: 68b574792e50e355c59fbe1f65edb9a1feee4210) @dmi-feo
 - Added family prefix to yt op alias to prevent alias collisions (Commit: 734958682f3a6a263c9d03574adc283267c40738) @dmi-feo
 
-### CHYT
+#### CHYT
 
 - Added options for mTLS (Commit: 642a88355b0972489ff4ff29b2cf7615c5b3f85f) @koct9i 
 - Allowed to set default CHYT resources in strawberry config (Commit: e4ba1a582b48151eeb61714b06e417d4e3e06bf1) @dmi-feo
 - Logging of http headers is enabled by default (Commit: b52dd26fb366eb388e124faa8eb950ab8c077226) @a-dyu
  
-### Jupyter
+#### Jupyter
 
 - Allowed to run jupyt operations on behalf of user (Commit: c9b02c7f24b0cbf18c2bf35af01143240ca4a792) @dmi-feo
 
