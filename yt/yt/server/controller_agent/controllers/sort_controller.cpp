@@ -554,7 +554,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetPartitionResources(joblet->InputStripeList->GetPerStripeStatistics(), IsRoot());
             AddFootprintAndUserJobResources(result);
@@ -903,7 +903,7 @@ protected:
             }
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             const auto& stripeList = joblet->InputStripeList;
             auto statistics = stripeList->GetAggregateStatistics();
@@ -1429,7 +1429,7 @@ protected:
             }
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto resources = Controller_->GetSortedMergeResources(
                 joblet->InputStripeList->GetPerStripeStatistics());
@@ -1685,7 +1685,7 @@ protected:
             return 0;
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             auto result = Controller_->GetUnorderedMergeResources(
                 joblet->InputStripeList->GetPerStripeStatistics());
@@ -3290,6 +3290,11 @@ private:
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec_->SortBy);
                     ValidateOutputSchemaCompatibility({
+                        .TypeCompatibilityOptions = {
+                            .AllowStructFieldRenaming = false,
+                            .AllowStructFieldRemoval = false,
+                            .IgnoreUnknownRemovedFieldNames = false,
+                        },
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
                         .IgnoreStableNamesDifference = true,
@@ -3845,27 +3850,25 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetTotalJobCounter();
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
-            "Partitions = {T: %v, C: %v}, "
-            "PartitionJobs = %v, "
-            "IntermediateSortJobs = %v, "
-            "FinalSortJobs = %v, "
-            "SortedMergeJobs = %v, "
-            "UnorderedMergeJobs = %v, "
-            "UnavailableInputChunks: %v",
+            "{"
+            "Jobs: %v, "
+            "Partitions: {T: %v, C: %v}, "
+            "DispatchedPartitions: %v, "
+            "PartitionJobs: %v, "
+            "IntermediateSortJobs: %v, "
+            "FinalSortJobs: %v, "
+            "SortedMergeJobs: %v, "
+            "UnorderedMergeJobs: %v, "
+            "ControllerPendingJobCount: %v, "
+            "UnavailableInputChunks: %v"
+            "}",
             // Jobs
-            jobCounter->GetTotal(),
-            jobCounter->GetRunning(),
-            jobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            jobCounter->GetFailed(),
-            jobCounter->GetAbortedTotal(),
-            jobCounter->GetLost(),
+            GetTotalJobCounter(),
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
+            PartitionsDispatchStatistics_,
             // PartitionJobs
             GetPartitionJobCounter(),
             // IntermediateSortJobs
@@ -3876,6 +3879,7 @@ private:
             SortedMergeJobCounter_,
             // UnorderedMergeJobs
             UnorderedMergeJobCounter_,
+            GetPendingJobCount(),
             GetUnavailableInputChunkCount());
     }
 
@@ -4143,11 +4147,17 @@ private:
         }
 
         auto chooseMostGenericOrThrow = [&] (const auto& lhs, const auto& rhs) {
-            auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs);
+            // TODO(s-berdnikov): Relax constraints?
+            static constexpr TTypeCompatibilityOptions TypeCompatibilityOptions{
+                .AllowStructFieldRenaming = false,
+                .AllowStructFieldRemoval = false,
+                .IgnoreUnknownRemovedFieldNames = false,
+            };
+            auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs, TypeCompatibilityOptions);
             if (compatibilityRhs == ESchemaCompatibility::FullyCompatible) {
                 return rhs;
             }
-            auto [compatibilityLhs, errorLhs] = CheckTypeCompatibility(rhs, lhs);
+            auto [compatibilityLhs, errorLhs] = CheckTypeCompatibility(rhs, lhs, TypeCompatibilityOptions);
             if (compatibilityLhs == ESchemaCompatibility::FullyCompatible) {
                 return lhs;
             }
@@ -4806,26 +4816,24 @@ private:
 
     TString GetLoggingProgress() const override
     {
-        const auto& jobCounter = GetTotalJobCounter();
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
-            "Partitions = {T: %v, C: %v}, "
-            "MapJobs = %v, "
-            "SortJobs = %v, "
-            "PartitionReduceJobs = %v, "
-            "SortedReduceJobs = %v, "
-            "UnavailableInputChunks: %v",
+            "{"
+            "Jobs: %v, "
+            "Partitions: {T: %v, C: %v}, "
+            "DispatchedPartitions: %v, "
+            "MapJobs: %v, "
+            "SortJobs: %v, "
+            "PartitionReduceJobs: %v, "
+            "SortedReduceJobs: %v, "
+            "ControllerPendingJobCount: %v, "
+            "UnavailableInputChunks: %v"
+            "}",
             // Jobs
-            jobCounter->GetTotal(),
-            jobCounter->GetRunning(),
-            jobCounter->GetCompletedTotal(),
-            GetPendingJobCount(),
-            jobCounter->GetFailed(),
-            jobCounter->GetAbortedTotal(),
-            jobCounter->GetLost(),
+            GetTotalJobCounter(),
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
+            PartitionsDispatchStatistics_,
             // MapJobs
             GetPartitionJobCounter(),
             // SortJobs
@@ -4834,6 +4842,7 @@ private:
             FinalSortJobCounter_,
             // SortedReduceJobs
             SortedMergeJobCounter_,
+            GetPendingJobCount(),
             GetUnavailableInputChunkCount());
     }
 

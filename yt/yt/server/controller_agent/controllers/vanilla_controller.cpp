@@ -76,7 +76,7 @@ public:
 
     TUserJobSpecPtr GetUserJobSpec() const override;
 
-    TExtendedJobResources GetNeededResources(const TJobletPtr& /*joblet*/) const override;
+    TExtendedJobResources GetJobNeededResources(const TJobletPtr& /*joblet*/) const override;
 
     TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
@@ -292,7 +292,7 @@ TUserJobSpecPtr TVanillaTask::GetUserJobSpec() const
     return Spec_;
 }
 
-TExtendedJobResources TVanillaTask::GetNeededResources(const TJobletPtr& /*joblet*/) const
+TExtendedJobResources TVanillaTask::GetJobNeededResources(const TJobletPtr& /*joblet*/) const
 {
     return GetMinNeededResourcesHeavy();
 }
@@ -520,15 +520,10 @@ void TVanillaController::CustomMaterialize()
 
 TString TVanillaController::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetTotalJobCounter();
     return Format(
-        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, ",
-        jobCounter->GetTotal(),
-        jobCounter->GetRunning(),
-        jobCounter->GetCompletedTotal(),
-        GetPendingJobCount(),
-        jobCounter->GetFailed(),
-        jobCounter->GetAbortedTotal());
+        "{Jobs: %v, ControllerPendingJobCount: %v}",
+        GetTotalJobCounter(),
+        GetPendingJobCount());
 }
 
 std::vector<TRichYPath> TVanillaController::GetInputTablePaths() const

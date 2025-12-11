@@ -2143,12 +2143,20 @@ private:
     {
         bool needChunkSchemasValidation = false;
         for (const auto& inputTableSchema : InputTableSchemas_) {
-            auto schemasCompatibility = CheckTableSchemaCompatibility(
+            static constexpr TTableSchemaCompatibilityOptions CompatibilityOptions{
+                .TypeCompatibilityOptions = {
+                    .AllowStructFieldRenaming = false,
+                    .AllowStructFieldRemoval = false,
+                    .IgnoreUnknownRemovedFieldNames = false,
+                },
+                .IgnoreSortOrder = false,
+            };
+            auto [compatibility, error] = CheckTableSchemaCompatibility(
                 inputTableSchema,
                 *OutputTableSchema_,
-                {.IgnoreSortOrder = false});
-            if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
-                YT_LOG_DEBUG(schemasCompatibility.second,
+                CompatibilityOptions);
+            if (compatibility != ESchemaCompatibility::FullyCompatible) {
+                YT_LOG_DEBUG(error,
                     "Input table schema and output table schema are incompatible; "
                     "need to validate chunk schemas");
                 needChunkSchemasValidation = true;

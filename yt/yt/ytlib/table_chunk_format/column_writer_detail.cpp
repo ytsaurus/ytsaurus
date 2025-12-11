@@ -117,8 +117,8 @@ TVersionedColumnWriterBase::TVersionedColumnWriterBase(
 i64 TVersionedColumnWriterBase::GetMemoryUsage() const
 {
     return GetVectorMemoryUsage(ValuesPerRow_) +
-        AggregateBitmap_.GetByteSize() +
-        NullBitmap_.GetByteSize() +
+        AggregateBitmap_.GetMemoryUsage() +
+        NullBitmap_.GetMemoryUsage() +
         GetVectorMemoryUsage(TimestampIndexes_);
 }
 

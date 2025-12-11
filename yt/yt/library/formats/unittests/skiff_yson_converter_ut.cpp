@@ -621,6 +621,7 @@ public:
             for (size_t i = 0; i < elements.size(); ++i) {
                 fields.push_back({
                     .Name = Format("field%v", i),
+                    .StableName = Format("field%v", i),
                     .Type = elements[i],
                 });
             }

@@ -145,7 +145,7 @@ protected:
                 : TDuration::Zero();
         }
 
-        TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
+        TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override
         {
             return GetMergeResources(joblet->InputStripeList->GetPerStripeStatistics());
         }
@@ -949,7 +949,13 @@ public:
                     InferSchemaFromInput(PrimarySortColumns_);
                 } else {
                     prepareOutputSortColumns();
+                    // TODO(s-berdnikov): Relax constraints.
                     ValidateOutputSchemaCompatibility({
+                        .TypeCompatibilityOptions = {
+                            .AllowStructFieldRenaming = false,
+                            .AllowStructFieldRemoval = false,
+                            .IgnoreUnknownRemovedFieldNames = false,
+                        },
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
                         .IgnoreStableNamesDifference = true,

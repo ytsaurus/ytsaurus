@@ -4884,7 +4884,9 @@ void TOperationControllerBase::UpdateTask(TTask* task)
     int newTotalJobCount = CachedTotalJobCount_ + task->GetTotalJobCountDelta();
     CachedTotalJobCount_ = newTotalJobCount;
 
-    IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
+    // First update needed resources of the task then of the operation.
+    task->UpdateNeededResources();
+    UpdateNeededResources();
 
     // TODO(max42): move this logging into pools.
     YT_LOG_DEBUG_IF(
@@ -5292,30 +5294,27 @@ void TOperationControllerBase::SetLightOperationAttributesUpdated()
     ShouldUpdateLightOperationAttributes_ = false;
 }
 
-void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededResources& resourcesDelta)
+void TOperationControllerBase::UpdateNeededResources()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto zeroOutNeededResources = false;
+    TCompositeNeededResources neededResources{};
     for (const auto& task : Tasks_) {
         if (task->IsCompleted()) {
             continue;
         }
 
         if (!task->IsNetworkBandwidthToClustersAvailable()) {
-            zeroOutNeededResources = true;
+            // Zero out needed resources if any of the tasks faces unavailable network bandwidth.
+            neededResources = {};
             break;
         }
+
+        neededResources = neededResources + task->GetNeededResources();
     }
 
     auto guard = WriterGuard(CachedNeededResourcesLock_);
-    if (zeroOutNeededResources) {
-        // Network bandwidth to some clusters is not available. So zero out needed resources, to temporarily stop scheduling jobs.
-        CachedNeededResources_ = {};
-    } else {
-        CachedNeededResources_ = CachedNeededResources_ + resourcesDelta;
-    }
-
+    CachedNeededResources_ = neededResources;
     CachedNeededResources_.VerifyNonNegative();
 }
 
@@ -8429,17 +8428,10 @@ bool TOperationControllerBase::IsLocalityEnabled() const
 
 TString TOperationControllerBase::GetLoggingProgress() const
 {
-    const auto& jobCounter = GetTotalJobCounter();
     return Format(
-        "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, I: %v}, "
-        "UnavailableInputChunks: %v",
-        jobCounter->GetTotal(),
-        jobCounter->GetRunning(),
-        jobCounter->GetCompletedTotal(),
+        "{JobCounter: %v, ControllerPendingJobCount: %v, UnavailableInputChunks: %v}",
+        GetTotalJobCounter(),
         GetPendingJobCount(),
-        jobCounter->GetFailed(),
-        jobCounter->GetAbortedTotal(),
-        jobCounter->GetInterruptedTotal(),
         GetUnavailableInputChunkCount());
 }
 

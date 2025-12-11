@@ -20,11 +20,11 @@ YT_DECLARE_RECONFIGURABLE_SINGLETON(TQueryEngineConfig, TQueryEngineDynamicConfi
 struct TQueryEngineConfig
     : public NYTree::TYsonStruct
 {
-  TCodegenCacheConfigPtr CodegenCache;
+    TCodegenCacheConfigPtr CodegenCache;
 
-  REGISTER_YSON_STRUCT(TQueryEngineConfig);
+    REGISTER_YSON_STRUCT(TQueryEngineConfig);
 
-  static void Register(TRegistrar registrar);
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryEngineConfig)

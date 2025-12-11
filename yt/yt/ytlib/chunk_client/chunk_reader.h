@@ -50,7 +50,7 @@ struct IChunkReader
         const std::optional<TPartitionTags>& partitionTags = {},
         const std::optional<std::vector<int>>& extensionTags = {}) = 0;
 
-    //! Returns the id of the read this reader is assigned to read.
+    //! Returns the id of the chunk this reader is assigned to read.
     virtual TChunkId GetChunkId() const = 0;
 
     //! Upon fatal failures reader updates its failure time.

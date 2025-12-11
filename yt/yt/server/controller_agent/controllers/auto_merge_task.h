@@ -81,7 +81,7 @@ public:
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForJoblet(const TJobletPtr& joblet) const override;
     TVertexDescriptorList GetAllVertexDescriptors() const override;
 
-    TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
+    TExtendedJobResources GetJobNeededResources(const TJobletPtr& joblet) const override;
 
     NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const override;
 

@@ -2037,16 +2037,17 @@ TEST(TSkiffWriterTest, TestComplexType)
         auto nameTable = New<TNameTable>();
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", StructLogicalType({
-                {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {
+                    "points",
                     "points",
                     ListLogicalType(
                         StructLogicalType({
-                            {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                            {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                        }))
+                            {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                            {"y", "y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                        }, /*removedFieldStableNames*/ {}))
                 }
-            })),
+            }, /*removedFieldStableNames*/ {})),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2311,9 +2312,9 @@ TEST(TSkiffWriterTest, TestEmptyComplexType)
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))),
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                }, /*removedFieldStableNames*/ {}))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2357,9 +2358,9 @@ TEST(TSkiffWriterTest, TestSparseComplexType)
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))),
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                }, /*removedFieldStableNames*/ {}))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2408,9 +2409,9 @@ TEST(TSkiffWriterTest, TestSparseComplexTypeWithExtraOptional)
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("value", OptionalLogicalType(
             StructLogicalType({
-                {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"value", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            }))),
+                {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {}))),
     });
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
@@ -3021,9 +3022,9 @@ TEST(TSkiffParserTest, TestComplexColumn)
     TCollectingValueConsumer rowCollector(
         New<TTableSchema>(std::vector{
             TColumnSchema("column", NTableClient::StructLogicalType({
-                {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-            }))
+                {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+            }, /*removedFieldStableNames*/ {}))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3277,9 +3278,9 @@ TEST(TSkiffParserTest, TestSparseComplexType)
         New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
-                    {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })))
+                    {"name", "name", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+                }, /*removedFieldStableNames*/ {})))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3325,9 +3326,9 @@ TEST(TSkiffParserTest, TestSparseComplexTypeWithExtraOptional)
         New<TTableSchema>(std::vector{
             TColumnSchema("column", OptionalLogicalType(
                 StructLogicalType({
-                    {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-                    {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })))
+                    {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+                    {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
+                }, /*removedFieldStableNames*/ {})))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &rowCollector);
 
@@ -3407,9 +3408,9 @@ TEST(TSkiffFormatTest, ComplexTzType)
 
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("column", NTableClient::StructLogicalType({
-            {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp64)}
-        }))
+            {"key", "key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"value", "value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp64)}
+        }, /*removedFieldStableNames*/ {}))
     });
 
     TCollectingValueConsumer rowCollector(tableSchema);

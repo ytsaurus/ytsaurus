@@ -2443,7 +2443,15 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
             auto checkResult = CheckTableSchemaCompatibility(
                 *chunkSchema,
                 *tableUploadOptions.TableSchema.Get(),
-                {.AllowTimestampColumns = tableUploadOptions.VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp});
+                TTableSchemaCompatibilityOptions{
+                    .TypeCompatibilityOptions = {
+                        .AllowStructFieldRenaming = false,
+                        .AllowStructFieldRemoval = false,
+                        .IgnoreUnknownRemovedFieldNames = false,
+                    },
+                    .AllowTimestampColumns =
+                        tableUploadOptions.VersionedWriteOptions.WriteMode == EVersionedIOMode::LatestTimestamp,
+                });
 
             if (!checkResult.second.IsOK()) {
                 YT_LOG_FATAL(

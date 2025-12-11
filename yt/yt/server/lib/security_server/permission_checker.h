@@ -23,7 +23,7 @@ struct TPermissionCheckBasicOptions
 {
     //! If given, indicates that only a subset of columns are to affected by the operation.
     std::optional<std::vector<std::string>> Columns;
-    //! Should be given whenever RegisterQueueConsumer permission is checked; defined vitality
+    //! Should be given whenever RegisterQueueConsumer permission is checked; defines vitality
     //! of the consumer to be registered.
     std::optional<bool> Vital;
     bool AllowUndefinedResultAction = false;

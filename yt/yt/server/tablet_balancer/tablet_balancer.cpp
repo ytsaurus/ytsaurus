@@ -11,7 +11,6 @@
 #include "reshard_iteration.h"
 #include "tablet_action.h"
 #include "tablet_balancer.h"
-#include "table_registry.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -173,7 +172,7 @@ private:
 
     std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
 
-    THashMap<std::string, TBundleStatePtr> Bundles_;
+    THashMap<std::string, IBundleStatePtr> Bundles_;
     mutable THashMap<std::string, TBundleErrors> BundleErrors_;
 
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
@@ -206,7 +205,7 @@ private:
     void BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot);
     IListNodePtr FetchNodeStatistics() const;
 
-    bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
+    bool IsBalancingAllowed(const IBundleStatePtr& bundleState) const;
     bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
     bool CanScheduleActionCreation(const TGlobalGroupTag& groupTag);
 
@@ -238,9 +237,6 @@ private:
     bool IsBundleHealthy(const std::vector<std::string>& clusters, const std::string& bundleName) const;
 
     std::vector<std::string> UpdateBundleList();
-    bool HasUntrackedUnfinishedActions(
-        const std::string& bundleName,
-        const IAttributeDictionary* attributes) const;
 
     bool DidBundleBalancingTimeHappen(
         const TBundleTabletBalancerConfigPtr& config,
@@ -419,7 +415,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (bundle->GetHasUntrackedUnfinishedActions() || ActionManager_->HasUnfinishedActions(bundleName)) {
+        if (ActionManager_->HasUnfinishedActions(bundleName, bundle->GetUnfinishedActions())) {
             YT_LOG_INFO("Skip balancing iteration since bundle has unfinished actions (BundleName: %v)",
                 bundleName);
             continue;
@@ -551,7 +547,7 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
     }
 }
 
-bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) const
+bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) const
 {
     auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig->Enable &&
@@ -780,18 +776,8 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         const auto& name = bundle->AsString()->GetValue();
         currentBundles.insert(bundle->AsString()->GetValue());
 
-        auto [it, isNew] = Bundles_.emplace(
-            name,
-            New<TBundleState>(
-                name,
-                Bootstrap_->GetClient(),
-                Bootstrap_->GetClientDirectory(),
-                Bootstrap_->GetClusterDirectory(),
-                WorkerPool_->GetInvoker(),
-                Bootstrap_->GetClusterName()));
+        auto [it, isNew] = Bundles_.emplace(name, CreateBundleState(name, Bootstrap_, WorkerPool_->GetInvoker()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());
-        it->second->SetHasUntrackedUnfinishedActions(
-            HasUntrackedUnfinishedActions(name, &bundle->Attributes()));
 
         if (isNew) {
             newBundles.push_back(name);
@@ -809,25 +795,6 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         Bundles_.erase(it++);
     }
     return newBundles;
-}
-
-bool TTabletBalancer::HasUntrackedUnfinishedActions(
-    const std::string& bundleName,
-    const IAttributeDictionary* attributes) const
-{
-    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
-    for (auto actionMapNode : actions) {
-        auto state = ConvertTo<ETabletActionState>(actionMapNode->FindChild("state"));
-        if (IsTabletActionFinished(state)) {
-            continue;
-        }
-
-        auto actionId = ConvertTo<TTabletActionId>(actionMapNode->FindChild("tablet_action_id"));
-        if (!ActionManager_->IsKnownAction(bundleName, actionId)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 bool TTabletBalancer::DidBundleBalancingTimeHappen(

@@ -24,6 +24,9 @@
 #include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NTabletNode {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NClusterNode;
 using namespace NConcurrency;
@@ -39,14 +42,12 @@ constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 const auto PerformanceCounterStruct = StructLogicalType({
-    {"count", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    {"rate", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-    {"rate_10m", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-    {"rate_1h", SimpleLogicalType(ESimpleLogicalValueType::Double)}
-});
+    {"count", "count", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    {"rate", "rate", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+    {"rate_10m", "rate_10m", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+    {"rate_1h", "rate_1h", SimpleLogicalType(ESimpleLogicalValueType::Double)}
+}, /*removedFieldStableNames*/ {});
 
 const auto NameTable = TNameTable::FromSchema(TTableSchema({
     {"table_id", EValueType::String, ESortOrder::Ascending},
@@ -61,9 +62,9 @@ const auto NameTable = TNameTable::FromSchema(TTableSchema({
 
 const int ColumnCount = NameTable->GetSize();
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 TStatisticsReporter::TStatisticsReporter(IBootstrap* const bootstrap)
     : Bootstrap_(bootstrap)

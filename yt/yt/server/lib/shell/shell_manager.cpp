@@ -126,7 +126,7 @@ public:
                 if (parameters.Height != 0) {
                     options->Height = parameters.Height;
                 }
-                if (options->Width != 0) {
+                if (parameters.Width != 0) {
                     options->Width = parameters.Width;
                 }
                 Environment_.insert(
