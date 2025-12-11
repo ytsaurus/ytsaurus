@@ -62,7 +62,7 @@ public:
 
     i64 GetMemoryUsage() const
     {
-        return Values_.GetByteSize() +
+        return Values_.GetMemoryUsage() +
             TVersionedColumnWriterBase::GetMemoryUsage();
     }
 
@@ -159,7 +159,7 @@ public:
 
     i64 GetMemoryUsage() const
     {
-        return Values_.GetByteSize() + NullBitmap_.GetByteSize();
+        return Values_.GetMemoryUsage() + NullBitmap_.GetMemoryUsage();
     }
 
     i32 GetCurrentSegmentSize() const override
