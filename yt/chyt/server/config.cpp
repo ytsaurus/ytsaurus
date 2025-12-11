@@ -368,16 +368,6 @@ void TMemoryWatchdogConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSecurityManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable", &TThis::Enable)
-        .Default(true);
-    registrar.Parameter("operation_acl_update_period", &TThis::OperationAclUpdatePeriod)
-        .Default(TDuration::Seconds(15));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TGossipConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("period", &TThis::Period)
@@ -571,14 +561,6 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_name_whitelist", &TThis::UserNameWhitelist)
         .Default();
 
-    registrar.Parameter("validate_operation_access", &TThis::ValidateOperationAccess)
-        .Default();
-    registrar.Parameter("operation_acl_update_period", &TThis::OperationAclUpdatePeriod)
-        .Default();
-
-    registrar.Parameter("security_manager", &TThis::SecurityManager)
-        .DefaultNew();
-
     registrar.Parameter("user", &TThis::User)
         .Default("yt-clickhouse");
 
@@ -678,15 +660,6 @@ void TYtConfig::Register(TRegistrar registrar)
         config->TableColumnarStatisticsCache->ExpireAfterAccessTime = TDuration::Hours(6);
 
         config->Discovery->Directory = "//sys/clickhouse/cliques";
-    });
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->ValidateOperationAccess) {
-            config->SecurityManager->Enable = *config->ValidateOperationAccess;
-        }
-        if (config->OperationAclUpdatePeriod) {
-            config->SecurityManager->OperationAclUpdatePeriod = *config->OperationAclUpdatePeriod;
-        }
     });
 }
 

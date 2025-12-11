@@ -489,22 +489,6 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSecurityManagerConfig
-    : public NYTree::TYsonStruct
-{
-    bool Enable;
-
-    TDuration OperationAclUpdatePeriod;
-
-    REGISTER_YSON_STRUCT(TSecurityManagerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TGossipConfig
     : public NYTree::TYsonStruct
 {
@@ -708,12 +692,6 @@ struct TYtConfig
 
     NRe2::TRe2Ptr UserNameBlacklist;
     NRe2::TRe2Ptr UserNameWhitelist;
-
-    // COMPAT(max42): deprecate these.
-    std::optional<bool> ValidateOperationAccess;
-    std::optional<TDuration> OperationAclUpdatePeriod;
-
-    TSecurityManagerConfigPtr SecurityManager;
 
     //! User for communication with YT.
     TString User;
