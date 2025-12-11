@@ -1307,7 +1307,7 @@ public:
         }
 
         if (chunk->IsNative() && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
-            SequoiaChunkPurgatory_.insert(chunk->GetId());
+            ++SequoiaChunkPurgatory_[chunk->GetId()];
         }
 
         chunk->UnrefUsedRequisitions(
@@ -2570,7 +2570,7 @@ private:
 
     TPeriodicExecutorPtr SequoiaChunkRefreshExecutor_;
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
-    THashSet<TChunkId> SequoiaChunkPurgatory_;
+    THashMap<TChunkId, int> SequoiaChunkPurgatory_;
     // Transient.
     bool ChunksBeingPurged_ = false;
     std::atomic<bool> FetchingSequoiaChunksToRefresh_ = false;
@@ -4980,7 +4980,13 @@ private:
             THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 3>> legacySequoiaChunkPurgatory;
             Load(context, legacySequoiaChunkPurgatory);
             for (const auto& [chunkId, replicas] : legacySequoiaChunkPurgatory) {
-                InsertOrCrash(SequoiaChunkPurgatory_, chunkId);
+                InsertOrCrash(SequoiaChunkPurgatory_, std::make_pair(chunkId, 1));
+            }
+        } else if (context.GetVersion() < EMasterReign::SequoiaChunkPurgatoryRecordsCount) {
+            THashSet<TChunkId> legacySequoiaChunkPurgatory;
+            Load(context, legacySequoiaChunkPurgatory);
+            for (const auto& chunkId : legacySequoiaChunkPurgatory) {
+                InsertOrCrash(SequoiaChunkPurgatory_, std::make_pair(chunkId, 1));
             }
         } else {
             Load(context, SequoiaChunkPurgatory_);
@@ -5629,11 +5635,14 @@ private:
         YT_LOG_DEBUG("Starting Sequoia replica removal (PurgatorySize: %v)",
             SequoiaChunkPurgatory_.size());
 
-        std::vector<TChunkId> chunkIds;
-        chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->RemovalBatchSize));
-        for (const auto& chunkId : SequoiaChunkPurgatory_) {
-            chunkIds.push_back(chunkId);
-            if (std::ssize(chunkIds) >= config->RemovalBatchSize) {
+        auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
+
+        for (const auto& [chunkId, recordCount] : SequoiaChunkPurgatory_) {
+            auto* chunkRecord = request->add_chunk_records();
+            ToProto(chunkRecord->mutable_chunk_id(), chunkId);
+            chunkRecord->set_record_count(recordCount);
+
+            if (request->chunk_records_size() >= config->RemovalBatchSize) {
                 break;
             }
         }
@@ -5645,7 +5654,7 @@ private:
 
         ChunksBeingPurged_ = true;
 
-        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(chunkIds)));
+        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(request)));
 
         if (!result.IsOK()) {
             YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
@@ -5771,11 +5780,11 @@ private:
     {
         for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
-            SequoiaChunkPurgatory_.insert(chunkId);
+            ++SequoiaChunkPurgatory_[chunkId];
         }
     }
 
-    TFuture<void> RemoveDeadSequoiaChunkReplicas(std::vector<TChunkId>&& chunkIds)
+    TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
     {
         return Bootstrap_
             ->GetSequoiaConnection()
@@ -5783,12 +5792,15 @@ private:
             ->StartTransaction(
                 ESequoiaTransactionType::DeadChunkReplicaRemoval,
                 {.CellTag = Bootstrap_->GetCellTag()})
-            .Apply(BIND([chunkIds = std::move(chunkIds), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                std::vector<TChunkId> chunkIds;
+                chunkIds.reserve(request->chunk_records().size());
+                for (const auto& chunkRecord : request->chunk_records()) {
+                    chunkIds.push_back(FromProto<TChunkId>(chunkRecord.chunk_id()));
+                }
+
                 auto sequoiaReplicas = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds, transaction))
                     .ValueOrThrow();
-
-                auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
-                ToProto(request->mutable_chunk_ids(), chunkIds);
 
                 THashSet<TChunkId> chunksWithReplicas;
                 for (const auto& replica : sequoiaReplicas) {
@@ -5830,10 +5842,24 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
-            if (!SequoiaChunkPurgatory_.contains(chunkId)) {
+        // We can ignore any chunks in compat request->chunk_ids() because
+        // that chunks will remain in purgatory and will be processed later.
+        for (const auto& chunkRecord : request->chunk_records()) {
+            auto chunkId = FromProto<TChunkId>(chunkRecord.chunk_id());
+
+            auto purgatoryRecordIt = SequoiaChunkPurgatory_.find(chunkId);
+            if (purgatoryRecordIt == SequoiaChunkPurgatory_.end()) {
+                YT_LOG_ALERT("Chunk with dead replicas is not present in purgatory (ChunkId: %v)",
+                    chunkId);
                 THROW_ERROR_EXCEPTION("Chunk %v is not present in purgatory", chunkId);
+            }
+            if (purgatoryRecordIt->second < chunkRecord.record_count()) {
+                YT_LOG_ALERT(
+                    "Chunk with dead replicas has less records in purgatory than in request (ChunkId: %v, PurgatoryRecords: %v, RequestRecords: %v)",
+                    chunkId,
+                    purgatoryRecordIt->second,
+                    chunkRecord.record_count());
+                THROW_ERROR_EXCEPTION("Chunk %v has less records in purgatory than in request", chunkId);
             }
         }
 
@@ -5892,9 +5918,16 @@ private:
             }
         }
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
-            EraseOrCrash(SequoiaChunkPurgatory_, chunkId);
+        for (const auto& chunkRecord : request->chunk_records()) {
+            auto chunkId = FromProto<TChunkId>(chunkRecord.chunk_id());
+            int recordCount = chunkRecord.record_count();
+
+            auto purgatoryRecordIt = SequoiaChunkPurgatory_.find(chunkId);
+            if (purgatoryRecordIt->second > recordCount) {
+                purgatoryRecordIt->second -= recordCount;
+            } else {
+                SequoiaChunkPurgatory_.erase(purgatoryRecordIt);
+            }
         }
 
         ChunksBeingPurged_ = false;
@@ -6110,7 +6143,7 @@ private:
             }
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndexes.Id)) {
-                SequoiaChunkPurgatory_.insert(chunkIdWithIndexes.Id);
+                ++SequoiaChunkPurgatory_[chunkIdWithIndexes.Id];
                 YT_LOG_DEBUG(
                     "Sequoia chunk is added to purgatory (NodeId: %v, Address: %v, ChunkId: %v)",
                     nodeId,

@@ -53,10 +53,18 @@ message TSequoiaReplicaInfo
     reserved 2;
 }
 
+message TPurgatoryChunkRecord
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    required int32 record_count = 2;
+}
+
 message TReqRemoveDeadSequoiaChunkReplicas
 {
     repeated TSequoiaReplicaInfo replicas = 1;
-    repeated NYT.NProto.TGuid chunk_ids = 2;
+    repeated TPurgatoryChunkRecord chunk_records = 3;
+
+    reserved 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
