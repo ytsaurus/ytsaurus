@@ -133,9 +133,11 @@ public:
     TImpl(
         TRoutineRegistry* routineRegistry,
         EExecutionBackend backend,
+        EOptimizationLevel optimizationLevel,
         const std::string& moduleName)
         : RoutineRegistry_(routineRegistry)
         , ExecutionBackend_(backend)
+        , OptimizationLevel_(optimizationLevel)
     {
         InitializeCodegen();
 
@@ -223,11 +225,16 @@ public:
         llvm::EngineBuilder builder(std::move(cgModule));
         builder
             .setEngineKind(llvm::EngineKind::JIT)
-            .setOptLevel(llvm::CodeGenOptLevel::Default)
             .setMCJITMemoryManager(std::make_unique<TCGMemoryManager>(RoutineRegistry_))
             .setMCPU(cpu)
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
+
+        if (OptimizationLevel_ == EOptimizationLevel::None) {
+            builder.setOptLevel(llvm::CodeGenOptLevel::None);
+        } else {
+            builder.setOptLevel(llvm::CodeGenOptLevel::Default);
+        }
 
         if (ExecutionBackend_ == EExecutionBackend::Native) {
             builder
@@ -576,6 +583,7 @@ private:
     TRoutineRegistry* const RoutineRegistry_;
 
     const EExecutionBackend ExecutionBackend_;
+    const EOptimizationLevel OptimizationLevel_;
 
     llvm::LLVMContext Context_;
     llvm::Module* Module_;
@@ -599,9 +607,10 @@ private:
 TCGModulePtr TCGModule::Create(
     TRoutineRegistry* routineRegistry,
     EExecutionBackend backend,
+    EOptimizationLevel optimizationLevel,
     const std::string& moduleName)
 {
-    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, backend, moduleName));
+    return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, backend, optimizationLevel, moduleName));
 }
 
 TCGModule::TCGModule(std::unique_ptr<TImpl> impl)

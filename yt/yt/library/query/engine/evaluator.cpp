@@ -34,6 +34,7 @@ using namespace NConcurrency;
 using namespace NProfiling;
 
 using NCodegen::EExecutionBackend;
+using NCodegen::EOptimizationLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,11 +71,12 @@ public:
 
         auto Logger = MakeQueryLogger(query);
 
-        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, ExecutionBackend: %v)",
+        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, ExecutionBackend: %v, OptimizationLevel: %v)",
             queryFingerprint,
             *query->GetReadSchema(),
             *query->GetTableSchema(),
-            options.ExecutionBackend);
+            options.ExecutionBackend,
+            options.OptimizationLevel);
 
         TExecutionStatistics statistics;
         NProfiling::TWallTimer wallTime;
@@ -96,6 +98,7 @@ public:
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
+                options.OptimizationLevel,
                 options.AllowUnorderedGroupByWithLimit,
                 options.MaxJoinBatchSize);
 
@@ -161,6 +164,7 @@ private:
         bool enableCodeCache,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
+        NCodegen::EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
         i64 maxJoinBatchSize)
     {
@@ -173,6 +177,7 @@ private:
             joinProfilers,
             useCanonicalNullRelations,
             executionBackend,
+            optimizationLevel,
             functionProfilers,
             aggregateProfilers,
             allowUnorderedGroupByWithLimit,

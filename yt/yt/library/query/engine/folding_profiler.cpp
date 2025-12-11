@@ -18,6 +18,7 @@ namespace NYT::NQueryClient {
 namespace {
 
 using NCodegen::EExecutionBackend;
+using NCodegen::EOptimizationLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +91,7 @@ protected:
     void Fold(EFoldingObjectType type);
     void Fold(EValueType type);
     void Fold(EExecutionBackend backend);
+    void Fold(EOptimizationLevel optimizationLevel);
     void Fold(ETotalsMode backend);
     void Fold(bool boolean);
     void Fold(int numeric);
@@ -115,6 +117,11 @@ void TSchemaProfiler::Fold(EValueType type)
 void TSchemaProfiler::Fold(EExecutionBackend backend)
 {
     Fold(static_cast<int>(backend));
+}
+
+void TSchemaProfiler::Fold(EOptimizationLevel optimizationLevel)
+{
+    Fold(static_cast<int>(optimizationLevel));
 }
 
 void TSchemaProfiler::Fold(ETotalsMode mode)
@@ -1548,10 +1555,12 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
+        EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
         i64 maxJoinBatchSize)
         : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend)
         , MaxJoinBatchSize_(maxJoinBatchSize)
+        , OptimizationLevel_(optimizationLevel)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
@@ -1576,6 +1585,7 @@ public:
 
 protected:
     const i64 MaxJoinBatchSize_;
+    const EOptimizationLevel OptimizationLevel_;
 
     // COMPAT(sabdenovch)
     const bool AllowUnorderedGroupByWithLimit_;
@@ -1856,6 +1866,7 @@ void TQueryProfiler::Profile(
     bool mergeMode)
 {
     Fold(ExecutionBackend_);
+    Fold(OptimizationLevel_);
     size_t dummySlot = (*slotCount)++;
 
     size_t aggregatedSlot = dummySlot;
@@ -2278,6 +2289,7 @@ void TQueryProfiler::Profile(
     const std::vector<IJoinProfilerPtr>& joinProfilers)
 {
     Fold(ExecutionBackend_);
+    Fold(OptimizationLevel_);
     Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
@@ -2532,6 +2544,7 @@ void TQueryProfiler::Profile(
     size_t* slotCount)
 {
     Fold(ExecutionBackend_);
+    Fold(OptimizationLevel_);
     Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
@@ -2607,6 +2620,7 @@ TCGQueryGenerator Profile(
     const std::vector<IJoinProfilerPtr>& joinProfilers,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
+    EOptimizationLevel optimizationLevel,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
     bool allowUnorderedGroupByWithLimit,
@@ -2619,6 +2633,7 @@ TCGQueryGenerator Profile(
         aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend,
+        optimizationLevel,
         allowUnorderedGroupByWithLimit,
         maxJoinBatchSize);
 
@@ -2637,7 +2652,7 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend);
+            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel);
         };
 }
 

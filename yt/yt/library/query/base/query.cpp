@@ -18,6 +18,7 @@ using NYT::ToProto;
 using NYT::FromProto;
 
 using NCodegen::EExecutionBackend;
+using NCodegen::EOptimizationLevel;
 
 struct TExpressionRowsetTag
 { };
