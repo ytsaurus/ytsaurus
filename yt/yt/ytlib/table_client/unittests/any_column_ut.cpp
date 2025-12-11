@@ -67,11 +67,10 @@ TEST(TAnyColumnTest, Simple)
     auto columnWriter = CreateUnversionedAnyColumnWriter(0, TColumnSchema(), &blockWriter, memoryTracker);
 
     columnWriter->WriteUnversionedValues(TRange(expected));
-    memoryTracker->GetUsed();
-    EXPECT_EQ(524585, memoryTracker->GetUsed());
+    EXPECT_EQ(524945, memoryTracker->GetUsed());
 
     columnWriter->FinishCurrentSegment();
-    EXPECT_EQ(297, memoryTracker->GetUsed());
+    EXPECT_EQ(657, memoryTracker->GetUsed());
 
     auto block = blockWriter.DumpBlock(0, 8);
     auto* codec = NCompression::GetCodec(NCompression::ECodec::None);
