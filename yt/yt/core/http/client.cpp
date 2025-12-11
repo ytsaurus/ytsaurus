@@ -141,6 +141,7 @@ private:
     {
         auto context = New<TDialerContext>();
         context->Host = urlRef.Host;
+        context->BypassTLS = urlRef.Protocol == "http";
 
         auto address = GetAddress(urlRef);
 
