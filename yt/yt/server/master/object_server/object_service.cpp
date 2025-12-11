@@ -2273,7 +2273,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        Interrupt();
+        LocalExecutionInterrupted_.store(true);
 
         if (!ReplyScheduled_.exchange(true)) {
             TObjectService::GetRpcInvoker()
@@ -2379,16 +2379,6 @@ private:
         RpcContext_->Reply();
     }
 
-
-    void Interrupt()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (!LocalExecutionInterrupted_.exchange(true)) {
-            YT_LOG_DEBUG("Request interrupted");
-        }
-    }
-
     void CancelPendingCacheSubrequests()
     {
         if (!Subrequests_) {
@@ -2409,7 +2399,9 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
-            Interrupt();
+            if (!LocalExecutionInterrupted_.exchange(true)) {
+                YT_LOG_DEBUG("Request interrupted due to cancellation");
+            }
             return true;
         } else {
             return false;
