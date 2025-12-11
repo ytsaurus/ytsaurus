@@ -4713,13 +4713,21 @@ TEST_F(TQueryEvaluateTest, ArrayJoinComposite)
 
     auto split = MakeSplit({
         {"a", EValueType::Int64},
-        {"nestedA", ListLogicalType(StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}))},
+        {"nestedA", ListLogicalType(StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            },
+            /*removedFieldStableNames*/ {}))},
         {"nestedB", ListLogicalType(TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)}))},
     });
 
     auto resultSplit = MakeSplit({
         {"a", EValueType::Int64},
-        {"flattenedA", StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})},
+        {"flattenedA", StructLogicalType(
+            {
+                {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            },
+            /*removedFieldStableNames*/ {})},
         {"flattenedB", TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)})},
     });
 
@@ -7250,11 +7258,22 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            },
+            /*removedFieldStableNames*/ {})}});
 
     auto source = TSource{
         "struct={a={b={c=1}};d=a}",
@@ -7272,8 +7291,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7295,10 +7317,22 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        }});
 
     auto source = TSource{
         "struct={a={b={c=1}}}",
@@ -7320,8 +7354,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={}", "b=abc", "b=#", "b=#", "b=#", "b=#", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7330,18 +7367,29 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            },
+            /*removedFieldStableNames*/ {})}});
 
-    auto source = TSource{
-        "struct=[[[1]];a]",
-        "struct=[[[2]];b]",
-        "struct=[[[3]];c]",
-        "struct=[[];d]",
-    };
+        auto source = TSource{
+            "struct=[[[1]];a]",
+            "struct=[[[2]];b]",
+            "struct=[[[3]];c]",
+            "struct=[[];d]",
+        };
 
     {
         auto resultSplit = MakeSplit({
@@ -7352,8 +7400,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b=[1;]", "b=[2;]", "b=[3;]", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.struct.a.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7376,9 +7427,17 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
 {
     auto split = MakeSplit({
         {"tuple", TupleLogicalType({
-            {StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
+            {StructLogicalType(
+                {
+                    {"b", "b", StructLogicalType(
+                        {
+                            {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                        },
+                        /*removedFieldStableNames*/ {}),
+                    },
+                },
+                /*removedFieldStableNames*/ {}),
+            },
             {SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
 
     auto source = TSource{
@@ -7397,8 +7456,11 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
     }
     {
         auto resultSplit = MakeSplit({
-            {"b", StructLogicalType({
-                {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}});
+            {"b", StructLogicalType(
+                {
+                    {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                },
+                /*removedFieldStableNames*/ {})}});
         auto result = YsonToRows({"b={c=1}", "b={c=2}", "b={c=3}", "b=#"}, resultSplit);
         EvaluateWithSyntaxV2("t.tuple.0.b as b from `//t` as t", split, source, ResultMatcher(result));
     }
@@ -7420,13 +7482,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {})
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7494,19 +7568,23 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"i64", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"ui64", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
-            {"double", SimpleLogicalType(ESimpleLogicalValueType::Double)},
-            {"boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
-            {"string", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"any", SimpleLogicalType(ESimpleLogicalValueType::Any)},
-            {"i8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
-            {"ui8", SimpleLogicalType(ESimpleLogicalValueType::Uint8)},
-            {"i16", SimpleLogicalType(ESimpleLogicalValueType::Int16)},
-            {"ui16", SimpleLogicalType(ESimpleLogicalValueType::Uint16)},
-            {"i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
-            {"ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)}})}});
+        {"struct", StructLogicalType(
+            {
+                {"i64", "i64", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"ui64", "ui64", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+                {"double", "double", SimpleLogicalType(ESimpleLogicalValueType::Double)},
+                {"boolean", "boolean", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+                {"string", "string", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"any", "any", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+                {"i8", "i8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
+                {"ui8", "ui8", SimpleLogicalType(ESimpleLogicalValueType::Uint8)},
+                {"i16", "i16", SimpleLogicalType(ESimpleLogicalValueType::Int16)},
+                {"ui16", "ui16", SimpleLogicalType(ESimpleLogicalValueType::Uint16)},
+                {"i32", "i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+                {"ui32", "ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)},
+            },
+            /*removedFieldStableNames*/ {}
+        )}});
 
     auto source = TSource{
         "struct={i64=1;ui64=5u;double=0.5;boolean=%true;string=abc;any={a={b=1}};i8=1;ui8=5u;i16=9;ui16=13u;i32=17;ui32=21u}",
@@ -7576,13 +7654,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
 TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
 {
     auto split = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
-            {"d", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"tuple", TupleLogicalType({
-                SimpleLogicalType(ESimpleLogicalValueType::Int32)})}})}});
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"c", "c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+                            },
+                            /*removedFieldStableNames*/ {})
+                        }
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+                {"d", "d", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"tuple", "tuple", TupleLogicalType({
+                    SimpleLogicalType(ESimpleLogicalValueType::Int32)})},
+            },
+            /*removedFieldStableNames*/ {}),
+        }});
 
     auto source = TSource{
         "struct={a={b={c=1}};d=a;tuple=[1]}",
@@ -7629,13 +7719,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberWhere)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7651,13 +7753,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberWhere)
     sources.push_back(data);
 
     auto resultSplit = MakeSplit({
-        {"r.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"r.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
@@ -7684,13 +7798,25 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
     std::vector<std::vector<std::string>> sources;
 
     auto schema = MakeSplit({
-        {"struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
@@ -7709,24 +7835,48 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
     sources.push_back(data);
 
     auto resultSplit = MakeSplit({
-        {"r.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"r.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"r.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))},
 
-        {"s.struct", StructLogicalType({
-            {"a", StructLogicalType({
-                {"b", StructLogicalType({
-                    {"list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-                    {"dict", DictLogicalType(
-                        SimpleLogicalType(ESimpleLogicalValueType::String),
-                        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))}})}})}})},
+        {"s.struct", StructLogicalType(
+            {
+                {"a", "a", StructLogicalType(
+                    {
+                        {"b", "b", StructLogicalType(
+                            {
+                                {"list", "list", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+                                {"dict", "dict", DictLogicalType(
+                                    SimpleLogicalType(ESimpleLogicalValueType::String),
+                                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32)))},
+                            },
+                            /*removedFieldStableNames*/ {}),
+                        },
+                    },
+                    /*removedFieldStableNames*/ {}),
+                },
+            },
+            /*removedFieldStableNames*/ {}),
+        },
         {"s.dict", DictLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}

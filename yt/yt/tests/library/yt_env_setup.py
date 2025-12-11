@@ -332,6 +332,11 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
+    ENABLE_STATIC_STRUCT_FIELD_RENAMING = False
+    ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING = False
+    ENABLE_STATIC_STRUCT_FIELD_REMOVAL = False
+    ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL = False
+
     ENABLE_TLS = None
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
@@ -2175,10 +2180,20 @@ class YTEnvSetup(object):
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
         config["enable_descending_sort_order"] = True
         config["enable_descending_sort_order_dynamic"] = True
+
+        # Table column renaming and removal.
         config["enable_table_column_renaming"] = True
         config["enable_dynamic_table_column_renaming"] = cls.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
         config["enable_static_table_drop_column"] = cls.ENABLE_STATIC_DROP_COLUMN
         config["enable_dynamic_table_drop_column"] = cls.ENABLE_DYNAMIC_DROP_COLUMN
+
+        # Struct fields renaming and removal.
+        config["enable_struct_field_renaming"] = True
+        config["enable_struct_field_removal"] = True
+        config["enable_static_table_struct_field_renaming"] = cls.ENABLE_STATIC_STRUCT_FIELD_RENAMING
+        config["enable_static_table_struct_field_removal"] = cls.ENABLE_STATIC_STRUCT_FIELD_REMOVAL
+        config["enable_dynamic_table_struct_field_renaming"] = cls.ENABLE_DYNAMIC_STRUCT_FIELD_RENAMING
+        config["enable_dynamic_table_struct_field_removal"] = cls.ENABLE_DYNAMIC_STRUCT_FIELD_REMOVAL
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi < (24, 2):

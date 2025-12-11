@@ -20,6 +20,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr NComplexTypes::TTypeCompatibilityOptions TypeCompatibilityOptions{
+    .AllowStructFieldRenaming = false,
+    .AllowStructFieldRemoval = false,
+    .IgnoreUnknownRemovedFieldNames = false,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableSchemaTest
     : public ::testing::Test
 { };
@@ -80,7 +88,12 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
     for (const auto& pairOfSchemas : invalidUpdates) {
         ValidateColumnSchema(pairOfSchemas[0]);
         ValidateColumnSchema(pairOfSchemas[1]);
-        EXPECT_THROW(ValidateColumnSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]), std::exception);
+        EXPECT_THROW(
+            ValidateColumnSchemaUpdate(
+                pairOfSchemas[0],
+                pairOfSchemas[1],
+                TypeCompatibilityOptions),
+            std::exception);
     }
 
     std::vector<std::vector<TColumnSchema>> validUpdates{
@@ -135,7 +148,7 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
     for (const auto& pairOfSchemas : validUpdates) {
         ValidateColumnSchema(pairOfSchemas[0]);
         ValidateColumnSchema(pairOfSchemas[1]);
-        ValidateColumnSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]);
+        ValidateColumnSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1], TypeCompatibilityOptions);
     }
 }
 

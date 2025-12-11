@@ -805,39 +805,39 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         {"column_a", OptionalLogicalType(
             ListLogicalType(MakeLogicalType(ESimpleLogicalValueType::Int64, true)))},
         {"column_b", StructLogicalType({
-            {"key", MakeLogicalType(ESimpleLogicalValueType::String, true)},
-            {"value", MakeLogicalType(ESimpleLogicalValueType::String, true)},
-            {"variant_tuple", VariantTupleLogicalType({
+            {"key", "key", MakeLogicalType(ESimpleLogicalValueType::String, true)},
+            {"value", "value", MakeLogicalType(ESimpleLogicalValueType::String, true)},
+            {"variant_tuple", "variant_tuple", VariantTupleLogicalType({
                 MakeLogicalType(ESimpleLogicalValueType::Int8, true),
                 MakeLogicalType(ESimpleLogicalValueType::Boolean, false),
             })},
-            {"variant_struct", VariantStructLogicalType({
-                {"a", MakeLogicalType(ESimpleLogicalValueType::Int8, true)},
-                {"b", MakeLogicalType(ESimpleLogicalValueType::Boolean, false)},
+            {"variant_struct", "variant_struct", VariantStructLogicalType({
+                {"a", "a", MakeLogicalType(ESimpleLogicalValueType::Int8, true)},
+                {"b", "b", MakeLogicalType(ESimpleLogicalValueType::Boolean, false)},
             })},
-            {"dict", DictLogicalType(
+            {"dict", "dict", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
                 SimpleLogicalType(ESimpleLogicalValueType::String)),
             },
-            {"tagged", TaggedLogicalType(
+            {"tagged", "tagged", TaggedLogicalType(
                 "MyTag",
                 SimpleLogicalType(ESimpleLogicalValueType::Int64)),
             },
-            {"timestamp", SimpleLogicalType(ESimpleLogicalValueType::Timestamp)},
-            {"date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
-            {"datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
-            {"interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
-            {"date32", SimpleLogicalType(ESimpleLogicalValueType::Date32)},
-            {"datetime64", SimpleLogicalType(ESimpleLogicalValueType::Datetime64)},
-            {"timestamp64", SimpleLogicalType(ESimpleLogicalValueType::Timestamp64)},
-            {"interval64", SimpleLogicalType(ESimpleLogicalValueType::Interval64)},
-            {"json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
-            {"float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
-        })},
+            {"timestamp", "timestamp", SimpleLogicalType(ESimpleLogicalValueType::Timestamp)},
+            {"date", "date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
+            {"datetime", "datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
+            {"interval", "interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
+            {"date32", "date32", SimpleLogicalType(ESimpleLogicalValueType::Date32)},
+            {"datetime64", "datetime64", SimpleLogicalType(ESimpleLogicalValueType::Datetime64)},
+            {"timestamp64", "timestamp64", SimpleLogicalType(ESimpleLogicalValueType::Timestamp64)},
+            {"interval64", "interval64", SimpleLogicalType(ESimpleLogicalValueType::Interval64)},
+            {"json", "json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
+            {"float", "float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
+        }, /*removedFieldStableNames*/ {})},
         {"column_c", ListLogicalType(StructLogicalType({
-            {"very_optional_key", OptionalLogicalType(MakeLogicalType(ESimpleLogicalValueType::String, false))},
-            {"optional_value", MakeLogicalType(ESimpleLogicalValueType::String, false)},
-        }))},
+            {"very_optional_key", "very_optional_key", OptionalLogicalType(MakeLogicalType(ESimpleLogicalValueType::String, false))},
+            {"optional_value", "optional_value", MakeLogicalType(ESimpleLogicalValueType::String, false)},
+        }, /*removedFieldStableNames*/ {}))},
     });
 
     auto secondSchema = New<TTableSchema>(std::vector<TColumnSchema>{
@@ -1372,19 +1372,19 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
 
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", StructLogicalType({
-            {"field1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"list", ListLogicalType(
+            {"field1", "field1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"list", "list", ListLogicalType(
                 VariantStructLogicalType({
-                    {"a", DictLogicalType(
+                    {"a", "a", DictLogicalType(
                         SimpleLogicalType(ESimpleLogicalValueType::Int64),
                         SimpleLogicalType(ESimpleLogicalValueType::String)),
                     },
-                    {"b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
+                    {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
                 })),
             },
-            {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"field3", MakeLogicalType(ESimpleLogicalValueType::Int64, false)},
-        })},
+            {"field2", "field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"field3", "field3", MakeLogicalType(ESimpleLogicalValueType::Int64, false)},
+        }, /*removedFieldStableNames*/ {})},
         {"column_b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         {"column_c", MakeLogicalType(ESimpleLogicalValueType::String, false)},
     });

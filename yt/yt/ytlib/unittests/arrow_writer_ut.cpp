@@ -1946,9 +1946,9 @@ TEST(TArrowWriterComplexTest, BasicStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     auto structType = StructLogicalType({
-        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    });
+        TStructField{"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        TStructField{"b", "b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], structType),
@@ -2101,8 +2101,8 @@ TEST(TArrowWriterComplexTest, OptionalStruct)
     std::vector<std::string> columnNames = {"optional"};
 
     auto listType = OptionalLogicalType(StructLogicalType({
-        TStructField{"integer", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    }));
+        TStructField{"integer", "integer", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    }, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], listType),
@@ -2151,8 +2151,12 @@ TEST(TArrowWriterComplexTest, StructOptional)
     std::vector<std::string> columnNames = {"struct"};
 
     auto listType = StructLogicalType({
-        TStructField{"integer", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-    });
+        TStructField{
+            .Name = "integer",
+            .StableName = "integer",
+            .Type = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+        },
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], listType),
@@ -2202,9 +2206,17 @@ TEST(TArrowWriterComplexTest, DictionaryStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     auto structType = OptionalLogicalType(StructLogicalType({
-        TStructField{"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        TStructField{"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    }));
+        TStructField{
+            .Name = "a",
+            .StableName = "a",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::String),
+        },
+        TStructField{
+            .Name = "b",
+            .StableName = "b",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::Int64),
+        },
+    }, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], structType),
@@ -2333,7 +2345,7 @@ TEST(TArrowWriterTest, EmptyStruct)
     std::vector<std::string> columnNames = {"struct"};
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
-        TColumnSchema(columnNames[0], StructLogicalType({})),
+        TColumnSchema(columnNames[0], StructLogicalType({}, /*removedFieldStableNames*/ {})),
     }));
 
     TStringStream outputStream;
@@ -2372,7 +2384,7 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct)
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"optional"};
 
-    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+    auto optionalType = OptionalLogicalType(StructLogicalType({}, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], optionalType),
@@ -2426,11 +2438,15 @@ TEST(TArrowWriterComplexTest, NullTypes)
     std::vector<TTableSchemaPtr> tableSchemas;
     std::vector<std::string> columnNames = {"null", "null_struct"};
 
-    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+    auto optionalType = OptionalLogicalType(StructLogicalType({}, /*removedFieldStableNames*/ {}));
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], NullLogicalType()),
-        TColumnSchema(columnNames[1], OptionalLogicalType(StructLogicalType({{"null", NullLogicalType()}}))),
+        TColumnSchema(
+            columnNames[1],
+            OptionalLogicalType(StructLogicalType(
+                {{"null", "null", NullLogicalType()}},
+                /*removedFieldStableNames*/ {}))),
     }));
 
     std::vector<std::optional<TString>> nulls = {
@@ -2481,9 +2497,9 @@ TEST(TArrowWriterComplexTest, NestedTzType)
     std::vector<std::string> columnNames = {"tz"};
 
     auto type = StructLogicalType({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
-    });
+        {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], type),
@@ -2536,9 +2552,9 @@ TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices)
     std::vector<std::string> columnNames = {"tz"};
 
     auto type = StructLogicalType({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
-    });
+        {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", "b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    }, /*removedFieldStableNames*/ {});
 
     tableSchemas.push_back(New<TTableSchema>(std::vector{
         TColumnSchema(columnNames[0], type),
