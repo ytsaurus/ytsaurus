@@ -178,6 +178,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixStatisticsAccountingUponHunkJournalChunkSeal)              (3128))  // akozhikhov
     ((AddStrongerTxAccessValidationCheck)                           (3129))  // h0pless
     ((StructFieldRenamingAndRemoval)                                (3130))  // s-berdnikov
+    ((MaxMediumCountIncrease)                                       (3131))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

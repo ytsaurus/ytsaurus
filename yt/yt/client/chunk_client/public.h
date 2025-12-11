@@ -8,6 +8,9 @@
 
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 #include <library/cpp/yt/compact_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_map.h>
+
+#include <span>
 
 namespace NYT::NChunkClient {
 
@@ -120,12 +123,52 @@ constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;
 constexpr int DefaultIntermediateDataReplicationFactor = 2;
 
-constexpr int MaxMediumCount = 120; // leave some room for sentinels
+//! Medium index layout. Numbers denote indexes, |X| marks sentinel slots.
+/*
+ *   Non-sentinel media slots (MaxMediumCount allowed entries)    Sentinel-only slots
+ *                        ∨ ∨ ∨                                         ∨ ∨ ∨
+ *                              GenericMediumIndex=126                                   MediumIndexBound
+ *   0                          ∨                                                        ∨
+ *   |--------------------------XX---------------------------|---------------------------|
+ *                               ^                           ^
+ *                               AllMediaIndex=127           RealMediumIndexBound
+ *                              ^^
+ *                              Legacy sentinels embedded into the real range for compatibility
+ *
+ * "Real" media correspond to actual master medium objects. Sentinels are special indexes
+ * that do not have associated medium objects and are used for special purposes across APIs.
+ * Because GenericMediumIndex/AllMediaIndex sit inside the real range, |RealMediumIndexBound|
+ * exceeds the plain count limit by 2, to keep room for |MaxMediumCount| real media.
+ * One must also avoid using comparison for checking the real-ness of a medium and must
+ * use |IsValidRealMediumIndex| instead.
+ */
+//! Maximum allowed number of real (non-sentinel) media objects on a cluster.
+//! NB: The bound on medium *indexes* for associated master media objects is *not* equal to this value.
+//! See the diagram above for clarification.
+constexpr int MaxMediumCount = 64000;
+//! The typical number of media on a cluster.
+//! Used for initializing compact containers.
+constexpr int TypicalMediumCount = 4;
+//! Upper bound on medium indexes associated with real (non-sentinel) media.
+//! NB: This value is intentionally |MaxMediumCount + 2| to account for the two in-range sentinels.
+constexpr int RealMediumIndexBound = MaxMediumCount + 2;
+//! All valid medium indexes (including sentinels) are in range |[0, MediumIndexBound)|.
+//! The tail |[RealMediumIndexBound, MediumIndexBound)| is reserved for future sentinels.
+constexpr int MediumIndexBound = MaxMediumCount + 100;
+
+//! Returns a list of all sentinel medium indexes: |GenericMediumIndex|, |AllMediaIndex| and
+//! every reserved slot in |[RealMediumIndexBound, MediumIndexBound)|.
+constexpr std::span<const int> GetSentinelMediumIndexes();
+//! Returns true if |mediumIndex| is a valid medium index for a master medium object,
+//! i.e. it falls in range |[0, RealMediumIndexBound)| and is not equal to any of the
+//! reserved sentinel values (see |IsSentinelMediumIndex|).
+bool IsValidRealMediumIndex(int mediumIndex);
 
 template <typename T>
 using TMediumMap = THashMap<int, T>;
+
 template <typename T>
-using TCompactMediumMap = TCompactFlatMap<int, T, 4>;
+using TCompactMediumMap = TCompactMap<int, T, TypicalMediumCount>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*
@@ -143,9 +186,6 @@ constexpr int GenericMediumIndex      = 126; // internal sentinel meaning "no sp
 constexpr int AllMediaIndex           = 127; // passed to various APIs to indicate that any medium is OK
 constexpr int DefaultStoreMediumIndex =   0;
 constexpr int DefaultSlotsMediumIndex =   0;
-
-//! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
-constexpr int MediumIndexBound = AllMediaIndex + 1;
 
 class TChunkReplicaWithMedium;
 using TChunkReplicaWithMediumList = TCompactVector<TChunkReplicaWithMedium, TypicalReplicaCount>;
@@ -227,3 +267,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkFormat, i8,
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
+
+#define PUBLIC_INL_H_
+#include "public-inl.h"
+#undef PUBLIC_INL_H_

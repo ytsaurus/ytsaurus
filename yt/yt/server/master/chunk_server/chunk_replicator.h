@@ -235,8 +235,8 @@ private:
     //! In each queue, a single chunk may only appear once.
     // NB: Queues are not modified when a replicator shard is disabled, so one should
     // take care of such a chunks.
-    std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
-    std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
+    TMediumMap<TChunkRepairQueue> MissingPartChunkRepairQueues_ = {};
+    TMediumMap<TChunkRepairQueue> DecommissionedPartChunkRepairQueues_ = {};
     NServer::TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
     NServer::TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
@@ -325,7 +325,7 @@ private:
         bool hasSealedReplicas,
         bool precarious,
         bool allMediaTransient,
-        const TCompactVector<int, MaxMediumCount>& mediaOnWhichLost,
+        const TMediumSet& mediaOnWhichLost,
         bool hasMediumOnWhichPresent,
         bool hasMediumOnWhichUnderreplicated,
         bool hasMediumOnWhichSealedMissing);
@@ -409,7 +409,7 @@ private:
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
-    std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
+    TMediumMap<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
     NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
     TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(

@@ -136,7 +136,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TTabletOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 592);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 608);
 
 ////////////////////////////////////////////////////////////////////////////////
 
