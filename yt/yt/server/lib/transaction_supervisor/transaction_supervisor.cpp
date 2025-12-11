@@ -1134,14 +1134,20 @@ private:
                 cellIdsToSyncWith,
                 stronglyOrdered);
 
+            auto owner = GetOwnerOrThrow();
+            if (owner->HydraManager_->IsEnteringReadOnlyMode() && stronglyOrdered) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Cannot prepare a strongly ordered transaction %v while entering read-only mode",
+                    transactionId);
+            }
+
             NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
             hydraRequest.set_strongly_ordered(stronglyOrdered);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
-
-            auto owner = GetOwnerOrThrow();
 
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
                 {} /*prerequisiteTransactionIds*/,
