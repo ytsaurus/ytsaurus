@@ -2535,7 +2535,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("attribute_keys", &TThis::AttributeKeys)
         .Default();
     registrar.Parameter("force_copy_system_attributes", &TThis::ForceCopySystemAttributes)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("concurrency", &TThis::Concurrency)
         .Default(4);
     registrar.Parameter("block_buffer_size", &TThis::BlockBufferSize)
