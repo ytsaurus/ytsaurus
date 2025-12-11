@@ -20,10 +20,13 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(TStandaloneTabletBalancerConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletBalancerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TActionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterStateProviderConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletBalancerProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
+
+DECLARE_REFCOUNTED_STRUCT(IClusterStateProvider)
 
 struct TTableProfilingCounters;
 

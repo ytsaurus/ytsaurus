@@ -1,6 +1,7 @@
 #include "action_manager.h"
 #include "bootstrap.h"
 #include "bundle_state.h"
+#include "cluster_state_provider.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
@@ -52,8 +53,6 @@ using namespace NYTree;
 constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const NYPath::TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
 
 static constexpr TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
@@ -180,6 +179,7 @@ private:
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IActionManagerPtr ActionManager_;
     TTableRegistryPtr TableRegistry_;
+    IClusterStateProviderPtr ClusterStateProvider_;
 
     TAtomicIntrusivePtr<TTabletBalancerDynamicConfig> DynamicConfig_;
 
@@ -314,6 +314,10 @@ TTabletBalancer::TTabletBalancer(
         DynamicConfig_.Acquire()->ActionManager,
         Bootstrap_->GetClient(),
         Bootstrap_);
+    ClusterStateProvider_ = CreateClusterStateProvider(
+        bootstrap,
+        DynamicConfig_.Acquire()->ClusterStateProvider,
+        ControlInvoker_);
 
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(
         BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
@@ -321,7 +325,7 @@ TTabletBalancer::TTabletBalancer(
 
 void TTabletBalancer::Start()
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
@@ -335,9 +339,10 @@ void TTabletBalancer::Start()
 
     ParameterizedBalancingScheduler_.Start();
 
-    PollExecutor_->Start();
-
+    ClusterStateProvider_->Start();
     ActionManager_->Start(Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId());
+
+    PollExecutor_->Start();
 }
 
 void TTabletBalancer::Stop()
@@ -350,23 +355,14 @@ void TTabletBalancer::Stop()
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
     ActionManager_->Stop();
+    ClusterStateProvider_->Stop();
 
     YT_LOG_INFO("Tablet balancer instance stopped");
 }
 
 IListNodePtr TTabletBalancer::FetchNodeStatistics() const
 {
-    TListNodeOptions options;
-    static const TString TabletStaticPath = "/statistics/memory/tablet_static";
-    static const TString TabletSlotsPath = "/tablet_slots";
-    options.Attributes = TAttributeFilter({}, {TabletStaticPath, TabletSlotsPath});
-
-    static const TString TabletNodesPath = "//sys/tablet_nodes";
-    YT_LOG_DEBUG("Started fetching node statistics");
-
-    auto nodesOrError = WaitFor(Bootstrap_
-        ->GetClient()
-        ->ListNode(TabletNodesPath, options));
+    auto nodesOrError = WaitFor(ClusterStateProvider_->GetNodes());
 
     if (!nodesOrError.IsOK()) {
         YT_LOG_ERROR(nodesOrError, "Failed to fetch node statistics");
@@ -387,9 +383,9 @@ void TTabletBalancer::BalancerIteration()
 
     YT_LOG_INFO("Balancer iteration (IterationIndex: %v)", IterationIndex_);
 
-    YT_LOG_INFO("Started fetching bundles");
+    YT_LOG_INFO("Started updating bundles");
     auto newBundles = UpdateBundleList();
-    YT_LOG_INFO("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
+    YT_LOG_INFO("Finished updating bundles (NewBundleCount: %v)", newBundles.size());
 
     PreciseCurrentIterationStartTime_ = Now();
     CurrentIterationStartTime_ = TruncatedNow();
@@ -707,6 +703,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     }
 
     ActionManager_->Reconfigure(newConfig->ActionManager);
+    ClusterStateProvider_->Reconfigure(newConfig->ClusterStateProvider);
     ParameterizedBalancingScheduler_.Reconfigure(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
         newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
@@ -809,19 +806,13 @@ bool TTabletBalancer::IsBundleHealthy(const std::vector<std::string>& clusters, 
 
 std::vector<std::string> TTabletBalancer::UpdateBundleList()
 {
-    TListNodeOptions options;
-    options.Attributes = {"health", "tablet_balancer_config", "tablet_cell_ids", "tablet_actions"};
-
-    auto bundles = WaitFor(Bootstrap_
-        ->GetClient()
-        ->ListNode(TabletCellBundlesPath, options))
+    auto bundleList = WaitFor(ClusterStateProvider_->GetBundles())
         .ValueOrThrow();
-    auto bundlesList = ConvertTo<IListNodePtr>(bundles);
 
     // Gather current bundles.
     THashSet<std::string> currentBundles;
     std::vector<std::string> newBundles;
-    for (const auto& bundle : bundlesList->GetChildren()) {
+    for (const auto& bundle : bundleList->GetChildren()) {
         const auto& name = bundle->AsString()->GetValue();
         currentBundles.insert(bundle->AsString()->GetValue());
 

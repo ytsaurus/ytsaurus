@@ -108,6 +108,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("action_manager", &TThis::ActionManager)
         .DefaultNew();
+    registrar.Parameter("cluster_state_provider", &TThis::ClusterStateProvider)
+        .DefaultNew();
 
     registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
         .Default();
@@ -136,6 +138,26 @@ void TActionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_tablet_count_per_action", &TThis::MaxTabletCountPerAction)
         .Default(200)
         .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClusterStateProviderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fetch_planner_period", &TThis::FetchPlannerPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
+        .Default(3);
+
+    registrar.Parameter("bundles_freshness_time", &TThis::BundlesFreshnessTime)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("nodes_freshness_time", &TThis::NodesFreshnessTime)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("bundles_fetch_period", &TThis::BundlesFetchPeriod)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("nodes_fetch_period", &TThis::NodesFetchPeriod)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
