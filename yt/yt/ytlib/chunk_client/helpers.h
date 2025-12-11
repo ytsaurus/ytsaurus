@@ -215,6 +215,7 @@ struct TGetUserObjectBasicAttributesOptions
     bool OmitInaccessibleColumns = false;
     bool OmitInaccessibleRows = false;
     bool PopulateSecurityTags = false;
+    bool AllowColumnRenaming = false;
 };
 
 void GetUserObjectBasicAttributes(
