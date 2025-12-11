@@ -19,6 +19,8 @@
 
 #include <library/cpp/openssl/io/stream.h>
 
+#include <util/system/env.h>
+
 #include <util/string/hex.h>
 
 #include <openssl/bio.h>
@@ -726,7 +728,7 @@ TInstant TSslContext::GetCommitTime() const
 void TSslContext::ApplyConfig(const TSslContextConfigPtr& config, TCertificatePathResolver pathResolver)
 {
     if (!config) {
-        UseBuiltinOpenSslX509Store();
+        AddCertificateAuthority(nullptr, pathResolver);
         return;
     }
 
@@ -903,6 +905,10 @@ void TSslContext::AddCertificateAuthority(const TPemBlobConfigPtr& pem, TCertifi
 {
     if (pem) {
         AddCertificateAuthority(pem->LoadBlob(resolver));
+    } else if (auto certFile = TryGetEnv("SSL_CERT_FILE")) {
+        AddCertificateAuthorityFromFile(*certFile);
+    } else {
+        UseBuiltinOpenSslX509Store();
     }
 }
 
