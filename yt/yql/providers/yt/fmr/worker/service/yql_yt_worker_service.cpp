@@ -1,5 +1,6 @@
 #include <library/cpp/getopt/last_getopt.h>
 #include <library/cpp/uri/http_url.h>
+#include <util/system/env.h>
 #include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
@@ -98,6 +99,7 @@ int main(int argc, const char *argv[]) {
 
         TFmrJobFactorySettings settings{.Function=func};
         auto jobFactory = MakeFmrJobFactory(settings);
+
         auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
         worker->Start();
         TFmrWorkerServerSettings workerServerSettings{.Port=options.Port, .Host = options.Host};

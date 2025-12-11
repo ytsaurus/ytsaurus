@@ -40,6 +40,7 @@ target_proto_messages(yql-essentials-protos PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/protos/yql_mount.proto
   ${PROJECT_SOURCE_DIR}/yql/essentials/protos/clickhouse.proto
   ${PROJECT_SOURCE_DIR}/yql/essentials/protos/pg_ext.proto
+  ${PROJECT_SOURCE_DIR}/yql/essentials/protos/fmr.proto
 )
 
 target_sources(yql-essentials-protos PRIVATE
@@ -47,6 +48,7 @@ target_sources(yql-essentials-protos PRIVATE
   ${PROJECT_BINARY_DIR}/yql/essentials/protos/yql_mount.pb.h
   ${PROJECT_BINARY_DIR}/yql/essentials/protos/clickhouse.pb.h
   ${PROJECT_BINARY_DIR}/yql/essentials/protos/pg_ext.pb.h
+  ${PROJECT_BINARY_DIR}/yql/essentials/protos/fmr.pb.h
 )
 
 

@@ -37,6 +37,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yql/essentials/protos/yql_mount.proto")
         include("yql/essentials/protos/clickhouse.proto")
         include("yql/essentials/protos/pg_ext.proto")
+        include("yql/essentials/protos/fmr.proto")
     }
     into(buildProtoDir)
 }
