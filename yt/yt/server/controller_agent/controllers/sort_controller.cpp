@@ -700,7 +700,7 @@ protected:
                 partitionJobSpecExt->set_wire_partition_lower_bound_prefixes(partitionsBound->WireKeyBounds);
 
                 auto* lowerBoundInclusiveness = partitionJobSpecExt->mutable_partition_lower_bound_inclusivenesses();
-                lowerBoundInclusiveness->Clear();
+                YT_VERIFY(lowerBoundInclusiveness->empty());
                 lowerBoundInclusiveness->Reserve(partitionsBound->KeyBounds.size());
                 for (const auto& lowerBound : partitionsBound->KeyBounds) {
                     lowerBoundInclusiveness->Add(lowerBound.IsInclusive);
