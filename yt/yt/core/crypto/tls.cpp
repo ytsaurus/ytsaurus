@@ -734,6 +734,7 @@ TInstant TSslContext::GetCommitTime() const
 void TSslContext::ApplyConfig(const TSslContextConfigPtr& config, TCertificatePathResolver pathResolver)
 {
     if (!config) {
+        UseBuiltinOpenSslX509Store();
         return;
     }
 
