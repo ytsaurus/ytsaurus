@@ -18,18 +18,18 @@
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyProgram
+class TOffshoreDataGatewayProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramConfigMixin<TOffshoreNodeProxyProgramConfig>
+    , public TProgramConfigMixin<TOffshoreDataGatewayProgramConfig>
 {
 public:
-    TOffshoreNodeProxyProgram()
+    TOffshoreDataGatewayProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
@@ -38,7 +38,7 @@ public:
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
-        TThread::SetCurrentThreadName("OffshoreNodeProxyProg");
+        TThread::SetCurrentThreadName("OffshoreDataGatewayProg");
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();
@@ -74,4 +74,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

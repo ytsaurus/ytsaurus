@@ -8,23 +8,23 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyChannelConfig
+class TOffshoreDataGatewayChannelConfig
     : public NRpc::TRetryingChannelConfig
 {
 public:
     TDuration RpcTimeout;
 
-    REGISTER_YSON_STRUCT(TOffshoreNodeProxyChannelConfig);
+    REGISTER_YSON_STRUCT(TOffshoreDataGatewayChannelConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOffshoreNodeProxyChannelConfig)
+DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

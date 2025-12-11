@@ -20,7 +20,7 @@
 #include <yt/yt/server/tcp_proxy/program.h>
 #include <yt/yt/server/kafka_proxy/program.h>
 #include <yt/yt/server/replicated_table_tracker/program.h>
-#include <yt/yt/server/offshore_node_proxy/program.h>
+#include <yt/yt/server/offshore_data_gateway/program.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -103,7 +103,7 @@ int main(int argc, const char** argv)
     TryProgram<NTcpProxy::TTcpProxyProgram>(argc, argv, "tcp-proxy");
     TryProgram<NKafkaProxy::TKafkaProxyProgram>(argc, argv, "kafka-proxy");
     TryProgram<NReplicatedTableTracker::TReplicatedTableTrackerProgram>(argc, argv, "replicated-table-tracker");
-    TryProgram<NOffshoreNodeProxy::TOffshoreNodeProxyProgram>(argc, argv, "offshore-node-proxy");
+    TryProgram<NOffshoreDataGateway::TOffshoreDataGatewayProgram>(argc, argv, "offshore-data-gateway");
     // Handles auxiliary flags like --version and --build.
     TAllProgram().Run(argc, argv);
 }

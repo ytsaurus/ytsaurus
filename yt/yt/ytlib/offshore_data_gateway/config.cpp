@@ -1,10 +1,10 @@
 #include "config.h"
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOffshoreNodeProxyChannelConfig::Register(TRegistrar registrar)
+void TOffshoreDataGatewayChannelConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
@@ -12,4 +12,4 @@ void TOffshoreNodeProxyChannelConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

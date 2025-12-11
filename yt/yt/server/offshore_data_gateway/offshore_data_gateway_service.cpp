@@ -1,4 +1,4 @@
-#include "offshore_node_service.h"
+#include "offshore_data_gateway_service.h"
 
 #include "private.h"
 
@@ -19,7 +19,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 using namespace NChunkClient;
 using namespace NTableClient;
@@ -31,22 +31,22 @@ using google::protobuf::RepeatedPtrField;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeService
+class TOffshoreDataGatewayService
     : public TServiceBase
 {
 public:
-    TOffshoreNodeService(
+    TOffshoreDataGatewayService(
         IInvokerPtr invoker,
         IInvokerPtr storageInvoker,
         IAuthenticatorPtr authenticator,
         TMediumDirectoryPtr mediumDirectory)
         : TServiceBase(
             std::move(invoker),
-            // TOffshoreNodeService implements a subset of TDataNodeServiceProxy's
+            // TOffshoreDataGatewayService implements a subset of TDataNodeServiceProxy's
             // methods, so we use its descriptor here; read more in the docs of
             // TDataNodeServiceProxy.
             TDataNodeServiceProxy::GetDescriptor(),
-            OffshoreNodeProxyLogger(),
+            OffshoreDataGatewayLogger(),
             TServiceOptions{
                 .Authenticator = std::move(authenticator),
             })
@@ -320,15 +320,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateOffshoreNodeService(
+NRpc::IServicePtr CreateOffshoreDataGatewayService(
     IInvokerPtr invoker,
     IInvokerPtr storageInvoker,
     IAuthenticatorPtr authenticator,
     TMediumDirectoryPtr mediumDirectory)
 {
-    return New<TOffshoreNodeService>(std::move(invoker), std::move(storageInvoker), std::move(authenticator), std::move(mediumDirectory));
+    return New<TOffshoreDataGatewayService>(std::move(invoker), std::move(storageInvoker), std::move(authenticator), std::move(mediumDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

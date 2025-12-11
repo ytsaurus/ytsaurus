@@ -2,12 +2,12 @@
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOffshoreNodeProxyChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

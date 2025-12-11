@@ -16,7 +16,7 @@
 
 #include <yt/yt/ytlib/bundle_controller/public.h>
 
-#include <yt/yt/ytlib/offshore_node_proxy/public.h>
+#include <yt/yt/ytlib/offshore_data_gateway/public.h>
 
 #include <yt/yt/ytlib/discovery_client/public.h>
 
@@ -227,7 +227,7 @@ public:
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NBundleController::TBundleControllerChannelConfigPtr BundleController;
-    NOffshoreNodeProxy::TOffshoreNodeProxyChannelConfigPtr OffshoreNodeProxy;
+    NOffshoreDataGateway::TOffshoreDataGatewayChannelConfigPtr OffshoreDataGateway;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
@@ -358,7 +358,7 @@ public:
     EMasterChannelKind ReadArchiveStateFrom;
 
     //! If set, the replication reader will read offshore data through the
-    //! OffshoreNodeProxy; otherwise the data will be directly read through the
+    //! OffshoreDataGateway; otherwise the data will be directly read through the
     //! native client's connection to S3.
     bool EnableReplicationReaderForOffshoreData;
 

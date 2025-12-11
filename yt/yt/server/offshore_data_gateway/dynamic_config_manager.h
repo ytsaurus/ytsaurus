@@ -4,21 +4,21 @@
 
 #include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages dynamic configuration of the offshore node components by pulling it periodically from masters.
+//! Manages dynamic configuration of the offshore data gateway components by pulling it periodically from masters.
 /*!
  *  \note
  *  Thread affinity: any
  */
 class TDynamicConfigManager
-    : public NDynamicConfig::TDynamicConfigManagerBase<TOffshoreNodeProxyDynamicConfig>
+    : public NDynamicConfig::TDynamicConfigManagerBase<TOffshoreDataGatewayDynamicConfig>
 {
 public:
     TDynamicConfigManager(
-        const TOffshoreNodeProxyBootstrapConfigPtr& OffshoreNodeProxyConfig,
+        const TOffshoreDataGatewayBootstrapConfigPtr& OffshoreDataGatewayConfig,
         NApi::IClientPtr client,
         IInvokerPtr invoker);
 };
@@ -27,4 +27,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

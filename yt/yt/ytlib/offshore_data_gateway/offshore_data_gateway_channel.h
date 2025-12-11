@@ -7,15 +7,15 @@
 #include <yt/yt/ytlib/api/native/public.h>
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IChannelPtr CreateOffshoreNodeProxyChannel(
-    const TOffshoreNodeProxyChannelConfigPtr& config,
+NRpc::IChannelPtr CreateOffshoreDataGatewayChannel(
+    const TOffshoreDataGatewayChannelConfigPtr& config,
     NRpc::IChannelFactoryPtr channelFactory,
     NApi::NNative::IConnectionPtr connection);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

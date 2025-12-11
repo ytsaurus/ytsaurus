@@ -337,8 +337,8 @@ SRCS(
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
 
-    offshore_node_proxy/config.cpp
-    offshore_node_proxy/offshore_node_proxy_channel.cpp
+    offshore_data_gateway/config.cpp
+    offshore_data_gateway/offshore_data_gateway_channel.cpp
 
     orchid/orchid_service.cpp
     orchid/orchid_ypath_service.cpp

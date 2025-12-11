@@ -807,7 +807,7 @@ protected:
         }
 
         if (IsAddressOffshore(address)) {
-            return reader->Client_->GetNativeConnection()->GetOffshoreNodeProxyChannel();
+            return reader->Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
         }
 
         try {
@@ -1082,7 +1082,7 @@ protected:
                 // Distinguish different replicas of offshore data by enriching the sentinel address
                 // with the medium index; like that they will be considered different peers, and
                 // select peers / ban peers functionalities will work on the replica level and not
-                // the whole offshore node level.
+                // the whole offshore data gateway level.
                 address->append(Format("@%v", replica.GetMediumIndex()));
             }
 

@@ -4,11 +4,11 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateOffshoreNodeService(
+NRpc::IServicePtr CreateOffshoreDataGatewayService(
     IInvokerPtr invoker,
     IInvokerPtr storageInvoker,
     NRpc::IAuthenticatorPtr authenticator,
@@ -16,4 +16,4 @@ NRpc::IServicePtr CreateOffshoreNodeService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

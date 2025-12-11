@@ -1,10 +1,10 @@
 #include "config.h"
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOffshoreNodeProxyBootstrapConfig::Register(TRegistrar registrar)
+void TOffshoreDataGatewayBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -16,13 +16,13 @@ void TOffshoreNodeProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
-        .Default("//sys/offshore_node_proxies/config");
+        .Default("//sys/offshore_data_gateways/config");
 }
 
-void TOffshoreNodeProxyProgramConfig::Register(TRegistrar /*registrar*/)
+void TOffshoreDataGatewayProgramConfig::Register(TRegistrar /*registrar*/)
 { }
 
-void TOffshoreNodeProxyDynamicConfig::Register(TRegistrar registrar)
+void TOffshoreDataGatewayDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("storage_thread_count", &TThis::StorageThreadCount)
         .GreaterThan(0)
@@ -31,4 +31,4 @@ void TOffshoreNodeProxyDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

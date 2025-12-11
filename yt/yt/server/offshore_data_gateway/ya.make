@@ -6,7 +6,7 @@ SRCS(
     bootstrap.cpp
     config.cpp
     dynamic_config_manager.cpp
-    offshore_node_service.cpp
+    offshore_data_gateway_service.cpp
 )
 
 PEERDIR(

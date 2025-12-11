@@ -30,7 +30,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
 {
     if (!chunkReaderHost) {
         THROW_ERROR_EXCEPTION(
-            "Cannot create offshore chunk reader for chunk %v without chunk reader host",
+            "Cannot create chunk reader for chunk %v without chunk reader host",
             chunkId);
             // TODO(achulkov2): [PForReview] Make replicas serializable.
             // << TErrorAttribute("seed_replicas", seedReplicas);

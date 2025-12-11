@@ -4575,7 +4575,7 @@ private:
         TChunkReplicaWithMediumList offshoreReplicas;
 
         // TODO(achulkov2): [PForReview] Think about this properly, probably just move it down the line. What is the right way to distinguish those replicas?
-        // By invalid chunk location uuid or by offshore node id?
+        // By invalid chunk location uuid or by offshore data gateway id?
         for (const TChunkReplicaWithLocation& replica : replicas) {
             if (replica.GetChunkLocationUuid() == InvalidChunkLocationUuid) {
                 offshoreReplicas.push_back(replica);

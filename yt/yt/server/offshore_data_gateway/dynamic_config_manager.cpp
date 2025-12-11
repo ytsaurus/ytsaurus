@@ -2,26 +2,26 @@
 
 #include "config.h"
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicConfigManager::TDynamicConfigManager(
-    const TOffshoreNodeProxyBootstrapConfigPtr& OffshoreNodeProxyConfig,
+    const TOffshoreDataGatewayBootstrapConfigPtr& OffshoreDataGatewayConfig,
     NApi::IClientPtr client,
     IInvokerPtr invoker)
-    : TDynamicConfigManagerBase<TOffshoreNodeProxyDynamicConfig>(
+    : TDynamicConfigManagerBase<TOffshoreDataGatewayDynamicConfig>(
         TDynamicConfigManagerOptions{
-            .ConfigPath = OffshoreNodeProxyConfig->DynamicConfigPath,
-            .Name = "OffshoreNodeProxy",
+            .ConfigPath = OffshoreDataGatewayConfig->DynamicConfigPath,
+            .Name = "OffshoreDataGateway",
         },
-        OffshoreNodeProxyConfig->DynamicConfigManager,
+        OffshoreDataGatewayConfig->DynamicConfigManager,
         std::move(client),
         std::move(invoker))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

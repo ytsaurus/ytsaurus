@@ -1,7 +1,7 @@
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
-    OFFSHORE_NODE_PROXIES_SERVICE,
+    OFFSHORE_DATA_GATEWAYS_SERVICE,
 )
 from yt.common import YtError
 from yt.yson import YsonList, YsonEntity
@@ -34,7 +34,6 @@ import logging
 import random
 import builtins
 import string
-import json
 
 import yt.yson as yson
 import boto3
@@ -64,6 +63,7 @@ TRANSLATE_TABLE = bytes([ASCII_LETTERS_BYTES[b % len(ASCII_LETTERS_BYTES)] for b
 
 ################################################################################
 
+
 class TestS3MediumBase(YTEnvSetup):
     # TODO(achulkov2): Switch to multidaemon?
     NUM_MASTERS = 1
@@ -71,7 +71,7 @@ class TestS3MediumBase(YTEnvSetup):
 
     NUM_SCHEDULERS = 1
 
-    NUM_OFFSHORE_NODE_PROXIES = 1
+    NUM_OFFSHORE_DATA_GATEWAYS = 1
 
     USE_DYNAMIC_TABLES = True
 
@@ -292,10 +292,10 @@ class TestS3MediumBase(YTEnvSetup):
         super(TestS3MediumBase, cls).teardown_class()
 
     def setup_method(self, method):
-        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
-            has_mark = any(m for m in method.pytestmark if m.name == "run_with_no_offshore_node_proxies")
+        if self.NUM_OFFSHORE_DATA_GATEWAYS == 0:
+            has_mark = any(m for m in method.pytestmark if m.name == "run_with_no_offshore_data_gateways")
             if not has_mark:
-                pytest.skip("This test was not marked to be run with no offshore node proxies")
+                pytest.skip("This test was not marked to be run with no offshore data gateways")
 
         super(TestS3MediumBase, self).setup_method(method)
 
@@ -407,7 +407,7 @@ class TestS3Medium(TestS3MediumBase):
                 check_field(config, config_path, field, forbidden)
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_tables_simple(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
@@ -543,7 +543,7 @@ class TestS3Medium(TestS3MediumBase):
 
     @authors("pavel-bash")
     def test_partition_table(self):
-        # Partition on dynamic sorted tables invokes the GetChunkSlices of OffshoreNodeService,
+        # Partition on dynamic sorted tables invokes the GetChunkSlices of OffshoreDataGatewayService,
         # which is exactly what we want to test here (see partition_tables.cpp).
 
         INPUT_TABLE = "//tmp/input1"
@@ -576,8 +576,8 @@ class TestS3Medium(TestS3MediumBase):
     @pytest.mark.parametrize("sorted", [True, False])
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_map_reduce_operation(self, sorted, dynamic):
-        if self.NUM_OFFSHORE_NODE_PROXIES == 0 and sorted and dynamic:
-            pytest.skip("This operation times out if no offshore node proxies are available")
+        if self.NUM_OFFSHORE_DATA_GATEWAYS == 0 and sorted and dynamic:
+            pytest.skip("This operation times out if no offshore data gateways are available")
 
         INPUT_TABLE = "<append=%true>//tmp/input"
         OUTPUT_TABLE = "<append=%true>//tmp/output"
@@ -676,7 +676,7 @@ class TestS3Medium(TestS3MediumBase):
         assert read_table(OUTPUT_TABLE) == [{**row, "key": str(row["key"])} for row in input]
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_files_simple(self):
         create("file", "//tmp/f", attributes={"primary_medium": self.get_s3_medium_name()})
 
@@ -689,7 +689,7 @@ class TestS3Medium(TestS3MediumBase):
         assert object_data == b"Hello, world!"
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_removal(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
@@ -708,7 +708,7 @@ class TestS3Medium(TestS3MediumBase):
         # TODO(achulkov2): When it is implemented, check that the data is actually removed from the S3 bucket.
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_copy(self):
         create("table", "//tmp/t1", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t1", {"a": "b"})
@@ -796,7 +796,7 @@ class TestS3Medium(TestS3MediumBase):
     # TODO(achulkov2): Test multi-cell and cross-cell copy.
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_move(self):
         create("table", "//tmp/t1", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t1", {"a": "b"})
@@ -874,7 +874,7 @@ class TestS3Medium(TestS3MediumBase):
         return True
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_multiple_media(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
@@ -923,7 +923,7 @@ class TestS3Medium(TestS3MediumBase):
         assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_medium_switch(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
@@ -984,7 +984,7 @@ class TestS3Medium(TestS3MediumBase):
         assert read_table("//tmp/t") == [{"a": "b"}, {"c": "d"}]
 
     @authors("achulkov2")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_table_and_chunk_attributes(self):
         # This table has rf=3 because that is just how life works.
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
@@ -1091,8 +1091,8 @@ class TestS3Medium(TestS3MediumBase):
 
     # TODO(achulkov2): Test files.
 
-    # TODO(pavel-bash): Test ban mechanism in replication reader does not ban the offshore node but only a replica
-    # when we support multiple replicas.
+    # TODO(pavel-bash): Test ban mechanism in replication reader does not ban the offshore data gateway but only a replica
+    # when we support multiple replicas; example test as a git diff: https://paste.nebius.dev/paste/993b1203-e882-4256-ad57-762f42043e9c.html.
 
 
 ################################################################################
@@ -1106,13 +1106,13 @@ class TestS3MediumRpcProxy(TestS3Medium):
 ################################################################################
 
 
-"""
-If we have no offshore node proxies, most of the tests will time out as readers&fetchers
-retry indefinitely. However, we have a cluster connection parameter which tells
-the reader to use the raw S3 reader; with that parameter the non-fetcher tests should work.
-"""
-class TestS3MediumNoOffshoreNodeProxies(TestS3Medium):
-    NUM_OFFSHORE_NODE_PROXIES = 0
+class TestS3MediumNoOffshoreDataGateways(TestS3Medium):
+    """
+    If we have no offshore data gateways, most of the tests will time out as readers&fetchers
+    retry indefinitely. However, we have a cluster connection parameter which tells
+    the reader to use the raw S3 reader; with that parameter the non-fetcher tests should work.
+    """
+    NUM_OFFSHORE_DATA_GATEWAYS = 0
 
     DELTA_DRIVER_CONFIG = {
         "enable_replication_reader_for_offshore_data": False,
@@ -1128,12 +1128,12 @@ class TestS3MediumNoOffshoreNodeProxies(TestS3Medium):
 ################################################################################
 
 
-class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
-    NUM_OFFSHORE_NODE_PROXIES = 3
+class TestS3MediumOffshoreDataGateway(TestS3MediumBase):
+    NUM_OFFSHORE_DATA_GATEWAYS = 3
 
     @authors("pavel-bash")
-    def test_offshore_node_proxies_dying(self):
-        # Check that killing offshore nodes proxies does not impact reliability.
+    def test_offshore_data_gateways_dying(self):
+        # Check that killing offshore data gateways proxies does not impact reliability.
         # Basically, repeating the test_partition_table, but with nodes going back and forth.
         INPUT_TABLE = "//tmp/input1"
 
@@ -1178,9 +1178,9 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
         assert_columnar_statistics()
 
         # 1 node down cases.
-        node_ids = ls("//sys/offshore_node_proxies/instances")
+        node_ids = ls("//sys/offshore_data_gateways/instances")
         for i in range(0, len(node_ids)):
-            with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i]):
+            with Restarter(self.Env, OFFSHORE_DATA_GATEWAYS_SERVICE, indexes=[i]):
                 partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
                 assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
                 assert_columnar_statistics()
@@ -1188,7 +1188,7 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
         # 2 nodes down cases.
         for i in range(0, len(node_ids)):
             for j in range(i + 1, len(node_ids)):
-                with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i, j]):
+                with Restarter(self.Env, OFFSHORE_DATA_GATEWAYS_SERVICE, indexes=[i, j]):
                     partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
                     assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
                     assert_columnar_statistics()
@@ -1218,13 +1218,13 @@ class TestS3MediumReaderOptions(TestS3MediumBase):
         create("table", INPUT_TABLE, attributes={"primary_medium": self.get_s3_medium_name()})
         write_table(INPUT_TABLE, {"a": "b"})
 
-        # Should work through the replication_reader with enabled OffshoreNodeProxy.
+        # Should work through the replication_reader with enabled OffshoreDataGateway.
         set("//sys/clusters/primary/enable_replication_reader_for_offshore_data", True)
         time.sleep(5)
         assert read_table_http_proxy(INPUT_TABLE) == [{"a": "b"}]
 
-        # Should timeout through the replication_reader with disabled OffshoreNodeProxy.
-        with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=list(range(self.NUM_OFFSHORE_NODE_PROXIES))):
+        # Should timeout through the replication_reader with disabled OffshoreDataGateway.
+        with Restarter(self.Env, OFFSHORE_DATA_GATEWAYS_SERVICE, indexes=list(range(self.NUM_OFFSHORE_DATA_GATEWAYS))):
             with pytest.raises(YtError, match="Replication reader session timed out"):
                 assert read_table_http_proxy(INPUT_TABLE) == [{"a": "b"}]
 
@@ -1233,8 +1233,8 @@ class TestS3MediumReaderOptions(TestS3MediumBase):
         time.sleep(5)
         assert read_table_http_proxy(INPUT_TABLE) == [{"a": "b"}]
 
-        # Still should work through the native client even with disabled OffshoreNodeProxy.
-        with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=list(range(self.NUM_OFFSHORE_NODE_PROXIES))):
+        # Still should work through the native client even with disabled OffshoreDataGateway.
+        with Restarter(self.Env, OFFSHORE_DATA_GATEWAYS_SERVICE, indexes=list(range(self.NUM_OFFSHORE_DATA_GATEWAYS))):
             assert read_table_http_proxy(INPUT_TABLE) == [{"a": "b"}]
 
 
@@ -1278,7 +1278,7 @@ class TestAttachTable(TestAttachTableBase):
             attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]), medium=medium_name)
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_with_compression_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1297,7 +1297,7 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/imported"), data)
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1338,7 +1338,6 @@ class TestAttachTable(TestAttachTableBase):
         create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
 
         concatenate(["//tmp/written", "//tmp/attached", "//tmp/attached_read_only"], "//tmp/out")
-
 
         assert_items_equal(read_table("//tmp/out"), [{"a": "b"}, {"e": "f"}, {"g": "h"}])
         assert get("//tmp/out/@chunk_ids") == [
@@ -1385,8 +1384,8 @@ class TestAttachTable(TestAttachTableBase):
 
     @authors("faucct")
     def test_attach_and_merge_with_columnar_statistics(self):
-        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
-            pytest.skip("This operation times out if no offshore node proxies are available")
+        if self.NUM_OFFSHORE_DATA_GATEWAYS == 0:
+            pytest.skip("This operation times out if no offshore data gateways are available")
 
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         create("table", "//tmp/merged")
@@ -1449,7 +1448,7 @@ class TestAttachTable(TestAttachTableBase):
             attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://not-{bucket}/foo.parquet"]))
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_with_schema_and_read(self):
         schema = [
             make_column("x", optional_type("int64"), type="int64", required=False),
@@ -1477,7 +1476,7 @@ class TestAttachTable(TestAttachTableBase):
         assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_strings_without_schema_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1497,7 +1496,7 @@ class TestAttachTable(TestAttachTableBase):
         ])
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_strings_with_schema_and_read(self):
         schema = [
             make_column("string", optional_type("utf8"), type="utf8", required=False),
@@ -1717,7 +1716,7 @@ class TestAttachTable(TestAttachTableBase):
         ], [get(f"#{chunk_id}/@schema") for chunk_id in get("//tmp/imported/@chunk_ids")])
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_attach_multiple_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1737,7 +1736,7 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_overwriting_attach_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1759,7 +1758,7 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/imported"), [record2])
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_appending_attach_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1780,7 +1779,7 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
     @authors("faucct")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     def test_write_and_appending_attach_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
@@ -1891,13 +1890,13 @@ class TestAttachTable(TestAttachTableBase):
         assert_items_equal(read_table("//tmp/out"), [record1, record2])
 
     @authors("pavel-bash")
-    @pytest.mark.run_with_no_offshore_node_proxies
+    @pytest.mark.run_with_no_offshore_data_gateways
     @pytest.mark.parametrize("file_format", ["parquet", "jsonl", "csv"])
     @pytest.mark.parametrize("strategy", ["fast", "precise"])
     @pytest.mark.parametrize("with_pivot_keys", [True, False])
     def test_attach_and_sort(self, file_format, strategy, with_pivot_keys):
-        if self.NUM_OFFSHORE_NODE_PROXIES == 0 and not with_pivot_keys:
-            # The samples cannot be produced without OffshoreNodeProxies and there are
+        if self.NUM_OFFSHORE_DATA_GATEWAYS == 0 and not with_pivot_keys:
+            # The samples cannot be produced without OffshoreDataGateways and there are
             # no pivot keys, so the test will just time out.
             return
 
@@ -2404,7 +2403,7 @@ class TestAttachTable(TestAttachTableBase):
             ]))),
         ]))
 
-        if self.NUM_OFFSHORE_NODE_PROXIES:
+        if self.NUM_OFFSHORE_DATA_GATEWAYS:
             min_entity = yson.YsonEntity()
             min_entity.attributes["type"] = "min"
             max_entity = yson.YsonEntity()
@@ -2453,7 +2452,7 @@ class TestAttachTable(TestAttachTableBase):
             make_column("z.b", optional_type("int64")),
         ]))
 
-        if self.NUM_OFFSHORE_NODE_PROXIES:
+        if self.NUM_OFFSHORE_DATA_GATEWAYS:
             columnar_statistics, = get_table_columnar_statistics('["//tmp/imported"]')
             assert columnar_statistics["chunk_row_count"] == 4
             self.assert_columnar_statistics(columnar_statistics, "x", data_weight=1, min_value="a", max_value="a")
@@ -2723,7 +2722,7 @@ class TestAttachTable(TestAttachTableBase):
 
 
 class TestAttachTableRpcProxy(TestAttachTable):
-    NUM_OFFSHORE_NODE_PROXIES = 1
+    NUM_OFFSHORE_DATA_GATEWAYS = 1
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2731,8 +2730,8 @@ class TestAttachTableRpcProxy(TestAttachTable):
 ################################################################################
 
 
-class TestAttachTableNoOffshoreNodeProxies(TestAttachTable):
-    NUM_OFFSHORE_NODE_PROXIES = 0
+class TestAttachTableNoOffshoreDataGateways(TestAttachTable):
+    NUM_OFFSHORE_DATA_GATEWAYS = 0
 
     DELTA_DRIVER_CONFIG = {
         "enable_replication_reader_for_offshore_data": False,

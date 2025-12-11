@@ -2,7 +2,7 @@
 
 #include "config.h"
 #include "dynamic_config_manager.h"
-#include "offshore_node_service.h"
+#include "offshore_data_gateway_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -33,7 +33,7 @@
 
 #include <yt/yt/core/rpc/bus/server.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 using namespace NAdmin;
 using namespace NOrchid;
@@ -46,18 +46,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = OffshoreNodeProxyLogger;
+static constexpr auto& Logger = OffshoreDataGatewayLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TOffshoreNodeProxyProgramConfigPtr config,
+    TOffshoreDataGatewayProgramConfigPtr config,
     INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , ControlQueue_(New<TActionQueue>("Control"))
     , ControlInvoker_(ControlQueue_->GetInvoker())
-    , DynamicConfig_(New<TOffshoreNodeProxyDynamicConfig>())
+    , DynamicConfig_(New<TOffshoreDataGatewayDynamicConfig>())
     , StorageThreadPool_(CreateThreadPool(
         DynamicConfig_->StorageThreadCount,
         /*threadNamePrefix*/ "Storage"))
@@ -84,7 +84,7 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting offshore node proxy process");
+    YT_LOG_INFO("Starting offshore data gateway  process");
 
     InstanceId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -148,7 +148,7 @@ void TBootstrap::DoRun()
     }
     SetBuildAttributes(
         orchidRoot,
-        "offshore_node_proxy");
+        "offshore_data_gateway");
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
@@ -159,7 +159,7 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         NativeAuthenticator_));
 
-    RpcServer_->RegisterService(CreateOffshoreNodeService(
+    RpcServer_->RegisterService(CreateOffshoreDataGatewayService(
         ControlInvoker_,
         StorageThreadPool_->GetInvoker(),
         NativeAuthenticator_,
@@ -180,7 +180,7 @@ void TBootstrap::UpdateCypressNode()
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     TCypressRegistrarOptions options{
-        .RootPath = Format("%v/instances/%v", "//sys/offshore_node_proxies", ToYPathLiteral(InstanceId_)),
+        .RootPath = Format("%v/instances/%v", "//sys/offshore_data_gateways", ToYPathLiteral(InstanceId_)),
         .OrchidRemoteAddresses = NRpcProxy::TAddressMap{{NNodeTrackerClient::DefaultNetworkName, InstanceId_}},
         .AttributesOnStart = BuildAttributeDictionaryFluently()
             .Item("annotations").Value(Config_->CypressAnnotations)
@@ -205,19 +205,19 @@ void TBootstrap::UpdateCypressNode()
 }
 
 void TBootstrap::OnDynamicConfigChanged(
-    const TOffshoreNodeProxyDynamicConfigPtr& oldConfig,
-    const TOffshoreNodeProxyDynamicConfigPtr& newConfig)
+    const TOffshoreDataGatewayDynamicConfigPtr& oldConfig,
+    const TOffshoreDataGatewayDynamicConfigPtr& newConfig)
 {
     ReconfigureNativeSingletons(Config_, newConfig);
 
     StorageThreadPool_->Configure(newConfig->StorageThreadCount);
 
     YT_LOG_DEBUG(
-        "Updated offshore node proxy dynamic config (OldConfig: %v, NewConfig: %v)",
+        "Updated offshore data gateway  dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

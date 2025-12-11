@@ -257,7 +257,7 @@ TFuture<void> TFetcherBase::Fetch()
     std::vector<TFuture<const TNodeDescriptor*>> asyncNodeDescriptors;
     asyncNodeDescriptors.reserve(nodeIds.size());
     for (auto id : nodeIds) {
-        // Offshore node id is a sentinel and is not present in node directory.
+        // Offshore data gateway id is a sentinel and is not present in node directory.
         if (id == OffshoreNodeId) {
             continue;
         }
@@ -511,7 +511,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     if (nodeId == OffshoreNodeId) {
-        return Client_->GetNativeConnection()->GetOffshoreNodeProxyChannel();
+        return Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
     }
 
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
@@ -548,7 +548,7 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
 
 void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
-    // Offshore node never sends us a throttle request (at least, yet).
+    // Offshore data gateway never sends us a throttle request (at least, yet).
     YT_VERIFY(nodeId != OffshoreNodeId);
 
     auto nodeAddress = GetNodeAddress(nodeId);
@@ -623,7 +623,7 @@ std::string TFetcherBase::GetNodeAddress(NNodeTrackerClient::TNodeId nodeId)
 void TFetcherBase::MarkNodeDead(NNodeTrackerClient::TNodeId nodeId)
 {
     if (nodeId == OffshoreNodeId) {
-        YT_LOG_DEBUG("The offshore node should not be marked dead, skipping it");
+        YT_LOG_DEBUG("The offshore data gateway should not be marked dead, skipping it");
         return;
     }
     DeadNodes_.insert(nodeId);

@@ -6,19 +6,19 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, OffshoreNodeProxyLogger, "OffshoreNodeProxy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, OffshoreDataGatewayLogger, "OffshoreDataGateway");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, OffshoreNodeProxyProfiler, "/offshore_node_proxy");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, OffshoreDataGatewayProfiler, "/offshore_data_gateway");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOffshoreNodeProxyBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TOffshoreNodeProxyProgramConfig)
-DECLARE_REFCOUNTED_CLASS(TOffshoreNodeProxyDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayProgramConfig)
+DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
@@ -28,4 +28,4 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

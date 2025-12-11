@@ -17,11 +17,11 @@
 
 #include <yt/yt/library/program/config.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyBootstrapConfig
+class TOffshoreDataGatewayBootstrapConfig
     : public TNativeServerConfig
 {
 public:
@@ -32,29 +32,29 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TOffshoreNodeProxyBootstrapConfig);
+    REGISTER_YSON_STRUCT(TOffshoreDataGatewayBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOffshoreNodeProxyBootstrapConfig)
+DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyProgramConfig
-    : public TOffshoreNodeProxyBootstrapConfig
+class TOffshoreDataGatewayProgramConfig
+    : public TOffshoreDataGatewayBootstrapConfig
 {
 public:
-    REGISTER_YSON_STRUCT(TOffshoreNodeProxyProgramConfig);
+    REGISTER_YSON_STRUCT(TOffshoreDataGatewayProgramConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOffshoreNodeProxyProgramConfig)
+DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyDynamicConfig
+class TOffshoreDataGatewayDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
@@ -62,13 +62,13 @@ public:
     //! chunk slices, columnar statistic etc).
     int StorageThreadCount;
 
-    REGISTER_YSON_STRUCT(TOffshoreNodeProxyDynamicConfig);
+    REGISTER_YSON_STRUCT(TOffshoreDataGatewayDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOffshoreNodeProxyDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

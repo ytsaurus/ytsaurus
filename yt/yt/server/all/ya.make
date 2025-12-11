@@ -38,7 +38,7 @@ PEERDIR(
     yt/yt/server/timestamp_provider
     yt/yt/server/tools
     yt/yt/server/replicated_table_tracker
-    yt/yt/server/offshore_node_proxy
+    yt/yt/server/offshore_data_gateway
 
     yt/yt/library/oom
 )

@@ -12,25 +12,25 @@
 
 #include <yt/yt/core/http/server.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
 {
 public:
-    TBootstrap(TOffshoreNodeProxyProgramConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TOffshoreDataGatewayProgramConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
     void Run();
 
 private:
-    const TOffshoreNodeProxyProgramConfigPtr Config_;
+    const TOffshoreDataGatewayProgramConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const IInvokerPtr ControlInvoker_;
-    const TOffshoreNodeProxyDynamicConfigPtr DynamicConfig_;
+    const TOffshoreDataGatewayDynamicConfigPtr DynamicConfig_;
 
     const NConcurrency::IThreadPoolPtr StorageThreadPool_;
 
@@ -57,12 +57,12 @@ private:
     void UpdateCypressNode();
 
     void OnDynamicConfigChanged(
-        const TOffshoreNodeProxyDynamicConfigPtr& oldConfig,
-        const TOffshoreNodeProxyDynamicConfigPtr& newConfig);
+        const TOffshoreDataGatewayDynamicConfigPtr& oldConfig,
+        const TOffshoreDataGatewayDynamicConfigPtr& newConfig);
 
     void CreateStateTablesIfNeeded();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

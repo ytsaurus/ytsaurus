@@ -1,4 +1,4 @@
-#include "offshore_node_proxy_channel.h"
+#include "offshore_data_gateway_channel.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
@@ -19,7 +19,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
-namespace NYT::NOffshoreNodeProxy {
+namespace NYT::NOffshoreDataGateway {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -29,26 +29,26 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreNodeProxyChannelProvider
+class TOffshoreDataGatewayChannelProvider
     : public IRoamingChannelProvider
 {
 public:
-    TOffshoreNodeProxyChannelProvider(
-        TOffshoreNodeProxyChannelConfigPtr config,
+    TOffshoreDataGatewayChannelProvider(
+        TOffshoreDataGatewayChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
         NApi::NNative::IConnectionPtr connection)
         : Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
         , Connection_(connection)
-        , EndpointDescription_(Format("OffshoreNodeProxy@%v", connection->GetClusterName()))
+        , EndpointDescription_(Format("OffshoreDataGateway@%v", connection->GetClusterName()))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Item("offshore_node_proxy").Value(true)
+                .Item("offshore_data_gateway").Value(true)
                 .Item("cluster").Value(connection->GetClusterName())
             .EndMap()))
         , RefreshChannelExecutor_(New<TPeriodicExecutor>(
             GetCurrentInvoker(),
-            BIND(&TOffshoreNodeProxyChannelProvider::RefreshChannel, MakeWeak(this)),
+            BIND(&TOffshoreDataGatewayChannelProvider::RefreshChannel, MakeWeak(this)),
             TDuration::Seconds(1)))
     {
         RefreshChannelExecutor_->Start();
@@ -95,7 +95,7 @@ public:
     }
 
 private:
-    const TOffshoreNodeProxyChannelConfigPtr Config_;
+    const TOffshoreDataGatewayChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
 
@@ -118,7 +118,7 @@ private:
         NApi::TMasterReadOptions masterReadOptions;
         masterReadOptions.ReadFrom = NApi::EMasterChannelKind::MasterCache;
 
-        auto req = TYPathProxy::List("//sys/offshore_node_proxies/instances");
+        auto req = TYPathProxy::List("//sys/offshore_data_gateways/instances");
         SetCachingHeader(req, connection, masterReadOptions);
 
         TObjectServiceProxy proxy(
@@ -155,12 +155,12 @@ private:
     }
 };
 
-IChannelPtr CreateOffshoreNodeProxyChannel(
-    const TOffshoreNodeProxyChannelConfigPtr& config,
+IChannelPtr CreateOffshoreDataGatewayChannel(
+    const TOffshoreDataGatewayChannelConfigPtr& config,
     IChannelFactoryPtr channelFactory,
     NApi::NNative::IConnectionPtr connection)
 {
-    auto channelProvider = New<TOffshoreNodeProxyChannelProvider>(
+    auto channelProvider = New<TOffshoreDataGatewayChannelProvider>(
         config,
         std::move(channelFactory),
         std::move(connection));
@@ -175,4 +175,4 @@ IChannelPtr CreateOffshoreNodeProxyChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOffshoreNodeProxy
+} // namespace NYT::NOffshoreDataGateway

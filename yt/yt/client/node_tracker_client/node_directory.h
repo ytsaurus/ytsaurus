@@ -189,8 +189,8 @@ private:
 void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);
 
 //! The methods below are created as an intermediate step towards a
-//! potential merge of offshore node fake descriptor into the node_directory. They must be
-//! used if the caller thinks the ID or the address belongs to the offshore node.
+//! potential merge of offshore gateway fake node descriptor into the node_directory. They must be
+//! used if the caller thinks the ID or the address belongs to the offshore gateway.
 const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id);
 const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id);
 const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectory& nodeDirectory, const std::string& address);
