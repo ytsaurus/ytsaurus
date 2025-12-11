@@ -1273,11 +1273,12 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
         }
         resultFields.push_back(NTableClient::TStructField{
             .Name = name,
+            .StableName = name,
             .Type = std::move(logicalType),
         });
     }
 
-    auto resultType = ListLogicalType(StructLogicalType(resultFields));
+    auto resultType = ListLogicalType(StructLogicalType(resultFields, /*removedFieldStableNames*/ {}));
 
     auto result = New<TSubqueryExpression>(resultType);
 

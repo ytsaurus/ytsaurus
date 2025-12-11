@@ -485,9 +485,13 @@ public:
             std::vector<TStructField> structFields;
             structFields.reserve(UnderlyingConverters_.size());
             for (const auto& [underlyingConverter, elementName] : Zip(UnderlyingConverters_, *ElementNames_)) {
-                structFields.push_back({elementName, underlyingConverter->GetLogicalType()});
+                structFields.push_back({
+                    .Name = elementName,
+                    .StableName = elementName,
+                    .Type = underlyingConverter->GetLogicalType(),
+                });
             }
-            return StructLogicalType(std::move(structFields));
+            return StructLogicalType(std::move(structFields), /*removedFieldStableNames*/ {});
         }
     }
 

@@ -939,9 +939,9 @@ TEST(TArrowParserTest, Struct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
-            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        })),
+            {"bar", "bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"foo", "foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        }, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -962,8 +962,8 @@ TEST(TArrowParserTest, StructError)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("struct", StructLogicalType({
-            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        })),
+            {"bar", "bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -1326,7 +1326,7 @@ TEST(TArrowParserTest, WrongListInput)
 TEST(TArrowParserTest, EmptyStruct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("struct", StructLogicalType({})),
+        TColumnSchema("struct", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);
@@ -1349,7 +1349,7 @@ TEST(TArrowParserTest, EmptyStruct)
 TEST(TArrowParserTest, InvalidEmptyStruct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{
-        TColumnSchema("struct", StructLogicalType({})),
+        TColumnSchema("struct", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     TCollectingValueConsumer collectedRows(tableSchema);

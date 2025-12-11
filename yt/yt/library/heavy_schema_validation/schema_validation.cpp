@@ -35,13 +35,17 @@ using namespace NChunkClient;
  *  - Column aggregate method either was introduced or remains the same.
  *  - Column sort order either changes to std::nullopt or remains the same.
  */
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
+void ValidateColumnSchemaUpdate(
+    const TColumnSchema& oldColumn,
+    const TColumnSchema& newColumn,
+    const NComplexTypes::TTypeCompatibilityOptions& typeCompatibilityOptions)
 {
     YT_VERIFY(oldColumn.StableName() == newColumn.StableName());
 
     auto compatibility = NComplexTypes::CheckTypeCompatibility(
         oldColumn.LogicalType(),
-        newColumn.LogicalType());
+        newColumn.LogicalType(),
+        typeCompatibilityOptions);
 
     if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %v",
@@ -171,7 +175,10 @@ static void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTab
  *  - Key columns are not removed (but they may become non-key).
  *  - If any key columns are removed, the unique_keys is set to false.
  */
-static void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+static void ValidateColumnsMatch(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    const NComplexTypes::TTypeCompatibilityOptions& typeCompatibilityOptions)
 {
     int commonKeyColumnPrefix = 0;
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
@@ -182,7 +189,7 @@ static void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSche
             continue;
         }
         const auto& newColumn = *newColumnPtr;
-        ValidateColumnSchemaUpdate(oldColumn, newColumn);
+        ValidateColumnSchemaUpdate(oldColumn, newColumn, typeCompatibilityOptions);
 
         if (oldColumn.SortOrder() && newColumn.SortOrder()) {
             int newColumnIndex = newSchema.GetColumnIndex(newColumn);
@@ -432,7 +439,16 @@ void ValidateTableSchemaUpdateInternal(
         } else {
             ValidateColumnsNotInserted(oldSchema, newSchema);
         }
-        ValidateColumnsMatch(oldSchema, newSchema);
+
+        NComplexTypes::TTypeCompatibilityOptions typeCompatibilityOptions{
+            .AllowStructFieldRenaming = isTableDynamic
+                ? enabledFeatures.EnableDynamicTableStructFieldRenaming
+                : enabledFeatures.EnableStaticTableStructFieldRenaming,
+            .AllowStructFieldRemoval = isTableDynamic
+                ? enabledFeatures.EnableDynamicTableStructFieldRemoval
+                : enabledFeatures.EnableStaticTableStructFieldRemoval,
+        };
+        ValidateColumnsMatch(oldSchema, newSchema, typeCompatibilityOptions);
 
         // We allow adding computed columns only on creation of the table.
         if (!oldSchema.IsEmpty() || !isTableEmpty) {
@@ -465,15 +481,14 @@ void ValidateTableSchemaUpdate(
         oldSchema,
         newSchema,
         TSchemaUpdateEnabledFeatures{
-            false,  /* EnableStaticTableDropColumn */
-            false  /* EnableDynamicTableDropColumn */
+            .EnableStaticTableDropColumn = false,
+            .EnableDynamicTableDropColumn = false,
         },
         isTableDynamic,
         isTableEmpty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 void ValidateTableSchemaHeavy(
     const TTableSchema& schema,

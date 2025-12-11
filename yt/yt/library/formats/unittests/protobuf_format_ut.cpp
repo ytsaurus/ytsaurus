@@ -669,21 +669,21 @@ TTableSchemaPtr BuildEmbeddedSchema()
         {"num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"embedded_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"variant", VariantStructLogicalType({
-            {"str_variant", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"uint_variant", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
+            {"str_variant", "str_variant", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"uint_variant", "uint_variant", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         })},
         {"extra_column", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
         {"embedded2_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"embedded2_struct", StructLogicalType({
-            {"float1", SimpleLogicalType(ESimpleLogicalValueType::Float)},
-            {"string1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        })},
+            {"float1", "float1", SimpleLogicalType(ESimpleLogicalValueType::Float)},
+            {"string1", "string1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {})},
         {"embedded2_repeated", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
         {"other_complex_field", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
         {"extra_int", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
     });
     return schema;
@@ -756,10 +756,10 @@ TEST(TProtobufFormatTest, TestConfigParsing)
 
     auto schemaForEmbedded = New<TTableSchema>(std::vector{
         TColumnSchema("field1", StructLogicalType({
-            {"embedded_message2", StructLogicalType({
-                {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            })},
-        }))
+            {"embedded_message2", "embedded_message2", StructLogicalType({
+                {"field2", "field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {})},
+        }, /*removedFieldStableNames*/ {}))
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -875,7 +875,7 @@ TEST(TProtobufFormatTest, TestConfigParsing)
         .EndMap();
 
     auto schema = New<TTableSchema>(std::vector{
-        TColumnSchema("SomeColumn", StructLogicalType({})),
+        TColumnSchema("SomeColumn", StructLogicalType({}, /*removedFieldStableNames*/ {})),
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -1480,49 +1480,49 @@ TEST(TProtobufFormatTest, TestContext)
 TTableSchemaPtr CreateSchemaWithStructuredMessage()
 {
     auto keyValueStruct = StructLogicalType({
-        {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-        {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-    });
+        {"key", "key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+        {"value", "value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+    }, /*removedFieldStableNames*/ {});
 
     return New<TTableSchema>(std::vector<TColumnSchema>{
         {"first", StructLogicalType({
-            {"field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-            {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"message_field", keyValueStruct},
-            {"repeated_message_field", ListLogicalType(keyValueStruct)},
-            {"any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
-            {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
-            {"packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            {"optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
-            {"oneof_field", VariantStructLogicalType({
-                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_message_field", keyValueStruct},
+            {"field_missing_from_proto1", "field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+            {"enum_field", "enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"int64_field", "int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"repeated_int64_field", "repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"another_repeated_int64_field", "another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"message_field", "message_field", keyValueStruct},
+            {"repeated_message_field", "repeated_message_field", ListLogicalType(keyValueStruct)},
+            {"any_int64_field", "any_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"any_map_field", "any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
+            {"optional_int64_field", "optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"repeated_optional_any_field", "repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
+            {"packed_repeated_enum_field", "packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"optional_repeated_bool_field", "optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
+            {"oneof_field", "oneof_field", VariantStructLogicalType({
+                {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", "oneof_message_field", keyValueStruct},
             })},
-            {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
-                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"oneof_message_field", keyValueStruct},
+            {"optional_oneof_field", "optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
+                {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", "oneof_message_field", keyValueStruct},
             }))},
-            {"map_field", DictLogicalType(
+            {"map_field", "map_field", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
                 OptionalLogicalType(keyValueStruct))
             },
-            {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-        })},
+            {"field_missing_from_proto2", "field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        }, /*removedFieldStableNames*/ {})},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"another_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"repeated_message_field", ListLogicalType(keyValueStruct)},
         {"second", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
         {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
 
         {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
@@ -1537,10 +1537,10 @@ TTableSchemaPtr CreateSchemaWithStructuredMessage()
         {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
 
         {"other_complex_field", StructLogicalType({
-            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"one", "one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", "two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", "three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
 
         {"utf8_field", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
 
@@ -1549,15 +1549,15 @@ TTableSchemaPtr CreateSchemaWithStructuredMessage()
         {"optional_repeated_int64_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
 
         {"oneof_field", VariantStructLogicalType({
-            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_message_field", keyValueStruct},
+            {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", "oneof_message_field", keyValueStruct},
         })},
 
         {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
-            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            {"oneof_message_field", keyValueStruct},
+            {"oneof_string_field_1", "oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", "oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", "oneof_message_field", keyValueStruct},
         }))},
 
         {"map_field", DictLogicalType(
@@ -2911,9 +2911,9 @@ std::vector<TTableSchemaPtr> CreateSeveralTablesSchemas()
     return {
         New<TTableSchema>(std::vector<TColumnSchema>{
             {"embedded", StructLogicalType({
-                {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            })},
+                {"enum_field", "enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"int64_field", "int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            }, /*removedFieldStableNames*/ {})},
             {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         }),
@@ -3261,14 +3261,14 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_struct_with_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"int64_field", "int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto schema_struct_with_uint64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
-        })},
+            {"int64_field", "int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto config_struct_with_int64 = BuildYsonNodeFluently()
@@ -3410,9 +3410,9 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_struct_with_both = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
-            {"required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-        })},
+            {"required_field", "required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"optional_field", "optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        }, /*removedFieldStableNames*/ {})},
     });
 
     auto config_struct_with_required = BuildYsonNodeFluently()
@@ -3565,12 +3565,12 @@ TEST(TProtobufFormatTest, SchemaConfigMismatch)
 
     auto schema_variant_with_int = New<TTableSchema>(std::vector<TColumnSchema>{
         {"variant", VariantStructLogicalType({
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", "a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         })},
     });
     auto schema_variant_with_optional_int = New<TTableSchema>(std::vector<TColumnSchema>{
         {"variant", VariantStructLogicalType({
-            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"a", "a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
     });
 
@@ -4024,7 +4024,7 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             }))},
         });
         return schema;
@@ -4034,12 +4034,12 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4048,13 +4048,13 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4063,14 +4063,14 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4079,16 +4079,16 @@ public:
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", OptionalLogicalType(VariantStructLogicalType({
-                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"f3", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+                {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f3", "f3", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
             }))},
             {"c", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
             {"b", OptionalLogicalType(StructLogicalType({
-                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"x", "x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4362,11 +4362,11 @@ public:
             {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"inner", OptionalLogicalType(StructLogicalType({
-                {"optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
-                {"repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-            }))},
+                {"optional_enum", "optional_enum", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"required_enum", "required_enum", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"repeated_enum", "repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"packed_repeated_enum", "packed_repeated_enum", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }, /*removedFieldStableNames*/ {}))},
         });
         return schema;
     }
@@ -4520,8 +4520,8 @@ public:
     static TTableSchemaPtr GetSchemaWithVariant(bool optional = false)
     {
         auto variantType = VariantStructLogicalType({
-            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
         });
         return New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", optional ? OptionalLogicalType(variantType) : variantType},
@@ -4531,9 +4531,9 @@ public:
     static TTableSchemaPtr GetSchemaWithStruct(bool optional = false)
     {
         auto structType = StructLogicalType({
-            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        });
+            {"f1", "f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", "f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }, /*removedFieldStableNames*/ {});
         return New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", optional ? OptionalLogicalType(structType) : structType},
         });
