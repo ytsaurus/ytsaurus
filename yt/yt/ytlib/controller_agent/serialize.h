@@ -105,6 +105,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StorePreemptibleProgressInJoblets)     (302125))
     // 26.1 starts here
     ((BumpTo_26_1)                           (302200))
+    ((UseCounterGuardsInChunkPoolMerger)     (302201))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
