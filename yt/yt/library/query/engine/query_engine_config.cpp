@@ -38,6 +38,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
+
+    registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

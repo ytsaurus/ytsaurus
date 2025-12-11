@@ -38,6 +38,7 @@ struct TQueryEngineDynamicConfig
     std::optional<EStatisticsAggregation> StatisticsAggregation;
     std::optional<bool> UseOrderByInJoinSubqueries;
     std::optional<int> ExpressionBuilderVersion;
+    std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 
