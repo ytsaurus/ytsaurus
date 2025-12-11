@@ -435,6 +435,15 @@ public:
         if (setReadOnly) {
             epochContext->EnteringReadOnlyMode = true;
             if (enableAutomatonReadOnlyBarrier) {
+                // After we start entering read-only mode, no more mutations that make transactions
+                // prepared (hopefully) can be scheduled. We commit a heartbeat mutation here to ensure
+                // all already scheduled mutations are flushed and applied, so then
+                // we can wait for barrier.
+                auto result = WaitFor(CommitMutation(MakeSystemMutationRequest(HeartbeatMutationType)));
+                if (!result.IsOK()) {
+                    epochContext->EnteringReadOnlyMode = false;
+                    result.ThrowOnError();
+                }
                 auto readyToEnterReadOnlyMode = WaitForFast(DecoratedAutomaton_->GetReadyToEnterReadOnlyMode());
                 if (!readyToEnterReadOnlyMode.IsOK()) {
                     epochContext->EnteringReadOnlyMode = false;
