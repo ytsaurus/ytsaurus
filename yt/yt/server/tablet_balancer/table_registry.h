@@ -6,9 +6,29 @@
 
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TTableProfilingCounters
+{
+    std::string BundleName;
+    TString GroupName;
+    NProfiling::TCounter InMemoryMoves;
+    NProfiling::TCounter OrdinaryMoves;
+    NProfiling::TCounter TabletMerges;
+    NProfiling::TCounter TabletSplits;
+    NProfiling::TCounter NonTrivialReshards;
+    NProfiling::TCounter ParameterizedMoves;
+    NProfiling::TCounter ReplicaMoves;
+    NProfiling::TCounter ParameterizedReshardMerges;
+    NProfiling::TCounter ParameterizedReshardSplits;
+    NProfiling::TCounter ReplicaMerges;
+    NProfiling::TCounter ReplicaSplits;
+    NProfiling::TCounter ReplicaNonTrivialReshards;
+};
 
 class TTableRegistry final
 {
@@ -31,12 +51,15 @@ public:
     void AddAlienTablePath(const TClusterName& cluster, const NYPath::TYPath& path, TTableId tableId);
     void AddAlienTable(const TAlienTablePtr& table, const std::vector<TTableId>& majorTableIds);
     void DropAllAlienTables();
+    TTableProfilingCounters& GetProfilingCounters(const TTable* table, const TString& groupName);
 
 private:
     THashSet<TTableId> TablesWithAlienTable_;
+    THashMap<TTableId, TTableProfilingCounters> ProfilingCounters_;
 
     void UnlinkTableFromOldBundle(const TTablePtr& table);
     void UnlinkTabletFromCell(const TTabletPtr& tablet);
+    TTableProfilingCounters InitializeProfilingCounters(const TTable* table, const TString& groupName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableRegistry)

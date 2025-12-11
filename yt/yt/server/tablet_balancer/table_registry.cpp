@@ -1,5 +1,7 @@
 #include "table_registry.h"
 
+#include "private.h"
+
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
@@ -32,6 +34,8 @@ void TTableRegistry::RemoveTable(const TTableId& tableId)
 
     UnlinkTableFromOldBundle(it->second);
     Tables_.erase(it);
+
+    ProfilingCounters_.erase(tableId);
 }
 
 void TTableRegistry::RemoveBundle(const TTabletCellBundlePtr& bundle)
@@ -80,6 +84,61 @@ void TTableRegistry::UnlinkTabletFromCell(const TTabletPtr& tablet)
     if (auto cell = tablet->Cell.Lock()) {
         EraseOrCrash(cell->Tablets, tablet->Id);
     }
+}
+
+TTableProfilingCounters& TTableRegistry::GetProfilingCounters(
+    const TTable* table,
+    const TString& groupName)
+{
+    auto it = ProfilingCounters_.find(table->Id);
+    if (it == ProfilingCounters_.end()) {
+        auto profilingCounters = InitializeProfilingCounters(table, groupName);
+        return EmplaceOrCrash(
+            ProfilingCounters_,
+            table->Id,
+            std::move(profilingCounters))->second;
+    }
+
+    if (it->second.GroupName != groupName || it->second.BundleName != table->Bundle->Name) {
+        it->second = InitializeProfilingCounters(table, groupName);
+    }
+
+    return it->second;
+}
+
+TTableProfilingCounters TTableRegistry::InitializeProfilingCounters(
+    const TTable* table,
+    const TString& groupName) const
+{
+    TTableProfilingCounters profilingCounters{.BundleName = table->Bundle->Name, .GroupName = groupName};
+    auto profiler = TabletBalancerProfiler()
+        .WithSparse()
+        .WithTag("tablet_cell_bundle", profilingCounters.BundleName)
+        .WithTag("group", groupName)
+        .WithTag("table_path", table->Path);
+
+    profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
+    profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ordinary_moves");
+
+    profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
+    profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
+    profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
+
+    profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
+
+    profilingCounters.ReplicaMoves = profiler.Counter("/tablet_balancer/parameterized_replica_moves");
+
+    profilingCounters.ParameterizedReshardMerges = profiler.Counter(
+        "/tablet_balancer/parameterized_reshard_merges");
+    profilingCounters.ParameterizedReshardSplits = profiler.Counter(
+        "/tablet_balancer/parameterized_reshard_splits");
+
+    profilingCounters.ReplicaMerges = profiler.Counter("/tablet_balancer/replica_merges");
+    profilingCounters.ReplicaSplits = profiler.Counter("/tablet_balancer/replica_splits");
+    profilingCounters.ReplicaNonTrivialReshards = profiler.Counter(
+        "/tablet_balancer/replica_non_trivial_reshards");
+
+    return profilingCounters;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
