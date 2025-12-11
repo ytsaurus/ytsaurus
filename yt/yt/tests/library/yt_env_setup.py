@@ -1104,7 +1104,10 @@ class YTEnvSetup(object):
         if ground_driver is None:
             return
 
-        cls._restore_sequoia_bundle_options(cluster_index + cls.get_ground_index_offset())
+        ground_index = cluster_index + cls.get_ground_index_offset()
+        cls._ensure_sequoia_bundle_created("sequoia-cypress", ground_index)
+        cls._ensure_sequoia_bundle_created("sequoia-chunks", ground_index)
+
         # TODO(h0pless, danilalexeev): YT-25434. Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia-cypress", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
@@ -2015,9 +2018,15 @@ class YTEnvSetup(object):
         def get_object_ids_to_ignore():
             ids = []
 
-            # COMPAT(gritukan, aleksandra-zh)
-            if yt_commands.exists("//sys/tablet_cell_bundles/sequoia-cypress", driver=driver):
-                ids += yt_commands.get("//sys/tablet_cell_bundles/sequoia-cypress/@tablet_cell_ids", driver=driver)
+            for bundle in ("sequoia-cypress", "sequoia-chunks"):
+                if yt_commands.exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
+                    attrs = yt_commands.get(
+                        f"//sys/tablet_cell_bundles/{bundle}/@",
+                        attributes=["id", "tablet_cell_ids", "areas"],
+                        driver=driver)
+
+                    ids += [attrs["id"], *attrs["tablet_cell_ids"]]
+                    ids += [area["id"] for area in attrs["areas"].values()]
 
             return ids
 
@@ -2402,11 +2411,35 @@ class YTEnvSetup(object):
         cls._restore_bundle_options("default", "sys", cluster_index)
 
     @classmethod
-    def _restore_sequoia_bundle_options(cls, cluster_index):
+    def _ensure_sequoia_bundle_created(cls, bundle, cluster_index):
         assert cls._is_ground_cluster(cluster_index)
+
+        driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+        if not yt_commands.exists(f"//sys/tablet_cell_bundles/{bundle}", driver=driver):
+            yt_commands.create_tablet_cell_bundle(
+                bundle,
+                attributes={
+                    "options": {
+                        "changelog_account": "sequoia",
+                        "snapshot_account": "sequoia",
+                    },
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "permissions": ["use"],
+                            "subjects": ["users"],
+                        },
+                    ],
+                    "resource_limits": {
+                        "tablet_count": 10**5,
+                        "tablet_static_memory": 2**40,
+                    }
+                },
+                driver=driver)
+
         # TODO(kvk1920): use Sequoia bundle and account from non-ground
         # cluster's config.
-        cls._restore_bundle_options("sequoia-cypress", "sequoia", cluster_index)
+        cls._restore_bundle_options(bundle, "sequoia", cluster_index)
 
     def _remove_operations(self, driver=None):
         abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"

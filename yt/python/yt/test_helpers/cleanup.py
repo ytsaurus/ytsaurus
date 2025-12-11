@@ -23,8 +23,8 @@ SYSTEM_TRANSACTION_TITLE_SUBSTRINGS = [
 def abort_transactions(list_action, abort_action, exists_action, get_action):
     sequoia_tablet_cells = []
     # COMPAT(gritukan, aleksandra-zh)
-    if exists_action("//sys/tablet_cell_bundles/sequoia"):
-        sequoia_tablet_cells = get_action("//sys/tablet_cell_bundles/sequoia/@tablet_cell_ids")
+    if exists_action("//sys/tablet_cell_bundles/sequoia-cypress"):
+        sequoia_tablet_cells = get_action("//sys/tablet_cell_bundles/sequoia-cypress/@tablet_cell_ids")
 
     for tx in list_action("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
