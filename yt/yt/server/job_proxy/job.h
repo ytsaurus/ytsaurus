@@ -210,7 +210,7 @@ struct IJob
 
     virtual TStatistics GetStatistics() const = 0;
 
-    virtual bool HasInputStatistics() const = 0;
+    virtual bool HasInput() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

@@ -2152,6 +2152,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_ignore_yt_variables_in_shell_environment(TaskHost_->GetSpec()->IgnoreYTVariablesInShellEnvironment);
 
+    if (joblet->DistributedGroupInfo.Index > 0) {
+        jobSpecExt->mutable_user_job_spec()->set_is_secondary_distributed(true);
+    }
+
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 
