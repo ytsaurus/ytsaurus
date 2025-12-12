@@ -645,6 +645,8 @@ void TAllocation::OnResourcesAcquired() noexcept
 
     State_ = EAllocationState::Running;
 
+    static_cast<IUserSlot*>(ResourceHolder_->GetUserSlot().Get())->SetAllocationId(GetId());
+
     // NB(arkady-e1ppa): In non-legacy version of
     // allocation preparation resources are acquired
     // immediately. That is, before the spec

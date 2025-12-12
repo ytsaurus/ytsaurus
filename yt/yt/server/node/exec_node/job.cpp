@@ -512,8 +512,6 @@ void TJob::Start() noexcept
 
     SetJobState(EJobState::Running);
 
-    GetUserSlot()->SetAllocationId(GetAllocationId());
-
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
     if (UserJobSpec_ && (
