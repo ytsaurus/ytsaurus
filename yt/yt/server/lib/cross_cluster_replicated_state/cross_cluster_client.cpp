@@ -18,7 +18,7 @@ class TSingleClusterClient
     : public ISingleClusterClient
 {
 public:
-    TSingleClusterClient(std::size_t index, IClientBasePtr client)
+    TSingleClusterClient(int index, IClientBasePtr client)
         : Client_(std::move(client))
         , Index_(index)
     { }
@@ -28,7 +28,7 @@ public:
         return Client_;
     }
 
-    std::size_t GetIndex() override
+    int GetIndex() const override
     {
         return Index_;
     }
@@ -42,7 +42,7 @@ public:
 
 private:
     IClientBasePtr Client_;
-    std::size_t Index_;
+    int Index_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,12 +67,12 @@ protected:
         std::vector<TFuture<std::any>> clusterFutures;
         clusterFutures.reserve(Clients_.size());
 
-        for (const auto& [index, client] : Enumerate(Clients_)) {
+        for (const auto& [index, client] : SEnumerate(Clients_)) {
             if (!client) {
                 clusterFutures.push_back(MakeFuture<std::any>(TError("No client for cluster %v", index)));
                 continue;
             }
-            clusterFutures.push_back(callback(New<TSingleClusterClient>(index, std::move(client))));
+            clusterFutures.push_back(callback(New<TSingleClusterClient>(index, client)));
         }
         return AllSet(std::move(clusterFutures));
     }

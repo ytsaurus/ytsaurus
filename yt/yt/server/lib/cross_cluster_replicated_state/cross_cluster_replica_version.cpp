@@ -35,6 +35,11 @@ void PutVersion(const IMapNodePtr& node, const TReplicaVersion& version)
     node->AddChild("version_tag", ConvertToNode(version.second));
 }
 
+std::string MakeVersionAttributeValue(const TReplicaVersion& version)
+{
+    return std::format("{:016x};{}", version.first, version.second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCrossClusterReplicatedState

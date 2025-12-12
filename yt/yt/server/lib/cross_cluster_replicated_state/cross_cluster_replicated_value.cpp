@@ -29,13 +29,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MakeVersionAttribute(const TReplicaVersion& version)
-{
-    return std::format("{:016x};{}", version.first, version.second);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicaUpdater
     : public TRefCounted
 {
@@ -208,7 +201,7 @@ private:
         setOptions.Timeout = Config_->RequestTimeout;
 
         auto attributePath = NodePath_ + "/@" + ICrossClusterReplicatedValue::VersionAttributeKey;
-        auto attributeValue = MakeVersionAttribute(ExtractVersion(Node_));
+        auto attributeValue = MakeVersionAttributeValue(ExtractVersion(Node_));
         return Transaction_->SetNode(
             attributePath, NYson::ConvertToYsonString(attributeValue), setOptions);
     }
@@ -391,9 +384,9 @@ private:
         std::vector<TErrorOr<std::pair<TReplicaVersion, INodePtr>>>&& getResults)
     {
         YT_LOG_DEBUG("Processing gets (ReplicaVersionTag: %v)", Tag_);
-        std::vector<std::size_t> failedClusters;
+        std::vector<int> failedClusters;
         std::vector<TError> innerErrors;
-        for (auto&& [index, result] : Enumerate(getResults)) {
+        for (auto&& [index, result] : SEnumerate(getResults)) {
             if (!result.IsOK()) {
                 if (result.GetCode() == NYTree::EErrorCode::ResolveError) {
                     getResults[index] = std::pair(NullReplicaVersion, INodePtr());
@@ -401,7 +394,7 @@ private:
                     YT_LOG_DEBUG(
                         result,
                         "Fetching error (ReplicaIndex: %v, ReplicaVersionTag: %v)", index, Tag_);
-                    failedClusters.push_back(index);
+                    failedClusters.emplace_back(index);
                     innerErrors.push_back(static_cast<const TError&>(result));
                 }
             }
@@ -419,14 +412,14 @@ private:
 
     void ProcessUpdates(std::vector<TErrorOr<std::monostate>>&& updateResults)
     {
-        std::vector<std::size_t> failedClusters;
+        std::vector<int> failedClusters;
         std::vector<TError> innerErrors;
-        for (auto&& [index, result] : Enumerate(updateResults)) {
+        for (auto&& [index, result] : SEnumerate(updateResults)) {
             if (!result.IsOK()) {
                 YT_LOG_DEBUG(
                     result,
                     "Updating error (ReplicaIndex: %v, ReplicaVersionTag: %v)", index, Tag_);
-                failedClusters.push_back(index);
+                failedClusters.emplace_back(index);
                 innerErrors.push_back(static_cast<const TError&>(result));
             }
         }

@@ -16,6 +16,8 @@ TReplicaVersion ExtractVersion(const NYTree::INodePtr& node);
 
 void PutVersion(const NYTree::IMapNodePtr& node, const TReplicaVersion& version);
 
+std::string MakeVersionAttributeValue(const TReplicaVersion& version);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCrossClusterReplicatedState
