@@ -1740,8 +1740,8 @@ class TTraverseWithKeyColumnCount
     : public TChunkTreeTraversingTest
     , public ::testing::WithParamInterface<std::tuple<
         int,
-        TString,
-        TString,
+        std::string,
+        std::string,
         std::optional<TLegacyReadLimit>,
         std::optional<TLegacyReadLimit>
     >>

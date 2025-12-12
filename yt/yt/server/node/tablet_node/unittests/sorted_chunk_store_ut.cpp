@@ -23,14 +23,14 @@ class TSortedChunkStoreTestKeysFiltering
     , public ::testing::WithParamInterface<std::tuple<
         const char*,
         const char*,
-        std::vector<TString>>>
+        std::vector<std::string>>>
 { };
 
 TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
 {
     const auto& args = GetParam();
-    TString lowerString = std::get<0>(args);
-    TString upperString = std::get<1>(args);
+    TStringBuf lowerString = std::get<0>(args);
+    TStringBuf upperString = std::get<1>(args);
     const auto& keyStrings = std::get<2>(args);
 
     TLegacyOwningKey lowerKey = lowerString.empty() ? TLegacyOwningKey{} : YsonToKey(lowerString);
@@ -78,17 +78,17 @@ INSTANTIATE_TEST_SUITE_P(
     Test,
     TSortedChunkStoreTestKeysFiltering,
     ::testing::Values(
-        std::tuple("0", "3", std::vector<TString>{"0", "1", "2"}),
-        std::tuple("0", "2", std::vector<TString>{"0", "1", "2"}),
-        std::tuple("1", "2", std::vector<TString>{"0", "1", "2"}),
-        std::tuple("5", "5", std::vector<TString>{"1", "10"}),
-        std::tuple("5", "5", std::vector<TString>{"1", "2"}),
-        std::tuple("5", "5", std::vector<TString>{"2", "10"}),
-        std::tuple("5", "5", std::vector<TString>{"4", "5", "6"}),
-        std::tuple("1", "5", std::vector<TString>{"2", "4", "6"}),
-        std::tuple("5", "8", std::vector<TString>{"2", "4", "6"}),
-        std::tuple("5", "8", std::vector<TString>{"2", "4"}),
-        std::tuple("5", "8", std::vector<TString>{"2", "4", "5"}))
+        std::tuple("0", "3", std::vector<std::string>{"0", "1", "2"}),
+        std::tuple("0", "2", std::vector<std::string>{"0", "1", "2"}),
+        std::tuple("1", "2", std::vector<std::string>{"0", "1", "2"}),
+        std::tuple("5", "5", std::vector<std::string>{"1", "10"}),
+        std::tuple("5", "5", std::vector<std::string>{"1", "2"}),
+        std::tuple("5", "5", std::vector<std::string>{"2", "10"}),
+        std::tuple("5", "5", std::vector<std::string>{"4", "5", "6"}),
+        std::tuple("1", "5", std::vector<std::string>{"2", "4", "6"}),
+        std::tuple("5", "8", std::vector<std::string>{"2", "4", "6"}),
+        std::tuple("5", "8", std::vector<std::string>{"2", "4"}),
+        std::tuple("5", "8", std::vector<std::string>{"2", "4", "5"}))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -61,9 +61,9 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString A("a");
+const std::string A("a");
 const std::optional<TStringBuf> AOpt = A;
-const TString B("b");
+const std::string B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,7 +607,7 @@ TSharedRange<size_t> GetRandomUniqueSequence(TFastRng64& rng, size_t length, siz
     return MakeSharedRange(std::move(sequence));
 }
 
-const TString Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+const TStringBuf Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
 struct TRandomValueGenerator
 {
@@ -743,7 +743,7 @@ protected:
         TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("k5", ESimpleLogicalValueType::Float).SetSortOrder(ESortOrder::Ascending),
 
-        TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")),
+        TColumnSchema("v1", EValueType::Int64).SetAggregate(std::string("min")),
         TColumnSchema("v2", EValueType::Int64),
         TColumnSchema("v3", EValueType::Uint64),
         TColumnSchema("v4", EValueType::String),
@@ -752,7 +752,7 @@ protected:
         TColumnSchema("v7", EValueType::Boolean),
     };
 
-    std::deque<TString> StringData_;
+    std::deque<std::string> StringData_;
 
     const std::vector<TVersionedRow> InitialRows_ = CreateRows();
 
@@ -1092,13 +1092,13 @@ protected:
             {});
     }
 
-    TString NextStringValue(std::vector<char>& value)
+    std::string NextStringValue(std::vector<char>& value)
     {
         int index = value.size() - 1;
         while (index >= 0) {
             if (value[index] < 'z') {
                 ++value[index];
-                return TString(value.data(), value.size());
+                return std::string(value.data(), value.size());
             } else {
                 value[index] = 'a';
                 --index;
@@ -1666,7 +1666,7 @@ protected:
     {
         auto writeColumnSchemas = ColumnSchemas_;
         for (auto& column : writeColumnSchemas) {
-            column.SetGroup(TString("G"));
+            column.SetGroup(std::string("G"));
         }
         auto writeSchema = New<TTableSchema>(writeColumnSchemas);
 
@@ -1963,7 +1963,7 @@ protected:
         }
 
         // Values
-        writeSchemaColumns.push_back(TColumnSchema("v01", ESimpleLogicalValueType::Int64).SetAggregate(TString("min")));
+        writeSchemaColumns.push_back(TColumnSchema("v01", ESimpleLogicalValueType::Int64).SetAggregate(std::string("min")));
         writeSchemaColumns.push_back(TColumnSchema("v02", ESimpleLogicalValueType::Int64));
         writeSchemaColumns.push_back(TColumnSchema("v03", ESimpleLogicalValueType::Uint64));
         writeSchemaColumns.push_back(TColumnSchema("v04", ESimpleLogicalValueType::String));

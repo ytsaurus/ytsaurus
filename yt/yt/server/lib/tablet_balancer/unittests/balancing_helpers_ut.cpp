@@ -830,7 +830,7 @@ class TTestReassignTabletsParameterizedErrors
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
-        /*errorText*/ TString>>
+        /*errorText*/ std::string>>
 { };
 
 TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
@@ -970,7 +970,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
 
     EXPECT_EQ(cellSizes, expectedSizes);
 
-    THashMap<TString, i64> NodeMemoryUsed;
+    THashMap<std::string, i64> NodeMemoryUsed;
     for (const auto& [cellId, cell] : bundle->TabletCells) {
         if (!cell->NodeAddress.has_value()) {
             continue;
@@ -1324,7 +1324,7 @@ class TTestMergeSplitTabletsParameterizedErrors
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
-        /*errorText*/ TString>>
+        /*errorText*/ std::string>>
 { };
 
 TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
@@ -1429,8 +1429,8 @@ INSTANTIATE_TEST_SUITE_P(
 class TTestReplaceAliases
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*metric*/ TString,
-        /*expectedMetric*/ TString>>
+        /*metric*/ std::string,
+        /*expectedMetric*/ std::string>>
 { };
 
 TEST_P(TTestReplaceAliases, TestWithoutAliases)

@@ -298,12 +298,12 @@ TEST(TestYsonStateTest, Update)
 struct TTestDefaultYsonState
     : public virtual TYsonStruct
 {
-    TString Simple;
-    TString SimpleWithDefault;
-    TString Packable;
-    TString PackableWithDefault;
-    TString Compressed;
-    TString CompressedWithDefault;
+    std::string Simple;
+    std::string SimpleWithDefault;
+    std::string Packable;
+    std::string PackableWithDefault;
+    std::string Compressed;
+    std::string CompressedWithDefault;
 
     REGISTER_YSON_STRUCT(TTestDefaultYsonState);
 

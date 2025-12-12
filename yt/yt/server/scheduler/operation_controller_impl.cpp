@@ -680,7 +680,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TJobResources& allocationLimits,
     const TDiskResources& diskResourceLimits,
     const std::string& treeId,
-    const TString& poolPath,
+    const TYPath& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

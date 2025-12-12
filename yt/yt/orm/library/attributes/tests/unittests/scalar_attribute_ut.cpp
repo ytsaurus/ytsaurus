@@ -26,7 +26,7 @@ NYTree::INodePtr MessageToNode(const TProtoMessage& message)
     TString newYsonString;
     TStringOutput newYsonOutputStream(newYsonString);
     NYson::TYsonWriter ysonWriter(&newYsonOutputStream, NYson::EYsonFormat::Pretty);
-    TString protobufString = message.SerializeAsString();
+    TProtoStringType protobufString = message.SerializeAsString();
     google::protobuf::io::ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
     NYson::ParseProtobuf(&ysonWriter, &protobufInput, NYson::ReflectProtobufMessageType<TProtoMessage>());
     return NYTree::ConvertToNode(NYson::TYsonString(newYsonString));
@@ -304,7 +304,7 @@ TEST(TClearAttributesTest, UnknownYsonField)
             .EndMap()
         .EndMap();
 
-    TString protobufString;
+    TProtoStringType protobufString;
     google::protobuf::io::StringOutputStream protobufOutput(&protobufString);
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = NYson::TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(
@@ -354,7 +354,7 @@ TEST(TClearAttributesTest, UnknownYsonNestedField)
             .EndMap()
         .EndMap();
 
-    TString protobufString;
+    TProtoStringType protobufString;
     google::protobuf::io::StringOutputStream protobufOutput(&protobufString);
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = NYson::TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(
@@ -658,13 +658,13 @@ TEST_P(TSetAttributeTest, AttributeDictionaryField)
     EXPECT_EQ("a", message.attribute_dictionary().attributes(0).key());
     EXPECT_EQ(
         "foo_a",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.attribute_dictionary().attributes(0).value())));
     ASSERT_EQ(2, message.attribute_dictionary().attributes_size());
     EXPECT_EQ("b", message.attribute_dictionary().attributes(1).key());
     EXPECT_EQ(
         "foo_b",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.attribute_dictionary().attributes(1).value())));
 
     EXPECT_NO_THROW(
@@ -678,12 +678,12 @@ TEST_P(TSetAttributeTest, AttributeDictionaryField)
     EXPECT_EQ("aa", message.attribute_dictionary().attributes(1).key());
     EXPECT_EQ(
         "foo_aa",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.attribute_dictionary().attributes(1).value())));
     EXPECT_EQ("b", message.attribute_dictionary().attributes(2).key());
     EXPECT_EQ(
         "foo_b",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.attribute_dictionary().attributes(2).value())));
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/attribute_dictionary",
             NYTree::BuildYsonNodeFluently().Entity()));
@@ -709,12 +709,12 @@ TEST_P(TSetAttributeTest, NestedAttributeDictionaryField)
     EXPECT_EQ("a", message.nested_message().attribute_dictionary().attributes(0).key());
     EXPECT_EQ(
         "foo_a",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.nested_message().attribute_dictionary().attributes(0).value())));
     EXPECT_EQ("b", message.nested_message().attribute_dictionary().attributes(1).key());
     EXPECT_EQ(
         "foo_b",
-        NYson::ConvertFromYsonString<TString>(
+        NYson::ConvertFromYsonString<std::string>(
             NYson::TYsonString(message.nested_message().attribute_dictionary().attributes(1).value())));
 
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/nested_message/attribute_dictionary",

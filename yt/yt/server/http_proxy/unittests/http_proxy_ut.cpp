@@ -23,9 +23,9 @@ TEST(TProxyTest, FramingOutputStream)
     {
         auto asyncStream = CreateAsyncAdapter(static_cast<IOutputStream*>(&stringStream));
         auto framingStream = New<TFramingAsyncOutputStream>(asyncStream, GetCurrentInvoker());
-        auto frame1 = TString("abc");
-        auto frame2 = TString("");
-        auto frame3 = TString("123 456" "\x00" "789 ABC"sv);
+        auto frame1 = std::string("abc");
+        auto frame2 = std::string("");
+        auto frame3 = std::string("123 456" "\x00" "789 ABC"sv);
         WaitFor(framingStream->WriteDataFrame(TSharedRef::FromString(frame1)))
             .ThrowOnError();
         WaitFor(framingStream->WriteKeepAliveFrame())

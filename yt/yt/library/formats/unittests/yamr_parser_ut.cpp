@@ -45,7 +45,7 @@ TEST(TYamrParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "key1\tvalue1\n"
         "2\n"
         "key2\tvalue2\n";
@@ -73,7 +73,7 @@ TEST(TYamrParserTest, ValueWithTabs)
         EXPECT_CALL(Mock, OnStringScalar(TStringBuf("another\0 value with \t", 21)));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input(
+    std::string input(
         "key1\0\tvalue with \t and some other\n"
         "key2\tanother\0 value with \t\n",
         34 +
@@ -106,7 +106,7 @@ TEST(TYamrParserTest, SimpleWithSubkey)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
 
@@ -149,7 +149,7 @@ TEST(TYamrParserTest, IncompleteRows)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "key1\tsubkey1\tvalue1\n"
         "key\tsubkey\n"
         "key2\tsubkey2\tvalue2\n";
@@ -184,7 +184,7 @@ TEST(TYamrParserTest, TabsInValue)
     EXPECT_CALL(Mock, OnEndMap());
 
     auto config = New<TYamrFormatConfig>();
-    TString input = "key\ta\tb\\tc\t";
+    std::string input = "key\ta\tb\\tc\t";
     ParseYamr(input, &Mock, config);
 }
 
@@ -207,7 +207,7 @@ TEST(TYamrParserTest, Escaping)
     config->HasSubkey = true;
     config->EnableEscaping = true;
 
-    TString input = "\\tkey\\t\t\\n\ta\tb\t\\n\n";
+    std::string input = "\\tkey\\t\t\\n\ta\tb\t\\n\n";
     ParseYamr(input, &Mock, config);
 }
 
@@ -235,7 +235,7 @@ TEST(TYamrParserTest, CustomSeparators)
     config->RecordSeparator = 'Y';
     config->FieldSeparator = 'X';
 
-    TString input = "keyXvalueYkey2Xvalue2Y";
+    std::string input = "keyXvalueYkey2Xvalue2Y";
     ParseYamr(input, &Mock, config);
 }
 
@@ -269,7 +269,7 @@ TEST(TYamrLenvalParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -311,7 +311,7 @@ TEST(TYamrLenvalParserTest, SimpleWithSubkey)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
@@ -344,7 +344,7 @@ TEST(TYamrLenvalParserTest, EmptyFields)
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00",
@@ -359,7 +359,7 @@ TEST(TYamrLenvalParserTest, EmptyFields)
 
 TEST(TYamrLenvalParserTest, HugeLength)
 {
-    TString input = TString(
+    std::string input = std::string(
         "\xFF\xFF\xFF\xFF"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00",
@@ -400,7 +400,7 @@ TEST(TYamrLenvalParserTest, SimpleEndOfMessage)
         EXPECT_CALL(Mock, OnStringScalar("value2"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -435,7 +435,7 @@ TEST(TYamrLenvalParserTest, EmptyFieldsWithEOM)
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
@@ -457,7 +457,7 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
     config->Lenval = true;
     config->EnableEom = true;
 
-    TString input1 = TString(
+    std::string input1 = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -470,7 +470,7 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
 
         2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
-    TString input2 = TString(
+    std::string input2 = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -496,7 +496,7 @@ TEST(TYamrParserTest, IncorrectEOM)
     config->EnableEom = true;
 
     // Garbage after EOM marker
-    TString input1 = TString(
+    std::string input1 = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -510,7 +510,7 @@ TEST(TYamrParserTest, IncorrectEOM)
         2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     // Row count mismatch
-    TString input2 = TString(
+    std::string input2 = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -524,7 +524,7 @@ TEST(TYamrParserTest, IncorrectEOM)
         2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     // Missing EOM marker
-    TString input3 = TString(
+    std::string input3 = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -536,7 +536,7 @@ TEST(TYamrParserTest, IncorrectEOM)
         2 * (2 * 4 + 4 + 6) + 8); // all i32 + lengths of keys
 
     // Missing EOM marker with empty fields
-    TString input4 = TString(
+    std::string input4 = std::string(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00",
@@ -555,7 +555,7 @@ TEST(TYamrParserTest, UnsupportedEOMInTextMode)
     config->Lenval = false;
     config->EnableEom = true;
 
-    TString input = TString(
+    std::string input = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
@@ -579,7 +579,7 @@ TEST(TYamrParserTest, UnexpectedEOM)
     config->Lenval = true;
     config->EnableEom = false;
 
-    TString input = TString(
+    std::string input = std::string(
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 

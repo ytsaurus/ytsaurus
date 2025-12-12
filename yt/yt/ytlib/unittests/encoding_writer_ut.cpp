@@ -46,9 +46,9 @@ void DoTestEncodingWriter(
     int blockNum = 20;
     int blockSize =  1000000;
     blocks.reserve(blockNum);
-    TString base;
+    std::string base;
     base.reserve(blockSize);
-    TString whole;
+    std::string whole;
     whole.reserve(blockNum * blockSize);
     std::generate_n(std::back_inserter(base), blockSize, [&rnd] {
         return rnd() % 127 + 1;

@@ -18,9 +18,9 @@ using google::protobuf::internal::WireFormatLite;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TCallable, class... TArgs>
-TString SerializeAsString(TCallable callable, TArgs... args)
+TProtoStringType SerializeAsString(TCallable callable, TArgs... args)
 {
-    TString result;
+    TProtoStringType result;
     google::protobuf::io::StringOutputStream outputStream(&result);
     google::protobuf::io::CodedOutputStream codedStream(&outputStream);
     std::invoke(callable, args..., &codedStream);
@@ -125,7 +125,7 @@ TEST(TGetWireStringByPathTest, Hierarchy)
         TWireString::FromSerialized("Fastest Local Car"));
 
     NProto::TWheel wheel;
-    std::vector<TString> serializedWheels;
+    std::vector<std::string> serializedWheels;
     for (int wheelIndex = 0; wheelIndex < 4; ++wheelIndex) {
         auto wheelWireString = GetWireStringByPath(car.descriptor(), wireString, Format("/wheels/%v", wheelIndex));
         wheel.set_radius(wheelIndex);
@@ -158,7 +158,7 @@ TEST(TGetWireStringByPathTest, Hierarchy)
         GetWireStringByPath(car.descriptor(), wireString, "/engine/horsepower"),
         TWireString::FromSerialized(SerializeAsString(&WireFormatLite::WriteInt32NoTag, 78)));
 
-    std::vector<TString> serializedWeights;
+    std::vector<std::string> serializedWeights;
     serializedWeights.push_back(SerializeAsString(&WireFormatLite::WriteUInt32NoTag, 10));
     EXPECT_EQ(
         GetWireStringByPath(car.descriptor(), wireString, "/weights/0"),
@@ -171,7 +171,7 @@ TEST(TGetWireStringByPathTest, Hierarchy)
         GetWireStringByPath(car.descriptor(), wireString, "/weights"),
         TWireString::FromSerialized(serializedWeights));
 
-    std::vector<TString> serializedQualityControls;
+    std::vector<std::string> serializedQualityControls;
     serializedQualityControls.push_back(SerializeAsString(&WireFormatLite::WriteBoolNoTag, false));
     EXPECT_EQ(
         GetWireStringByPath(car.descriptor(), wireString, "/quality_controls/0"),

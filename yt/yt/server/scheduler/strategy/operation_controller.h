@@ -30,7 +30,7 @@ struct ISchedulingOperationController
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         const std::string& treeId,
-        const TString& poolPath,
+        const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.

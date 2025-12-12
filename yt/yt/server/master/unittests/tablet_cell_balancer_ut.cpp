@@ -32,11 +32,11 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSettingParam = std::tuple<
-    TString,
-    TString,
-    TString,
+    std::string,
+    std::string,
+    std::string,
     int,
-    TString>;
+    std::string>;
 using TStressSettingParam = std::tuple<int, int, int, int, int>;
 using TCompleteSettingParam = std::tuple<
     THashMap<std::string, int>,

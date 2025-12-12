@@ -16,7 +16,7 @@ class TRowsDigestComputerTest
 protected:
     TNameTablePtr NameTable_ = New<TNameTable>();
 
-    int GetColumnId(const TString& name)
+    int GetColumnId(const std::string& name)
     {
         return NameTable_->GetIdOrRegisterName(name);
     }
@@ -389,7 +389,7 @@ TEST_F(TRowsDigestComputerTest, LongStringValues)
     TRowsDigestComputer computer1(NameTable_);
     TRowsDigestComputer computer2(NameTable_);
 
-    TString longString(1000, 'a');
+    std::string longString(1000, 'a');
 
     auto row1 = BuildRow(MakeUnversionedStringValue(longString, GetColumnId("col")));
     auto row2 = BuildRow(MakeUnversionedStringValue(longString, GetColumnId("col")));
@@ -403,7 +403,7 @@ TEST_F(TRowsDigestComputerTest, LongStringValues)
     EXPECT_EQ(digest1, digest2);
 
     TRowsDigestComputer computer3(NameTable_);
-    TString longString2(1000, 'a');
+    std::string longString2(1000, 'a');
     longString2[999] = 'b';
 
     auto row3 = BuildRow(MakeUnversionedStringValue(longString2, GetColumnId("col")));

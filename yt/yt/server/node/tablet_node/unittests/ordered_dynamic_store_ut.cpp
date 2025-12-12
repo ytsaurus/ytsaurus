@@ -49,7 +49,7 @@ protected:
     }
 
 
-    TString DumpStore()
+    std::string DumpStore()
     {
         TStringBuilder builder;
         builder.AppendFormat("RowCount=%v ValueCount=%v\n",

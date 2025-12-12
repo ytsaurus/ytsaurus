@@ -126,7 +126,10 @@ TEST_F(TS3ClientTest, PutAndListBuckets)
 
 TEST_F(TS3ClientTest, PutAndGetObjects)
 {
-    const TString object1Key = "foo1", object1Data = "bar1", object2Key = "foo2", object2Data = "bar2";
+    const TString object1Key = "foo1";
+    const TString object1Data = "bar1";
+    const TString object2Key = "foo2";
+    const TString object2Data = "bar2";
     WaitFor(S3Client_->PutObject({
         .Bucket = Bucket1_,
         .Key = object1Key,
@@ -145,7 +148,7 @@ TEST_F(TS3ClientTest, PutAndGetObjects)
         .Key = object1Key,
     }))
         .ValueOrThrow();
-    ASSERT_EQ(TString(getObjectResponse.Data.ToStringBuf()), object1Data);
+    ASSERT_EQ(std::string(getObjectResponse.Data.ToStringBuf()), object1Data);
 
     auto listObjectsResponse = WaitFor(S3Client_->ListObjects({
         .Bucket = Bucket1_,

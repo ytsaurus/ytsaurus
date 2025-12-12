@@ -594,8 +594,8 @@ protected:
         // NB: Key columns must go first.
         return New<TTableSchema>(std::vector{
             TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("a", EValueType::Int64).SetLock(TString("l1")),
-            TColumnSchema("b", EValueType::Double).SetLock(TString("l2")),
+            TColumnSchema("a", EValueType::Int64).SetLock("l1"),
+            TColumnSchema("b", EValueType::Double).SetLock("l2"),
             TColumnSchema("c", EValueType::String)
         });
     }

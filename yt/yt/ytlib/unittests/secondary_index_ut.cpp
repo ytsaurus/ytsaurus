@@ -200,7 +200,7 @@ public:
         };
     }
 
-    void ExpectError(TError error, const TString& substring)
+    void ExpectError(TError error, const std::string& substring)
     {
         THROW_ERROR_EXCEPTION_IF(error.IsOK(), "Expected error");
 
@@ -216,9 +216,9 @@ protected:
 
     void ApplyRandomModifiers(TColumnSchema& column, bool key)
     {
-        static const std::vector<TString> Locks{"L1", "L2"};
-        static const std::vector<TString> Groups{"G1", "G2"};
-        static const std::vector<TString> Aggregates{"max", "min"};
+        static const std::vector<std::string> Locks{"L1", "L2"};
+        static const std::vector<std::string> Groups{"G1", "G2"};
+        static const std::vector<std::string> Aggregates{"max", "min"};
 
         if (Rng_.Uniform(100) < TypeFlipPercentChance) {
             auto newType = TestedTypes[Rng_.Uniform(TestedTypes.size())];

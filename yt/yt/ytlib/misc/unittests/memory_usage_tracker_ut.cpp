@@ -9,7 +9,7 @@ namespace {
 
 TSharedRef CreateReference(i64 size)
 {
-    TString s;
+    std::string s;
     s.resize(size, '*');
 
     auto output = TSharedRef::FromString(s);

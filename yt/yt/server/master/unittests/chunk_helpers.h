@@ -18,7 +18,7 @@ namespace NYT::NChunkServer::NTesting {
 
 TGuid GenerateId(NCypressClient::EObjectType type);
 
-NTableClient::TUnversionedOwningRow BuildKey(const TString& yson);
+NTableClient::TUnversionedOwningRow BuildKey(TStringBuf yson);
 
 class TChunkGeneratorTestBase
     : public TBootstrapTestBase

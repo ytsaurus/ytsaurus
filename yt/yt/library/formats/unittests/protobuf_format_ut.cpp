@@ -71,13 +71,13 @@ DEFINE_ENUM(EProtoFormatType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ConvertToTextYson(const INodePtr& node)
+std::string ConvertToTextYson(const INodePtr& node)
 {
     return ConvertToYsonString(node, EYsonFormat::Text).ToString();
 }
 
 // Hardcoded serialization of file descriptor used in old format description.
-TString FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
+std::string FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
     "\x0b\x0a\x03\x4b\x65\x79\x18\x01\x20\x01\x28\x09\x12\x0d\x0a\x05\x56\x61\x6c\x75\x65\x18\x02\x20\x01\x28\x09\x22\xb3\x02\x0a\x08\x54\x4d\x65\x73"
     "\x73\x61\x67\x65\x12\x0e\x0a\x06\x44\x6f\x75\x62\x6c\x65\x18\x01\x20\x01\x28\x01\x12\x0d\x0a\x05\x46\x6c\x6f\x61\x74\x18\x02\x20\x01\x28\x02\x12"
@@ -91,9 +91,9 @@ TString FileDescriptorLegacy = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72
     "\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x2a\x24\x0a\x05\x45\x45\x6e\x75\x6d\x12\x07\x0a\x03\x4f\x6e\x65\x10\x01\x12\x07\x0a\x03\x54"
     "\x77\x6f\x10\x02\x12\x09\x0a\x05\x54\x68\x72\x65\x65\x10\x03";
 
-TString GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
+std::string GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
 {
-    TString result;
+    std::string result;
     result.append(reinterpret_cast<const char*>(&size), sizeof(size));
 
     size += sizeof(ui32);
@@ -126,7 +126,7 @@ static TProtobufFormatConfigPtr MakeProtobufFormatConfig(const std::vector<const
         }
         fileDescriptor->CopyTo(fileDescriptorSet.add_file());
     };
-    std::vector<TString> typeNames;
+    std::vector<std::string> typeNames;
 
     for (const auto* descriptor : descriptorList) {
         addFile(descriptor->file());
@@ -144,7 +144,7 @@ static TProtobufFormatConfigPtr MakeProtobufFormatConfig(const std::vector<const
 
 INodePtr ParseYson(TStringBuf data)
 {
-    return ConvertToNode(NYson::TYsonString(TString{data}));
+    return ConvertToNode(NYson::TYsonString(data));
 }
 
 TString LenvalBytes(const ::google::protobuf::Message& message)
@@ -243,9 +243,9 @@ INodePtr CreateFileDescriptorConfig(std::optional<EComplexTypeMode> complexTypeM
     for (auto fileDescriptor : fileDescriptors) {
         fileDescriptor->CopyTo(fileDescriptorSetProto.add_file());
     }
-    TString fileDescriptorSetText;
+    TProtoStringType fileDescriptorSetText;
     ::google::protobuf::TextFormat::Printer().PrintToString(fileDescriptorSetProto, &fileDescriptorSetText);
-    std::vector<TString> typeNames = {Ts::descriptor()->full_name()...};
+    std::vector<std::string> typeNames = {Ts::descriptor()->full_name()...};
     return BuildYsonNodeFluently()
         .BeginAttributes()
             .Item("file_descriptor_set_text").Value(fileDescriptorSetText)
@@ -1404,11 +1404,11 @@ TEST(TProtobufFormatTest, TestTabletIndex)
 
     EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
-            {TString(TabletIndexColumnName), 1LL << 50},
+            {TabletIndexColumnName, 1LL << 50},
             {"int64_field", -2345},
         }).Get(),
         MakeRow(nameTable, {
-            {TString(TabletIndexColumnName), 12},
+            {TabletIndexColumnName, 12},
             {"int64_field", 2345},
         }).Get(),
     }));
@@ -1462,7 +1462,7 @@ TEST(TProtobufFormatTest, TestContext)
         ConvertTo<TProtobufFormatConfigPtr>(config),
         0);
 
-    TString context;
+    std::string context;
     try {
         TMessage message;
         message.set_string_field("PYSHCH-PYSHCH");
@@ -1470,9 +1470,9 @@ TEST(TProtobufFormatTest, TestContext)
         parser->Finish();
         GTEST_FATAL_FAILURE_("expected to throw");
     } catch (const NYT::TErrorException& e) {
-        context = *e.Error().Attributes().Find<TString>("context");
+        context = *e.Error().Attributes().Find<std::string>("context");
     }
-    ASSERT_NE(context.find("PYSHCH-PYSHCH"), TString::npos);
+    ASSERT_NE(context.find("PYSHCH-PYSHCH"), std::string::npos);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1574,7 +1574,7 @@ INodePtr CreateConfigWithStructuredMessage(EComplexTypeMode complexTypeMode, EPr
     }
     YT_VERIFY(formatType == EProtoFormatType::Structured);
 
-    auto buildOneofConfig = [] (TString prefix, int fieldNumberOffset) {
+    auto buildOneofConfig = [] (std::string prefix, int fieldNumberOffset) {
         return BuildYsonNodeFluently()
             .BeginMap()
                 .Item("name").Value(prefix + "oneof_field")
@@ -2575,16 +2575,16 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedParse)
         ASSERT_EQ(embedded2_repeatedNode->GetType(), ENodeType::List);
         const auto& embedded2_repeatedList = embedded2_repeatedNode->AsList();
         ASSERT_EQ(embedded2_repeatedList->GetChildCount(), 3);
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(0), "a");
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(1), "b");
-        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<TString>(2), "c");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(0), "a");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(1), "b");
+        EXPECT_EQ(embedded2_repeatedList->GetChildValueOrThrow<std::string>(2), "c");
 
         auto embedded2_structNode = GetComposite(rowCollector.GetRowValue(rowIndex, "embedded2_struct"));
         ASSERT_EQ(embedded2_structNode->GetType(), ENodeType::List);
         const auto& embedded2_structList = embedded2_structNode->AsList();
         ASSERT_EQ(embedded2_structList->GetChildCount(), 2);
         EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<double>(0), 1.5f);
-        EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<TString>(1), "abc");
+        EXPECT_EQ(embedded2_structList->GetChildValueOrThrow<std::string>(1), "abc");
     }
 }
 
@@ -2730,7 +2730,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         ASSERT_EQ(firstList->GetChildCount(), 17);
 
         EXPECT_EQ(firstList->GetChildOrThrow(0)->GetType(), ENodeType::Entity);
-        EXPECT_EQ(firstList->GetChildValueOrThrow<TString>(1), "Two");
+        EXPECT_EQ(firstList->GetChildValueOrThrow<std::string>(1), "Two");
         EXPECT_EQ(firstList->GetChildValueOrThrow<i64>(2), 44);
 
         ASSERT_EQ(firstList->GetChildOrThrow(3)->GetType(), ENodeType::List);
@@ -2740,8 +2740,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChildOrThrow(4)), (std::vector<i64>{}));
 
         ASSERT_EQ(firstList->GetChildOrThrow(5)->GetType(), ENodeType::List);
-        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<TString>(0), "key");
-        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<TString>(1), "value");
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<std::string>(0), "key");
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildValueOrThrow<std::string>(1), "value");
 
         ASSERT_EQ(firstList->GetChildOrThrow(6)->GetType(), ENodeType::List);
         ASSERT_EQ(firstList->GetChildOrThrow(6)->AsList()->GetChildCount(), 2);
@@ -2749,14 +2749,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         const auto& firstSubNode1 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<TString>(0), "key1");
-        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<TString>(1), "value1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<std::string>(0), "key1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildValueOrThrow<std::string>(1), "value1");
 
         const auto& firstSubNode2 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<TString>(0), "key2");
-        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<TString>(1), "value2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<std::string>(0), "key2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildValueOrThrow<std::string>(1), "value2");
 
         ASSERT_EQ(firstList->GetChildOrThrow(7)->GetType(), ENodeType::Int64);
         EXPECT_EQ(firstList->GetChildValueOrThrow<i64>(7), 4422);
@@ -2841,14 +2841,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         const auto& subNode1 = repeatedMessageNode->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(subNode1->GetType(), ENodeType::List);
         ASSERT_EQ(subNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<TString>(0), "key11");
-        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<TString>(1), "value11");
+        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<std::string>(0), "key11");
+        EXPECT_EQ(subNode1->AsList()->GetChildValueOrThrow<std::string>(1), "value11");
 
         const auto& subNode2 = repeatedMessageNode->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(subNode2->GetType(), ENodeType::List);
         ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<TString>(0), "key21");
-        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<TString>(1), "value21");
+        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<std::string>(0), "key21");
+        EXPECT_EQ(subNode2->AsList()->GetChildValueOrThrow<std::string>(1), "value21");
 
         auto repeatedInt64Node = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
         EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
@@ -3641,11 +3641,11 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
     EXPECT_EQ(true, protoWriter->Write(
         std::vector<TUnversionedRow>{
             NNamedValue::MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 0},
+                {TableIndexColumnName, 0},
                 {"field1", "foo"},
             }),
             NNamedValue::MakeRow(nameTable, {
-                {TString(TableIndexColumnName), 1},
+                {TableIndexColumnName, 1},
                 {"field2", "bar"},
             }),
         }));
@@ -3653,7 +3653,7 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
     WaitFor(protoWriter->Close())
         .ThrowOnError();
 
-    std::vector<TString> otherColumnsValue;
+    std::vector<std::string> otherColumnsValue;
     auto parser = TLenvalParser(data);
     while (auto item = parser.Next()) {
         TOtherColumnsMessage message;
@@ -3664,7 +3664,7 @@ TEST(TProtobufFormatTest, MultipleOtherColumns)
 
     EXPECT_EQ(
         otherColumnsValue,
-        std::vector<TString>({
+        std::vector<std::string>({
             CanonizeYson("{field1=foo}"),
             CanonizeYson("{field2=bar}"),
         }));
@@ -3765,7 +3765,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     TEmbeddedMessage embeddedMessage;
     embeddedMessage.set_key("embedded_key");
     embeddedMessage.set_value("embedded_value");
-    TString embeddedMessageBytes;
+    TProtoStringType embeddedMessageBytes;
     ASSERT_TRUE(embeddedMessage.SerializeToString(&embeddedMessageBytes));
 
     auto mapNode = BuildYsonNodeFluently()
@@ -3879,7 +3879,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
             auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
             EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<i64>("OtherInt64Column"), -123);
             EXPECT_DOUBLE_EQ(otherColumnsMap->GetChildValueOrThrow<double>("OtherDoubleColumn"), -123.456);
-            EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<TString>("OtherStringColumn"), "some_string");
+            EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<std::string>("OtherStringColumn"), "some_string");
             EXPECT_EQ(otherColumnsMap->GetChildValueOrThrow<bool>("OtherBooleanColumn"), true);
             EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChildOrThrow("OtherAnyColumn"), mapNode));
             EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherNullColumn")->GetType(), ENodeType::Entity);

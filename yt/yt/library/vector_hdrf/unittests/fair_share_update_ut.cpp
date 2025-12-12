@@ -78,7 +78,7 @@ class TElementMock
     : public virtual TElement
 {
 public:
-    explicit TElementMock(TString id)
+    explicit TElementMock(std::string id)
         : Id_(std::move(id))
         , Logger(FairShareLogger.WithTag("Id: %v", Id_))
     { }
@@ -190,7 +190,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TPoolIntegralGuaranteesConfigPtr, IntegralGuaranteesConfig, New<TPoolIntegralGuaranteesConfig>());
 
 public:
-    explicit TCompositeElementMock(TString id)
+    explicit TCompositeElementMock(std::string id)
         : TElementMock(std::move(id))
     { }
 
@@ -314,7 +314,7 @@ class TPoolElementMock
     , public TCompositeElementMock
 {
 public:
-    explicit TPoolElementMock(TString id)
+    explicit TPoolElementMock(std::string id)
         : TCompositeElementMock(std::move(id))
     { }
 
@@ -358,7 +358,7 @@ class TOperationElementMock
     , public TElementMock
 {
 public:
-    explicit TOperationElementMock(TString id)
+    explicit TOperationElementMock(std::string id)
         : TElementMock(std::move(id))
     { }
 
@@ -448,7 +448,7 @@ protected:
     }
 
     TPoolElementMockPtr CreateSimplePool(
-        TString id,
+        std::string id,
         std::optional<double> strongGuaranteeCpu = std::nullopt,
         double weight = 1.0)
     {
@@ -462,7 +462,7 @@ protected:
     }
 
     TPoolElementMockPtr CreateIntegralPool(
-        TString id,
+        std::string id,
         EIntegralGuaranteeType type,
         double flowCpu,
         std::optional<double> burstCpu = std::nullopt,
@@ -487,7 +487,7 @@ protected:
     }
 
     TPoolElementMockPtr CreateBurstPool(
-        TString id,
+        std::string id,
         double flowCpu,
         double burstCpu,
         std::optional<double> strongGuaranteeCpu = std::nullopt,
@@ -503,7 +503,7 @@ protected:
     }
 
     TPoolElementMockPtr CreateRelaxedPool(
-        TString id,
+        std::string id,
         double flowCpu,
         std::optional<double> strongGuaranteeCpu = std::nullopt,
         double weight = 1.0)
@@ -517,7 +517,7 @@ protected:
             weight);
     }
 
-    TOperationElementMockPtr CreateOperation(TString id)
+    TOperationElementMockPtr CreateOperation(std::string id)
     {
         return New<TOperationElementMock>(id);
     }
@@ -2171,12 +2171,12 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
     TResourceVector originalRootFairShare;
 
     TRootElementMockPtr rootElement;
-    THashMap<TString, TCompositeElementMockPtr> pools;
-    THashMap<TString, TOperationElementMockPtr> operations;
+    THashMap<std::string, TCompositeElementMockPtr> pools;
+    THashMap<std::string, TOperationElementMockPtr> operations;
     for (auto child : elementsNode->AsList()->GetChildren()) {
         auto childMap = child->AsMap();
 
-        auto name = childMap->GetChildValueOrThrow<TString>("name");
+        auto name = childMap->GetChildValueOrThrow<std::string>("name");
         auto type = childMap->GetChildValueOrThrow<EElementType>("type");
 
         TElementMockPtr element;
@@ -2211,7 +2211,7 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
             }
             case EElementType::Operation: {
                 auto operation = CreateOperation(name);
-                auto operationType = childMap->GetChildValueOrThrow<TString>("operation_type");
+                auto operationType = childMap->GetChildValueOrThrow<std::string>("operation_type");
                 // TODO(ignat): support is_gang in orchid.
                 if (operationType == "vanilla") {
                     operation->SetGangFlag(true);
@@ -2232,7 +2232,7 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
         }
 
         if (name != "<Root>") {
-            auto parentName = childMap->GetChildValueOrThrow<TString>("parent");
+            auto parentName = childMap->GetChildValueOrThrow<std::string>("parent");
             element->AttachParent(GetOrCrash(pools, parentName).Get());
         }
     }

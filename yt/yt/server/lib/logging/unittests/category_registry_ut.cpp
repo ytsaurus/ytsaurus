@@ -35,7 +35,7 @@ TEST(TCategoryRegistryTest, Basic)
     TYsonWriter writer(&output);
     TStructuredCategoryRegistry::Get()->DumpCategories(&writer);
 
-    auto categories = ConvertToNode(TYsonString(TString(output.Str())))->AsMap();
+    auto categories = ConvertToNode(TYsonString(output.Str()))->AsMap();
     EXPECT_EQ(categories->GetKeys().size(), size_t(1));
     EXPECT_EQ(categories->GetKeys()[0], "CategoryRegistrySchemafulLogger");
 

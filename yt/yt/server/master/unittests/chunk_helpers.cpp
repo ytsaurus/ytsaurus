@@ -168,7 +168,7 @@ void TChunkGeneratorTestBase::ConfirmChunk(
         ToProto<NChunkClient::NProto::TChunkMeta>(donorChunk->ChunkMeta()));
 }
 
-NTableClient::TUnversionedOwningRow BuildKey(const TString& yson)
+NTableClient::TUnversionedOwningRow BuildKey(TStringBuf yson)
 {
     return NTableClient::YsonToKey(yson);
 }

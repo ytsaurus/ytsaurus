@@ -40,7 +40,7 @@ class TPortoProcessTest
     }
 };
 
-static TString GetUniqueName()
+static std::string GetUniqueName()
 {
     return "yt_ut_" + ToString(TGuid::Create());
 }

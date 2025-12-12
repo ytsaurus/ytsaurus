@@ -19,12 +19,12 @@ using namespace NConcurrency;
 TIOEvent CreateEvent(
     i64 bytes,
     i64 ioRequests,
-    TString firstTagName = "",
-    TString firstTagValue = "",
-    TString secondTagName = "",
-    TString secondTagValue = "",
-    TString thirdTagName = "",
-    TString thirdTagValue = "")
+    std::string firstTagName = "",
+    std::string firstTagValue = "",
+    std::string secondTagName = "",
+    std::string secondTagValue = "",
+    std::string thirdTagName = "",
+    std::string thirdTagValue = "")
 {
     TIOEvent ioEvent;
     ioEvent.Counters.Bytes = bytes;

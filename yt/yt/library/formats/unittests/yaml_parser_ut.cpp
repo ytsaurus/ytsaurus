@@ -15,7 +15,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////
 
-TString ParseYaml(const TString& yaml, EYsonType ysonType)
+std::string ParseYaml(const TString& yaml, EYsonType ysonType)
 {
     TStringStream inputStream(yaml);
     TStringStream outputStream;
@@ -33,7 +33,7 @@ TEST(TYamlParserTest, Simple)
 hello)";
     // Here and in the rest of the tests we introduce an extra leading \n for the better readabilty, which we later
     // strip off in the comparison.
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 "hello")";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 }
@@ -61,7 +61,7 @@ l: -9223372036854775808
 m: !yt/uint64 1234
 n: !!int 23
 o: !!int -15)";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = 1;
     "b" = -1;
@@ -120,7 +120,7 @@ l: 1e2
 m: 1e+2
 n: 1e-2
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = 1.;
     "b" = 0.2;
@@ -174,7 +174,7 @@ e: TRUE
 f: FALSE
 g: !!bool true
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = %true;
     "b" = %false;
@@ -216,7 +216,7 @@ f: !!null null
 # This is not allowed by a regexp in a spec, but feels excessive to ban.
 g: !!null foo
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = #;
     "b" = #;
@@ -240,7 +240,7 @@ e: !!str 42
 f: !!str ~
 g: ! hello
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = "hello";
     "b" = "world";
@@ -265,7 +265,7 @@ a:
   z: 3
 c: {}
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = {
         "x" = 1;
@@ -293,7 +293,7 @@ TEST(TYamlParserTest, Sequences)
 - []
 - - - - null
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 [
     "foo";
     [
@@ -333,7 +333,7 @@ TEST(TYamlParserTest, Attributes)
   - null
 )";
     // <x=1;y=2>{a=<>42; b=<x=#>[1;2;3]; c=<foo=1>#;}
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 <
     "x" = 1;
     "y" = 2;
@@ -352,7 +352,7 @@ TEST(TYamlParserTest, Attributes)
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<std::pair<TString, TString>> invalidYamlsAndErrors = {
+    std::vector<std::pair<TString, std::string>> invalidYamlsAndErrors = {
         {R"(
 !yt/attrnode
 - x: 1
@@ -385,7 +385,7 @@ foo
 ~
 ---
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = 1;
 };
@@ -414,7 +414,7 @@ e: *baz
 f: *foo
 g: *qux
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "a" = 1;
     "b" = 1;
@@ -453,7 +453,7 @@ g: *qux
 })";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::Node), expectedYson.substr(1));
 
-    std::vector<std::pair<TString, TString>> invalidYamlsAndErrors = {
+    std::vector<std::pair<TString, std::string>> invalidYamlsAndErrors = {
         {R"(
 a: *foo
 )", "undefined or unfinished anchor"},
@@ -487,7 +487,7 @@ a: &foo bar
 TEST(TYamlParserTest, Empty)
 {
     TString yaml = "";
-    TString expectedYson = "";
+    TStringBuf expectedYson = "";
     EXPECT_EQ(ParseYaml(yaml, EYsonType::ListFragment), expectedYson);
 }
 
@@ -536,7 +536,7 @@ builtin: false
 owner: max
 compression_ratio: 0.3679379456925491
 )";
-    TString expectedYson = R"(
+    TStringBuf expectedYson = R"(
 {
     "mount_config" = {};
     "schema" = <
