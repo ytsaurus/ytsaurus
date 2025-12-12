@@ -94,6 +94,12 @@ public:
             .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
+                "dont-abort-on-alert",
+                "Do not set AbortOnAlert flag in logger config")
+            .StoreFalse(&AbortOnAlert_)
+            .NoArgument();
+        Opts_
+            .AddLongOption(
                 "skip-invariants-check",
                 "Do not call CheckInvariants after snapshot load")
             .StoreFalse(&CheckInvariants_)
@@ -128,6 +134,7 @@ private:
     std::vector<TString> ReplayChangelogsPaths_;
     bool BuildSnapshotFlag_ = false;
     TString BuildSnapshotPath_;
+    bool AbortOnAlert_ = true;
     bool CheckInvariants_ = true;
     bool SkipTvmServiceEnvValidationFlag_ = false;
     bool PrintCompatibilityInfoFlag_ = false;
@@ -221,7 +228,7 @@ private:
         }
 
         if (IsValidateSnapshotMode()) {
-            config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig());
+            config->SetSingletonConfig(NHydra::CreateDryRunLoggingConfig(AbortOnAlert_));
         }
 
         if (IsExportSnapshotMode()) {
