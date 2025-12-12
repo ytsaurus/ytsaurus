@@ -574,12 +574,19 @@ public: \
         (srcAccount, dstAccount, resourceDelta, options))
 
     IMPLEMENT_METHOD(void, TransferPoolResources, (
-        const TString& srcPool,
-        const TString& dstPool,
-        const TString& poolTree,
+        const std::string& srcPool,
+        const std::string& dstPool,
+        const std::string& poolTree,
         NYTree::INodePtr resourceDelta,
         const TTransferPoolResourcesOptions& options),
         (srcPool, dstPool, poolTree, resourceDelta, options))
+
+    IMPLEMENT_METHOD(void, TransferBundleResources, (
+        const std::string& srcBundle,
+        const std::string& dstBundle,
+        NYTree::INodePtr resourceDelta,
+        const TTransferBundleResourcesOptions& options),
+        (srcBundle, dstBundle, resourceDelta, options))
 
     IMPLEMENT_METHOD(NScheduler::TOperationId, StartOperation, (
         NScheduler::EOperationType type,

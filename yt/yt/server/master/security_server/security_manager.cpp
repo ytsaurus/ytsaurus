@@ -1085,7 +1085,6 @@ public:
             {
                 auto newLimits = account->ClusterResourceLimits();
 
-                THashSet<TCellTag> cellsWithInfiniteMasterMemoryChange;
                 if (auto failed = (newLimits.*modification.Check)(delta)) {
                     ThrowInvalidResourceLimitsChange(
                         account->GetName(),

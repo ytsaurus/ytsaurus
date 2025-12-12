@@ -65,6 +65,7 @@ private:
     bool DoInvoke(const IYPathServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(BalanceTabletCells);
+        DISPATCH_YPATH_SERVICE_METHOD(TransferBundleResources);
         return TBase::DoInvoke(context);
     }
 
@@ -371,6 +372,33 @@ private:
         ToProto(response->mutable_tablet_actions(), tabletActionIds);
 
         context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, TransferBundleResources)
+    {
+        DeclareMutating();
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        auto* impl = GetThisImpl();
+        auto* srcBundle = tabletManager->GetTabletCellBundleByNameOrThrow(
+            request->src_bundle(),
+            /*activeLifeStageOnly*/ true);
+
+        TTabletCellBundleResources resourceDelta;
+        Deserialize(resourceDelta, ConvertToNode(TYsonString(request->resource_delta())));
+
+        context->SetRequestInfo("SrcBundle: %v, DstBundle: %v",
+            srcBundle->GetName(),
+            impl->GetName());
+
+        tabletManager->TransferTabletCellBundleResources(srcBundle, impl->As<TTabletCellBundle>(), resourceDelta);
+
+        context->Reply();
+
+        if (IsPrimaryMaster()) {
+            PostToSecondaryMasters(context);
+        }
     }
 };
 

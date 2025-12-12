@@ -17,4 +17,13 @@ message TRspBalanceTabletCells
     repeated NYT.NProto.TGuid tablet_actions = 1;
 }
 
+message TReqTransferBundleResources
+{
+    required string src_bundle = 1;
+    required bytes resource_delta = 2;
+}
+
+message TRspTransferBundleResources
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
