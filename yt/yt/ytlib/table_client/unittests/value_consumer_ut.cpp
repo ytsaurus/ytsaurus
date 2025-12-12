@@ -75,7 +75,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     // ExpectConversion(column, source, condition, result) <=>
     //     <=> check that if |condition| is held, |source| transforms to
     //         |result| in column |column|, otherwise |source| remains as is.
-    auto expectConversion = [&] (TString column, TString source, bool condition, TString result = "") {
+    auto expectConversion = [&] (std::string column, std::string source, bool condition, std::string result = "") {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
             EXPECT_CALL(mock, OnMyValue(SameAs(makeValue(result, id))));
@@ -85,7 +85,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
         mock.OnValue(makeValue(source, id));
     };
 
-    auto expectError = [&] (TString column, TString source, bool condition) {
+    auto expectError = [&] (std::string column, std::string source, bool condition) {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
             EXPECT_THROW(mock.OnValue(makeValue(source, id)), std::exception);
@@ -98,7 +98,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     constexpr bool Never = false;
 
     // Arbitrary type can be used in Any column without conversion under any circumstances.
-    for (TString value : {"42", "18u", "abc", "%true", "3.14", "#", "{}"}) {
+    for (std::string value : {"42", "18u", "abc", "%true", "3.14", "#", "{}"}) {
         expectConversion("any", value, Never);
     }
 
@@ -106,7 +106,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     expectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypeConversion); // 2^63 leads to an integer overflow.
     expectConversion("int64", "\"-42\"", typeConversionConfig->EnableStringToAllConversion, "-42");
     expectError("int64", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (TString value : {"42", "%true", "3.14", "#", "{}"}) {
+    for (std::string value : {"42", "%true", "3.14", "#", "{}"}) {
         expectConversion("int64", value, Never);
     }
 
@@ -115,7 +115,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     expectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
     expectConversion("uint64", "\"234u\"", typeConversionConfig->EnableStringToAllConversion, "234u");
     expectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (TString value : {"42u", "%true", "3.14", "#", "{}"}) {
+    for (std::string value : {"42u", "%true", "3.14", "#", "{}"}) {
         expectConversion("uint64", value, Never);
     }
 
@@ -124,14 +124,14 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     expectConversion("string", "3.14", typeConversionConfig->EnableAllToStringConversion, "\"3.14\"");
     expectConversion("string", "%true", typeConversionConfig->EnableAllToStringConversion, "\"true\"");
     expectConversion("string", "%false", typeConversionConfig->EnableAllToStringConversion, "\"false\"");
-    for (TString value : {"abc", "#", "{}"}) {
+    for (std::string value : {"abc", "#", "{}"}) {
         expectConversion("string", value, Never);
     }
 
     expectConversion("boolean", "true", typeConversionConfig->EnableStringToAllConversion, "%true");
     expectConversion("boolean", "false", typeConversionConfig->EnableStringToAllConversion, "%false");
     expectError("boolean", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (TString value : {"42", "18u", "%true", "3.14", "#", "{}"}) {
+    for (std::string value : {"42", "18u", "%true", "3.14", "#", "{}"}) {
         expectConversion("boolean", value, Never);
     }
 
@@ -139,7 +139,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     expectConversion("double", "42u", typeConversionConfig->EnableIntegralToDoubleConversion, "42.0");
     expectConversion("double", "\"1.23\"", typeConversionConfig->EnableStringToAllConversion, "1.23");
     expectError("double", "abc", typeConversionConfig->EnableStringToAllConversion);
-    for (TString value : {"3.14", "%true", "#", "{}"}) {
+    for (std::string value : {"3.14", "%true", "#", "{}"}) {
         expectConversion("double", value, Never);
     }
 }

@@ -44,7 +44,7 @@ class TYCHandler
 public:
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
-        auto body = TString(req->ReadAll().ToStringBuf());
+        auto body = std::string(req->ReadAll().ToStringBuf());
         TStringStream in;
         in << body;
         TJsonValue value;
@@ -111,7 +111,7 @@ protected:
     IServerPtr Server;
 
     ::NTesting::TPortHolder TestPort;
-    TString TestUrl;
+    std::string TestUrl;
 
 private:
     void SetupServer(const TServerConfigPtr& config)

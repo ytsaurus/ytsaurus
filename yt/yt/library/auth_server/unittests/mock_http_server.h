@@ -12,7 +12,7 @@ namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString HttpResponse(int code, TString body);
+TString HttpResponse(int code, TStringBuf body);
 
 TString CollectMessages(const TError& error);
 

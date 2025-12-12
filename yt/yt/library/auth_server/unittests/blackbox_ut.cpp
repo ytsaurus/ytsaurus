@@ -274,7 +274,7 @@ protected:
             .WillOnce(Return(MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)))));
     }
 
-    TFuture<TAuthenticationResult> Invoke(const std::string& token, const TString& userIP)
+    TFuture<TAuthenticationResult> Invoke(const std::string& token, const std::string& userIP)
     {
         return Authenticator_->Authenticate(TTokenCredentials{
             token,

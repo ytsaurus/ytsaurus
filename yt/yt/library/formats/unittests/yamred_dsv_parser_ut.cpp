@@ -47,7 +47,7 @@ TEST(TYamredDsvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("100"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "1 2\t3\ta=5\tb=6\n"
         "7 8\t9\tb=max\\tignat\ta=100\n";
 
@@ -77,7 +77,7 @@ TEST(TYamredDsvParserTest, EmptyField)
         EXPECT_CALL(Mock, OnStringScalar("b"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "\t0 1\ta=b\n";
+    std::string input = "\t0 1\ta=b\n";
 
     auto config = New<TYamredDsvFormatConfig>();
     config->HasSubkey = true;
@@ -104,7 +104,7 @@ TEST(TYamredDsvParserTest, Escaping)
         EXPECT_CALL(Mock, OnStringScalar("\tb\nc"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "\\t\t0\\n1\ta=\\tb\\nc\n";
+    std::string input = "\\t\t0\\n1\ta=\\tb\\nc\n";
 
     auto config = New<TYamredDsvFormatConfig>();
     config->HasSubkey = true;
@@ -132,7 +132,7 @@ TEST(TYamredDsvParserTest, Lenval)
         EXPECT_CALL(Mock, OnStringScalar("e"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x01\x00\x00\x00" "a"
         "\x02\x00\x00\x00" "bc"
         "\x03\x00\x00\x00" "d=e",
@@ -162,7 +162,7 @@ TEST(TYamredDsvParserTest, EOM)
         EXPECT_CALL(Mock, OnStringScalar("e"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = TString(
+    std::string input = std::string(
         "\x01\x00\x00\x00" "a"
         "\x02\x00\x00\x00" "bc"
         "\x03\x00\x00\x00" "d=e"

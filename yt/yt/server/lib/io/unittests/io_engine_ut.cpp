@@ -27,7 +27,7 @@ TSharedMutableRef GenerateRandomBlob(i64 size)
     return data;
 }
 
-void WriteFile(const TString& fileName, TRef data)
+void WriteFile(const std::string& fileName, TRef data)
 {
     TFile file(fileName, WrOnly | CreateAlways);
     file.Pwrite(data.Begin(), data.Size(), 0);
@@ -53,7 +53,7 @@ protected:
     {
         auto type = GetIOEngineType();
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-            NYson::TYsonString(TString(std::get<1>(GetParam()))));
+            NYson::TYsonString(TStringBuf(std::get<1>(GetParam()))));
         return NIO::CreateIOEngine(type, config);
     }
 

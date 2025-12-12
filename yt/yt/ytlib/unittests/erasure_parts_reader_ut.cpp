@@ -27,7 +27,7 @@ namespace {
 
 TSharedRef GenerateRandomBlock(TFastRng64& rng, int blockSize)
 {
-    TString result;
+    std::string result;
     result.resize(blockSize);
     for (auto& ch : result) {
         ch = rng.Uniform(33, 127);

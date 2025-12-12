@@ -37,7 +37,7 @@ TEST(TSchemafulDsvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("max\tignat"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "5\t6\n"
         "100\tmax\\tignat\n";
 
@@ -86,7 +86,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
         EXPECT_CALL(Mock, OnStringScalar("z"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "1\tx\n"
         "0\ty\n"
         "0\tz\n";
@@ -100,7 +100,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
 
 TEST(TSchemafulDsvParserTest, TooManyRows)
 {
-    TString input = "5\t6\n";
+    std::string input = "5\t6\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a"};
@@ -122,7 +122,7 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input("5\r\t6\0\n", 6);
+    std::string input("5\r\t6\0\n", 6);
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a", "b"};
@@ -144,7 +144,7 @@ TEST(TSchemafulDsvParserTest, EnabledEscaping)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input("5\r\\r\t6\0\n", 8);
+    std::string input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a", "b"};
@@ -167,7 +167,7 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input("5\r\\r\t6\0\n", 8);
+    std::string input("5\r\\r\t6\0\n", 8);
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a", "b"};
@@ -178,7 +178,7 @@ TEST(TSchemafulDsvParserTest, DisabledEscaping)
 
 TEST(TSchemafulDsvParserTest, ColumnsNamesHeader)
 {
-    TString input("a\tb\n1\t2\n");
+    std::string input("a\tb\n1\t2\n");
 
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a", "b"};
@@ -192,7 +192,7 @@ TEST(TSchemafulDsvParserTest, MissingValueModePrintSentinel)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    TString input = "x\t\tz\n";
+    std::string input = "x\t\tz\n";
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("a"));

@@ -38,7 +38,7 @@ TEST(TDsvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("1"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "integer=42\tstring=some\tdouble=10\n"
         "foo=bar\tone=1\n";
     ParseDsv(input, &Mock);
@@ -49,7 +49,7 @@ TEST(TDsvParserTest, EmptyInput)
     StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
-    TString input = "";
+    std::string input;
     ParseDsv(input, &Mock);
 }
 
@@ -68,7 +68,7 @@ TEST(TDsvParserTest, BinaryData)
         EXPECT_CALL(Mock, OnStringScalar(b));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8\n";
+    std::string input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8\n";
     ParseDsv(input, &Mock);
 }
 
@@ -81,7 +81,7 @@ TEST(TDsvParserTest, EmptyRecord)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "\n";
+    std::string input = "\n";
     ParseDsv(input, &Mock);
 }
 
@@ -98,7 +98,7 @@ TEST(TDsvParserTest, EmptyRecords)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "\n\n";
+    std::string input = "\n\n";
     ParseDsv(input, &Mock);
 }
 
@@ -113,7 +113,7 @@ TEST(TDsvParserTest, EmptyKeysAndValues)
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "=\n";
+    std::string input = "=\n";
     ParseDsv(input, &Mock);
 }
 
@@ -121,7 +121,7 @@ TEST(TDsvParserTest, UnescapedZeroInInput)
 {
     StrictMock<TMockYsonConsumer> Mock;
 
-    TString input = TString("a\0b=v", 5);
+    std::string input = std::string("a\0b=v", 5);
     EXPECT_ANY_THROW({
         ParseDsv(input, &Mock);
     });
@@ -141,7 +141,7 @@ TEST(TDsvParserTest, ZerosAreNotTerminals)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "a\\0b=c\\0d\n";
+    std::string input = "a\\0b=c\\0d\n";
     ParseDsv(input, &Mock);
 }
 
@@ -149,7 +149,7 @@ TEST(TDsvParserTest, UnterminatedRecord)
 {
     NiceMock<TMockYsonConsumer> Mock;
 
-    TString input = "a=b";
+    std::string input = "a=b";
     EXPECT_ANY_THROW({
         ParseDsv(input, &Mock);
     });
@@ -195,7 +195,7 @@ TEST_F(TTskvParserTest, Simple)
         EXPECT_CALL(Mock, OnStringScalar("20025"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "tskv\n"
         "tskv\tid=1\tguid=100500\t\n"
         "tskv\tid=2\tguid=20025\n";
@@ -211,7 +211,7 @@ TEST_F(TTskvParserTest, SimpleWithNewLine)
         EXPECT_CALL(Mock, OnStringScalar("bar"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "tskv\tfoo=bar\n";
+    std::string input = "tskv\tfoo=bar\n";
     ParseDsv(input, &Mock, Config);
 }
 
@@ -237,7 +237,7 @@ TEST_F(TTskvParserTest, Escaping)
         EXPECT_CALL(Mock, OnStringScalar("another_value"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "t\\s\\kv\n"
         "tskv" "\t" "a\\=b"  "="  "c\\=d or e=f" "\n" // Note: unescaping is less strict
         "tskv" "\t"
@@ -265,7 +265,7 @@ TEST_F(TTskvParserTest, DisabledEscaping)
         EXPECT_CALL(Mock, OnStringScalar("b\\t=c\\=d or e=f\\0"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "tskv\t\\x\\y\n"
         "tskv" "\t" "a\\=b\\t"  "="  "c\\=d or e=f\\0" "\n";
 
@@ -284,7 +284,7 @@ TEST_F(TTskvParserTest, AllowedUnescapedSymbols)
         EXPECT_CALL(Mock, OnStringScalar("value_with_="));
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "prefix_with_=" "\t" "just_key" "=" "value_with_=" "\n";
+    std::string input = "prefix_with_=" "\t" "just_key" "=" "value_with_=" "\n";
     ParseDsv(input, &Mock, Config);
 }
 
@@ -306,7 +306,7 @@ TEST_F(TTskvParserTest, UndefinedValues)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input =
+    std::string input =
         "tskv" "\t" "tskv" "\t" "tskv" "\n"
         "tskv\t" "some_key" "\t\t\t" "a=b" "\t" "another_key" "\n" // Note: consequent \t
         "tskv\n";
@@ -322,7 +322,7 @@ TEST_F(TTskvParserTest, OnlyLinePrefix)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "tskv\n";
+    std::string input = "tskv\n";
     ParseDsv(input, &Mock, Config);
 }
 
@@ -334,13 +334,13 @@ TEST_F(TTskvParserTest, OnlyLinePrefixAndTab)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    TString input = "tskv\t\n";
+    std::string input = "tskv\t\n";
     ParseDsv(input, &Mock, Config);
 }
 
 TEST_F(TTskvParserTest, NotFinishedLinePrefix)
 {
-    TString input = "tsk";
+    std::string input = "tsk";
 
     EXPECT_ANY_THROW({
         ParseDsv(input, &ErrorMock, Config);
@@ -349,7 +349,7 @@ TEST_F(TTskvParserTest, NotFinishedLinePrefix)
 
 TEST_F(TTskvParserTest, WrongLinePrefix)
 {
-    TString input =
+    std::string input =
         "tskv\ta=b\n"
         "tZkv\tc=d\te=f\n"
         "tskv\ta=b\n";

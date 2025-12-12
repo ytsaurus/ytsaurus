@@ -16,7 +16,7 @@ namespace NYT::NOrm::NServer::NObjects::NTests {
 
 namespace {
 
-TString MakeAggregatedQuery(TStringBuf query)
+std::string MakeAggregatedQuery(TStringBuf query)
 {
     auto parsed = ParseSource(query, NQueryClient::EParseMode::Expression);
     auto* expression = std::get<TExpressionPtr>(parsed->AstHead.Ast);

@@ -14,7 +14,7 @@ struct IWebAssemblyCompartment
     //! Adds new module in WebAssembly bytecode format.
     virtual void AddModule(TRef bytecode, TStringBuf name = "") = 0;
     //! Adds new module in WebAssembly WAST format.
-    virtual void AddModule(const TString& wast, TStringBuf name = "") = 0;
+    virtual void AddModule(TStringBuf wast, TStringBuf name = "") = 0;
 
     //! Strips compartment internal data structures.
     //! Stripped compartments can not be used for linking, but are faster to clone.

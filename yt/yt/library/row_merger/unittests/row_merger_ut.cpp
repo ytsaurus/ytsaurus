@@ -83,15 +83,15 @@ protected:
         New<TColumnEvaluatorCacheConfig>());
 
     TVersionedRow BuildVersionedRow(
-        const TString& keyYson,
-        const TString& valueYson,
+        const std::string& keyYson,
+        const std::string& valueYson,
         const std::vector<TTimestamp>& deleteTimestamps = {},
         const std::vector<TTimestamp>& extraWriteTimestamps = {})
     {
         return YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
     }
 
-    TUnversionedRow BuildUnversionedRow(const TString& valueYson)
+    TUnversionedRow BuildUnversionedRow(const std::string& valueYson)
     {
         auto row = YsonToSchemalessRow(valueYson);
         return Buffer_->CaptureRow(row);
@@ -143,7 +143,7 @@ protected:
             TColumnSchema("l", EValueType::Int64),
             TColumnSchema("m", EValueType::Int64),
             TColumnSchema("n", EValueType::Int64)
-                .SetAggregate(TString("sum"))
+                .SetAggregate(std::string("sum"))
         });
         return schema;
     }
@@ -1966,7 +1966,7 @@ TTableSchema GetAggregateMinSchema()
         TColumnSchema("l", EValueType::Int64),
         TColumnSchema("m", EValueType::Int64),
         TColumnSchema("n", EValueType::Uint64)
-            .SetAggregate(TString("min"))
+            .SetAggregate(std::string("min"))
     });
     return schema;
 }

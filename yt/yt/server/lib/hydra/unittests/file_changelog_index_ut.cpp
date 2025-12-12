@@ -88,7 +88,7 @@ public:
         const auto& type = std::get<0>(args);
 
         auto config = NYTree::ConvertTo<NYTree::INodePtr>(
-            NYson::TYsonString(TString(std::get<1>(args))));
+            NYson::TYsonString(TStringBuf(std::get<1>(args))));
 
         IOEngine_ = CreateIOEngine(type, config);
 

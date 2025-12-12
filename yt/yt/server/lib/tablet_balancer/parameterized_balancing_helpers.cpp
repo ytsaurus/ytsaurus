@@ -141,7 +141,7 @@ class TParameterizedMetricsCalculator
 {
 public:
     TParameterizedMetricsCalculator(
-        TString metric,
+        std::string metric,
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         const TLogger& logger)
@@ -177,7 +177,7 @@ public:
 protected:
     const std::vector<std::string> PerformanceCountersKeys_;
     const TTableSchemaPtr PerformanceCountersTableSchema_;
-    const TString Metric_;
+    const std::string Metric_;
     const TLogger Logger;
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
@@ -226,7 +226,7 @@ class TReplicaMetricsCalculator
 {
 public:
     TReplicaMetricsCalculator(
-        TString metric,
+        std::string metric,
         std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,

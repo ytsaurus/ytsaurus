@@ -136,7 +136,7 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
     auto asyncOutput = CreateAsyncAdapter(&stringOutput);
     auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, EWaitForStrategy::Get, 10);
 
-    auto write = [&] (const TString& str) {
+    auto write = [&] (const std::string& str) {
         const char* srcPtr = str.data();
         size_t srcLen = str.length();
         void* dstPtr = nullptr;
@@ -154,15 +154,15 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
     };
 
     checkpointableOutput->MakeCheckpoint();
-    const auto part1 = TString("01234567890123456789");
+    const auto part1 = std::string("01234567890123456789");
     write(part1);
 
     checkpointableOutput->MakeCheckpoint();
-    const auto part2 = TString("abcdefghijklmnop");
+    const auto part2 = std::string("abcdefghijklmnop");
     write(part2);
 
     checkpointableOutput->MakeCheckpoint();
-    const auto part3 = TString("adsjkfjasdlkfjasldf");
+    const auto part3 = std::string("adsjkfjasdlkfjasldf");
     write(part3);
 
     checkpointableOutput->Flush();
@@ -171,7 +171,7 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
     auto checkpointableInput = CreateCheckpointableInputStream(&stringInput);
 
     auto read = [&] (size_t len) {
-        TString result;
+        std::string result;
         result.resize(len);
         YT_VERIFY(checkpointableInput->Load(result.begin(), len) == len);
         return result;

@@ -200,7 +200,7 @@ protected:
 
 TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
-    TString message("Hello pipe!\n");
+    std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     Writer->Write(buffer).Get().ThrowOnError();
     Writer->Close().Get().ThrowOnError();
@@ -216,14 +216,14 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
         whole.Append(data.Begin(), result.Value());
     }
 
-    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
 {
     SetUpPipes();
 
-    TString message("Hello pipe!\n");
+    std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
 
     Writer->Write(buffer).Get().ThrowOnError();
@@ -239,37 +239,37 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
         }
         whole.Append(data.Begin(), result.Value());
     }
-    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 
 TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
-    TString message("Hello pipe!\n");
+    std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
-    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadSomethingWait)
 {
     SetUpPipes();
 
-    TString message("Hello pipe!\n");
+    std::string message("Hello pipe!\n");
     auto buffer = TSharedRef::FromString(message);
     EXPECT_TRUE(Writer->Write(buffer).Get().IsOK());
     WaitFor(Writer->Close())
         .ThrowOnError();
     auto whole = ReadAll(Reader, false);
-    EXPECT_EQ(message, TString(whole.Begin(), whole.End()));
+    EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
 TEST_F(TPipeReadWriteTest, ReadWrite)
 {
-    TString text("Hello cruel world!\n");
+    std::string text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
@@ -278,14 +278,14 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(text, TString(textFromPipe.Begin(), textFromPipe.End()));
+    EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 {
     SetUpPipes();
 
-    TString text("Hello cruel world!\n");
+    std::string text("Hello cruel world!\n");
     auto buffer = TSharedRef::FromString(text);
     Writer->Write(buffer).Get();
     auto errorsOnClose = Writer->Close();
@@ -294,14 +294,14 @@ TEST_F(TNamedPipeReadWriteTest, ReadWrite)
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
-    EXPECT_EQ(text, TString(textFromPipe.Begin(), textFromPipe.End()));
+    EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, CapacityJustWorks)
 {
     SetUpWithCapacity(SmallPipeCapacity);
 
-    TString text(5, 'a');
+    std::string text(5, 'a');
     text.push_back('\n');
     auto writeBuffer = TSharedRef::FromString(text);
 
@@ -311,7 +311,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityJustWorks)
     auto readBuffer = TSharedMutableRef::Allocate(5000, {.InitializeStorage = false});
     auto readResult = Reader->Read(readBuffer).Get();
 
-    EXPECT_EQ(text, TString(readBuffer.Begin(), readResult.Value()));
+    EXPECT_EQ(text, std::string(readBuffer.Begin(), readResult.Value()));
 }
 
 TEST_F(TNamedPipeReadWriteTest, CapacityOverflow)
@@ -319,7 +319,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityOverflow)
     SetUpWithCapacity(SmallPipeCapacity);
     auto readerQueue = New<NConcurrency::TActionQueue>("Reader");
 
-    TString text(5000, 'a');
+    std::string text(5000, 'a');
     text.push_back('\n');
     auto writeBuffer = TSharedRef::FromString(text);
     auto writeFuture = Writer->Write(writeBuffer);
@@ -332,7 +332,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityOverflow)
         auto readResult = Reader->Read(readBuffer).Get();
 
         EXPECT_TRUE(readResult.IsOK());
-        EXPECT_EQ(text.substr(0, 4096), TString(readBuffer.Begin(), readResult.Value()));
+        EXPECT_EQ(text.substr(0, 4096), TStringBuf(readBuffer.Begin(), readResult.Value()));
     })
         .AsyncVia(readerQueue->GetInvoker())
         .Run();
@@ -347,7 +347,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityDontDiscardSurplus)
     auto readerQueue = New<NConcurrency::TActionQueue>("Reader");
     auto writerQueue = New<NConcurrency::TActionQueue>("Writer");
 
-    TString text(5000, 'a');
+    std::string text(5000, 'a');
     text.push_back('\n');
 
     auto writeFuture = BIND(&WriteAll, Writer, text.data(), text.size(), text.size())
@@ -362,7 +362,7 @@ TEST_F(TNamedPipeReadWriteTest, CapacityDontDiscardSurplus)
         .Run();
 
     auto readResult = readFuture.Get().ValueOrThrow();
-    EXPECT_EQ(text, TString(readResult.Begin(), readResult.End()));
+    EXPECT_EQ(text, TStringBuf(readResult.Begin(), readResult.End()));
 
     EXPECT_TRUE(writeFuture.Get().IsOK());
 }
@@ -374,19 +374,19 @@ TEST_F(TNamedPipeReadWriteTest, DISABLED_DeliveryFencedWriteOldJustWorks)
 {
     SetUpWithDeliveryFence();
 
-    TString text("aabbb");
+    std::string text("aabbb");
     auto writeBuffer = TSharedRef::FromString(text);
     auto writeFuture = Writer->Write(writeBuffer);
 
     auto readBuffer = TSharedMutableRef::Allocate(2, {.InitializeStorage = false});
     auto readResult = Reader->Read(readBuffer).Get();
-    EXPECT_EQ(TString("aa"), TString(readBuffer.Begin(), readResult.Value()));
+    EXPECT_EQ("aa", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     EXPECT_FALSE(writeFuture.IsSet());
 
     readBuffer = TSharedMutableRef::Allocate(10, {.InitializeStorage = false});
     readResult = Reader->Read(readBuffer).Get();
-    EXPECT_EQ(TString("bbb"), TString(readBuffer.Begin(), readResult.Value()));
+    EXPECT_EQ("bbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     // Future is set only after the entire buffer is read.
     EXPECT_TRUE(writeFuture.Get().IsOK());
@@ -459,7 +459,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
 {
     constexpr TDuration ReadDelay = TDuration::MilliSeconds(10);
 
-    TString text("aabbb");
+    std::string text("aabbb");
     auto writeBuffer = TSharedRef::FromString(text);
     auto writeFuture = Writer->Write(writeBuffer);
 
@@ -467,7 +467,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
     auto readResult = Reader->Read(readBuffer).WithTimeout(TDuration::Seconds(5)).Get();
     EXPECT_ERROR_IS_OK(readResult);
 
-    EXPECT_EQ(TString("aa"), TString(readBuffer.Begin(), readResult.ValueOrThrow()));
+    EXPECT_EQ("aa", TStringBuf(readBuffer.Begin(), readResult.ValueOrThrow()));
 
     Sleep(ReadDelay);
 
@@ -475,7 +475,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, JustWorks)
 
     readBuffer = TSharedMutableRef::Allocate(10, {.InitializeStorage = false});
     readResult = Reader->Read(readBuffer).Get();
-    EXPECT_EQ(TString("bbb"), TString(readBuffer.Begin(), readResult.Value()));
+    EXPECT_EQ("bbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 
     // Future is set only after the entire buffer is read.
     EXPECT_ERROR_IS_OK(writeFuture.WithTimeout(TDuration::Seconds(5)).Get());
@@ -522,7 +522,7 @@ TEST_P(TNewDeliveryFencedWriteTestFixture, ReadBeforeWrite)
 
     auto readResult = readFuture.Get();
     EXPECT_ERROR_IS_OK(readResult);
-    EXPECT_EQ(std::string("aabbb"), std::string(readBuffer.Begin(), readResult.Value()));
+    EXPECT_EQ("aabbb", TStringBuf(readBuffer.Begin(), readResult.Value()));
 }
 
 TEST_P(TNewDeliveryFencedWriteTestFixture, HugeData)

@@ -20,45 +20,45 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString A("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-const TString B("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-const TString Abra("abracadabra");
-const TString Bara("barakobama");
-const TString Empty("");
-const TString FewSymbol("abcde");
+const std::string A("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+const std::string B("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+const std::string Abra("abracadabra");
+const std::string Bara("barakobama");
+const std::string Empty("");
+const std::string FewSymbol("abcde");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedStringColumnTest
-    : public TUnversionedColumnTestBase<TString>
+    : public TUnversionedColumnTestBase<std::string>
 {
 protected:
-    using TUnversionedColumnTestBase<TString>::CreateColumnReader;
+    using TUnversionedColumnTestBase<std::string>::CreateColumnReader;
 
-    std::vector<std::optional<TString>> CreateDirectDense()
+    std::vector<std::optional<std::string>> CreateDirectDense()
     {
         return  {std::nullopt, A, B};
     }
 
-    std::vector<std::optional<TString>> CreateDictionaryDense()
+    std::vector<std::optional<std::string>> CreateDictionaryDense()
     {
         return  {Abra, Bara, std::nullopt, Bara, Abra};
     }
 
-    std::vector<std::optional<TString>> CreateDirectRle()
+    std::vector<std::optional<std::string>> CreateDirectRle()
     {
         // 50 * [B] + null + 50 * [A]
-        std::vector<std::optional<TString>> values;
+        std::vector<std::optional<std::string>> values;
         AppendVector(&values, MakeVector(50, B));
         values.push_back(std::nullopt);
         AppendVector(&values, MakeVector(50, A));
         return values;
     }
 
-    std::vector<std::optional<TString>> CreateDictionaryRle()
+    std::vector<std::optional<std::string>> CreateDictionaryRle()
     {
         // [ 50 * [A] + 50 * [B] + null ] * 10
-        std::vector<std::optional<TString>> values;
+        std::vector<std::optional<std::string>> values;
         for (int i = 0; i < 10; ++i) {
             AppendVector(&values, MakeVector(50, A));
             AppendVector(&values, MakeVector(50, B));
@@ -67,7 +67,7 @@ protected:
         return values;
     }
 
-    std::optional<TString> DecodeValueFromColumn(
+    std::optional<std::string> DecodeValueFromColumn(
         const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) override
     {
@@ -84,7 +84,7 @@ protected:
             return std::nullopt;
         }
 
-        return TString(DecodeStringFromColumn(*column, index));
+        return std::string(DecodeStringFromColumn(*column, index));
     }
 
     void Write(IValueColumnWriter* columnWriter) override
@@ -160,7 +160,7 @@ TEST_F(TUnversionedStringColumnTest, GetEqualRange)
 
 TEST_F(TUnversionedStringColumnTest, ReadValues)
 {
-    std::vector<std::optional<TString>> expectedValues;
+    std::vector<std::optional<std::string>> expectedValues;
     AppendVector(&expectedValues, CreateDirectDense());
     AppendVector(&expectedValues, CreateDictionaryDense());
     AppendVector(&expectedValues, CreateDirectRle());

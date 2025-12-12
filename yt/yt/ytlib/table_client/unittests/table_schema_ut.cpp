@@ -54,34 +54,34 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("SomeExpression"))
+                .SetExpression("SomeExpression")
         },
         {
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("SomeExpression")),
+                .SetExpression("SomeExpression"),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
         },
         {
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("SomeExpression")),
+                .SetExpression("SomeExpression"),
             TColumnSchema("Name", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("SomeOtherExpression"))
+                .SetExpression("SomeOtherExpression")
         },
         // Changing column aggregate is only allowed if columns was not aggregated.
         {
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(TString("sum")),
+                .SetAggregate(std::string("sum")),
             TColumnSchema("Name", EValueType::String)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(TString("sum")),
+                .SetAggregate(std::string("sum")),
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(TString("max"))
+                .SetAggregate(std::string("max"))
         },
     };
 
@@ -101,13 +101,13 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
-                .SetAggregate(TString("sum"))
+                .SetAggregate(std::string("sum"))
         },
         // Changing column lock is ok.
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::String)
-                .SetLock(TString("Lock"))
+                .SetLock("Lock")
         },
         // Making a column not sorted is ok.
         {
@@ -117,14 +117,14 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetLock(TString("Lock")),
+                .SetLock("Lock"),
             TColumnSchema("Name", EValueType::String)
         },
         {
             TColumnSchema("Name", EValueType::String)
-                .SetLock(TString("Lock")),
+                .SetLock("Lock"),
             TColumnSchema("Name", EValueType::String)
-                .SetLock(TString("OtherLock"))
+                .SetLock("OtherLock")
         },
         // Changing type in a compatible way is ok.
         {
@@ -176,7 +176,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Expression type should match the type of a column.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Key2")),
+                .SetExpression("Key2"),
             TColumnSchema("Key2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
         },
@@ -184,29 +184,29 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Computed columns may only depend on key columns.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Key2")),
+                .SetExpression("Key2"),
             TColumnSchema("Key2", EValueType::String)
         },
         {
             // Computed columns may only depend on non-computed columns.
             TColumnSchema("Key1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Key2")),
+                .SetExpression("Key2"),
             TColumnSchema("Key2", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Key3")),
+                .SetExpression("Key3"),
             TColumnSchema("Key3", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Aggregate function should appear in a pre-defined list.
             TColumnSchema("Key1", EValueType::String)
-                .SetAggregate(TString("MyFancyAggregateFunction")),
+                .SetAggregate(std::string("MyFancyAggregateFunction")),
         },
         {
             // Type of aggregate function should match the type of a column.
             TColumnSchema("Key1", EValueType::String)
-                .SetAggregate(TString("sum"))
+                .SetAggregate(std::string("sum"))
         },
         {
             // "Materialized" parameter can only be set with "Expression" parameter.
@@ -218,7 +218,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             // Materializable computed columns should be key columns.
             TColumnSchema("Key1", EValueType::Int64),
             TColumnSchema("Key2", EValueType::Int64)
-                .SetExpression(TString("Key1 * 2"))
+                .SetExpression("Key1 * 2")
                 .SetMaterialized(true)
         },
         {
@@ -226,7 +226,7 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
             TColumnSchema("Key1", EValueType::Int64),
             TColumnSchema("Key2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Key1 * 2"))
+                .SetExpression("Key1 * 2")
                 .SetMaterialized(false)
         },
     };
@@ -261,14 +261,14 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("HeightPlusWeight", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Height + Weight")),
+                .SetExpression("Height + Weight"),
             TColumnSchema("NormalizedWeight", EValueType::Int64)
-                .SetExpression(TString("Weight / Height"))
+                .SetExpression("Weight / Height")
                 .SetMaterialized(false),
             TColumnSchema("MaximumActivity", EValueType::Int64)
-                .SetAggregate(TString("max")),
+                .SetAggregate("max"),
             TColumnSchema("SomethingWeird", EValueType::Int64)
-                .SetExpression(TString("MaximumActivity / Weight"))
+                .SetExpression("MaximumActivity / Weight")
                 .SetMaterialized(false),
         },
     };
@@ -341,11 +341,11 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             // Changing columns attributes should be validated by ValidateColumnSchemaUpdate function.
             TTableSchema({
                 TColumnSchema("Name", EValueType::Int64)
-                    .SetAggregate(TString("sum"))
+                    .SetAggregate(std::string("sum"))
             }),
             TTableSchema({
                 TColumnSchema("Name", EValueType::Int64)
-                    .SetAggregate(TString("max"))
+                    .SetAggregate(std::string("max"))
             })
         },
         {
@@ -358,7 +358,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                     .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name2", EValueType::Int64)
                     .SetSortOrder(ESortOrder::Ascending)
-                    .SetExpression(TString("Name"))
+                    .SetExpression("Name")
             })
         },
         {
@@ -651,7 +651,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(TString("Name"))
+                .SetExpression("Name")
         }), enabledFeatures, false /*isDynamicTable*/, true /*isEmptyTable*/);
 }
 
@@ -735,11 +735,11 @@ TEST_P(TInferSchemaTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TString(schemaString))));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(schemaString))));
     }
 
     TTableSchema resultSchema;
-    Deserialize(resultSchema, ConvertToNode(TYsonString(TString(resultSchemaString))));
+    Deserialize(resultSchema, ConvertToNode(TYsonString(TStringBuf(resultSchemaString))));
 
     EXPECT_EQ(resultSchema, *InferInputSchema(schemas, discardKeyColumns));
 }
@@ -782,7 +782,7 @@ TEST_P(TInferSchemaInvalidTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TString(schemaString))));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(schemaString))));
     }
 
     EXPECT_THROW(InferInputSchema(schemas, true), std::exception);

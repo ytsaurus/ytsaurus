@@ -25,7 +25,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TProfiler>
-void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
+void RunUnderProfiler(const std::string& name, std::function<void()> work, bool checkSamples = true)
 {
     TSpinlockProfilerOptions options;
     options.ProfileFraction = 10;

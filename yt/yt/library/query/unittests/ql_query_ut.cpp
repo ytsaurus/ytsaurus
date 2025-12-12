@@ -228,7 +228,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
 TEST_F(TQueryPrepareTest, TooBigQuery2)
 {
-    auto query = std::string(R"(
+    auto query = TStringBuf(R"(
         * from [//t]
         where
         (a = 3735 and s = 'd0b160b8-1d27-40ad-8cad-1b69c2187195') or
@@ -431,7 +431,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("a")),
+                .SetExpression("a"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("c", EValueType::Int64),
@@ -466,7 +466,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(cid))")),
+            .SetExpression("int64(farm_hash(cid))"),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("id", EValueType::Int64),
@@ -478,7 +478,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(ExportID))")),
+            .SetExpression("int64(farm_hash(ExportID))"),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
@@ -490,7 +490,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(pid))")),
+            .SetExpression("int64(farm_hash(pid))"),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("status", EValueType::Int64),
@@ -499,14 +499,14 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
         TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(cid))")),
+            .SetExpression("int64(farm_hash(cid))"),
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
     }))));
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//campaigns] C on D.cid = C.cid
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -527,7 +527,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -548,7 +548,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        auto queryString = std::string(R"(* from [//bids] D
+        auto queryString = TStringBuf(R"(* from [//bids] D
             left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
             left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
@@ -584,7 +584,7 @@ TEST_F(TQueryPrepareTest, TableAliasIsKeyword)
     }))));
 
     {
-        auto queryString = std::string(R"(* from [//index] as index
+        auto queryString = TStringBuf(R"(* from [//index] as index
             join [//order] as order on index.id = order.id)");
 
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
@@ -702,7 +702,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto queryString = std::string(R"(
+        auto queryString = TStringBuf(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
@@ -718,7 +718,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id2;
     {
-        auto queryString = std::string(R"(
+        auto queryString = TStringBuf(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
@@ -753,7 +753,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
     llvm::FoldingSetNodeID id1;
     {
-        auto queryString = std::string("* FROM [//t] GROUP by a");
+        auto queryString = TStringBuf("* FROM [//t] GROUP by a");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -762,7 +762,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
     llvm::FoldingSetNodeID id2;
     {
-        auto queryString = std::string("* FROM [//s] GROUP by a");
+        auto queryString = TStringBuf("* FROM [//s] GROUP by a");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -804,26 +804,26 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("int64(farm_hash(a))")),
+                .SetExpression("int64(farm_hash(a))"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
         }))));
 
     {
-        auto queryString = std::string("* from [//t] group by hash, a, b");
+        auto queryString = TStringBuf("* from [//t] group by hash, a, b");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        auto queryString = std::string("* from [//t] group by a, b");
+        auto queryString = TStringBuf("* from [//t] group by a, b");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        auto queryString = std::string("* from [//t] group by a, v");
+        auto queryString = TStringBuf("* from [//t] group by a, v");
         auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
@@ -835,7 +835,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(std::string("int64(farm_hash(a))")),
+                .SetExpression("int64(farm_hash(a))"),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
@@ -1074,7 +1074,7 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
             {"a", EValueType::String}
         }))));
 
-    auto source = std::string("b as c from (SELECT a as b from [//t])");
+    auto source = TStringBuf("b as c from (SELECT a as b from [//t])");
 
     auto parsedSource = ParseSource(source, EParseMode::Query);
 
@@ -1119,7 +1119,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
     };
 
     {
-        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
             left join [//center] C with hint "{push_down_group_by=%true}"
             on (L.key_0) = (C.key_0)
             group by C.key_0)");
@@ -1127,10 +1127,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
     }
     {
-        auto query = std::string(R"(select sum(C.value_1) from [//left] L
+        auto query = TStringBuf(R"(select sum(C.value_1) from [//left] L
             left join [//center] C with hint "{push_down_group_by=%true}"
             on (L.key_0) = (C.key_0)
             group by L.key_0)");
@@ -1138,10 +1138,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("`C.key_0`"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             using key_0
             group by key_0)");
@@ -1149,10 +1149,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_0"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             group by value_0 + key_1)");
@@ -1160,10 +1160,10 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("key_1"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), TStringBuf("key_1"));
     }
     {
-        auto query = std::string(R"(select sum(value_1 * value_0) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1 * value_0) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             group by value_0 % 10)");
@@ -1173,7 +1173,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             HasSubstr("neither idempotent nor can be pushed behind join clause"));
     }
     {
-        auto query = std::string(R"(select sum(value_1) from [//left]
+        auto query = TStringBuf(R"(select sum(value_1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             using key_0
             group by value_0 + key_1)");
@@ -1183,7 +1183,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         EXPECT_FALSE(plan->Query->JoinClauses[0]->GroupClause);
     }
     {
-        auto query = std::string(R"(select sum(1) from [//left]
+        auto query = TStringBuf(R"(select sum(1) from [//left]
             left join [//center] with hint "{push_down_group_by=%true}"
             on 1 = 1
             left join [//center]
@@ -1207,7 +1207,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     TRangeExtractorMapPtr rangeExtractorMap = New<TRangeExtractorMap>();
     MergeFrom(rangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
 
-    auto source = std::string(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
+    auto source = TStringBuf(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
 
     auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
 
@@ -4032,7 +4032,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 
     std::vector<TOwningRow> result;
     for (auto [a, b] : orderedKeys) {
-        std::string resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
+        auto resultRow = Format("x=%v;y=%v;s=%v", a, b, groupedValues[std::pair(a, b)]);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
     // TODO(lukyan): Try to make stable order of totals row
@@ -4984,7 +4984,7 @@ TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
 
     splits["//B"] = MakeSplit({
         TColumnSchema("bk0", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("bk1 + bk3")),
+            .SetExpression("bk1 + bk3"),
         TColumnSchema("bk1", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk2", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk3", EValueType::Int64, ESortOrder::Ascending),
@@ -5969,7 +5969,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 
     splits["//tag_group"] = MakeSplit({
         TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(pid) % 64)")),
+            .SetExpression("int64(farm_hash(pid) % 64)"),
         TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("value", EValueType::Int64),
@@ -5982,7 +5982,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 
     splits["//DirectPhraseStatV2"] = MakeSplit({
         TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(std::string("int64(farm_hash(ExportID))")),
+            .SetExpression("int64(farm_hash(ExportID))"),
         TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
@@ -7036,7 +7036,7 @@ TEST_F(TQueryEvaluateTest, CompareAnyMixed)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false;r7=%true",
     }, resultSplit);
 
-    auto query = std::string("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
+    auto query = TStringBuf("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
         "> a and a > b = b < a as r7 FROM [//t]");
 
     Evaluate(query, MakeSplit({
@@ -7092,7 +7092,7 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
         "r=%true",
     }, resultSplit);
 
-    auto query = std::string("to_any(a) = a FROM [//t]");
+    auto query = TStringBuf("to_any(a) = a FROM [//t]");
 
     Evaluate(query, MakeSplit({
             {"a", EValueType::Boolean}

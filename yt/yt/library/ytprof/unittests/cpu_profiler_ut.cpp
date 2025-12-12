@@ -38,7 +38,7 @@ using TSampleFilter = TCpuProfilerOptions::TSampleFilter;
 template <size_t Index>
 Y_NO_INLINE void BurnCpu()
 {
-    THash<TString> hasher;
+    THash<std::string> hasher;
     ui64 value = 0;
     for (int i = 0; i < 10000000; i++) {
         value += hasher(ToString(i));
@@ -63,7 +63,7 @@ static Y_NO_INLINE void StaticFunction()
 }
 
 void RunUnderProfiler(
-    const TString& name,
+    const std::string& name,
     std::function<void()> work,
     bool checkSamples = true,
     const std::vector<TSampleFilter>& filters = {},
@@ -294,7 +294,7 @@ TEST_F(TCpuProfilerTest, TraceContext)
 
 TEST_F(TCpuProfilerTest, SlowActions)
 {
-    static const TString WorkerThreadName = "Heavy";
+    static const std::string WorkerThreadName = "Heavy";
     static const auto TraceThreshold = TDuration::MilliSeconds(50);
 
     const std::vector<TSampleFilter> filters = {

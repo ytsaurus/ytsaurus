@@ -102,7 +102,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
             .TypeResolver = GetTypeResolver(EValueType::Boolean),
         },
     };
-    auto createEvaluator = [&] (const TString& filter) {
+    auto createEvaluator = [&] (const std::string& filter) {
         return CreateOrmExpressionEvaluator(
             NQueryClient::ParseSource(filter, NQueryClient::EParseMode::Expression),
             typedAttributePaths);
@@ -130,10 +130,10 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
         "([/extras/special] OR try_get_string([/labels/details], \"/color\") IN (\"blue\", \"purple\", \"orange\"))");
 
     auto buildAndEvaluateExpression = [&] (
-        const TString& id,
+        const std::string& id,
         double weight,
         int readCount,
-        const TString& color,
+        const std::string& color,
         bool special)
     {
         std::vector<NYson::TYsonString> valueList = {
@@ -178,7 +178,7 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
         rowBuffer)
         .ValueOrThrow()
         .AsString();
-    EXPECT_EQ(value, TString("abacaba;25;315"));
+    EXPECT_EQ(value, std::string("abacaba;25;315"));
 }
 
 TEST(TExpressionEvaluatorTest, Simple)
@@ -240,7 +240,7 @@ TEST(TExpressionEvaluatorTest, TableName)
         .ValueOrThrow()
         .AsString();
 
-    EXPECT_EQ(value, TString("abacaba;25;315"));
+    EXPECT_EQ(value, std::string("abacaba;25;315"));
 
     EXPECT_THROW_WITH_SUBSTRING(
         CreateExpressionEvaluator("p.`meta.i64_id` + int64(s.`meta.ui64_id`)", columns),

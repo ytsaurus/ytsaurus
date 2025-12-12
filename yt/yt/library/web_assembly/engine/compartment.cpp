@@ -173,7 +173,7 @@ Runtime::ModuleRef LoadModuleFromBytecode(TRef bytecode)
     return wasmModule;
 }
 
-IR::Module ParseWast(const TString& wast)
+IR::Module ParseWast(TStringBuf wast)
 {
     auto irModule = IR::Module();
     irModule.featureSpec.memory64 = true;
@@ -251,7 +251,7 @@ public:
         InstantiateModule(wavmModule, linkResult, name);
     }
 
-    void AddModule(const TString& wast, TStringBuf name = "") override
+    void AddModule(TStringBuf wast, TStringBuf name = "") override
     {
         auto irModule = ParseWast(wast);
         auto wavmModule = Runtime::compileModule(irModule);
@@ -296,7 +296,7 @@ public:
     void* GetFunction(const std::string& name) override
     {
         for (const auto& it : Instances_) {
-            if (auto* function = Runtime::asFunction(Runtime::getInstanceExport(it, name.c_str())); function != nullptr) {
+            if (auto* function = Runtime::asFunction(Runtime::getInstanceExport(it, name)); function != nullptr) {
                 return static_cast<void*>(function);
             }
         }
@@ -357,12 +357,12 @@ public:
         return result;
     }
 
-    Runtime::Memory* GetLinearMemory()
+    Runtime::Memory* GetLinearMemory() const
     {
         return MemoryLayoutData_.LinearMemory;
     }
 
-    Runtime::Table* GetGlobalOffsetTable()
+    Runtime::Table* GetGlobalOffsetTable() const
     {
         return MemoryLayoutData_.GlobalOffsetTable;
     }
@@ -404,7 +404,7 @@ private:
     void InstantiateModule(const Runtime::ModuleRef& wavmModule, const Runtime::LinkResult& linkResult, TStringBuf debugName);
     void ApplyDataRelocationsAndCallConstructors(Runtime::Instance* instance);
 
-    static void Clone(const TWebAssemblyCompartment& from, TWebAssemblyCompartment* to);
+    static void Clone(const TWebAssemblyCompartment& source, TWebAssemblyCompartment* destination);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,7 +774,7 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
             continue;
         }
 
-        auto& global = irModule.globals.getDef(exportedDataEntry.index);
+        const auto& global = irModule.globals.getDef(exportedDataEntry.index);
         i64 offset = 0;
         i64 value = offset + global.initializer.i64;
         auto demangled = CppDemangle(TString(exportedDataEntry.name));
@@ -840,10 +840,10 @@ void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::I
         }
     };
 
-    static const auto voidToVoidSignature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {});
-    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_data_relocs");
-    callIfDefined(instance, voidToVoidSignature, "__wasm_apply_global_relocs");
-    callIfDefined(instance, voidToVoidSignature, "__wasm_call_ctors");
+    static const auto VoidToVoidSignature = IR::FunctionType(/*inResults*/ {}, /*inParams*/ {});
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_apply_data_relocs");
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_apply_global_relocs");
+    callIfDefined(instance, VoidToVoidSignature, "__wasm_call_ctors");
 }
 
 void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebAssemblyCompartment* destination)
@@ -891,7 +891,7 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
 
 Runtime::ModuleRef LoadMinimalRuntimeLibrary()
 {
-    static const TString code = R"(
+    static const TStringBuf code = R"(
         (module
             (type (;0;) (func))
             (type (;1;) (func (param i64) (result i64)))

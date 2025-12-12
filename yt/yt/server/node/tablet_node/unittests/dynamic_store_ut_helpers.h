@@ -290,18 +290,18 @@ public:
     }
 
 
-    TUnversionedOwningRow BuildRow(const TString& yson, bool treatMissingAsNull = true)
+    TUnversionedOwningRow BuildRow(TStringBuf yson, bool treatMissingAsNull = true)
     {
         return NTableClient::YsonToSchemafulRow(yson, *Tablet_->GetPhysicalSchema(), treatMissingAsNull);
     }
 
-    TUnversionedOwningRow BuildKey(const TString& yson)
+    TUnversionedOwningRow BuildKey(TStringBuf yson)
     {
         return NTableClient::YsonToKey(yson);
     }
 
 
-    bool AreRowsEqual(TUnversionedRow row, const TString& yson)
+    bool AreRowsEqual(TUnversionedRow row, const std::string& yson)
     {
         return AreRowsEqual(row, yson.c_str());
     }
@@ -311,7 +311,7 @@ public:
         return AreRowsEqualImpl(row, yson, NameTable_);
     }
 
-    bool AreQueryRowsEqual(TUnversionedRow row, const TString& yson)
+    bool AreQueryRowsEqual(TUnversionedRow row, const std::string& yson)
     {
         return AreQueryRowsEqual(row, yson.c_str());
     }

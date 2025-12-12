@@ -59,30 +59,30 @@ TEST(TTypeToValueMapTest, NotDefaultConstructible)
 
 TEST(TTypeToTemplateValueMapTest, DefaultConstructible)
 {
-    using TKeys = TTypes<int, TString>;
+    using TKeys = TTypes<int, std::string>;
 
     TTypeToTemplateValueMap<TKeys, TContainerA> map;
     map.Set<int>({1, 2, 3});
-    map.Set<TString>({"one", "two", "three"});
+    map.Set<std::string>({"one", "two", "three"});
 
     EXPECT_EQ(map.Get<int>(), TContainerA<int>({1, 2, 3}));
-    EXPECT_EQ(map.Get<TString>(), TContainerA<TString>({"one", "two", "three"}));
+    EXPECT_EQ(map.Get<std::string>(), TContainerA<std::string>({"one", "two", "three"}));
 }
 
 TEST(TTypeToTemplateValueMapTest, NotDefaultConstructible)
 {
-    using TKeys = TTypes<int, TString>;
+    using TKeys = TTypes<int, std::string>;
 
     TTypeToTemplateValueMap<TKeys, TContainerB> map([] <class T> {
         if constexpr (std::same_as<T, int>) {
             return TContainerB<int>({1, 2, 3});
-        } else if constexpr (std::same_as<T, TString>) {
-            return TContainerB<TString>({"one", "two", "three"});
+        } else if constexpr (std::same_as<T, std::string>) {
+            return TContainerB<std::string>({"one", "two", "three"});
         }
     });
 
     EXPECT_EQ(map.Get<int>(), TContainerB<int>({1, 2, 3}));
-    EXPECT_EQ(map.Get<TString>(), TContainerB<TString>({"one", "two", "three"}));
+    EXPECT_EQ(map.Get<std::string>(), TContainerB<std::string>({"one", "two", "three"}));
 }
 
 } // namespace NYT::NOrm::NMpl::NTests

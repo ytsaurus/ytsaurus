@@ -29,6 +29,7 @@ namespace {
 
 using namespace NPolicy;
 using namespace NControllerAgent;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,7 @@ public:
         const TJobResources& jobLimits,
         const TDiskResources& diskResourceLimits,
         const std::string& treeId,
-        const TString& poolPath,
+        const TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));

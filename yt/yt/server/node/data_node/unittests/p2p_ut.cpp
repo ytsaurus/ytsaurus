@@ -79,7 +79,7 @@ TEST_F(TP2PTest, LargeBlockRead)
 
     auto chunk0 = TChunkId::Create();
 
-    auto bigBlock = TBlock{TSharedRef::FromString(TString(Config->MaxBlockSize + 100, 'x'))};
+    auto bigBlock = TBlock{TSharedRef::FromString(std::string(Config->MaxBlockSize + 100, 'x'))};
     std::vector<TBlock> blocks{bigBlock};
 
     for (int i = 0; i < Config->HotBlockThreshold; i++) {
@@ -99,7 +99,7 @@ TEST_F(TP2PTest, MaxBytesPerNode)
 
     auto chunk0 = TChunkId::Create();
 
-    auto bigBlock = TBlock{TSharedRef::FromString(TString(Config->MaxDistributedBytes / 2 + 100, 'x'))};
+    auto bigBlock = TBlock{TSharedRef::FromString(std::string(Config->MaxDistributedBytes / 2 + 100, 'x'))};
 
     std::vector<TBlock> blocks{bigBlock};
     for (int i = 0; i < Config->HotBlockThreshold; i++) {

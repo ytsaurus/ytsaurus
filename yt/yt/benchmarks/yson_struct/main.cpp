@@ -37,7 +37,7 @@ DEFINE_REFCOUNTED_TYPE(TBinaryTree);
 
 void BM_Parse(benchmark::State& state)
 {
-    auto ysonData = NYson::TYsonString(TString(R""""({
+    auto ysonData = NYson::TYsonString(TStringBuf(R""""({
         "value" = 10;
         "left" = {
             "value" = 5;
