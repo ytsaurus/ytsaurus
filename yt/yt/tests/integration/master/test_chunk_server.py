@@ -1497,7 +1497,8 @@ class TestChunkServerMulticell(TestChunkServer):
         set("//sys/@config/multicell_manager/cell_descriptors", {
             "10": {"roles": ["sequoia_node_host"]},
             "11": {"roles": ["chunk_host", "cypress_node_host"]},
-            "12": {"roles": ["dedicated_chunk_host"]}})
+            "12": {"roles": ["dedicated_chunk_host"]},
+            "13": {"roles": ["sequoia_node_host"]}})
 
         create("table", "//tmp/t1", attributes={
             "schema": [
