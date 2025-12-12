@@ -25,6 +25,7 @@
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
     XX(AlienConfigVersions, alien_config_versions) \
+    XX(AllReplicasReachedLastGlobalEra, all_replicas_reached_last_global_era) \
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(AllowChildrenGuarantees, allow_children_guarantees) \
