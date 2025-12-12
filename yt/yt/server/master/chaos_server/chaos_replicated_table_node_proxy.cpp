@@ -235,6 +235,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCount)
             .SetPresent(isQueue)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllReplicasReachedLastGlobalEra)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -450,12 +452,16 @@ private:
                 return GetReplicationCard(options)
                     .Apply(BIND([=] (const TReplicationCardPtr& card) {
                         auto replicasLags = ComputeReplicasLag(card->Replicas);
+                        auto lastEraTimestamp = GetLastEraTimestamp(card);
                         return BuildYsonStringFluently()
                             .DoMapFor(replicasLags, [&] (TFluentMap fluent, const auto& lagPair) {
                                 const auto& [replicaId, replicaLag] = lagPair;
                                 const auto& replicas = card->Replicas;
                                 const auto& replica = replicas.find(replicaId)->second;
+                                const auto& replicaHistory = replica.History;
                                 auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+                                bool replicaReachedLastOwnEra =
+                                    (!replicaHistory.empty() && minTimestamp >= replicaHistory.back().Timestamp);
                                 fluent
                                     .Item(ToString(replicaId))
                                     .BeginMap()
@@ -467,6 +473,8 @@ private:
                                         .Item("replication_lag_timestamp").Value(minTimestamp)
                                         .Item("replication_lag_time").Value(replicaLag)
                                         .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
+                                        .Item("replica_reached_last_own_era").Value(replicaReachedLastOwnEra)
+                                        .Item("replica_reached_last_global_era").Value(minTimestamp >= lastEraTimestamp)
                                     .EndMap();
                             });
                     }));
@@ -516,6 +524,24 @@ private:
                             }));
                     }));
             }
+
+            case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
+                return GetReplicationCard(MinimalFetchOptions)
+                    .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                        auto lastEraTimestamp = GetLastEraTimestamp(card);
+
+                        bool allReplicasReachedLastGlobalEra = true;
+                        for (const auto& [_, replica] : card->Replicas) {
+                            auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+                            if (minTimestamp < lastEraTimestamp) {
+                                allReplicasReachedLastGlobalEra = false;
+                                break;
+                            }
+                        }
+
+                        return BuildYsonStringFluently()
+                            .Value(allReplicasReachedLastGlobalEra);
+                    }));
 
             case EInternedAttributeKey::TabletCount: {
                 if (!isQueue) {
@@ -599,6 +625,19 @@ private:
                 return TErrorOr(
                     FromProto<std::vector<TReplicationCardId>>(result.Value()->replication_card_ids()));
             }));
+    }
+
+    static TTimestamp GetLastEraTimestamp(const TReplicationCardPtr& card)
+    {
+        for (const auto& replica : card->Replicas) {
+            for (const auto& historyItem : replica.second.History) {
+                if (historyItem.Era == card->Era) {
+                    return historyItem.Timestamp;
+                }
+            }
+        }
+
+        return NullTimestamp;
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
