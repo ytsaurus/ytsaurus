@@ -36,10 +36,10 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
     auto resultSplit = MakeSplit({
         {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         {"nested", ListLogicalType(StructLogicalType({
-            {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))}
-        }))}
+            {"x", "x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))}
+        }, /*removedFieldStableNames*/ {}))}
     });
 
     auto result = YsonToRows({
@@ -100,9 +100,9 @@ TEST_F(TQueryEvaluateTest, OutOfLineBoundValues)
     auto resultSplit = MakeSplit({
         {"SumCost_", EValueType::Int64},
         {"SumArray", ListLogicalType(StructLogicalType({
-            {"X", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-            {"Y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))}
-        }))}
+            {"X", "X", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"Y", "Y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))}
+        }, /*removedFieldStableNames*/ {}))}
     });
 
     auto result = YsonToRows({}, resultSplit);
@@ -208,11 +208,11 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         auto resultSplit = MakeSplit({
             {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"nested", ListLogicalType(StructLogicalType({
-                {"ls", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
-                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
-            }))}
+                {"ls", "ls", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"x", "x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"y", "y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }, /*removedFieldStableNames*/ {}))}
         });
 
         auto result = YsonToRows({
@@ -235,9 +235,9 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         auto resultSplit = MakeSplit({
             {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"nested", ListLogicalType(StructLogicalType({
-                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
-            }))}
+                {"x", "x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }, /*removedFieldStableNames*/ {}))}
         });
 
         auto result = YsonToRows({
@@ -258,9 +258,9 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"nested", ListLogicalType(StructLogicalType({
-                {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
-            }))}
+                {"b", "b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }, /*removedFieldStableNames*/ {}))}
         });
 
         auto result = YsonToRows({
@@ -281,9 +281,9 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
             {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"nested", ListLogicalType(StructLogicalType({
-                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
-                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
-            }))}
+                {"x", "x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", "z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }, /*removedFieldStableNames*/ {}))}
         });
 
         auto result = YsonToRows({

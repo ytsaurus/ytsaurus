@@ -952,7 +952,13 @@ public:
                     InferSchemaFromInput(PrimarySortColumns_);
                 } else {
                     prepareOutputSortColumns();
+                    // TODO(s-berdnikov): Relax constraints.
                     ValidateOutputSchemaCompatibility({
+                        .TypeCompatibilityOptions = {
+                            .AllowStructFieldRenaming = false,
+                            .AllowStructFieldRemoval = false,
+                            .IgnoreUnknownRemovedFieldNames = false,
+                        },
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
                         .IgnoreStableNamesDifference = true,

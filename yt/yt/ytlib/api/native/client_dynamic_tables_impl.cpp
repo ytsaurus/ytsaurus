@@ -158,6 +158,10 @@ constexpr size_t ExplainQueryMemoryLimit = 3_GB;
 constexpr TSchemaUpdateEnabledFeatures SchemaUpdateEnabledFeatures{
     .EnableStaticTableDropColumn = true,
     .EnableDynamicTableDropColumn = true,
+    .EnableStaticTableStructFieldRenaming = true,
+    .EnableDynamicTableStructFieldRenaming = true,
+    .EnableStaticTableStructFieldRemoval = true,
+    .EnableDynamicTableStructFieldRemoval = true,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

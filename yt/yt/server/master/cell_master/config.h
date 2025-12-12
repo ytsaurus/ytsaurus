@@ -398,10 +398,21 @@ struct TDynamicClusterConfig
     bool EnableSafeMode;
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
+
+    // Column renaming and removal.
     bool EnableTableColumnRenaming;
     bool EnableDynamicTableColumnRenaming;
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
+
+    // Struct field renaming and removal.
+    bool EnableStructFieldRenaming;
+    bool EnableStructFieldRemoval;
+    bool EnableStaticTableStructFieldRenaming;
+    bool EnableStaticTableStructFieldRemoval;
+    bool EnableDynamicTableStructFieldRenaming;
+    bool EnableDynamicTableStructFieldRemoval;
+
     bool EnableSecondaryIndexCopy;
     bool AllowAlterKeyColumnToAny;
 
