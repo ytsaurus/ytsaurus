@@ -641,7 +641,7 @@ void TVanillaController::ValidateSnapshot() const
     const auto& jobCounter = GetTotalJobCounter();
     int startedJobCount = jobCounter->GetRunning() + jobCounter->GetCompletedTotal();
 
-    if (expectedJobCount != jobCounter->GetRunning()) {
+    if (expectedJobCount != startedJobCount) {
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Cannot revive operation when \"fail_on_job_restart\" option is set in operation spec or user job spec "
