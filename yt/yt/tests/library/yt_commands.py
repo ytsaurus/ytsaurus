@@ -1296,6 +1296,13 @@ def transfer_pool_resources(source_pool, destination_pool, pool_tree, resource_d
     execute_command("transfer_pool_resources", kwargs)
 
 
+def transfer_bundle_resources(source_bundle, destination_bundle, resource_delta, **kwargs):
+    kwargs["source_bundle"] = source_bundle
+    kwargs["destination_bundle"] = destination_bundle
+    kwargs["resource_delta"] = resource_delta
+    execute_command("transfer_bundle_resources", kwargs)
+
+
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path

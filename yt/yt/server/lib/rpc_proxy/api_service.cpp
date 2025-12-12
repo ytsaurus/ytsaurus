@@ -753,6 +753,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(TransferBundleResources));
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartOperation));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -2941,6 +2942,29 @@ private:
             context,
             [=] {
                 return client->RestoreTableBackup(manifest, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferBundleResources)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto srcBundle = request->src_bundle();
+        auto dstBundle = request->dst_bundle();
+        auto resourceDelta = ConvertToNode(TYsonString(request->resource_delta()));
+
+        TTransferBundleResourcesOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
+
+        context->SetRequestInfo("SrcBundle: %v, DstBundle: %v",
+            srcBundle,
+            dstBundle);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->TransferBundleResources(srcBundle, dstBundle, resourceDelta, options);
             });
     }
 

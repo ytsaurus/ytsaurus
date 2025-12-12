@@ -17,15 +17,15 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetPoolTreePath(const TString& poolTree)
+std::string GetPoolTreePath(const std::string& poolTree)
 {
     return Format("%v/%v", PoolTreesRootCypressPath, poolTree);
 }
 
 void TClient::DoTransferPoolResources(
-    const TString& srcPool,
-    const TString& dstPool,
-    const TString& poolTree,
+    const std::string& srcPool,
+    const std::string& dstPool,
+    const std::string& poolTree,
     NYTree::INodePtr resourceDelta,
     const TTransferPoolResourcesOptions& options)
 {
