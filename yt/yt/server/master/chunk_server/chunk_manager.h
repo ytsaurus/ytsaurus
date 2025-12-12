@@ -232,7 +232,7 @@ struct IChunkManager
     struct TLocatedReplicas
     {
         TNodePtrWithReplicaAndMediumIndexList DomesticReplicas;
-        TMediumPtrWithReplicaInfoList OffshoreReplicas;
+        TOffshoreReplicaList OffshoreReplicas;
     };
 
     virtual TErrorOr<TLocatedReplicas> LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;

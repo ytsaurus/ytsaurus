@@ -138,7 +138,7 @@ void CanonizeCellTags(TCellTagList* cellTags)
 
 void PopulateChunkSpecWithReplicas(
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas,
+    const TOffshoreReplicaList& offshoreReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -263,7 +263,7 @@ void BuildChunkSpec(
     TBootstrap* bootstrap,
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
-    const TMediumPtrWithReplicaInfoList& offshoreChunkReplicas,
+    const TOffshoreReplicaList& offshoreChunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,

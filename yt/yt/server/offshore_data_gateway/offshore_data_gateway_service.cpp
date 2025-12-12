@@ -75,11 +75,27 @@ private:
             ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
             ->template As<TS3MediumDescriptor>();
 
-        THROW_ERROR_EXCEPTION_IF(!request.has_chunk_format(),
-            "The chunk_format is not set or has unknown value");
-        auto chunkFormat = NYT::FromProto<EChunkFormat>(request.chunk_format());
-        THROW_ERROR_EXCEPTION_IF(chunkFormat == EChunkFormat::Unknown,
-            "The chunk_format field must not have unknown value for this request");
+        THROW_ERROR_EXCEPTION_IF(!mediumDescriptor, "Medium %v is not an S3 medium", replicaWithMedium.GetMediumIndex());
+
+        // Right now meta persistence is not always specified properly for non-external offshore chunks because it would
+        // require refactoring existing replica-serialization code (e.g. in chunk merger). To simplify our life, we do not
+        // require chunk format to be specified for "native" offshore chunks, i.e. ones with no source URI.
+        // TODO(achulkov2): Eliminate this exception once we ensure proper meta persistence specification everywhere.
+        bool isChunkFormatRequired = replicaWithMedium.GetMetaPersistence() == EChunkMetaPersistence::None && !replicaWithMedium.GetSourceUri().empty();
+
+        auto chunkFormat = EChunkFormat::Unknown;
+
+        if (request.has_chunk_format()) {
+            chunkFormat = FromProto<EChunkFormat>(request.chunk_format());
+        }
+
+        if (isChunkFormatRequired && chunkFormat == EChunkFormat::Unknown) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot read offshore chunk %v with meta persistence %Qlv and source URI %Qv without a well-defined chunk format",
+                chunkId,
+                replicaWithMedium.GetMetaPersistence(),
+                replicaWithMedium.GetSourceUri());
+        }
 
         return CreateS3Reader(
             std::move(mediumDescriptor),

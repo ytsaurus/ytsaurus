@@ -16,6 +16,9 @@ namespace NYT::NTableClient {
 bool IsValidTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 bool IsTableChunkFormatVersioned(NChunkClient::EChunkFormat chunkFormat);
 
+//! Returns true for "external" chunk formats, i.e. formats not natively written by YT (yet).
+bool IsTableChunkFormatExternal(NChunkClient::EChunkFormat chunkFormat);
+
 void ValidateTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 void ValidateTableChunkFormatAndOptimizeFor(
     NChunkClient::EChunkFormat chunkFormat,

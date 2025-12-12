@@ -225,13 +225,14 @@ public:
 
         YT_LOG_DEBUG("Reader initialized "
             "(InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
-            "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
+            "AllowFetchingSeedsFromMaster: %v, Networks: %v, ChunkFormat: %lv)",
             MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             LocalDescriptor_,
             Config_->PopulateCache,
             Options_->AllowFetchingSeedsFromMaster,
-            Networks_);
+            Networks_,
+            ChunkFormat_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

@@ -18,7 +18,7 @@ void BuildChunkSpec(
     NCellMaster::TBootstrap* bootstrap,
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
-    const TMediumPtrWithReplicaInfoList& offshoreChunkReplicas,
+    const TOffshoreReplicaList& offshoreChunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const NChunkClient::TReadLimit& lowerLimit,

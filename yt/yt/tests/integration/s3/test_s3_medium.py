@@ -812,10 +812,6 @@ class TestS3Medium(TestS3MediumBase):
     @authors("achulkov2")
     @pytest.mark.parametrize("sorted", [True, False])
     def test_dynamic_tables(self, sorted):
-        # TODO(achulkov2): Fix in one way or the other.
-        if not sorted:
-            pytest.skip("Ordered dynamic tables do not update replicas on stores update yet :(")
-
         schema = [
             {"name": "s", "type": "string", "sort_order": "ascending" if sorted else None},
             {"name": "i", "type": "int64"},
@@ -828,6 +824,7 @@ class TestS3Medium(TestS3MediumBase):
         insert_rows("//tmp/t", [{"s": "a", "i": 3}])
         insert_rows("//tmp/t", [{"s": "b", "i": 1}, {"s": "c", "i": 2}])
 
+        # For ordered tables this requires offshore data gateway to be enabled, since only replication reader can discover replicas if seed list is empty.
         assert select_rows("s, i from [//tmp/t] order by i limit 100") == [{"s": "b", "i": 1}, {"s": "c", "i": 2}, {"s": "a", "i": 3}]
         if sorted:
             assert lookup_rows("//tmp/t", [{"s": "b"}]) == [{"s": "b", "i": 1}]
@@ -1037,24 +1034,47 @@ class TestS3Medium(TestS3MediumBase):
             assert offshore_replica.attributes["medium_id"] == get(f"//sys/media/{self.get_s3_medium_name()}/@id")
 
     @authors("achulkov2")
-    def test_chunk_merger(self):
+    @pytest.mark.parametrize("chunk_merger_mode", ["auto", "shallow", "deep"])
+    @pytest.mark.run_with_no_offshore_node_proxies
+    def test_chunk_merger(self, chunk_merger_mode):
         chunk_count = 10
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         for i in range(chunk_count):
-            write_table("<append=%true>//tmp/t", {"a": "b"})
+            write_table("<append=%true>//tmp/t", {"a": f"b{i}"})
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
 
         actual_chunk_count = get("//tmp/t/@chunk_count")
         assert actual_chunk_count == chunk_count
 
-        # TODO(achulkov2): [PDuringReview] Test all chunk merger modes explicitly.
-        set("//tmp/t/@chunk_merger_mode", "auto")
+        set("//tmp/t/@chunk_merger_mode", chunk_merger_mode)
 
-        time.sleep(3)
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
+        wait(lambda: get("//tmp/t/@chunk_count") < actual_chunk_count)
 
-        # TODO(achulkov2): [PDuringReview] Fix once chunk merger supports offshore replicas.
+        chunk_ids = get("//tmp/t/@chunk_ids")
 
-        merged_chunk_count = get("//tmp/t/@chunk_count")
-        assert merged_chunk_count == actual_chunk_count
+        for chunk_id in chunk_ids:
+            wait(lambda: self._check_requisition(chunk_id, {
+                self.get_s3_medium_name(): {
+                    "replication_policy": {
+                        "replication_factor": 1,
+                        "data_parts_only": False,
+                    },
+                },
+            }))
+
+            wait(lambda: self._check_replication(chunk_id, {
+                self.get_s3_medium_name(): {
+                    # Everything is false.
+                },
+            }))
+
+        assert read_table("//tmp/t") == [{"a": f"b{i}"} for i in range(chunk_count)]
+
+        # TODO(achulkov2): Check that old chunks are eventually deleted, once removal jobs are implemented.
+        self.assert_table_chunks_exist_in_s3("//tmp/t")
 
     @authors("faucct")
     def test_s3_medium_prefix(self):
@@ -1073,6 +1093,20 @@ class TestS3Medium(TestS3MediumBase):
 
         with pytest.raises(YtError, match='Cannot place chunks into S3 medium "s3_read_only" without a configured bucket'):
             write_table("//tmp/f", [record1])
+
+    @authors("achulkov2")
+    @pytest.mark.run_with_no_offshore_node_proxies
+    def test_erasure_shenanigans(self):
+        # We could forbid this specific action (and maybe we should), but it is quite complicated to forbid all possible
+        # ways to configure a table to have non-null erasure codec *and* a replication policy on an offshore medium.
+        # It looks like it could be done in theory, but there might be caveats that we don't see right now.
+        # TODO(achulkov2): Make an attempt to forbid it properly.
+        create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name(), "erasure_codec": "isa_reed_solomon_3_3"})
+
+        # For now, just check that one cannot actually create such chunks.
+        with raises_yt_error("Erasure chunks cannot be placed on offshore media"):
+            write_table("//tmp/t", {"a": "b"})
+
 
     # TODO(achulkov2): Test chunk attributes: ???.
 
@@ -2733,6 +2767,40 @@ class TestAttachTable(TestAttachTableBase):
         assert get("//tmp/imported/@chunk_count") == chunk_count
 
         assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}] * chunk_count
+
+    @authors("achulkov2")
+    @pytest.mark.run_with_no_offshore_node_proxies
+    def test_attached_data_chunk_merger(self):
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+
+        bucket = self.get_s3_medium_bucket()
+
+        chunk_count = 10
+
+        # TODO(achulkov2): Test all that none of the supported formats trigger actual chunk merging after rebasing on commits with Pasha's new function.
+        body = b'{"col":"a"}\n{"col":"b"}\n'
+
+        for i in range(chunk_count):
+            self.S3_CLIENT.put_object(Bucket=bucket, Key=f"foo_{i}.jsonl", Body=body)
+
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo_{i}.jsonl" for i in range(chunk_count)]),
+            medium=self.get_s3_medium_name(),
+            attach_mode="sequential")
+
+        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}] * chunk_count
+
+        assert get("//tmp/imported/@chunk_count") == chunk_count
+
+        set("//tmp/imported/@chunk_merger_mode", "auto")
+
+        time.sleep(10)
+
+        merged_chunk_count = get("//tmp/imported/@chunk_count")
+        assert merged_chunk_count == chunk_count
+
 
 ################################################################################
 

@@ -36,6 +36,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -161,6 +163,9 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         ToProto(protoChunk->mutable_source_replicas(), replicas);
 
         for (const auto& offshoreReplica : offshoreReplicas) {
+            // Chunks with source URIs cannot be merged, this is checked earlier.
+            YT_VERIFY(offshoreReplica.SourceUri.empty());
+            // TODO(achulkov2): Switch to replica specs. Right now we can live with it, since source URIs are always empty.
             protoChunk->add_source_replicas(ToProto<ui64>(offshoreReplica));
         }
 
@@ -170,9 +175,22 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         protoChunk->set_row_count(chunk->GetRowCount());
     }
 
-    builder.Add(TargetReplicas_);
+    // TODO(achulkov2): Master jobs are very used to dealing with TNodePtrWithReplicaAndMediumIndex replicas,
+    // and it is not that easy to refactor this. Going with the least invasive approach, for now.
     for (auto replica : TargetReplicas_) {
-        jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        // Nullptr denotes offshore replica.
+        if (!replica.GetPtr()) {
+            // Offshore replica case.
+            TChunkReplicaWithMedium offshoreReplica(
+                NNodeTrackerClient::OffshoreNodeId,
+                replica.GetReplicaIndex(),
+                replica.GetMediumIndex());
+            jobSpecExt->add_target_replicas(ToProto<ui64>(offshoreReplica));
+        } else {
+            // Domestic replica case.
+            builder.Add(replica.GetPtr());
+            jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
+        }
     }
 
     jobSpecExt->set_validate_shallow_merge(ValidateShallowMerge_);
@@ -508,6 +526,25 @@ private:
                 chunk->GetId(),
                 chunk->GetSystemBlockCount());
             return false;
+        }
+
+        if (IsTableChunkFormatExternal(chunk->GetChunkFormat())) {
+            YT_LOG_DEBUG(
+                "Cannot add chunk to merge job due to unsupported chunk format (ChunkId: %v, ChunkFormat: %v)",
+                chunk->GetId(),
+                chunk->GetChunkFormat());
+            return false;
+        }
+
+        for (const auto& replica : chunk->StoredOffshoreReplicas()) {
+            if (!replica.SourceUri.empty()) {
+                YT_LOG_DEBUG(
+                    "Cannot add chunk to merge job due to non-empty source URI in offshore replica (ChunkId: %v, MediumName: %v, SourceUri: %v)",
+                    chunk->GetId(),
+                    replica.GetMedium()->GetName(),
+                    replica.SourceUri);
+                return false;
+            }
         }
 
         auto accountCriteria = Account_->ChunkMergerCriteria();
@@ -1633,10 +1670,18 @@ void TChunkMerger::CreateChunks()
         auto erasureCodec = chunkOwner->GetErasureCodec();
         req->set_erasure_codec(ToProto<int>(erasureCodec));
 
+        auto* medium = Bootstrap_->GetChunkManager()->GetMediumByIndexOrThrow(mediumIndex);
+
         if (erasureCodec == NErasure::ECodec::None) {
             req->set_type(ToProto<int>(EObjectType::Chunk));
             const auto& policy = chunkOwner->Replication().Get(mediumIndex);
-            req->set_replication_factor(policy.GetReplicationFactor());
+            // In the current code, replication factor override logic is always applied *before* the call to chunk manager's CreateChunk.
+            // We are dealing with the *table*'s replication policy here, which stores RF=3 even for offshore media.
+            // Other places (autotomy and reincarnation) don't have to deal with this, because they look at existing *chunks*, which
+            // already have proper overridden RF=1 when needed (erasure).
+            // TODO(achulkov2): It would make more sense to move this logic inside chunk manager, but let's keep it
+            // like this for now to reduce the scope of changes.
+            req->set_replication_factor(medium->IsOffshore() ? 1 : policy.GetReplicationFactor());
         } else {
             req->set_type(ToProto<int>(EObjectType::ErasureChunk));
             req->set_replication_factor(1);
@@ -1715,10 +1760,13 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
     // TODO(gritukan): Support external media in chunk merger.
     auto* medium = chunkManager->GetMediumByIndexOrThrow(chunkIdWithIndexes.MediumIndex);
-    if (medium->IsOffshore()) {
+
+    // This should never happen, because we don't allow erasure chunks on offshore media to begin with.
+    if (medium->IsOffshore() && erasureCodec != NErasure::ECodec::None) {
         YT_LOG_ALERT(
-            "Chunk merger was run for table with offshore medium, ignored "
-            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+            "Chunk merger encountered an erasure output chunk on offshore medium, ignored "
+            "(ErasureCodec: %lv, ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+            erasureCodec,
             jobInfo.OutputChunkId,
             medium->GetIndex(),
             medium->GetName(),
@@ -1726,16 +1774,29 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         return false;
     }
 
-    // TODO(achulkov2): [PDuringReview] Allocate write targets for offshore chunks and allow them.
+    // TODO(achulkov2): This is may or may not be a temporary workaround. Right now, AllocateWriteTargets
+    // returns a list of nodes, and supporting it for offshore media would be quite weird — we would have
+    // to return nullptr. It probably makes sense to make it return a list of either node or medium pointers,
+    // but this requires slightly more extensive changes. Also, it is a bit of a no-op for offshore media, we
+    // always return just one "replica". For now, let's just make it a special case here.
+    // Can be reworked once we support writing offshore chunks via replication writer.
+    TNodeList targetNodes;
+    if (medium->IsOffshore()) {
+        YT_VERIFY(targetCount == 1);
+        YT_VERIFY(erasureCodec == NErasure::ECodec::None);
+        // Nullptr target node indicates offshore replica when serializing job spec.
+        targetNodes = {nullptr};
+    } else {
+        targetNodes = chunkManager->AllocateWriteTargets(
+            medium->AsDomestic(),
+            outputChunk,
+            /*replicas*/ {}, // We know there are no replicas for output chunk yet.
+            GenericChunkReplicaIndex,
+            targetCount,
+            targetCount,
+            /*replicationFactorOverride*/ std::nullopt);
+    }
 
-    auto targetNodes = chunkManager->AllocateWriteTargets(
-        medium->AsDomestic(),
-        outputChunk,
-        /*replicas*/ {}, // We know there are no replicas for output chunk yet.
-        GenericChunkReplicaIndex,
-        targetCount,
-        targetCount,
-        /*replicationFactorOverride*/ std::nullopt);
     if (targetNodes.empty()) {
         return false;
     }

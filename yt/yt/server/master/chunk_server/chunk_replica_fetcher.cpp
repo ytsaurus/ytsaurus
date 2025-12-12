@@ -314,7 +314,7 @@ public:
         return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
     }
 
-    TMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+    TOffshoreReplicaList GetOffshoreChunkReplicas(
         const TEphemeralObjectPtr<TChunk>& chunk) const override
     {
         YT_VERIFY(!HasMutationContext());
@@ -327,18 +327,18 @@ public:
         return GetOrCrash(result, chunk->GetId());
     }
 
-    TChunkToMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+    TChunkToOffshoreReplicaList GetOffshoreChunkReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
     {
         YT_VERIFY(!HasMutationContext());
         Bootstrap_->VerifyPersistentStateRead();
 
-        TChunkToMediumPtrWithReplicaInfoList result;
+        TChunkToOffshoreReplicaList result;
         for (const auto& chunk : chunks) {
             auto chunkId = chunk->GetId();
 
             auto offshoreReplicas = chunk->StoredOffshoreReplicas();
-            TMediumPtrWithReplicaInfoList replicaList(offshoreReplicas.begin(), offshoreReplicas.end());
+            TOffshoreReplicaList replicaList(offshoreReplicas.begin(), offshoreReplicas.end());
             result[chunkId] = std::move(replicaList);
         }
 

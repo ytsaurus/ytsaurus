@@ -36,6 +36,11 @@ IChunkReaderPtr CreatePhysicalChunkReader(
             // << TErrorAttribute("seed_replicas", seedReplicas);
     }
 
+    auto chunkFormat = EChunkFormat::Unknown;
+    if (chunkSpec.has_chunk_meta()) {
+        chunkFormat = NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format());
+    }
+
     const auto& nativeConnection = chunkReaderHost->Client->GetNativeConnection();
     auto replicasByType = GetReplicasByType(seedReplicas);
 
@@ -55,7 +60,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
         if (const auto s3MediumDescriptor = mediumDescriptor->As<TS3MediumDescriptor>()) {
             return CreateS3Reader(
                 s3MediumDescriptor, config, chunkId,
-                NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()),
+                chunkFormat,
                 offshoreReplica);
         }
 
@@ -69,7 +74,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
         std::move(chunkReaderHost),
         chunkId,
         std::move(seedReplicas),
-        NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()));
+        chunkFormat);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

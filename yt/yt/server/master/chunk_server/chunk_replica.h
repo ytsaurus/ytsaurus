@@ -251,7 +251,7 @@ struct TOffshoreReplica {
     void Save(NCellMaster::TSaveContext& context) const;
 };
 
-using TMediumPtrWithReplicaInfoList = TCompactVector<TOffshoreReplica, 1>;
+using TOffshoreReplicaList = TCompactVector<TOffshoreReplica, 1>;
 
 using TChunkPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunk>;
 using TChunkPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunk>;

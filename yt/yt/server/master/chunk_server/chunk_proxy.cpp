@@ -347,7 +347,7 @@ private:
         IYsonConsumer* consumer,
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
-        TMediumPtrWithReplicaInfoList offshoreReplicas)
+        TOffshoreReplicaList offshoreReplicas)
     {
         SortBy(offshoreReplicas, [] (const auto& offshoreReplica) {
             return std::tuple(offshoreReplica.GetReplicaIndex(), offshoreReplica.GetEffectiveMediumIndex());
@@ -398,7 +398,7 @@ private:
                 }
 
                 auto offshoreReplicas = chunk->StoredOffshoreReplicas();
-                TMediumPtrWithReplicaInfoList offshoreReplicaList(offshoreReplicas.begin(), offshoreReplicas.end());
+                TOffshoreReplicaList offshoreReplicaList(offshoreReplicas.begin(), offshoreReplicas.end());
                 BuildYsonOffshoreReplicas(consumer, chunkManager, chunk->GetId(), offshoreReplicaList);
                 return true;
             }

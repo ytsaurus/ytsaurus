@@ -52,6 +52,14 @@ bool IsTableChunkFormatVersioned(EChunkFormat chunkFormat)
         chunkFormat == EChunkFormat::TableVersionedSlim;
 }
 
+bool IsTableChunkFormatExternal(EChunkFormat chunkFormat)
+{
+    return
+        chunkFormat == EChunkFormat::TableUnversionedArrowCsv ||
+        chunkFormat == EChunkFormat::TableUnversionedArrowJsonLines ||
+        chunkFormat == EChunkFormat::TableUnversionedArrowParquet;
+}
+
 void ValidateTableChunkFormat(EChunkFormat chunkFormat)
 {
     if (!IsValidTableChunkFormat(chunkFormat)) {

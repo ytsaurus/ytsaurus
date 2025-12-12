@@ -102,11 +102,11 @@ public:
     TMediumMap<EChunkStatus> ComputeChunkStatuses(
         TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
     ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(
         TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
 
     bool IsReplicatorEnabled();
     bool IsSealerEnabled();
@@ -123,7 +123,7 @@ public:
     bool IsDurabilityRequired(
         TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas) const;
+        const TOffshoreReplicaList& offshoreReplicas) const;
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer, NProfiling::TSensorBuffer* crpBuffer);
 
@@ -259,7 +259,7 @@ private:
         TDomesticMedium* targetMedium,
         TNodeId targetNodeId,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
@@ -278,7 +278,7 @@ private:
     void RefreshChunk(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreChunkReplicas);
+        const TOffshoreReplicaList& offshoreChunkReplicas);
 
     void ResetChunkStatus(TChunk* chunk);
     void RemoveChunkReplicasFromReplicationQueues(
@@ -291,12 +291,12 @@ private:
     TChunkStatistics ComputeChunkStatistics(
         const TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
 
     TChunkStatistics ComputeRegularChunkStatistics(
         const TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas);
+        const TOffshoreReplicaList& offshoreReplicas);
     void ComputeRegularChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
         const TChunk* chunk,
@@ -361,7 +361,7 @@ private:
     TChunkReplication GetChunkAggregatedReplication(
         const TChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
-        const TMediumPtrWithReplicaInfoList& offshoreReplicas) const;
+        const TOffshoreReplicaList& offshoreReplicas) const;
 
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);

@@ -534,7 +534,7 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
 TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+    const TOffshoreReplicaList& offshoreReplicas)
 {
     TMediumMap<EChunkStatus> result;
 
@@ -550,7 +550,7 @@ TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
 ECrossMediumChunkStatus TChunkReplicator::ComputeCrossMediumChunkStatus(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+    const TOffshoreReplicaList& offshoreReplicas)
 {
     return ComputeChunkStatistics(chunk, replicas, offshoreReplicas).Status;
 }
@@ -558,7 +558,7 @@ ECrossMediumChunkStatus TChunkReplicator::ComputeCrossMediumChunkStatus(
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+    const TOffshoreReplicaList& offshoreReplicas)
 {
     if (chunk->IsErasure() && !offshoreReplicas.empty()) {
         YT_LOG_ALERT(
@@ -1021,7 +1021,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(
     const TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+    const TOffshoreReplicaList& offshoreReplicas)
 {
     TChunkStatistics results;
 
@@ -1441,7 +1441,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     TDomesticMedium* targetMedium,
     TNodeId targetNodeId,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas)
+    const TOffshoreReplicaList& offshoreReplicas)
 {
     auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndex.GetPtr();
@@ -2320,7 +2320,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 void TChunkReplicator::RefreshChunk(
     const TEphemeralObjectPtr<TChunk>& ephemeralChunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
-    const TMediumPtrWithReplicaInfoList& offshoreChunkReplicas)
+    const TOffshoreReplicaList& offshoreChunkReplicas)
 {
     if (!ephemeralChunk->IsConfirmed()) {
         return;
@@ -2629,7 +2629,7 @@ bool TChunkReplicator::IsReplicaOnPendingRestartNode(TChunkLocation* replica)
 TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(
     const TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas) const
+    const TOffshoreReplicaList& offshoreReplicas) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
@@ -2910,7 +2910,7 @@ TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
 bool TChunkReplicator::IsDurabilityRequired(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
-    const TMediumPtrWithReplicaInfoList& offshoreReplicas) const
+    const TOffshoreReplicaList& offshoreReplicas) const
 {
     if (chunk->GetHistoricallyNonVital()) {
         return false;
