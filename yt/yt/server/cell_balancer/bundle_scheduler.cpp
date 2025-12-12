@@ -821,7 +821,7 @@ private:
     {
         auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
         if (deallocationAge > input.Config->HulkRequestTimeout) {
-            YT_LOG_WARNING("Deallocation Request is stuck (BundleName: %v, DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
+            YT_LOG_WARNING("Deallocation request is stuck (BundleName: %v, DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
                 bundleName,
                 deallocationId,
                 deallocationAge,
@@ -839,7 +839,14 @@ private:
         }
 
         const auto& instanceName = deallocationState->InstanceName;
-        if (!adapter->IsInstanceReadyToBeDeallocated(instanceName, deallocationId, bundleName, input, mutations)) {
+        if (!adapter->IsInstanceReadyToBeDeallocated(
+            instanceName,
+            deallocationId,
+            deallocationAge,
+            bundleName,
+            input,
+            mutations))
+        {
             return true;
         }
 
@@ -1355,8 +1362,16 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
             }
 
             bool internallyDecommissioned = bundleState &&
-                (bundleState->BundleNodeAssignments.count(nodeName) != 0 ||
-                bundleState->BundleNodeReleasements.count(nodeName) != 0);
+                (bundleState->BundleNodeAssignments.contains(nodeName) ||
+                bundleState->BundleNodeReleasements.contains(nodeName));
+            // May be null in tests.
+            if (bundleState) {
+                for (const auto& [_, deallocation] : bundleState->NodeDeallocations) {
+                    if (deallocation->InstanceName == nodeName) {
+                        internallyDecommissioned = true;
+                    }
+                }
+            }
 
             if (nodeInfo->DisableTabletCells) {
                 YT_LOG_DEBUG("Tablet cells are disabled for the node (BundleName: %v, Node: %v)",
@@ -2203,6 +2218,7 @@ public:
     bool IsInstanceReadyToBeDeallocated(
         const std::string& instanceName,
         const std::string& deallocationId,
+        TDuration deallocationAge,
         const std::string& bundleName,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
@@ -2216,16 +2232,53 @@ public:
             return false;
         }
 
-        const auto& nodeInfo = nodeIt->second;
-        if (input.Config->DecommissionReleasedNodes) {
-            return EnsureNodeDecommissioned(instanceName, nodeInfo, mutations);
+        if (!input.Config->DecommissionReleasedNodes) {
+            YT_LOG_INFO("Skipping node decommissioning due to configuration (DeallocationId: %v, Node: %v)",
+                deallocationId,
+                instanceName);
+            return true;
         }
 
-        YT_LOG_INFO("Skipping node decommissioning due to configuration (DeallocationId: %v, Node: %v)",
-            deallocationId,
-            instanceName);
+        const auto& nodeInfo = nodeIt->second;
 
-        return true;
+        if (!nodeInfo->Decommissioned) {
+            YT_LOG_INFO("Decommissioning node before deallocation (DeallocationId: %v, Node: %v)",
+                deallocationId,
+                instanceName);
+            mutations->ChangedDecommissionedFlag[instanceName] = mutations->WrapMutation(true);
+            return false;
+        }
+
+        if (GetUsedSlotCount(nodeInfo) == 0) {
+            YT_LOG_INFO("All tablet slots are empty, node is ready for deallocation (DeallocationId: %v, Node: %v)",
+                deallocationId,
+                instanceName);
+            return true;
+        }
+
+        if (deallocationAge > input.Config->DecommissionedNodeDrainTimeout) {
+            YT_LOG_INFO("Tablet cell migration taking too long, node deallocation allowed without full drain "
+                "(DeallocationId: %v, Node: %v, DeallocationAge: %v, Timeout: %v)",
+                deallocationId,
+                instanceName,
+                deallocationAge,
+                input.Config->DecommissionedNodeDrainTimeout);
+
+            // Long deallocations usually are caused by hardware or connectivity problems.
+            // It is better to remove cells from the broken node forcefully.
+            auto bundleInfo = GetOrCrash(input.Bundles, bundleName);
+            if (nodeInfo->UserTags.contains(bundleInfo->NodeTagFilter)) {
+                YT_LOG_INFO("Tablet cell migration taking too long, will ban node "
+                    "(DeallocationId: %v, Node: %v)",
+                    deallocationId,
+                    instanceName);
+
+                mutations->ChangedBannedFlag[instanceName] = mutations->WrapMutation(true);
+            }
+        }
+
+        // Wait tablet cells to migrate.
+        return GetUsedSlotCount(nodeInfo) == 0;
     }
 
     std::string GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
@@ -2579,6 +2632,7 @@ public:
     bool IsInstanceReadyToBeDeallocated(
         const std::string& /*instanceName*/,
         const std::string& /*deallocationId*/,
+        TDuration /*deallocationAge*/,
         const std::string& /*bundleName*/,
         const TSchedulerInputState& /*input*/,
         TSchedulerMutations* /*mutations*/) const
@@ -3016,7 +3070,7 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
         if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
             unchangedBundleStates.push_back(bundleName);
         } else {
-            YT_LOG_DEBUG("Bundle state changed (Bundle: %v, OldState: %v, NewSatate: %v)",
+            YT_LOG_DEBUG("Bundle state changed (Bundle: %v, OldState: %v, NewState: %v)",
                 bundleName,
                 ConvertToYsonString(it->second, EYsonFormat::Text),
                 ConvertToYsonString(possiblyChangedState, EYsonFormat::Text));
