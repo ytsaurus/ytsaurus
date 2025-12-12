@@ -517,8 +517,6 @@ void TJob::Start() noexcept
 
     SetJobState(EJobState::Running);
 
-    GetUserSlot()->SetAllocationId(GetAllocationId());
-
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
     if (UserJobSpec_ && (UserJobSpec_->has_network_project() || UserJobSpec_->has_gpu_check_network_project())) {
