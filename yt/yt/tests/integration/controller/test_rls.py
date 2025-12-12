@@ -5,6 +5,7 @@ from yt_commands import (
     create,
     create_user,
     join_reduce,
+    ls,
     raises_yt_error,
     read_table,
     remove,
@@ -341,3 +342,39 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
         # No restrictions if we can prove that row indices are not broken.
         run_merge(in_="//tmp/t[#1]", out="<create=%true>//tmp/t_out", authenticated_user="full_read_user")
+
+    def test_omit_rows_in_files(self, optimize_for):
+        self._prepare_simple_test(optimize_for)
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"max": 42}])
+        one_node = list(ls("//sys/exec_nodes"))[0]
+
+        def run_map(user):
+            map(
+                in_="//tmp/t_in",
+                out=[
+                    "<create=%true>//tmp/t_out_input",
+                    "<create=%true>//tmp/t_out_file",
+                ],
+                spec={
+                    "omit_inaccessible_rows": True,
+                    "mapper": {
+                        "format": "yson",
+                    },
+                    "scheduling_tag_filter": one_node,
+                },
+                command="cat && cat ./t > /proc/self/fd/4",
+                file=["<format=yson>//tmp/t"],
+                authenticated_user=user,
+            )
+
+        run_map("prime_user")
+
+        assert read_table("//tmp/t_out_input") == [{"max": 42}]
+        assert sorted_dicts(read_table("//tmp/t_out_file")) == sorted_dicts(self._rows(2, 3, 5, 7))
+
+        # Check that artifact is not cached with different rls parameters.
+        run_map("basic_read_user")
+
+        assert read_table("//tmp/t_out_input") == [{"max": 42}]
+        assert read_table("//tmp/t_out_file") == []
