@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
-from yt.wrapper import config, YtClient, ypath_split, ypath_join
+from yt.wrapper import YtClient, ypath_split, ypath_join
+from yt.wrapper.default_config import get_config_from_env
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion, TypeV3
 
@@ -559,7 +560,7 @@ def build_arguments_parser():
 
     parser.add_argument("--version", action="version", version=str(SCRIPT_VERSION))
 
-    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+    parser.add_argument("--proxy", type=str, default=None)
     parser.add_argument("--root", type=str, default=DEFAULT_ROOT,
                         help="Root directory for state tables; defaults to {}".format(DEFAULT_ROOT))
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
@@ -592,7 +593,7 @@ def run_migration(client, root, target_version=None, shard_count=1, force=False,
 
 def main():
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, token=config["token"])
+    client = YtClient(proxy=args.proxy, config=get_config_from_env())
 
     target_version = args.target_version
     if args.latest:
