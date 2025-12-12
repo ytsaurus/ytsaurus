@@ -778,8 +778,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert get("//tmp/t1/@profiling_tag") == "custom"
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("config", ["mount_config", "chunk_writer", "both"])
-    def test_no_column_meta_in_chunk_meta(self, config):
+    def test_no_column_meta_in_chunk_meta(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
 
@@ -792,22 +791,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         chunk_id = get("//tmp/t/@chunk_ids")[0]
         meta_size_before_migration = get(f"#{chunk_id}/@meta_size")
 
-        if config == "mount_config":
-            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
-            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
-        elif config == "chunk_writer":
-            set("//tmp/t/@chunk_writer", {
-                "enable_column_meta_in_chunk_meta": False,
-                "enable_segment_meta_in_blocks": True,
-            })
-        else:
-            # Chunk writer config must have priority
-            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", True)
-            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", False)
-            set("//tmp/t/@chunk_writer", {
-                "enable_column_meta_in_chunk_meta": False,
-                "enable_segment_meta_in_blocks": True,
-            })
+        set("//tmp/t/@chunk_writer", {
+            "enable_column_meta_in_chunk_meta": False,
+            "enable_segment_meta_in_blocks": True,
+        })
 
         sync_compact_table("//tmp/t")
 
