@@ -918,6 +918,9 @@ type CheckPermissionByACLOptions struct {
 	IgnoreMissingSubjects bool `http:"ignore_missing_subjects,omitfalse"`
 }
 
+type CheckOperationPermissionOptions struct {
+}
+
 type DisableChunkLocationsOptions struct {
 }
 
@@ -942,6 +945,14 @@ type CheckPermissionResponse struct {
 	CheckPermissionResult
 
 	Columns []CheckPermissionResult `yson:"columns,omitempty"`
+}
+
+type CheckOperationPermissionResult struct {
+	Action SecurityAction `yson:"action"`
+}
+
+type CheckOperationPermissionResponse struct {
+	CheckOperationPermissionResult
 }
 
 type BuildMasterSnapshot struct {
@@ -1071,6 +1082,16 @@ type AdminClient interface {
 		ACL []ACE,
 		options *CheckPermissionByACLOptions,
 	) (result *CheckPermissionResponse, err error)
+
+	// http:verb:"check_operation_permission"
+	// http:params:"operation_id","user","permission"
+	CheckOperationPermission(
+		ctx context.Context,
+		operationID OperationID,
+		user string,
+		permission Permission,
+		options *CheckOperationPermissionOptions,
+	) (result *CheckOperationPermissionResponse, err error)
 
 	// http:verb:"disable_chunk_locations"
 	// http:params:"node_address","location_uuids"

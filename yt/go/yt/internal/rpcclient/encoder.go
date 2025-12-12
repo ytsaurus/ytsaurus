@@ -1686,6 +1686,46 @@ func (e *Encoder) CheckPermissionByACL(
 	return
 }
 
+func (e *Encoder) CheckOperationPermission(
+	ctx context.Context,
+	operationID yt.OperationID,
+	user string,
+	permission yt.Permission,
+	opts *yt.CheckOperationPermissionOptions,
+) (response *yt.CheckOperationPermissionResponse, err error) {
+	if opts == nil {
+		opts = &yt.CheckOperationPermissionOptions{}
+	}
+
+	rpcPermission, err := yt.ConvertPermissionType(&permission)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &rpc_proxy.TReqCheckOperationPermission{
+		User:       &user,
+		Permission: rpcPermission,
+		OperationIdOrAlias: &rpc_proxy.TReqCheckOperationPermission_OperationId{
+			OperationId: convertGUID(guid.GUID(operationID)),
+		},
+	}
+
+	call := e.newCall(MethodCheckOperationPermission, NewCheckOperationPermissionRequest(req), nil)
+
+	var rsp rpc_proxy.TRspCheckOperationPermission
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	response, err = makeCheckOperationPermissionResponse(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
+	}
+
+	return
+}
+
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
