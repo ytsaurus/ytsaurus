@@ -105,7 +105,7 @@ private:
     {
     public:
         TManualSingleClusterClient(
-            std::size_t index,
+            int index,
             IClientBasePtr client,
             TCrossClusterManualCallbackExecutor& executor)
             : Client_(std::move(client))
@@ -118,7 +118,7 @@ private:
             return Client_;
         }
 
-        std::size_t GetIndex() override
+        int GetIndex() const override
         {
             return Index_;
         }
@@ -136,7 +136,7 @@ private:
 
     private:
         IClientBasePtr Client_;
-        std::size_t Index_;
+        int Index_;
         TCrossClusterManualCallbackExecutor* Executor_;
     };
 
@@ -164,7 +164,7 @@ private:
             std::vector<TFuture<std::any>> clusterFutures;
             clusterFutures.reserve(Clients_.size());
 
-            for (std::size_t i = 0; i < Clients_.size(); ++i) {
+            for (int i = 0; i < std::ssize(Clients_); ++i) {
                 auto cbIndex = Executor_->CallbackIndex_++;
                 Executor_->CallbackQueues_[i].emplace_back(
                     BIND(callback, New<TManualSingleClusterClient>(i, Clients_[i], *Executor_)),

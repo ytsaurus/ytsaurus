@@ -18,7 +18,7 @@ public:
         TCallback<TFuture<T>(const ISingleClusterClientPtr&)> callback);
 
     virtual const NApi::IClientBasePtr& GetClient() = 0;
-    virtual std::size_t GetIndex() = 0;
+    virtual int GetIndex() const = 0;
 
 protected:
     virtual TFuture<std::any> DoExecuteCallback(
