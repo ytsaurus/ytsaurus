@@ -15,6 +15,7 @@ struct TTabletCellBundleYPathProxy
     DEFINE_YPATH_PROXY(TabletCellBundle);
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BalanceTabletCells);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, TransferBundleResources);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

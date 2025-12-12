@@ -170,6 +170,11 @@ struct ITabletManager
     virtual TTabletCellBundle* GetDefaultTabletCellBundle() = 0;
     virtual void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* cellBundle) = 0;
 
+    virtual void TransferTabletCellBundleResources(
+        TTabletCellBundle* srcBundle,
+        TTabletCellBundle* dstBundle,
+        const TTabletCellBundleResources& resourceDelta) = 0;
+
     virtual TTabletCell* GetTabletCellOrThrow(TTabletCellId id) = 0;
     virtual void ZombifyTabletCell(TTabletCell* cell) = 0;
 

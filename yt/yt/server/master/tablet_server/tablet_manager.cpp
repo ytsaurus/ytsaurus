@@ -2558,6 +2558,44 @@ public:
         }
     }
 
+    void TransferTabletCellBundleResources(
+        TTabletCellBundle* srcBundle,
+        TTabletCellBundle* dstBundle,
+        const TTabletCellBundleResources& resourceDelta) override
+    {
+        YT_VERIFY(srcBundle);
+        YT_VERIFY(dstBundle);
+
+        try {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            securityManager->ValidatePermission(srcBundle, EPermission::Write);
+            securityManager->ValidatePermission(dstBundle, EPermission::Write);
+
+            srcBundle->ValidateResourceLimitsChange(resourceDelta, /*increase*/ false);
+            dstBundle->ValidateResourceLimitsChange(resourceDelta, /*increase*/ true);
+
+            if (srcBundle == dstBundle) {
+                return;
+            }
+
+            srcBundle->ResourceLimits() -= resourceDelta;
+            dstBundle->ResourceLimits() += resourceDelta;
+        } catch (const std::exception& ex) {
+            if (IsHiveMutation()) {
+                YT_LOG_ALERT(ex, "Failed to transfer resources between bundles "
+                    "(SrcBundle: %v, DstBundle: %v, ResourceDelta: %v)",
+                    srcBundle->GetName(),
+                    dstBundle->GetName(),
+                    resourceDelta);
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to transfer resources from bundle %Qv to bundle %Qv",
+                    srcBundle->GetName(),
+                    dstBundle->GetName())
+                    << ex;
+            }
+        }
+    }
+
     void RecomputeTabletCellStatistics(TCellBase* cellBase) override
     {
         if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {

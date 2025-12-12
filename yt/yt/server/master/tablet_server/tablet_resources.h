@@ -17,6 +17,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TTabletResources, i64, TabletStaticMemory);
 
 public:
+    bool IsViolatedBy(const TTabletResources& other) const;
+
     bool operator==(const TTabletResources& other) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -36,6 +38,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY_WITH_FLUENT_SETTER(TTabletCellBundleQuota, std::optional<i64>, NetBytes);
 
 public:
+    bool IsViolatedBy(const TTabletCellBundleQuota& other) const;
+
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
@@ -50,6 +54,8 @@ class TTabletCellBundleResources
     , public TTabletCellBundleQuota
 {
 public:
+    bool IsViolatedBy(const TTabletCellBundleResources& other) const;
+
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
@@ -71,6 +77,24 @@ TTabletResources& operator-=(TTabletResources& lhs, const TTabletResources& rhs)
 TTabletResources operator-(const TTabletResources& value);
 
 void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*spec*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletCellBundleQuota& operator+=(
+    TTabletCellBundleQuota& lhs,
+    const TTabletCellBundleQuota& rhs);
+TTabletCellBundleQuota& operator-=(
+    TTabletCellBundleQuota& lhs,
+    const TTabletCellBundleQuota& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletCellBundleResources& operator+=(
+    TTabletCellBundleResources& lhs,
+    const TTabletCellBundleResources& rhs);
+TTabletCellBundleResources& operator-=(
+    TTabletCellBundleResources& lhs,
+    const TTabletCellBundleResources& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

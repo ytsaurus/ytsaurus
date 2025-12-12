@@ -73,6 +73,10 @@ public:
     void UpdateResourceUsage(TTabletResources delta);
     void RecomputeClusterResourceUsage();
 
+    void ValidateResourceLimitsChange(
+        const TTabletCellBundleResources& delta,
+        bool increase) const;
+
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
     NYPath::TYPath GetObjectPath() const override;

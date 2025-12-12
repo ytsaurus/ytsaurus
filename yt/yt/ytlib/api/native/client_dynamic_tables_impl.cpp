@@ -12,9 +12,6 @@
 #include "pick_replica_session.h"
 #include "private.h"
 
-#include <yt/yt/client/table_client/record_helpers.h>
-#include <yt/yt/client/table_client/record_helpers.h>
-
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
@@ -84,10 +81,11 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
-#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/helpers.h>
@@ -2594,6 +2592,28 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     }
 
     return tabletActions;
+}
+
+void TClient::DoTransferBundleResources(
+    const std::string& srcBundle,
+    const std::string& dstBundle,
+    NYTree::INodePtr resourceDelta,
+    const TTransferBundleResourcesOptions& options)
+{
+    auto proxy = CreateObjectServiceWriteProxy();
+    auto batchReq = proxy.ExecuteBatch();
+
+    auto req = TTabletCellBundleYPathProxy::TransferBundleResources(GetTabletCellBundlePath(dstBundle));
+    req->set_src_bundle(srcBundle);
+    req->set_resource_delta(ToProto(ConvertToYsonString(resourceDelta)));
+    SetMutationId(req, options);
+
+    batchReq->AddRequest(req);
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    batchRsp->GetResponse<TTabletCellBundleYPathProxy::TRspTransferBundleResources>(0)
+        .ThrowOnError();
 }
 
 IQueueRowsetPtr TClient::DoPullQueueImpl(

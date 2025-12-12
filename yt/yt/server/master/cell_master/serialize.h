@@ -180,6 +180,7 @@ DEFINE_ENUM(EMasterReign,
     ((StructFieldRenamingAndRemoval)                                (3130))  // s-berdnikov
     ((SequoiaChunkPurgatoryRecordsCount)                            (3131))  // grphil
     ((UnbuiltinSequoiaTabletCellBundles)                            (3132))  // danilalexeev
+    ((TransferBundleResources)                                      (3133))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
