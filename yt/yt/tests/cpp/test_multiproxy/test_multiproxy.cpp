@@ -360,6 +360,25 @@ TEST_F(TMultiproxyTest, TestTypoTargetHostname)
         testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
 }
 
+TEST_F(TMultiproxyTest, TestTypoTargetHostName_YT_26910)
+{
+    auto targetClient = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo");
+    auto action = [&] (const IClientPtr& client) {
+        WaitFor(client->ListNode("/"))
+            .ValueOrThrow();
+    };
+    EXPECT_THROW_THAT(
+        action(targetClient),
+        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+
+    auto token = CreateUser(WriteAccessClient_, "user-yt-26910");
+
+    auto targetClient2 = CreateRedirectingClient("YT_PROXY_WRITE_ACCESS", "target-with-typo", token);
+    EXPECT_THROW_THAT(
+        action(targetClient2),
+        testing::HasSubstr("Cannot find cluster with name \"target-with-typo\""));
+}
+
 TEST_F(TMultiproxyTest, TestUserMissingOnTargetCluster)
 {
     auto token = CreateUser(WriteAccessClient_, "test-user-missing-on-target-cluster");
