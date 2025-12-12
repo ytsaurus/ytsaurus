@@ -16,6 +16,7 @@ const (
 	MethodLinkNode                   Method = "LinkNode"
 	MethodCheckPermission            Method = "CheckPermission"
 	MethodCheckPermissionByACL       Method = "CheckPermissionByAcl"
+	MethodCheckOperationPermission   Method = "CheckOperationPermission"
 	MethodSelectRows                 Method = "SelectRows"
 	MethodLookupRows                 Method = "LookupRows"
 	MethodMultiLookup                Method = "MultiLookup"

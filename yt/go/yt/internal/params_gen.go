@@ -1688,6 +1688,20 @@ func logCheckPermissionByACLOptions(o *yt.CheckPermissionByACLOptions) []log.Fie
 	return fields
 }
 
+func writeCheckOperationPermissionOptions(w *yson.Writer, o *yt.CheckOperationPermissionOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func logCheckOperationPermissionOptions(o *yt.CheckOperationPermissionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeDisableChunkLocationsOptions(w *yson.Writer, o *yt.DisableChunkLocationsOptions) {
 	if o == nil {
 		return
@@ -5048,6 +5062,59 @@ func (p *CheckPermissionByACLParams) PrerequisiteOptions() **yt.PrerequisiteOpti
 
 func (p *CheckPermissionByACLParams) MasterReadOptions() **yt.MasterReadOptions {
 	return &p.options.MasterReadOptions
+}
+
+type CheckOperationPermissionParams struct {
+	verb        Verb
+	operationID yt.OperationID
+	user        string
+	permission  yt.Permission
+	options     *yt.CheckOperationPermissionOptions
+}
+
+func NewCheckOperationPermissionParams(
+	operationID yt.OperationID,
+	user string,
+	permission yt.Permission,
+	options *yt.CheckOperationPermissionOptions,
+) *CheckOperationPermissionParams {
+	if options == nil {
+		options = &yt.CheckOperationPermissionOptions{}
+	}
+	optionsCopy := *options
+	return &CheckOperationPermissionParams{
+		Verb("check_operation_permission"),
+		operationID,
+		user,
+		permission,
+		&optionsCopy,
+	}
+}
+
+func (p *CheckOperationPermissionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CheckOperationPermissionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *CheckOperationPermissionParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("operationID", p.operationID),
+		log.Any("user", p.user),
+		log.Any("permission", p.permission),
+	}
+	fields = append(fields, logCheckOperationPermissionOptions(p.options)...)
+	return fields
+}
+
+func (p *CheckOperationPermissionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.operationID)
+	w.MapKeyString("user")
+	w.Any(p.user)
+	w.MapKeyString("permission")
+	w.Any(p.permission)
+	writeCheckOperationPermissionOptions(w, p.options)
 }
 
 type DisableChunkLocationsParams struct {

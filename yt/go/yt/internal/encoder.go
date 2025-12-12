@@ -432,6 +432,18 @@ func (e *Encoder) CheckPermissionByACL(
 	return
 }
 
+func (e *Encoder) CheckOperationPermission(
+	ctx context.Context,
+	operationID yt.OperationID,
+	user string,
+	permission yt.Permission,
+	options *yt.CheckOperationPermissionOptions,
+) (response *yt.CheckOperationPermissionResponse, err error) {
+	call := e.newCall(NewCheckOperationPermissionParams(operationID, user, permission, options))
+	err = e.do(ctx, call, CheckOperationPermissionResultDecoder(&response))
+	return
+}
+
 func (e *Encoder) StartTx(
 	ctx context.Context,
 	options *yt.StartTxOptions,
