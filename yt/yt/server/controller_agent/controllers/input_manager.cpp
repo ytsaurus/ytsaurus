@@ -791,6 +791,7 @@ void TInputManager::FetchInputTablesAttributes()
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
                     .OmitInaccessibleRows = Host_->GetSpec()->OmitInaccessibleRows,
                     .PopulateSecurityTags = true,
+                    .AllowColumnRenaming = true,
                 });
 
             for (const auto& table : cluster->InputTables()) {
@@ -975,9 +976,12 @@ void TInputManager::FetchInputTablesAttributes()
                 table->Dynamic,
                 table->ColumnRenameDescriptors,
                 /*changeStableName*/ !Host_->GetConfig()->EnableTableColumnRenaming);
-            YT_LOG_DEBUG("Columns of input table are renamed (Path: %v, NewSchema: %v)",
+            YT_LOG_DEBUG(
+                "Columns of input table are renamed "
+                "(Path: %v, NewSchema: %v, RenamedOmittedInaccessibleColumns: %v)",
                 table->GetPath(),
-                *table->Schema);
+                *table->Schema,
+                table->OmittedInaccessibleColumns);
         }
 
         if (Host_->GetOperationType() == EOperationType::RemoteCopy) {

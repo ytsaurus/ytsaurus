@@ -7523,7 +7523,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .PopulateSecurityTags = true
+                .PopulateSecurityTags = true,
+                .AllowColumnRenaming = true,
             });
     }
 
@@ -7700,9 +7701,12 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     file.Dynamic,
                                     *renameDescriptors,
                                     /*changeStableName*/ !Config_->EnableTableColumnRenaming);
-                                YT_LOG_DEBUG("Columns of user file are renamed (Path: %v, NewSchema: %v)",
+                                YT_LOG_DEBUG(
+                                    "Columns of user file are renamed "
+                                    "(Path: %v, NewSchema: %v, RenamedOmmittedInaccessibleColumns: %v)",
                                     file.GetPath(),
-                                    *file.Schema);
+                                    *file.Schema,
+                                    file.OmittedInaccessibleColumns);
                             }
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {

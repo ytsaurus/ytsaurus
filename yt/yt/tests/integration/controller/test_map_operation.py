@@ -17,6 +17,8 @@ from yt_type_helpers import make_schema, normalize_schema, make_column, list_typ
 
 from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
@@ -2514,6 +2516,88 @@ print(json.dumps(input))
 
         assert 4_000 <= max_data_weight <= 4_200
         assert "too_many_slices_in_jobs" in op.get_alerts()
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_columnar_acl_rename_columns(self):
+        create_user("u")
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "public", "type": "string"},
+                        {"name": "secret", "type": "string"},
+                    ],
+                ),
+                "acl": [make_ace("deny", "u", "read", columns="secret")],
+            },
+        )
+
+        write_table("//tmp/t_in", {"secret": "secret_value", "public": "public_value"})
+
+        create("table", "//tmp/t_out")
+
+        map(
+            in_="<rename_columns={secret=public;public=secret}>//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "omit_inaccessible_columns": True,
+            },
+            authenticated_user="u",
+        )
+
+        assert read_table("//tmp/t_out") == [{"secret": "public_value"}]
+
+        create("table", "//tmp/t_out_as_file")
+
+        def run_with_file(file_attributes):
+            attributes = {
+                "format": "yson",
+                "file_name": "as_file.yson",
+            }
+            attributes.update(file_attributes)
+            file_path = yson.to_yson_type("//tmp/t_in", attributes=attributes)
+
+            map(
+                in_="//tmp/t_in{public}",
+                out="//tmp/t_out_as_file",
+                command="cat ./as_file.yson",
+                spec={
+                    "mapper": {
+                        "file_paths": [
+                            file_path,
+                        ],
+                        "format": yson.loads(b"<format=text>yson"),
+                    }
+                },
+                authenticated_user="u",
+            )
+
+        run_with_file({
+            "rename_columns": {
+                "secret": "public",
+                "public": "secret",
+            },
+            "columns": [
+                "secret",
+            ],
+        })
+
+        assert read_table("//tmp/t_out_as_file") == [{"secret": "public_value"}]
+
+        with raises_yt_error("permission for column \"secret\" of node //tmp/t_in is denied"):
+            run_with_file({
+                "rename_columns": {
+                    "secret": "public",
+                    "public": "secret",
+                },
+                "columns": [
+                    "public",
+                ],
+            })
 
 
 ##################################################################
