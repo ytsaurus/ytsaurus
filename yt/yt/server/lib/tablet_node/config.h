@@ -291,8 +291,6 @@ struct TCustomTableMountConfig
     TMisraGriesHeavyHittersConfigPtr LookupHeavyHitters;
 
     bool SingleColumnGroupByDefault;
-    bool EnableSegmentMetaInBlocks;
-    bool EnableColumnMetaInChunkMeta;
 
     bool EnableHunkColumnarProfiling;
 
