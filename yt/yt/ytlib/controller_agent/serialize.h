@@ -106,6 +106,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 26.1 starts here
     ((BumpTo_26_1)                           (302200))
     ((UseCounterGuardsInChunkPoolMerger)     (302201))
+    ((FileRlsReadSpec)                       (302202))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

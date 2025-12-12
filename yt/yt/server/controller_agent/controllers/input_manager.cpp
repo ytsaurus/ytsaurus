@@ -920,6 +920,12 @@ void TInputManager::FetchInputTablesAttributes()
             table->Schema,
             table->RowLevelAcl,
             Logger().WithTag("TableIndex: %v", index));
+        YT_LOG_INFO_IF(
+            table->RlsReadSpec,
+            "Input table has non-trivial RLS read spec (Path: %v, TableIndex: %v, RlsReadSpec: %v)",
+            table->GetPath(),
+            index,
+            table->RlsReadSpec);
     }
 
     bool haveTablesWithEnabledDynamicStoreRead = false;

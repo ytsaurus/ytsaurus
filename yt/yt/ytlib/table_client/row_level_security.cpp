@@ -375,6 +375,18 @@ void FromProto(
     }
 }
 
+void FormatValue(TStringBuilderBase* builder, const TRlsReadSpec& rlsReadSpec, TStringBuf /*spec*/)
+{
+    if (rlsReadSpec.IsTrivialDeny()) {
+        Format(builder, "{TrivialDeny}");
+    } else {
+        Format(
+            builder,
+            "{Predicate: %Qv}",
+            rlsReadSpec.GetPredicate());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IRlsCheckerFactoryPtr CreateRlsCheckerFactory(

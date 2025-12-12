@@ -96,10 +96,24 @@ TArtifactKey::operator size_t() const
 
     YT_VERIFY(!data_source().has_table_schema_id());
 
-    if (data_source().has_table_schema()) {
-        for (const auto& column : data_source().table_schema().columns()) {
+    auto hashSchema = [&] (const auto& schemaProto) {
+        for (const auto& column : schemaProto.columns()) {
             HashCombine(result, column.name());
             HashCombine(result, column.type());
+        }
+    };
+
+    if (data_source().has_table_schema()) {
+        hashSchema(data_source().table_schema());
+    }
+
+    if (data_source().has_rls_read_spec()) {
+        HashCombine(result, data_source().rls_read_spec().has_trivial_deny());
+        if (data_source().rls_read_spec().has_predicate()) {
+            HashCombine(result, data_source().rls_read_spec().predicate());
+        }
+        if (data_source().rls_read_spec().has_table_schema()) {
+            hashSchema(data_source().rls_read_spec().table_schema());
         }
     }
 
@@ -167,6 +181,36 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         auto rhsColumns = FromProto<std::vector<TString>>(other.data_source().column_filter().admitted_names());
         if (lhsColumns != rhsColumns) {
             return false;
+        }
+    }
+
+    if (data_source().has_rls_read_spec() != other.data_source().has_rls_read_spec()) {
+        return false;
+    }
+
+    if (data_source().has_rls_read_spec()) {
+        const auto& rlsReadSpec = data_source().rls_read_spec();
+        const auto& otherRlsReadSpec = other.data_source().rls_read_spec();
+        if (rlsReadSpec.has_trivial_deny() != otherRlsReadSpec.has_trivial_deny()) {
+            return false;
+        }
+        if (rlsReadSpec.has_predicate() != otherRlsReadSpec.has_predicate()) {
+            return false;
+        }
+        if (rlsReadSpec.has_predicate() && rlsReadSpec.predicate() != otherRlsReadSpec.predicate()) {
+            return false;
+        }
+
+        if (rlsReadSpec.has_table_schema() != rlsReadSpec.has_table_schema()) {
+            return false;
+        }
+        if (rlsReadSpec.has_table_schema()) {
+            auto lhsSchema = FromProto<TTableSchema>(rlsReadSpec.table_schema());
+            auto rhsSchema = FromProto<TTableSchema>(otherRlsReadSpec.table_schema());
+
+            if (lhsSchema != rhsSchema) {
+                return false;
+            }
         }
     }
 
