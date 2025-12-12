@@ -77,7 +77,7 @@ public enum YTsaurusErrorCode {
     /**
      * Find the {@code YTsaurusErrorCode} corresponding to the given error code.
      *
-     * @param the error code to look up
+     * @param code the error code to look up
      * @return the {@code YTsaurusErrorCode} associated with the given code
      * or {@code Optional.empty()} if no such error code exists
      */
