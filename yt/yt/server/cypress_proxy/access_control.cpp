@@ -50,7 +50,7 @@ void LogAndThrowAuthorizationError(
 
         auto it = std::ranges::find_if(
             nodeRange,
-            [=] (const TCypressNodeDescriptor& descriptor) {
+            [&] (const TCypressNodeDescriptor& descriptor) {
                 return descriptor.Id == result.ObjectId;
             });
 
@@ -115,15 +115,8 @@ TMatchAceSubjectCallback CreateMatchAceSubjectCallback(
             return NullObjectId;
         }
 
+        // TODO(danilalexeev): YT-24542. Support the "owner" keyword.
         for (const auto& subject : ace.Subjects) {
-            // TODO(danilalexeev): YT-24542. Support the "owner" keyword.
-            static const TStringBuf OwnerKeyword = "owner";
-            if (subject == OwnerKeyword) {
-                THROW_ERROR_EXCEPTION(
-                    "Permission validation failed: the keyword %Qv is not yet supported in Sequoia",
-                    OwnerKeyword);
-            }
-
             // Check if the subject is a user.
             if (auto descriptor = userDirectory->FindUserByNameOrAlias(subject)) {
                 // NB: Pointer comparison is unreliable as user descriptors are
