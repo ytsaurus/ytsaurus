@@ -2,7 +2,7 @@
 #include "schemeshard_build_index_helpers.h"
 #include "schemeshard_build_index_tx_base.h"
 #include "schemeshard_impl.h"
-#include "schemeshard_utils.h"  // for NTableIndex::CommonCheck
+#include "schemeshard_index_utils.h"
 #include "schemeshard_xxport__helpers.h"
 
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
@@ -83,7 +83,7 @@ public:
             }
         }
 
-        TIndexBuildInfo::TPtr buildInfo = new TIndexBuildInfo();
+        auto buildInfo = std::make_shared<TIndexBuildInfo>();
         buildInfo->Id = BuildId;
         buildInfo->Uid = uid;
         buildInfo->DomainPathId = domainPath.Base()->PathId;
