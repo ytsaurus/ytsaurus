@@ -1,5 +1,6 @@
 RECURSE(
     preprocessing
+    http_service
 )
 
 IF (NOT OPENSOURCE)
