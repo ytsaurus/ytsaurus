@@ -2718,6 +2718,22 @@ class TestAttachTable(TestAttachTableBase):
     # TODO(pavel-bash): Add test to check the sampling when we can infer the sorted schema of the
     # attached tables (run an operation over an attached sorted table).
 
+    @authors("achulkov2")
+    @pytest.mark.run_with_no_offshore_node_proxies
+    def test_attach_duplicate_source_uris(self):
+        bucket = self.get_s3_medium_bucket()
+
+        chunk_count = 3
+
+        body = b'{"col":"a"}\n{"col":"b"}\n'
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=body)
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"] * chunk_count), medium=self.get_s3_medium_name(), attach_mode="sequential")
+
+        assert get("//tmp/imported/@chunk_count") == chunk_count
+
+        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}] * chunk_count
+
 ################################################################################
 
 

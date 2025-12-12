@@ -800,12 +800,14 @@ private:
             chunkInfo.CompressedDataSize);
 
         if (S3MediumDescriptor_->GetConfig()->Bucket) {
-            YT_LOG_DEBUG("Uploading generated meta to s3 (SourceUri: %v, ChunkFormat: %lv)",
+            YT_LOG_DEBUG(
+                "Uploading generated meta to s3 (ChunkId: %v, SourceUri: %v, ChunkFormat: %lv)",
+                sessionId.ChunkId,
                 sourceUri,
                 chunkInfo.ChunkFormat);
             UploadChunkMetaToS3(S3MediumDescriptor_, sessionId, PrepareChunkMetaBlob(sessionId.ChunkId, chunkInfo.Meta));
         }
-        FilterProtoExtensions(chunkInfo.Meta->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+
         auto replica = TChunkReplicaWithMedium(
             OffshoreNodeId,
             GenericChunkReplicaIndex,
@@ -833,7 +835,10 @@ private:
         // NB: This size must match with what is reported in EndUpload.
         req->mutable_chunk_info()->set_disk_space(chunkInfo.CompressedDataSize);
 
-        *req->mutable_chunk_meta() = *chunkInfo.Meta;
+        // TODO(achulkov2, faucct): This will likely change around the pending PR that fixes OOMs.
+        TChunkMeta masterChunkMeta = *chunkInfo.Meta;
+        FilterProtoExtensions(masterChunkMeta.mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        *req->mutable_chunk_meta() = masterChunkMeta;
 
         auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
             TableWriterOptions_->MemoryUsageTracker,
