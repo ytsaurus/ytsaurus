@@ -282,8 +282,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    @authors("max42")
-    def test_revival_with_fail_on_job_restart(self):
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_simple(self):
         op = vanilla(
             track=False,
             spec={
@@ -308,29 +308,58 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        with pytest.raises(YtError):
-            op = vanilla(
-                track=False,
-                spec={
-                    "tasks": {
-                        "task_a": {
-                            "job_count": 1,
-                            "command": "",  # do nothing
-                        },
-                        "task_b": {
-                            "job_count": 6,
-                            "command": with_breakpoint("BREAKPOINT"),
-                        },
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_with_completed_job(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
                     },
-                    "fail_on_job_restart": True,
+                    "task_b": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
                 },
-            )
-            # 6 jobs may not be running simultaneously, so the snapshot will contain information about
-            # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
-            op.wait_for_fresh_snapshot()
-            with Restarter(self.Env, SCHEDULERS_SERVICE):
-                pass
-            op.track()
+                "fail_on_job_restart": True,
+            },
+        )
+        wait(lambda: len(op.get_running_jobs()) == 2)
+        job_ids = wait_breakpoint(job_count=2)
+        release_breakpoint(job_id=job_ids[0])
+        op.wait_for_fresh_snapshot()
+        # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        release_breakpoint()
+        op.track()
+
+    @authors("pogorelov")
+    def test_revival_with_fail_on_job_restart_failure(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_b": {
+                        "job_count": 7,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+        # 6 jobs may not be running simultaneously, so the snapshot will contain information about
+        # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
+        job_ids = wait_breakpoint(job_count=5)
+        release_breakpoint(job_id=job_ids[0])
+        wait(lambda: op.get_job_count("completed") == 1)
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        op.wait_for_state("failed")
 
     @authors("max42")
     def test_abandon_job(self):
