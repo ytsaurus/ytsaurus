@@ -2,6 +2,7 @@
 
 #include "events.h"
 
+#include <contrib/ydb/core/tx/columnshard/column_fetching/manager.h>
 #include <contrib/ydb/core/tx/conveyor_composite/usage/service.h>
 #include <contrib/ydb/core/tx/limiter/grouped_memory/usage/service.h>
 
@@ -112,7 +113,7 @@ public:
     TString DebugString() const {
         TStringBuilder sb;
         sb << "{";
-        sb << "Portion=" << OriginalRequest->Get()->GetSourceId() << ";";
+        sb << "Portion=" << OriginalRequest->Get()->GetPortionId() << ";";
         sb << "ReadyIntervals=[";
         for (const auto& filter : Filters) {
             sb << (!!filter ? '1' : '.');
