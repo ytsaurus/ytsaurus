@@ -201,6 +201,10 @@ public:
     MOCK_METHOD(IOperationPtr, AttachOperation, (const TOperationId&), (override));
 
     MOCK_METHOD(ITransactionPtr, StartTransaction, (const TStartTransactionOptions&), (override));
+
+    MOCK_METHOD(TDistributedWriteFileSessionWithCookies, StartDistributedWriteFileSession, (const TRichYPath& richPath, i64 cookieCount, const TStartDistributedWriteFileOptions& options), (override));
+    MOCK_METHOD(TDistributedWriteTableSessionWithCookies, StartDistributedWriteTableSession, (const TRichYPath& richPath, i64 cookieCount, const TStartDistributedWriteTableOptions& options), (override));
+
     MOCK_METHOD(void, AlterTable, (const TYPath&, const TAlterTableOptions&), (override));
 
     MOCK_METHOD(const TTransactionId&, GetId, (), (const, override));
