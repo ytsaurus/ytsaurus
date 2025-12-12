@@ -35,6 +35,7 @@ struct TQueryEngineDynamicConfig
     : public NYTree::TYsonStruct
 {
     TCodegenCacheDynamicConfigPtr CodegenCache;
+    std::optional<NCodegen::EOptimizationLevel> OptimizationLevel;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

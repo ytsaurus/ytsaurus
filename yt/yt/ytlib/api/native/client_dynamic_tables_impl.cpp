@@ -98,6 +98,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -107,6 +108,8 @@
 
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/query/engine/query_engine_config.h>
 
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
@@ -1612,7 +1615,7 @@ TDuration TClient::CheckPermissionsForQuery(
     return timer.GetElapsedTime();
 }
 
-TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config)
+TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config, const TQueryEngineDynamicConfigPtr& queryConfig)
 {
     TQueryOptions queryOptions;
 
@@ -1628,7 +1631,19 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.ExecutionBackend = config->UseWebAssembly
         ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
         : EExecutionBackend::Native;
-    queryOptions.OptimizationLevel = options.OptimizationLevel.value_or(EOptimizationLevel::Default);
+
+    {
+        queryOptions.OptimizationLevel = EOptimizationLevel::Default;
+
+        if (queryConfig && queryConfig->OptimizationLevel.has_value()) {
+            queryOptions.OptimizationLevel = *queryConfig->OptimizationLevel;
+        }
+
+        if (options.OptimizationLevel) {
+            queryOptions.OptimizationLevel = *options.OptimizationLevel;
+        }
+    }
+
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
@@ -1735,7 +1750,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             }));
     }
 
-    auto queryOptions = GetQueryOptions(options, dynamicConfig);
+    auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+    auto queryEngineConfig = singletonsConfig ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>() : nullptr;
+    auto queryOptions = GetQueryOptions(options, dynamicConfig, queryEngineConfig);
     queryOptions.ReadSessionId = TReadSessionId::Create();
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(

@@ -230,6 +230,8 @@ public:
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
 
+        YT_LOG_DEBUG("Compiling with codegen optimization (Level: %v)", OptimizationLevel_);
+
         if (OptimizationLevel_ == EOptimizationLevel::None) {
             builder.setOptLevel(llvm::CodeGenOptLevel::None);
         } else {
