@@ -1,6 +1,5 @@
 #include "update.h"
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_info_types.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_utils.h>
 #include <yql/essentials/minikql/mkql_type_ops.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
 #include <contrib/ydb/core/scheme_types/scheme_type_registry.h>

@@ -3,7 +3,6 @@
 #include "schemeshard__operation_part.h"
 #include "schemeshard__operation_states.h"
 #include "schemeshard_impl.h"
-#include "schemeshard_utils.h"  // for TransactionTemplate
 
 #include <contrib/ydb/core/base/hive.h>
 #include <contrib/ydb/core/base/subdomain.h>
