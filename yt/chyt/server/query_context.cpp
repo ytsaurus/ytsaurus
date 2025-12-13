@@ -457,7 +457,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
             case ETableReadLockMode::None: {
                 auto preliminaryCheckPermissionResultsFuture = Host->PreliminaryCheckPermissions(pathsToFetch, User);
                 auto attributes = Host->GetObjectAttributes(pathsToFetch, Client());
-                auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+                auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
                     .ValueOrThrow();
                 AddAttributesToSnapshot(
                     std::move(pathsToFetch),
@@ -781,7 +781,7 @@ void TQueryContext::LockAndFetchAttributesBestEffort(std::vector<TYPath> pathsTo
         SnapshotLocks.emplace(path, TObjectLock{});
     }
 
-    auto preliminaryCheckPermissionResults = WaitForUniqueFast(preliminaryCheckPermissionResultsFuture)
+    auto preliminaryCheckPermissionResults = WaitForFast(preliminaryCheckPermissionResultsFuture.AsUnique())
             .ValueOrThrow();
     AddAttributesToSnapshot(
         std::move(pathsToFetch),
@@ -866,7 +866,7 @@ std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(const std::vector<TYP
         return {};
     }
 
-    auto locks = WaitForUniqueFast(DoAcquireSnapshotLocks(paths))
+    auto locks = WaitForFast(DoAcquireSnapshotLocks(paths).AsUnique())
         .ValueOrThrow();
 
     SaveQueryReadTransaction();
@@ -998,7 +998,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
     const std::vector<TYPath>& paths,
     TTransactionId transactionId)
 {
-    return WaitForUniqueFast(FetchTableAttributesAsync(paths, transactionId))
+    return WaitForFast(FetchTableAttributesAsync(paths, transactionId).AsUnique())
         .ValueOrThrow();
 }
 
