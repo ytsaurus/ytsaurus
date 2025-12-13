@@ -716,7 +716,11 @@ public:
             RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
                 .SetInvokerProvider(BIND(&TApiService::GetGenerateTimestampsInvoker, Unretained(this))));
 
-        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartTransaction));
+        registerMethod(
+            EMultiproxyMethodKind::Write,
+            RPC_SERVICE_METHOD_DESC(StartTransaction)
+                .SetInvokerProvider(BIND(&TApiService::GetStartTransactionInvoker, Unretained(this))));
+
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingTransaction));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortTransaction));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CommitTransaction));
@@ -1364,6 +1368,15 @@ private:
     IInvokerPtr GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
     {
         if (Config_.Acquire()->EnableLowLatencyGenerateTimestampsInvoker) {
+            return LowLatencyInvoker_;
+        }
+
+        return GetDefaultInvoker();
+    }
+
+    IInvokerPtr GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
+    {
+        if (Config_.Acquire()->EnableLowLatencyStartTransactionInvoker) {
             return LowLatencyInvoker_;
         }
 
