@@ -167,6 +167,10 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         "enable_low_latency_generate_timestamps_invoker",
         &TThis::EnableLowLatencyGenerateTimestampsInvoker)
         .Default(false);
+    registrar.Parameter(
+        "enable_low_latency_start_transaction_invoker",
+        &TThis::EnableLowLatencyStartTransactionInvoker)
+        .Default(false);
     registrar.Parameter("multiproxy", &TThis::Multiproxy)
         .DefaultNew();
     registrar.Parameter("query_feature_toggles", &TThis::QueryFeatureToggles)
