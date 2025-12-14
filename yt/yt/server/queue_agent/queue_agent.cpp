@@ -571,8 +571,8 @@ void TQueueAgent::Pass()
             error));
         return;
     }
-    auto queueRows = asyncQueueRows.GetUnique().Value();
-    auto consumerRows = asyncConsumerRows.GetUnique().Value();
+    auto queueRows = asyncQueueRows.AsUnique().Get().Value();
+    auto consumerRows = asyncConsumerRows.AsUnique().Get().Value();
     const auto& registrationRows = asyncRegistrationRows.Get().Value();
     const auto& objectMappingRows = asyncObjectMappingRows.Get().Value();
 

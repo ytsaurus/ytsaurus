@@ -267,7 +267,7 @@ public:
                 return false;
             }
 
-            auto loadedBlocksOrError = FetchedBlocks_.GetUnique();
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().Get();
             if (!loadedBlocksOrError.IsOK()) {
                 return false;
             }

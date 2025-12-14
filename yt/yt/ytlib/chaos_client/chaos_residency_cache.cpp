@@ -350,7 +350,7 @@ public:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.GetUnique()
+                std::move(channelFuture.AsUnique().Get()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidency,
@@ -480,7 +480,7 @@ private:
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                std::move(channelFuture.GetUnique()
+                std::move(channelFuture.AsUnique().Get()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
                 TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,
