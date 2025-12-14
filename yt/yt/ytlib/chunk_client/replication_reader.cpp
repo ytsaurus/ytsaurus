@@ -1803,7 +1803,7 @@ private:
         int totalCandidateCount = results.size() + asyncSuspiciousResults.size();
 
         for (auto& asyncSuspiciousResult : asyncSuspiciousResults) {
-            auto maybeSuspiciousResult = asyncSuspiciousResult.TryGetUnique();
+            auto maybeSuspiciousResult = asyncSuspiciousResult.AsUnique().TryGet();
             if (!maybeSuspiciousResult) {
                 continue;
             }
