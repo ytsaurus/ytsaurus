@@ -11,7 +11,7 @@ from (select item.i_manager_id i_manager_id
       where ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and ss_store_sk = s_store_sk
-        and d_month_seq in (1211,1211+1,1211+2,1211+3,1211+4,1211+5,1211+6,1211+7,1211+8,1211+9,1211+10,1211+11)
+        and d_month_seq in (1200,1200+1,1200+2,1200+3,1200+4,1200+5,1200+6,1200+7,1200+8,1200+9,1200+10,1200+11)
         and ((    i_category in ('Books','Children','Electronics')
               and i_class in ('personal','portable','reference','self-help')
               and i_brand in ('scholaramalgamalg #14','scholaramalgamalg #7',
