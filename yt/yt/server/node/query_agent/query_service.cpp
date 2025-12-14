@@ -622,7 +622,7 @@ private:
 
         auto future = lookupSession->Run();
 
-        if (auto maybeResult = future.TryGetUnique()) {
+        if (auto maybeResult = future.AsUnique().TryGet()) {
             auto results = std::move(maybeResult->ValueOrThrow());
             YT_VERIFY(std::ssize(results) == tabletCount);
             response->Attachments() = std::move(results);
@@ -1605,7 +1605,7 @@ private:
             std::move(profilingUser),
             GetCurrentInvoker());
 
-        if (auto maybeResult = resultFuture.TryGetUnique()) {
+        if (auto maybeResult = resultFuture.AsUnique().TryGet()) {
             ProcessFetchRowsResult(
                 context,
                 throttler,
