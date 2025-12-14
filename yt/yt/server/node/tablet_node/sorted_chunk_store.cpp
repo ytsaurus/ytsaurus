@@ -826,7 +826,7 @@ private:
         std::optional<TSharedRange<TLegacyKey>> filteredKeys;
         if (!filteringResultFuture) {
             filteredKeys = std::move(keys);
-        } else if (auto optionalFilteringResultOrError = filteringResultFuture.TryGetUnique()) {
+        } else if (auto optionalFilteringResultOrError = filteringResultFuture.AsUnique().TryGet()) {
             if (!optionalFilteringResultOrError->IsOK()) {
                 return MakeFuture(TError(*optionalFilteringResultOrError));
             }

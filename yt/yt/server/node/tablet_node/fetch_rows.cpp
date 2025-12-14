@@ -268,7 +268,7 @@ private:
         }
 
         auto rowsetFuture = Writer_.Postprocess(Invoker_);
-        if (auto maybeRowset = rowsetFuture.TryGetUnique()) {
+        if (auto maybeRowset = rowsetFuture.AsUnique().TryGet()) {
             FinalizeSession(*maybeRowset);
         } else {
             rowsetFuture.AsUnique().Subscribe(BIND(
