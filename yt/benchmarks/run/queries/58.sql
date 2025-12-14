@@ -1,7 +1,7 @@
 -- NB: Subqueries
 $week_seq = (select d_week_seq
                                       from date_dim
-                                      where d_date = Date('1998-02-21'));
+                                      where d_date = Date('2000-01-03'));
 $ss_items =
  (select item.i_item_id item_id
         ,sum(ss_ext_sales_price) ss_item_rev

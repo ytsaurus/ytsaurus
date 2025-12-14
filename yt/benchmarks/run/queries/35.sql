@@ -2,19 +2,19 @@
 $bla1 = (select ss_customer_sk customer_sk
           from store_sales cross join date_dim
           where ss_sold_date_sk = d_date_sk and
-                d_year = 2001 and
+                d_year = 2002 and
                 d_qoy < 4);
 $bla2 = (
     (select ws_bill_customer_sk customer_sk
             from web_sales cross join date_dim
             where ws_sold_date_sk = d_date_sk and
-                  d_year = 2001 and
+                  d_year = 2002 and
                   d_qoy < 4)
     union all
     (select cs_ship_customer_sk customer_sk
             from catalog_sales cross join date_dim
             where cs_sold_date_sk = d_date_sk and
-                  d_year = 2001 and
+                  d_year = 2002 and
                   d_qoy < 4)
 );
 
@@ -25,19 +25,19 @@ select
   customer_demographics.cd_marital_status,
   customer_demographics.cd_dep_count,
   count(*) cnt1,
-  avg(customer_demographics.cd_dep_count),
   min(customer_demographics.cd_dep_count),
-  stddev_samp(customer_demographics.cd_dep_count),
+  max(customer_demographics.cd_dep_count),
+  avg(customer_demographics.cd_dep_count),
   customer_demographics.cd_dep_employed_count,
   count(*) cnt2,
-  avg(customer_demographics.cd_dep_employed_count),
   min(customer_demographics.cd_dep_employed_count),
-  stddev_samp(cd_dep_employed_count),
+  max(customer_demographics.cd_dep_employed_count),
+  avg(cd_dep_employed_count),
   customer_demographics.cd_dep_college_count,
   count(*) cnt3,
-  avg(customer_demographics.cd_dep_college_count),
   min(customer_demographics.cd_dep_college_count),
-  stddev_samp(customer_demographics.cd_dep_college_count)
+  max(customer_demographics.cd_dep_college_count),
+  avg(customer_demographics.cd_dep_college_count)
  from
   customer c cross join customer_address ca cross join customer_demographics
   left semi join $bla1 bla1 on c.c_customer_sk = bla1.customer_sk

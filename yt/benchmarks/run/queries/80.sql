@@ -11,8 +11,8 @@ $ssr =
      item cross join
      promotion
  where ss_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2002-08-06' as date)
-                  and (cast('2002-08-06' as date) + DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) + DateTime::IntervalFromDays(30))
        and ss_store_sk = s_store_sk
        and ss_item_sk = i_item_sk
        and i_current_price > 50
@@ -31,8 +31,8 @@ $ssr =
      item cross join
      promotion
  where cs_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2002-08-06' as date)
-                  and (cast('2002-08-06' as date) + DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) + DateTime::IntervalFromDays(30))
         and cs_catalog_page_sk = cp_catalog_page_sk
        and cs_item_sk = i_item_sk
        and i_current_price > 50
@@ -52,8 +52,8 @@ group by catalog_page.cp_catalog_page_id)
      item cross join
      promotion
  where ws_sold_date_sk = d_date_sk
-       and cast(d_date as date) between cast('2002-08-06' as date)
-                  and (cast('2002-08-06' as date) + DateTime::IntervalFromDays(30))
+       and cast(d_date as date) between cast('2000-08-23' as date)
+                  and (cast('2000-08-23' as date) + DateTime::IntervalFromDays(30))
         and ws_web_site_sk = web_site_sk
        and ws_item_sk = i_item_sk
        and i_current_price > 50
