@@ -228,6 +228,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletFrozen, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletProvisionallyFlushed, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletTransitionCanceled, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTableReplicaStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTableReplicaEnabled, Unretained(this)));
@@ -3683,6 +3684,35 @@ private:
         }
     }
 
+    void RequestProvisionalFlush(TTabletBase* tablet) override
+    {
+        YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
+        auto* table = tablet->As<TTablet>()->GetTable();
+
+        if (tablet->GetState() != ETabletState::Mounted) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Provisionally flushing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            tablet->GetCell()->GetId());
+
+        TReqProvisionalFlush request;
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
+
+        if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
+            auto* dynamicStore = TabletChunkManager_->CreateDynamicStore(tablet->As<TTablet>());
+            AttachDynamicStoreToTablet(tablet->As<TTablet>(), dynamicStore);
+
+            ToProto(request.mutable_dynamic_store_id(), dynamicStore->GetId());
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+        hiveManager->PostMessage(mailbox, request);
+    }
+
     void HydraOnTabletLocked(NProto::TRspLockTablet* response)
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
@@ -5214,6 +5244,28 @@ private:
         tablet->SetState(ETabletState::Mounted);
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
+    }
+
+    void HydraOnTabletProvisionallyFlushed(NProto::TRspProvisionalFlush* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        if (!tablet->GetAction()) {
+            return;
+        }
+
+        tablet->GetAction()->FlushingTablets().erase(tabletId);
+
+        YT_LOG_DEBUG("Tablet has been provisionally flushed (TableId: %v, TabletId: %v, CellId: %v)",
+            tablet->GetOwner()->GetId(),
+            tablet->GetId(),
+            tablet->GetCell()->GetId());
+
+        TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
     }
 
     void HydraOnTabletTransitionCanceled(NProto::TRspCancelTabletTransition* response)

@@ -83,6 +83,11 @@ message TRspUnfreezeTablet
     optional uint64 mount_revision = 2;
 }
 
+message TRspProvisionalFlush
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
 message TRspCancelTabletTransition
 {
     required NYT.NProto.TGuid tablet_id = 1;
