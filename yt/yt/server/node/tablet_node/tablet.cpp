@@ -959,6 +959,7 @@ void TTablet::Save(TSaveContext& context) const
     }
 
     Save(context, *LockManager_);
+    Save(context, ProvisionallyFlushingStoreId_);
     Save(context, DynamicStoreIdPool_);
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
@@ -1120,6 +1121,11 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, *LockManager_);
+
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= ETabletReign::ProvisionalFlush) {
+        Load(context, ProvisionallyFlushingStoreId_);
+    }
 
     Load(context, DynamicStoreIdPool_);
     Load(context, DynamicStoreIdRequested_);

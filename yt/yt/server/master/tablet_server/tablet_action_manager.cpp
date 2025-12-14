@@ -481,6 +481,7 @@ public:
                 action->Error() = error;
                 break;
 
+            case ETabletActionState::ProvisionallyFlushing:
             case ETabletActionState::Mounting:
                 // Nothing can be done here.
                 action->Error() = error;
@@ -498,6 +499,7 @@ public:
                 // All tablets have been already taken care of. Do nothing.
                 break;
 
+            case ETabletActionState::ProvisionallyFlushed:
             case ETabletActionState::Mounted:
             case ETabletActionState::Frozen:
             case ETabletActionState::Unmounted:
@@ -768,6 +770,11 @@ private:
         const auto& bundle = action->Tablets()[0]->GetOwner()->TabletCellBundle();
         action->SetTabletCellBundle(bundle.Get());
         action->SetInplaceReshard(options.InplaceReshard);
+        const auto* table = action->Tablets()[0]->GetOwner()->As<TTableNode>();
+        action->SetProvisionalFlushRequired(
+            options.InplaceReshard &&
+            !action->GetFreeze() &&
+            table->IsPhysicallySorted());
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
@@ -836,6 +843,42 @@ private:
                     break;
                 }
 
+                if (action->IsProvisionalFlushRequired()) {
+                    action->FlushingTablets().reserve(action->Tablets().size());
+                    for (auto tablet : action->Tablets()) {
+                        action->FlushingTablets().insert(tablet->GetId());
+                        Host_->RequestProvisionalFlush(tablet);
+                    }
+
+                    ChangeTabletActionState(action, ETabletActionState::ProvisionallyFlushing);
+                    break;
+                }
+
+                if (action->GetSkipFreezing()) {
+                    ChangeTabletActionState(action, ETabletActionState::Frozen);
+                    break;
+                }
+
+                for (auto tablet : action->Tablets()) {
+                    Host_->DoFreezeTablet(tablet);
+                }
+
+                ChangeTabletActionState(action, ETabletActionState::Freezing);
+                break;
+            }
+
+            case ETabletActionState::ProvisionallyFlushing: {
+                if (action->FlushingTablets().empty()) {
+                    auto state = action->Error().IsOK()
+                        ? ETabletActionState::ProvisionallyFlushed
+                        : ETabletActionState::Failing;
+                    ChangeTabletActionState(action, state);
+                }
+
+                break;
+            }
+
+            case ETabletActionState::ProvisionallyFlushed: {
                 if (action->GetSkipFreezing()) {
                     ChangeTabletActionState(action, ETabletActionState::Frozen);
                     break;

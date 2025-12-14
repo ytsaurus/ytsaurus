@@ -255,6 +255,8 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraProvisionalFlush, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportTabletProvisionallyFlushed, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraCancelTabletTransition, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletState, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraTrimRows, Unretained(this)));
@@ -1794,6 +1796,63 @@ private:
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+        PostMasterMessage(tablet, response);
+    }
+
+    void HydraProvisionalFlush(TReqProvisionalFlush* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_VERIFY(tablet->SmoothMovementData().GetRole() == ESmoothMovementRole::None);
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounted) {
+            YT_LOG_DEBUG("Requested provisional flush of a tablet in a wrong state, ignored (State: %v, %v)",
+                state,
+                tablet->GetLoggingTag());
+            return;
+        }
+
+        if (tablet->GetProvisionallyFlushingStoreId()) {
+            return;
+        }
+
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead) {
+            auto storeId = FromProto<TDynamicStoreId>(request->dynamic_store_id());
+            tablet->PushDynamicStoreIdToPool(storeId);
+        }
+
+        tablet->SetProvisionallyFlushingStoreId(tablet->GetActiveStore()->GetId());
+
+        YT_LOG_DEBUG("Provisionally flushing tablet (%v)",
+            tablet->GetLoggingTag());
+
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->Rotate(
+            /*createNewStore*/ true,
+            EStoreRotationReason::None,
+            /*allowEmptyStore*/ true);
+
+        CheckIfTabletFullyFlushed(tablet);
+    }
+
+    void HydraReportTabletProvisionallyFlushed(TReqReportTabletProvisionallyFlushed* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Tablet provisionally flushed (%v)",
+            tablet->GetLoggingTag());
+
+        TRspProvisionalFlush response;
+        ToProto(response.mutable_tablet_id(), tablet->GetId());
         PostMasterMessage(tablet, response);
     }
 
@@ -4473,6 +4532,15 @@ private:
     {
         if (!IsLeader()) {
             return;
+        }
+
+        if (auto storeId = tablet->GetProvisionallyFlushingStoreId();
+            storeId && !tablet->FindStore(storeId))
+        {
+            tablet->SetProvisionallyFlushingStoreId(NullStoreId);
+            TReqReportTabletProvisionallyFlushed request;
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            Slot_->CommitTabletMutation(request);
         }
 
         auto state = tablet->GetState();

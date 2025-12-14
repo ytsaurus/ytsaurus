@@ -63,6 +63,7 @@ DEFINE_ENUM(ETabletReign,
     ((Start_25_4)                                  (101400)) // h0pless
     ((HydraLogicalRecordId)                        (101401)) // h0pless
     ((PerTabletTxActionForwarding)                 (101402)) // ifsmirnov
+    ((ProvisionalFlush)                            (101403)) // atalmenev
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
