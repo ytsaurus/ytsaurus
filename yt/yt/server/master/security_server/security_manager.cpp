@@ -720,13 +720,11 @@ public:
 
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
         auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
+        const auto statisticsDelta = TAccountStatistics(usageDelta, committedUsageDelta);
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += usageDelta;
-                account->LocalStatistics().ResourceUsage += usageDelta;
-                account->ClusterStatistics().CommittedResourceUsage += committedUsageDelta;
-                account->LocalStatistics().CommittedResourceUsage += committedUsageDelta;
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1144,11 +1142,6 @@ public:
     {
         YT_VERIFY(chunk->IsNative());
 
-        auto doCharge = [] (TClusterResources* usage, int mediumIndex, i64 chunkCount, i64 diskSpace) {
-            usage->AddToMediumDiskSpace(mediumIndex, diskSpace);
-            usage->SetChunkCount(usage->GetChunkCount() + chunkCount);
-        };
-
         ComputeChunkResourceDelta(
             chunk,
             requisition,
@@ -1156,12 +1149,15 @@ public:
             [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 chunkMasterMemory, bool committed) {
                 account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemory;
 
-                doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
-                doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
+                auto statisticsDelta = TAccountStatistics();
+                statisticsDelta.ResourceUsage.SetChunkCount(chunkCount);
+                statisticsDelta.ResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 if (committed) {
-                    doCharge(&account->ClusterStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
-                    doCharge(&account->LocalStatistics().CommittedResourceUsage, mediumIndex, chunkCount, diskSpace);
+                    statisticsDelta.CommittedResourceUsage.SetChunkCount(chunkCount);
+                    statisticsDelta.CommittedResourceUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
                 }
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -1492,8 +1488,9 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resources;
-                account->LocalStatistics().ResourceUsage += resources;
+                auto statisticsDelta = TAccountStatistics(resources, TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         if (transaction) {
@@ -1503,8 +1500,9 @@ public:
             ChargeAccountAncestry(
                 account,
                 [&] (TAccount* account) {
-                    account->ClusterStatistics().CommittedResourceUsage += resources;
-                    account->LocalStatistics().CommittedResourceUsage += resources;
+                    auto statisticsDelta = TAccountStatistics(TClusterResources(), resources);
+
+                    UpdateLocalAndClusterAccountStatistics(account, std::move(statisticsDelta));
                 });
         }
     }
@@ -1542,12 +1540,11 @@ public:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
-                account->LocalStatistics().ResourceUsage += resourceUsageDelta;
-                if (committed) {
-                    account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
-                    account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
-                }
+                auto statisticsDelta = TAccountStatistics(
+                    resourceUsageDelta,
+                    committed ? resourceUsageDelta : TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
     }
 
@@ -3554,7 +3551,7 @@ private:
         bool mismatchFound = false;
         auto mismatchLogLevel = recompute ? ELogLevel::Alert : ELogLevel::Fatal;
 
-        auto& actualUsage = account->LocalStatistics().ResourceUsage;
+        const auto& actualUsage = account->LocalStatistics().ResourceUsage;
         const auto& expectedUsage = expectedResourceUsage.Usage;
         if (!resourceUsageMatch(
             account,
@@ -3571,7 +3568,7 @@ private:
             mismatchFound = true;
         }
 
-        auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
+        const auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
         const auto& expectedCommittedUsage = expectedResourceUsage.CommittedUsage;
         if (!resourceUsageMatch(
             account,
@@ -3592,8 +3589,10 @@ private:
             YT_LOG_ALERT("Setting recomputed resource usage for account (Account: %v)",
                 account->GetName());
 
-            actualUsage = expectedUsage;
-            actualCommittedUsage = expectedCommittedUsage;
+            auto newLocalStatistics = TAccountStatistics(
+                expectedUsage,
+                expectedCommittedUsage);
+            account->SetLocalStatistics(std::move(newLocalStatistics));
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
@@ -4241,6 +4240,11 @@ private:
         account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
+    void UpdateLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta)
+    {
+        account->IncreaseStatistics(delta);
+    }
+
     void OnAccountStatisticsGossip()
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -4338,8 +4342,8 @@ private:
                 continue;
             }
 
-            auto& clusterStatistics = account->ClusterStatistics();
-            clusterStatistics = FromProto<TAccountStatistics>(entry.statistics()) + account->LocalStatistics();
+            auto newClusterStatistics = FromProto<TAccountStatistics>(entry.statistics()) + account->LocalStatistics();
+            account->SetClusterStatistics(newClusterStatistics);
         }
     }
 
@@ -4383,23 +4387,18 @@ private:
             auto newDetailedMasterMemory = FromProto<TDetailedMasterMemory>(entry.detailed_master_memory_usage());
             auto masterMemoryUsageDelta = newDetailedMasterMemory - account->LocalStatistics().ResourceUsage.DetailedMasterMemory();
 
-            account->LocalStatistics().ResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
-            account->ClusterStatistics().ResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            auto statisticsDelta = TAccountStatistics();
 
-            account->LocalStatistics().CommittedResourceUsage.DetailedMasterMemory() = newDetailedMasterMemory;
-            account->ClusterStatistics().CommittedResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            statisticsDelta.ResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
+            statisticsDelta.CommittedResourceUsage.IncreaseDetailedMasterMemory(masterMemoryUsageDelta);
 
             if (IsChunkHostCell_) {
-                auto newChunkHostCellMasterMemoryUsage = newDetailedMasterMemory.GetTotal();
                 auto chunkHostCellMasterMemoryUsageDelta = masterMemoryUsageDelta.GetTotal();
-                auto& clusterStatistics = account->ClusterStatistics();
-                auto& localStatistics = account->LocalStatistics();
 
-                localStatistics.ResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
-                localStatistics.CommittedResourceUsage.SetChunkHostCellMasterMemory(newChunkHostCellMasterMemoryUsage);
-                clusterStatistics.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
-                clusterStatistics.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+                statisticsDelta.ResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
+                statisticsDelta.CommittedResourceUsage.IncreaseChunkHostCellMasterMemory(chunkHostCellMasterMemoryUsageDelta);
             }
+            UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
         }
     }
 
@@ -4415,8 +4414,9 @@ private:
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
-                account->ClusterStatistics().ResourceUsage += resourcesDelta;
-                account->LocalStatistics().ResourceUsage += resourcesDelta;
+                auto statisticsDelta = TAccountStatistics(resourcesDelta, TClusterResources());
+
+                UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
             });
 
         auto* transactionResources = GetTransactionAccountUsage(transaction, account);
@@ -4759,35 +4759,32 @@ private:
                     continue;
                 }
 
-                auto& localStatistics = account->LocalStatistics();
-                auto& clusterStatistics = account->ClusterStatistics();
-
-                auto& localResourceUsage = localStatistics.ResourceUsage;
-                auto& localCommittedUsage = localStatistics.CommittedResourceUsage;
-
-                auto& clusterResourceUsage = clusterStatistics.ResourceUsage;
-                auto& clusterCommittedUsage = clusterStatistics.CommittedResourceUsage;
+                const auto& localStatistics = account->LocalStatistics();
+                const auto& localResourceUsage = localStatistics.ResourceUsage;
+                const auto& localCommittedUsage = localStatistics.CommittedResourceUsage;
 
                 if (wasChunkHostCell) {
-                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() - localResourceUsage.GetChunkHostCellMasterMemory());
-                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() - localCommittedUsage.GetChunkHostCellMasterMemory());
+                    auto statisticsDelta = TAccountStatistics(
+                        TClusterResources().SetChunkHostCellMasterMemory(-localResourceUsage.GetChunkHostCellMasterMemory()),
+                        TClusterResources().SetChunkHostCellMasterMemory(-localCommittedUsage.GetChunkHostCellMasterMemory())
+                    );
 
-                    if (clusterResourceUsage.GetChunkHostCellMasterMemory() < 0) {
+                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
+
+                    if (account->ClusterStatistics().ResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
                     }
 
-                    if (clusterCommittedUsage.GetChunkHostCellMasterMemory() < 0) {
+                    if (account->ClusterStatistics().CommittedResourceUsage.GetChunkHostCellMasterMemory() < 0) {
                         YT_LOG_ALERT("Committed chunk host cell memory is negative after removing chunk host role from cell %v", cellTag);
                     }
-
-                    localResourceUsage.SetChunkHostCellMasterMemory(0);
-                    localCommittedUsage.SetChunkHostCellMasterMemory(0);
                 } else {
-                    localResourceUsage.SetChunkHostCellMasterMemory(localResourceUsage.DetailedMasterMemory().GetTotal());
-                    localCommittedUsage.SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal());
+                    auto statisticsDelta = TAccountStatistics(
+                        TClusterResources().SetChunkHostCellMasterMemory(localResourceUsage.DetailedMasterMemory().GetTotal()),
+                        TClusterResources().SetChunkHostCellMasterMemory(localCommittedUsage.DetailedMasterMemory().GetTotal())
+                    );
 
-                    clusterResourceUsage.SetChunkHostCellMasterMemory(clusterResourceUsage.GetChunkHostCellMasterMemory() + localResourceUsage.GetChunkHostCellMasterMemory());
-                    clusterCommittedUsage.SetChunkHostCellMasterMemory(clusterCommittedUsage.GetChunkHostCellMasterMemory() + localCommittedUsage.GetChunkHostCellMasterMemory());
+                    UpdateLocalAndClusterAccountStatistics(account, statisticsDelta);
                 }
             }
         }

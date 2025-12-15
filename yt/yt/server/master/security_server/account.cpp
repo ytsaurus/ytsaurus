@@ -97,6 +97,11 @@ TAccountStatistics operator - (const TAccountStatistics& lhs, const TAccountStat
     return result;
 }
 
+TAccountStatistics operator - (const TAccountStatistics& accountStatistics)
+{
+    return TAccountStatistics(-accountStatistics.ResourceUsage, -accountStatistics.CommittedResourceUsage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void AddToAccountMulticellStatistics(
@@ -298,9 +303,38 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 }
 
-TAccountStatistics& TAccount::LocalStatistics()
+void TAccount::SetLocalStatisticsPtr(TAccountStatistics *value) {
+    LocalStatisticsPtr_ = value;
+}
+
+const TAccountStatistics& TAccount::LocalStatistics()
 {
     return *LocalStatisticsPtr_;
+}
+
+void TAccount::IncreaseLocalStatistics(const TAccountStatistics& delta)
+{
+    *LocalStatisticsPtr_ += delta;
+}
+
+void TAccount::SetLocalStatistics(const TAccountStatistics& statistics)
+{
+    *LocalStatisticsPtr_ = statistics;
+}
+
+void TAccount::IncreaseClusterStatistics(const TAccountStatistics& delta)
+{
+    ClusterStatistics_ += delta;
+}
+
+void TAccount::SetClusterStatistics(const TAccountStatistics& statistics)
+{
+    ClusterStatistics_ = statistics;
+}
+
+void TAccount::IncreaseStatistics(const TAccountStatistics& delta) {
+    *LocalStatisticsPtr_ += delta;
+    ClusterStatistics_ += delta;
 }
 
 bool TAccount::IsDiskSpaceLimitViolated() const
@@ -390,24 +424,15 @@ void TAccount::AttachChild(const std::string& key, TAccount* child) noexcept
 {
     TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
 
-    const auto& childLocalResourceUsage = child->LocalStatistics().ResourceUsage;
-    const auto& childLocalCommittedResourceUsage = child->LocalStatistics().CommittedResourceUsage;
-
-    const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
-    const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
-
+    const auto& childLocalStatistics = child->LocalStatistics();
+    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
 
     for (auto* account = this; account; account = account->GetParent()) {
-        auto& localStatistics = account->LocalStatistics();
-        auto& clusterStatistics = account->ClusterStatistics();
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        localStatistics.ResourceUsage += childLocalResourceUsage;
-        clusterStatistics.ResourceUsage += childResourceUsage;
-
-        localStatistics.CommittedResourceUsage += childLocalCommittedResourceUsage;
-        clusterStatistics.CommittedResourceUsage += childCommittedResourceUsage;
+        account->IncreaseLocalStatistics(childLocalStatistics);
+        account->IncreaseClusterStatistics(childClusterStatistics);
 
         masterMemoryUsage += childMasterMemoryUsage;
     }
@@ -417,24 +442,15 @@ void TAccount::DetachChild(TAccount* child) noexcept
 {
     TNonversionedMapObjectBase<TAccount>::DetachChild(child);
 
-    const auto& childLocalResourceUsage = child->LocalStatistics().ResourceUsage;
-    const auto& childLocalCommittedResourceUsage = child->LocalStatistics().CommittedResourceUsage;
-
-    const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
-    const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
-
+    const auto& childLocalStatistics = child->LocalStatistics();
+    const auto& childClusterStatistics = child->ClusterStatistics();
     const auto& childMasterMemoryUsage = child->DetailedMasterMemoryUsage();
 
     for (auto* account = this; account; account = account->GetParent()) {
-        auto& localStatistics = account->LocalStatistics();
-        auto& clusterStatistics = account->ClusterStatistics();
         auto& masterMemoryUsage = account->DetailedMasterMemoryUsage();
 
-        localStatistics.ResourceUsage -= childLocalResourceUsage;
-        clusterStatistics.ResourceUsage -= childResourceUsage;
-
-        localStatistics.CommittedResourceUsage -= childLocalCommittedResourceUsage;
-        clusterStatistics.CommittedResourceUsage -= childCommittedResourceUsage;
+        account->IncreaseLocalStatistics(-childLocalStatistics);
+        account->IncreaseClusterStatistics(-childClusterStatistics);
 
         masterMemoryUsage -= childMasterMemoryUsage;
     }
