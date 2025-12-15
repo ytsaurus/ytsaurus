@@ -2881,9 +2881,7 @@ private:
             RecalculateSchemas_ = true;
         }
 
-        if (context.GetVersion() < EMasterReign::FixSecurityTagsMessingWithChunkListStructure ||
-            (context.GetVersion() >= EMasterReign::Start_25_4 && context.GetVersion() < EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4))
-        {
+        if (context.GetVersion() < EMasterReign::RerunUpdateModeMigration) {
             ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = true;
         }
     }
@@ -3050,7 +3048,7 @@ private:
                     /*method*/ "",
                     /*transaction*/ nullptr);
                 if (cellMapNodeProxy->GetType() != ENodeType::Map) {
-                    return;
+                    continue;
                 }
 
                 auto descendants = ListSubtreeNodes(
