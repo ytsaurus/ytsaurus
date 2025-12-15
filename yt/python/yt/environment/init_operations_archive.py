@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
 import yt.yson as yson
-from yt.wrapper import YtClient, config, ypath_split
+from yt.wrapper import YtClient, ypath_split
+from yt.wrapper.default_config import get_config_from_env
 
 from yt.environment.init_cluster import get_default_resource_limits
 
@@ -1262,7 +1263,7 @@ def build_arguments_parser():
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--archive-path", type=str, default=DEFAULT_ARCHIVE_PATH)
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
-    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+    parser.add_argument("--proxy", type=str, default=None)
     parser.add_argument("--retransform", action="store_true", default=False)
     parser.add_argument("--pool", type=str, default=None)
 
@@ -1296,7 +1297,7 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, token=config["token"])
+    client = YtClient(proxy=args.proxy, config=get_config_from_env())
 
     run(
         client=client,
