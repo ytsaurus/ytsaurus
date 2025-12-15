@@ -381,12 +381,13 @@ public:
 
         if (jobSummary.InterruptionReason != EInterruptionReason::None) {
             YT_LOG_DEBUG(
-                "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                "Splitting job (JobId: %v, OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
+                jobSummary.Id,
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
-            RegisterChildCookies(cookie, std::move(childCookies));
+            RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
