@@ -3021,7 +3021,7 @@ private:
                     /*method*/ "",
                     /*transaction*/ nullptr);
                 if (cellMapNodeProxy->GetType() != ENodeType::Map) {
-                    return;
+                    continue;
                 }
 
                 auto descendants = ListSubtreeNodes(
