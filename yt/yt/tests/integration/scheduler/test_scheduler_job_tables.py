@@ -13,7 +13,7 @@ from yt_commands import (
     map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, get_job, get_job_trace, list_job_traces, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
-    lookup_rows, print_debug, set)
+    lookup_rows, print_debug, set, get_operation)
 
 import yt_error_codes
 
@@ -83,6 +83,83 @@ def expect_to_find_in_stderr_table(stderr_table_path, content):
     assert sorted(row["data"] for row in table_row_list) == sorted(content)
     job_id_list = [row["job_id"] for row in table_row_list]
     assert sorted(job_id_list) == job_id_list
+
+
+class TestOperationsArchiveTransformation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestOperationsArchiveTransformation, self).setup_method(method)
+        sync_create_cells(1)
+
+    @authors("bystrovserg")
+    def test_migration_from_initial_version(self):
+        client = self.Env.create_native_client()
+
+        init_operations_archive.create_tables(
+            client,
+            target_version=init_operations_archive.INITIAL_VERSION,
+            override_tablet_cell_bundle="default",
+        )
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        (job_id, ) = wait_breakpoint()
+
+        def check_commands(state):
+            # Operations
+            op_get = get_operation(op.id)
+            op_get["id"] == op.id
+            op_get["state"] == state
+
+            # Jobs
+            wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+            jobs = list_jobs(op.id)["jobs"]
+            assert len(jobs) == 1
+            assert jobs[0]["id"] == job_id
+            job = get_job(op.id, job_id)
+            assert job["job_id"] == job_id
+            assert job["state"] == state
+
+        wait_no_assert(lambda: check_commands("running"))
+
+        release_breakpoint()
+
+        wait_no_assert(lambda: check_commands("completed"))
+
+        init_operations_archive.run(
+            client=client,
+            archive_path=init_operations_archive.DEFAULT_ARCHIVE_PATH,
+            target_version=None,
+            shard_count=1,
+            latest=True,
+            force=False,
+            retransform=False,
+            pool=None,
+        )
+
+        wait_no_assert(lambda: check_commands("completed"))
 
 
 class TestStderrTable(YTEnvSetup):
