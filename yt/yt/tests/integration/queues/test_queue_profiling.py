@@ -1,5 +1,7 @@
 import time
 
+import pytest
+
 from yt_queue_agent_test_base import TestQueueAgentBase, QueueAgentOrchid
 
 from yt_commands import (
@@ -11,6 +13,7 @@ from yt_commands import (
     select_rows,
     register_queue_consumer,
     advance_consumer,
+    set as yt_set,
 )
 
 from yt_helpers import profiler_factory
@@ -19,6 +22,21 @@ from yt_helpers import profiler_factory
 ##################################################################
 
 TIME_METRIC_NON_FLAP_MULTIPLIER = 1.5
+NONE_TAG = "none"
+
+
+def get_mapping():
+    return list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
+
+
+def get_profiler():
+    wait(lambda: len(get_mapping()) > 0)
+    mapping = get_mapping()
+
+    print_debug(f"{mapping=}")
+
+    original_host = mapping[0]["host"]
+    return profiler_factory().at_queue_agent(original_host)
 
 
 class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
@@ -45,16 +63,7 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
         queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
 
-        def get_mapping():
-            return list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
-
-        wait(lambda: len(get_mapping()) > 0)
-        mapping = get_mapping()
-
-        print_debug(f"{mapping=}")
-
-        original_host = mapping[0]["host"]
-        profiler = profiler_factory().at_queue_agent(original_host)
+        profiler = get_profiler()
 
         def get_gauge_summary_metric(name):
             return int(profiler.summary(f"queue_agent/consumer_partition/{name}").get_all()[0]["value"])
@@ -153,3 +162,78 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         wait(lambda: get_counter_metric("data_weight_consumed") <= 40)
         wait(lambda: get_gauge_time_summary_metric("lag_time") == 0.0)
         wait(lambda: get_closest_bins_gauge_histogram_metric("lag_time_histogram")[0] == 0.0)
+
+    @authors("panesher")
+    @pytest.mark.parametrize(
+        "queue_tag", ["queue_tag_1", ""],
+    )
+    @pytest.mark.parametrize(
+        "consumer_tag", ["consumer_tag_1", ""],
+    )
+    def test_profiling_tags(self, queue_tag, consumer_tag):
+        orchid = QueueAgentOrchid()
+
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True)
+        if queue_tag:
+            yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+        insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
+
+        consumer_path = self.create_consumer_path()
+        create("queue_consumer", consumer_path)
+        if consumer_tag:
+            yt_set(f"{consumer_path}/@queue_consumer_profiling_tag", consumer_tag)
+
+        register_queue_consumer(queue, consumer_path, vital=True)
+
+        self._wait_for_component_passes()
+
+        consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
+
+        profiler = get_profiler()
+
+        self._wait_for_component_passes()
+        queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
+
+        wait(lambda: int(profiler.gauge('queue_agent/consumer_partition/lag_rows', fixed_tags={
+            "queue_tag": queue_tag or NONE_TAG,
+            "consumer_tag": consumer_tag or NONE_TAG,
+        }).get_all()[0]["value"]) == 3, ignore_exceptions=True)
+
+        lag_rows = profiler.gauge('queue_agent/consumer_partition/lag_rows', fixed_tags={
+            "queue_tag": queue_tag or NONE_TAG,
+            "consumer_tag": consumer_tag or NONE_TAG,
+        }).get_all()[0]
+        assert lag_rows["tags"]["queue_tag"] == queue_tag or NONE_TAG
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
+
+
+class TestQueueAgentQueueProfiling(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    @authors("panesher")
+    @pytest.mark.parametrize(
+        "queue_tag", ["queue_tag_1", ""],
+    )
+    def test_profiling_tag(self, queue_tag):
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True)
+        if queue_tag:
+            yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+
+        self._wait_for_component_passes()
+        profiler = get_profiler()
+
+        wait(lambda: int(profiler.gauge('queue_agent/queue/partitions', fixed_tags={
+            "queue_tag": queue_tag or NONE_TAG,
+        }).get_all()[0]["value"]) == 1, ignore_exceptions=True)
+        partitions = profiler.gauge('queue_agent/queue/partitions', fixed_tags={
+            "queue_tag": queue_tag or NONE_TAG,
+        }).get_all()[0]
+        assert partitions["tags"]["queue_tag"] == queue_tag or NONE_TAG

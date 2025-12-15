@@ -407,6 +407,57 @@ TRANSFORMS[4] = [
     ),
 ]
 
+# Change bundle of every table to yt-queue-agent
+TRANSFORMS[5] = [
+    Conversion(
+        "queues",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("dynamic", "boolean"),
+                ("sorted", "boolean"),
+                ("auto_trim_config", "any"),
+                ("static_export_config", "any"),
+                ("queue_agent_stage", "string"),
+                ("object_id", "string"),
+                ("queue_agent_banned", "boolean"),
+                ("synchronization_error", "any"),
+                ("queue_profiling_tag", "string"),  # new field
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+    ),
+    Conversion(
+        "consumers",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("row_revision", "uint64"),
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("treat_as_queue_consumer", "boolean"),
+                ("schema", "any"),
+                ("queue_agent_stage", "string"),
+                ("queue_agent_banned", "boolean"),
+                ("synchronization_error", "any"),
+                ("queue_consumer_profiling_tag", "string"),  # new field
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+    ),
+]
+
 # Add secondary_index between replica_mapping and replicated_table_mapping.
 # Actual paths are set in prepare_migration.
 ACTIONS[5] = [

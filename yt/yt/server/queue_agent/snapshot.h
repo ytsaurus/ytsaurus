@@ -104,6 +104,7 @@ struct TSubConsumerSnapshot
 {
     int PartitionCount = 0;
     TPerformanceCounters ReadRate;
+    std::optional<std::string> QueueProfilingTag;
 
     TError Error;
 

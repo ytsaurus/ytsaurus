@@ -209,6 +209,7 @@ private:
         });
 
         auto subSnapshot = New<TSubConsumerSnapshot>();
+        subSnapshot->QueueProfilingTag = queueSnapshot->Row.QueueProfilingTag;
 
         if (!queueSnapshot->Error.IsOK()) {
             subSnapshot->Error = queueSnapshot->Error;
@@ -501,7 +502,8 @@ public:
         , ProfileManager_(CreateConsumerProfileManager(
             QueueAgentProfilerGlobal()
                 .WithRequiredTag("consumer_path", TrimProfilingTagValue(ConsumerRef_.Path))
-                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
+                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster)
+                .WithTag("consumer_tag", row.QueueConsumerProfilingTag.value_or(NoneProfilingTag)),
             Logger))
     {
         // Prepare initial erroneous snapshot.
