@@ -479,7 +479,7 @@ private:
 
         auto req = node->HeavyProxy.PutBlocks();
         req->SetResponseHeavy(true);
-        req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+        req->SetMultiplexingBand(EMultiplexingBand::Journal);
         ToProto(req->mutable_session_id(), GetSessionIdForNode(node));
         req->set_flush_blocks(true);
         req->set_first_block_index(node->FirstUnflushedRecordIndex);
