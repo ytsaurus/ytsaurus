@@ -1436,7 +1436,9 @@ private:
 
         auto enableThrottling = GetDynamicConfig()->EnableGetChunkFragmentSetThrottling;
         if (enableThrottling && netThrottling.Enabled) {
-            context->SetResponseInfo("NetThrottling: %v", netThrottling.Enabled);
+            context->SetResponseInfo("NetThrottling: %v, NetQueueSize: %v",
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
             context->Reply();
             return;
         }
@@ -1455,77 +1457,74 @@ private:
         std::vector<TFuture<void>> prepareReaderFutures;
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        {
-            for (const auto& subrequest : request->subrequests()) {
-                auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
-                auto chunk = chunkRegistry->FindChunk(chunkId);
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+            auto chunk = chunkRegistry->FindChunk(chunkId);
 
-                auto* subresponse = response->add_subresponses();
+            auto* subresponse = response->add_subresponses();
 
-                const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
-                if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-                    auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
-                    if (allyReplicas.Revision > allyReplicasRevision) {
-                        ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
-                        YT_LOG_DEBUG("Ally replicas suggested "
-                            "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
-                            chunkId,
-                            allyReplicas,
-                            allyReplicasRevision);
-                    }
+            const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+            if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
+                if (allyReplicas.Revision > allyReplicasRevision) {
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    YT_LOG_DEBUG("Ally replicas suggested "
+                        "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
+                        chunkId,
+                        allyReplicas,
+                        allyReplicasRevision);
                 }
-
-                bool chunkAvailable = false;
-                if (chunk) {
-                    auto diskThrottling = chunk
-                        ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-                        : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-                    auto diskThrottlingEnabled = enableThrottling && diskThrottling.Enabled;
-                    subresponse->set_disk_throttling(diskThrottlingEnabled);
-
-                    YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
-
-                    if (auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
-                        guard && !diskThrottlingEnabled)
-                    {
-                        auto* location = guard.GetChunk()->GetLocation().Get();
-                        auto [it, emplaced] = locationToLocationIndex.try_emplace(
-                            location,
-                            std::ssize(locationToLocationIndex));
-                        if (emplaced) {
-                            requestedLocations.emplace_back(location, 0);
-                        }
-                        requestedLocations[it->second].second += subrequest.fragments_size();
-
-                        TClientChunkReadOptions options{
-                            .WorkloadDescriptor = workloadDescriptor,
-                            .ReadSessionId = readSessionId,
-                            .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
-                        };
-
-                        if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
-                            YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
-                                guard.GetChunk()->GetId());
-                            prepareReaderFutures.push_back(std::move(future));
-                        }
-                        chunkRequestInfos.push_back({
-                            .Guard = std::move(guard),
-                            .LocationIndex = it->second
-                        });
-                        chunkAvailable = true;
-                    }
-                }
-
-                if (!chunkAvailable) {
-                    chunkRequestInfos.emplace_back();
-                }
-
-                subresponse->set_has_complete_chunk(chunkAvailable);
             }
-        }
 
-        auto enableMemoryTracking = GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking;
-        auto memoryTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+            auto diskThrottling = chunk
+                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+                : TChunkLocation::TDiskThrottlingResult{ .Enabled = false };
+            YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(),
+                diskThrottling.Error);
+
+            auto diskThrottlingActive = enableThrottling && diskThrottling.Enabled;
+
+            bool chunkAvailable = false;
+            if (chunk) {
+                subresponse->set_disk_throttling(diskThrottlingActive);
+
+                auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
+                if (guard && !diskThrottlingActive) {
+                    auto* location = guard.GetChunk()->GetLocation().Get();
+                    auto [it, emplaced] = locationToLocationIndex.try_emplace(
+                        location,
+                        std::ssize(locationToLocationIndex));
+                    if (emplaced) {
+                        requestedLocations.emplace_back(location, 0);
+                    }
+                    requestedLocations[it->second].second += subrequest.fragments_size();
+
+                    TClientChunkReadOptions options{
+                        .WorkloadDescriptor = workloadDescriptor,
+                        .ReadSessionId = readSessionId,
+                        .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
+                    };
+
+                    if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
+                        YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
+                            guard.GetChunk()->GetId());
+                        prepareReaderFutures.push_back(std::move(future));
+                    }
+                    chunkRequestInfos.push_back({
+                        .Guard = std::move(guard),
+                        .LocationIndex = it->second
+                    });
+
+                    chunkAvailable = true;
+                }
+            }
+
+            if (!chunkAvailable) {
+                chunkRequestInfos.emplace_back();
+            }
+
+            subresponse->set_has_complete_chunk(chunkAvailable);
+        }
 
         auto afterReadersPrepared =
             [
@@ -1542,7 +1541,6 @@ private:
 
                 std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
                 std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
-                std::vector<TMemoryUsageTrackerGuard> locationMemoryGuards(requestedLocations.size());
 
                 for (auto [_, locationRequestCount] : requestedLocations) {
                     locationFragmentIndices.reserve(locationRequestCount);
@@ -1550,6 +1548,7 @@ private:
                 }
 
                 int fragmentIndex = 0;
+                int fragmentsSizeToRead = 0;
                 try {
                     for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
                         const auto& subrequest = request->subrequests(subrequestIndex);
@@ -1561,7 +1560,6 @@ private:
                         }
 
                         auto locationIndex = chunkRequestInfo.LocationIndex;
-                        i64 totalSize = 0L;
                         for (const auto& fragment : subrequest.fragments()) {
                             auto readRequest = chunk->MakeChunkFragmentReadRequest(
                                 TChunkFragmentDescriptor{
@@ -1570,25 +1568,24 @@ private:
                                     .BlockOffset = fragment.block_offset()
                                 },
                                 useDirectIO);
-                            totalSize += readRequest.Size;
+
+                            fragmentsSizeToRead += readRequest.Size;
                             locationRequests[locationIndex].push_back(std::move(readRequest));
                             locationFragmentIndices[locationIndex].push_back(fragmentIndex);
                             ++fragmentIndex;
                         }
-
-                        TMemoryUsageTrackerGuard memoryGuard;
-                        if (enableMemoryTracking) {
-                            memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
-                                memoryTracker,
-                                totalSize)
-                                .ValueOrThrow();
-                        }
-
-                        locationMemoryGuards[locationIndex] = std::move(memoryGuard);
                     }
                 } catch (const std::exception& ex) {
                     context->Reply(ex);
                     return;
+                }
+
+                TMemoryUsageTrackerGuard memoryGuard;
+                if (GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking) {
+                    memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                        Bootstrap_->GetReadBlockMemoryUsageTracker(),
+                        fragmentsSizeToRead)
+                        .ValueOrThrow();
                 }
 
                 response->Attachments().resize(fragmentIndex);
@@ -1606,31 +1603,11 @@ private:
 
                     struct TChunkFragmentBuffer
                     { };
-                    auto readFuture = ioEngine->Read(
+                    readFutures.push_back(ioEngine->Read(
                         std::move(locationRequests[index]),
                         workloadDescriptor.Category,
                         GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
-                        readSessionId);
-
-                    if (!enableMemoryTracking) {
-                        readFuture = readFuture.AsUnique().Apply(BIND([
-                            =,
-                            memoryGuard = std::move(locationMemoryGuards[index]),
-                            resultIndex = index] (TReadResponse&& result) mutable {
-                            const auto& fragmentIndices = locationFragmentIndices[resultIndex];
-                            YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
-
-                            for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
-                                result.OutputBuffers[index] = TrackMemory(memoryTracker, std::move(result.OutputBuffers[index]));
-                            }
-
-                            memoryGuard.Release();
-
-                            return result;
-                        }));
-                    }
-
-                    readFutures.push_back(std::move(readFuture));
+                        readSessionId));
                 }
 
                 AllSucceeded(std::move(readFutures))
@@ -1639,6 +1616,7 @@ private:
                             =,
                             this,
                             this_ = MakeStrong(this),
+                            memoryGuard = std::move(memoryGuard),
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
