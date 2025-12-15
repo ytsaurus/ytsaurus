@@ -1204,13 +1204,12 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         wait(lambda: exists(f"//sys/cluster_nodes/{node}/orchid/sensors/yt"))
 
-        assert rows == lookup_rows(table_path, keys, execution_pool="bassein")
-
         def _wait_metrics():
+            assert rows == lookup_rows(table_path, keys, execution_pool="bassein", authenticated_user="u")
             return any([x["tags"].get("thread") == "Query" and x["tags"].get("bucket") == "bassein" and x["value"] > 0
                         for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
 
-        wait(_wait_metrics, timeout=60)
+        wait(_wait_metrics)
 
     @authors("coteeq")
     @not_implemented_in_sequoia
