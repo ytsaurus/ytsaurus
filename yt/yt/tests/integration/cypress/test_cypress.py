@@ -4504,6 +4504,20 @@ class TestCypress(YTEnvSetup):
 
         wait(lambda: get("//tmp/t/@touch_time", suppress_access_tracking=suppress_access_tracking) > time_0)
 
+    @authors("koloshmet")
+    def test_touch_and_access_time_async(self):
+        set("//sys/@config/cypress_manager/statistics_flush_period", 60000)
+        create("table", "//tmp/t", attributes={"expiration_timeout": 30000})
+
+        touch_time0 = get("//tmp/t/@touch_time")
+        access_time0 = get("//tmp/t/@access_time")
+        set("//tmp/t/@attr", "a")
+
+        touch_time1 = get("//tmp/t/@touch_time")
+        access_time1 = get("//tmp/t/@access_time")
+        assert touch_time1 > touch_time0
+        assert access_time1 > access_time0
+
     @authors("kvk1920")
     def test_yt23706(self):
         create("map_node", "//tmp/m")
