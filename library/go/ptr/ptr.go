@@ -1,6 +1,10 @@
 package ptr
 
-import "time"
+import (
+	"time"
+
+	"golang.org/x/exp/constraints"
+)
 
 // Int returns pointer to provided value
 func Int(v int) *int { return &v }
@@ -16,6 +20,16 @@ func Int32(v int32) *int32 { return &v }
 
 // Int64 returns pointer to provided value
 func Int64(v int64) *int64 { return &v }
+
+// CastInt converts given ~int pointer to another ~int pointer
+// e.g. CastInt[int64, int](new(int64(42)))
+func CastInt[S, D constraints.Integer](src *S) *D {
+	if src == nil {
+		return nil
+	}
+	dst := D(*src)
+	return &dst
+}
 
 // Uint returns pointer to provided value
 func Uint(v uint) *uint { return &v }
