@@ -2206,7 +2206,9 @@ public:
 
         YT_ASSERT(trunkNode->IsTrunk());
 
-        if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
+        if (auto* mutationContext = TryGetCurrentMutationContext()) {
+            UpdateAccessTimeAndCounter(trunkNode, mutationContext->GetTimestamp(), 1);
+        } else {
             AccessTracker_->SetAccessed(trunkNode);
         }
     }
@@ -2221,7 +2223,9 @@ public:
             return;
         }
 
-        if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
+        if (auto* mutationContext = TryGetCurrentMutationContext()) {
+            UpdateTouchTime(trunkNode, mutationContext->GetTimestamp());
+        } else {
             AccessTracker_->SetTouched(trunkNode);
         }
     }
@@ -4534,16 +4538,22 @@ private:
                 continue;
             }
 
-            // Update access time.
             auto accessTime = FromProto<TInstant>(update.access_time());
-            if (accessTime > node->GetAccessTime()) {
-                node->SetAccessTime(accessTime);
-            }
-
-            // Update access counter.
-            i64 accessCounter = node->GetAccessCounter() + update.access_counter_delta();
-            node->SetAccessCounter(accessCounter);
+            auto accessCounterDelta = update.access_counter_delta();
+            UpdateAccessTimeAndCounter(node, accessTime, accessCounterDelta);
         }
+    }
+
+    void UpdateAccessTimeAndCounter(TCypressNode* trunkNode, TInstant accessTime, i64 accessCounterDelta)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        if (accessTime > trunkNode->GetAccessTime()) {
+            trunkNode->SetAccessTime(accessTime);
+        }
+
+        i64 accessCounter = trunkNode->GetAccessCounter() + accessCounterDelta;
+        trunkNode->SetAccessCounter(accessCounter);
     }
 
     void HydraTouchNodes(NProto::TReqTouchNodes* request) noexcept
@@ -4558,13 +4568,19 @@ private:
             }
 
             if (trunkNode->TryGetExpirationTimeoutProperties()) {
-                auto touchTime = FromProto<TInstant>(update.touch_time());
-                if (touchTime > trunkNode->GetTouchTime()) {
-                    trunkNode->SetTouchTime(touchTime);
-                }
-                Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
+                UpdateTouchTime(trunkNode, FromProto<TInstant>(update.touch_time()));
             }
         }
+    }
+
+    void UpdateTouchTime(TCypressNode* trunkNode, TInstant touchTime)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        if (touchTime > trunkNode->GetTouchTime()) {
+            trunkNode->SetTouchTime(touchTime);
+        }
+        Bootstrap_->GetExpirationTracker()->OnNodeTouched(trunkNode);
     }
 
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept

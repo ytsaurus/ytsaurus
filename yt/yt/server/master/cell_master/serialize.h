@@ -183,6 +183,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransferBundleResources)                                      (3133))  // ifsmirnov
     ((ProvisionalFlush)                                             (3134))  // atalmenev
     ((RerunUpdateModeMigration)                                     (3135))  // h0pless
+    ((SetTouchAndAccessTimeInMutationsSynchronously)                (3136))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
