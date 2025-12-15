@@ -221,10 +221,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 "Error reading journal chunk %v",
                 Id_)
                 << blocksOrError;
-            if (blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
-                THROW_ERROR error;
+            if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
+                Location_->ScheduleDisable(error);
             }
-            Location_->ScheduleDisable(error);
+            THROW_ERROR error;
         }
 
         auto readTime = timer.GetElapsedTime();
