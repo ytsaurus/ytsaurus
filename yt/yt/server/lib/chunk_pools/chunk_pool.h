@@ -221,7 +221,7 @@ public:
 protected:
     //! Registers the children of the job in the job splitting tree. If there is only one child,
     //! it is marked as unsplittable.
-    void RegisterChildCookies(TCookie cookie, std::vector<TCookie> childCookies);
+    void RegisterChildCookies(NControllerAgent::TJobId jobId, TCookie cookie, std::vector<TCookie> childCookies);
 
     // The method below is a part of an internal interface between a derived class and this base.
     // It does not participate in IChunkPoolOutput::Completed overriding, thus should always
@@ -247,7 +247,7 @@ private:
     std::vector<bool> CookieShouldBeSplitProperly_;
 
     //! Mark all descendants of the cookie as unsplittable.
-    void MarkDescendantsUnsplittable(TCookie cookie);
+    void MarkDescendantsUnsplittable(NControllerAgent::TJobId jobId, TCookie cookie);
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSplittingBase, 0x9e867d80);
 };
