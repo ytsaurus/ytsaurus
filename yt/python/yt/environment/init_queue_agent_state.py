@@ -407,8 +407,24 @@ TRANSFORMS[4] = [
     ),
 ]
 
-# Change bundle of every table to yt-queue-agent
-TRANSFORMS[5] = [
+# Add secondary_index between replica_mapping and replicated_table_mapping.
+# Actual paths are set in prepare_migration.
+ACTIONS[5] = [
+    CreateSecondaryIndexAction(
+        table_name="replicated_table_mapping",
+        index_table_name="replica_mapping",
+        secondary_index_attributes={
+            "kind": "unfolding",
+            "unfolded_column": "replica_list",
+            "table_to_index_correspondence": "bijective",
+        },
+        table_filter_callback=_replicated_table_filter_callback,
+        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    )
+]
+
+# Add profiling tags to queues, consumers tables.
+TRANSFORMS[6] = [
     Conversion(
         "queues",
         table_info=TableInfo(
@@ -456,22 +472,6 @@ TRANSFORMS[5] = [
             attributes=DEFAULT_TABLE_ATTRIBUTES,
         ),
     ),
-]
-
-# Add secondary_index between replica_mapping and replicated_table_mapping.
-# Actual paths are set in prepare_migration.
-ACTIONS[5] = [
-    CreateSecondaryIndexAction(
-        table_name="replicated_table_mapping",
-        index_table_name="replica_mapping",
-        secondary_index_attributes={
-            "kind": "unfolding",
-            "unfolded_column": "replica_list",
-            "table_to_index_correspondence": "bijective",
-        },
-        table_filter_callback=_replicated_table_filter_callback,
-        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
-    )
 ]
 
 MIGRATION = Migration(
