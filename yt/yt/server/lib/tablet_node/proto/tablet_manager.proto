@@ -240,6 +240,17 @@ message TReqUnfreezeTablet
     repeated NYT.NProto.TGuid dynamic_store_ids = 2;
 }
 
+message TReqProvisionalFlush
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid dynamic_store_id = 2;
+}
+
+message TReqReportTabletProvisionallyFlushed
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
 message TReqCancelTabletTransition
 {
     required NYT.NProto.TGuid tablet_id = 1;
