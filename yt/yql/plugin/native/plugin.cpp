@@ -947,6 +947,7 @@ private:
         auto dynamicConfig = New<TDynamicConfig>();
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
+        auto* gatewayPqConfig = dynamicConfig->GatewaysConfig.MutablePq();
 
         // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
         gatewayYtConfig->ClearMrJobUdfsDir();
@@ -961,6 +962,10 @@ private:
             if (mapping.GetDefault()) {
                 dynamicConfig->DefaultCluster = mapping.name();
             }
+        }
+        for (const auto& mapping : gatewayPqConfig->GetClusterMapping()) {
+            dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::PqProviderName)});
+            dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.endpoint()});
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 
