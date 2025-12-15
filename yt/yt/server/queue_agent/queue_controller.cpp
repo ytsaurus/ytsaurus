@@ -353,7 +353,8 @@ public:
         , ProfileManager_(CreateQueueProfileManager(
             QueueAgentProfilerGlobal()
                 .WithRequiredTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
+                .WithRequiredTag("queue_cluster", QueueRef_.Cluster)
+                .WithTag("queue_tag", queueRow.QueueProfilingTag.value_or(NoneProfilingTag)),
             Logger))
         , AlertManager_(CreateAlertManager(
             Logger,

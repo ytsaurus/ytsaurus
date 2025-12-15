@@ -402,7 +402,8 @@ private:
         auto& subConsumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef];
         auto consumerPartitionProfiler = ConsumerPartitionProfiler_
             .WithRequiredTag("queue_path", TrimProfilingTagValue(queueRef.Path))
-            .WithRequiredTag("queue_cluster", queueRef.Cluster);
+            .WithRequiredTag("queue_cluster", queueRef.Cluster)
+            .WithTag("queue_tag", subConsumerSnapshot->QueueProfilingTag.value_or(NoneProfilingTag));
         ResizePartitionCounters(
             subConsumerPartitionProfilingCounters,
             consumerPartitionProfiler,
@@ -413,7 +414,7 @@ private:
     TError CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const
     {
         auto getQueueRefsAndPartitionCounts = [] (const TConsumerSnapshotPtr& snapshot) {
-            std::vector<std::pair<TCrossClusterReference, int>> result;
+        std::vector<std::pair<TCrossClusterReference, int>> result;
             for (const auto& [queueRef, subSnapshot] : snapshot->SubSnapshots) {
                 result.emplace_back(queueRef, subSnapshot->PartitionCount);
             }
