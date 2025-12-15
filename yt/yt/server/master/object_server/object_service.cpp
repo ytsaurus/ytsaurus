@@ -365,6 +365,7 @@ private:
     TMpscStack<TExecuteSessionInfo> FinishedSessionInfos_;
 
     TStickyUserErrorCache StickyUserErrorCache_;
+    std::atomic<bool> EnablePerUserThrottling_ = false;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
     static constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
@@ -1866,7 +1867,9 @@ private:
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
 
-            auto throttlerFuture = securityManager->ThrottleUser(User_.Get(), 1, WorkloadType);
+            auto throttlerFuture = Owner_->EnablePerUserThrottling_.load(std::memory_order::relaxed)
+                ? securityManager->ThrottleUser(User_.Get(), 1, WorkloadType)
+                : VoidFuture;
 
             if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalRead) {
                 if (User_.Get() != securityManager->GetRootUser()) {
@@ -2522,7 +2525,7 @@ TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
 
 const TDynamicObjectServiceConfigPtr& TObjectService::GetDynamicConfig()
 {
-    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+    VerifyPersistentStateRead();
 
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
 }
@@ -2535,6 +2538,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
     MinimizeExecuteLatency_ = objectServiceConfig->MinimizeExecuteLatency;
+    EnablePerUserThrottling_ = objectServiceConfig->EnablePerUserThrottling;
     PrematureBackoffAlarmProbability_ = objectServiceConfig->Testing->PrematureBackoffAlarmProbability.value_or(NullPrematureBackoffAlarmProbability);
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
