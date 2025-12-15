@@ -44,7 +44,7 @@ def run_operations(
     index_table_schema,
     unfolded_column: str,
     client: yt.YtClient,
-    pool=None
+    pool=None,
 ):
     output_columns = [col["name"] for col in index_table_schema if "expression" not in col]
     shared_columns = [col["name"] for col in table_schema if col["name"] in output_columns]
@@ -147,7 +147,19 @@ def run_operations(
     yield
 
 
-def build_secondary_index(proxy, table, index_table, kind, predicate, unfolded_column, dry_run, online, pool=None, pools={}):
+def build_secondary_index(
+    proxy,
+    table,
+    index_table,
+    kind,
+    predicate,
+    unfolded_column,
+    dry_run,
+    online,
+    evaluated_columns_schema=None,
+    pool=None,
+    pools={},
+):
     assert not ((kind == UNIQUE) and online), "A correct unique index can only be built strictly"
 
     client = yt.YtClient(proxy=proxy, config=get_config_from_env())
@@ -220,6 +232,8 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, unfolded_c
         if kind == UNFOLDING:
             assert unfolded_column
             attributes["unfolded_column"] = unfolded_column
+        if evaluated_columns_schema:
+            attributes["evaluated_columns_schema"] = evaluated_columns_schema
 
         logging.info("\n\t\tCreating secondary index link")
         secondary_index_id = client.create("secondary_index", attributes=attributes)
