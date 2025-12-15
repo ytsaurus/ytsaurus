@@ -26,7 +26,6 @@ and cs1.cs_ship_addr_sk = ca_address_sk
 and ca_state = 'GA'
 and cs1.cs_call_center_sk = cc_call_center_sk
 and cc_county = 'Williamson County'
-)
 order by `order count`
 limit 100;
 
