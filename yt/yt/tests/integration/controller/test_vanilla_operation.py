@@ -2425,7 +2425,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_rank_is_set(self):
         # Die with code 42 if variable is not 0.
-        command = '[[ "$YT_GANG_RANK" -eq 0 ]] && exit 0 || exit 42'
+        command = '[[ "$YT_GANG_RANK" -eq 0 ]] && [[ "$YT_TASK_GANG_RANK" -eq 0 ]] && exit 0 || exit 42'
         op = vanilla(
             spec={
                 "tasks": {
@@ -2657,7 +2657,7 @@ class TestGangOperations(YTEnvSetup):
 
         command = with_breakpoint("""
             BREAKPOINT;
-            if [ -z "$YT_GANG_RANK" ]; then
+            if [[ -z "$YT_GANG_RANK" && -z "$YT_TASK_GANG_RANK" ]]; then
                 exit 1
             else
                 exit 0

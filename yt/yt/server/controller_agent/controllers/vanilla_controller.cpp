@@ -1754,6 +1754,7 @@ void TGangOperationController::InitUserJobSpec(
         setEnvironmentVariable("YT_GANG_SIZE", ToString(TotalGangSize_));
         if (gangJoblet.Rank) {
             setEnvironmentVariable("YT_GANG_RANK", ToString(*gangJoblet.Rank));
+            setEnvironmentVariable("YT_TASK_GANG_RANK", ToString(*gangJoblet.Rank));
         }
     };
 
