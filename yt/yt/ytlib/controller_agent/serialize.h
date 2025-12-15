@@ -103,6 +103,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SupportMergingFinalPartitions)         (302123))
     ((DropUnusedOutputCookieGenerator)       (302124))
     ((StorePreemptibleProgressInJoblets)     (302125))
+    ((FileRlsReadSpec)                       (302126))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

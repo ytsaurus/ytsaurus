@@ -7523,6 +7523,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
+                .OmitInaccessibleRows = Spec_->OmitInaccessibleRows,
                 .PopulateSecurityTags = true,
                 .AllowColumnRenaming = true,
             });
@@ -7692,6 +7693,17 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         case EObjectType::Table:
                             file.Dynamic = attributes.Get<bool>("dynamic");
                             file.Schema = attributes.Get<TTableSchemaPtr>("schema");
+                            file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
+                                file.Schema,
+                                file.RowLevelAcl,
+                                Logger().WithTag("Path: %v", file.GetPath()));
+
+                            YT_LOG_INFO_IF(
+                                file.RlsReadSpec,
+                                "User file has non-trivial RLS read spec (Path: %v, RlsReadSpec: %v)",
+                                file.GetPath(),
+                                file.RlsReadSpec);
+
                             if (auto renameDescriptors = file.Path.GetColumnRenameDescriptors()) {
                                 YT_LOG_DEBUG("Start renaming columns of user file");
                                 auto description = Format("user file %v", file.GetPath());
