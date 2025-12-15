@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
-from yt.wrapper import YtClient, config
+from yt.common import update_inplace
+from yt.wrapper import YtClient
+from yt.wrapper.default_config import get_config_from_env
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
@@ -2010,7 +2012,7 @@ def build_arguments_parser():
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--state-path", type=str, default=DEFAULT_STATE_PATH)
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
-    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
+    parser.add_argument("--proxy", type=str, default=None)
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--target-version", type=int)
@@ -2024,12 +2026,14 @@ def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(
         proxy=args.proxy,
-        token=config["token"],
-        config={
-            "pickling": {
-                "ignore_system_modules": False,
-            },
-        },
+        config=update_inplace(
+            get_config_from_env(),
+            {
+                "pickling": {
+                    "ignore_system_modules": False,
+                },
+            }
+        ),
     )
 
     target_version = args.target_version
