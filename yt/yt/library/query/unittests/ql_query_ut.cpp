@@ -2510,6 +2510,42 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
         OrderedResultMatcher(result, {"av"}));
 }
 
+TEST_F(TQueryEvaluateTest, ClickBenchQ22)
+{
+    auto columns = std::vector<TColumnSchema>{
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"SearchPhrase", EValueType::String},
+        {"URL", EValueType::String},
+    };
+
+    for (auto& column : columns) {
+        column.SetRequired(true);
+    }
+
+    auto split = MakeSplit(columns);
+
+    auto source = TSource();
+
+    {
+        auto resultSplit = MakeSplit({
+            {"SearchPhrase", EValueType::String},
+            {"m", EValueType::String},
+            {"c", EValueType::Int64},
+        });
+
+        auto resultRows = TSource();
+
+        auto result = YsonToRows(resultRows, resultSplit);
+
+        EvaluateFullCoordinatedGroupBy(
+            "SearchPhrase, min(URL) as m, sum(1) AS c FROM [//t] WHERE URL LIKE '%google%' AND SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
+            split,
+            source,
+            ResultMatcher(result),
+            /*iterations*/ 1);
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
 {
     auto split = MakeSplit({
