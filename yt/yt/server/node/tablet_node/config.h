@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <yt/yt/library/re2/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -618,6 +620,23 @@ DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TUserBanDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::string BanMessage;
+    NRe2::TRe2Ptr BannedUserRegex;
+    std::optional<double> FailureProbability;
+    THashSet<std::string> AllowedUsers;
+
+    REGISTER_YSON_STRUCT(TUserBanDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserBanDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -655,6 +674,8 @@ struct TTabletNodeDynamicConfig
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;
     TSmoothMovementTrackerDynamicConfigPtr SmoothMovementTracker;
+
+    TUserBanDynamicConfigPtr UserBan;
 
     NRpc::TOverloadControllerConfigPtr OverloadController;
 
