@@ -142,6 +142,13 @@ class MonitoringExpr(Taggable):
     def sqrt(self):
         return self.func("sqrt", self)
 
+    def flatten(self, *args):
+        return self.func("flatten", self, *args)
+
+    @staticmethod
+    def flatten_sensors(first, *args):
+        return first.flatten(*args)
+
     def value(self, key, value, overwrite=True):
         return MonitoringExpr(
             self.node_type,
