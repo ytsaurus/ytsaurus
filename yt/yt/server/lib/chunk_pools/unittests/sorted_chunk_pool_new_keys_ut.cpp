@@ -2427,7 +2427,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2473,7 +2473,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
     ASSERT_LE(stripeLists.size(), 12u);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2538,6 +2538,56 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
         ASSERT_EQ(stripeList->Stripes().size(), 2u);
         ASSERT_LE(GetStripeByTableIndex(stripeList, 1)->DataSlices().size(), 2u);
     }
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({0}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(std::ssize(ExtractedCookies_), 1);
+
+    auto cookie = ExtractedCookies_[0];
+
+    ASSERT_TRUE(ChunkPool_->IsSplittable(cookie));
+
+    auto stripeLists = GetAllStripeLists();
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
+        stripeLists[0]->Stripes()[0]->DataSlices().begin(),
+        stripeLists[0]->Stripes()[0]->DataSlices().end());
+    jobSummary.SplitJobCount = 10;
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
+
+    OutputCookies_.clear();
+
+    ExtractOutputCookiesWhilePossible();
+    ASSERT_EQ(std::ssize(OutputCookies_), 1);
+
+    cookie = *OutputCookies_.begin();
+
+    ASSERT_FALSE(ChunkPool_->IsSplittable(cookie));
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)

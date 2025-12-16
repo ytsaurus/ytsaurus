@@ -663,9 +663,7 @@ private:
         std::vector<TLegacyDataSlicePtr> inputStreamIndexToLastDataSlice;
         for (const auto& dataSlice : unreadInputDataSlices) {
             auto inputStreamIndex = dataSlice->GetInputStreamIndex();
-            if (inputStreamIndex >= std::ssize(inputStreamIndexToLastDataSlice)) {
-                inputStreamIndexToLastDataSlice.resize(inputStreamIndex + 1);
-            }
+            EnsureVectorIndex(inputStreamIndexToLastDataSlice, inputStreamIndex);
             auto& lastDataSlice = inputStreamIndexToLastDataSlice[inputStreamIndex];
             if (lastDataSlice &&
                 SortedJobOptions_.PrimaryComparator.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, lastDataSlice->LowerLimit().KeyBound) < 0)
@@ -709,9 +707,6 @@ private:
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             /*samplingRate*/ std::nullopt);
 
-        // Teleport chunks do not affect the job split process since each original
-        // job is already located between the teleport chunks.
-        std::vector<TInputChunkPtr> teleportChunks;
         auto splitSortedJobOptions = SortedJobOptions_;
         // We do not want to yield during job splitting because it may potentially lead
         // to snapshot creation that will catch pool in inconsistent state.
@@ -720,7 +715,7 @@ private:
             splitSortedJobOptions,
             std::move(jobSizeConstraints),
             RowBuffer_,
-            teleportChunks,
+            /*teleportChunks*/ {}, // Each job is already located between the teleport chunks.
             0 /*retryIndex*/,
             InputStreamDirectory_,
             Logger,
@@ -739,12 +734,25 @@ private:
 
         auto jobs = builder->Build();
         std::vector<std::unique_ptr<TNewJobStub>> jobStubs;
+        std::vector<bool> isBarrierJob; // TODO(apollo1321): Should be removed in YT-26946.
         jobStubs.reserve(jobs.size());
+        isBarrierJob.reserve(jobs.size());
         for (auto& job : jobs) {
-            jobStubs.emplace_back(std::make_unique<TNewJobStub>(std::move(job)));
+            jobStubs.push_back(std::make_unique<TNewJobStub>(std::move(job)));
+            isBarrierJob.push_back(job.GetIsBarrier());
         }
         JobManager_->SeekOrder(cookie);
         auto childCookies = JobManager_->AddJobs(std::move(jobStubs));
+        YT_VERIFY(std::ssize(childCookies) == std::ssize(isBarrierJob));
+
+        int writeIndex = 0;
+        for (int i : std::views::iota(0, std::ssize(childCookies))) {
+            if (!isBarrierJob[i]) {
+                childCookies[writeIndex] = childCookies[i];
+                ++writeIndex;
+            }
+        }
+        childCookies.resize(writeIndex);
 
         return childCookies;
     }

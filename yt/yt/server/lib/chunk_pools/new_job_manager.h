@@ -24,6 +24,7 @@ class TNewJobStub
 public:
     //! Barriers are special entries in job manager internal job list that designate the fact
     //! that adjacent jobs may not be joined together.
+    // TODO(apollo1321): Barrier jobs should be removed.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsBarrier, false);
 
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TKeyBound, PrimaryLowerBound);
