@@ -2517,12 +2517,17 @@ void TJob::RunJobProxy()
         YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
     }
 
+    YT_LOG_DEBUG("HERE SetJobPhase SpawningJobProxy start");
+
     SetJobPhase(EJobPhase::SpawningJobProxy);
+    YT_LOG_DEBUG("HERE SetJobPhase SpawningJobProxy finish");
     InitializeJobProbe();
+    YT_LOG_DEBUG("HERE InitializeJobPhase finish");
 
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
     auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
 
+    YT_LOG_DEBUG("HERE GuardedJobSpec transform start");
     GuardedJobSpec_.Transform([&] (TJobSpec& jobSpec) {
         PrepareProxiedChunkReading(
             Bootstrap_->GetNodeId(),
@@ -2530,11 +2535,16 @@ void TJob::RunJobProxy()
             THashSet<TChunkId>(eligibleChunks.begin(), eligibleChunks.end()),
             jobSpec.MutableExtension(TJobSpecExt::job_spec_ext));
     });
+    YT_LOG_DEBUG("HERE GuardedJobSpec transform finish");
+
+    YT_LOG_DEBUG("HERE Create config start");
+    auto config = CreateConfig();
+    YT_LOG_DEBUG("HERE Create config finish");
 
     BIND(
         &IUserSlot::RunJobProxy,
         GetUserSlot(),
-        CreateConfig(),
+        config,
         Id_,
         OperationId_)
         .AsyncVia(Invoker_)
@@ -3046,8 +3056,10 @@ TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProjec
 TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
+    YT_LOG_DEBUG("HERE create config 1");
 
     auto proxyInternalConfig = CloneYsonStruct(Bootstrap_->GetJobProxyConfigTemplate());
+    YT_LOG_DEBUG("HERE create config 2");
     auto localDescriptor = Bootstrap_->GetLocalDescriptor();
     proxyInternalConfig->DataCenter = localDescriptor.GetDataCenter();
     proxyInternalConfig->Rack = localDescriptor.GetRack();
@@ -3060,6 +3072,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->TmpfsManager = New<TTmpfsManagerConfig>();
     proxyInternalConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
 
+    YT_LOG_DEBUG("HERE create config 3");
     proxyInternalConfig->MemoryTracker = New<TMemoryTrackerConfig>();
     if (UserJobSpec_) {
         proxyInternalConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
@@ -3097,6 +3110,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->DockerImageId = DockerImageId_;
     }
 
+    YT_LOG_DEBUG("HERE create config 4");
     if (RootVolume_ || DockerImage_) {
         proxyInternalConfig->Binds = GetRootFSBindConfigs();
 
@@ -3125,6 +3139,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             }
         }
     }
+    YT_LOG_DEBUG("HERE create config 5");
 
     const auto& proxyConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy;
 
@@ -3146,6 +3161,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
     });
+    YT_LOG_DEBUG("HERE create config 6");
 
     if (proxyInternalConfig->StderrPath) {
         if (proxyConfig->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory) {
@@ -3168,6 +3184,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    YT_LOG_DEBUG("HERE create config 7");
+
     for (const auto& slot : GetGpuSlots()) {
         proxyInternalConfig->GpuIndexes.push_back(slot->GetDeviceIndex());
     }
@@ -3181,6 +3199,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 
+    YT_LOG_DEBUG("HERE create config 8");
     if (NetworkProject_) {
         proxyInternalConfig->NetworkAddresses = NetworkAttributes_.Addresses;
         for (const auto& networkAddress : NetworkAttributes_.Addresses) {
@@ -3222,6 +3241,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    YT_LOG_DEBUG("HERE create config 9");
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
             proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
@@ -3258,6 +3278,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
     }
 
+    YT_LOG_DEBUG("HERE create config 9");
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
     YT_LOG_DEBUG(
         "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
@@ -3270,6 +3291,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     proxyInternalConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    YT_LOG_DEBUG("HERE create config 10");
 
     return proxyInternalConfig;
 }
