@@ -35,7 +35,7 @@ Y_DECLARE_FLAGS(TYtTableIntents, TYtTableIntent);
 Y_DECLARE_OPERATORS_FOR_FLAGS(TYtTableIntents);
 
 inline bool HasReadIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Read | TYtTableIntent::View);
+    return intents & TYtTableIntent::Read;
 }
 
 inline bool HasModifyIntents(TYtTableIntents intents) {
