@@ -183,7 +183,7 @@ yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tut
 
 {% endnote %}
 
-- encode_utf8=%false { #utf8-false }
+- `encode_utf8=%false` { #utf8-false }
 
 Чтобы преобразовать YSON-строку в JSON-строку требуется, чтобы в YSON-строке находилась последовательность, допустимая UTF-8. Она будет преобразована в unicode-строку JSON.
 
