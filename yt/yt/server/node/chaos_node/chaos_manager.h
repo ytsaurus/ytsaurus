@@ -146,11 +146,15 @@ struct IChaosManager
         const std::vector<NObjectClient::TCellId>& coordinatorCellIds,
         bool strict = true) = 0;
 
-    virtual void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects) = 0;
+    virtual void RevokeShortcuts(
+        TRange<TChaosObjectBase*> chaosObjects,
+        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt) = 0;
 
-    void RevokeShortcut(TChaosObjectBase* chaosObject)
+    void RevokeShortcut(
+        TChaosObjectBase* chaosObject,
+        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt)
     {
-        RevokeShortcuts(TRange(&chaosObject, 1));
+        RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
     }
 };
 

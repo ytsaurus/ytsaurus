@@ -1475,7 +1475,7 @@ private:
             auto era = shortcut.era();
 
             auto chaosObjectId = FromProto<TChaosObjectId>(shortcut.chaos_object_id());
-            TChaosObjectBase* chaosObject = FindChaosObject(chaosObjectId);
+            auto* chaosObject = FindChaosObject(chaosObjectId);
 
             if (!chaosObject) {
                 YT_LOG_WARNING("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
@@ -1515,6 +1515,31 @@ private:
 
         if (suspended) {
             SuspendCoordinator(coordinatorCellId);
+
+            // COMPAT(gryzlov-ad)
+            if (static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign) >= EChaosReign::CoordinatorSuspendEnforcment) {
+                std::vector<TChaosObjectBase*> chaosObjects;
+                for (const auto& shortcut : request->shortcuts()) {
+                    auto chaosObjectId = FromProto<TChaosObjectId>(shortcut.chaos_object_id());
+                    auto* chaosObject = FindChaosObject(chaosObjectId);
+
+                    if (!chaosObject) {
+                        YT_LOG_WARNING("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
+                            chaosObjectId,
+                            TypeFromId(chaosObjectId));
+                        continue;
+                    }
+
+                    chaosObjects.push_back(chaosObject);
+                }
+
+                YT_LOG_DEBUG("Received grant shortcuts response, but coordinator is suspended. "
+                    "Revoking shortcuts (CoordinatorCellId: %v)",
+                    coordinatorCellId);
+
+                RevokeShortcuts(chaosObjects, coordinatorCellId);
+                return;
+            }
         } else {
             ResumeCoordinator(coordinatorCellId);
         }
@@ -1536,7 +1561,7 @@ private:
             auto era = shortcut.era();
 
             auto chaosObjectId = FromProto<TChaosObjectId>(shortcut.chaos_object_id());
-            TChaosObjectBase* chaosObject = FindChaosObject(chaosObjectId);
+            auto* chaosObject = FindChaosObject(chaosObjectId);
 
             if (!chaosObject) {
                 YT_LOG_WARNING("Got revoke shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
@@ -1591,14 +1616,22 @@ private:
     }
 
     std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
-        TRange<TChaosObjectBase*> chaosObjects)
+        TRange<TChaosObjectBase*> chaosObjects, std::optional<TCellId> suspendedCoordinatorCellId)
     {
         YT_VERIFY(HasMutationContext());
 
         THashMap<TCellId, NChaosNode::NProto::TReqRevokeShortcuts> coordinatorToRequest;
 
         for (const auto& chaosObject : chaosObjects) {
-            for (auto [cellId, coordinator] : GetValuesSortedByKey(chaosObject->Coordinators())) {
+            std::vector<std::pair<TCellId, TCoordinatorInfo*>> coordinators;
+            if (!suspendedCoordinatorCellId) {
+                coordinators = GetValuesSortedByKey(chaosObject->Coordinators());
+            } else {
+              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), *suspendedCoordinatorCellId);
+              coordinators = {{suspendedCoordinatorCellId.value(), coordinatorInfo}};
+            }
+
+            for (auto [cellId, coordinator] : coordinators) {
                 if (coordinator->State == EShortcutState::Revoking) {
                     YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
                         "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
@@ -1632,11 +1665,13 @@ private:
         return SortHashMapByKeys(coordinatorToRequest);
     }
 
-    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects) override
+    void RevokeShortcuts(
+        TRange<TChaosObjectBase*> chaosObjects,
+        std::optional<TCellId> suspendedChaosCellId) override
     {
         YT_VERIFY(HasMutationContext());
 
-        auto revokeShortcutsRequests = BuildRevokeShortcutsRequests(chaosObjects);
+        auto revokeShortcutsRequests = BuildRevokeShortcutsRequests(chaosObjects, suspendedChaosCellId);
 
         const auto& hiveManager = Slot_->GetHiveManager();
 
