@@ -67,6 +67,8 @@ You can change some configuration options using environment variables. Such vari
 
 When using [CLI](../../../api/cli/cli.md), you can pass the configuration patch using the `--config` option.
 
+Some options can be specified in the [cluster client config](#remote_client_config).
+
 Note that the library configuration doesn't affect the client configuration: by default, a config with the default values will be used when you're creating a client. To pass a config based on environment variables to the client: `client = yt.YtClient(..., config=yt.default_config.get_config_from_env())`. You can also update an existing config with values from the environment variables using the `update_config_from_env(config)` function.
 
 Keep an eye on the priority order. When you import the library, the configurations transmitted through `YT_CONFIG_PATCHES` are applied. This environment variable expects list_fragment: you can pass multiple configurations separated by a semicolon. These patches are applied last-to-first. Then, the values of the options specified by specific environment variables are applied. For example, this can be done using `YT_PROXY`. Only after that, the configurations explicitly specified in the code (or passed in the `--config` option) are applied.
@@ -1561,3 +1563,16 @@ The YSON's native parser and writer written in Python are very slow and can onl
 C++ bindings are delivered as Debian and pip packages.
 
 The packages are built as a universal .so library with libcxx compiled into it: that's why they should work in any Debian-based system.
+
+#### Cluster client config { #remote_client_config }
+
+Some client settings are received from the cluster during its initialization.
+
++ To see what exactly is received from the cluster: `yt show-default-config --proxy <proxy> --only-remote-patch`.
++ You can completely disable the application of cluster settings via the environment variable: `YT_APPLY_REMOTE_PATCH_AT_START=none`.
+
+How to add a config to the cluster:
+
+- create a `default` node of type **document** in the `//sys/client_config` directory (`//sys/client_config/default`)
+- add the necessary parameters to the document (see the ones supported in `default_config.py` — they are initialized via `RemotePatchable`)
+- you can check the application of the config in the client debug logs (`YT_LOG_LEVEL=DEBUG`) and via the CLI — `show-default-config`
