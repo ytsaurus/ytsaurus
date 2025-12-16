@@ -1359,5 +1359,25 @@ TEST_F(TPartitionTableTest, PartitionTableColumnFilterTest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TPartitionTableTest, GetColumnarStatisticsInvalidYPath)
+{
+    auto path = MakeRandomTmpPath();
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+        {"value1", ESimpleLogicalValueType::Int64},
+    }));
+
+    WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+        .ThrowOnError();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(Client_->GetColumnarStatistics({TRichYPath(std::move(path))}))
+            .ValueOrThrow(),
+        "Received ypath without column selectors");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NCppTests
