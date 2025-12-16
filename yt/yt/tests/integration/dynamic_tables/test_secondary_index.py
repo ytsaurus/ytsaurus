@@ -42,23 +42,7 @@ PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     {"name": "valueB", "type": "boolean"},
 ]
 
-PRIMARY_SCHEMA_WITH_EXPRESSION = [
-    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(keyA)"},
-    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyB", "type": "string", "sort_order": "ascending"},
-    {"name": "valueA", "type": "int64"},
-    {"name": "valueB", "type": "boolean"},
-]
-
 INDEX_ON_VALUE_SCHEMA = [
-    {"name": "valueA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
-    {"name": "keyB", "type": "string", "sort_order": "ascending"},
-    {"name": "valueB", "type": "boolean"},
-]
-
-INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION = [
-    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(valueA)"},
     {"name": "valueA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
@@ -104,6 +88,13 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64"},
 ]
+
+
+def prepend_hash(schema):
+    hash_column = {"name": "__hash__", "sort_order": "ascending", "type": "uint64"}
+    hash_column["expression"] = f"farm_hash(`{schema[0]["name"]}`)"
+
+    return [hash_column] + schema
 
 ##################################################################
 
@@ -377,12 +368,12 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             "table_to_index_correspondence": "bijective",
         }
 
-        self._create_table("//tmp/secondary_2", INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION)
+        self._create_table("//tmp/secondary_2", prepend_hash(INDEX_ON_VALUE_SCHEMA))
         with raises_yt_error("Cannot create secondary index for a secondary index"):
             create_secondary_index("//tmp/secondary", "//tmp/secondary_2", kind="full_sync")
         with raises_yt_error("Index cannot have multiple primary tables"):
             create_secondary_index("//tmp/secondary_2", "//tmp/secondary", kind="full_sync")
-        self._create_table("//tmp/super_table", PRIMARY_SCHEMA_WITH_EXPRESSION)
+        self._create_table("//tmp/super_table", prepend_hash(PRIMARY_SCHEMA))
         with raises_yt_error("Cannot use a table with indices as an index"):
             create_secondary_index("//tmp/super_table", "//tmp/table", kind="full_sync")
 
@@ -709,8 +700,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
-    @pytest.mark.parametrize("index_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
+    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, prepend_hash(PRIMARY_SCHEMA)))
+    @pytest.mark.parametrize("index_schema", (INDEX_ON_VALUE_SCHEMA, prepend_hash(INDEX_ON_VALUE_SCHEMA)))
     def test_different_evaluated_columns(self, table_schema, index_schema):
         self._create_basic_tables(table_schema=table_schema, index_schema=index_schema, mount=True)
 
@@ -1081,13 +1072,34 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ])
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
-    @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
-    def test_different_evaluated_columns(self, table_schema, index_table_schema):
+    @pytest.mark.parametrize("schemas", (
+        (PRIMARY_SCHEMA, prepend_hash(INDEX_ON_VALUE_SCHEMA)),
+        (prepend_hash(PRIMARY_SCHEMA), INDEX_ON_VALUE_SCHEMA),
+        (prepend_hash(PRIMARY_SCHEMA), prepend_hash(INDEX_ON_VALUE_SCHEMA)),
+    ))
+    def test_different_evaluated_columns(self, schemas):
+        table_schema, index_table_schema = schemas
         self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
         index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
         self._insert_rows([{"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}])
         self._expect_from_index([index_row])
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("schemas", (
+        (PRIMARY_SCHEMA_WITH_LIST, prepend_hash(UNFOLDING_INDEX_SCHEMA)),
+        (prepend_hash(PRIMARY_SCHEMA_WITH_LIST), UNFOLDING_INDEX_SCHEMA),
+        (prepend_hash(PRIMARY_SCHEMA_WITH_LIST), prepend_hash(UNFOLDING_INDEX_SCHEMA)),
+    ))
+    def test_different_evaluated_columns_unfolding(self, schemas):
+        table_schema, index_table_schema = schemas
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_table_schema,
+            kind="unfolding",
+            unfolded_column="value",
+            mount=True)
+        self._insert_rows([{"key": 1, "value": [3]}])
+        self._expect_from_index([{"key": 1, "value": 3, EMPTY_COLUMN_NAME: None}])
 
     @authors("sabdenovch")
     def test_predicate(self):
@@ -1151,7 +1163,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_unique_value(self):
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            table_schema=prepend_hash(PRIMARY_SCHEMA),
             index_schema=UNIQUE_VALUE_INDEX_SCHEMA,
             kind="unique",
             mount=True,
@@ -1200,7 +1212,7 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     @authors("sabdenovch")
     def test_secondary_index_unique_key_value_pair(self):
         self._create_basic_tables(
-            table_schema=PRIMARY_SCHEMA_WITH_EXPRESSION,
+            table_schema=prepend_hash(PRIMARY_SCHEMA),
             index_schema=UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA,
             kind="unique",
             mount=True,
