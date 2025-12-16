@@ -128,10 +128,6 @@ private:
 
 bool StartsWithAmpersand(TYPathBuf pathSuffix)
 {
-    // NB: Such places are implemented via |TTokenizer| abstraction but they can
-    // be probably implemented more optimally via straightforward checking of
-    // first byte. The reason to not do it is unnecessary abstraction layer...
-    // TODO(kvk1920): think of it.
     TTokenizer tokenizer(pathSuffix);
     tokenizer.Advance();
     return tokenizer.GetType() == ETokenType::Ampersand;
@@ -366,10 +362,6 @@ TResolveIterationResult ResolveByObjectId(
         return ResolveByPath(session, method, std::move(rewrittenPath), pathIsAdditional);
     }
 
-    // NB: of course, we could respond just after resolve in Sequoia tables.
-    // But while we don't have any way to bypass Sequoia resolve we use "exists"
-    // verb in tests to check object existence in master.
-    // TODO(kvk1920): design some way to bypass Sequoia resolve.
     if (method == "Exists" || method == "Get") {
         return TForwardToMaster{std::move(path)};
     }
@@ -377,7 +369,7 @@ TResolveIterationResult ResolveByObjectId(
     // NB: link creation is a bit asynchronous. Link is created at master first
     // and only then is replicated to Sequoia resolve tables. We probably don't
     // want to treat such replication lag as node not existing.
-    // TODO(kvk1920): some kind of sync with GUQM.
+    // TODO(aleksandra-zh): drop when Kulenov's clock will be implemented.
     if (TypeFromId(rootDesignator) == EObjectType::Link) {
         return TForwardToMaster{std::move(path)};
     }
