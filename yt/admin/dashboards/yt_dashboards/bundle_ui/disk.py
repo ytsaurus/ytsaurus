@@ -15,7 +15,7 @@ def build_user_disk():
         NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate").host_container_legend_format("hunks"))
 
     return (Rowset()
-            .aggr("table_tag", "table_path", "user")
+            .aggr("table_tag", "table_path", "user", "medium")
             .top()
             .min(0)
             .stack(False)
@@ -56,8 +56,8 @@ def build_user_background_disk():
     top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}}")
 
     return (Rowset()
-            .all("#AB", "method", "medium")
-            .aggr("table_tag", "table_path")
+            .all("#AB", "method")
+            .aggr("table_tag", "table_path", "medium")
             .top()
             .stack()
             .row()
