@@ -1433,8 +1433,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     auto timestamp = request->timestamp();
     auto waitable = request->waitable();
 
-    // TODO(kvk1920): move TLockKey to /yt/yt/server/lib/sequoia to avoid code
-    // duplication.
     context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
         mode,
         MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
