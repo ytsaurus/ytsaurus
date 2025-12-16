@@ -35,7 +35,7 @@ struct TSecondaryIndexModificationsBufferTag { };
 struct TIndexDescriptor
 {
     NTabletClient::ESecondaryIndexKind Kind;
-    std::optional<int> UnfoldedColumnPosition;
+    std::optional<int> UnfoldedColumnPositionInIndexWriteSchema;
     std::optional<int> PredicatePosition;
     std::vector<int> AggregateColumnPositions;
 };
@@ -238,7 +238,9 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
             indexMeta.UnfoldedColumn);
 
         if (indexMeta.UnfoldedColumn) {
-            descriptor.UnfoldedColumnPosition = indexSchema.GetColumnIndex(*indexMeta.UnfoldedColumn);
+            descriptor.UnfoldedColumnPositionInIndexWriteSchema = indexTableMountInfo
+                ->Schemas[ETableSchemaKind::Write]
+                ->GetColumnIndex(*indexMeta.UnfoldedColumn);
         }
 
         for (const auto& column : indexSchema.Columns()) {
@@ -263,6 +265,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 
     for (auto& descriptor : IndexDescriptors_) {
         std::vector<int> positions;
+        positions.reserve(descriptor.AggregateColumnPositions.size());
         for (auto id : descriptor.AggregateColumnPositions) {
             positions.push_back(ResultingRowMapping_[id]);
         }
@@ -479,7 +482,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModifica
                 std::move(indexSchema),
                 IndexDescriptors_[index].PredicatePosition,
                 std::move(emptyValue),
-                *IndexDescriptors_[index].UnfoldedColumnPosition,
+                *IndexDescriptors_[index].UnfoldedColumnPositionInIndexWriteSchema,
                 IndexDescriptors_[index].AggregateColumnPositions);
 
         case ESecondaryIndexKind::Unique:
@@ -551,18 +554,18 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
     TTableSchemaPtr indexSchema,
     std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty,
-    int unfoldedColumnPosition,
+    int unfoldedColumnPositionInIndexWriteSchema,
     const std::vector<int>& aggregatePositions) const
 {
     std::vector<TRowModification> secondaryModifications;
 
     auto unfoldValue = [&] (TUnversionedRow row, std::function<void(TUnversionedRow)> consumeRow) {
-        if (row[unfoldedColumnPosition].Type == EValueType::Null) {
+        if (row[unfoldedColumnPositionInIndexWriteSchema].Type == EValueType::Null) {
             return;
         }
 
         auto memoryInput = TMemoryInput(
-            FromUnversionedValue<NYson::TYsonStringBuf>(row[unfoldedColumnPosition])
+            FromUnversionedValue<NYson::TYsonStringBuf>(row[unfoldedColumnPositionInIndexWriteSchema])
             .AsStringBuf());
 
         auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
@@ -570,7 +573,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
 
         cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
             auto producedRow = RowBuffer_->CaptureRow(row, /*captureValues*/ false);
-            auto& unfoldedValue = producedRow[unfoldedColumnPosition];
+            auto& unfoldedValue = producedRow[unfoldedColumnPositionInIndexWriteSchema];
 
             switch (auto type = cursor->GetCurrent().GetType()) {
                 case EYsonItemType::EntityValue:
