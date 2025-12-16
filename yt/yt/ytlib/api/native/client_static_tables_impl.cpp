@@ -112,8 +112,9 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
     std::vector<TColumnarStatistics> allStatistics;
     allStatistics.reserve(paths.size());
 
-    std::vector<ui64> chunkCount;
-    chunkCount.reserve(paths.size());
+    std::vector<i64> chunkCounts;
+    chunkCounts.reserve(paths.size());
+    i64 totalChunkCount = 0;
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetcher = New<TColumnarStatisticsFetcher>(
@@ -130,6 +131,11 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
     for (const auto& path : paths) {
         YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
+
+        if (!path.GetColumns().has_value()) {
+            THROW_ERROR_EXCEPTION("Received ypath without column selectors")
+                << TErrorAttribute("ypath", path);
+        }
 
         auto transactionId = path.GetTransactionId();
 
@@ -152,28 +158,29 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         YT_VERIFY(!inputTableInfo.RlsReadSpec);
 
-        YT_LOG_INFO("Fetching columnar statistics (Columns: %v, FetcherMode: %v)",
-            *path.GetColumns(),
-            options.FetcherMode);
+        chunkCounts.push_back(std::ssize(inputTableInfo.Chunks));
+        totalChunkCount += std::ssize(inputTableInfo.Chunks);
 
-        YT_VERIFY(path.GetColumns().operator bool());
         auto stableColumnNames = MapNamesToStableNames(*inputTableInfo.Schema, *path.GetColumns(), NonexistentColumnName);
-        for (const auto& inputChunk : inputTableInfo.Chunks) {
-            fetcher->AddChunk(inputChunk, stableColumnNames);
+        for (auto& inputChunk : inputTableInfo.Chunks) {
+            fetcher->AddChunk(std::move(inputChunk), stableColumnNames);
         }
-        chunkCount.push_back(inputTableInfo.Chunks.size());
     }
+
+    YT_LOG_INFO("Fetching columnar statistics (FetcherMode: %v, TotalChunkCount: %v)",
+        options.FetcherMode,
+        totalChunkCount);
 
     WaitFor(fetcher->Fetch())
         .ThrowOnError();
 
     const auto& chunkStatistics = fetcher->GetChunkStatistics();
 
-    ui64 statisticsIndex = 0;
+    i64 statisticsIndex = 0;
 
     for (int pathIndex = 0; pathIndex < std::ssize(paths); ++pathIndex) {
         allStatistics.push_back(TColumnarStatistics::MakeEmpty(paths[pathIndex].GetColumns()->size()));
-        for (ui64 chunkIndex = 0; chunkIndex < chunkCount[pathIndex]; ++statisticsIndex, ++chunkIndex) {
+        for (i64 chunkIndex = 0; chunkIndex < chunkCounts[pathIndex]; ++statisticsIndex, ++chunkIndex) {
             allStatistics[pathIndex] += chunkStatistics[statisticsIndex];
         }
     }

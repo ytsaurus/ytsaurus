@@ -53,7 +53,7 @@ public:
 
     void AddChunk(
         NChunkClient::TInputChunkPtr chunk,
-        std::vector<TColumnStableName> columnStableNames,
+        const std::vector<TColumnStableName>& columnStableNames,
         const TTableSchemaPtr& tableSchema = nullptr);
 
 private:

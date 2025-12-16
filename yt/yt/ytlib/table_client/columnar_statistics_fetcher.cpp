@@ -250,7 +250,7 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
 
 void TColumnarStatisticsFetcher::AddChunk(
     TInputChunkPtr chunk,
-    std::vector<TColumnStableName> columnStableNames,
+    const std::vector<TColumnStableName>& columnStableNames,
     const TTableSchemaPtr& tableSchema)
 {
     if (!NeedFetchFromNode_.emplace(chunk, true).second) {
