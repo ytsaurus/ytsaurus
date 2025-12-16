@@ -393,6 +393,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
+        Bootstrap_->GetTabletSnapshotStore()->ValidateUserNotBanned(GetCurrentAuthenticationIdentity().User);
+
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
         context->SetRequestInfo("ExecutionPool: %v",
             requestHeaderExt.execution_pool());
@@ -513,6 +515,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
+        Bootstrap_->GetTabletSnapshotStore()->ValidateUserNotBanned(GetCurrentAuthenticationIdentity().User);
+
         auto requestCodecId = FromProto<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = FromProto<NCompression::ECodec>(request->response_codec());
         auto timestamp = FromProto<TTimestamp>(request->timestamp());
@@ -1313,6 +1317,7 @@ private:
                         : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
                     snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
                     snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
+                    snapshotStore->ValidateUserNotBanned(GetCurrentAuthenticationIdentity().User);
                 } catch (const std::exception& ex) {
                     subresponse->set_tablet_missing(true);
                     ToProto(subresponse->mutable_error(), TError(ex));
@@ -1488,6 +1493,7 @@ private:
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
+        snapshotStore->ValidateUserNotBanned(GetCurrentAuthenticationIdentity().User);
 
         if (tabletSnapshot->PhysicalSchema->IsSorted()) {
             THROW_ERROR_EXCEPTION("Fetching rows for sorted tablets is not implemented");

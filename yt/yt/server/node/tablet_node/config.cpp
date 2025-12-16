@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/query/engine_api/config.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -557,6 +559,20 @@ void TErrorManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUserBanDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("ban_message", &TThis::BanMessage)
+        .Default();
+    registrar.Parameter("banned_user_regex", &TThis::BannedUserRegex)
+        .Default();
+    registrar.Parameter("failure_probability", &TThis::FailureProbability)
+        .Default();
+    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -615,6 +631,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("smooth_movement_tracker", &TThis::SmoothMovementTracker)
+        .DefaultNew();
+
+    registrar.Parameter("user_ban", &TThis::UserBan)
         .DefaultNew();
 
     registrar.Parameter("overload_controller", &TThis::OverloadController)
