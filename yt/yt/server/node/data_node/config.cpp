@@ -540,6 +540,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default();
 
+    registrar.Parameter("sleep_before_perform_put_blocks", &TThis::SleepBeforePerformPutBlocks)
+        .Default();
+
     registrar.Parameter("always_throttle_location", &TThis::AlwaysThrottleLocation)
         .Default(false);
 

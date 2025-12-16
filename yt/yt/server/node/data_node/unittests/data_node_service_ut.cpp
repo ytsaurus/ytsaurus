@@ -591,6 +591,7 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks = TDuration::Seconds(1);
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
         ChannelFactory_ = CreateTestChannelFactory(
@@ -1213,6 +1214,26 @@ TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
     for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
         WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
     }
+}
+
+TEST_F(TDataNodeTest, PutBlocksCancelChunk)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, true, false)).ThrowOnError();
+
+    TRandomGenerator generator{RandomNumber<ui64>()};
+
+    auto blocks = CreateBlocks(100, 1_KB, generator);
+    auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+
+    auto putBlocksEnd = PutBlocks(sessionId, {blocks[0]}, 10, cummulativeBlockSize);
+    auto putBlocksBeging = PutBlocks(sessionId, {blocks[0]}, 0, cummulativeBlockSize);
+
+    WaitFor(CancelChunk(sessionId)).ThrowOnError();
+
+    putBlocksEnd.Cancel(TError("Timeout"));
+
+    EXPECT_THROW(WaitFor(putBlocksBeging).ThrowOnError(), NYT::TErrorException);
 }
 
 TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
