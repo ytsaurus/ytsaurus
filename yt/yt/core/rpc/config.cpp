@@ -274,7 +274,8 @@ void TBalancingChannelConfig::Register(TRegistrar registrar)
             ++endpointConfigCount;
         }
         if (endpointConfigCount != 1) {
-            THROW_ERROR_EXCEPTION("Exactly one of \"addresses\" and \"endpoints\" must be specified");
+            YT_VERIFY(false);
+            THROW_ERROR_EXCEPTION("Exactly one of \"addresses\" and \"endpoints\" must be specified: count: %v, hasAddresses: %v, hasEndpoints: %v", endpointConfigCount, bool(config->Addresses), bool(config->Endpoints));
         }
     });
 }
