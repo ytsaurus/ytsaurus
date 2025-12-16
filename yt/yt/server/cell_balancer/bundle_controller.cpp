@@ -513,7 +513,7 @@ private:
         CompleteHulkRequests(transaction, Config_->HulkAllocationsPath, mutations.CompletedAllocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
-        SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
+        SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedNodeAnnotations);
         SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
         SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
         SetNodeAttributes(transaction, NodeAttributeBanned, mutations.ChangedBannedFlag);
@@ -554,7 +554,7 @@ private:
         ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
         ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
         ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
-        ChangedNodeAnnotationCounter_.Increment(mutations.ChangeNodeAnnotations.size());
+        ChangedNodeAnnotationCounter_.Increment(mutations.ChangedNodeAnnotations.size());
         InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());

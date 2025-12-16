@@ -3,24 +3,103 @@
 #include "config.h"
 #include "cypress_bindings.h"
 
-#include <algorithm>
+#include <yt/yt/core/misc/mpl.h>
+
+// #include <yt/yt/core/ytree/serialize.h>
+
 #include <library/cpp/yt/yson_string/public.h>
 
 #include <util/string/subst.h>
 
-#include <compare>
-#include <cmath>
-#include <vector>
-
 namespace NYT::NCellBalancer {
 
-using namespace NYson;
 using namespace NBundleControllerClient;
+using namespace NLogging;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = BundleControllerLogger;
 static const std::string DefaultDataCenterName = "default";
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerMutations::Log(const TLogger& Logger) const
+{
+    auto doFormatValue = [] <class T> (const T& value, auto&& self) -> std::string {
+        std::string result;
+        if constexpr (NMpl::IsSpecialization<T, TIntrusivePtr>) {
+            result = ConvertToYsonString(value, EYsonFormat::Text).ToString();
+            if constexpr (CMutationWithBundleName<typename T::TUnderlying>) {
+                result += ", BundleName: " + value->BundleName;
+            }
+        } else if constexpr (NMpl::IsSpecialization<T, TBundleMutation>) {
+            result = self(value.Mutation, self);
+        } else {
+            result = Format("%v", value);
+        }
+
+        if constexpr (CMutationWithBundleName<T>) {
+            result += ", BundleName: " + value.BundleName;
+        }
+
+        return result;
+    };
+
+    auto formatValue = [&] (const auto& value) {
+        return doFormatValue(value, doFormatValue);
+    };
+
+    auto onIndexedEntries = [&] (TStringBuf prefix, const auto& entries) {
+        for (const auto& [key, value] : entries) {
+            YT_LOG_DEBUG("Mutation: %v (Key: %v, Value: %v)",
+                prefix,
+                key,
+                formatValue(value));
+        }
+    };
+
+    auto onSet = [&] (TStringBuf prefix, const auto& entries) {
+        for (const auto& entry : entries) {
+            YT_LOG_DEBUG("Mutation: %v (Value: %v)",
+                prefix,
+                formatValue(entry));
+        }
+    };
+
+    onIndexedEntries("new allocation", NewAllocations);
+    onIndexedEntries("changed allocation", ChangedAllocations);
+    onIndexedEntries("new deallocation", NewDeallocations);
+    onIndexedEntries("change bundle state", ChangedStates);
+    onIndexedEntries("change node annotations", ChangedNodeAnnotations);
+    onIndexedEntries("change proxy annotations", ChangedProxyAnnotations);
+    onSet("complete allocation", CompletedAllocations);
+    onIndexedEntries("change node user tags", ChangedNodeUserTags);
+    onIndexedEntries("change decommissioned flag", ChangedDecommissionedFlag);
+    onIndexedEntries("change banned flag", ChangedBannedFlag);
+    onIndexedEntries("change enable_bundle_balancer flag", ChangedEnableBundleBalancerFlag);
+    onIndexedEntries("change mute_tablet_cells_check flag", ChangedMuteTabletCellsCheck);
+    onIndexedEntries("change mute_tablet_cell_snapshots_check flag", ChangedMuteTabletCellSnapshotsCheck);
+    onIndexedEntries("change proxy role", ChangedProxyRole);
+    onSet("remove proxy role", RemovedProxyRole);
+    for (const auto& mutation : CellsToRemove) {
+        YT_LOG_DEBUG("Mutation: remove cell (Value: %v)",
+            mutation.Mutation);
+    }
+    onIndexedEntries("create cells", CellsToCreate);
+    onIndexedEntries("lift system account limit", LiftedSystemAccountLimit);
+    onIndexedEntries("lower system account limit", LoweredSystemAccountLimit);
+    if (ChangedRootSystemAccountLimit) {
+        YT_LOG_DEBUG("Mutation: change root system account limit (Value: %v)",
+            ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
+    }
+    onSet("node to cleanup", NodesToCleanup);
+    onSet("proxy to cleanup", ProxiesToCleanup);
+    onIndexedEntries("change tablet static memory", ChangedTabletStaticMemory);
+    onIndexedEntries("change bundle short name", ChangedBundleShortName);
+    onIndexedEntries("change bundle node tag filter", ChangedNodeTagFilters);
+    onIndexedEntries("initialize bundle target config", InitializedBundleTargetConfig);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2212,7 +2291,7 @@ public:
 
     void SetInstanceAnnotations(const std::string& instanceName, TBundleControllerInstanceAnnotationsPtr bundleControllerAnnotations, TSchedulerMutations* mutations)
     {
-        mutations->ChangeNodeAnnotations[instanceName] = mutations->WrapMutation(std::move(bundleControllerAnnotations));
+        mutations->ChangedNodeAnnotations[instanceName] = mutations->WrapMutation(std::move(bundleControllerAnnotations));
     }
 
     bool IsInstanceReadyToBeDeallocated(
@@ -2322,7 +2401,7 @@ public:
                 bundleName,
                 nodeName,
                 ConvertToYsonString(changed, EYsonFormat::Text));
-            mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(changed);
+            mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(changed);
             return false;
         }
 
@@ -2365,7 +2444,7 @@ public:
             auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
             newAnnotations->DeallocationStrategy = strategy;
-            mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
+            mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
             return false;
         }
 
@@ -2374,7 +2453,7 @@ public:
         if (strategy == DeallocationStrategyReturnToSpareBundle && bundleControllerAnnotations->AllocatedForBundle == bundleName) {
             auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
             newAnnotations->AllocatedForBundle = "";
-            mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
+            mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
             return false;
         }
 
@@ -3506,6 +3585,9 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     MiscBundleChecks(input, mutations);
 
     mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
+
+    YT_LOG_DEBUG("Logging scheduled mutations");
+    mutations->Log(Logger());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
