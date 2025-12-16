@@ -13,7 +13,6 @@ from yt_commands import (
     select_rows,
     register_queue_consumer,
     advance_consumer,
-    set as yt_set,
 )
 
 from yt_helpers import profiler_factory
@@ -174,15 +173,24 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
 
         queue = self.create_queue_path()
-        self._create_queue(queue, mount=True)
         if queue_tag:
-            yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+            self._create_queue(queue, mount=True, queue_profiling_tag=queue_tag)
+        else:
+            self._create_queue(queue, mount=True)
         insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
 
         consumer_path = self.create_consumer_path()
-        create("queue_consumer", consumer_path)
-        if consumer_tag:
-            yt_set(f"{consumer_path}/@queue_consumer_profiling_tag", consumer_tag)
+        create(
+            "queue_consumer",
+            consumer_path,
+            attributes=(
+                {
+                    "queue_consumer_profiling_tag": consumer_tag,
+                }
+                if consumer_tag
+                else {}
+            ),
+        )
 
         register_queue_consumer(queue, consumer_path, vital=True)
 
@@ -223,9 +231,10 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
     )
     def test_profiling_tag(self, queue_tag):
         queue = self.create_queue_path()
-        self._create_queue(queue, mount=True)
         if queue_tag:
-            yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+            self._create_queue(queue, mount=True, queue_profiling_tag=queue_tag)
+        else:
+            self._create_queue(queue, mount=True)
 
         self._wait_for_component_passes()
         profiler = get_profiler()
