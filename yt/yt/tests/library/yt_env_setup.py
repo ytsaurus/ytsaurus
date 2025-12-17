@@ -1613,7 +1613,7 @@ class YTEnvSetup(object):
             orchids.append("//sys/scheduler/orchid/scheduler")
             _wait_for_configs(orchids)
 
-        if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and \
+        if not self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index) and \
                 self.get_param("USE_SEQUOIA", cluster_index) and \
                 not self._is_ground_cluster(cluster_index) and \
                 any("sequoia_node_host" in cell_descriptor["roles"]
