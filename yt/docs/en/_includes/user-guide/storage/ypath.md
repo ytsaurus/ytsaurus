@@ -44,6 +44,14 @@ In YPath, a relative path starts with a slash. Thus, the slash serves not as a s
 
 {% endnote %}
 
+```
+{% note warning %}
+
+The number of *child transitions* contained in the path is limited. An attempt to access a path exceeding this limit will result in an error. The limit is 256, but it may be changed in the future.
+
+{% endnote %}
+```
+
 ### Examples { #simple_ypath_examples }
 
 ```
