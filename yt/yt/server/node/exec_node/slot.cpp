@@ -667,6 +667,17 @@ public:
         }
     }
 
+    void ValidateEnabled() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        if (!IsEnabled_.load()) {
+            THROW_ERROR_EXCEPTION("User slot is disabled")
+                << TErrorAttribute("slot_index", SlotIndex_);
+        }
+
+        Location_->ValidateEnabled();
+    }
+
 private:
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;

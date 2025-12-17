@@ -138,6 +138,8 @@ public:
 
     TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandBoxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
 
+    void ValidateEnabled() const;
+
 private:
     const TSlotLocationConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -190,8 +192,6 @@ private:
     NThreading::TAtomicObject<TError> Alert_;
 
     NProfiling::TBufferedProducerPtr MakeCopyMetricBuffer_ = New<NProfiling::TBufferedProducer>();
-
-    void ValidateEnabled() const;
 
     static void ValidateNotExists(const TString& path);
 
