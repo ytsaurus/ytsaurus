@@ -2245,10 +2245,12 @@ private:
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
 
-        int maxRetrievedDepth = 0;
+        int depth = 0;
         bool subtreeExceedesSizeLimit = false;
-        while (!layerToFetch.empty() && !subtreeExceedesSizeLimit) {
-            ++maxRetrievedDepth;
+        while (!layerToFetch.empty()) {
+            ++depth;
+
+            YT_LOG_TRACE("Fetching next layer (CurrentDepth: %v)", depth);
 
             std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
@@ -2279,21 +2281,24 @@ private:
                     return totalCount;
                 });
 
-            // If the number of nodes in a subtree of certain depth it equal to the limit, then we
-            // should fetch the next layer, so opaques can be set correctly. Thankfully it's
-            // cheap to fetch data from a dynamic table. Additionaly root node should not be made
-            // opaque, hence maxRetrievedDepth check.
-            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
+            // Root node should not be made opaque, hence depth check.
+            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && depth > 1) {
+                YT_LOG_DEBUG(
+                    "Subtree exceeds size limit (ResponseSubtreeSize: %v, SubtreeDepth: %v "
+                    "NextLayerChildrenCount: %v, ResponseSizeLimit: %v)",
+                    std::ssize(nodeIdToChildren),
+                    depth,
+                    layerChildrenCount,
+                    responseSizeLimit);
+
                 subtreeExceedesSizeLimit = true;
+                break;
             }
 
             auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
             auto childAcdIt = layerChildrenAcds.begin();
 
-            // It's still useful to save extra node information even if subtree exceedes size limit.
-            // Said information can be useful during tree traversal.
             std::vector<TNode> nextLayerToFetch;
-
             YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
             for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
@@ -2323,8 +2328,15 @@ private:
 
         if (!subtreeExceedesSizeLimit) {
             // TODO(danilalexeev): YT-26733.
-            maxRetrievedDepth = 0;
+            depth = 0;
         }
+
+        YT_LOG_DEBUG(
+            "Finished collecting nodes to fetch "
+            "(ResponseSubtreeSize: %v, ScalarNodeCount: %v, MasterAttribueFilter: %v)",
+            std::ssize(nodeIdToChildren),
+            std::ssize(scalarNodeIdsToFetchFromMaster),
+            masterAttributeFilter);
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             SequoiaSession_,
@@ -2341,7 +2353,7 @@ private:
 
         VisitSequoiaTree(
             Id_,
-            maxRetrievedDepth,
+            depth,
             &writer,
             fullAttributeFilter,
             std::move(nodeIdToChildren),
