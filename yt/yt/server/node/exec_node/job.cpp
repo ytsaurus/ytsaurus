@@ -3230,7 +3230,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     {
         auto userSlot = GetUserSlot();
         ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
-        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(ESandboxKind::User);
+        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(
+            ESandboxKind::User,
+            RootVolume_,
+            Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS);
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
         ExecAttributes_.JobProxySocketPath = userSlot->GetJobProxyUnixDomainSocketPath();
