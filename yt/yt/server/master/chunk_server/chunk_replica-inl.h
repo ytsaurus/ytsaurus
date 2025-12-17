@@ -100,14 +100,14 @@ Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAcces
 
 template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
 Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
-    TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor> other)
+    const TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor>& other)
     requires (!WithReplicaState)
     : Value_(other.ToGenericState().Value_)
 { }
 
 template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
 Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
-    TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other)
+    const TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor>& other)
     requires WithReplicaState
     : Value_(other.Value_)
 { }
