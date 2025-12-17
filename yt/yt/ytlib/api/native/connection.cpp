@@ -631,30 +631,31 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        return MasterCellDirectory_->FindMasterChannel(kind, cellTag);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->FindMasterChannel(effectiveKind, cellTag);
     }
 
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellTag);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->GetMasterChannelOrThrow(effectiveKind, cellTag);
     }
 
     IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellId cellId) override
     {
-        return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellId);
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
+        return MasterCellDirectory_->GetMasterChannelOrThrow(effectiveKind, cellId);
     }
 
     IChannelPtr GetCypressChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto effectiveKind = kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured()
-            ? EMasterChannelKind::Follower
-            : kind;
+        auto effectiveKind = GetEffectiveMasterChannelKind(kind);
 
         auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
             ? GetPrimaryMasterCellTag()
@@ -667,6 +668,23 @@ public:
         return canUseCypressProxy && CypressProxyChannel_
             ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
             : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
+    }
+
+    EMasterChannelKind GetEffectiveMasterChannelKind(EMasterChannelKind kind) const
+    {
+        if (kind == EMasterChannelKind::ClientSideCache &&
+            !MasterCellDirectory_->IsClientSideCacheEnabled())
+        {
+            kind = EMasterChannelKind::Cache;
+        }
+
+        if (kind == EMasterChannelKind::Cache &&
+            !MasterCellDirectory_->IsMasterCacheEnabled())
+        {
+            kind = EMasterChannelKind::Follower;
+        }
+
+        return kind;
     }
 
     const IChannelPtr& GetSchedulerChannel() override

@@ -229,6 +229,10 @@ struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
 
+    //! If false, local (per-connection) object service caching will disabled.
+    //! This affects both the local connection and remote cluster connections.
+    bool EnableClientSideCache = true;
+
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;
 
