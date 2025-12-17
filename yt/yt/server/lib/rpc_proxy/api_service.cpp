@@ -6686,6 +6686,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetColumnarStatistics)
 
     options.EnableEarlyFinish = request->enable_early_finish();
 
+    options.EnableReadSizeEstimation = request->enable_read_size_estimation();
+
     if (request->has_transactional_options()) {
         FromProto(&options, request->transactional_options());
     }
