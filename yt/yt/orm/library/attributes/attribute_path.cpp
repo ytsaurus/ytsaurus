@@ -65,6 +65,12 @@ void SkipCommonTokensWithPattern(TTokenizer& patternTokenizer, TTokenizer& pathT
     }
 }
 
+bool TryParseListIndex(TStringBuf token)
+{
+    [[maybe_unused]] int result = 0;
+    return TryFromString(token, result);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +155,53 @@ EAttributePathMatchResult MatchAttributePathToPattern(NYPath::TYPathBuf pattern,
         : EAttributePathMatchResult::None;
 }
 
+TSplitResult TryConsumePrefix(const NYPath::TYPath& pattern, const NYPath::TYPath& path)
+{
+    auto notFound = TSplitResult(std::nullopt, "");
+    TTokenizer patternTokenizer(pattern);
+    TTokenizer pathTokenizer(path);
+
+    auto patternToken = patternTokenizer.Advance();
+    auto pathToken = pathTokenizer.Advance();
+    while (true) {
+        // End of path.
+        if (pathToken == ETokenType::EndOfStream) {
+            auto prefix = patternTokenizer.GetPrefix();
+            auto suffix = patternTokenizer.GetToken() + NYPath::TYPath(patternTokenizer.GetSuffix());
+            return TSplitResult(prefix, suffix);
+        }
+        // End of pattern.
+        if (patternToken == ETokenType::EndOfStream) {
+            return notFound;
+        }
+
+        // Wildcard
+        if (patternToken == ETokenType::Asterisk && pathToken == ETokenType::Literal) {
+            if (NYPath::IsSpecialListKey(pathTokenizer.GetToken()) || TryParseListIndex(pathTokenizer.GetToken())) {
+                patternToken = patternTokenizer.Advance();
+                pathToken = pathTokenizer.Advance();
+                continue;
+            } else {
+                return notFound;
+            }
+        }
+        // Check if literals match.
+        if (patternToken != pathToken) {
+            return notFound;
+        }
+        if (patternToken == ETokenType::Literal) {
+            if (patternTokenizer.GetToken() != pathTokenizer.GetToken()) {
+                return notFound;
+            }
+        }
+
+        patternToken = patternTokenizer.Advance();
+        pathToken = pathTokenizer.Advance();
+    }
+
+    return notFound;
+}
+
 TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int length)
 {
     int partsFound = 0;
@@ -167,11 +220,11 @@ TSplitResult GetAttributePathRoot(const NYPath::TYPath& path, int length)
             break;
         }
     }
-    return TSplitResult{"", path};
+    return TSplitResult{std::nullopt, ""};
 }
 
 // Split pattern by asterisk.
-TSplitResult SplitPatternByAsterisk(const NYPath::TYPath& path)
+std::pair<NYPath::TYPath, std::optional<NYPath::TYPath>> SplitPatternByAsterisk(const NYPath::TYPath& path)
 {
     NYPath::TTokenizer tokenizer(path);
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
@@ -179,10 +232,10 @@ TSplitResult SplitPatternByAsterisk(const NYPath::TYPath& path)
         auto prevText = tokenizer.GetPrefix();
         auto next = tokenizer.Advance();
         if (prev == NYPath::ETokenType::Slash && next == NYPath::ETokenType::Asterisk) {
-            return TSplitResult{prevText, tokenizer.GetSuffix()};
+            return std::pair(TYPath(prevText), std::optional(TYPath(tokenizer.GetSuffix())));
         }
     }
-    return TSplitResult(path, std::nullopt);
+    return std::pair(path, std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
