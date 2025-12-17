@@ -2040,10 +2040,10 @@ private:
             .IncludeHistory = true
         };
 
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+        for (const auto& [replicaId, replicaInfo] : GetValuesSortedByKey(replicationCard->Replicas())) {
             auto* protoEntry = protoReplicationCard->add_replicas();
             ToProto(protoEntry->mutable_id(), replicaId);
-            ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
+            ToProto(protoEntry->mutable_info(), *replicaInfo, fetchOptions);
         }
 
         auto migrationToken = Slot_->GenerateId(EObjectType::Null);
