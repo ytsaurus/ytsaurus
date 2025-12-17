@@ -127,6 +127,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             .StoreChunkStatistics = true,
             .EnableEarlyFinish = options.EnableEarlyFinish,
             .Logger = Logger,
+            .EnableReadSizeEstimation = options.EnableReadSizeEstimation,
         });
 
     for (const auto& path : paths) {
@@ -163,7 +164,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         auto stableColumnNames = MapNamesToStableNames(*inputTableInfo.Schema, *path.GetColumns(), NonexistentColumnName);
         for (auto& inputChunk : inputTableInfo.Chunks) {
-            fetcher->AddChunk(std::move(inputChunk), stableColumnNames);
+            fetcher->AddChunk(std::move(inputChunk), stableColumnNames, inputTableInfo.Schema);
         }
     }
 
