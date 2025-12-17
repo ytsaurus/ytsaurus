@@ -121,9 +121,11 @@ public:
                     tableDesc.Intents |= TYtTableIntent::Replace;
                     break;
                 case EYtWriteMode::Create:
+                case EYtWriteMode::CreateIfNotExists:
                     tableDesc.Intents |= TYtTableIntent::Create;
                     break;
                 case EYtWriteMode::CreateObject:
+                case EYtWriteMode::CreateObjectIfNotExists:
                     tableDesc.Intents |= TYtTableIntent::Create | TYtTableIntent::View;
                     break;
                 default:

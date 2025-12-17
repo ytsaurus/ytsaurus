@@ -1824,6 +1824,7 @@ private:
         }
 
         if (!ValidateSettings(*settings, EYtSettingType::Initial
+            | EYtSettingType::Mode
             | EYtSettingType::CompressionCodec
             | EYtSettingType::ErasureCodec
             | EYtSettingType::ReplicationFactor
@@ -1850,6 +1851,17 @@ private:
             const TYtTableInfo tableInfo(create.Table());
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist || !initial) {
+                if (const auto m = NYql::GetSetting(*settings, EYtSettingType::Mode)) {
+                    if (EYtWriteMode::CreateIfNotExists == FromString<EYtWriteMode>(m->Tail().Content())) {
+                        YQL_CLOG(INFO, ProviderYt) <<
+                            (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name <<
+                            " already exists. 'CREATE TABLE IF NOT EXISTS' statement will do nothing.";
+
+                        output = create.World().Ptr();
+                        return TStatus::Repeat;
+                    }
+                }
+
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
                     (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name << " already exists."));
                 return TStatus::Error;
@@ -1953,8 +1965,7 @@ private:
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
 
             TExprNode::TPtr newTable;
-            auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx);
-            if (TStatus::Ok != status.Level) {
+            if (auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph,  useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
                 if (TStatus::Error != status.Level && newTable != table) {
                     output = ctx.ChangeChild(*input, TYtWriteTable::idx_Table, std::move(newTable));
                 }
@@ -2042,6 +2053,7 @@ private:
         }
 
         if (!ValidateSettings(*settings, EYtSettingType::Initial
+            | EYtSettingType::Mode
             | EYtSettingType::UserAttrs
             | EYtSettingType::Expiration
             , ctx))
@@ -2059,8 +2071,7 @@ private:
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
 
             TExprNode::TPtr newTable;
-            auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx);
-            if (TStatus::Ok != status.Level) {
+            if (auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
                 if (TStatus::Error != status.Level && newTable != table) {
                     output = ctx.ChangeChild(*input, TYtWriteTable::idx_Table, std::move(newTable));
                 }
@@ -2069,6 +2080,17 @@ private:
             TYtTableInfo tableInfo(create.Table());
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist) {
+                if (const auto m = NYql::GetSetting(*settings, EYtSettingType::Mode)) {
+                    if (EYtWriteMode::CreateObjectIfNotExists == FromString<EYtWriteMode>(m->Tail().Content())) {
+                        YQL_CLOG(INFO, ProviderYt) <<
+                            (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name <<
+                            " already exists. 'CREATE VIEW IF NOT EXISTS' statement will do nothing.";
+
+                        output = create.World().Ptr();
+                        return TStatus::Repeat;
+                    }
+                }
+
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
                     (tableInfo.Meta->SqlView.empty() ? "Table" : "View") << ' ' << tableInfo.Name << " already exists."));
                 return TStatus::Error;

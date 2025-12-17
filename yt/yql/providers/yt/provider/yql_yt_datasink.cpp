@@ -275,7 +275,7 @@ public:
             auto children = node->ChildrenList();
             children.resize(3);
             return ctx.NewCallable(node->Pos(), TYtDropView::CallableName(), std::move(children));
-        } else if (mode && *mode == EYtWriteMode::Create) {
+        } else if (mode && (*mode == EYtWriteMode::Create || *mode == EYtWriteMode::CreateIfNotExists)) {
             if (!node->Child(3U)->IsCallable("Void")) {
                 ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()
                     << "Expected Void, but got: " << node->Child(3U)->Content()));
@@ -289,9 +289,9 @@ public:
             children[3U] = columns ? columns->TailPtr() : ctx.NewList(node->Pos(), {});
             const auto keys = NYql::GetSetting(*settings, EYtSettingType::OrderBy);
             children[4U] = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
-            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Columns | EYtSettingType::OrderBy | EYtSettingType::Mode, ctx);
+            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Columns | EYtSettingType::OrderBy, ctx);
             return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
-        } else if (mode && *mode == EYtWriteMode::CreateObject) {
+        } else if (mode && (*mode == EYtWriteMode::CreateObject || *mode == EYtWriteMode::CreateObjectIfNotExists)) {
             if (!node->Child(3U)->IsCallable("Void")) {
                 ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()
                     << "Expected Void, but got: " << node->Child(3U)->Content()));
@@ -322,7 +322,7 @@ public:
                 return {};
             }
 
-            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Mode | EYtSettingType::Features, ctx);
+            children.back() = NYql::RemoveSetting(*settings, EYtSettingType::Features, ctx);
             return ctx.NewCallable(node->Pos(), TYtCreateView::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());
