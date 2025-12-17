@@ -10,7 +10,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | ------------------- | --------------- | ---------------------------|------------------------------ |
 | `spark.yt.write.batchSize` | `500000` | Size of data sent in a single `WriteTable` operation. |
 | `spark.yt.write.miniBatchSize` | `1000` | Size of a data block sent in `WriteTable`. |
-| `spark.yt.write.timeout` | `60 seconds` | Write timeout limit for a single data block. |
+| `spark.yt.write.timeout` | `120 seconds` | Write timeout limit for a single data block. |
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` before 1.75.2) | `true` | Writing of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. |
 | `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). |
