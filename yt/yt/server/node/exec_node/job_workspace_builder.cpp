@@ -164,7 +164,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 artifact.SandboxKind,
                 artifact.Key.GetCompressedDataSize());
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
             auto symlinkPath =
                 CombinePaths(sandboxPath, artifact.Name);
 
@@ -207,7 +207,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         if (artifact.AccessedViaBind) {
             YT_VERIFY(artifact.Artifact);
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
             auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
 
             YT_LOG_INFO(
@@ -357,7 +357,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -559,7 +559,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -576,7 +576,7 @@ private:
                                 result.Volume->GetPath());
                         }));
 
-                return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumeResults)
+                return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumeResults, Context_.TestRootFS)
                     .Apply(BIND([volumeResults = std::move(volumeResults), this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
                         if (!error.IsOK()) {
                             THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
@@ -931,7 +931,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")

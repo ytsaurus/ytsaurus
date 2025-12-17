@@ -97,11 +97,13 @@ struct IUserSlot
 
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+        const std::vector<TTmpfsVolumeParams>& volumes,
+        bool testRootFs) = 0;
 
     virtual TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
-        const std::vector<TTmpfsVolumeResult>& volumes) = 0;
+        const std::vector<TTmpfsVolumeResult>& volumes,
+        bool testRootFs) = 0;
 
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
     virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
@@ -116,7 +118,7 @@ struct IUserSlot
 
     virtual TString GetSlotPath() const = 0;
 
-    virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
+    virtual TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
 
     virtual std::string GetMediumName() const = 0;
 

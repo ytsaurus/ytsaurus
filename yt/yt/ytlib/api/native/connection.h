@@ -51,6 +51,8 @@ namespace NYT::NApi::NNative {
 struct IConnection
     : public NApi::IConnection
 {
+    using TConnectionOptions = NNative::TConnectionOptions;
+
     virtual const TConnectionStaticConfigPtr& GetStaticConfig() const = 0;
     virtual TConnectionDynamicConfigPtr GetConfig() const = 0;
     virtual TConnectionCompoundConfigPtr GetCompoundConfig() const = 0;
@@ -228,6 +230,10 @@ struct TConnectionOptions
     : public NApi::TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
+
+    //! If false, local (per-connection) object service caching will disabled.
+    //! This affects both the local connection and remote cluster connections.
+    bool EnableClientSideCache = true;
 
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;

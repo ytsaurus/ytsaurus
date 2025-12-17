@@ -38,7 +38,7 @@ IConnectionPtr CreateConnection(
 
         case EConnectionType::Rpc: {
             auto typedConfig = ConvertTo<NRpcProxy::TConnectionConfigPtr>(config);
-            NRpcProxy::TConnectionOptions typedOptions;
+            NApi::TConnectionOptions typedOptions;
             typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
             return NRpcProxy::CreateConnection(
                 std::move(typedConfig),

@@ -14,8 +14,9 @@
 1. Создать [ServiceMonitor](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml) для сбора метрик с компонент {{product-name}}.
 2. Создать ServiceMonitor для метрик с Odin, указав `metrics.serviceMonitor.enable: true` в values для helm-chart (по умолчанию он не создается).
 3. Создать [сервисный аккаунт](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
-4. Выдать созданному аккаунту [роль](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
-5. [Создать Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
+4. Создать [роль](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_cluster_role.yaml).
+5. Выдать созданному аккаунту [роль](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
+6. [Создать Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
 
 ## Способы мониторинга и важные метрики {{product-name}}
 

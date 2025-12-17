@@ -321,6 +321,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const std::optional<NAuth::TTvmId>& GetTvmId() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     IInvokerPtr GetInvoker() override
     {
         YT_UNIMPLEMENTED();
