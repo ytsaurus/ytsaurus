@@ -529,7 +529,7 @@ private:
         newJobProxyConfigTemplate->ClusterConnection = newJobProxyConfigTemplate->OriginalClusterConnection->Clone();
         YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate overriding master addresses, local address: %v", localAddress);
         newJobProxyConfigTemplate->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
-        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate static config: %v", ToString(newJobProxyConfigTemplate->ClusterConnection->Static));
+        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate static config overrided");
 
         newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
