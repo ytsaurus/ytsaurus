@@ -123,7 +123,12 @@ public:
         return SecondaryMasterConnectionConfigs_;
     }
 
-    bool IsMasterCacheConfigured() override
+    bool IsClientSideCacheEnabled() const override
+    {
+        return Options_.EnableClientSideCache;
+    }
+
+    bool IsMasterCacheEnabled() const override
     {
         const auto& config = Config_->MasterCache;
 
@@ -140,6 +145,10 @@ public:
 
     IChannelPtr FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
     {
+        if (kind == EMasterChannelKind::ClientSideCache && !Options_.EnableClientSideCache) {
+            THROW_ERROR_EXCEPTION("Client-side cache channel has been looked up in master cell directory but the client-side cache is disabled");
+        }
+
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellWrappedChannelMap_.find(cellTag);
@@ -555,19 +564,21 @@ private:
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
 
-        auto cachingObjectService = CreateCachingObjectService(
-            Config_->CachingObjectService,
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
-            Cache_,
-            config->CellId,
-            ObjectClientLogger(),
-            /*profiler*/ {},
-            /*authenticator*/ nullptr);
-        //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
-        CachingObjectServices_.emplace(cellTag, cachingObjectService);
-        RpcServer_->RegisterService(cachingObjectService);
-        CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        if (Options_.EnableClientSideCache) {
+            auto cachingObjectService = CreateCachingObjectService(
+                Config_->CachingObjectService,
+                NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
+                Cache_,
+                config->CellId,
+                ObjectClientLogger(),
+                /*profiler*/ {},
+                /*authenticator*/ nullptr);
+            //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
+            CachingObjectServices_.emplace(cellTag, cachingObjectService);
+            RpcServer_->RegisterService(cachingObjectService);
+            CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        }
     }
 
     void InitMasterChannel(
@@ -590,12 +601,14 @@ private:
     {
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
-        auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
-        YT_VERIFY(cachingObjectServiceIt != CachingObjectServices_.end());
+        if (auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
+            cachingObjectServiceIt != CachingObjectServices_.end())
+        {
+            const auto& cachingObjectService = cachingObjectServiceIt->second;
+            RpcServer_->UnregisterService(cachingObjectService);
+            CachingObjectServices_.erase(cachingObjectServiceIt);
+        }
 
-        const auto& cachingObjectService = cachingObjectServiceIt->second;
-        RpcServer_->UnregisterService(cachingObjectService);
-        CachingObjectServices_.erase(cachingObjectServiceIt);
         EraseOrCrash(CellWrappedChannelMap_, cellTag);
         EraseOrCrash(CellNakedChannelMap_, cellTag);
     }

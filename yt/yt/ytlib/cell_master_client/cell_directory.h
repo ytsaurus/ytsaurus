@@ -40,7 +40,8 @@ struct ICellDirectory
     virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
     virtual THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() = 0;
 
-    virtual bool IsMasterCacheConfigured() = 0;
+    virtual bool IsClientSideCacheEnabled() const = 0;
+    virtual bool IsMasterCacheEnabled() const = 0;
 
     virtual NRpc::IChannelPtr FindMasterChannel(
         NApi::EMasterChannelKind kind,
