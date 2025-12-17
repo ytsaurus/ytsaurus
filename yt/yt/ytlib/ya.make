@@ -55,6 +55,7 @@ SRCS(
     api/native/journal_writer.cpp
     api/native/list_operations.cpp
     api/native/options.cpp
+    api/native/encoded_row_stream.cpp
     api/native/partition_tables.cpp
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
