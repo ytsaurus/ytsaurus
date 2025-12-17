@@ -1675,11 +1675,8 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (rsp->net_throttling()) {
-            auto error = TError(
-                NChunkClient::EErrorCode::ChunkBlockFetchFailed,
-                "Peer net is throttled")
+            auto error = TError("Peer net is throttled")
                 << TErrorAttribute("address", peerInfo->Address);
-            MaybeMarkNodeSuspicious(error, peerInfo);
             OnError(error);
             return;
         }
