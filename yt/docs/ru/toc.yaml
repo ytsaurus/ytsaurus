@@ -507,6 +507,8 @@ items:
         href: admin-guide/node-maintenance.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
+      - name: CRI для контейнеризации джобов
+        href: admin-guide/node-cri.md
       - name: Расширение мастер-сервера
         href: admin-guide/cell-addition.md
       - name: Поддержка GPU
