@@ -203,6 +203,7 @@ public:
     MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const std::string&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
+    MOCK_METHOD(const std::optional<NAuth::TTvmId>&, GetTvmId, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));
     MOCK_METHOD(NHiveClient::ITransactionParticipantPtr, CreateTransactionParticipant, (NHiveClient::TCellId, const NApi::TTransactionParticipantOptions&), (override));
     MOCK_METHOD(void, ClearMetadataCaches, (), (override));

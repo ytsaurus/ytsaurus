@@ -51,6 +51,8 @@ namespace NYT::NApi::NNative {
 struct IConnection
     : public NApi::IConnection
 {
+    using TConnectionOptions = NNative::TConnectionOptions;
+
     virtual const TConnectionStaticConfigPtr& GetStaticConfig() const = 0;
     virtual TConnectionDynamicConfigPtr GetConfig() const = 0;
     virtual TConnectionCompoundConfigPtr GetCompoundConfig() const = 0;
