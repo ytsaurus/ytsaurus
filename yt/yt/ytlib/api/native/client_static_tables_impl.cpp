@@ -1,4 +1,5 @@
 #include "client_impl.h"
+#include "encoded_row_stream.h"
 #include "table_reader.h"
 #include "partition_tables.h"
 #include "skynet.h"
@@ -21,7 +22,10 @@
 
 #include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
 
+#include <yt/yt/client/api/formatted_table_reader.h>
 #include <yt/yt/client/api/table_partition_reader.h>
+
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -268,6 +272,51 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
     }
 
     return MakeFuture(NApi::CreateTablePartitionReader(reader, schemas, columnFilters));
+}
+
+TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTableReader(
+    const TRichYPath& path,
+    const TYsonString& format,
+    const TTableReaderOptions& options)
+{
+    return CreateTableReader(path, options).Apply(BIND([=] (const ITableReaderPtr& tableReader) {
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
+        controlAttributesConfig->EnableTableIndex = options.EnableTableIndex;
+        controlAttributesConfig->EnableRangeIndex = options.EnableRangeIndex;
+
+        return CreateEncodedRowStream(
+            tableReader,
+            tableReader->GetNameTable(),
+            ConvertTo<NFormats::TFormat>(format),
+            tableReader->GetTableSchema(),
+            path.GetColumns(),
+            std::move(controlAttributesConfig));
+    }));
+}
+
+TFuture<IFormattedTableReaderPtr> TClient::CreateFormattedTablePartitionReader(
+    const TTablePartitionCookiePtr& cookie,
+    const TYsonString& format,
+    const TReadTablePartitionOptions& options)
+{
+    return CreateTablePartitionReader(cookie, options).Apply(BIND([=] (const ITablePartitionReaderPtr& tableReader) {
+        auto controlAttributesConfig = New<NFormats::TControlAttributesConfig>();
+        controlAttributesConfig->EnableRowIndex = options.EnableRowIndex;
+        controlAttributesConfig->EnableTableIndex = options.EnableTableIndex;
+        controlAttributesConfig->EnableRangeIndex = options.EnableRangeIndex;
+
+        auto schemas = NDetail::GetTableSchemas(tableReader);
+        auto columnFilters = NDetail::GetColumnFilters(tableReader);
+
+        return CreateEncodedRowStream(
+            tableReader,
+            tableReader->GetNameTable(),
+            ConvertTo<NFormats::TFormat>(format),
+            std::move(schemas[0]),
+            std::move(columnFilters[0]),
+            std::move(controlAttributesConfig));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

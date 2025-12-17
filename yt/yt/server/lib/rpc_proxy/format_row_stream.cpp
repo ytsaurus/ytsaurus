@@ -1,8 +1,10 @@
 #include "format_row_stream.h"
 
-#include <yt/yt/client/api/table_writer.h>
-#include <yt/yt/client/api/rpc_proxy/helpers.h>
+#include <yt/yt/library/formats/format.h>
+
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
+
+#include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -11,12 +13,11 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/value_consumer.h>
-
-#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/async_stream_helpers.h>
 
-#include <yt/yt/library/formats/format.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/memory/range.h>
 
@@ -87,9 +88,6 @@ public:
 
 private:
     const TNameTablePtr NameTable_;
-    const TFormat Format_;
-    const TTableSchemaPtr TableSchema_;
-    const TControlAttributesConfigPtr ControlAttributesConfig_;
 
     TString Data_;
     TStringOutput OutputStream_;
