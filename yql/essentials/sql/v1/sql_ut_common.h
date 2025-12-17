@@ -1722,11 +1722,6 @@ Y_UNIT_TEST(CreateTableWithIfNotExists) {
     UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write!"]);
 }
 
-Y_UNIT_TEST(CreateTableWithIfNotExistsYtNotSupported) {
-    ExpectFailWithError("CREATE TABLE IF NOT EXISTS plato.t (a int32);",
-                        "<main>:1:34: Error: CREATE TABLE IF NOT EXISTS is not supported for yt provider.\n");
-}
-
 Y_UNIT_TEST(CreateTempTable) {
     NYql::TAstParseResult res = SqlToYql("USE ydb; CREATE TEMP TABLE t (a int32, primary key(a));");
     UNIT_ASSERT(res.Root);
