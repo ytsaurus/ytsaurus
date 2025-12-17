@@ -475,6 +475,7 @@ private:
 
     void BuildJobProxyConfigTemplate(const std::optional<TSecondaryMasterConnectionConfigs>& optionalNewSecondaryMasterConfigs)
     {
+        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate start");
         auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
 
         auto oldJobProxyConfigTemplate = GetJobProxyConfigTemplate();
@@ -498,14 +499,17 @@ private:
 
         if (const auto& clusterConnection = GetConfig()->ExecNode->JobProxy->ClusterConnection) {
             newJobProxyConfigTemplate->OriginalClusterConnection = clusterConnection->Clone();
+            YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate cluster connection from job proxy");
         } else {
             newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+            YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate cluster connection from root");
         }
 
         // We could probably replace addresses for known cells here as well, but
         // changing addresses of a known cell is cursed anyway, so I'm not
         // doing that now.
         if (optionalNewSecondaryMasterConfigs) {
+            YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate has secondary master configs");
             auto newSecondaryMasterConfigs = *optionalNewSecondaryMasterConfigs;
             for (const auto& secondaryMasterConfig : newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters) {
                 auto cellTag = CellTagFromId(secondaryMasterConfig->CellId);
@@ -518,9 +522,14 @@ private:
             for (const auto& [cellTag, config] : newSecondaryMasterConfigs) {
                 newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters.push_back(config);
             }
+        } else {
+            YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate no secondary master configs");
         }
+        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate cloning original cluster connection");
         newJobProxyConfigTemplate->ClusterConnection = newJobProxyConfigTemplate->OriginalClusterConnection->Clone();
+        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate overriding master addresses, local address: %v", localAddress);
         newJobProxyConfigTemplate->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
+        YT_LOG_DEBUG("HERE BuildJobProxyConfigTemplate static config: %v", ToString(newJobProxyConfigTemplate->ClusterConnection->Static));
 
         newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
@@ -573,6 +582,8 @@ private:
 
         newJobProxyConfigTemplate->SolomonExporter->Host = GetConfig()->ExecNode->JobProxySolomonExporter->Host;
         newJobProxyConfigTemplate->SolomonExporter->InstanceTags = GetConfig()->ExecNode->JobProxySolomonExporter->InstanceTags;
+
+        YT_LOG_DEBUG("HERE JobProxyConfigTemplate build finished");
 
         JobProxyConfigTemplate_.Store(std::move(newJobProxyConfigTemplate));
     }
