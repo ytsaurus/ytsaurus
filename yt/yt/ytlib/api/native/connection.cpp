@@ -488,6 +488,11 @@ public:
         return StaticConfig_->ClusterName;
     }
 
+    const std::optional<NAuth::TTvmId>& GetTvmId() const override
+    {
+        return Config_.Acquire()->TvmId;
+    }
+
     bool IsSameCluster(const NApi::IConnectionPtr& other) const override
     {
         return GetClusterTag() == other->GetClusterTag();
