@@ -253,7 +253,7 @@ private:
             WaitFor(columnarStatisticsFetcher->Fetch())
                 .ThrowOnError();
             columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
-            if (NeedTableStatistics_) {
+            if (NeedTableStatistics_ && !columnarStatisticsFetcher->GetTableStatistics().empty()) {
                 TableStatistics_.emplace();
                 for (const auto& tableStatistics : columnarStatisticsFetcher->GetTableStatistics()) {
                     if (tableStatistics.GetColumnCount() == 0) {
