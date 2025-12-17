@@ -328,7 +328,8 @@ struct TCellDirectoryMock
 
     MOCK_METHOD(TCellId, GetRandomMasterCellWithRoleOrThrow, (EMasterCellRole), (override));
 
-    MOCK_METHOD(bool, IsMasterCacheConfigured, (), (override));
+    MOCK_METHOD(bool, IsClientSideCacheEnabled, (), (const, override));
+    MOCK_METHOD(bool, IsMasterCacheEnabled, (), (const, override));
 
     MOCK_METHOD(IChannelPtr, FindNakedMasterChannel, (EMasterChannelKind, TCellTag), (override));
     MOCK_METHOD(IChannelPtr, GetNakedMasterChannelOrThrow, (EMasterChannelKind, TCellTag), (override));

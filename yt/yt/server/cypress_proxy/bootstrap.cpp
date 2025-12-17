@@ -253,7 +253,12 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        NApi::NNative::TConnectionOptions connectionOptions;
+        connectionOptions.EnableClientSideCache = false;
+        NativeConnection_ = NApi::NNative::CreateConnection(
+            Config_->ClusterConnection,
+            connectionOptions);
+
         NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::NNative::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
