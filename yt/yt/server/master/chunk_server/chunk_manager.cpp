@@ -5647,11 +5647,6 @@ private:
             }
         }
 
-        if (ChunksBeingPurged_) {
-            YT_LOG_DEBUG("Chunks are still being purged");
-            return;
-        }
-
         ChunksBeingPurged_ = true;
 
         auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(request)));
