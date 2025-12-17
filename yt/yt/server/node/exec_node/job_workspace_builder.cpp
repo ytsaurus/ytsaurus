@@ -230,8 +230,12 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         }
     }
 
-    WaitFor(AllSucceeded(ioOperationFutures))
-        .ThrowOnError();
+    auto allSetFuture = AllSet(ioOperationFutures);
+    auto errors = WaitFor(allSetFuture).ValueOrThrow();
+    for (auto& error : errors) {
+        error.ThrowOnError();
+    }
+
     YT_LOG_INFO("Permissions for artifacts set");
 }
 
