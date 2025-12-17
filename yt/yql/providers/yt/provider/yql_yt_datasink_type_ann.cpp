@@ -1939,7 +1939,7 @@ private:
     }
 
     TStatus HandleDrop(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 3, ctx)) {
+        if (!EnsureMinMaxArgsCount(*input, 3U, 4U, ctx)) {
             return TStatus::Error;
         }
 
@@ -1960,6 +1960,23 @@ private:
             return TStatus::Error;
         }
 
+        const bool isDropTable = input->IsCallable(TYtDropTable::CallableName());
+        bool ifExists = false;
+        if (input->ChildrenSize() > 3U) {
+            const auto settings = input->Child(isDropTable ? TYtDropTable::idx_Settings : TYtDropView::idx_Settings);
+            if (!EnsureTuple(*settings, ctx)) {
+                return TStatus::Error;
+            }
+
+            if (!ValidateSettings(*settings, EYtSettingType::Mode, ctx)) {
+                return TStatus::Error;
+            }
+
+            if (const auto m = NYql::GetSetting(*settings, EYtSettingType::Mode)) {
+                ifExists = (isDropTable ? EYtWriteMode::DropIfExists : EYtWriteMode::DropObjectIfExists) == FromString<EYtWriteMode>(m->Tail().Content());
+            }
+        }
+
         const TYtIsolatedOpBase drop(input);
         if (!TYtTableInfo::HasSubstAnonymousLabel(drop.Table())) {
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
@@ -1974,7 +1991,15 @@ private:
             const TYtTableInfo tableInfo(drop.Table());
             YQL_ENSURE(tableInfo.Meta);
 
-            const bool isDropTable = drop.Ref().IsCallable(TYtDropTable::CallableName());
+            if (!tableInfo.Meta->DoesExist && ifExists) {
+                YQL_CLOG(INFO, ProviderYt) <<
+                    (isDropTable ? "Table" : "View") << ' ' << tableInfo.Name <<
+                    " already exists. 'DROP " << (isDropTable ? "TABLE" : "VIEW") << " IF EXISTS' statement will do nothing.";
+
+                output = drop.World().Ptr();
+                return TStatus::Repeat;
+            }
+
             if (isDropTable) {
                 if (tableInfo.Meta->IsDynamic) {
                     ctx.AddError(TIssue(ctx.GetPosition(drop.Table().Pos()), TStringBuilder() <<

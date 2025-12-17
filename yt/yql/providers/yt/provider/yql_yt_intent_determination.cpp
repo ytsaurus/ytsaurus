@@ -102,9 +102,11 @@ public:
             try {
                 switch (FromString<EYtWriteMode>(mode->Child(1)->Content())) {
                 case EYtWriteMode::Drop:
+                case EYtWriteMode::DropIfExists:
                     tableDesc.Intents |= TYtTableIntent::Drop;
                     break;
                 case EYtWriteMode::DropObject:
+                case EYtWriteMode::DropObjectIfExists:
                     tableDesc.Intents |= TYtTableIntent::Drop | TYtTableIntent::View;
                     break;
                 case EYtWriteMode::Append:
