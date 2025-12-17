@@ -509,6 +509,10 @@ void TJob::Start() noexcept
         return;
     }
 
+    if (auto slot = GetUserSlot()) {
+        slot->ValidateEnabled();
+    }
+
     YT_VERIFY(!std::exchange(Started_, true));
 
     PreparationStartTime_ = TInstant::Now();
