@@ -269,6 +269,8 @@ IListNodePtr TClusterStateProvider::FetchNodes()
     return Nodes_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 IClusterStateProviderPtr CreateClusterStateProvider(
     IBootstrap* bootstrap,
     TClusterStateProviderConfigPtr config,
