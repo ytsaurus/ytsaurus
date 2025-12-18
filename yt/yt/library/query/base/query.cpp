@@ -329,9 +329,12 @@ TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
     }
 
     auto renamedSchema = Schema.GetRenamedSchema();
-    for (const auto& column : renamedSchema->Columns()) {
+    for (auto column : renamedSchema->Columns()) {
         if (ForeignJoinedColumns.contains(column.Name())) {
-            result.push_back(column);
+            if (IsLeft && !column.LogicalType()->IsNullable()) {
+                column.SetLogicalType(OptionalLogicalType(column.LogicalType()));
+            }
+            result.emplace_back(std::move(column));
         }
     }
 
