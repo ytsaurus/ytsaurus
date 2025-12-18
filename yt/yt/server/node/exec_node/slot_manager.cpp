@@ -390,6 +390,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TOldDiskRequest diskR
     UpdateAliveLocations();
 
     int feasibleLocationCount = 0;
+    int skippedByDisabled = 0;
     int skippedByDiskSpace = 0;
     int skippedByMedium = 0;
     TSlotLocationPtr bestLocation;
@@ -415,6 +416,13 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TOldDiskRequest diskR
             }
         }
 
+        try {
+            location->ValidateEnabled();
+        } catch (const std::exception& ex) {
+            ++skippedByDisabled;
+            continue;
+        }
+
         ++feasibleLocationCount;
 
         if (!bestLocation || bestLocation->GetSessionCount() > location->GetSessionCount()) {
@@ -427,7 +435,8 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TOldDiskRequest diskR
             << TErrorAttribute("alive_location_count", AliveLocations_.size())
             << TErrorAttribute("feasible_location_count", feasibleLocationCount)
             << TErrorAttribute("skipped_by_disk_space", skippedByDiskSpace)
-            << TErrorAttribute("skipped_by_medium", skippedByMedium);
+            << TErrorAttribute("skipped_by_medium", skippedByMedium)
+            << TErrorAttribute("skipped_by_disabled", skippedByDisabled);
     }
 
     auto slotType = ESlotType::Common;

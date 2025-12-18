@@ -151,6 +151,8 @@ struct IUserSlot
     virtual void SetAllocationId(TAllocationId allocationId) = 0;
 
     virtual TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
+
+    virtual void ValidateEnabled() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserSlot)
