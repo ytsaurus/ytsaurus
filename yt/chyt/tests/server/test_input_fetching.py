@@ -1637,10 +1637,17 @@ class TestInferReadRange(ClickHouseTestBase):
     def test_supported_ranges(self):
         create(
             "table",
-            "//tmp/t",
+            "//tmp/t_ts64",
             attributes={
-                # TODO (buyval01) : check with narrow timestamp type cause it has difference in YT <-> CH conversion
                 "schema": [{"name": "ts", "type": "timestamp64", "sort_order": "ascending"}],
+            }
+        )
+
+        create(
+            "table",
+            "//tmp/t_ts",
+            attributes={
+                "schema": [{"name": "ts", "type": "timestamp", "sort_order": "ascending"}],
             }
         )
 
@@ -1665,16 +1672,31 @@ class TestInferReadRange(ClickHouseTestBase):
 
         for chunk_tss in timestamps:
             write_table(
-                "<append=%true>//tmp/t",
+                "<append=%true>//tmp/t_ts64",
+                [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
+            )
+            write_table(
+                "<append=%true>//tmp/t_ts",
                 [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
             )
 
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
-            def check(predicate, exact, expected=None):
-                query = f"select ts from '//tmp/t' where {predicate}"
+            def base_check(table, predicate, exact, expected=None):
+                query = f"select ts from '{table}' where {predicate}"
                 res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
                 if expected is not None:
                     assert_items_equal(res, expected)
+
+            # Validation of the case of working with a timestamp type whose conversion differs between YT <-> CH.
+            base_check(
+                "//tmp/t_ts",
+                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
+                2,
+                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            )
+
+            def check(predicate, exact, expected=None):
+                base_check("//tmp/t_ts64", predicate, exact, expected)
 
             check("ts < toDateTime('2025-02-01T00:00:00')", 1, expected=[{"ts": "2025-01-01 12:21:00.000000"}])
             check("ts >= toDateTime('2025-08-08T12:28:00')", 2, expected=[{"ts": "2025-08-08 12:28:00.000000"}, {"ts": "2025-09-09 12:29:00.000000"}])

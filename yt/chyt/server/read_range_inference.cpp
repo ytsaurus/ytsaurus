@@ -148,7 +148,12 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                 result->Expression =  New<NYT::NQueryClient::TReferenceExpression>(
                     SimpleLogicalType(ESimpleLogicalValueType::Null),
                     columnNode.getColumnName());
-                result->DataType = ToDataType(*columnSchema, settings);
+                // NB: Read range inference depends on the matching of the data types.
+                // This is very similar to type conversion for write queries. That's why we need to use the same converters.
+                // For example, both YT Timestamp (unsigned int) and Timestamp64 (signed int) types correspond to DateTime64(6),
+                // but at this step of the reverse conversion, DateTime64(6) must be dispatched to different ValueType
+                // in order for the constant node to be processed correctly.
+                result->DataType = ToDataType(*columnSchema, settings, /*isReadConversion*/ false);
                 result->ValueType = columnSchema->GetWireType();
             }
             break;
