@@ -2,7 +2,7 @@ from .helpers import YTToolBase
 
 
 class CommonCypress(YTToolBase):
-    METHODS = set(["get_table_schema", "read_table"])
+    METHODS = set(["get_table_schema", "read_table", "infer_table_schema"])
 
     def get_tool_description(self):
         return (
@@ -23,7 +23,6 @@ A tool for common cypress method.
                     field_type=str,
                     name="method",
                     description="Method to call",
-                    examples=self.METHODS,
                 ),
             ]
         )
@@ -60,6 +59,7 @@ A tool for common cypress method.
                     {
                         "name": "method",
                         "description": "Method to call. Should be set to \"get_table_schema\".",
+                        "examples": ["get_table_schema"],
                         # "default": "PydanticUndefined",
                     },
                     {
@@ -76,6 +76,7 @@ A tool for common cypress method.
                     {
                         "name": "method",
                         "description": "Method to call. Should be set to \"read_table\".",
+                        "examples": ["read_table"],
                         # "default": "PydanticUndefined",
                     },
                     {
@@ -92,6 +93,7 @@ A tool for common cypress method.
                     {
                         "name": "method",
                         "description": "Method to call. Should be set to \"read_table\".",
+                        "examples": ["read_table"],
                         # "default": "PydanticUndefined",
                     },
                     {
@@ -108,6 +110,7 @@ A tool for common cypress method.
                     {
                         "name": "method",
                         "description": "Method to call. Should be set to \"infer_table_schema\".",
+                        "examples": ["infer_table_schema"],
                         # "default": "PydanticUndefined",
                     },
                     {
