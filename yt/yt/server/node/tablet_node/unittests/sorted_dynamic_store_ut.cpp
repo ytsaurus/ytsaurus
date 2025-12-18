@@ -628,8 +628,8 @@ protected:
 
 TEST_P(TSortedDynamicRowKeyComparerTest, Test)
 {
-    auto str1 = TString(std::get<0>(GetParam()));
-    auto str2 = TString(std::get<1>(GetParam()));
+    auto str1 = TStringBuf(std::get<0>(GetParam()));
+    auto str2 = TStringBuf(std::get<1>(GetParam()));
 
     auto urow1 = BuildRow(str1, false);
     auto urow2 = BuildRow(str2, false);
