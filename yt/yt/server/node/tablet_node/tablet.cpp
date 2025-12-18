@@ -419,6 +419,7 @@ void TTableReplicaInfo::Save(TSaveContext& context) const
     Save(context, RuntimeData_->CurrentReplicationRowIndex);
     Save(context, RuntimeData_->CurrentReplicationTimestamp);
     Save(context, RuntimeData_->PreparedReplicationRowIndex);
+    Save(context, RuntimeData_->PreserveTimestamps);
 }
 
 void TTableReplicaInfo::Load(TLoadContext& context)
@@ -434,6 +435,10 @@ void TTableReplicaInfo::Load(TLoadContext& context)
     Load(context, RuntimeData_->CurrentReplicationRowIndex);
     Load(context, RuntimeData_->CurrentReplicationTimestamp);
     Load(context, RuntimeData_->PreparedReplicationRowIndex);
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= ETabletReign::PreservePreserveTimestamps) {
+        Load(context, RuntimeData_->PreserveTimestamps);
+    }
 }
 
 ETableReplicaMode TTableReplicaInfo::GetMode() const
