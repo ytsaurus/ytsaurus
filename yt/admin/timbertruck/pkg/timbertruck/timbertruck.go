@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path"
@@ -25,6 +26,8 @@ const (
 
 	createPipelineMaxBackoff         = 5 * time.Minute
 	createPipelineMaxBackoffTestMode = 1 * time.Second
+
+	minSkippedRowsCleanupInterval = 1 * time.Minute
 )
 
 type Config struct {
@@ -113,6 +116,7 @@ type TaskController interface {
 	// This method is to be used by pipelines to notify last sent
 	NotifyProgress(pipelines.FilePosition)
 	Logger() *slog.Logger
+	OnSkippedRow(data io.WriterTo, info pipelines.SkippedRowInfo)
 }
 
 type TaskArgs struct {
@@ -136,6 +140,12 @@ type StreamConfig struct {
 
 	// How many active tasks can hold timbertruck for this stream
 	MaxActiveTaskCount *int `yaml:"max_active_task_count"`
+
+	// SkippedRowsMaxAge defines how long to keep skipped rows files.
+	// Files older than this duration will be automatically deleted.
+	//
+	// If not set, defaults to 168h (7 days).
+	SkippedRowsMaxAge time.Duration
 }
 
 func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFunc) {
@@ -145,9 +155,10 @@ func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFun
 			"stream", config.Name,
 			"file", path.Base(config.LogFile),
 		),
-		config:          config,
-		newPipelineFunc: newPipeline,
-		haveTasks:       make(chan struct{}),
+		config:             config,
+		newPipelineFunc:    newPipeline,
+		skippedRowsMetrics: newSkippedRowsMetrics(tt.logger, config.Name, tt.metrics),
+		haveTasks:          make(chan struct{}),
 	}
 	if handler.config.MaxActiveTaskCount == nil {
 		defaultMaxActiveTaskCount := 100
@@ -259,6 +270,10 @@ func (tt *TimberTruck) initializeStream(ctx context.Context, handler *streamHand
 	if err != nil {
 		return fmt.Errorf("failed to initialize staging directory: %w", err)
 	}
+	err = handler.initSkippedRowsDir()
+	if err != nil {
+		return fmt.Errorf("failed to initialize skipped rows directory: %w", err)
+	}
 	fileEventChan := make(chan FileEvent, 1000)
 	err = tt.fsWatcher.AddLogPath(handler.config.LogFile, fileEventChan)
 	if err != nil {
@@ -267,6 +282,7 @@ func (tt *TimberTruck) initializeStream(ctx context.Context, handler *streamHand
 	}
 	go handler.ProcessFileEventQueue(ctx, fileEventChan)
 	go handler.ProcessTaskQueue(ctx)
+	go handler.launchSkippedRowsCleanup(ctx)
 
 	if _, err := os.Stat(handler.config.LogFile); err != nil {
 		if err != ErrNotFound {
@@ -286,9 +302,10 @@ func (tt *TimberTruck) initializeStream(ctx context.Context, handler *streamHand
 func (tt *TimberTruck) cleanupDeprecatedStreamDirs() {
 	deprecatedStreams := tt.deprecatedStreams()
 	for name := range deprecatedStreams {
-		fi, err := os.Stat(stagingDir(tt.config.WorkDir, name))
+		stagingDirPath := stagingDir(tt.config.WorkDir, name)
+		fi, err := os.Stat(stagingDirPath)
 		if err != nil {
-			tt.logger.Warn("Failed to stat deprecated stream staging directory", "stream", name, "error", err)
+			tt.logger.Warn("Failed to stat deprecated stream staging directory", "stream", name, "dir", stagingDirPath, "error", err)
 			continue
 		}
 		if !fi.IsDir() {
@@ -296,9 +313,9 @@ func (tt *TimberTruck) cleanupDeprecatedStreamDirs() {
 		}
 		dirPath := path.Join(tt.config.WorkDir, name)
 		if err := os.RemoveAll(dirPath); err != nil {
-			tt.logger.Warn("Failed to remove deprecated stream directory", "stream", name, "error", err)
+			tt.logger.Warn("Failed to remove deprecated stream directory", "stream", name, "dir", dirPath, "error", err)
 		} else {
-			tt.logger.Info("Removed deprecated stream directory", "stream", name, "stagingdir", stagingDir(tt.config.WorkDir, name))
+			tt.logger.Info("Removed deprecated stream directory", "stream", name, "dir", dirPath)
 		}
 	}
 }
@@ -336,7 +353,8 @@ type streamHandler struct {
 	config          StreamConfig
 	newPipelineFunc NewPipelineFunc
 
-	haveTasks chan struct{}
+	skippedRowsMetrics skippedRowsMetrics
+	haveTasks          chan struct{}
 }
 
 func (h *streamHandler) getExtensions() string {
@@ -354,6 +372,14 @@ func (h *streamHandler) stagingDir() string {
 
 func stagingDir(workDir string, streamName string) string {
 	return path.Join(workDir, streamName, "staging")
+}
+
+func (h *streamHandler) skippedRowsDir() string {
+	return skippedRowsDir(h.timberTruck.config.WorkDir, h.config.Name)
+}
+
+func skippedRowsDir(workDir string, streamName string) string {
+	return path.Join(workDir, streamName, "skipped_rows")
 }
 
 var dateRegexp = regexp.MustCompile(`^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}T[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}_`)
@@ -428,6 +454,15 @@ func (h *streamHandler) ProcessFileEventQueue(ctx context.Context, events <-chan
 			}
 		}
 	}
+}
+
+func (h *streamHandler) initSkippedRowsDir() error {
+	skippedRowsDir := h.skippedRowsDir()
+	err := os.MkdirAll(skippedRowsDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create skipped_rows directory %q: %w", skippedRowsDir, err)
+	}
+	return nil
 }
 
 func (h *streamHandler) initStagingDir() (err error) {
@@ -634,9 +669,11 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		h.logger.Info("Peeked task", "stagedpath", task.StagedPath)
 
 		taskController := taskController{
-			path:      task.StagedPath,
-			datastore: h.timberTruck.datastore,
-			logger:    h.logger.With("component", "Pipeline", "stagedpath", task.StagedPath),
+			path:               task.StagedPath,
+			datastore:          h.timberTruck.datastore,
+			logger:             h.logger.With("component", "Pipeline", "stagedpath", task.StagedPath),
+			skippedRowsWriter:  newSkippedRowsWriter(path.Join(h.skippedRowsDir(), path.Base(task.StagedPath)), h.logger),
+			skippedRowsMetrics: h.skippedRowsMetrics,
 		}
 
 		var p *pipelines.Pipeline
@@ -694,6 +731,9 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 			p.NotifyComplete()
 		}()
 		err = p.Run(ctx)
+		if taskController.skippedRowsWriter != nil {
+			_ = taskController.skippedRowsWriter.Close()
+		}
 		if err != nil {
 			h.logger.Error("Pipeline error", "error", err)
 		} else {
@@ -730,10 +770,86 @@ func (h *streamHandler) completeTask(task Task, taskError error) {
 	}
 }
 
+func (h *streamHandler) cleanupOldSkippedRowsFiles() error {
+	skippedRowsDir := h.skippedRowsDir()
+	entries, err := os.ReadDir(skippedRowsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read skipped_rows directory: %w", err)
+	}
+
+	cutoffTime := time.Now().Add(-h.config.SkippedRowsMaxAge)
+	var lastError error
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filePath := path.Join(skippedRowsDir, entry.Name())
+
+		info, err := entry.Info()
+		if err != nil {
+			h.logger.Warn("Failed to get file info", "file", filePath, "error", err)
+			lastError = fmt.Errorf("failed to get file info for %q: %w", filePath, err)
+			continue
+		}
+
+		if info.ModTime().Before(cutoffTime) {
+			if err := os.Remove(filePath); err != nil {
+				h.logger.Warn("Failed to remove old skipped rows file", "file", filePath, "error", err)
+				lastError = fmt.Errorf("failed to remove %q: %w", filePath, err)
+			} else {
+				h.logger.Info("Removed old skipped rows file",
+					"file", filePath,
+					"age", time.Since(info.ModTime()),
+					"size_bytes", info.Size())
+			}
+		}
+	}
+
+	return lastError
+}
+
+func (h *streamHandler) launchSkippedRowsCleanup(ctx context.Context) {
+	cleanupInterval := h.config.SkippedRowsMaxAge / 10
+	if cleanupInterval < minSkippedRowsCleanupInterval {
+		cleanupInterval = minSkippedRowsCleanupInterval
+	}
+
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+
+	consecutiveFailures := 0
+	if err := h.cleanupOldSkippedRowsFiles(); err != nil {
+		consecutiveFailures++
+		h.logger.Warn("Failed to cleanup old skipped rows files", "error", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := h.cleanupOldSkippedRowsFiles(); err != nil {
+				consecutiveFailures++
+				logLevel := slog.LevelWarn
+				if consecutiveFailures >= 3 {
+					logLevel = slog.LevelError
+				}
+				h.logger.Log(ctx, logLevel, "Failed to cleanup old skipped rows files", "error", err, "consecutive_failures", consecutiveFailures)
+			} else {
+				consecutiveFailures = 0
+			}
+		}
+	}
+}
+
 type taskController struct {
-	path      string
-	datastore *Datastore
-	logger    *slog.Logger
+	path               string
+	datastore          *Datastore
+	logger             *slog.Logger
+	skippedRowsWriter  *SkippedRowsWriter
+	skippedRowsMetrics skippedRowsMetrics
 }
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
@@ -760,6 +876,24 @@ func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 
 func (c *taskController) Logger() *slog.Logger {
 	return c.logger
+}
+
+func (c *taskController) OnSkippedRow(data io.WriterTo, info pipelines.SkippedRowInfo) {
+	if c.skippedRowsWriter != nil {
+		if err := c.skippedRowsWriter.WriteFrom(data); err != nil {
+			c.logger.Warn("Failed to write skipped row", "error", err)
+		}
+	}
+	c.skippedRowsMetrics.Inc(info.Reason)
+
+	attrs := []any{
+		"reason", string(info.Reason),
+		"offset", info.Offset,
+	}
+	for k, v := range info.Attrs {
+		attrs = append(attrs, k, v)
+	}
+	c.logger.Warn("Row skipped", attrs...)
 }
 
 func getCreatePipelineMaxBackoff() time.Duration {

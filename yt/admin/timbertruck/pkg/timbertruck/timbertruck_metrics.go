@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 )
 
 type activeTaskCounter struct {
@@ -52,4 +53,45 @@ func (c *activeTaskCounter) Do() {
 			intGauge.Set(int64(count))
 		}
 	}
+}
+
+type skippedRowsMetrics interface {
+	Inc(reason pipelines.SkipRowReason)
+}
+
+type skippedRowsMetricsImpl struct {
+	logger   *slog.Logger
+	counters map[pipelines.SkipRowReason]metrics.Counter
+}
+
+func (m *skippedRowsMetricsImpl) Inc(reason pipelines.SkipRowReason) {
+	if counter, ok := m.counters[reason]; ok {
+		counter.Inc()
+	}
+}
+
+type noopSkippedRowsMetrics struct{}
+
+func (m *noopSkippedRowsMetrics) Inc(_ pipelines.SkipRowReason) {}
+
+func newSkippedRowsMetrics(logger *slog.Logger, streamName string, registry metrics.Registry) skippedRowsMetrics {
+	if registry == nil {
+		return &noopSkippedRowsMetrics{}
+	}
+
+	result := &skippedRowsMetricsImpl{
+		logger:   logger,
+		counters: make(map[pipelines.SkipRowReason]metrics.Counter),
+	}
+
+	for _, reason := range pipelines.AllSkipRowReasons {
+		counter := registry.WithTags(map[string]string{
+			"stream": streamName,
+			"reason": string(reason),
+		}).Counter("tt.stream.skipped_rows")
+		counter.Add(0)
+		result.counters[reason] = counter
+	}
+
+	return result
 }

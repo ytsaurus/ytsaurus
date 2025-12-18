@@ -4,6 +4,7 @@ SRCS(
     datastore.go
     fs_watcher.go
     inotify_watcher.go
+    skipped_rows_writer.go
     timbertruck.go
     timbertruck_metrics.go
 )
