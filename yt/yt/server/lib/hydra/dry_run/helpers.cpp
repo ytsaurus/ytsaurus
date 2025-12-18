@@ -8,9 +8,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLogging::TLogManagerConfigPtr CreateDryRunLoggingConfig()
+NLogging::TLogManagerConfigPtr CreateDryRunLoggingConfig(bool abortOnAlert)
 {
     auto config = NLogging::TLogManagerConfig::CreateQuiet();
+    config->AbortOnAlert = abortOnAlert;
 
     auto silentRule = New<NLogging::TRuleConfig>();
     silentRule->MinLevel = NLogging::ELogLevel::Debug;

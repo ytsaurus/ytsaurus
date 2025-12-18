@@ -117,6 +117,10 @@ class MasterSnapshotsValidator():
             "--config", cypress_helpers.basename(self._get_config_path(cell_tag)),
             "--validate-snapshot", snapshot_name,
         ]
+
+        if self._custom_snapshot_validation:
+            command_line.append("--dont-abort-on-alert")
+
         proc = subprocess.Popen(command_line, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=self._validation_timeout)
