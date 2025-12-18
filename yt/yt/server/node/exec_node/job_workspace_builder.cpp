@@ -86,6 +86,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoPrepareTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoLinkTmpfsVolumes) {
+        return "DoLinkTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
         return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
@@ -253,6 +255,7 @@ TFuture<void> TJobWorkspaceBuilder::Run()
         .Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
@@ -278,6 +281,13 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
     if (std::exchange(ResultExtracted_, true)) {
         YT_LOG_FATAL("Result has already been extracted");
     }
+
+    // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
+    // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
+    if (ResultHolder_.TmpfsVolumes.empty()) {
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+    }
+
     return std::move(ResultHolder_);
 }
 
@@ -374,7 +384,7 @@ private:
                                 result.Volume->GetPath());
                         }));
 
-                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_));
@@ -392,11 +402,25 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+
+        YT_LOG_DEBUG("Link tmpfs volumes is not needed in simple workspace");
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -566,36 +590,16 @@ private:
                         << volumeResultsOrError;
                 }
 
-                auto& volumeResults = volumeResultsOrError.Value();
+                Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
 
                 YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
-                    MakeFormattableView(volumeResults,
+                    MakeFormattableView(Context_.PreparedTmpfsVolumes,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
                                 result.Path,
                                 result.Volume->GetPath());
                         }));
-
-                return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumeResults, Context_.TestRootFS)
-                    .Apply(BIND([volumeResults = std::move(volumeResults), this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
-                        if (!error.IsOK()) {
-                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
-                                << error;
-                        }
-
-                        YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
-                            MakeFormattableView(volumeResults,
-                                [] (auto* builder, const TTmpfsVolumeResult& result) {
-                                    builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                        result.Path,
-                                        result.Volume->GetPath());
-                            }));
-
-                        ResultHolder_.TmpfsVolumes = std::move(volumeResults);
-
-                        SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-                    }).AsyncVia(Invoker_))
-                    .ToUncancelable();
+                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_))
             .ToUncancelable();
     }
@@ -650,11 +654,45 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        SetNowTime(TimePoints_.LinkTmpfsVolumesStartTime);
+
+        const auto& volumes = Context_.PreparedTmpfsVolumes;
+        const auto& slot = Context_.Slot;
+        return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+            .Apply(BIND([volumeResults = volumes, this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
+                if (!error.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
+                        << error;
+                }
+
+                YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
+                    MakeFormattableView(volumeResults,
+                        [] (auto* builder, const TTmpfsVolumeResult& result) {
+                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                result.Path,
+                                result.Volume->GetPath());
+                    }));
+
+                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes.clear();
+
+                SetNowTime(TimePoints_.LinkTmpfsVolumesFinishTime);
+            }).AsyncVia(Invoker_))
+            .ToUncancelable();
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -948,7 +986,7 @@ private:
                                 result.Volume->GetPath());
                         }));
 
-                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_));
@@ -966,11 +1004,25 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_LOG_DEBUG("Link tmpfs volumes is not supported in cri workspace");
+
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
