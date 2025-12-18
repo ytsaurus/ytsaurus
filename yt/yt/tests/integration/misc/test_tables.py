@@ -2930,6 +2930,26 @@ class TestTables(YTEnvSetup):
 
         assert read_table("//tmp/t", omit_inaccessible_rows=True, authenticated_user="u") == rows[1:3] + [rows[6]]
 
+    @authors("coteeq")
+    def test_rename_columns(self):
+        # NB: Renaming is _not_ supported here. This test just checks that read_table does not mind
+        # having "rename_columns" in path.
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            }
+        )
+
+        data = [{"key": 42, "value": "hi"}]
+        write_table("//tmp/t", data)
+
+        assert read_table("<rename_columns={key=key1;value=value1}>//tmp/t") == data
+
 
 ##################################################################
 
