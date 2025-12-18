@@ -236,7 +236,7 @@ public:
                         *tabletCount);
                 }
                 if (options.InplaceReshard) {
-                    THROW_ERROR_EXCEPTION("inplace_reshard can not be set together with move action");
+                    THROW_ERROR_EXCEPTION("\"inplace_reshard\" can not be set together with move action");
                 }
                 break;
 
