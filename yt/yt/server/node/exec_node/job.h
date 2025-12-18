@@ -375,6 +375,9 @@ private:
     std::optional<TInstant> PrepareGpuCheckVolumeStartTime_;
     std::optional<TInstant> PrepareGpuCheckVolumeFinishTime_;
 
+    std::optional<TInstant> LinkTmpfsVolumesStartTime_;
+    std::optional<TInstant> LinkTmpfsVolumesFinishTime_;
+
     std::optional<TInstant> PreliminaryGpuCheckStartTime_;
     std::optional<TInstant> PreliminaryGpuCheckFinishTime_;
 

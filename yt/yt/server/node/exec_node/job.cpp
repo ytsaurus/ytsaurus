@@ -793,6 +793,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingTmpfsVolumes:
         case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
+        case EJobPhase::LinkingVolumes:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
@@ -2442,6 +2443,9 @@ void TJob::RunWithWorkspaceBuilder()
 
             PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
             PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
+
+            LinkTmpfsVolumesStartTime_ = timePoints.LinkTmpfsVolumesStartTime;
+            LinkTmpfsVolumesFinishTime_ = timePoints.LinkTmpfsVolumesFinishTime;
         })
             .Via(Invoker_));
 
