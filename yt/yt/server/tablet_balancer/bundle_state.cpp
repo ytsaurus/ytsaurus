@@ -684,7 +684,7 @@ private:
     THashSet<TTableId> GetReplicaBalancingMajorTables(const TTabletCellBundlePtr& bundle) const;
 
     void DropOldBundleSnapshots();
-    TFuture<TBundleSnapshotPtr> CreateUpdateFutureIfNeeded(EFetchKind kind);
+    TFuture<TBundleSnapshotPtr> CreateUpdateFutureIfNeeded(EFetchKind kind, bool isDirectRequest);
 
     TBundleSnapshotPtr GetLatestBundleSnapshot(EFetchKind kind) const;
     TBundleSnapshotPtr GetLatestSatisfyingSnapshot(
@@ -718,6 +718,7 @@ TBundleState::TBundleState(
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
     , BundleSnapshots_({New<TBundleSnapshot>()})
 {
+    BundleSnapshots_.back()->Bundle = New<TTabletCellBundle>(Name_);
     InitializeAttributes(initialAttributes, BundleSnapshots_.back(), /*throwOnError*/ false);
     Start();
 }
@@ -730,7 +731,6 @@ void TBundleState::InitializeAttributes(
     YT_VERIFY(bundleSnapshot);
     auto guard = WriterGuard(Lock_);
 
-    bundleSnapshot->Bundle = New<TTabletCellBundle>(Name_);
     Health_ = attributes->Get<ETabletCellHealth>("health");
 
     auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
@@ -785,14 +785,15 @@ void TBundleState::DropOldBundleSnapshots()
     std::swap(BundleSnapshots_, bundleSnapshots);
 }
 
-TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind kind)
+TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind kind, bool isDirectRequest)
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(Lock_);
 
     switch (kind) {
         case EFetchKind::State: {
             if (!UpdateStateFuture_) {
-                YT_LOG_DEBUG("Planning to fetch bundle state due to a direct request");
+                YT_LOG_DEBUG("Planning to fetch bundle state%v",
+                    isDirectRequest ? " due to a direct request" : "");
                 UpdateStateFuture_ = BIND(&TBundleState::UpdateState, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -806,7 +807,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             }
 
             if (!UpdateStatisticsFuture_) {
-                YT_LOG_DEBUG("Planning to fetch bundle statistics due to a direct request");
+                YT_LOG_DEBUG("Planning to fetch bundle statistics%v",
+                    isDirectRequest ? " due to a direct request" : "");
                 UpdateStatisticsFuture_ = BIND(&TBundleState::UpdateStatistics, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -824,7 +826,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             }
 
             if (!UpdatePerformanceCountersFuture_) {
-                YT_LOG_DEBUG("Planning to fetch performance counters due to a direct request");
+                YT_LOG_DEBUG("Planning to fetch performance counters%v",
+                    isDirectRequest ? " due to a direct request" : "");
                 UpdatePerformanceCountersFuture_ = BIND(&TBundleState::UpdatePerformanceCounters, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -873,7 +876,7 @@ TFuture<TBundleSnapshotPtr> TBundleState::GetBundleSnapshot()
     DropOldBundleSnapshots();
 
     auto kind = getFetchKind();
-    return CreateUpdateFutureIfNeeded(kind);
+    return CreateUpdateFutureIfNeeded(kind, /*isDirectRequest*/ true);
 }
 
 TFuture<TBundleSnapshotPtr> TBundleState::GetBundleSnapshotWithReplicaBalancingStatistics(
@@ -1143,7 +1146,7 @@ void TBundleState::FetchState()
     DropOldBundleSnapshots();
 
     auto kind = getFetchKind();
-    YT_UNUSED_FUTURE(CreateUpdateFutureIfNeeded(kind));
+    YT_UNUSED_FUTURE(CreateUpdateFutureIfNeeded(kind, /*isDirectRequest*/ false));
 }
 
 TBundleSnapshotPtr TBundleState::UpdateState()
@@ -1249,6 +1252,10 @@ TBundleSnapshotPtr TBundleState::DeepCopyLatestBundleSnapshot(EFetchKind kind) c
 
     bundleSnapshot->PerformanceCountersKeys = PerformanceCountersKeys_;
     bundleSnapshot->TableRegistry = TableRegistry_;
+
+    bundleSnapshot->StateFetchTime = oldBundleSnapshot->StateFetchTime;
+    bundleSnapshot->StatisticsFetchTime = oldBundleSnapshot->StatisticsFetchTime;
+    bundleSnapshot->PerformanceCountersFetchTime = oldBundleSnapshot->PerformanceCountersFetchTime;
 
     return bundleSnapshot;
 }
