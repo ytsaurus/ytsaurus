@@ -120,14 +120,19 @@ DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 struct TClusterStateProviderConfig
     : public NYTree::TYsonStruct
 {
+    std::vector<std::string> ClustersForBundleHealthCheck;
+    int MaxUnhealthyBundlesOnReplicaCluster;
+
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
 
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
+    TDuration UnhealthyBundlesFreshnessTime;
 
     TDuration BundlesFetchPeriod;
     TDuration NodesFetchPeriod;
+    TDuration UnhealthyBundlesFetchPeriod;
 
     REGISTER_YSON_STRUCT(TClusterStateProviderConfig);
 
