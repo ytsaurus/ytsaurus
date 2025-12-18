@@ -179,7 +179,6 @@ SRCS(
     chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
-    chunk_client/medium_descriptor.cpp
     chunk_client/memory_reader.cpp
     chunk_client/memory_tracked_deferred_chunk_meta.cpp
     chunk_client/memory_writer.cpp

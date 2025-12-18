@@ -98,8 +98,8 @@ public:
 
     std::string GetMediumName() const;
 
-    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
-    void SetMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& descriptor);
+    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
+    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
 
     void IncreaseSessionCount();
     void DecreaseSessionCount();
@@ -167,7 +167,7 @@ private:
     //! Absolute path to location.
     const TString LocationPath_;
 
-    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
