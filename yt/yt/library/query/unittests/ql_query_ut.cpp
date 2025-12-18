@@ -1234,6 +1234,30 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     EXPECT_TRUE(query->IsOrdered(false));
 }
 
+TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//table"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", EValueType::Int64, ESortOrder::Ascending},
+            {"value_0", EValueType::Int64},
+        }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//join"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", SimpleLogicalType(ESimpleLogicalValueType::Int16), ESortOrder::Ascending},
+            {"value_1", EValueType::Int64},
+        }))));
+
+    auto query = ParseAndPreparePlanFragment(
+        &PrepareMock_,
+        "select * from [//table] left join [//join] using key_0")
+        ->Query;
+
+    EXPECT_FALSE(query->JoinClauses[0]->ForeignEquations[0]->LogicalType->IsNullable());
+    auto outputSchema = query->GetTableSchema();
+    EXPECT_TRUE(outputSchema->GetColumnOrThrow("value_1").LogicalType()->IsNullable());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest

@@ -1235,7 +1235,10 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
     auto schema = New<TTableSchema>(columns);
 
     PushAliasResolver(queryExpr->AliasMap);
-    AddTable({*schema, std::nullopt});
+    AddTable({
+        .Schema = *schema,
+        .Alias = std::nullopt,
+    });
 
     TConstExpressionPtr whereClause;
 

@@ -574,6 +574,25 @@ void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableS
     innerSubquery->ProjectClause = std::move(projectClause);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSchemaPtr MakeColumnTypesOptional(const TTableSchemaPtr& schema)
+{
+    std::vector<TColumnSchema> columns = schema->Columns();
+
+    for (auto& column : columns) {
+        if (!column.LogicalType()->IsNullable()) {
+            column.SetLogicalType(OptionalLogicalType(column.LogicalType()));
+        }
+    }
+
+    return New<TTableSchema>(columns,
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
+        schema->GetSchemaModification(),
+        schema->DeletedColumns());
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -687,9 +706,9 @@ TJoinClausePtr BuildJoinClause(
     auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
 
     foreignBuilder->AddTable({
-        *joinClause->Schema.Original,
-        tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping,
+        .Schema = *foreignTableSchema,
+        .Alias = tableJoin.Table.Alias,
+        .Mapping = &joinClause->Schema.Mapping,
     });
 
     std::vector<TSelfEquation> selfEquations;
@@ -876,13 +895,16 @@ TJoinClausePtr BuildJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
+    auto schemaAfterJoin = tableJoin.IsLeft ? MakeColumnTypesOptional(foreignTableSchema) : foreignTableSchema;
+
     builder->AddTable({
-        *joinClause->Schema.Original,
-        tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping,
-        &joinClause->SelfJoinedColumns,
-        &joinClause->ForeignJoinedColumns,
-        commonColumnNames,
+        .Schema = *schemaAfterJoin,
+        .Alias = tableJoin.Table.Alias,
+        .Mapping = &joinClause->Schema.Mapping,
+        .SelfJoinedColumns = &joinClause->SelfJoinedColumns,
+        .ForeignJoinedColumns = &joinClause->ForeignJoinedColumns,
+        .SharedColumns = commonColumnNames,
+        .ModifiedSchemaHolder = std::move(schemaAfterJoin),
     });
 
     return joinClause;
