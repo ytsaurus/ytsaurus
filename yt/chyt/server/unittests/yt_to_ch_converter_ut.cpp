@@ -919,9 +919,17 @@ TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
     auto ysonsOptionalStructInt32String = ToYsonStringBufs(ysonStringsOptionalStructInt32String);
 
     auto logicalType = OptionalLogicalType(StructLogicalType({
-        TStructField{.Name = "key", .Type = SimpleLogicalType(ESimpleLogicalValueType::Int32)},
-        TStructField{.Name = "value", .Type = SimpleLogicalType(ESimpleLogicalValueType::String)},
-    }));
+        TStructField{
+            .Name = "key",
+            .StableName = "key",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::Int32),
+        },
+        TStructField{
+            .Name = "value",
+            .StableName = "value",
+            .Type = SimpleLogicalType(ESimpleLogicalValueType::String),
+        },
+    }, /*removedFieldStableNames*/ {}));
 
     auto expectedDataType = std::make_shared<DB::DataTypeTuple>(
         std::vector<DB::DataTypePtr>{std::make_shared<DB::DataTypeNumber<i32>>(), std::make_shared<DB::DataTypeString>()},

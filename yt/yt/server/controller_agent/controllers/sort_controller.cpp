@@ -3300,6 +3300,11 @@ private:
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec_->SortBy);
                     ValidateOutputSchemaCompatibility({
+                        .TypeCompatibilityOptions = {
+                            .AllowStructFieldRenaming = false,
+                            .AllowStructFieldRemoval = false,
+                            .IgnoreUnknownRemovedFieldNames = false,
+                        },
                         .IgnoreSortOrder = true,
                         .ForbidExtraComputedColumns = false,
                         .IgnoreStableNamesDifference = true,
@@ -4153,11 +4158,17 @@ private:
         }
 
         auto chooseMostGenericOrThrow = [&] (const auto& lhs, const auto& rhs) {
-            auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs);
+            // TODO(s-berdnikov): Relax constraints?
+            static constexpr TTypeCompatibilityOptions TypeCompatibilityOptions{
+                .AllowStructFieldRenaming = false,
+                .AllowStructFieldRemoval = false,
+                .IgnoreUnknownRemovedFieldNames = false,
+            };
+            auto [compatibilityRhs, errorRhs] = CheckTypeCompatibility(lhs, rhs, TypeCompatibilityOptions);
             if (compatibilityRhs == ESchemaCompatibility::FullyCompatible) {
                 return rhs;
             }
-            auto [compatibilityLhs, errorLhs] = CheckTypeCompatibility(rhs, lhs);
+            auto [compatibilityLhs, errorLhs] = CheckTypeCompatibility(rhs, lhs, TypeCompatibilityOptions);
             if (compatibilityLhs == ESchemaCompatibility::FullyCompatible) {
                 return lhs;
             }

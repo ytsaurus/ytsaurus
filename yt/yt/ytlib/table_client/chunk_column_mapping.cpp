@@ -57,9 +57,15 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
             continue;
         }
 
+        static constexpr NComplexTypes::TTypeCompatibilityOptions TypeCompatibilityOptions{
+            .AllowStructFieldRenaming = true,
+            .AllowStructFieldRemoval = true,
+            .IgnoreUnknownRemovedFieldNames = true,
+        };
         auto compatibility = NComplexTypes::CheckTypeCompatibility(
             chunkColumn->LogicalType(),
-            readerColumn.LogicalType());
+            readerColumn.LogicalType(),
+            TypeCompatibilityOptions);
 
         if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
             THROW_ERROR_EXCEPTION(

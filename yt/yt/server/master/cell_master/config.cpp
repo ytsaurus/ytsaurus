@@ -394,6 +394,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
         .Default(false);
+
+    // Column renaming and removal.
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_column_renaming", &TThis::EnableDynamicTableColumnRenaming)
@@ -402,6 +404,29 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_drop_column", &TThis::EnableDynamicTableDropColumn)
         .Default(false);
+
+    // Struct field renaming and removal.
+    registrar.Parameter("enable_struct_field_renaming", &TThis::EnableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter("enable_struct_field_removal", &TThis::EnableStructFieldRemoval)
+        .Default(false);
+    registrar.Parameter(
+        "enable_static_table_struct_field_renaming",
+        &TThis::EnableStaticTableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter(
+        "enable_dynamic_table_struct_field_renaming",
+        &TThis::EnableDynamicTableStructFieldRenaming)
+        .Default(false);
+    registrar.Parameter(
+        "enable_static_table_struct_field_removal",
+        &TThis::EnableStaticTableStructFieldRemoval)
+        .Default(false);
+    registrar.Parameter(
+        "enable_dynamic_table_struct_field_removal",
+        &TThis::EnableDynamicTableStructFieldRemoval)
+        .Default(false);
+
     registrar.Parameter("enable_secondary_index_copy", &TThis::EnableSecondaryIndexCopy)
         .Default(true);
     registrar.Parameter("allow_alter_key_column_to_any", &TThis::AllowAlterKeyColumnToAny)

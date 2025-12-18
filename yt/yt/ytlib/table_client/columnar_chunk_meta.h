@@ -32,7 +32,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
 
 public:
-
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     virtual i64 GetMemoryUsage() const;

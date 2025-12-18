@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/complex_types/public.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,9 +11,7 @@ namespace NYT::NTableClient {
 class TChunkColumnMapping final
 {
 public:
-    TChunkColumnMapping(
-        const TTableSchemaPtr& tableSchema,
-        const TTableSchemaPtr& chunkSchema);
+    TChunkColumnMapping(const TTableSchemaPtr& tableSchema, const TTableSchemaPtr& chunkSchema);
 
     std::vector<TColumnIdMapping> BuildVersionedSimpleSchemaIdMapping(
         const TColumnFilter& columnFilter) const;

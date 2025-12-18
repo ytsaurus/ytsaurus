@@ -937,7 +937,13 @@ private:
                     validateOutputNotSorted();
 
                     if (!Spec_->InputQuery) {
+                        // TODO(s-berdnikov): Relax constraints.
                         ValidateOutputSchemaCompatibility({
+                            .TypeCompatibilityOptions = {
+                                .AllowStructFieldRenaming = false,
+                                .AllowStructFieldRemoval = false,
+                                .IgnoreUnknownRemovedFieldNames = false,
+                            },
                             .ForbidExtraComputedColumns = false,
                             .IgnoreStableNamesDifference = true,
                             .AllowTimestampColumns = table->TableUploadOptions.VersionedWriteOptions.WriteMode ==
