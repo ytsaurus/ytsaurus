@@ -514,6 +514,20 @@ func (c *oneShotAppTaskController) NotifyProgress(pos pipelines.FilePosition) {
 	c.logger.Debug("Task progress", "progress", pos)
 }
 
+func (c *oneShotAppTaskController) OnSkippedRow(data io.WriterTo, info pipelines.SkippedRowInfo) {
+	if _, err := data.WriteTo(io.Discard); err != nil {
+		c.logger.Warn("Failed to discard skipped row data", "error", err)
+	}
+	attrs := []any{
+		"reason", string(info.Reason),
+		"offset", info.Offset,
+	}
+	for k, v := range info.Attrs {
+		attrs = append(attrs, k, v)
+	}
+	c.logger.Warn("Row skipped", attrs...)
+}
+
 type oneShotApp struct {
 	tasks []oneShotAppTask
 

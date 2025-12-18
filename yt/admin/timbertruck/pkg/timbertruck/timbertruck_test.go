@@ -2,6 +2,7 @@ package timbertruck_test
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 	"path"
@@ -28,6 +29,9 @@ func createTestStreamPipeline(ch chan<- string) timbertruck.NewPipelineFunc {
 		pipeline, stream, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
 			LineLimit:   64,
 			BufferLimit: 1024,
+			OnTruncatedRow: func(data io.WriterTo, _ pipelines.SkippedRowInfo) {
+				_, _ = data.WriteTo(io.Discard)
+			},
 		})
 		if err != nil {
 			return
