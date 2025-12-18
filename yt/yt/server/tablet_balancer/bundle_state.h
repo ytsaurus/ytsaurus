@@ -32,8 +32,6 @@ struct TBundleProfilingCounters
 
 DEFINE_REFCOUNTED_TYPE(TBundleProfilingCounters)
 
-// It is not an actual copy so far. Table objects will be reused during next fetch iteration
-// and list of tablets, pivot keys and so on will be changed.
 struct TBundleSnapshot final
 {
     TTabletCellBundlePtr Bundle;
@@ -45,6 +43,10 @@ struct TBundleSnapshot final
     using TAlienTableTag = std::tuple<TString, NYPath::TYPath>;
     THashMap<TAlienTableTag, TTableId> AlienTablePaths;
     THashMap<TTableId, TAlienTablePtr> AlienTables;
+
+    TInstant StateFetchTime;
+    TInstant StatisticsFetchTime;
+    TInstant PerformanceCountersFetchTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleSnapshot)
@@ -54,15 +56,17 @@ DEFINE_REFCOUNTED_TYPE(TBundleSnapshot)
 struct IBundleState
     : public TRefCounted
 {
-    virtual void UpdateBundleAttributes(const NYTree::IAttributeDictionary* attributes) = 0;
-
-    virtual TFuture<TBundleSnapshotPtr> GetBundleSnapshot(
-        const TTabletBalancerDynamicConfigPtr& dynamicConfig,
-        const NYTree::IListNodePtr& nodeStatistics,
+    virtual TFuture<TBundleSnapshotPtr> GetBundleSnapshot() = 0;
+    virtual TFuture<TBundleSnapshotPtr> GetBundleSnapshotWithReplicaBalancingStatistics(
+        std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
         const THashSet<TGroupName>& groupsForMoveBalancing,
         const THashSet<TGroupName>& groupsForReshardBalancing,
-        const THashSet<std::string>& allowedReplicaClusters,
-        int iterationIndex) = 0;
+        const THashSet<std::string>& allowedReplicaClusters) = 0;
+
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
+
+    virtual void Reconfigure(TBundleStateProviderConfigPtr config) = 0;
 
     virtual TBundleTabletBalancerConfigPtr GetConfig() const = 0;
     virtual NTabletClient::ETabletCellHealth GetHealth() const = 0;
@@ -76,7 +80,11 @@ DEFINE_REFCOUNTED_TYPE(IBundleState)
 IBundleStatePtr CreateBundleState(
     TString name,
     IBootstrap* bootstrap,
-    IInvokerPtr invoker);
+    IInvokerPtr fetcherInvoker,
+    IInvokerPtr controlInvoker,
+    TBundleStateProviderConfigPtr config,
+    IClusterStateProviderPtr clusterStateProvider,
+    const NYTree::IAttributeDictionary* initialAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

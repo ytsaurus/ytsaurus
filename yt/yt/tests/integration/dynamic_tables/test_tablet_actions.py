@@ -1630,9 +1630,9 @@ class TabletBalancerBase(TabletActionsBase):
         self._create_sorted_table("//tmp/t")
 
         def check_balancer_is_active(should_be_active):
-            if self.ENABLE_STANDALONE_TABLET_BALANCER:
-                sleep(1)
             sync_reshard_table("//tmp/t", [[], [1]])
+            if self.ENABLE_STANDALONE_TABLET_BALANCER:
+                sleep(self._get_state_freshness_time())
             sync_mount_table("//tmp/t")
             if should_be_active:
                 wait(lambda: get("//tmp/t/@tablet_count") == 1)

@@ -32,7 +32,7 @@ struct TTabletCellBundle final
     TTabletCellBundle(TString name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
-    TTabletCellBundlePtr DeepCopy() const;
+    TTabletCellBundlePtr DeepCopy(bool copyCells, bool copyTabletsAndStatistics) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellBundle)

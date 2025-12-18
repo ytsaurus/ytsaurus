@@ -155,6 +155,8 @@ struct TBundleStateProviderConfig
     TDuration StatisticsFetchPeriod;
     TDuration PerformanceCountersFetchPeriod;
 
+    bool CheckInvariants;
+
     REGISTER_YSON_STRUCT(TBundleStateProviderConfig);
 
     static void Register(TRegistrar registrar);
