@@ -64,6 +64,7 @@ struct TNameSource
     // Columns from current source.
     THashSet<std::string>* ForeignJoinedColumns = nullptr;
     THashSet<std::string> SharedColumns = {};
+    TTableSchemaPtr ModifiedSchemaHolder = {};
 };
 
 class TReferenceResolver
