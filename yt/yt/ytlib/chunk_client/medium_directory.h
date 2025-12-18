@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "medium_descriptor.h"
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -12,15 +10,24 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumDescriptor
+{
+    std::string Name;
+    int Index = GenericMediumIndex;
+    int Priority = -1;
+
+    bool operator == (const TMediumDescriptor& other) const = default;
+};
+
 class TMediumDirectory
     : public TRefCounted
 {
 public:
-    TMediumDescriptorPtr FindByIndex(int index) const;
-    TMediumDescriptorPtr GetByIndexOrThrow(int index) const;
+    const TMediumDescriptor* FindByIndex(int index) const;
+    const TMediumDescriptor* GetByIndexOrThrow(int index) const;
 
-    TMediumDescriptorPtr FindByName(const std::string& name) const;
-    TMediumDescriptorPtr GetByNameOrThrow(const std::string& name) const;
+    const TMediumDescriptor* FindByName(const std::string& name) const;
+    const TMediumDescriptor* GetByNameOrThrow(const std::string& name) const;
 
     std::vector<int> GetMediumIndexes() const;
 
@@ -30,11 +37,10 @@ public:
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    // TODO(cherepashka, achulkov2): Once masters start providing medium ids, we should switch to using medium ids as keys.
-    // This will be implemented in hand with supporting offshore media without medium indexes.
-    using TDescriptorStorage = THashMap<int, TMediumDescriptorPtr>;
-    TDescriptorStorage IndexToDescriptor_;
-    THashMap<TString, TDescriptorStorage::const_iterator> NameToDescriptor_;
+    THashMap<std::string, const TMediumDescriptor*> NameToDescriptor_;
+    THashMap<int, const TMediumDescriptor*> IndexToDescriptor_;
+
+    std::vector<std::unique_ptr<TMediumDescriptor>> Descriptors_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectory)

@@ -803,7 +803,6 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/program
-    yt/yt/library/s3
     yt/yt/library/row_merger
     yt/yt/library/query/base
     yt/yt/library/query/engine

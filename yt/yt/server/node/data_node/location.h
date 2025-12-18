@@ -12,7 +12,6 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
-#include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -186,14 +185,14 @@ public:
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     void UpdateMediumDescriptor(
-        const NChunkClient::TMediumDescriptorPtr& mediumDescriptor,
+        const NChunkClient::TMediumDescriptor& mediumDescriptor,
         bool onInitialize);
 
     //! Returns the medium name.
     std::string GetMediumName() const;
 
     //! Returns the medium descriptor.
-    NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
+    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
@@ -354,7 +353,7 @@ private:
     TChunkLocationUuid Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
-    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TGauge MediumFlag_;
 
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;

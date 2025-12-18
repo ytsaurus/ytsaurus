@@ -300,7 +300,9 @@ TChunkLocation::TChunkLocation(
     , RuntimeConfig_(config)
     , ReadMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
     , WriteMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
-    , MediumDescriptor_(New<TDomesticMediumDescriptor>(GetStaticConfig()->MediumName))
+    , MediumDescriptor_(TMediumDescriptor{
+        .Name = GetStaticConfig()->MediumName
+    })
 {
     UpdateMediumTag();
 
@@ -391,14 +393,14 @@ std::string TChunkLocation::GetMediumName() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return GetMediumDescriptor()->Name();
+    return GetMediumDescriptor().Name;
 }
 
-TMediumDescriptorPtr TChunkLocation::GetMediumDescriptor() const
+TMediumDescriptor TChunkLocation::GetMediumDescriptor() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return MediumDescriptor_.Acquire();
+    return MediumDescriptor_.Load();
 }
 
 TLocationPerformanceCounters& TChunkLocation::GetPerformanceCounters()
@@ -1103,10 +1105,10 @@ void TChunkLocation::UpdateMediumTag()
     TChunkLocationBase::UpdateMediumTag(GetMediumName());
 }
 
-void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptorPtr& newDescriptor, bool onInitialize)
+void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
-    YT_VERIFY(newDescriptor->GetIndex() != GenericMediumIndex);
+    YT_VERIFY(newDescriptor.Index != GenericMediumIndex);
 
     auto oldDescriptor = MediumDescriptor_.Exchange(newDescriptor);
 
@@ -1115,17 +1117,17 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
     }
 
     UpdateMediumTag();
-    if (ChunkStore_ && newDescriptor->GetIndex() != oldDescriptor->GetIndex()) {
-        ChunkStore_->ChangeLocationMedium(this, oldDescriptor->GetIndex());
+    if (ChunkStore_ && newDescriptor.Index != oldDescriptor.Index) {
+        ChunkStore_->ChangeLocationMedium(this, oldDescriptor.Index);
     }
 
     YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
         onInitialize ? "set" : "changed",
         GetId(),
         GetUuid(),
-        newDescriptor->Name(),
-        newDescriptor->GetIndex(),
-        newDescriptor->GetPriority());
+        newDescriptor.Name,
+        newDescriptor.Index,
+        newDescriptor.Priority);
 }
 
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
