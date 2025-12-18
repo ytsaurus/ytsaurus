@@ -185,6 +185,10 @@ struct TDynamicObjectServiceConfig
 
     bool EnableReadRequestComplexityLimits;
 
+    // COMPAT(h0pless): In 25.4 replace it with a flag that manages where the throttling
+    // of subrequests happens. On Master or on the Cypress Proxies.
+    bool EnablePerUserThrottling;
+
     //! This throttler controls the rate of local read ObjectService.Execute subrequests
     //! from *all* users except root (!) that are allowed to pass through to be executed.
     //! It can be used as a form of CPU congestion control as it is induced by users'
