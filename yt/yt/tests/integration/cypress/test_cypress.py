@@ -2018,6 +2018,58 @@ class TestCypress(YTEnvSetup):
             wait(lambda: not exists("//tmp/t"), timeout=20, sleep_backoff=5)
 
     @authors("koloshmet")
+    def test_expiration_user_set_yson(self):
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
+        set("//sys/@config/cypress_manager/enable_authorized_expiration", True)
+
+        create_user("u")
+
+        time_delta = 10
+        timeout = 10000
+
+        expiration_time = {"expiration_time": str(get_current_time() + timedelta(seconds=time_delta))}
+        expiration_timeout = {"expiration_timeout": timeout}
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes=expiration_timeout,
+            authenticated_user="u",
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes=expiration_time,
+            authenticated_user="u",
+        )
+
+        set(
+            "//tmp/t1/@",
+            expiration_time,
+            authenticated_user="u",
+        )
+        set(
+            "//tmp/t2/@",
+            expiration_timeout,
+            authenticated_user="u",
+        )
+
+        assert exists("//tmp/t1/@expiration_time")
+        assert exists("//tmp/t2/@expiration_timeout")
+
+        set(
+            "//tmp/t1/@",
+            expiration_time,
+        )
+        set(
+            "//tmp/t2/@",
+            expiration_timeout,
+        )
+
+        assert exists("//tmp/t1/@expiration_time")
+        assert exists("//tmp/t2/@expiration_timeout")
+
+    @authors("koloshmet")
     def test_expiration_users_in_depth(self):
         set("//sys/@config/cypress_manager/expiration_backoff_time", 1000)
         set("//sys/@config/cypress_manager/expiration_attempt_persist_period", 1000)
