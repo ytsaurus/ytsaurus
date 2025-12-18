@@ -6284,7 +6284,8 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
                 insert_rows(queue_path, rows)
                 break
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
         sync_flush_table(queue_path)
