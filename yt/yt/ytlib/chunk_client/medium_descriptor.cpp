@@ -50,7 +50,7 @@ TMediumDescriptorPtr TMediumDescriptor::CreateFromProto(const NProto::TMediumDir
             descriptor = New<TS3MediumDescriptor>();
             break;
         }
-        // COMPAT(achulkov2): Remove this case and fallthrough to throwing an exception once all masters start filling this field.
+        // COMPAT(cherepashka, achulkov2): Remove this case and fallthrough to throwing an exception once all masters start filling this field.
         case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::TYPE_SPECIFIC_DESCRIPTOR_NOT_SET: {
             descriptor = New<TDomesticMediumDescriptor>();
             break;
