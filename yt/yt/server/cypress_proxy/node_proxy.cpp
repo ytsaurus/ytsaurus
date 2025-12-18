@@ -537,14 +537,16 @@ protected:
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
 
-        // TODO(kvk1920): think about transactions.
+        if (SequoiaSession_->GetCurrentCypressTransactionId()) {
+            THROW_ERROR_EXCEPTION("Rootstock cannot be removed under transaction")
+                << TErrorAttribute("scion_id", Id_)
+                << TErrorAttribute("cypress_transaction_id", SequoiaSession_->GetCurrentCypressTransactionId());
+        }
 
         // Scion removal causes rootstock removal.
         // Since rootstock's parent _always_ lives at the same cell as rootstock
         // `DetachChild()` isn't needed.
 
-        // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
-        // TODO(kvk1920): make it a part of |TSequoiaSession::RemoveRootstock|.
         auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
         SetAllowResolveFromSequoiaObject(reqGet, true);
         auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
