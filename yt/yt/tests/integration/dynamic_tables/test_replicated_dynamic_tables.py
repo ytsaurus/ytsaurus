@@ -261,7 +261,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 insert_rows(path, rows, require_sync_replica=require_sync_replica)
                 return
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
     @authors("savrus")
