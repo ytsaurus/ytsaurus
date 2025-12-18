@@ -177,6 +177,7 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("waiting_for_assignments_since").Value(operation.WaitingForAssignmentsSince())
             .Item("preemptible").Value(operation.IsPreemptible())
             .Item("starving").Value(operation.IsStarving())
+            .Item("scheduling_module").Value(operation.SchedulingModule())
         .EndMap();
 }
 
