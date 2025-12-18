@@ -464,6 +464,7 @@ class MySQL(Dialect):
             "INDEX": lambda self: self._parse_index_constraint(),
             "KEY": lambda self: self._parse_index_constraint(),
             "SPATIAL": lambda self: self._parse_index_constraint(kind="SPATIAL"),
+            "ZEROFILL": lambda self: self.expression(exp.ZeroFillColumnConstraint),
         }
 
         ALTER_PARSERS = {
@@ -1329,6 +1330,11 @@ class MySQL(Dialect):
 
         def isascii_sql(self, expression: exp.IsAscii) -> str:
             return f"REGEXP_LIKE({self.sql(expression.this)}, '^[[:ascii:]]*$')"
+
+        def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
+            # https://dev.mysql.com/doc/refman/8.4/en/window-function-descriptions.html
+            self.unsupported("MySQL does not support IGNORE NULLS.")
+            return self.sql(expression.this)
 
         @unsupported_args("this")
         def currentschema_sql(self, expression: exp.CurrentSchema) -> str:

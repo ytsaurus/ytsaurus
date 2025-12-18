@@ -12,7 +12,6 @@ from sqlglot.dialects.dialect import (
     rename_func,
     strposition_sql,
     timestrtotime_sql,
-    unit_to_str,
     timestamptrunc_sql,
     build_date_delta,
 )
@@ -105,6 +104,67 @@ def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
                 expression.set(key, arg.transform(prefix_local))
 
     return expression
+
+
+def _trunc_sql(self: Exasol.Generator, kind: str, expression: exp.DateTrunc) -> str:
+    unit = expression.text("unit")
+    node = expression.this.this if isinstance(expression.this, exp.Cast) else expression.this
+    expr_sql = self.sql(node)
+    if isinstance(node, exp.Literal) and node.is_string:
+        expr_sql = (
+            f"{kind} '{node.this.replace('T', ' ')}'"
+            if kind == "TIMESTAMP"
+            else f"DATE '{node.this}'"
+        )
+    return f"DATE_TRUNC('{unit}', {expr_sql})"
+
+
+def _date_trunc_sql(self: Exasol.Generator, expression: exp.DateTrunc) -> str:
+    return _trunc_sql(self, "DATE", expression)
+
+
+def _timestamp_trunc_sql(self: Exasol.Generator, expression: exp.DateTrunc) -> str:
+    return _trunc_sql(self, "TIMESTAMP", expression)
+
+
+def is_case_insensitive(node: exp.Expression) -> bool:
+    return isinstance(node, exp.Collate) and node.text("expression").upper() == "UTF8_LCASE"
+
+
+def _substring_index_sql(self: Exasol.Generator, expression: exp.SubstringIndex) -> str:
+    this = expression.this
+    delimiter = expression.args["delimiter"]
+    count_node = expression.args["count"]
+    count_sql = self.sql(expression, "count")
+    num = count_node.to_py() if count_node.is_number else 0
+
+    haystack_sql = self.sql(this)
+    if num == 0:
+        return self.func("SUBSTR", haystack_sql, "1", "0")
+
+    from_right = num < 0
+    direction = "-1" if from_right else "1"
+    occur = self.func("ABS", count_sql) if from_right else count_sql
+
+    delimiter_sql = self.sql(delimiter)
+
+    position = self.func(
+        "INSTR",
+        self.func("LOWER", haystack_sql) if is_case_insensitive(this) else haystack_sql,
+        self.func("LOWER", delimiter_sql) if is_case_insensitive(delimiter) else delimiter_sql,
+        direction,
+        occur,
+    )
+    nullable_pos = self.func("NULLIF", position, "0")
+
+    if from_right:
+        start = self.func(
+            "NVL", f"{nullable_pos} + {self.func('LENGTH', delimiter_sql)}", direction
+        )
+        return self.func("SUBSTR", haystack_sql, start)
+
+    length = self.func("NVL", f"{nullable_pos} - 1", self.func("LENGTH", haystack_sql))
+    return self.func("SUBSTR", haystack_sql, direction, length)
 
 
 DATE_UNITS = {"DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
@@ -308,7 +368,7 @@ class Exasol(Dialect):
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/div.htm#DIV
             exp.IntDiv: rename_func("DIV"),
             exp.TsOrDsDiff: _date_diff_sql,
-            exp.DateTrunc: lambda self, e: self.func("TRUNC", e.this, unit_to_str(e)),
+            exp.DateTrunc: _date_trunc_sql,
             exp.DayOfWeek: lambda self, e: f"CAST(TO_CHAR({self.sql(e, 'this')}, 'D') AS INTEGER)",
             exp.DatetimeTrunc: timestamptrunc_sql(),
             exp.GroupConcat: lambda self, e: groupconcat_sql(
@@ -338,7 +398,7 @@ class Exasol(Dialect):
             exp.TsOrDsToDate: lambda self, e: self.func("TO_DATE", e.this, self.format_time(e)),
             exp.TimeToStr: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
             exp.TimeStrToTime: timestrtotime_sql,
-            exp.TimestampTrunc: timestamptrunc_sql(),
+            exp.TimestampTrunc: _timestamp_trunc_sql,
             exp.StrToTime: lambda self, e: self.func("TO_DATE", e.this, self.format_time(e)),
             exp.CurrentUser: lambda *_: "CURRENT_USER",
             exp.AtTimeZone: lambda self, e: self.func(
@@ -368,11 +428,13 @@ class Exasol(Dialect):
                     _add_local_prefix_for_aliases,
                 ]
             ),
+            exp.SubstringIndex: _substring_index_sql,
             exp.WeekOfYear: rename_func("WEEK"),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_date.htm
             exp.Date: rename_func("TO_DATE"),
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_timestamp.htm
             exp.Timestamp: rename_func("TO_TIMESTAMP"),
+            exp.Quarter: lambda self, e: f"CEIL(MONTH(TO_DATE({self.sql(e, 'this')}))/3)",
         }
 
         def converttimezone_sql(self, expression: exp.ConvertTimezone) -> str:
@@ -396,3 +458,12 @@ class Exasol(Dialect):
                 return self.function_fallback_sql(expression)
 
             return self.func(f"ADD_{unit}S", expression.this, expression.expression)
+
+        def collate_sql(self, expression: exp.Collate) -> str:
+            return self.sql(expression.this)
+
+        # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/rank.htm
+        def rank_sql(self, expression: exp.Rank) -> str:
+            if expression.args.get("expressions"):
+                self.unsupported("Exasol does not support arguments in RANK")
+            return self.func("RANK")
