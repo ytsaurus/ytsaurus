@@ -237,7 +237,8 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 insert_rows(path, rows)
                 return
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
 
