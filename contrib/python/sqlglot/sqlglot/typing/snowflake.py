@@ -3,12 +3,17 @@ from __future__ import annotations
 import typing as t
 
 from sqlglot import exp
+from sqlglot.helper import seq_get
 from sqlglot.typing import EXPRESSION_METADATA
 
 if t.TYPE_CHECKING:
     from sqlglot.optimizer.annotate_types import TypeAnnotator
 
 DATE_PARTS = {"DAY", "WEEK", "MONTH", "QUARTER", "YEAR"}
+
+MAX_PRECISION = 38
+
+MAX_SCALE = 37
 
 
 def _annotate_reverse(self: TypeAnnotator, expression: exp.Reverse) -> exp.Reverse:
@@ -27,8 +32,6 @@ def _annotate_timestamp_from_parts(
     TIMESTAMP_FROM_PARTS with time_zone -> TIMESTAMPTZ
     TIMESTAMP_FROM_PARTS without time_zone -> TIMESTAMP (defaults to TIMESTAMP_NTZ)
     """
-    self._annotate_args(expression)
-
     if expression.args.get("zone"):
         self._set_type(expression, exp.DataType.Type.TIMESTAMPTZ)
     else:
@@ -38,8 +41,6 @@ def _annotate_timestamp_from_parts(
 
 
 def _annotate_date_or_time_add(self: TypeAnnotator, expression: exp.Expression) -> exp.Expression:
-    self._annotate_args(expression)
-
     if (
         expression.this.is_type(exp.DataType.Type.DATE)
         and expression.text("unit").upper() not in DATE_PARTS
@@ -57,8 +58,6 @@ def _annotate_decode_case(self: TypeAnnotator, expression: exp.DecodeCase) -> ex
     We only look at the return values (ret1, ret2, ..., default) to determine the type,
     not the comparison values (val1, val2, ...) or the expression being compared.
     """
-    self._annotate_args(expression)
-
     expressions = expression.expressions
 
     # Return values are at indices 2, 4, 6, ... and the last element (if even length)
@@ -81,15 +80,12 @@ def _annotate_decode_case(self: TypeAnnotator, expression: exp.DecodeCase) -> ex
     return expression
 
 
-def _annotate_arg_max_min(
-    self: TypeAnnotator, expression: exp.ArgMax | exp.ArgMin
-) -> exp.ArgMax | exp.ArgMin:
-    """Annotate ArgMax/ArgMin with type based on argument count.
-
-    When count argument is provided (3 arguments), returns ARRAY of the first argument's type.
-    When count is not provided (2 arguments), returns the first argument's type.
-    """
-    return self._annotate_by_args(expression, "this", array=bool(expression.args.get("count")))
+def _annotate_arg_max_min(self, expression):
+    self._set_type(
+        expression,
+        exp.DataType.Type.ARRAY if expression.args.get("count") else expression.this.type,
+    )
+    return expression
 
 
 def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) -> exp.WithinGroup:
@@ -98,8 +94,6 @@ def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) -> 
     1) Annotate args first
     2) Check if this is PercentileDisc and if so, re-annotate its type to match the ordered expression's type
     """
-    self._annotate_args(expression)
-
     if (
         isinstance(expression.this, exp.PercentileDisc)
         and isinstance(order_expr := expression.expression, exp.Order)
@@ -107,6 +101,64 @@ def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) -> 
         and isinstance(ordered_expr := order_expr.expressions[0], exp.Ordered)
     ):
         self._set_type(expression, ordered_expr.this.type)
+
+    return expression
+
+
+def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
+    """Annotate MEDIAN function with correct return type.
+
+    Based on Snowflake documentation:
+    - If the expr is FLOAT -> annotate as FLOAT
+    - If the expr is NUMBER(p, s) -> annotate as NUMBER(min(p+3, 38), min(s+3, 37))
+    """
+    # First annotate the argument to get its type
+    expression = self._annotate_by_args(expression, "this")
+
+    # Get the input type
+    input_type = expression.this.type
+
+    if input_type.is_type(exp.DataType.Type.FLOAT):
+        # If input is FLOAT, return FLOAT
+        self._set_type(expression, exp.DataType.Type.FLOAT)
+    else:
+        # If input is NUMBER(p, s), return NUMBER(min(p+3, 38), min(s+3, 37))
+        exprs = input_type.expressions
+
+        precision_expr = seq_get(exprs, 0)
+        precision = precision_expr.this.to_py() if precision_expr else MAX_PRECISION
+
+        scale_expr = seq_get(exprs, 1)
+        scale = scale_expr.this.to_py() if scale_expr else 0
+
+        new_precision = min(precision + 3, MAX_PRECISION)
+        new_scale = min(scale + 3, MAX_SCALE)
+
+        # Build the new NUMBER type
+        new_type = exp.DataType.build(f"NUMBER({new_precision}, {new_scale})", dialect="snowflake")
+        self._set_type(expression, new_type)
+
+    return expression
+
+
+def _annotate_math_with_float_decfloat(
+    self: TypeAnnotator, expression: exp.Expression
+) -> exp.Expression:
+    """Annotate math functions that preserve  DECFLOAT but return DOUBLE for others.
+
+    In Snowflake, trigonometric and exponential math functions:
+    - If input is DECFLOAT -> return DECFLOAT
+    - For integer types (INT, BIGINT, etc.) -> return DOUBLE
+    - For other numeric types (NUMBER, DECIMAL, DOUBLE) -> return DOUBLE
+    """
+    expression = self._annotate_by_args(expression, "this")
+
+    # If input is DECFLOAT, preserve
+    if expression.this.is_type(exp.DataType.Type.DECFLOAT):
+        self._set_type(expression, expression.this.type)
+    else:
+        # For all other types (integers, decimals, etc.), return DOUBLE
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
 
     return expression
 
@@ -134,6 +186,9 @@ EXPRESSION_METADATA = {
         expr_type: {"returns": exp.DataType.Type.ARRAY}
         for expr_type in (
             exp.ApproxTopK,
+            exp.ApproxTopKEstimate,
+            exp.ArrayAgg,
+            exp.ArrayUnionAgg,
             exp.RegexpExtractAll,
             exp.Split,
             exp.StringToArray,
@@ -178,6 +233,7 @@ EXPRESSION_METADATA = {
             exp.EqualNull,
             exp.IsNullValue,
             exp.Search,
+            exp.SearchIp,
         }
     },
     **{
@@ -189,7 +245,7 @@ EXPRESSION_METADATA = {
     },
     **{
         expr_type: {
-            "annotator": lambda self, e: self._annotate_with_type(
+            "annotator": lambda self, e: self._set_type(
                 e, exp.DataType.build("NUMBER", dialect="snowflake")
             )
         }
@@ -204,24 +260,45 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
-            exp.Asin,
+            exp.ApproximateSimilarity,
             exp.Asinh,
-            exp.Atan,
-            exp.Atan2,
             exp.Atanh,
             exp.Cbrt,
-            exp.Cos,
             exp.Cosh,
+            exp.MonthsBetween,
+            exp.Normal,
+            exp.RegrAvgx,
+            exp.RegrAvgy,
+            exp.RegrSlope,
+            exp.RegrValx,
+            exp.RegrValy,
+            exp.Sinh,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.DECFLOAT}
+        for expr_type in {
+            exp.ToDecfloat,
+            exp.TryToDecfloat,
+        }
+    },
+    **{
+        expr_type: {"annotator": _annotate_math_with_float_decfloat}
+        for expr_type in {
+            exp.Acos,
+            exp.Asin,
+            exp.Atan,
+            exp.Atan2,
+            exp.Cos,
             exp.Cot,
             exp.Degrees,
             exp.Exp,
-            exp.MonthsBetween,
-            exp.RegrAvgx,
-            exp.RegrAvgy,
-            exp.RegrValx,
-            exp.RegrValy,
+            exp.Ln,
+            exp.Log,
+            exp.Pow,
+            exp.Radians,
             exp.Sin,
-            exp.Sinh,
+            exp.Sqrt,
             exp.Tan,
             exp.Tanh,
         }
@@ -253,6 +330,7 @@ EXPRESSION_METADATA = {
             exp.ParseIp,
             exp.ParseUrl,
             exp.ApproxTopKAccumulate,
+            exp.ApproxTopKCombine,
         }
     },
     **{
@@ -269,6 +347,8 @@ EXPRESSION_METADATA = {
             exp.AISummarizeAgg,
             exp.Base64DecodeString,
             exp.Base64Encode,
+            exp.CheckJson,
+            exp.CheckXml,
             exp.Chr,
             exp.Collate,
             exp.Collation,
@@ -278,6 +358,7 @@ EXPRESSION_METADATA = {
             exp.Initcap,
             exp.MD5,
             exp.Monthname,
+            exp.Randstr,
             exp.RegexpExtract,
             exp.RegexpReplace,
             exp.Repeat,
@@ -294,11 +375,18 @@ EXPRESSION_METADATA = {
             exp.Uuid,
         }
     },
+    **{
+        expr_type: {"returns": exp.DataType.Type.VARIANT}
+        for expr_type in {
+            exp.Minhash,
+            exp.MinhashCombine,
+        }
+    },
     exp.ArgMax: {"annotator": _annotate_arg_max_min},
     exp.ArgMin: {"annotator": _annotate_arg_max_min},
     exp.ConcatWs: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.ConvertTimezone: {
-        "annotator": lambda self, e: self._annotate_with_type(
+        "annotator": lambda self, e: self._set_type(
             e,
             exp.DataType.Type.TIMESTAMPNTZ
             if e.args.get("source_tz")
@@ -310,7 +398,13 @@ EXPRESSION_METADATA = {
     exp.GreatestIgnoreNulls: {
         "annotator": lambda self, e: self._annotate_by_args(e, "expressions")
     },
+    exp.HashAgg: {
+        "annotator": lambda self, e: self._set_type(
+            e, exp.DataType.build("NUMBER(19, 0)", dialect="snowflake")
+        )
+    },
     exp.LeastIgnoreNulls: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
+    exp.Median: {"annotator": _annotate_median},
     exp.Reverse: {"annotator": _annotate_reverse},
     exp.TimeAdd: {"annotator": _annotate_date_or_time_add},
     exp.TimestampFromParts: {"annotator": _annotate_timestamp_from_parts},

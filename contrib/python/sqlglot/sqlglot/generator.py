@@ -184,6 +184,7 @@ class Generator(metaclass=_Generator):
         exp.PositionalColumn: lambda self, e: f"#{self.sql(e, 'this')}",
         exp.ProjectionPolicyColumnConstraint: lambda self,
         e: f"PROJECTION POLICY {self.sql(e, 'this')}",
+        exp.ZeroFillColumnConstraint: lambda self, e: "ZEROFILL",
         exp.Put: lambda self, e: self.get_put_sql(e),
         exp.RemoteWithConnectionModelProperty: lambda self,
         e: f"REMOTE WITH CONNECTION {self.sql(e, 'this')}",
@@ -1504,13 +1505,14 @@ class Generator(metaclass=_Generator):
         cluster = f" {cluster}" if cluster else ""
         where = self.sql(expression, "where")
         returning = self.sql(expression, "returning")
+        order = self.sql(expression, "order")
         limit = self.sql(expression, "limit")
         tables = self.expressions(expression, key="tables")
         tables = f" {tables}" if tables else ""
         if self.RETURNING_END:
-            expression_sql = f"{this}{using}{cluster}{where}{returning}{limit}"
+            expression_sql = f"{this}{using}{cluster}{where}{returning}{order}{limit}"
         else:
-            expression_sql = f"{returning}{this}{using}{cluster}{where}{limit}"
+            expression_sql = f"{returning}{this}{using}{cluster}{where}{order}{limit}"
         return self.prepend_ctes(expression, f"DELETE{tables}{expression_sql}")
 
     def drop_sql(self, expression: exp.Drop) -> str:
@@ -2174,14 +2176,15 @@ class Generator(metaclass=_Generator):
         if expression.this:
             this = self.sql(expression, "this")
             if not expressions:
-                return f"UNPIVOT {this}"
-
-            on = f"{self.seg('ON')} {expressions}"
-            into = self.sql(expression, "into")
-            into = f"{self.seg('INTO')} {into}" if into else ""
-            using = self.expressions(expression, key="using", flat=True)
-            using = f"{self.seg('USING')} {using}" if using else ""
-            return f"{direction} {this}{on}{into}{using}{group}"
+                sql = f"UNPIVOT {this}"
+            else:
+                on = f"{self.seg('ON')} {expressions}"
+                into = self.sql(expression, "into")
+                into = f"{self.seg('INTO')} {into}" if into else ""
+                using = self.expressions(expression, key="using", flat=True)
+                using = f"{self.seg('USING')} {using}" if using else ""
+                sql = f"{direction} {this}{on}{into}{using}{group}"
+            return self.prepend_ctes(expression, sql)
 
         alias = self.sql(expression, "alias")
         alias = f" AS {alias}" if alias else ""
@@ -2204,7 +2207,8 @@ class Generator(metaclass=_Generator):
 
         default_on_null = self.sql(expression, "default_on_null")
         default_on_null = f" DEFAULT ON NULL ({default_on_null})" if default_on_null else ""
-        return f"{self.seg(direction)}{nulls}({expressions} FOR {fields}{default_on_null}{group}){alias}"
+        sql = f"{self.seg(direction)}{nulls}({expressions} FOR {fields}{default_on_null}{group}){alias}"
+        return self.prepend_ctes(expression, sql)
 
     def version_sql(self, expression: exp.Version) -> str:
         this = f"FOR {expression.name}"
@@ -3133,11 +3137,13 @@ class Generator(metaclass=_Generator):
         return f"FOREIGN KEY{expressions}{reference}{delete}{update}{options}"
 
     def primarykey_sql(self, expression: exp.PrimaryKey) -> str:
+        this = self.sql(expression, "this")
+        this = f" {this}" if this else ""
         expressions = self.expressions(expression, flat=True)
         include = self.sql(expression, "include")
         options = self.expressions(expression, key="options", flat=True, sep=" ")
         options = f" {options}" if options else ""
-        return f"PRIMARY KEY ({expressions}){include}{options}"
+        return f"PRIMARY KEY{this} ({expressions}){include}{options}"
 
     def if_sql(self, expression: exp.If) -> str:
         return self.case_sql(exp.Case(ifs=[expression], default=expression.args.get("false")))
@@ -3872,9 +3878,6 @@ class Generator(metaclass=_Generator):
     def nullsafeneq_sql(self, expression: exp.NullSafeNEQ) -> str:
         return self.binary(expression, "IS DISTINCT FROM")
 
-    def slice_sql(self, expression: exp.Slice) -> str:
-        return self.binary(expression, ":")
-
     def sub_sql(self, expression: exp.Sub) -> str:
         return self.binary(expression, "-")
 
@@ -4102,7 +4105,9 @@ class Generator(metaclass=_Generator):
             if isinstance(then_expression.args.get("expressions"), exp.Star):
                 then = f"UPDATE {self.sql(then_expression, 'expressions')}"
             else:
-                then = f"UPDATE SET{self.sep()}{self.expressions(then_expression)}"
+                expressions_sql = self.expressions(then_expression)
+                then = f"UPDATE SET{self.sep()}{expressions_sql}" if expressions_sql else "UPDATE"
+
         else:
             then = self.sql(then_expression)
         return f"WHEN {matched}{source}{condition} THEN {then}"
@@ -4373,8 +4378,8 @@ class Generator(metaclass=_Generator):
 
     def refresh_sql(self, expression: exp.Refresh) -> str:
         this = self.sql(expression, "this")
-        table = "" if isinstance(expression.this, exp.Literal) else "TABLE "
-        return f"REFRESH {table}{this}"
+        kind = "" if isinstance(expression.this, exp.Literal) else f"{expression.text('kind')} "
+        return f"REFRESH {kind}{this}"
 
     def toarray_sql(self, expression: exp.ToArray) -> str:
         arg = expression.this
@@ -4942,6 +4947,14 @@ class Generator(metaclass=_Generator):
 
         return array_agg
 
+    def slice_sql(self, expression: exp.Slice) -> str:
+        step = self.sql(expression, "step")
+        end = self.sql(expression.expression)
+        begin = self.sql(expression.this)
+
+        sql = f"{end}:{step}" if step else end
+        return f"{begin}:{sql}" if sql else f"{begin}:"
+
     def apply_sql(self, expression: exp.Apply) -> str:
         this = self.sql(expression, "this")
         expr = self.sql(expression, "expression")
@@ -5415,3 +5428,27 @@ class Generator(metaclass=_Generator):
             )
 
         return uuid_func_sql
+
+    def initcap_sql(self, expression: exp.Initcap) -> str:
+        delimiters = expression.expression
+
+        if delimiters:
+            # do not generate delimiters arg if we are round-tripping from default delimiters
+            if (
+                delimiters.is_string
+                and delimiters.this == self.dialect.INITCAP_DEFAULT_DELIMITER_CHARS
+            ):
+                delimiters = None
+            elif not self.dialect.INITCAP_SUPPORTS_CUSTOM_DELIMITERS:
+                self.unsupported("INITCAP does not support custom delimiters")
+                delimiters = None
+
+        return self.func("INITCAP", expression.this, delimiters)
+
+    def localtime_sql(self, expression: exp.Localtime) -> str:
+        this = expression.this
+        return self.func("LOCALTIME", this) if this else "LOCALTIME"
+
+    def localtimestamp_sql(self, expression: exp.Localtime) -> str:
+        this = expression.this
+        return self.func("LOCALTIMESTAMP", this) if this else "LOCALTIMESTAMP"

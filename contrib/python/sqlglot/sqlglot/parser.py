@@ -7,7 +7,14 @@ import typing as t
 from collections import defaultdict
 
 from sqlglot import exp
-from sqlglot.errors import ErrorLevel, ParseError, TokenError, concat_messages, merge_errors
+from sqlglot.errors import (
+    ErrorLevel,
+    ParseError,
+    TokenError,
+    concat_messages,
+    highlight_sql,
+    merge_errors,
+)
 from sqlglot.helper import apply_index_offset, ensure_list, seq_get
 from sqlglot.time import format_time
 from sqlglot.tokens import Token, Tokenizer, TokenType
@@ -97,6 +104,8 @@ def build_extract_json_with_path(expr_type: t.Type[E]) -> t.Callable[[t.List, Di
         )
         if len(args) > 2 and expr_type is exp.JSONExtract:
             expression.set("expressions", args[2:])
+        if expr_type is exp.JSONExtractScalar:
+            expression.set("scalar_only", dialect.JSON_EXTRACT_SCALAR_SCALAR_ONLY)
 
         return expression
 
@@ -230,6 +239,8 @@ class Parser(metaclass=_Parser):
             is_string=dialect.UUID_IS_STRING_TYPE or None
         ),
         "GLOB": lambda args: exp.Glob(this=seq_get(args, 1), expression=seq_get(args, 0)),
+        "GREATEST": lambda args: exp.Greatest(this=seq_get(args, 0), expressions=args[1:]),
+        "LEAST": lambda args: exp.Least(this=seq_get(args, 0), expressions=args[1:]),
         "HEX": build_hex,
         "JSON_EXTRACT": build_extract_json_with_path(exp.JSONExtract),
         "JSON_EXTRACT_SCALAR": build_extract_json_with_path(exp.JSONExtractScalar),
@@ -278,6 +289,8 @@ class Parser(metaclass=_Parser):
         TokenType.CURRENT_TIME: exp.CurrentTime,
         TokenType.CURRENT_TIMESTAMP: exp.CurrentTimestamp,
         TokenType.CURRENT_USER: exp.CurrentUser,
+        TokenType.LOCALTIME: exp.Localtime,
+        TokenType.LOCALTIMESTAMP: exp.Localtimestamp,
     }
 
     STRUCT_TYPE_TOKENS = {
@@ -320,6 +333,7 @@ class Parser(metaclass=_Parser):
         TokenType.UINT,
         TokenType.BIGINT,
         TokenType.UBIGINT,
+        TokenType.BIGNUM,
         TokenType.INT128,
         TokenType.UINT128,
         TokenType.INT256,
@@ -350,6 +364,7 @@ class Parser(metaclass=_Parser):
         TokenType.TINYTEXT,
         TokenType.TIME,
         TokenType.TIMETZ,
+        TokenType.TIME_NS,
         TokenType.TIMESTAMP,
         TokenType.TIMESTAMP_S,
         TokenType.TIMESTAMP_MS,
@@ -380,6 +395,7 @@ class Parser(metaclass=_Parser):
         TokenType.DECIMAL64,
         TokenType.DECIMAL128,
         TokenType.DECIMAL256,
+        TokenType.DECFLOAT,
         TokenType.UDECIMAL,
         TokenType.BIGDECIMAL,
         TokenType.UUID,
@@ -632,6 +648,8 @@ class Parser(metaclass=_Parser):
         TokenType.ILIKE,
         TokenType.INSERT,
         TokenType.LIKE,
+        TokenType.LOCALTIME,
+        TokenType.LOCALTIMESTAMP,
         TokenType.MERGE,
         TokenType.NEXT,
         TokenType.OFFSET,
@@ -786,6 +804,7 @@ class Parser(metaclass=_Parser):
             this=this,
             expression=self.dialect.to_json_path(path),
             only_json_types=self.JSON_ARROWS_REQUIRE_JSON_TYPE,
+            scalar_only=self.dialect.JSON_EXTRACT_SCALAR_SCALAR_ONLY,
         ),
         TokenType.HASH_ARROW: lambda self, this, path: self.expression(
             exp.JSONBExtract,
@@ -1250,6 +1269,7 @@ class Parser(metaclass=_Parser):
         "EXTRACT": lambda self: self._parse_extract(),
         "FLOOR": lambda self: self._parse_ceil_floor(exp.Floor),
         "GAP_FILL": lambda self: self._parse_gap_fill(),
+        "INITCAP": lambda self: self._parse_initcap(),
         "JSON_OBJECT": lambda self: self._parse_json_object(),
         "JSON_OBJECTAGG": lambda self: self._parse_json_object(agg=True),
         "JSON_TABLE": lambda self: self._parse_json_table(),
@@ -1448,6 +1468,8 @@ class Parser(metaclass=_Parser):
 
     # The style options for the DESCRIBE statement
     DESCRIBE_STYLES = {"ANALYZE", "EXTENDED", "FORMATTED", "HISTORY"}
+
+    SET_ASSIGNMENT_DELIMITERS = {"=", ":=", "TO"}
 
     # The style options for the ANALYZE statement
     ANALYZE_STYLES = {
@@ -1723,15 +1745,15 @@ class Parser(metaclass=_Parser):
         error level setting.
         """
         token = token or self._curr or self._prev or Token.string("")
-        start = token.start
-        end = token.end + 1
-        start_context = self.sql[max(start - self.error_message_context, 0) : start]
-        highlight = self.sql[start:end]
-        end_context = self.sql[end : end + self.error_message_context]
+        formatted_sql, start_context, highlight, end_context = highlight_sql(
+            sql=self.sql,
+            positions=[(token.start, token.end)],
+            context_length=self.error_message_context,
+        )
+        formatted_message = f"{message}. Line {token.line}, Col: {token.col}.\n  {formatted_sql}"
 
         error = ParseError.new(
-            f"{message}. Line {token.line}, Col: {token.col}.\n"
-            f"  {start_context}\033[4m{highlight}\033[0m{end_context}",
+            formatted_message,
             description=message,
             line=token.line,
             col=token.col,
@@ -2957,15 +2979,9 @@ class Parser(metaclass=_Parser):
             self._match(TokenType.TABLE)
             is_function = self._match(TokenType.FUNCTION)
 
-            this = (
-                self._parse_table(schema=True, parse_partition=True)
-                if not is_function
-                else self._parse_function()
-            )
-            if isinstance(this, exp.Table) and self._match(TokenType.ALIAS, advance=False):
-                this.set("alias", self._parse_table_alias())
+            this = self._parse_function() if is_function else self._parse_insert_table()
 
-        returning = self._parse_returning()
+        returning = self._parse_returning()  # TSQL allows RETURNING before source
 
         return self.expression(
             exp.Insert,
@@ -2988,6 +3004,12 @@ class Parser(metaclass=_Parser):
             ignore=ignore,
             source=self._match(TokenType.TABLE) and self._parse_table(),
         )
+
+    def _parse_insert_table(self) -> t.Optional[exp.Expression]:
+        this = self._parse_table(schema=True, parse_partition=True)
+        if isinstance(this, exp.Table) and self._match(TokenType.ALIAS, advance=False):
+            this.set("alias", self._parse_table_alias())
+        return this
 
     def _parse_kill(self) -> exp.Kill:
         kind = exp.var(self._prev.text) if self._match_texts(("CONNECTION", "QUERY")) else None
@@ -3131,6 +3153,7 @@ class Parser(metaclass=_Parser):
             cluster=self._match(TokenType.ON) and self._parse_on_property(),
             where=self._parse_where(),
             returning=returning or self._parse_returning(),
+            order=self._parse_order(),
             limit=self._parse_limit(),
         )
 
@@ -3311,7 +3334,7 @@ class Parser(metaclass=_Parser):
 
         # duckdb supports leading with FROM x
         from_ = (
-            self._parse_from(consume_pipe=True)
+            self._parse_from(joins=True, consume_pipe=True)
             if self._match(TokenType.FROM, advance=False)
             else None
         )
@@ -4431,7 +4454,7 @@ class Parser(metaclass=_Parser):
         expressions = self._match(TokenType.ON) and self._parse_csv(_parse_on)
         into = self._parse_unpivot_columns()
         using = self._match(TokenType.USING) and self._parse_csv(
-            lambda: self._parse_alias(self._parse_function())
+            lambda: self._parse_alias(self._parse_column())
         )
         group = self._parse_group()
 
@@ -4460,16 +4483,18 @@ class Parser(metaclass=_Parser):
 
         value = self._parse_column()
 
-        if not self._match_pair(TokenType.IN, TokenType.L_PAREN):
-            self.raise_error("Expecting IN (")
+        if not self._match(TokenType.IN):
+            self.raise_error("Expecting IN")
 
-        if self._match(TokenType.ANY):
-            exprs: t.List[exp.Expression] = ensure_list(exp.PivotAny(this=self._parse_order()))
-        else:
-            exprs = self._parse_csv(_parse_aliased_expression)
+        if self._match(TokenType.L_PAREN):
+            if self._match(TokenType.ANY):
+                exprs: t.List[exp.Expression] = ensure_list(exp.PivotAny(this=self._parse_order()))
+            else:
+                exprs = self._parse_csv(_parse_aliased_expression)
+            self._match_r_paren()
+            return self.expression(exp.In, this=value, expressions=exprs)
 
-        self._match_r_paren()
-        return self.expression(exp.In, this=value, expressions=exprs)
+        return self.expression(exp.In, this=value, field=self._parse_id_var())
 
     def _parse_pivot_aggregation(self) -> t.Optional[exp.Expression]:
         func = self._parse_function()
@@ -5300,7 +5325,7 @@ class Parser(metaclass=_Parser):
 
     def _parse_factor(self) -> t.Optional[exp.Expression]:
         parse_method = self._parse_exponent if self.EXPONENT else self._parse_unary
-        this = parse_method()
+        this = self._parse_at_time_zone(parse_method())
 
         while self._match_set(self.FACTOR):
             klass = self.FACTOR[self._prev.token_type]
@@ -5325,14 +5350,14 @@ class Parser(metaclass=_Parser):
     def _parse_unary(self) -> t.Optional[exp.Expression]:
         if self._match_set(self.UNARY_PARSERS):
             return self.UNARY_PARSERS[self._prev.token_type](self)
-        return self._parse_at_time_zone(self._parse_type())
+        return self._parse_type()
 
     def _parse_type(
         self, parse_interval: bool = True, fallback_to_identifier: bool = False
     ) -> t.Optional[exp.Expression]:
         interval = parse_interval and self._parse_interval()
         if interval:
-            return interval
+            return self._parse_column_ops(interval)
 
         index = self._index
         data_type = self._parse_types(check_func=True, allow_identifiers=False)
@@ -5635,7 +5660,9 @@ class Parser(metaclass=_Parser):
                 values
                 and not schema
                 and (
-                    not self.dialect.SUPPORTS_FIXED_SIZE_ARRAYS or datatype_token == TokenType.ARRAY
+                    not self.dialect.SUPPORTS_FIXED_SIZE_ARRAYS
+                    or datatype_token == TokenType.ARRAY
+                    or not self._match(TokenType.R_BRACKET, advance=False)
                 )
             ):
                 # Retreating here means that we should not parse the following values as part of the data type, e.g. in DuckDB
@@ -5693,7 +5720,9 @@ class Parser(metaclass=_Parser):
     def _parse_at_time_zone(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
         if not self._match_text_seq("AT", "TIME", "ZONE"):
             return this
-        return self.expression(exp.AtTimeZone, this=this, zone=self._parse_unary())
+        return self._parse_at_time_zone(
+            self.expression(exp.AtTimeZone, this=this, zone=self._parse_unary())
+        )
 
     def _parse_column(self) -> t.Optional[exp.Expression]:
         this = self._parse_column_reference()
@@ -6504,6 +6533,14 @@ class Parser(metaclass=_Parser):
             and self._prev.token_type == TokenType.DESC
         )
 
+        this = None
+        if (
+            self._curr.text.upper() not in self.CONSTRAINT_PARSERS
+            and self._next
+            and self._next.token_type == TokenType.L_PAREN
+        ):
+            this = self._parse_id_var()
+
         if not in_props and not self._match(TokenType.L_PAREN, advance=False):
             return self.expression(
                 exp.PrimaryKeyColumnConstraint,
@@ -6517,6 +6554,7 @@ class Parser(metaclass=_Parser):
 
         return self.expression(
             exp.PrimaryKey,
+            this=this,
             expressions=expressions,
             include=self._parse_index_params(),
             options=self._parse_key_constraint_options(),
@@ -6603,9 +6641,16 @@ class Parser(metaclass=_Parser):
         return self._parse_bracket(this)
 
     def _parse_slice(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
-        if self._match(TokenType.COLON):
-            return self.expression(exp.Slice, this=this, expression=self._parse_assignment())
-        return this
+        if not self._match(TokenType.COLON):
+            return this
+
+        if self._match_pair(TokenType.DASH, TokenType.COLON, advance=False):
+            self._advance()
+            end: t.Optional[exp.Expression] = -exp.Literal.number("1")
+        else:
+            end = self._parse_unary()
+        step = self._parse_unary() if self._match(TokenType.COLON) else None
+        return self.expression(exp.Slice, this=this, expression=end, step=step)
 
     def _parse_case(self) -> t.Optional[exp.Expression]:
         if self._match(TokenType.DOT, advance=False):
@@ -7546,9 +7591,19 @@ class Parser(metaclass=_Parser):
 
         return self.expression(exp.Commit, chain=chain)
 
-    def _parse_refresh(self) -> exp.Refresh:
-        self._match(TokenType.TABLE)
-        return self.expression(exp.Refresh, this=self._parse_string() or self._parse_table())
+    def _parse_refresh(self) -> exp.Refresh | exp.Command:
+        if self._match(TokenType.TABLE):
+            kind = "TABLE"
+        elif self._match_text_seq("MATERIALIZED", "VIEW"):
+            kind = "MATERIALIZED VIEW"
+        else:
+            kind = ""
+
+        this = self._parse_string() or self._parse_table()
+        if not kind and not isinstance(this, exp.Literal):
+            return self._parse_as_command(self._prev)
+
+        return self.expression(exp.Refresh, this=this, kind=kind)
 
     def _parse_column_def_with_exists(self):
         start = self._index
@@ -8079,7 +8134,7 @@ class Parser(metaclass=_Parser):
             return self._parse_set_transaction(global_=kind == "GLOBAL")
 
         left = self._parse_primary() or self._parse_column()
-        assignment_delimiter = self._match_texts(("=", "TO"))
+        assignment_delimiter = self._match_texts(self.SET_ASSIGNMENT_DELIMITERS)
 
         if not left or (self.SET_REQUIRES_ASSIGNMENT_DELIMITER and not assignment_delimiter):
             self._retreat(index)
@@ -8485,6 +8540,13 @@ class Parser(metaclass=_Parser):
             elif prev == "FILE_FORMAT":
                 # T-SQL's external file format case
                 param.set("expression", self._parse_field())
+            elif (
+                prev == "FORMAT"
+                and self._prev.token_type == TokenType.ALIAS
+                and self._match_texts(("AVRO", "JSON"))
+            ):
+                param.set("this", exp.var(f"FORMAT AS {self._prev.text.upper()}"))
+                param.set("expression", self._parse_field())
             else:
                 param.set("expression", self._parse_unquoted_field() or self._parse_bracket())
 
@@ -8507,7 +8569,10 @@ class Parser(metaclass=_Parser):
         if self._match_text_seq("ENCRYPTION"):
             expr.set("encryption", self._parse_wrapped_options())
         if self._match_text_seq("IAM_ROLE"):
-            expr.set("iam_role", self._parse_field())
+            expr.set(
+                "iam_role",
+                exp.var(self._prev.text) if self._match(TokenType.DEFAULT) else self._parse_field(),
+            )
         if self._match_text_seq("REGION"):
             expr.set("region", self._parse_field())
 
@@ -8993,3 +9058,12 @@ class Parser(metaclass=_Parser):
         separator = self._parse_field() if self._match(TokenType.SEPARATOR) else None
 
         return self.expression(exp.GroupConcat, this=this, separator=separator)
+
+    def _parse_initcap(self) -> exp.Initcap:
+        expr = exp.Initcap.from_arg_list(self._parse_function_args())
+
+        # attach dialect's default delimiters
+        if expr.args.get("expression") is None:
+            expr.set("expression", exp.Literal.string(self.dialect.INITCAP_DEFAULT_DELIMITER_CHARS))
+
+        return expr

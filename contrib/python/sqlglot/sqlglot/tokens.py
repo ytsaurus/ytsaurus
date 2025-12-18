@@ -131,6 +131,7 @@ class TokenType(AutoName):
     UINT = auto()
     BIGINT = auto()
     UBIGINT = auto()
+    BIGNUM = auto()  # unlimited precision int
     INT128 = auto()
     UINT128 = auto()
     INT256 = auto()
@@ -143,6 +144,7 @@ class TokenType(AutoName):
     DECIMAL64 = auto()
     DECIMAL128 = auto()
     DECIMAL256 = auto()
+    DECFLOAT = auto()
     UDECIMAL = auto()
     BIGDECIMAL = auto()
     CHAR = auto()
@@ -165,6 +167,7 @@ class TokenType(AutoName):
     JSONB = auto()
     TIME = auto()
     TIMETZ = auto()
+    TIME_NS = auto()
     TIMESTAMP = auto()
     TIMESTAMPTZ = auto()
     TIMESTAMPLTZ = auto()
@@ -198,6 +201,8 @@ class TokenType(AutoName):
     POINT = auto()
     RING = auto()
     LINESTRING = auto()
+    LOCALTIME = auto()
+    LOCALTIMESTAMP = auto()
     MULTILINESTRING = auto()
     POLYGON = auto()
     MULTIPOLYGON = auto()
@@ -800,6 +805,8 @@ class Tokenizer(metaclass=_Tokenizer):
         "LIKE": TokenType.LIKE,
         "LIMIT": TokenType.LIMIT,
         "LOAD": TokenType.LOAD,
+        "LOCALTIME": TokenType.LOCALTIME,
+        "LOCALTIMESTAMP": TokenType.LOCALTIMESTAMP,
         "LOCK": TokenType.LOCK,
         "MERGE": TokenType.MERGE,
         "NAMESPACE": TokenType.NAMESPACE,
@@ -910,8 +917,10 @@ class Tokenizer(metaclass=_Tokenizer):
         "DECIMAL64": TokenType.DECIMAL64,
         "DECIMAL128": TokenType.DECIMAL128,
         "DECIMAL256": TokenType.DECIMAL256,
+        "DECFLOAT": TokenType.DECFLOAT,
         "BIGDECIMAL": TokenType.BIGDECIMAL,
         "BIGNUMERIC": TokenType.BIGDECIMAL,
+        "BIGNUM": TokenType.BIGNUM,
         "LIST": TokenType.LIST,
         "MAP": TokenType.MAP,
         "NULLABLE": TokenType.NULLABLE,
@@ -953,6 +962,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "VARBINARY": TokenType.VARBINARY,
         "TIME": TokenType.TIME,
         "TIMETZ": TokenType.TIMETZ,
+        "TIME_NS": TokenType.TIME_NS,
         "TIMESTAMP": TokenType.TIMESTAMP,
         "TIMESTAMPTZ": TokenType.TIMESTAMPTZ,
         "TIMESTAMPLTZ": TokenType.TIMESTAMPLTZ,
@@ -1342,6 +1352,8 @@ class Tokenizer(metaclass=_Tokenizer):
             elif self._peek.upper() == "E" and not scientific:
                 scientific += 1
                 self._advance()
+            elif self._peek == "_" and self.dialect.NUMBERS_CAN_BE_UNDERSCORE_SEPARATED:
+                self._advance()
             elif self._peek.isidentifier():
                 number_text = self._text
                 literal = ""
@@ -1356,12 +1368,8 @@ class Tokenizer(metaclass=_Tokenizer):
                     self._add(TokenType.NUMBER, number_text)
                     self._add(TokenType.DCOLON, "::")
                     return self._add(token_type, literal)
-                else:
-                    replaced = literal.replace("_", "")
-                    if self.dialect.NUMBERS_CAN_BE_UNDERSCORE_SEPARATED and replaced.isdigit():
-                        return self._add(TokenType.NUMBER, number_text + replaced)
-                    if self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT:
-                        return self._add(TokenType.VAR)
+                elif self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT:
+                    return self._add(TokenType.VAR)
 
                 self._advance(-len(literal))
                 return self._add(TokenType.NUMBER, number_text)
