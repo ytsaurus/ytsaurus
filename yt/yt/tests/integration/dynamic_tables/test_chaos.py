@@ -6994,7 +6994,7 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
     }
 
     @authors("osidorkin")
-    def test_move_chaos_table_through_portal(self):
+    def test_move_chaos_replicas_through_portal(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
@@ -7023,6 +7023,45 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(replicas[0]["replica_path"], values2)
         wait(lambda: lookup_rows(replicas[1]["replica_path"], [{"key": 2}]) == values2)
+
+    @authors("osidorkin")
+    def test_move_non_owning_chaos_replicated_table_through_portal(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/d1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/d2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, external_cell_tag=11)
+
+        create("chaos_replicated_table", "//tmp/crt_owning", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c",
+            "schema": get(f"{replicas[0]["replica_path"]}/@schema")
+        })
+
+        crt_path = "//tmp/crt"
+        create("chaos_replicated_table", crt_path, attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c",
+            "owns_replication_card": False,
+            "schema": get(f"{replicas[0]["replica_path"]}/@schema")
+        })
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows(crt_path, values)
+        wait(lambda: lookup_rows(crt_path, [{"key": 1}]) == values)
+
+        new_path = "//tmp/p/crt"
+        move(crt_path, new_path)
+
+        values2 = [{"key": 2, "value": "2"}]
+        insert_rows(new_path, values2)
+        wait(lambda: lookup_rows(new_path, [{"key": 2}]) == values2)
 
 
 ##################################################################
