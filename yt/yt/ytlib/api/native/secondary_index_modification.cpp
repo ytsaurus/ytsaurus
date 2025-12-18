@@ -43,7 +43,7 @@ struct TIndexDescriptor
 struct TEvaluatedColumn
 {
     std::string Name;
-    TString Expression;
+    std::string Expression;
     TLogicalTypePtr LogicalType;
 };
 
