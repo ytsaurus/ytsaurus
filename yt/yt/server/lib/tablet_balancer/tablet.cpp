@@ -110,6 +110,18 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
     });
 }
 
+TTabletPtr TTablet::Clone(TTable* table) const
+{
+    auto tablet = New<TTablet>(Id, table);
+
+    tablet->Index = Index;
+    tablet->MountTime = MountTime;
+    tablet->Statistics = Statistics;
+    tablet->State = State;
+
+    return tablet;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

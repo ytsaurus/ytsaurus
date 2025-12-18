@@ -339,6 +339,10 @@ void TTabletBalancer::Start()
     ClusterStateProvider_->Start();
     ActionManager_->Start(Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId());
 
+    for (const auto& [name, bundle] : Bundles_) {
+        bundle->Start();
+    }
+
     PollExecutor_->Start();
 }
 
@@ -351,6 +355,10 @@ void TTabletBalancer::Stop()
     IsActive_.clear();
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
+
+    for (const auto& [name, bundle] : Bundles_) {
+        bundle->Stop();
+    }
 
     ActionManager_->Stop();
     ClusterStateProvider_->Stop();
@@ -402,7 +410,6 @@ void TTabletBalancer::BalancerIteration()
         return;
     }
 
-    auto nodeList = FetchNodeStatistics();
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetConfig()) {
             YT_LOG_ERROR(
@@ -436,13 +443,7 @@ void TTabletBalancer::BalancerIteration()
 
         YT_LOG_INFO("Started getting bundle snapshot (BundleName: %v)", bundleName);
 
-        auto bundleSnapshotOrError = WaitFor(bundle->GetBundleSnapshot(
-            dynamicConfig,
-            nodeList,
-            GetGroupsForMoveBalancing(bundleName),
-            GetGroupsForReshardBalancing(bundleName, bundle->GetConfig()),
-            allowedReplicaClusters,
-            IterationIndex_));
+        auto bundleSnapshotOrError = WaitFor(bundle->GetBundleSnapshot());
 
         if (!bundleSnapshotOrError.IsOK()) {
             YT_LOG_ERROR(bundleSnapshotOrError, "Failed to get bundle state (BundleName: %v)", bundleName);
@@ -450,8 +451,20 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        const auto& bundleSnapshot = bundleSnapshotOrError.ValueOrThrow();
+        auto bundleSnapshotWithoutReplicaStatistics = bundleSnapshotOrError.ValueOrThrow();
         RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
+
+        auto minFreshnessRequirement = std::make_tuple(
+            bundleSnapshotWithoutReplicaStatistics->StateFetchTime,
+            bundleSnapshotWithoutReplicaStatistics->StatisticsFetchTime,
+            bundleSnapshotWithoutReplicaStatistics->PerformanceCountersFetchTime);
+
+        auto bundleSnapshot = WaitFor(bundle->GetBundleSnapshotWithReplicaBalancingStatistics(
+            minFreshnessRequirement,
+            GetGroupsForMoveBalancing(bundleName),
+            GetGroupsForReshardBalancing(bundleName, bundle->GetConfig()),
+            allowedReplicaClusters))
+            .ValueOrThrow();
 
         if (!bundleSnapshot->NonFatalError.IsOK()) {
             YT_LOG_ERROR(bundleSnapshot->NonFatalError,
@@ -669,6 +682,10 @@ void TTabletBalancer::OnDynamicConfigChanged(
         newConfig->ParameterizedTimeoutOnStart.value_or(Config_->ParameterizedTimeoutOnStart),
         newConfig->ParameterizedTimeout.value_or(Config_->ParameterizedTimeout));
 
+    for (const auto& [name, bundle] : Bundles_) {
+        bundle->Reconfigure(newConfig->BundleStateProvider);
+    }
+
     YT_LOG_DEBUG("Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
@@ -769,6 +786,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
     auto bundleList = WaitFor(ClusterStateProvider_->GetBundles())
         .ValueOrThrow();
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
     // Gather current bundles.
     THashSet<std::string> currentBundles;
     std::vector<std::string> newBundles;
@@ -776,8 +794,16 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
         const auto& name = bundle->AsString()->GetValue();
         currentBundles.insert(bundle->AsString()->GetValue());
 
-        auto [it, isNew] = Bundles_.emplace(name, CreateBundleState(name, Bootstrap_, WorkerPool_->GetInvoker()));
-        it->second->UpdateBundleAttributes(&bundle->Attributes());
+        auto [it, isNew] = Bundles_.emplace(
+            name,
+            CreateBundleState(
+                name,
+                Bootstrap_,
+                WorkerPool_->GetInvoker(),
+                ControlInvoker_,
+                dynamicConfig->BundleStateProvider,
+                ClusterStateProvider_,
+                &bundle->Attributes()));
 
         if (isNew) {
             newBundles.push_back(name);
@@ -792,6 +818,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
             continue;
         }
 
+        it->second->Stop();
         Bundles_.erase(it++);
     }
     return newBundles;

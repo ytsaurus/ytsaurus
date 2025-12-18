@@ -90,6 +90,11 @@ class TestStandaloneTabletBalancerBase:
         first_iteration_start_time = self._get_last_iteration_start_time(instances)
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
 
+    def _get_state_freshness_time(self):
+        if self.bundle_state_freshness_time is None:
+            self.bundle_state_freshness_time = get(self.config_path + "/bundle_state_provider/state_freshness_time") / 1000
+        return self.bundle_state_freshness_time
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         update_inplace(config, {
@@ -115,6 +120,7 @@ class TestStandaloneTabletBalancerBase:
         tablet_balancer_config = cls.Env._cluster_configuration["tablet_balancer"][0]
         cls.root_path = tablet_balancer_config.get("root", "//sys/tablet_balancer")
         cls.config_path = tablet_balancer_config.get("dynamic_config_path", cls.root_path + "/config")
+        cls.bundle_state_freshness_time = None
 
     @classmethod
     def _apply_dynamic_config_patch(cls, patch, driver=None):

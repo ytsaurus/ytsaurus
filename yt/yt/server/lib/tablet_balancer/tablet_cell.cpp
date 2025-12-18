@@ -44,6 +44,11 @@ bool TTabletCell::IsAlive() const
     return Status.Health == ETabletCellHealth::Good && LifeStage == ETabletCellLifeStage::Running;
 }
 
+TTabletCellPtr TTabletCell::Clone() const
+{
+    return New<TTabletCell>(Id, Statistics, Status, NodeAddress, LifeStage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer
