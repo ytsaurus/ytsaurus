@@ -222,9 +222,9 @@ private:
 
         SetErrorManagerContext(tabletSnapshot);
 
-        Bootstrap_
-            ->GetTabletSnapshotStore()
-            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        snapshotStore->ValidateBundleNotBanned(tabletSnapshot, Slot_);
+        snapshotStore->ValidateUserNotBanned(context->GetAuthenticationIdentity().User);
 
         try {
             if (tabletSnapshot->Atomicity != atomicity) {

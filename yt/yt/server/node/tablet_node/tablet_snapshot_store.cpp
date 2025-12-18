@@ -8,6 +8,9 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -23,6 +26,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/consumer.h>
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
@@ -166,6 +171,29 @@ public:
                 << TError(TRuntimeFormat(dynamicOptions->BanMessage.value()))
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("table_path", tabletSnapshot->TablePath);
+        }
+    }
+
+    void ValidateUserNotBanned(const std::string& userName) override
+    {
+        auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->UserBan;
+        auto failureProbability = dynamicConfig->FailureProbability;
+        if (!failureProbability) {
+            return;
+        }
+
+        if (dynamicConfig->AllowedUsers.contains(userName)) {
+            return;
+        }
+
+        if (!NRe2::TRe2::FullMatch(userName, *dynamicConfig->BannedUserRegex)) {
+            return;
+        }
+
+        if (RandomNumber<double>() < *failureProbability) {
+            THROW_ERROR_EXCEPTION("User %Qv is not allowed to execute this query: %v",
+                userName,
+                dynamicConfig->BanMessage);
         }
     }
 
@@ -632,6 +660,11 @@ public:
     void ValidateBundleNotBanned(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         const ITabletSlotPtr& /*slot*/) override
+    {
+        return;
+    }
+
+    void ValidateUserNotBanned(const std::string& /*userName*/) override
     {
         return;
     }

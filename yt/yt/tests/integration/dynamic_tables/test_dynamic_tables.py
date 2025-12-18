@@ -34,7 +34,7 @@ from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError, update
+from yt.common import YtError, update, update_inplace
 import yt.yson as yson
 
 import pytest
@@ -3337,6 +3337,63 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: check_no_error(lambda: insert_rows("//tmp/t", [row])))
         assert lookup_rows("//tmp/t", keys) == rows
         assert select_rows("* from [//tmp/t]") == rows
+
+    @authors("atalmenev")
+    def test_ban_user_in_bundle(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        create_user("robot-yt")
+
+        rows = [{"key": 0, "value": "A"}]
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
+        assert lookup_rows("//tmp/t", keys,  authenticated_user="robot-yt") == rows
+        assert select_rows("* from [//tmp/t]", authenticated_user="robot-yt") == rows
+
+        def _update_user_ban(**attributes):
+            update_nodes_dynamic_config({
+                "tablet_node": {
+                    "user_ban": attributes
+                },
+            })
+
+        ban_message = "You are banned"
+        _update_user_ban(
+            ban_message=ban_message,
+            banned_user_regex="robot-[a-z].*",
+            failure_probability=1.0)
+
+        with raises_yt_error(ban_message):
+            insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
+
+        with raises_yt_error(ban_message):
+            lookup_rows("//tmp/t", keys, authenticated_user="robot-yt")
+
+        with raises_yt_error(ban_message):
+            select_rows("* from [//tmp/t]", authenticated_user="robot-yt")
+
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+
+        current_config = get("//sys/cluster_nodes/@config")
+        update_inplace(current_config["%true"], patch={
+            "tablet_node": {
+                "user_ban": {
+                    "banned_user_regex": "robot-[a-z",
+                },
+            },
+        })
+
+        set("//sys/cluster_nodes/@config", current_config)
+        time.sleep(1.0)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        _update_user_ban(
+            banned_user_regex="robot-[a-z].*",
+            allowed_users=["robot-yt"])
+        insert_rows("//tmp/t", rows, authenticated_user="robot-yt")
 
     @authors("akozhikhov")
     def test_batched_get_tablet_infos(self):
