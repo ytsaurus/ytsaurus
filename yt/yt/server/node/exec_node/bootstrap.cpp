@@ -482,8 +482,9 @@ private:
 
         newJobProxyConfigTemplate->MergeAllSingletonConfigsFrom(*TSingletonManager::GetConfig());
         {
-            auto config = newJobProxyConfigTemplate->GetSingletonConfig<NNet::TAddressResolverConfig>();
+            auto config = CloneYsonStruct(newJobProxyConfigTemplate->GetSingletonConfig<NNet::TAddressResolverConfig>());
             config->LocalHostNameOverride = NNet::GetLocalHostName();
+            newJobProxyConfigTemplate->SetSingletonConfig<NNet::TAddressResolverConfig>(std::move(config));
         }
 
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
