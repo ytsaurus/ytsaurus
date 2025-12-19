@@ -403,6 +403,14 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("removal_batch_size", &TThis::RemovalBatchSize)
         .Default(1000);
 
+    registrar.Parameter("confirm_period", &TThis::ConfirmPeriod)
+        .Default(TDuration::MilliSeconds(500))
+        .DontSerializeDefault();
+
+    registrar.Parameter("confirm_batch_size", &TThis::ConfirmBatchSize)
+        .Default(5000)
+        .DontSerializeDefault();
+
     registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
         .Default(0)
         .InRange(0, 100);
@@ -445,6 +453,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_include_unapproved_replicas", &TThis::AlwaysIncludeUnapprovedReplicas)
         .Default(true);
+
+    registrar.Parameter("batch_chunk_confirmation", &TThis::BatchChunkConfirmation)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {

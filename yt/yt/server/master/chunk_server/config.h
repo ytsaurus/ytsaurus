@@ -507,6 +507,9 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration RemovalPeriod;
     int RemovalBatchSize;
 
+    TDuration ConfirmPeriod;
+    int ConfirmBatchSize;
+
     //! Probability (in percents) that chunk replicas will be Sequoia.
     int ReplicasPercentage;
 
@@ -538,6 +541,9 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     // COMPAT(aleksandra-zh).
     bool AlwaysIncludeUnapprovedReplicas;
+
+    // COMPAT(aleksandra-zh).
+    bool BatchChunkConfirmation;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
