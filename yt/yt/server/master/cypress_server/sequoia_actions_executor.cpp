@@ -290,7 +290,8 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountName = inheritedAttributes->GetAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
-        auto* account = securityManager->GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
+        auto optionalAccount = explicitAttributes->FindAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
+        auto* account = securityManager->GetAccountByNameOrThrow(optionalAccount.value_or(accountName), /*activeLifeStageOnly*/ true);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId

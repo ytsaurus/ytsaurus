@@ -11,9 +11,9 @@ from yt_commands import (
 
 from yt_helpers import profiler_factory
 
-from yt_sequoia_helpers import cannot_be_implemented_in_sequoia, not_implemented_in_sequoia
+from yt_sequoia_helpers import cannot_be_implemented_in_sequoia
 
-from yt.environment.helpers import assert_items_equal, are_items_equal
+from yt.environment.helpers import are_items_equal
 import yt.yson as yson
 
 import pytest
@@ -1393,7 +1393,6 @@ class TestChunkServerMulticell(TestChunkServer):
         remove("//t")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
@@ -1414,7 +1413,8 @@ class TestChunkServerMulticell(TestChunkServer):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert_items_equal(get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
+        expected = ["//tmp/t0", "//tmp/t1", "//tmp/t2"]
+        wait(lambda: are_items_equal(get("#" + chunk_id + "/@owning_nodes"), expected))
 
     @authors("cherepashka")
     @pytest.mark.parametrize("to_concatenate", [True, False])
