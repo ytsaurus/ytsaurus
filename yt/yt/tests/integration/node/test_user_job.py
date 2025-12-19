@@ -1447,6 +1447,43 @@ class TestUserJobIsolation(YTEnvSetup):
 
         wait(lambda: check_command_ended())
 
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("restrict_porto_place", [False, True])
+    def test_create_volume_with_default_place(self, restrict_porto_place):
+        op = run_test_vanilla(
+            # Here default place (no place) is used.
+            command=with_breakpoint("portoctl vcreate -A 1>&2; BREAKPOINT"),
+            task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        assert b"porto" in get_job_stderr(op.id, job_id)
+        assert b"volume" in get_job_stderr(op.id, job_id)
+
+        release_breakpoint()
+        op.track()
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("restrict_porto_place", [False, True])
+    def test_create_volume_with_explicit_place(self, restrict_porto_place):
+        op = run_test_vanilla(
+            # Here explicit place `/home/slot` is used.
+            command=with_breakpoint("portoctl vcreate -A place=/home/slot 1>&2; BREAKPOINT"),
+            task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        if restrict_porto_place:
+            assert b"Can't create volume: Permission:(Place /home/slot is not permitted)\n" in get_job_stderr(op.id, job_id)
+        else:
+            assert b"porto" in get_job_stderr(op.id, job_id)
+            assert b"volume" in get_job_stderr(op.id, job_id)
+
+        release_breakpoint()
+        op.track()
+
 
 class TestFixedUser(YTEnvSetup):
     USE_PORTO = True
