@@ -13,6 +13,7 @@ GO_TEST_SRCS(
     datastore_migrations_test.go
     datastore_test.go
     fs_watcher_test.go
+    skipped_rows_writer_test.go
     timbertruck_internal_test.go
 )
 
