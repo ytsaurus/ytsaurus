@@ -77,6 +77,7 @@ class TestSequoiaReplicas(YTEnvSetup):
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "validate_sequoia_replicas_fetch": True,
+                "batch_chunk_confirmation": True
             },
             "data_node_tracker": {
                 "enable_location_indexes_in_data_node_heartbeats": True

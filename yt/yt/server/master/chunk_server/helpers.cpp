@@ -20,8 +20,8 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -36,6 +36,8 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkServer {
 
@@ -1402,6 +1404,16 @@ void ValidateMediumPriority(int priority)
     if (priority < 0 || priority > MaxMediumPriority) {
         THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
     }
+}
+
+void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    // YT-3251
+    if (!HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions())) {
+        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
+    }
+
+    ValidateFromProto(chunkMeta);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

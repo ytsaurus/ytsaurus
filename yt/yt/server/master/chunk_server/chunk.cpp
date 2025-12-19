@@ -367,16 +367,6 @@ void TChunk::SetApprovedReplicaCount(int count)
     MutableReplicasData()->ApprovedReplicaCount = count;
 }
 
-void TChunk::ValidateConfirmation(const TChunkInfo& /*chunkInfo*/, const TChunkMeta& chunkMeta) const
-{
-    // YT-3251
-    if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
-        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
-    }
-
-    ValidateFromProto(chunkMeta);
-}
-
 void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
 {
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);

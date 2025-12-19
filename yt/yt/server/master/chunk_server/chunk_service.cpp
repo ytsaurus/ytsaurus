@@ -949,10 +949,25 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
+
         // COMPAT(kvk1920)
-        YT_LOG_ALERT_UNLESS(
-            request->location_uuids_supported(),
-            "Chunk confirmation request without location uuids is received");
+        if (!request->location_uuids_supported()) {
+            THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
+        }
+
+        ValidateChunkMetaOnConfirmation(request->chunk_meta());
+
+        // Fastpath.
+        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+        if (chunk->IsConfirmed()) {
+            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                chunkId);
+            if (context->Request().request_statistics()) {
+                ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
+            }
+            context->Reply();
+            return;
+        }
 
         auto isSequoia = [&] {
             if (!chunkManagerConfig->SequoiaChunkReplicas->Enable) {
@@ -967,8 +982,14 @@ private:
 
         if (isSequoia()) {
             auto requestStatistics = context->Request().request_statistics();
-            WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
-                .ThrowOnError();
+            if (chunkManagerConfig->SequoiaChunkReplicas->BatchChunkConfirmation) {
+                // Be carefull with raw request.
+                WaitFor(chunkManager->ConfirmSequoiaChunkBatched(&context->Request()))
+                    .ThrowOnError();
+            } else {
+                WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
+                    .ThrowOnError();
+            }
             ValidatePeer(EPeerKind::Leader);
 
             if (requestStatistics) {

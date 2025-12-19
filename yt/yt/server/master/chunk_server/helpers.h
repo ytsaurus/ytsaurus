@@ -168,6 +168,8 @@ TError SanitizeError(TError error);
 void ValidateMediumName(const std::string& name);
 void ValidateMediumPriority(int priority);
 
+void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
