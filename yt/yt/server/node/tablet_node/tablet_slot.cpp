@@ -676,6 +676,13 @@ public:
         return Occupant_->EstimateChangelogMediumBytes(payload);
     }
 
+    void AccountChangelogPayloadBytes(i64 payloadBytes) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Occupant_->AccountChangelogPayloadBytes(payloadBytes);
+    }
+
     TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
     {
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->TransactionManager;

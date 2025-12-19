@@ -133,6 +133,7 @@ struct ITabletSlot
     virtual bool IsTabletEpochActive() const = 0;
 
     virtual i64 EstimateChangelogMediumBytes(i64 payloadBytes) const = 0;
+    virtual void AccountChangelogPayloadBytes(i64 payloadBytes) = 0;
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateChangelogMediumWriteThrottler() const = 0;
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const = 0;
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const = 0;

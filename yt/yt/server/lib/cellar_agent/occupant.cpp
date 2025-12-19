@@ -796,6 +796,11 @@ public:
         return JournalWritesObserver_->EstimateMediaBytes(payload);
     }
 
+    void AccountChangelogPayloadBytes(i64 payloadBytes) override
+    {
+        JournalWritesObserver_->RegisterPayloadWrite(payloadBytes);
+    }
+
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
