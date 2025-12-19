@@ -8,6 +8,24 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.1.1**" %}
+
+**Release date:** 2025-12-18
+
+
+**Features**
+- Support YQL language versioning
+- Support insert into dyntable
+- Support Spark Connect (SPYT Connect)
+- [experimental] Allow handling YQL queries in separate processes
+
+**Fixes**
+- Fixed running big queries by compressing 'progress' column
+
+
+{% endcut %}
+
+
 {% cut "**0.0.11**" %}
 
 **Release date:** 2025-09-08
