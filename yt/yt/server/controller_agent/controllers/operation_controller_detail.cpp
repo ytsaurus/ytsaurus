@@ -7982,9 +7982,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    EstimatedInputStatistics_.emplace(std::move(statisticsCollector).Finish());
-
-    YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", *EstimatedInputStatistics_);
+    UpdateEstimatedInputStatistics(std::move(statisticsCollector).Finish());
 
     for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
         if (IsLocal(clusterName)) {
@@ -7999,6 +7997,23 @@ void TOperationControllerBase::CollectTotals()
                 << TErrorAttribute("estimated_data_weight", dataWeight)
                 << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
         }
+    }
+}
+
+void TOperationControllerBase::UpdateEstimatedInputStatistics(const TInputStatistics& newStatisticsEstimate)
+{
+    if (!EstimatedInputStatistics_.has_value()) {
+        YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", newStatisticsEstimate);
+        EstimatedInputStatistics_ = newStatisticsEstimate;
+        return;
+    }
+
+    if (newStatisticsEstimate != *EstimatedInputStatistics_) {
+        YT_LOG_INFO(
+            "Estimated input statistics updated (NewEstimatedInputStatistics: %v, OldEstimatedInputStatistics: %v)",
+            newStatisticsEstimate,
+            EstimatedInputStatistics_);
+        EstimatedInputStatistics_ = newStatisticsEstimate;
     }
 }
 
@@ -8319,6 +8334,12 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
+
+    i64 unversionedSliceCount = 0;
+    i64 versionedSliceCount = 0;
+
+    auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
+
     for (const auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
@@ -8327,14 +8348,26 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+        ++unversionedSliceCount;
+
+        periodicYielder.TryYield();
     }
 
     for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
+        ++versionedSliceCount;
+
+        periodicYielder.TryYield();
     }
+
+    YT_LOG_INFO(
+        "Primary input data slices collected (UnversionedSliceCount: %v, VersionedSliceCount: %v)",
+        unversionedSliceCount,
+        versionedSliceCount);
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
     std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
+
     return dataSlices;
 }
 

@@ -746,6 +746,7 @@ protected:
     void SuppressLivePreviewIfNeeded();
     void CreateLivePreviewTables();
     void CollectTotals();
+    void UpdateEstimatedInputStatistics(const TInputStatistics& newStatisticsEstimate);
     virtual void CustomMaterialize();
     void InitializeHistograms();
     void InitializeSecurityTags();

@@ -2513,41 +2513,19 @@ protected:
         }
     }
 
+    // TODO(apollo1321): Separate processing inputs and collecting primary input slices.
     void ProcessInputs(const TTaskPtr& inputTask, const IJobSizeConstraintsPtr& jobSizeConstraints)
     {
         auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
         inputTask->SetIsInput(true);
 
-        int unversionedSlices = 0;
-        int versionedSlices = 0;
-        // TODO(max42): use CollectPrimaryInputDataSlices() here?
-        for (auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
-            const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
-
-            const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-            if (comparator) {
-                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
-            } else {
-                dataSlice->TransformToNewKeyless();
-            }
-
+        for (auto& dataSlice : CollectPrimaryInputDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
             inputTask->AddInput(New<TChunkStripe>(std::move(dataSlice)));
-            ++unversionedSlices;
-            yielder.TryYield();
-        }
-        for (auto& slice : CollectPrimaryVersionedDataSlices(jobSizeConstraints->GetInputSliceDataWeight())) {
-            inputTask->AddInput(New<TChunkStripe>(std::move(slice)));
-            ++versionedSlices;
             yielder.TryYield();
         }
 
-        YT_LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
-            unversionedSlices,
-            versionedSlices);
+        YT_LOG_INFO("Processed inputs");
     }
 
     // Unsorted helpers.
