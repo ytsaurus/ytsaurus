@@ -995,9 +995,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        self._wait_full_iteration()
-        self._wait_full_iteration()
-        self._wait_full_iteration()
+        sleep(5)
         assert get("//tmp/t/@tablet_count") == 2
 
         set("//sys/tablet_cell_bundles/one/@node_tag_filter", "", driver=self.remote_driver)

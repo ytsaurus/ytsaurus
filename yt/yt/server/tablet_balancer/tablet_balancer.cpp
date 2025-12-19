@@ -59,28 +59,7 @@ static constexpr int MaxSavedErrorCount = 10;
 
 using TGlobalGroupTag = std::pair<std::string, TGroupName>;
 
-namespace {
-
-static const TYPath BannedReplicaClustersPath("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters");
-
 ////////////////////////////////////////////////////////////////////////////////
-
-THashSet<std::string> GetBannedReplicaClusters(const NApi::NNative::IClientPtr& client)
-{
-    auto bannedReplicaClusters = ConvertTo<IListNodePtr>(
-        WaitFor(client->GetNode(BannedReplicaClustersPath))
-            .ValueOrThrow());
-
-    THashSet<std::string> bannedReplicaClustersSet;
-    for (const auto& cluster : bannedReplicaClusters->GetChildren()) {
-        bannedReplicaClustersSet.insert(cluster->AsString()->GetValue());
-    }
-    return bannedReplicaClustersSet;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
 
 class TParameterizedBalancingTimeoutScheduler
 {
@@ -233,8 +212,8 @@ private:
 
     THashSet<TGroupName> GetBalancingGroups(const TTabletCellBundlePtr& bundleState) const;
 
-    bool AreBundlesHealthy(const std::vector<std::string>& clusters, int unhealthyBundleLimit) const;
-    bool IsBundleHealthy(const std::vector<std::string>& clusters, const std::string& bundleName) const;
+    bool AreBundlesHealthy(int unhealthyBundleLimit) const;
+    bool IsBundleHealthy(const std::string& bundleName) const;
 
     std::vector<std::string> UpdateBundleList();
 
@@ -393,22 +372,21 @@ void TTabletBalancer::BalancerIteration()
     auto newBundles = UpdateBundleList();
     YT_LOG_INFO("Finished updating bundles (NewBundleCount: %v)", newBundles.size());
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    if (!AreBundlesHealthy(dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster)) {
+        YT_LOG_INFO("Skipping balancer iteration because many unhealthy bundles have been found");
+        CancelledIterationDueToUnhealthyState_.Increment(1);
+        return;
+    }
+
     PreciseCurrentIterationStartTime_ = Now();
     CurrentIterationStartTime_ = TruncatedNow();
-    auto dynamicConfig = DynamicConfig_.Acquire();
     RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
     ActionCountLimiter_ = TScheduledActionCountLimiter{
         .GroupLimit = dynamicConfig->MaxActionsPerGroup};
 
     auto allowedReplicaClusters = dynamicConfig->AllowedReplicaClusters;
     allowedReplicaClusters.insert(Bootstrap_->GetClusterName());
-
-    if (!AreBundlesHealthy(dynamicConfig->ClustersForBundleHealthCheck, dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster)) {
-        YT_LOG_INFO("Skipping balancer iteration because many unhealthy bundles have been found");
-        CancelledIterationDueToUnhealthyState_.Increment(1);
-        ++IterationIndex_;
-        return;
-    }
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetConfig()) {
@@ -483,7 +461,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!IsBundleHealthy(dynamicConfig->ClustersForBundleHealthCheck, bundleName)) {
+        if (!IsBundleHealthy(bundleName)) {
             YT_LOG_INFO("Canceling pending actions for bundle because a bundle with the same "
                 "name is unhealthy on a replica cluster (BundleName: %v)",
                 bundleName);
@@ -691,42 +669,20 @@ void TTabletBalancer::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-bool TTabletBalancer::AreBundlesHealthy(const std::vector<std::string>& clusters, int unhealthyBundleLimit) const
+bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
 {
-    if (clusters.empty()) {
-        return true;
+    auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
+    if (!unhealthyBundlesOrError.IsOK()) {
+        YT_LOG_ERROR(unhealthyBundlesOrError, "Error occurred when fetching unhealthy bundles");
+        return false;
     }
 
-    auto bannedReplicaClusters = GetBannedReplicaClusters(Bootstrap_->GetClient());
-    YT_LOG_DEBUG_IF(
-        !bannedReplicaClusters.empty(),
-        "Fetched banned replica clusters (Clusters: %v)",
-        bannedReplicaClusters);
-
-    TListNodeOptions options{.Attributes = {"health"}};
-    const auto& clientDirectory = Bootstrap_->GetClientDirectory();
-    for (const auto& cluster : clusters) {
-        if (bannedReplicaClusters.contains(cluster)) {
-            continue;
-        }
-
-        auto client = clientDirectory->GetClientOrThrow(cluster);
-        auto bundles = WaitFor(client->ListNode(TabletCellBundlesPath, options))
-            .ValueOrThrow();
-        auto bundlesList = ConvertTo<IListNodePtr>(bundles);
-        std::vector<std::string> unhealthyBundles;
-        for (const auto& bundle : bundlesList->GetChildren()) {
-            auto health = bundle->Attributes().Get<ETabletCellHealth>("health");
-            if (health != ETabletCellHealth::Good) {
-                unhealthyBundles.push_back(bundle->AsString()->GetValue());
-            }
-        }
-
-        if (std::ssize(unhealthyBundles) >= unhealthyBundleLimit) {
+    for (const auto& [cluster, bundles] : unhealthyBundlesOrError.Value()) {
+        if (std::ssize(bundles) >= unhealthyBundleLimit) {
             YT_LOG_WARNING("Considering replica cluster unhealthy because too many bundles are unhealthy "
                 "(Cluster: %v, UnhealtyBundles: %v, Limit: %v)",
                 cluster,
-                unhealthyBundles,
+                bundles,
                 unhealthyBundleLimit);
             return false;
         }
@@ -735,50 +691,24 @@ bool TTabletBalancer::AreBundlesHealthy(const std::vector<std::string>& clusters
     return true;
 }
 
-bool TTabletBalancer::IsBundleHealthy(const std::vector<std::string>& clusters, const std::string& bundleName) const
+bool TTabletBalancer::IsBundleHealthy(const std::string& bundleName) const
 {
-    if (clusters.empty()) {
-        return true;
-    }
-
-    const TYPath BundleHealthPath = Format("%v/%v/@health", TabletCellBundlesPath, bundleName);
-    try {
-        auto bannedReplicaClusters = GetBannedReplicaClusters(Bootstrap_->GetClient());
-        YT_LOG_DEBUG_IF(
-            !bannedReplicaClusters.empty(),
-            "Fetched banned replica clusters (Clusters: %v)",
-            bannedReplicaClusters);
-
-        const auto& clientDirectory = Bootstrap_->GetClientDirectory();
-        for (const auto& cluster : clusters) {
-            if (bannedReplicaClusters.contains(cluster)) {
-                continue;
-            }
-
-            auto client = clientDirectory->GetClientOrThrow(cluster);
-            auto bundleHealthOrError = WaitFor(client->GetNode(BundleHealthPath));
-
-            if (!bundleHealthOrError.IsOK() && bundleHealthOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                continue;
-            }
-
-            auto health = ConvertTo<ETabletCellHealth>(bundleHealthOrError.ValueOrThrow());
-            if (health != ETabletCellHealth::Good) {
-                YT_LOG_WARNING("Tablet cell bundle on another cluster is unhealthy (Cluster: %v, BundleName: %v, Health: %v)",
-                    cluster,
-                    bundleName,
-                    health);
-                return false;
-            }
-        }
-
-        return true;
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex,
-            "Failed to check the health of bundles with the same name on other clusters (BundleName: %v)",
-            bundleName);
+    auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
+    if (!unhealthyBundlesOrError.IsOK()) {
+        YT_LOG_ERROR(unhealthyBundlesOrError, "Error occurred when fetching unhealthy bundles");
         return false;
     }
+
+    for (const auto& [cluster, bundles] : unhealthyBundlesOrError.Value()) {
+        if (std::find(bundles.begin(), bundles.end(), bundleName) != bundles.end()) {
+            YT_LOG_WARNING("Tablet cell bundle on another cluster is unhealthy (Cluster: %v, BundleName: %v)",
+                cluster,
+                bundleName);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 std::vector<std::string> TTabletBalancer::UpdateBundleList()
