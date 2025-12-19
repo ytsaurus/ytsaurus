@@ -203,7 +203,8 @@ private:
     TCounter ChangedResourceLimitCounter_;
 
     THashMap<std::string, TBundleSensorsPtr> BundleSensors_;
-    THashMap<std::string, TZoneSensorsPtr> ZoneSensors_;
+    // (ZoneName, DataCenter) -> sensors.
+    THashMap<std::pair<std::string, std::string>, TZoneSensorsPtr> ZoneSensors_;
 
     NOrchid::TBundlesInfo OrchidBundlesInfo_;
     NOrchid::TZonesRacksInfo OrchidRacksInfo_;
@@ -1085,7 +1086,9 @@ private:
 
     TZoneSensorsPtr GetZoneSensors(const std::string& zoneName, const std::string& dataCenter)
     {
-        auto it = ZoneSensors_.find(zoneName);
+        std::pair key(zoneName, dataCenter);
+
+        auto it = ZoneSensors_.find(key);
         if (it != ZoneSensors_.end()) {
             return it->second;
         }
@@ -1109,7 +1112,7 @@ private:
         sensors->ScheduledForMaintenanceSpareProxyCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_proxy_count");
         sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_node_count");
 
-        ZoneSensors_[zoneName] = sensors;
+        ZoneSensors_[key] = sensors;
         return sensors;
     }
 
