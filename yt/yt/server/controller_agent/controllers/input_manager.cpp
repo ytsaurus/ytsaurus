@@ -791,7 +791,7 @@ void TInputManager::FetchInputTablesAttributes()
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
                     .OmitInaccessibleRows = Host_->GetSpec()->OmitInaccessibleRows,
                     .PopulateSecurityTags = true,
-                    .AllowColumnRenaming = true,
+                    .RenameColumns = true,
                 });
 
             for (const auto& table : cluster->InputTables()) {

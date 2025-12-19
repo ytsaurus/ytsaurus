@@ -7525,7 +7525,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             TGetUserObjectBasicAttributesOptions{
                 .OmitInaccessibleRows = Spec_->OmitInaccessibleRows,
                 .PopulateSecurityTags = true,
-                .AllowColumnRenaming = true,
+                .RenameColumns = true,
             });
     }
 
