@@ -277,6 +277,10 @@ dashboards = {
         "func": flow.build_flow_message_transfering,
         "monitoring": {},
     },
+    "flow-one-worker": {
+        "func": flow.build_flow_one_worker,
+        "monitoring": {},
+    },
     "flow-state-cache": {
         "func": flow.build_flow_state_cache,
         "monitoring": {},
