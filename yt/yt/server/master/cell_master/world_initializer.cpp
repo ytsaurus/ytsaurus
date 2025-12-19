@@ -592,11 +592,6 @@ private:
                 EObjectType::ChunkLocationMap);
 
             ScheduleCreateNode(
-                "//sys/chunk_locations_sharded",
-                transactionId,
-                EObjectType::MapNode);
-
-            ScheduleCreateNode(
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);
