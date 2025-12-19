@@ -985,7 +985,7 @@ public:
             if (evaluatedColumnsSchema) {
                 for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
                     if (const auto& indexEvaluatedColumns = secondaryIndex->EvaluatedColumnsSchema()) {
-                        ValidateNoNameCollisions(*indexEvaluatedColumns, *evaluatedColumnsSchema);
+                        ValidateColumnsCollisions(*indexEvaluatedColumns, *evaluatedColumnsSchema);
                     }
                 }
             }

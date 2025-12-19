@@ -316,7 +316,7 @@ private:
             return;
         }
 
-        ValidateNoNameCollisions(TableSchema_, *EvaluatedColumnsSchema_);
+        ValidateColumnsCollisions(TableSchema_, *EvaluatedColumnsSchema_);
 
         for (const auto& column : EvaluatedColumnsSchema_->Columns()) {
             THROW_ERROR_EXCEPTION_IF(!column.Expression(), "Expected an expression for the evaluated column %Qv",
@@ -369,11 +369,12 @@ void ValidateIndexSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateNoNameCollisions(const TTableSchema& lhs, const TTableSchema& rhs)
+void ValidateColumnsCollisions(const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    for (auto& lhsColumn : rhs.Columns()) {
-        if (auto* rhsColumn = lhs.FindColumn(lhsColumn.Name())) {
-            THROW_ERROR_EXCEPTION("Name collision on %Qv between columns %v and %v",
+    for (const auto& lhsColumn : rhs.Columns()) {
+        if (const auto* rhsColumn = lhs.FindColumn(lhsColumn.Name())) {
+            THROW_ERROR_EXCEPTION_IF(lhsColumn != *rhsColumn,
+                "Columns collision on %Qv between %v and %v",
                 lhsColumn.Name(),
                 lhsColumn,
                 *rhsColumn);
