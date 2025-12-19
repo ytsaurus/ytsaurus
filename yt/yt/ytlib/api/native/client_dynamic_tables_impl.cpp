@@ -1615,6 +1615,27 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int GetHyperLogLogPrecision(std::optional<int> inputPrecision)
+{
+    static constexpr int MinHyperLogLogPrecision = 7;
+    static constexpr int MaxHyperLogLogPrecision = 14;
+    static constexpr int DefaultHyperLogLogPrecision = MaxHyperLogLogPrecision;
+
+    if (!inputPrecision.has_value()) {
+        return DefaultHyperLogLogPrecision;
+    }
+
+    THROW_ERROR_EXCEPTION_IF(
+        *inputPrecision < MinHyperLogLogPrecision || *inputPrecision > MaxHyperLogLogPrecision,
+        "HyperLogLog precision must be from %v to %v",
+        MinHyperLogLogPrecision,
+        MaxHyperLogLogPrecision);
+
+    return MinHyperLogLogPrecision;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnectionDynamicConfigPtr& config, const TQueryEngineDynamicConfigPtr& queryConfig)
 {
     TQueryOptions queryOptions;
@@ -1792,7 +1813,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->AstHead,
         options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion);
+        options.SyntaxVersion,
+        queryEngineConfig ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false) : false,
+        GetHyperLogLogPrecision(options.HyperLogLogPrecision));
     const auto& query = fragment->Query;
 
     THROW_ERROR_EXCEPTION_IF(
@@ -1946,7 +1969,9 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->AstHead,
         options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
-        options.SyntaxVersion);
+        options.SyntaxVersion,
+        queryEngineConfig ? queryEngineConfig->RewriteCardinalityIntoHyperLogLogWithPrecision.value_or(false) : false,
+        GetHyperLogLogPrecision(options.HyperLogLogPrecision));
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),

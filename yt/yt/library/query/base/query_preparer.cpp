@@ -1,5 +1,6 @@
 #include "query_preparer.h"
 
+#include "ast_visitors.h"
 #include "callbacks.h"
 #include "functions.h"
 #include "helpers.h"
@@ -1023,6 +1024,98 @@ std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
     return std::nullopt;
 }
 
+class TCardinalityIntoHyperLogLogWithPrecisionRewriter
+    : public NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>
+{
+public:
+    TCardinalityIntoHyperLogLogWithPrecisionRewriter(
+        TObjectsHolder* head,
+        int precision)
+        : NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>(head)
+        , Precision_(precision)
+    { }
+
+    NAst::TExpressionPtr OnFunction(NAst::TFunctionExpressionPtr functionExpr)
+    {
+        auto rewritten = NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>::OnFunction(functionExpr)->As<NAst::TFunctionExpression>();
+        auto name = rewritten->FunctionName;
+
+        if (name == "cardinality") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_state") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_state", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_merge") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_merge", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_merge_state") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_merge_state", Precision_),
+                rewritten->Arguments);
+        } else {
+            return rewritten;
+        }
+    }
+
+private:
+    const int Precision_;
+};
+
+void RewriteCardinalityIntoHyperLogLogWithPrecision(
+    NAst::TQuery* ast,
+    NAst::TAliasMap* aliasMap,
+    TObjectsHolder* holder,
+    int hyperLogLogPrecision)
+{
+    auto rewriter = TCardinalityIntoHyperLogLogWithPrecisionRewriter(holder, hyperLogLogPrecision);
+
+    if (auto* subquery = std::get_if<NAst::TQueryAstHeadPtr>(&ast->FromClause); subquery) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(
+            &subquery->Get()->Ast,
+            &subquery->Get()->AliasMap,
+            subquery->Get(),
+            hyperLogLogPrecision);
+    }
+
+    if (auto* expressions = std::get_if<NAst::TExpressionList>(&ast->FromClause); expressions) {
+        for (auto& item : *expressions) {
+            item = rewriter.Visit(item);
+        }
+    }
+
+    for (auto& [key, value] : *aliasMap) {
+        value = rewriter.Visit(value);
+    }
+
+    if (ast->SelectExprs) {
+        ast->SelectExprs = rewriter.Visit(ast->SelectExprs);
+    }
+
+    if (ast->WherePredicate) {
+        ast->WherePredicate = rewriter.Visit(ast->WherePredicate);
+    }
+
+    if (ast->GroupExprs) {
+        ast->GroupExprs = rewriter.Visit(ast->GroupExprs);
+    }
+
+    if (ast->HavingPredicate) {
+        ast->HavingPredicate = rewriter.Visit(ast->HavingPredicate);
+    }
+
+    for (auto& item : ast->OrderExpressions) {
+        item.Expressions = rewriter.Visit(item.Expressions);
+    }
+}
+
 void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     NAst::TQuery& ast,
     NAst::TAliasMap& aliasMap,
@@ -1362,12 +1455,18 @@ TPlanFragmentPtr PreparePlanFragment(
     int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int syntaxVersion,
+    bool shouldRewriteCardinalityIntoHyperLogLog,
+    int hyperLogLogPrecision,
     int depth)
 {
     auto aliasMap = astHead.AliasMap;
 
     if (syntaxVersion >= 3) {
         RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+    }
+
+    if (shouldRewriteCardinalityIntoHyperLogLog) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, hyperLogLogPrecision);
     }
 
     return PreparePlanFragmentImpl(
