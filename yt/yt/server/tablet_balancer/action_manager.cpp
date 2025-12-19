@@ -62,6 +62,9 @@ private:
     {
         NProfiling::TGauge RunningActions;
         NProfiling::TCounter FailedActions;
+        NProfiling::TCounter StartedSmoothMovementActions;
+        NProfiling::TCounter FailedAtStartSmoothMovementActions;
+        NProfiling::TCounter FailedAtRuntimeSmoothMovementActions;
     };
 
     const NApi::NNative::IClientPtr Client_;
@@ -95,6 +98,8 @@ private:
         std::vector<TTabletActionId> actionIds) const;
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
+
+    bool IsSmoothMovementAction(const TActionDescriptor& descriptor) const;
 
     void MoveFinishedActionsFromRunningToFinished();
 
@@ -229,6 +234,8 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
 
     std::vector<TFuture<NObjectClient::TObjectId>> futures;
 
+    int createdSmoothMovementActionCount = 0;
+
     for (int index = 0; index < actionCountLimit; ++index) {
         auto attributes = MakeActionAttributes(descriptors[index]);
         YT_LOG_DEBUG("Creating tablet action (Attributes: %v, BundleName: %v)",
@@ -238,6 +245,13 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
         options.Attributes = std::move(attributes);
         options.PrerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
         futures.emplace_back(Client_->CreateObject(EObjectType::TabletAction, std::move(options)));
+
+        createdSmoothMovementActionCount += IsSmoothMovementAction(descriptors[index]);
+    }
+
+    if (createdSmoothMovementActionCount) {
+        GetOrCreateProfilingCounters(bundleName).StartedSmoothMovementActions.Increment(
+            createdSmoothMovementActionCount);
     }
 
     auto responses = WaitFor(AllSet(std::move(futures)))
@@ -252,6 +266,23 @@ int TActionManager::CreatePendingBundleActions(const std::string& bundleName, in
                 "Failed to create tablet action (BundleName: %v, ActionDescriptor: %v)",
                 bundleName,
                 descriptors[index]);
+
+            // Retry smooth movement actions with regular move.
+            if (IsSmoothMovementAction(descriptors[index])) {
+                auto moveDescriptor = std::get<TMoveDescriptor>(descriptors[index]);
+
+                YT_LOG_DEBUG("Smooth movement action failed, scheduling regular action creation instead "
+                    "(BundleName: %v, TabletId: %v, CorrelationId: %v)",
+                    bundleName,
+                    moveDescriptor.TabletId,
+                    moveDescriptor.CorrelationId);
+
+                GetOrCreateProfilingCounters(bundleName).FailedAtRuntimeSmoothMovementActions.Increment();
+
+                moveDescriptor.Smooth = false;
+                descriptors.push_back(moveDescriptor);
+            }
+
             continue;
         }
 
@@ -332,7 +363,6 @@ void TActionManager::CancelPendingActions(const std::string& bundleName)
 {
     PendingActionDescriptors_.erase(bundleName);
 }
-
 
 void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 {
@@ -421,9 +451,10 @@ void TActionManager::Poll()
                     auto error = attributes->Get<TError>("error");
                     action->Error() = error;
                     YT_LOG_WARNING(error,
-                        "Tablet action failed (TabletActionId: %v, CorrelationId: %v)",
+                        "Tablet action failed (TabletActionId: %v, CorrelationId: %v, Kind: %v)",
                         action->GetId(),
-                        action->GetCorrelationId());
+                        action->GetCorrelationId(),
+                        action->GetKind());
                 }
             } else if (!actionIds.contains(action->GetId())) {
                 YT_LOG_DEBUG("Tablet action status is unknown "
@@ -452,12 +483,17 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
     for (auto& [bundleName, runningActions] : RunningActions_) {
         auto& finishedActions = FinishedActions_[bundleName];
         int failedActionCount = 0;
+        int failedSmoothMovementActionCount = 0;
 
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
             const auto& action = *it;
             if (action->IsFinished()) {
                 if (action->GetState() == ETabletActionState::Failed) {
                     ++failedActionCount;
+
+                    if (action->GetKind() == ETabletActionKind::SmoothMove) {
+                        ++failedSmoothMovementActionCount;
+                    }
                 }
 
                 finishedActions.push_back(action);
@@ -477,6 +513,8 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         const auto& profilingCounters = GetOrCreateProfilingCounters(bundleName);
         profilingCounters.RunningActions.Update(runningActions.size());
         profilingCounters.FailedActions.Increment(failedActionCount);
+        profilingCounters.FailedAtRuntimeSmoothMovementActions.Increment(
+            failedSmoothMovementActionCount);
     }
 
     DropMissingKeys(RunningActions_, relevantBundles);
@@ -487,13 +525,25 @@ const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfi
     if (auto it = ProfilingCounters_.find(bundleName); it != ProfilingCounters_.end()) {
         return it->second;
     }
+
+    auto profiler = TabletBalancerProfiler()
+        .WithTag("tablet_cell_bundle", bundleName)
+        .WithPrefix("/action_manager");
+
     return EmplaceOrCrash(ProfilingCounters_, bundleName, TBundleProfilingCounters{
-        .RunningActions = TabletBalancerProfiler()
-            .WithTag("tablet_cell_bundle", bundleName)
-            .Gauge("/action_manager/running_actions"),
-        .FailedActions = TabletBalancerProfiler()
-            .WithTag("tablet_cell_bundle", bundleName)
-            .Counter("/action_manager/failed_actions")
+        .RunningActions = profiler.Gauge("/running_actions"),
+        .FailedActions = profiler.Counter("/failed_actions"),
+        .StartedSmoothMovementActions = profiler
+            .WithSparse()
+            .Counter("/started_smooth_movement_actions"),
+        .FailedAtStartSmoothMovementActions = profiler
+            .WithSparse()
+            .WithTag("at_start", "true")
+            .Counter("/failed_smooth_movement_actions"),
+        .FailedAtRuntimeSmoothMovementActions = profiler
+            .WithSparse()
+            .WithTag("at_start", "false")
+            .Counter("/failed_smooth_movement_actions"),
     })->second;
 }
 
@@ -502,7 +552,7 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
     auto attributes = CreateEphemeralAttributes();
     Visit(descriptor,
         [&] (const TMoveDescriptor& descriptor) {
-            attributes->Set("kind", "move");
+            attributes->Set("kind", descriptor.Smooth ? "smooth_move" : "move");
             attributes->Set("tablet_ids", std::vector<TTabletId>{descriptor.TabletId});
             attributes->Set("cell_ids", std::vector<TTabletCellId>{descriptor.TabletCellId});
             attributes->Set("correlation_id", descriptor.CorrelationId);
@@ -521,6 +571,13 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
     attributes->Set("expiration_timeout", Config_->TabletActionExpirationTimeout);
     return attributes;
 }
+
+bool TActionManager::IsSmoothMovementAction(const TActionDescriptor& descriptor) const
+{
+    auto moveDescriptor = std::get_if<TMoveDescriptor>(&descriptor);
+    return moveDescriptor && moveDescriptor->Smooth;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
