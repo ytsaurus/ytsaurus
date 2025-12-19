@@ -515,12 +515,21 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         assert get("//tmp/table/@secondary_indices")[secondary_index_id]["evaluated_columns_schema"][0]["expression"] \
             == evaluated_columns_schema[0]["expression"]
 
-        with raises_yt_error("Name collision"):
+        with raises_yt_error("Columns collision"):
             self._add_index("secondary_2", schema=index_schema, evaluated_columns_schema=[{
                 "name": "eva01",
                 "type": "int64", "expression":
                 "try_get_int64(value, \"/inner_field_other\")",
             }])
+
+        self._add_index(
+            "secondary_3",
+            schema=index_schema,
+            evaluated_columns_schema=[
+                {"name": "eva01", "type": "int64", "expression": "try_get_int64(value, \"/inner_field\")"}
+            ],
+            mount=False,
+        )
 
 
 ##################################################################
@@ -1318,33 +1327,50 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_evaluated(self):
+        table_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]
+        duplicated_evaluated_column = {"name": "eva01", "type": "int64", "expression": 'try_get_int64(value, "/field")'}
+
+        index_name = "secondary"
         index_schema = [
             {"name": "eva01", "type": "int64", "sort_order": "ascending"},
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": EMPTY_COLUMN_NAME, "type": "int64"},
         ]
-        table_schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "any"},
-        ]
         self._create_basic_tables(
+            index_name=index_name,
             table_schema=table_schema,
             index_schema=index_schema,
-            mount=True,
-            evaluated_columns_schema=[{
-                "name": "eva01",
-                "type": "int64",
-                "expression": "try_get_int64(value, \"/field\")",
-            }],
+            evaluated_columns_schema=[duplicated_evaluated_column],
+            mount=False,
         )
+        index_table_path = self._get_index_path(index_name=index_name)
 
-        self._insert_rows([
-            {"key": 0, "value": {"field": 31, "name": "Biel"}},
-            {"key": 1, "value": {"field": 13, "name": "Hathaway"}},
-            {"key": 2, "value": {"field": 33, "name": "Coleman"}},
-        ])
+        another_index_name = "seconary_2"
+        another_index_schema = [{"name": "eva00", "type": "string", "sort_order": "ascending"}] + index_schema
+        self._add_index(
+            index_name=another_index_name,
+            schema=another_index_schema,
+            evaluated_columns_schema=[
+                {"name": "eva00", "type": "string", "expression": 'try_get_string(value, "/name")'},
+                duplicated_evaluated_column,
+            ],
+            mount=False,
+        )
+        another_index_table_path = self._get_index_path(index_name=another_index_name)
 
-        index_table_path = self._get_index_path()
+        self._sync_create_cells()
+        self._mount("//tmp/table", index_table_path, another_index_table_path)
+
+        self._insert_rows(
+            [
+                {"key": 0, "value": {"field": 31, "name": "Biel"}},
+                {"key": 1, "value": {"field": 13, "name": "Hathaway"}},
+                {"key": 2, "value": {"field": 33, "name": "Coleman"}},
+            ]
+        )
 
         assert select_rows(f"key, eva01 from [{index_table_path}] limit 20") == [
             {"key": 1, "eva01": 13},
@@ -1358,6 +1384,18 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         assert plan["query"]["constraints"] == "Constraints:\n33: <universe>"
 
         query = "key, value from [//tmp/table] where try_get_int64(value, \"/field\") = 33"
+        assert select_rows(query) == select_rows(index_query)
+
+        assert select_rows(f"key, eva00, eva01 from [{another_index_table_path}] limit 20") == [
+            {"eva00": "Biel", "eva01": 31, "key": 0},
+            {"eva00": "Coleman", "eva01": 33, "key": 2},
+            {"eva00": "Hathaway", "eva01": 13, "key": 1},
+        ]
+
+        prefix = "key, try_get_int64(value, \"/field\") from [//tmp/table]"
+        suffix = "where try_get_string(value, \"/name\") = \"Biel\""
+        query = f"{prefix} {suffix}"
+        index_query = f"{prefix} with index [{another_index_table_path}] as i {suffix}"
         assert select_rows(query) == select_rows(index_query)
 
 

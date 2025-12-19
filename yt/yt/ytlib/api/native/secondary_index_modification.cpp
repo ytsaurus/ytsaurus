@@ -192,6 +192,7 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 
     TColumnSet evaluatedExpressionsColumns;
     IndexDescriptors_.resize(IndexTableMountInfos_.size());
+    THashSet<TStringBuf> accountedEvalutedIndexColumns;
     for (int index = 0; index < std::ssize(IndexTableMountInfos_); ++index) {
         const auto& indexMeta = TableMountInfo_->Indices[index];
         const auto& indexTableMountInfo = IndexTableMountInfos_[index];
@@ -214,7 +215,12 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         }
 
         if (indexMeta.EvaluatedColumnsSchema) {
-            for (auto& column : indexMeta.EvaluatedColumnsSchema->Columns()) {
+            for (const auto& column : indexMeta.EvaluatedColumnsSchema->Columns()) {
+                auto [_, inserted] = accountedEvalutedIndexColumns.insert(column.Name());
+                if (!inserted) {
+                    continue;
+                }
+
                 YT_VERIFY(column.Expression());
 
                 auto parsedSource = ParseSource(*column.Expression(), EParseMode::Expression);
