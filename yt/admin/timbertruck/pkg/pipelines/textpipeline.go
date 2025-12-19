@@ -288,7 +288,7 @@ func (f writerToFunc) WriteTo(w io.Writer) (int64, error) {
 func NewDiscardTruncatedLinesTransform(logger *slog.Logger) Transform[TextLine, []byte] {
 	return NewFuncTransform(func(ctx context.Context, meta RowMeta, line TextLine, emit EmitFunc[[]byte]) {
 		if line.Truncated {
-			logger.Warn("Detected truncated line", "offset", meta.Begin)
+			logger.Debug("Detected truncated line", "offset", meta.Begin)
 		} else {
 			emit(ctx, meta, line.Bytes)
 		}
