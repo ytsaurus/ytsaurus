@@ -17,7 +17,7 @@ TTabletAction::TTabletAction(
 {
     Visit(descriptor,
         [&] (const TMoveDescriptor& descriptor) {
-            Kind_ = ETabletActionKind::Move;
+            Kind_ = descriptor.Smooth ? ETabletActionKind::SmoothMove : ETabletActionKind::Move;
             TabletIds_.emplace_back(descriptor.TabletId);
             CellIds_.emplace_back(descriptor.TabletCellId);
             CorrelationId_ = descriptor.CorrelationId;
