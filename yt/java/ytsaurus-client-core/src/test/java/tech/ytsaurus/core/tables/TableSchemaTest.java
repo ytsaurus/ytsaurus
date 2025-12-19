@@ -2,12 +2,12 @@ package tech.ytsaurus.core.tables;
 
 import java.util.List;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class TableSchemaTest {
     private static final TableSchema KEY_VALUE_SCHEMA = new TableSchema.Builder()
@@ -122,22 +122,22 @@ public class TableSchemaTest {
 
     @Test
     public void keyValueSchemaToYTree() {
-        assertEquals(KEY_VALUE_SCHEMA.toYTree(), KEY_VALUE_SCHEMA_YTREE);
+        assertEquals(KEY_VALUE_SCHEMA_YTREE, KEY_VALUE_SCHEMA.toYTree());
     }
 
     @Test
     public void keyValueSchemaFromYTree() {
-        assertEquals(TableSchema.fromYTree(KEY_VALUE_SCHEMA_YTREE), KEY_VALUE_SCHEMA);
+        assertEquals(KEY_VALUE_SCHEMA, TableSchema.fromYTree(KEY_VALUE_SCHEMA_YTREE));
     }
 
     @Test
     public void hashColumnSchemaToYTree() {
-        assertEquals(HASH_COLUMN_SCHEMA.toYTree(), HASH_COLUMN_SCHEMA_YTREE);
+        assertEquals(HASH_COLUMN_SCHEMA_YTREE, HASH_COLUMN_SCHEMA.toYTree());
     }
 
     @Test
     public void hashColumnSchemaFromYTree() {
-        assertEquals(TableSchema.fromYTree(HASH_COLUMN_SCHEMA_YTREE), HASH_COLUMN_SCHEMA);
+        assertEquals(HASH_COLUMN_SCHEMA, TableSchema.fromYTree(HASH_COLUMN_SCHEMA_YTREE));
     }
 
     @Test
