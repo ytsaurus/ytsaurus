@@ -75,6 +75,7 @@ struct TTabletBalancerDynamicConfig
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
+    std::optional<bool> EnableSmoothMovement;
 
     THashSet<std::string> AllowedReplicaClusters;
 

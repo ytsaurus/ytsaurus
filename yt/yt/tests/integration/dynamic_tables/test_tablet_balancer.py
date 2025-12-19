@@ -14,6 +14,7 @@ from yt.common import update_inplace
 import pytest
 
 from time import sleep
+import builtins
 
 ##################################################################
 
@@ -268,6 +269,72 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         wait(lambda: get("//tmp/t3/@tablet_count") == 1)
         wait(lambda: get("//tmp/t4/@tablet_count") == 1)
+
+    @authors("ifsmirnov")
+    def test_smooth_movement(self):
+        self._configure_bundle("default")
+        cell_ids = sync_create_cells(2)
+
+        existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+
+        def _get_singular_new_action_id():
+            nonlocal existing_action_ids
+
+            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            diff = new_action_ids - existing_action_ids
+            if len(diff) != 1:
+                print_debug(diff)
+            assert len(diff) == 1
+            existing_action_ids = new_action_ids
+
+            return diff.pop()
+
+        self._create_sorted_table(
+            "//tmp/t",
+            in_memory_mode="compressed",
+            pivot_keys=[[], [1]],
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": True,
+            })
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        insert_rows("//tmp/t", [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}])
+
+        def _run_and_get_action():
+            sync_unmount_table("//tmp/t")
+            self._wait_full_iteration()
+            sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+            wait(lambda: len(builtins.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2)
+
+            action_id = _get_singular_new_action_id()
+
+            action = None
+
+            def _check():
+                nonlocal action
+                # Error is requested only to be displayed in test logs.
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error"])
+                return action["state"] == "completed"
+
+            wait(_check)
+            return action
+
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        remove("//tmp/t/@tablet_balancer_config/enable_smooth_movement")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        set("//sys/tablet_balancer/config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
 
 
 @pytest.mark.enabled_multidaemon
