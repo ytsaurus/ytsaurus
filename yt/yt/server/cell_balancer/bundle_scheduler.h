@@ -183,7 +183,7 @@ public:
     TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TMutationMap<TBundleControllerInstanceAnnotations> ChangeNodeAnnotations;
+    TMutationMap<TBundleControllerInstanceAnnotations> ChangedNodeAnnotations;
     TMutationMap<TBundleControllerInstanceAnnotations> ChangedProxyAnnotations;
 
     THashSet<TBundleMutation<std::string>> CompletedAllocations;
@@ -234,6 +234,8 @@ public:
 
     template <class T>
     TBundleMutation<T> WrapMutation(T mutation);
+
+    void Log(const NLogging::TLogger& Logger) const;
 
 private:
     class TBundleNameGuard
