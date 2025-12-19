@@ -283,6 +283,9 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "xdelta",
         ECallingConvention::UnversionedValue);
 
+    // COMPAT(dtorilov): Remove after 25.4.
+    // COMPAT BEGIN {
+
     builder->RegisterAggregate(
         "cardinality",
         {},
@@ -330,6 +333,58 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         EValueType::String,
         "hyperloglog",
         ECallingConvention::UnversionedValue);
+
+    // } COMPAT END
+
+    for (int i = 7; i <= 14; ++i) {
+        builder->RegisterAggregate(
+            Format("hll_%v", i),
+            {},
+            {TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+            }},
+            EValueType::Uint64,
+            EValueType::String,
+            "hyperloglog",
+            ECallingConvention::UnversionedValue);
+
+        builder->RegisterAggregate(
+            Format("hll_%v_state", i),
+            std::unordered_map<TTypeParameter, TUnionType>(),
+            {TUnionType{
+                EValueType::String,
+                EValueType::Uint64,
+                EValueType::Int64,
+                EValueType::Double,
+                EValueType::Boolean,
+            }},
+            EValueType::String,
+            EValueType::String,
+            "hyperloglog",
+            ECallingConvention::UnversionedValue);
+
+        builder->RegisterAggregate(
+            Format("hll_%v_merge", i),
+            std::unordered_map<TTypeParameter, TUnionType>(),
+            {EValueType::String},
+            EValueType::Uint64,
+            EValueType::String,
+            "hyperloglog",
+            ECallingConvention::UnversionedValue);
+
+        builder->RegisterAggregate(
+            Format("hll_%v_merge_state", i),
+            std::unordered_map<TTypeParameter, TUnionType>(),
+            {EValueType::String},
+            EValueType::String,
+            EValueType::String,
+            "hyperloglog",
+            ECallingConvention::UnversionedValue);
+    }
 
     builder->RegisterAggregate(
         "array_agg",

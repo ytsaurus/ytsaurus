@@ -4582,6 +4582,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         options.SyntaxVersion = request->syntax_version();
     }
     options.ExpressionBuilderVersion = YT_OPTIONAL_FROM_PROTO(*request, expression_builder_version);
+    options.HyperLogLogPrecision = YT_OPTIONAL_FROM_PROTO(*request, hyper_log_log_precision);
     if (request->has_execution_backend()) {
         options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
     }

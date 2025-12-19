@@ -117,9 +117,6 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 
-using THLL = NYT::THyperLogLog<14>;
-static_assert(std::is_trivially_destructible<THLL>::value);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 char* AllocateBytes(TExpressionContext* context, size_t byteCount)
@@ -3164,6 +3161,75 @@ DEFINE_CONVERT_STRING(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_HLL(PRECISION) \
+    static_assert(std::is_trivially_destructible<THyperLogLog<PRECISION>>::value); \
+\
+    void HyperLogLogAllocate ## PRECISION(TExpressionContext* context, TValue* result) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hllOffset = AllocateBytes(context, sizeof(THyperLogLog<PRECISION>)); \
+        auto* hll = PtrFromVM(compartment, hllOffset, sizeof(THyperLogLog<PRECISION>)); \
+        new (hll) THyperLogLog<PRECISION>(); \
+\
+        auto* resultAtHost = PtrFromVM(compartment, result); \
+        *resultAtHost = MakeUnversionedStringValue(TStringBuf(hllOffset, sizeof(THyperLogLog<PRECISION>))); \
+    } \
+\
+    void HyperLogLogAdd ## PRECISION(void* hll, uint64_t value) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        hllAtHost->Add(value); \
+    } \
+\
+    void HyperLogLogMerge ## PRECISION(void* hll1, void* hll2) \
+    { \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* hll1AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll1)); \
+        auto* hll2AtHost = PtrFromVM(compartment, static_cast<THyperLogLog<PRECISION>*>(hll2)); \
+        hll1AtHost->Merge(*hll2AtHost); \
+    } \
+\
+    void HyperLogLogMergeWithValidation ## PRECISION(void* hll1, void* hll2, uint64_t incomingStateLength) \
+    { \
+        THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THyperLogLog<PRECISION>), \
+            "State size mismatch in hyperloglog: expected %v, got %v; " \
+            "this potentially signals a misuse of function \"cardinality_*\"", \
+            sizeof(THyperLogLog<PRECISION>), \
+            incomingStateLength); \
+        HyperLogLogMerge ## PRECISION(hll1, hll2); \
+    } \
+\
+    ui64 HyperLogLogEstimateCardinality ## PRECISION(void* hll) \
+    { \
+        auto* hllAtHost = PtrFromVM(GetCurrentCompartment(), static_cast<THyperLogLog<PRECISION>*>(hll)); \
+        return hllAtHost->EstimateCardinality(); \
+    }
+
+ui64 HyperLogLogGetFingerprint(TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = *PtrFromVM(compartment, value);
+    if (IsStringLikeType(valueAtHost.Type)) {
+        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
+    }
+    return NTableClient::GetFarmFingerprint(valueAtHost);
+}
+
+DEFINE_HLL(7)
+DEFINE_HLL(8)
+DEFINE_HLL(9)
+DEFINE_HLL(10)
+DEFINE_HLL(11)
+DEFINE_HLL(12)
+DEFINE_HLL(13)
+DEFINE_HLL(14)
+
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
+
+using THLL = NYT::THyperLogLog<14>;
+static_assert(std::is_trivially_destructible<THLL>::value);
+
 void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
 {
     auto* compartment = GetCurrentCompartment();
@@ -3205,15 +3271,7 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
     return hllAtHost->EstimateCardinality();
 }
 
-ui64 HyperLogLogGetFingerprint(TValue* value)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto valueAtHost = *PtrFromVM(compartment, value);
-    if (IsStringLikeType(valueAtHost.Type)) {
-        valueAtHost.Data.String = PtrFromVM(compartment, valueAtHost.Data.String);
-    }
-    return NTableClient::GetFarmFingerprint(valueAtHost);
-}
+// } COMPAT END
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4485,6 +4543,13 @@ struct RegisterLLVMRoutine
     REGISTER_ROUTINE(routine ## Localtime); \
     REGISTER_ROUTINE(routine ## TZ)
 
+#define REGISTER_HLL_ROUTINE(PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAllocate ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogAdd ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMerge ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogMergeWithValidation ## PRECISION) \
+    REGISTER_ROUTINE(HyperLogLogEstimateCardinality ## PRECISION)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_ROUTINE(WriteRow);
@@ -4551,12 +4616,23 @@ REGISTER_ROUTINE(NumericToString);
 REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+// COMPAT(dtorilov): Remove after 25.4.
+// COMPAT BEGIN {
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
 REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
-REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+// } COMPAT END
+REGISTER_HLL_ROUTINE(7);
+REGISTER_HLL_ROUTINE(8);
+REGISTER_HLL_ROUTINE(9);
+REGISTER_HLL_ROUTINE(10);
+REGISTER_HLL_ROUTINE(11);
+REGISTER_HLL_ROUTINE(12);
+REGISTER_HLL_ROUTINE(13);
+REGISTER_HLL_ROUTINE(14);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
 REGISTER_ROUTINE(StoredReplicaSetFinalize);
 REGISTER_ROUTINE(LastSeenReplicaSetMerge);
