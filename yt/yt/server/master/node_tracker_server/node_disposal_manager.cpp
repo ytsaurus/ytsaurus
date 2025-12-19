@@ -344,9 +344,10 @@ private:
                     return sequoiaRequest;
                 });
 
-                auto sequoiaRequest = WaitForUnique(std::move(prepareSequoiaRequest)
+                auto sequoiaRequest = WaitFor(std::move(prepareSequoiaRequest)
                     .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-                    .Run())
+                    .Run()
+                    .AsUnique())
                     .ValueOrThrow();
 
                 chunkManager
