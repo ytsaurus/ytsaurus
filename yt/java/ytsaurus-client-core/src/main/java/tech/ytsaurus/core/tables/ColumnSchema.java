@@ -22,6 +22,8 @@ import tech.ytsaurus.ysontree.YTreeNodeUtils;
 public class ColumnSchema implements YTreeConvertible {
     private final String name;
     private final TiType typeV3;
+    private final ColumnValueType oldColumnType;
+    private final ColumnValueType wireType;
     private final @Nullable ColumnSortOrder sortOrder;
     private final @Nullable String lock;
     private final @Nullable String expression;
@@ -35,6 +37,8 @@ public class ColumnSchema implements YTreeConvertible {
     public ColumnSchema(String name, TiType typeV3, @Nullable ColumnSortOrder sortOrder) {
         this.name = name;
         this.typeV3 = typeV3;
+        this.oldColumnType = toOldType(typeV3).columnValueType;
+        this.wireType = toWireType(typeV3).columnValueType;
         this.sortOrder = sortOrder;
         this.lock = null;
         this.expression = null;
@@ -55,7 +59,7 @@ public class ColumnSchema implements YTreeConvertible {
      */
     @Deprecated
     public ColumnSchema(String name, ColumnValueType type, ColumnSortOrder sortOrder, String lock, String expression,
-            String aggregate, String group) {
+                        String aggregate, String group) {
         this(name, type, sortOrder, lock, expression, aggregate, group, false);
     }
 
@@ -72,6 +76,10 @@ public class ColumnSchema implements YTreeConvertible {
     ) {
         this.name = Objects.requireNonNull(name);
         this.typeV3 = fromOldType(type, required);
+        // Usage of `toOldType(fromOldType(type))` instead of `type` for compatibility with old behavior.
+        // Some clients are dependent on it.
+        this.oldColumnType = toOldType(typeV3).columnValueType;
+        this.wireType = toWireType(typeV3).columnValueType;
         this.sortOrder = sortOrder;
         this.lock = lock;
         this.expression = expression;
@@ -82,6 +90,8 @@ public class ColumnSchema implements YTreeConvertible {
     private ColumnSchema(Builder builder) {
         this.name = builder.name;
         this.typeV3 = builder.typeV3;
+        this.oldColumnType = toOldType(typeV3).columnValueType;
+        this.wireType = toWireType(typeV3).columnValueType;
         this.sortOrder = builder.sortOrder;
         this.lock = builder.lock;
         this.expression = builder.expression;
@@ -106,11 +116,11 @@ public class ColumnSchema implements YTreeConvertible {
     }
 
     public ColumnValueType getWireType() {
-        return toWireType(typeV3).columnValueType;
+        return wireType;
     }
 
     public ColumnValueType getType() {
-        return toOldType(typeV3).columnValueType;
+        return oldColumnType;
     }
 
     public TiType getTypeV3() {
