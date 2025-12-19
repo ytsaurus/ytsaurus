@@ -182,6 +182,7 @@ private:
             const auto& dynamicConfig = bootstrap->GetDynamicConfigManager()->GetConfig()->ObjectService;
             if (!dynamicConfig->EnablePerUserRequestWeightThrottling) {
                 queue->ConfigureWeightThrottler(nullptr);
+                queue->SetQueueSizeLimit(std::nullopt);
                 return;
             }
 
@@ -194,6 +195,7 @@ private:
 
             auto newConfig = TThroughputThrottlerConfig::Create(GetUserRequestRateLimit(*descriptor, userNameAndWorkloadType.second));
             queue->ConfigureWeightThrottler(newConfig);
+            queue->SetQueueSizeLimit(descriptor->QueueSizeLimit);
 
             // We utilize the fact that #GetOrCreateThrottle keeps #TWrappedThrottler pointers valid,
             // including the one inside the request queue.

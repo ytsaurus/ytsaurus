@@ -1418,7 +1418,13 @@ void TRequestQueue::ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr
 
 bool TRequestQueue::IsQueueSizeLimitExceeded() const
 {
-    return QueueSize_.load(std::memory_order::relaxed) >
+    auto queueSizeLimit = QueueSizeLimit_.load(std::memory_order::relaxed);
+    if (queueSizeLimit >= 0 &&
+        QueueSize_.load(std::memory_order::relaxed) > queueSizeLimit) {
+        return true;
+    }
+
+    return RuntimeInfo_->QueueSize.load(std::memory_order::relaxed) >
         RuntimeInfo_->QueueSizeLimit.load(std::memory_order::relaxed);
 }
 
@@ -1431,6 +1437,12 @@ bool TRequestQueue::IsQueueByteSizeLimitExceeded() const
 int TRequestQueue::GetQueueSize() const
 {
     return QueueSize_.load(std::memory_order::relaxed);
+}
+
+std::optional<int> TRequestQueue::GetQueueSizeLimit() const
+{
+    auto queueSizeLimit = QueueSizeLimit_.load(std::memory_order::relaxed);
+    return queueSizeLimit != -1 ? std::optional(queueSizeLimit) : std::nullopt;
 }
 
 i64 TRequestQueue::GetQueueByteSize() const
@@ -1446,6 +1458,16 @@ int TRequestQueue::GetConcurrency() const
 i64 TRequestQueue::GetConcurrencyByte() const
 {
     return ConcurrencyByte_.load(std::memory_order::relaxed);
+}
+
+void TRequestQueue::SetQueueSizeLimit(std::optional<int> limit)
+{
+    YT_ASSERT(!limit || *limit >= 0);
+
+    if (!limit) {
+        limit = -1;
+    }
+    QueueSizeLimit_.store(*limit, std::memory_order::relaxed);
 }
 
 void TRequestQueue::OnRequestArrived(TServiceBase::TServiceContextPtr context)
@@ -1553,12 +1575,14 @@ void TRequestQueue::RunRequest(TServiceBase::TServiceContextPtr context)
 void TRequestQueue::IncrementQueueSize(i64 requestTotalSize)
 {
     ++QueueSize_;
+    RuntimeInfo_->QueueSize.fetch_add(1, std::memory_order::relaxed);
     QueueByteSize_.fetch_add(requestTotalSize);
 }
 
 void TRequestQueue::DecrementQueueSize(i64 requestTotalSize)
 {
     auto newQueueSize = --QueueSize_;
+    RuntimeInfo_->QueueSize.fetch_sub(1, std::memory_order::relaxed);
     auto oldQueueByteSize = QueueByteSize_.fetch_sub(requestTotalSize);
 
     YT_ASSERT(newQueueSize >= 0);
@@ -1771,7 +1795,8 @@ void TServiceBase::DoHandleRequest(TIncomingRequest&& incomingRequest)
         incomingRequest.RuntimeInfo->RequestQueueSizeLimitErrorCounter.Increment();
         ReplyError(
             TError(NRpc::EErrorCode::RequestQueueSizeLimitExceeded, "Request queue size limit exceeded")
-                << TErrorAttribute("limit", incomingRequest.RuntimeInfo->QueueSizeLimit.load())
+                << TErrorAttribute("method_limit", incomingRequest.RuntimeInfo->QueueSizeLimit.load(std::memory_order::relaxed))
+                << TErrorAttribute("queue_limit", incomingRequest.RequestQueue->GetQueueSizeLimit())
                 << TErrorAttribute("queue", incomingRequest.RequestQueue->GetName())
                 << incomingRequest.ThrottledError,
             std::move(incomingRequest));
