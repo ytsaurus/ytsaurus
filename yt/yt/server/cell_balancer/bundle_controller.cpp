@@ -133,6 +133,7 @@ public:
         , InstanceCypressNodeRemovalCounter_(Profiler.Counter("/instance_cypress_node_removal_counter"))
         , ChangedNodeUserTagCounter_(Profiler.Counter("/changed_node_user_tag_counter"))
         , ChangedDecommissionedFlagCounter_(Profiler.Counter("/changed_decommissioned_flag_counter"))
+        , ChangedBannedFlagCounter_(Profiler.Counter("/changed_banned_flag_counter"))
         , ChangedEnableBundleBalancerFlagCounter_(Profiler.Counter("/changed_enable_bundle_balancer_flag_counter"))
         , ChangedNodeAnnotationCounter_(Profiler.Counter("/changed_node_annotation_counter"))
         , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
@@ -188,6 +189,7 @@ private:
 
     TCounter ChangedNodeUserTagCounter_;
     TCounter ChangedDecommissionedFlagCounter_;
+    TCounter ChangedBannedFlagCounter_;
     TCounter ChangedEnableBundleBalancerFlagCounter_;
     TCounter ChangedNodeAnnotationCounter_;
 
@@ -479,6 +481,7 @@ private:
     inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
     inline static const std::string NodeAttributeUserTags = "user_tags";
     inline static const std::string NodeAttributeDecommissioned = "decommissioned";
+    inline static const std::string NodeAttributeBanned = "banned";
     inline static const std::string NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
     inline static const std::string ProxyAttributeRole = "role";
     inline static const std::string AccountAttributeResourceLimits = "resource_limits";
@@ -510,6 +513,7 @@ private:
         SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
         SetNodeAttributes(transaction, NodeAttributeUserTags, mutations.ChangedNodeUserTags);
         SetNodeAttributes(transaction, NodeAttributeDecommissioned, mutations.ChangedDecommissionedFlag);
+        SetNodeAttributes(transaction, NodeAttributeBanned, mutations.ChangedBannedFlag);
         SetNodeAttributes(transaction, NodeAttributeEnableBundleBalancer, mutations.ChangedEnableBundleBalancerFlag);
 
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
@@ -545,6 +549,7 @@ private:
         CellRemovalCounter_.Increment(mutations.CellsToRemove.size());
         ChangedNodeUserTagCounter_.Increment(mutations.ChangedNodeUserTags.size());
         ChangedDecommissionedFlagCounter_.Increment(mutations.ChangedDecommissionedFlag.size());
+        ChangedBannedFlagCounter_.Increment(mutations.ChangedBannedFlag.size());
         ChangedEnableBundleBalancerFlagCounter_.Increment(mutations.ChangedEnableBundleBalancerFlag.size());
         ChangedNodeAnnotationCounter_.Increment(mutations.ChangeNodeAnnotations.size());
         InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());

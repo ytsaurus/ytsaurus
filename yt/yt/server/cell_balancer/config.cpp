@@ -47,6 +47,8 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("mute_tablet_cells_check_grace_period", &TThis::MuteTabletCellsCheckGracePeriod)
         .Default(TDuration::Minutes(30));
+    registrar.Parameter("decommissioned_node_drain_timeout", &TThis::DecommissionedNodeDrainTimeout)
+        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();

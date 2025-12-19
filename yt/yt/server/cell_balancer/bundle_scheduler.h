@@ -192,6 +192,7 @@ public:
     THashMap<std::string, TBundleMutation<TUserTags>> ChangedNodeUserTags;
 
     THashMap<std::string, TBundleMutation<bool>> ChangedDecommissionedFlag;
+    THashMap<std::string, TBundleMutation<bool>> ChangedBannedFlag;
     THashMap<std::string, TBundleMutation<bool>> ChangedEnableBundleBalancerFlag;
     THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellsCheck;
     THashMap<std::string, TBundleMutation<bool>> ChangedMuteTabletCellSnapshotsCheck;
