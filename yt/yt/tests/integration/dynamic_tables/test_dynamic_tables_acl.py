@@ -6,8 +6,6 @@ from yt_commands import (
     select_rows, lookup_rows,
     delete_rows, trim_rows, sync_create_cells, sync_mount_table, create, read_table, sync_flush_table)
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
-
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
@@ -223,8 +221,6 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("read_from_dynamic_store", [False, True])
     @pytest.mark.parametrize("omit_inaccessible_columns", [False, True])
-    # TODO(danilalexeev): YT-26788.
-    @not_implemented_in_sequoia
     def test_inaccessible_columns(self, read_from_dynamic_store, omit_inaccessible_columns):
         self._prepare_env()
 
@@ -262,9 +258,12 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
             )
             assert rows == [{"key": "1", "public": "public1"}]
         except YtError as err:
-            assert err.contains_text(
-                'Access denied for user "u": "read" permission for column "private" of node //tmp/t is denied for "u" by ACE at node //tmp/t'
-            )
+            expected_message = 'Access denied for user "u": "read" permission for column "private" of node //tmp/t'
+            if not self.ENABLE_TMP_ROOTSTOCK:
+                # TODO(danilalexeev): YT-24575. Denying ACE's object is unknown for Sequoia nodes.
+                expected_message += ' is denied for "u" by ACE at node //tmp/t'
+
+            assert err.contains_text(expected_message)
             assert not omit_inaccessible_columns
 
 

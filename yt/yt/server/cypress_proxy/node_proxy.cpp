@@ -224,6 +224,7 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
 
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
@@ -272,6 +273,7 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -1060,6 +1062,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, ReshardAutomatic)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
 
