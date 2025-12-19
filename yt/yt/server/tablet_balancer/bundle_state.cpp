@@ -24,6 +24,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
@@ -492,6 +493,13 @@ void DropAlienTables(const TBundleSnapshotPtr& bundleSnapshot)
     }
 }
 
+auto GetPerformanceCountersColumnCount(const TTableSchemaPtr& schema)
+{
+    return std::count_if(schema->Columns().begin(), schema->Columns().end(), [] (const auto& column) {
+        return column.LogicalType()->GetMetatype() == ELogicalMetatype::Struct;
+    });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -566,8 +574,6 @@ private:
     std::vector<TTabletActionId> UnfinishedActions_;
 
     TBundleProfilingCountersPtr Counters_;
-
-    std::vector<std::string> PerformanceCountersKeys_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
@@ -659,7 +665,7 @@ private:
         const THashSet<std::string>& allowedReplicaClusters);
 
     void FetchPerformanceCountersFromAlienTable(
-        const TTabletCellBundlePtr& bundle,
+        const TBundleSnapshotPtr& bundleSnapshot,
         const NApi::NNative::IClientPtr& client,
         THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
         const std::string& cluster);
@@ -1250,7 +1256,7 @@ TBundleSnapshotPtr TBundleState::DeepCopyLatestBundleSnapshot(EFetchKind kind) c
             break;
     }
 
-    bundleSnapshot->PerformanceCountersKeys = PerformanceCountersKeys_;
+    bundleSnapshot->PerformanceCountersKeys = DefaultPerformanceCountersKeys;
     bundleSnapshot->TableRegistry = TableRegistry_;
 
     bundleSnapshot->StateFetchTime = oldBundleSnapshot->StateFetchTime;
@@ -1702,7 +1708,7 @@ void TBundleState::FetchReplicaStatistics(
             tableIdToStatistics.size());
 
         if (fetchMove) {
-            FetchPerformanceCountersFromAlienTable(bundleSnapshot->Bundle, client, &tableIdToStatistics, cluster);
+            FetchPerformanceCountersFromAlienTable(bundleSnapshot, client, &tableIdToStatistics, cluster);
         }
 
         const auto& minorToMajorTables = GetOrCrash(perClusterMinorToMajorTables, cluster);
@@ -2178,6 +2184,13 @@ TBundleSnapshotPtr TBundleState::DoUpdatePerformanceCounters(
         AdditionalPerformanceCountersKeys.begin(),
         AdditionalPerformanceCountersKeys.end());
 
+    auto performanceCountersColumnCount = GetPerformanceCountersColumnCount(schema);
+    YT_LOG_DEBUG_IF(performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
+        "Statistics reporter schema and current tablet balancer version has different performance counter keys "
+        "(StatisticsReporterPerformanceCountersColumnCount: %v, PerformanceCountersKeyCount: %v)",
+        performanceCountersColumnCount,
+        std::ssize(bundleSnapshot->PerformanceCountersKeys));
+
     bundleSnapshot->Bundle->PerformanceCountersTableSchema = std::move(schema);
 
     THashSet<TTableId> unfetchedTableIds;
@@ -2219,7 +2232,7 @@ TBundleSnapshotPtr TBundleState::DoUpdatePerformanceCounters(
 }
 
 void TBundleState::FetchPerformanceCountersFromAlienTable(
-    const TTabletCellBundlePtr& bundle,
+    const TBundleSnapshotPtr& bundleSnapshot,
     const NApi::NNative::IClientPtr& client,
     THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
     const std::string& cluster)
@@ -2247,7 +2260,15 @@ void TBundleState::FetchPerformanceCountersFromAlienTable(
         cluster,
         tableToPerformanceCounters.size());
 
-    bundle->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
+    auto performanceCountersColumnCount = GetPerformanceCountersColumnCount(tableSchema);
+    YT_LOG_DEBUG_IF(performanceCountersColumnCount != std::ssize(bundleSnapshot->PerformanceCountersKeys),
+        "Statistics reporter schema and current tablet balancer version has different performance counter keys "
+        "(StatisticsReporterPerformanceCountersColumnCount: %v, PerformanceCountersKeyCount: %v, Cluster: %v)",
+        performanceCountersColumnCount,
+        std::ssize(bundleSnapshot->PerformanceCountersKeys),
+        cluster);
+
+    bundleSnapshot->Bundle->PerClusterPerformanceCountersTableSchemas[cluster] = std::move(tableSchema);
 
     YT_LOG_DEBUG("Started filling alien table statistics and performance counters (Cluster: %v, TableCount: %v)",
         cluster,
