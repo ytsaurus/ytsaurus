@@ -70,7 +70,7 @@ func (w *SkippedRowsWriter) initialize() error {
 		return fmt.Errorf("failed to create directory %q: %w", dir, err)
 	}
 
-	file, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open skipped rows file %q: %w", w.path, err)
 	}
