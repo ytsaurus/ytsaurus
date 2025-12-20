@@ -1459,8 +1459,7 @@ class TestUserJobIsolation(YTEnvSetup):
         job_id = wait_breakpoint()[0]
 
         # Make sure that container fails to start.
-        assert b"Cannot open directory" in get_job_stderr(op.id, job_id)
-        assert b"Cannot start container" in get_job_stderr(op.id, job_id)
+        assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
         op.track()
@@ -1479,7 +1478,7 @@ class TestUserJobIsolation(YTEnvSetup):
         if restrict_porto_place:
             assert b"Cannot start container: Permission:(Place /nonexistent is not permitted)\n" in get_job_stderr(op.id, job_id)
         else:
-            assert b"Cannot start container: Unknown:(No such file or directory: Cannot open directory" in get_job_stderr(op.id, job_id)
+            assert b"Cannot start container: LayerNotFound:(nonexistent_layer)" in get_job_stderr(op.id, job_id)
 
         release_breakpoint()
         op.track()
