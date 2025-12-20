@@ -412,11 +412,6 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/controller_agents/orchid",
-                transactionId,
-                EObjectType::Orchid);
-
-            ScheduleCreateNode(
                 "//sys/controller_agents/config",
                 transactionId,
                 EObjectType::Document,
