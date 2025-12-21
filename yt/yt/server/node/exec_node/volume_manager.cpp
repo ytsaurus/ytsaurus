@@ -3702,7 +3702,8 @@ public:
         // TODO(yuryalekseev): Remove me when slot rbind is removed.
         return future.Apply(BIND([slotPath = *slotPath, this, this_ = MakeStrong(this)] (const IVolumePtr& volume) {
             return RbindRootVolume(volume, slotPath);
-        }).AsyncVia(GetCurrentInvoker()));
+        }).AsyncVia(GetCurrentInvoker()))
+        .ToImmediatelyCancelable();
     }
 
     //! Prepare tmpfs volumes.
