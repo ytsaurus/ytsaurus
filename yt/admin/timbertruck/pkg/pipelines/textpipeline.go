@@ -91,13 +91,17 @@ func (t *textFollower) writeBrokenLineTo(ctx context.Context, writer io.Writer) 
 		return
 	}
 
-	for !t.searchLineEnd() {
+	for {
 		t.begin = 0
 		t.scanEnd = 0
 		t.end, err = t.file.ReadContext(ctx, t.buffer)
 		if err != nil {
 			t.readErr = err
 			return
+		}
+
+		if t.searchLineEnd() {
+			break
 		}
 
 		written, err = writer.Write(t.buffer[:t.end])
