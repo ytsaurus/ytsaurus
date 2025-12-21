@@ -252,3 +252,59 @@ func receive(line *stringLine, lineCh <-chan stringLine) bool {
 		return true
 	}
 }
+
+func TestOversizedLineSkippedRowsContent(t *testing.T) {
+	tempDir := t.TempDir()
+	filepath := path.Join(tempDir, "logfile")
+
+	longLine := strings.Repeat("x", 200) + "\n"
+	shortLines := "short1\nshort2\nshort3\n"
+	err := os.WriteFile(filepath, []byte(longLine+shortLines), 0644)
+	require.NoError(t, err)
+
+	var skippedData strings.Builder
+
+	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+		LineLimit:   10, // Long line will be truncated.
+		BufferLimit: 64, // Buffer is small, so long line won't fit.
+		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
+			_, _ = data.WriteTo(&skippedData)
+		},
+	})
+	require.NoError(t, err)
+
+	lineCh := make(chan stringLine, 128)
+	pipelines.ApplyOutputFunc(func(ctx context.Context, meta pipelines.RowMeta, line pipelines.TextLine) {
+		lineCh <- stringLine{
+			String:    string(line.Bytes),
+			Truncated: line.Truncated,
+		}
+	}, s)
+
+	p.NotifyComplete()
+	ctx := context.Background()
+	err = p.Run(ctx)
+	require.NoError(t, err)
+
+	close(lineCh)
+	var outputLines []stringLine
+	for line := range lineCh {
+		outputLines = append(outputLines, line)
+	}
+
+	require.Len(t, outputLines, 4)
+	require.True(t, outputLines[0].Truncated)
+	require.False(t, outputLines[1].Truncated)
+	require.False(t, outputLines[2].Truncated)
+	require.False(t, outputLines[3].Truncated)
+
+	skippedContent := skippedData.String()
+
+	expectedSkipped := longLine
+	require.Equal(t, expectedSkipped, skippedContent,
+		"skipped_rows should contain only the truncated line, not subsequent lines")
+
+	require.NotContains(t, skippedContent, "short1", "skipped_rows should not contain 'short1'")
+	require.NotContains(t, skippedContent, "short2", "skipped_rows should not contain 'short2'")
+	require.NotContains(t, skippedContent, "short3", "skipped_rows should not contain 'short3'")
+}
