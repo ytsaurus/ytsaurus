@@ -76,19 +76,21 @@ struct TTestOptions
     bool UseBlockCacheForIndexedReader = false;
     // Cache based mode.
     bool CacheBased = false;
+    bool SkipValueBlocksForMissingKeys = false;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTestOptions& options, TStringBuf /*spec*/)
 {
     Format(
         builder,
-        "%v%v%v%v%v%v",
+        "%v%v%v%v%v%v%v",
         options.OptimizeFor,
         options.ChunkFormat ? ToString(*options.ChunkFormat) : "",
         options.UseNewReader ? "New" : "",
         options.UseIndexedReaderForLookup ? "IndexedReader" : "",
         (options.UseBlockCacheForIndexedReader && options.UseIndexedReaderForLookup) ? "WithBlockCache" : "",
-        options.CacheBased ? "CacheBased" : "");
+        options.CacheBased ? "CacheBased" : "",
+        options.SkipValueBlocksForMissingKeys ? "SkipValueBlocksForMissingKeys" : "");
 }
 
 const auto TestOptionsValues = testing::Values(
@@ -447,17 +449,23 @@ protected:
 
             IVersionedReaderPtr versionedReader;
             if (testOptions.UseNewReader) {
+                auto createBlockWindowManagerFactory = testOptions.SkipValueBlocksForMissingKeys
+                    ? NColumnarChunkFormat::CreateSimpleAsyncBlockWindowManagerFactory
+                    : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory;
+
                 auto blockManagerFactory = testOptions.CacheBased
                     ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                         CreateDisposingBlockCache(GetPreloadedBlockCache(MemoryReader)),
                         chunkMeta,
                         MemoryReader->GetChunkId())
-                    : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                    : createBlockWindowManagerFactory(
                         TChunkReaderConfig::GetDefault(),
                         MemoryReader,
                         chunkState->BlockCache,
                         /*chunkReadOptions*/ {},
-                        chunkMeta);
+                        chunkMeta,
+                        nullptr,
+                        std::nullopt);
 
                 versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                     sharedKeys,
@@ -467,7 +475,11 @@ protected:
                     TColumnFilter(),
                     /*chunkColumnMapping*/ nullptr,
                     blockManagerFactory,
-                    /*produceAll*/ false);
+                    /*produceAll*/ false,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    testOptions.SkipValueBlocksForMissingKeys);
             } else if (testOptions.UseIndexedReaderForLookup) {
                 auto blockCache = testOptions.UseBlockCacheForIndexedReader
                     ? SystemBlockCache
@@ -856,17 +868,23 @@ protected:
             TBlockProvider blockProvider{memoryReader->GetChunkId(), blockCache};
             chunkMeta->GetPreparedChunkMeta(&blockProvider);
 
+            auto createBlockWindowManagerFactory = GetTestOptions().SkipValueBlocksForMissingKeys
+                ? NColumnarChunkFormat::CreateSimpleAsyncBlockWindowManagerFactory
+                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory;
+
             auto blockManagerFactory = GetTestOptions().CacheBased
                 ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                     CreateDisposingBlockCache(blockCache),
                     chunkMeta,
                     memoryReader->GetChunkId())
-                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                : createBlockWindowManagerFactory(
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
                     /*chunkReadOptions*/ {},
-                    chunkMeta);
+                    chunkMeta,
+                    nullptr,
+                    std::nullopt);
 
             versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                 ranges,
@@ -876,7 +894,11 @@ protected:
                 columnFilter,
                 chunkState->ChunkColumnMapping,
                 blockManagerFactory,
-                produceAllVersions);
+                produceAllVersions,
+                nullptr,
+                nullptr,
+                nullptr,
+                GetTestOptions().SkipValueBlocksForMissingKeys);
         } else {
             if (GetTestOptions().CacheBased) {
                 chunkState->BlockCache = GetPreloadedBlockCache(memoryReader);
@@ -975,17 +997,23 @@ protected:
             TBlockProvider blockProvider{memoryReader->GetChunkId(), blockCache};
             chunkMeta->GetPreparedChunkMeta(&blockProvider);
 
+            auto createBlockWindowManagerFactory = GetTestOptions().SkipValueBlocksForMissingKeys
+                ? NColumnarChunkFormat::CreateSimpleAsyncBlockWindowManagerFactory
+                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory;
+
             auto blockManagerFactory = GetTestOptions().CacheBased
                 ? NColumnarChunkFormat::CreateSyncBlockWindowManagerFactory(
                     CreateDisposingBlockCache(blockCache),
                     chunkMeta,
                     memoryReader->GetChunkId())
-                : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+                : createBlockWindowManagerFactory(
                     TChunkReaderConfig::GetDefault(),
                     memoryReader,
                     chunkState->BlockCache,
                     /*chunkReadOptions*/ {},
-                    chunkMeta);
+                    chunkMeta,
+                    nullptr,
+                    std::nullopt);
 
             if (chunkState->LookupHashTable) {
 
@@ -1001,7 +1029,11 @@ protected:
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     blockManagerFactory,
-                    produceAllVersions);
+                    produceAllVersions,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    GetTestOptions().SkipValueBlocksForMissingKeys);
             } else {
                 versionedReader = NColumnarChunkFormat::CreateVersionedChunkReader(
                     lookupKeys,
@@ -2564,6 +2596,7 @@ const auto StressTestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .CacheBased = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true, .SkipValueBlocksForMissingKeys = true},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
     TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .CacheBased = true},
 #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
