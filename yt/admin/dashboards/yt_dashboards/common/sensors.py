@@ -85,6 +85,7 @@ DatNodeInternal =  ProjectSensor("dat_node_internal",   "yt-data-node.*")  # noq
 DatNodePorto =     ProjectSensor("dat_node_porto",      "yt-data-node.*")  # noqa: E222
 DatNodeRpc =       ProjectSensor("dat_node_rpc",        "yt-data-node.*", base=RpcBase)  # noqa: E222
 DatNodeRpcClient = ProjectSensor("dat_node_rpc_client", "yt-data-node.*", base=RpcBase)  # noqa: E222
+DatNodeAll =       ProjectSensor("dat_node*",           "yt-data-node.*")  # noqa: E222
 
 # Exec nodes.
 ExeNode =          ProjectSensor("exe_node",            "yt-exec-node.*")  # noqa: E222
