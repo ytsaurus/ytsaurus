@@ -21,6 +21,7 @@ class TestQueriesYqlBase(YTEnvSetup):
     NUM_NODES = 3
     NUM_YQL_AGENTS = 1
     NUM_MASTERS = 1
+    NUM_DISCOVERY_SERVERS = 1
     NUM_QUERY_TRACKER = 1
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1

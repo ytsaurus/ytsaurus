@@ -24,6 +24,7 @@ import yatest.common
 
 class TestYtflowBase(TestQueueAgentBase):
     NUM_MASTERS = 1
+    NUM_DISCOVERY_SERVERS = 1
     NUM_NODES = 3
     NUM_HTTP_PROXIES = 1
     NUM_RPC_PROXIES = 1
