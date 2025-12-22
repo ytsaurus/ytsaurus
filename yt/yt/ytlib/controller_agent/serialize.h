@@ -109,6 +109,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FileRlsReadSpec)                       (302202))
     ((DropExcessFieldsInOrderedController)   (302203))
     ((ChunkPoolStatistics)                   (302204))
+    ((FixSimpleSort)                         (302205))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
