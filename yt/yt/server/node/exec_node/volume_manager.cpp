@@ -607,12 +607,12 @@ public:
             // The rbind volume is destroyed when the passed in root volume is destroyed.
             return VolumeExecutor_->CreateVolume(path, volumeProperties);
         })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run()
-        .Apply(BIND([volume](const TString&) {
-            // Just return the passed in volume.
-            return volume;
-        }));
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run()
+            .Apply(BIND([volume](const TString&) {
+                // Just return the passed in volume.
+                return volume;
+            }));
     }
 
     TFuture<TVolumeMeta> CreateOverlayVolume(
@@ -2783,8 +2783,6 @@ public:
         , Location_(std::move(location))
     { }
 
-    ~TPortoVolumeBase() override = default;
-
     const TVolumeId& GetId() const override final
     {
         return VolumeMeta_.Id;
@@ -2816,7 +2814,7 @@ public:
         // Use MakeWeak here since Removed is called from derived class destructors.
         auto this_ = MakeWeak(this).Lock();
         if (!this_) {
-            YT_LOG_DEBUG("Trying to remove already destroyed volume object.");
+            YT_LOG_DEBUG("Trying to remove already destroyed volume object");
             return VoidFuture;
         }
 
@@ -2846,6 +2844,10 @@ public:
     }
 
 protected:
+    const NProfiling::TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TLayerLocationPtr Location_;
+
     //! Remove the actual volume.
     virtual TFuture<void> DoRemoveImpl() = 0;
 
@@ -2869,10 +2871,6 @@ protected:
         return AllSucceeded(std::move(futures))
             .ToUncancelable();
     }
-
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
 
 private:
     TAsyncReaderWriterLock Lock_;
@@ -3223,9 +3221,9 @@ public:
             config->Detach = DetachUnmount_;
             RunTool<TUmountAsRootTool>(config);
         })
-        .AsyncVia(Invoker_)
-        .Run()
-        .ToUncancelable();
+            .AsyncVia(Invoker_)
+            .Run()
+            .ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -3388,6 +3386,9 @@ public:
     { }
 
 private:
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
+
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
         const TString& sandboxPath,
@@ -3457,10 +3458,8 @@ private:
         .AsyncVia(Invoker_)
         .Run();
     }
-
-    const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoVolumeManager
@@ -4191,21 +4190,22 @@ private:
             std::move(volumeCreateTimeGuard),
             volumeParams);
 
-        return future.AsUnique().Apply(BIND(
-            [
-                tmpfsPath = volumeParams.Path,
-                tagSet = std::move(tagSet),
-                location = std::move(location)
-            ] (TVolumeMeta&& meta) mutable {
-                TTmpfsVolumeResult result;
-                result.Path = std::move(tmpfsPath);
-                result.Volume = New<TTmpfsVolume>(
+        return future.AsUnique()
+            .Apply(BIND(
+                [
+                    tmpfsPath = volumeParams.Path,
+                    tagSet = std::move(tagSet),
+                    location = std::move(location)
+                ] (TVolumeMeta&& meta) mutable {
+                    TTmpfsVolumeResult result;
+                    result.Path = std::move(tmpfsPath);
+                    result.Volume = New<TTmpfsVolume>(
                         std::move(tagSet),
                         std::move(meta),
                         std::move(location));
-                return result;
-        }))
-        .ToUncancelable();
+                    return result;
+                }))
+            .ToUncancelable();
     }
 
     TNbdVolumePtr CreateNbdVolume(
