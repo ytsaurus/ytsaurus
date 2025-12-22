@@ -843,7 +843,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (location->GetMediumDescriptor().Index != sessionId.MediumIndex) {
+        if (location->GetMediumDescriptor()->GetIndex() != sessionId.MediumIndex) {
             continue;
         }
 
