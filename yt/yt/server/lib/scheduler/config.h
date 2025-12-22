@@ -521,6 +521,9 @@ struct TStrategyTreeConfig
 
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
 
+    bool EnableAbsoluteFairShareStarvationTolerance;
+    bool ConsiderAllocationOnFairShareBoundPreemptible;
+
     // Testing options.
     bool EnablePreliminaryResourceLimitsCheck;
     bool EnableResourceTreeRandomSleeps;

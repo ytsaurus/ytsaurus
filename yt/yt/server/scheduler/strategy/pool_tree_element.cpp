@@ -2060,6 +2060,12 @@ ESchedulableStatus TPoolTreeOperationElement::GetStatus() const
     double tolerance = EffectiveFairShareStarvationTolerance_;
     if (Dominates(Attributes_.FairShare.Total + TResourceVector::LargeEpsilon(), Attributes_.DemandShare)) {
         tolerance = 1.0;
+    } else if (TreeConfig_->EnableAbsoluteFairShareStarvationTolerance) {
+        auto aggregatedMinNeededShare = TResourceVector::FromJobResources(AggregatedMinNeededAllocationResources_, TotalResourceLimits_);
+
+        if (!IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total - Attributes_.UsageShare, aggregatedMinNeededShare)) {
+            return ESchedulableStatus::Normal;
+        }
     }
 
     return TPoolTreeElement::GetStatusImpl(tolerance);
