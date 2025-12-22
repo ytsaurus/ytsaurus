@@ -66,6 +66,7 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(options.RowBuffer)
+        , ChunkPoolStatistics_(options.ChunkPoolStatistics)
     {
         Logger = options.Logger;
         StructuredLogger = options.StructuredLogger;
@@ -281,6 +282,8 @@ private:
     TSerializableLogger StructuredLogger;
 
     std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
+
+    TSortedChunkPoolStatisticsPtr ChunkPoolStatistics_;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -588,6 +591,7 @@ private:
                     TeleportChunks_,
                     retryIndex,
                     InputStreamDirectory_,
+                    ChunkPoolStatistics_,
                     Logger,
                     StructuredLogger);
 
@@ -621,7 +625,9 @@ private:
             jobStubPtrs.emplace_back(std::make_unique<TNewJobStub>(std::move(jobStub)));
         }
 
-        JobManager_->AddJobs(std::move(jobStubPtrs));
+        auto cookies = JobManager_->AddJobs(std::move(jobStubPtrs));
+
+        YT_LOG_TRACE("Jobs are built (CookieCount: %v, Statistics: %v)", cookies, ChunkPoolStatistics_);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
@@ -718,6 +724,7 @@ private:
             /*teleportChunks*/ {}, // Each job is already located between the teleport chunks.
             0 /*retryIndex*/,
             InputStreamDirectory_,
+            ChunkPoolStatistics_,
             Logger,
             StructuredLogger);
 
@@ -753,6 +760,11 @@ private:
             }
         }
         childCookies.resize(writeIndex);
+
+        YT_LOG_TRACE(
+            "Jobs are built (CookieCount: %v, ChunkPoolStatistics: %v)",
+            std::ssize(childCookies),
+            ChunkPoolStatistics_);
 
         return childCookies;
     }
@@ -817,6 +829,9 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
+
+    PHOENIX_REGISTER_FIELD(21, ChunkPoolStatistics_,
+        .SinceVersion(ESnapshotVersion::ChunkPoolStatistics));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
