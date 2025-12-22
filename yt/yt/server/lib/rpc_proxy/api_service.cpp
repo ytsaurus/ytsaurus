@@ -6751,7 +6751,14 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    auto cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+    TTablePartitionCookiePtr cookie;
+    std::optional<NYson::TYsonStringBuf> rawFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat desiredRowsetFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat arrowFallbackRowsetFormat;
+
+    NApi::TReadTablePartitionOptions options;
+
+    ParseRequest(&cookie, &rawFormat, &desiredRowsetFormat, &arrowFallbackRowsetFormat, &options, *request);
 
     YT_VERIFY(cookie);
 
@@ -6761,20 +6768,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
         THROW_ERROR_EXCEPTION("Signature validation failed");
     }
 
-    auto format = GetFormat(context, request);
-
-    NApi::TReadTablePartitionOptions options;
-    options.Unordered = request->unordered();
-    options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
-    options.EnableTableIndex = request->enable_table_index();
-    options.EnableRowIndex = request->enable_row_index();
-    options.EnableRangeIndex = request->enable_range_index();
-    if (request->has_config()) {
-        options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+    std::optional<NFormats::TFormat> format;
+    if (rawFormat) {
+        ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(*rawFormat));
+        format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
-
-    auto desiredRowsetFormat = request->desired_rowset_format();
-    auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
     context->SetRequestInfo(
         "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
