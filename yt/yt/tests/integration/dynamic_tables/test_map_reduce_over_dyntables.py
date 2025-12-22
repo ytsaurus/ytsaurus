@@ -1718,6 +1718,53 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
         )
         assert read_table("//tmp/t_out") == rows
 
+    @authors("apollo1321")
+    @pytest.mark.parametrize("row_batches", [
+        [
+            [{"k": 1, "v": "b"}],
+            [{"k": 2, "v": "c" * 100}],
+        ],
+        [
+            [{"k": 1, "v": "b"}, {"k": 2, "v": "c" * 100}],
+        ],
+    ])
+    def test_sort_without_partitioning(self, row_batches):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t_input",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "string"},
+            ],
+            replication_factor=1)
+        sync_mount_table("//tmp/t_input")
+
+        for row_batch in row_batches:
+            insert_rows(
+                path="//tmp/t_input",
+                data=row_batch,
+                update=True,
+            )
+            sync_flush_table("//tmp/t_input")
+
+        sync_unmount_table("//tmp/t_input")
+        op = sort(
+            sort_by="k",
+            in_=[
+                "//tmp/t_input"
+            ],
+            out="<create=%true>//tmp/t_output",
+            spec={
+                "data_weight_per_sort_job": 50,
+            },
+        )
+        progress = get(op.get_path() + "/@progress")
+        tasks = progress["tasks"]
+        assert len(tasks) == 1
+        assert tasks[0]["task_name"] == "simple_sort"
+        assert progress["final_sort"]["total"] == 1
+        assert_items_equal(read_table("//tmp/t_output"), [{"k": 1, "v": "b"}, {"k": 2, "v": "c" * 100}])
+
 
 ##################################################################
 
