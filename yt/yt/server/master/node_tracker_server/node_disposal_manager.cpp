@@ -302,32 +302,15 @@ private:
                     return;
                 }
 
-                const auto& sequoiaReplicas = replicasOrError.Value();
-
+                auto nodeId = node->GetId();
                 YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v LocationUuid: %v, LocationIndex: %v)",
-                    node->GetId(),
+                    nodeId,
                     node->GetDefaultAddress(),
                     location->GetUuid(),
                     locationIndex);
 
-                auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
-                sequoiaRequest->set_node_id(ToProto(node->GetId()));
-                sequoiaRequest->set_caused_by_node_disposal(true);
-                for (const auto& replica : sequoiaReplicas) {
-                    TChunkRemoveInfo chunkRemoveInfo;
-
-                    TChunkIdWithIndex idWithIndex;
-                    idWithIndex.Id = replica.Key.ChunkId;
-                    idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
-
-                    ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
-                    chunkRemoveInfo.set_location_index(ToProto(locationIndex));
-
-                    *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
-                }
-
                 TReqDisposeLocation request;
-                request.set_node_id(ToProto(node->GetId()));
+                request.set_node_id(ToProto(nodeId));
                 request.set_global_location_index(ToProto(locationIndex));
                 auto mutation = CreateMutation(
                     Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -335,10 +318,37 @@ private:
                     &TNodeDisposalManager::HydraDisposeLocation,
                     this);
 
-                if (sequoiaRequest->removed_chunks_size() == 0) {
+                const auto& sequoiaReplicas = replicasOrError.Value();
+                if (sequoiaReplicas.empty()) {
                     YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
                     return;
                 }
+
+                auto prepareSequoiaRequest = BIND([locationIndex, nodeId, sequoiaReplicas = std::move(replicasOrError.Value())] {
+                    auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
+                    sequoiaRequest->set_node_id(ToProto(nodeId));
+                    sequoiaRequest->set_caused_by_node_disposal(true);
+                    for (const auto& replica : sequoiaReplicas) {
+                        TChunkRemoveInfo chunkRemoveInfo;
+
+                        TChunkIdWithIndex idWithIndex;
+                        idWithIndex.Id = replica.Key.ChunkId;
+                        idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
+
+                        ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
+                        chunkRemoveInfo.set_location_index(ToProto(locationIndex));
+
+                        *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
+                    }
+
+                    return sequoiaRequest;
+                });
+
+                auto sequoiaRequest = WaitFor(std::move(prepareSequoiaRequest)
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                    .Run()
+                    .AsUnique())
+                    .ValueOrThrow();
 
                 chunkManager
                     ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
