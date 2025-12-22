@@ -1,3 +1,6 @@
+-- Filters product names containing the word "statin".
+-- Useful for keyword-based filtering in text fields.
+
 SELECT
     n.id
    ,n.name
