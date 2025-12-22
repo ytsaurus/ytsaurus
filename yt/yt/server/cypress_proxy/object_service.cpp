@@ -128,12 +128,6 @@ private:
 
     const NNative::IConnectionPtr Connection_;
 
-    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
-    const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
-
-    class TExecuteSession;
-    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
-
     class TExecuteRequestQueueProvider
         : public TPerUserAndWorkloadRequestQueueProvider
     {
@@ -144,6 +138,26 @@ private:
             : TPerUserAndWorkloadRequestQueueProvider(std::move(reconfigurationCallback))
             , Owner_(owner)
         { }
+
+        void UpdateTotalLimits(const TUserDirectoryPtr& userDirectory)
+        {
+            THashMap<TThrottlerId, std::optional<double>> newTotalLimits;
+            for (const auto& [name, descriptor] : userDirectory->GetNameOrAliasToUserDescriptor()) {
+                auto readKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Read});
+                std::optional<double> limit = descriptor->ReadRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->ReadRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(readKey), limit);
+
+                auto writeKey = GetRequestQueueNameForKey({name, EUserWorkloadType::Write});
+                limit = descriptor->WriteRequestRateLimit
+                    ? std::optional(static_cast<double>(*descriptor->WriteRequestRateLimit))
+                    : std::nullopt;
+                EmplaceOrCrash(newTotalLimits, std::move(writeKey), limit);
+            }
+
+            Owner_->ThrottlerFactory_->UpdateTotalLimits(newTotalLimits);
+        }
 
     private:
         TObjectService* const Owner_;
@@ -169,6 +183,12 @@ private:
                     throttlerConfig));
         }
     };
+
+    const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
+    const TIntrusivePtr<TExecuteRequestQueueProvider> RequestQueueProvider_;
+
+    class TExecuteSession;
+    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
     static TPerUserAndWorkloadRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(
         IBootstrap* bootstrap,
@@ -206,10 +226,14 @@ private:
         });
     }
 
-    void OnUserDirectoryUpdated(const std::string& userName)
+    void OnUserDirectoryUpdated(const std::vector<std::string>& users)
     {
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
-        RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        for (const auto& userName : users) {
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Read});
+            RequestQueueProvider_->ReconfigureQueue({userName, EUserWorkloadType::Write});
+        }
+
+        RequestQueueProvider_->UpdateTotalLimits(Bootstrap_->GetUserDirectory());
     }
 
     void OnDynamicConfigChanged(
