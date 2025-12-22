@@ -32,7 +32,7 @@ TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
     return executeOptions;
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
