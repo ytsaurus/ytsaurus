@@ -746,12 +746,12 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
-void TOperationControllerBase::ValidateDistributedJobOptions()
+void TOperationControllerBase::ValidateCollectiveOptions()
 {
     if (PoolTreeControllerSettingsMap_.size() > 1) {
         for (const auto& userJobSpec : GetUserJobSpecs()) {
-            if (userJobSpec->DistributedJobOptions && userJobSpec->DistributedJobOptions->Factor > 1) {
-                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and distributed_job_options")
+            if (userJobSpec->CollectiveOptions && userJobSpec->CollectiveOptions->Size > 1) {
+                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and collective_options")
                     << TErrorAttribute("task_title", userJobSpec->TaskTitle);
             }
         }
@@ -777,7 +777,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] {
-        ValidateDistributedJobOptions();
+        ValidateCollectiveOptions();
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();
@@ -3070,7 +3070,7 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
-    ReportJobDistributedGroupInfo(joblet);
+    ReportJobCollectiveInfo(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
     ReportStartTimeToArchive(joblet);
 
@@ -3942,11 +3942,11 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .DoIf(joblet->DistributedGroupInfo, [&] (TFluentMap fluent) {
+        .DoIf(joblet->CollectiveInfo, [&] (TFluentMap fluent) {
             fluent
-                .Item("distributed_group_info").BeginMap()
-                    .Item("index").Value(joblet->DistributedGroupInfo.Index)
-                    .Item("main_job_id").Value(joblet->DistributedGroupInfo.MainJobId)
+                .Item("collective_info").BeginMap()
+                    .Item("rank").Value(joblet->CollectiveInfo.Rank)
+                    .Item("collective_id").Value(joblet->CollectiveInfo.CollectiveId)
                 .EndMap();
         })
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
@@ -10585,8 +10585,8 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
-        setEnvironmentVariable("YT_DISTRIBUTED_GROUP_JOB_INDEX", ToString(joblet->DistributedGroupInfo.Index));
-        setEnvironmentVariable("YT_DISTRIBUTED_GROUP_MAIN_JOB_ID", ToString(joblet->DistributedGroupInfo.MainJobId));
+        setEnvironmentVariable("YT_COLLECTIVE_MEMBER_RANK", ToString(joblet->CollectiveInfo.Rank));
+        setEnvironmentVariable("YT_COLLECTIVE_ID", ToString(joblet->CollectiveInfo.CollectiveId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);
@@ -11837,14 +11837,14 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
         .JobCookie(joblet->OutputCookie));
 }
 
-void TOperationControllerBase::ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const
+void TOperationControllerBase::ReportJobCollectiveInfo(const TJobletPtr& joblet) const
 {
-    if (!joblet->DistributedGroupInfo) {
+    if (!joblet->CollectiveInfo) {
         return;
     }
     HandleJobReport(joblet, TControllerJobReport()
-        .DistributedGroupJobIndex(joblet->DistributedGroupInfo.Index)
-        .DistributedGroupMainJobId(joblet->DistributedGroupInfo.MainJobId));
+        .CollectiveMemberRank(joblet->CollectiveInfo.Rank)
+        .CollectiveId(joblet->CollectiveInfo.CollectiveId));
 }
 
 void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const
