@@ -509,6 +509,10 @@ class YTEnvSetup(object):
         return False
 
     @classmethod
+    def modify_cluster_connection_config(cls, config, cluster_index):
+        pass
+
+    @classmethod
     def on_masters_started(cls):
         pass
 
@@ -1368,6 +1372,7 @@ class YTEnvSetup(object):
             cls.modify_driver_config(config)
 
         cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
+        cls.modify_cluster_connection_config(configs["cluster_connection"], cluster_index)
 
     @classmethod
     def update_transaction_supervisor_config(cls, config, cluster_index):
