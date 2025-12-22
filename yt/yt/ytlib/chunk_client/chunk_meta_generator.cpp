@@ -28,6 +28,7 @@
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/io/memory.h>
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/json/reader.h>
 #include <contrib/libs/apache/arrow_next/cpp/src/arrow/csv/reader.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/util/future.h>
 #include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
 
 namespace NYT::NChunkClient {
@@ -38,6 +39,24 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+TFuture<T> ToNativeFuture(arrow20::Future<T> future)
+{
+    auto promise = NewPromise<T>();
+    // The cancellations are not supported by arrow, so this is all we need.
+    future.AddCallback([future, promise] (const arrow20::Result<T>& result) {
+        try {
+            PARQUET_ASSIGN_OR_THROW(auto value, result);
+            promise.Set(value);
+        } catch (const std::exception& ex) {
+            promise.Set(TError(ex));
+        }
+    });
+    return promise;
+}
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -310,6 +329,8 @@ public:
 protected:
     virtual int64_t GetCurrentFileOffset(const TStreamingReader& streamingReader) = 0;
 
+    virtual arrow20::Future<std::shared_ptr<arrow20::RecordBatch>> ReadNextAsync(TStreamingReader& streamingReader) = 0;
+
     std::optional<TColumnarStatistics> GetColumnarChunkMeta() override
     {
         return ColumnarStatistics_;
@@ -320,9 +341,9 @@ protected:
         Schema_ = NArrow::CreateYTTableSchemaFromArrowSchema(streamingReader->schema());
         ColumnarStatistics_ = TColumnarStatistics::MakeEmpty(Schema_->GetColumnCount());
         while (true) {
-            std::shared_ptr<arrow20::RecordBatch> batch;
             auto offset = GetCurrentFileOffset(*streamingReader);
-            PARQUET_THROW_NOT_OK(streamingReader->ReadNext(&batch));
+            auto batch = WaitFor(ToNativeFuture(ReadNextAsync(*streamingReader)))
+                .ValueOrThrow();
             if (!batch) {
                 break;
             }
@@ -427,23 +448,19 @@ protected:
         return streamingReader.bytes_processed();
     }
 
+    arrow20::Future<std::shared_ptr<arrow20::RecordBatch>> ReadNextAsync(arrow20::json::StreamingReader& streamingReader) override
+    {
+        return streamingReader.ReadNextAsync();
+    }
+
     void Prepare() override
     {
-        // `StreamingReader::ReadNext()` is blocking the thread executing the fiber, so we hide this in a new one.
-        // `StreamingReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
-        auto actionQueue = New<TActionQueue>("TJsonChunkMetaGenerator");
-        WaitFor(BIND(([this_ = TIntrusivePtr(this), this]() {
-            PARQUET_ASSIGN_OR_THROW(
-                auto streamingReader,
-                arrow20::json::StreamingReader::Make(
-                    ChunkFile_,
-                    arrow20::json::ReadOptions::Defaults(),
-                    arrow20::json::ParseOptions::Defaults()));
-            PrepareFromStreamingReader(streamingReader);
-        }))
-            .AsyncVia(actionQueue->GetInvoker())
-            .Run())
-            .ThrowOnError();
+        PrepareFromStreamingReader(WaitFor(ToNativeFuture(arrow20::json::StreamingReader::MakeAsync(
+            ChunkFile_,
+            arrow20::json::ReadOptions::Defaults(),
+            arrow20::json::ParseOptions::Defaults(),
+            arrow20::io::IOContext(arrow20::default_memory_pool()))))
+            .ValueOrThrow());
     }
 };
 
@@ -470,26 +487,21 @@ protected:
         return streamingReader.bytes_read();
     }
 
+    arrow20::Future<std::shared_ptr<arrow20::RecordBatch>> ReadNextAsync(arrow20::csv::StreamingReader& streamingReader) override
+    {
+        return streamingReader.ReadNextAsync();
+    }
+
     void Prepare() override
     {
-        // `StreamingReader::ReadNext()` is blocking the thread executing the fiber, so we hide this in a new one.
-        // `StreamingReader::Make()` spawns a new thread itself, so it is fine to just create another one right here.
-        auto actionQueue = New<TActionQueue>("TCsvChunkMetaGenerator");
-        WaitFor(BIND(([this_ = MakeStrong(this), this]() {
-            PARQUET_ASSIGN_OR_THROW(
-                auto streamingReader,
-                arrow20::csv::StreamingReader::Make(
-                    arrow20::io::IOContext(arrow20::default_memory_pool()),
-                    ChunkFile_,
-                    arrow20::csv::ReadOptions::Defaults(),
-                    arrow20::csv::ParseOptions::Defaults(),
-                    arrow20::csv::ConvertOptions::Defaults()));
-            // Continues the initialization in another thread, which is fine as the access is exclusive.
-            PrepareFromStreamingReader(streamingReader);
-        }))
-            .AsyncVia(actionQueue->GetInvoker())
-            .Run())
-            .ThrowOnError();
+        PrepareFromStreamingReader(WaitFor(ToNativeFuture(arrow20::csv::StreamingReader::MakeAsync(
+            arrow20::io::IOContext(arrow20::default_memory_pool()),
+            ChunkFile_,
+            arrow20::internal::GetCpuThreadPool(),
+            arrow20::csv::ReadOptions::Defaults(),
+            arrow20::csv::ParseOptions::Defaults(),
+            arrow20::csv::ConvertOptions::Defaults())))
+            .ValueOrThrow());
     }
 };
 
