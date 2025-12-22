@@ -332,7 +332,7 @@ TChunkLocation::TChunkLocation(
         "UnlimitedIn",
         diskThrottlerProfiler);
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
-        "UnlimitedOutThrottler",
+        "UnlimitedOut",
         diskThrottlerProfiler);
     EnableUncategorizedThrottler_ = GetStaticConfig()->EnableUncategorizedThrottler;
     UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
