@@ -1641,7 +1641,19 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.ExecutionBackend = config->UseWebAssembly
         ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
         : EExecutionBackend::Native;
-    queryOptions.OptimizationLevel = options.OptimizationLevel.value_or(EOptimizationLevel::Default);
+
+    {
+        queryOptions.OptimizationLevel = EOptimizationLevel::Default;
+
+        if (queryConfig && queryConfig->OptimizationLevel.has_value()) {
+            queryOptions.OptimizationLevel = *queryConfig->OptimizationLevel;
+        }
+
+        if (options.OptimizationLevel) {
+            queryOptions.OptimizationLevel = *options.OptimizationLevel;
+        }
+    }
+
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
