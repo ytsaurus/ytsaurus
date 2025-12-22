@@ -18,6 +18,8 @@
 #include "table_collocation_type_handler.h"
 #include "tablet_action_type_handler.h"
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
@@ -286,6 +288,15 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
+    if (TypeFromId(cellId) == EObjectType::MasterCell) {
+        auto masterChannel = cellDirectory->FindChannelByCellId(cellId);
+        if (masterChannel) {
+            return WrapChannel(masterChannel);
+        }
+        // Master cell directory synchronizer could have received new master, so it is worth trying to get chanel to master cell via master cell directory.
+        const auto& masterCellDirectory = Connection_->GetMasterCellDirectory();
+        return WrapChannel(masterCellDirectory->GetNakedMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(cellId)));
+    }
     return WrapChannel(cellDirectory->GetChannelByCellIdOrThrow(cellId));
 }
 

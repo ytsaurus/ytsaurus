@@ -229,13 +229,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             actual_cell_tags = get(f"//sys/tablet_cells/{cell_id}/@multicell_status").keys()
             return sorted(actual_cell_tags) == sorted(expected_cell_tags)
 
-        def cell_is_healthy(cell_id):
-            multicell_status = get(f"//sys/tablet_cells/{cell_id}/@multicell_status")
-            for cell_tag in multicell_status.keys():
-                if multicell_status[cell_tag]["health"] != "good":
-                    return False
-            return True
-
         def get_cell_peer(cell_id):
             try:
                 return get(f"#{cell_id}/@peers/0/address")
@@ -249,10 +242,10 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             self.Env.start_nodes()
 
             wait(lambda: get_cell_peer(cell_id) is not None)
-            wait(lambda: cell_is_healthy(cell_id))
+            wait(lambda: self.tablet_cell_is_healthy(cell_id))
 
         cell_id = sync_create_cells(1)[0]
-        assert cell_is_healthy(cell_id)
+        assert self.tablet_cell_is_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
         schema = [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}]
         create_dynamic_table("//tmp/dt", schema=schema)
@@ -371,6 +364,20 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
+
+    def check_basic_dynamic_tables_operations(self):
+        yield
+
+        schema = [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}]
+        rows = [{"k": i, "v": f"aba{i}"} for i in range(5)]
+
+        cell_id = sync_create_cells(1)[0]
+        wait(lambda: self.tablet_cell_is_healthy(cell_id))
+
+        create_dynamic_table("//tmp/dt1", schema=schema, external_cell_tag=13)
+        wait(lambda: self.do_with_retries(lambda: sync_mount_table("//tmp/dt1")))
+        insert_rows("//tmp/dt1", rows)
+        assert_items_equal(select_rows("* from [//tmp/dt1]"), rows)
 
     @authors("cherepashka")
     def test_add_cell(self):

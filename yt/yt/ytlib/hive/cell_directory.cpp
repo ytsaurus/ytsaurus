@@ -349,7 +349,7 @@ public:
     {
         auto channel = FindChannelByCellId(cellId, peerKind);
         if (!channel) {
-            THROW_ERROR_EXCEPTION("No cell with id %v is known",
+            THROW_ERROR_EXCEPTION("No channel for cell with id %v is known",
                 cellId);
         }
         return channel;

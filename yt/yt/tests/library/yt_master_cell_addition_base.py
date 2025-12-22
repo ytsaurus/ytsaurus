@@ -33,6 +33,8 @@ from copy import deepcopy
 
 
 class MasterCellAdditionBase(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 3
+
     DEFER_SECONDARY_CELL_START = True
     DEFER_NODE_START = True
     DEFER_SCHEDULER_START = True
@@ -154,7 +156,7 @@ class MasterCellAdditionBase(YTEnvSetup):
         try:
             action()
         except YtError as error:
-            if error.contains_text("Unknown master cell tag"):
+            if error.contains_text("Unknown master cell tag") or error.contains_text("No cell with id"):
                 return False
             else:
                 raise
@@ -222,6 +224,13 @@ class MasterCellAdditionBase(YTEnvSetup):
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
+    def modify_cluster_connection_config(cls, config, cluster_index):
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config,
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @classmethod
     def modify_driver_config(cls, config):
         cls.proceed_driver_config(config, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cls.PRIMARY_CLUSTER_INDEX))
 
@@ -285,6 +294,11 @@ class MasterCellAdditionBase(YTEnvSetup):
             if "World initialization" in title:
                 # Proxy need time to discover new master cell, if it already started world initializer transaction.
                 wait(lambda: cls.do_with_retries(lambda: abort_transaction(str(tx))))
+
+    @classmethod
+    def _update_cluster_connection(cls):
+        cluster_connection_config = cls.Env.get_cluster_configuration()["cluster_connection"]
+        set("//sys/@cluster_connection", cluster_connection_config)
 
     @classmethod
     def _build_readonly_snapshot(cls):
@@ -357,7 +371,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             cls.Env.kill_all_masters()
 
             # Patch static configs for all components.
-            configs = cls.Env._cluster_configuration
+            configs = cls.Env.get_cluster_configuration()
             for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
                 for peer_index, _ in enumerate(configs["master"][tag]):
                     cls.proceed_master_config(configs["master"][tag][peer_index], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
@@ -441,12 +455,20 @@ class MasterCellAdditionBase(YTEnvSetup):
         cls._abort_world_initializer_transactions()
         if wait_for_nodes:
             cls._wait_for_nodes_state("online", aggregate_state=False)
+        cls._update_cluster_connection()
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []
 
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
+
+    def tablet_cell_is_healthy(self, cell_id):
+        multicell_status = get(f"//sys/tablet_cells/{cell_id}/@multicell_status")
+        for cell_tag in multicell_status.keys():
+            if multicell_status[cell_tag]["health"] != "good":
+                return False
+        return True
 
     def run_checkers_iteration(self, checker_state_list, final_iteration=False):
         print_debug("Run {}checkers iteration".format("final " if final_iteration else ""))
