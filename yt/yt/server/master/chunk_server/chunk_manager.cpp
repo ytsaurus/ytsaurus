@@ -510,6 +510,9 @@ public:
         transactionManager->RegisterTransactionActionHandlers<NProto::TReqRemoveDeadSequoiaChunkReplicas>({
             .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraRemoveDeadSequoiaChunkReplicas, Unretained(this)),
         });
+        transactionManager->RegisterTransactionActionHandlers<NProto::TReqConfirmMultipleChunks>({
+            .Prepare = BIND_NO_PROPAGATE(&TChunkManager::HydraPrepareConfirmMultipleChunks, Unretained(this)),
+        });
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
@@ -873,7 +876,7 @@ public:
             }
 
             auto* location = FindLocationOnConfirmation(chunk->GetId(), node, replica);
-            if (!location) {
+            if (!IsObjectAlive(location)) {
                 // Failure has been already logged inside FindLocationOnConfirmation.
                 continue;
             }
@@ -918,33 +921,37 @@ public:
         }
     }
 
-    void ConfirmChunk(
+    struct TConfirmChunkSuccessfulValidationResult
+    {
+        std::vector<TChunk*> ReferencedHunkChunks;
+        TMasterTableSchema* MasterTableSchema = nullptr;
+    };
+
+    TConfirmChunkSuccessfulValidationResult ValidateConfirmChunk(
         TChunk* chunk,
-        const TChunkReplicaWithLocationList& replicas,
-        const TChunkInfo& chunkInfo,
         const TChunkMeta& chunkMeta,
-        TMasterTableSchemaId schemaId)
+        TMasterTableSchemaId schemaId,
+        bool validateChunkMeta)
     {
         auto id = chunk->GetId();
-
         if (chunk->IsConfirmed()) {
             YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
                 id);
-            return;
+            // We won't need anything.
+            return {};
         }
 
+        TConfirmChunkSuccessfulValidationResult result;
         const auto& tableManager = Bootstrap_->GetTableManager();
         // TODO(h0pless): Maybe think of a better exception here.
-        auto* temporarySchema = GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId
-            ? tableManager->GetMasterTableSchemaOrThrow(schemaId)
-            : nullptr;
+        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+            result.MasterTableSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+        }
 
         // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
         // the chunk and storing its meta. Otherwise, in DestroyChunk one may end up having
         // dangling references to hunk chunks.
-        std::vector<TChunk*> referencedHunkChunks;
         if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
-            referencedHunkChunks.reserve(hunkChunkRefsExt->refs_size());
             for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                 auto* hunkChunk = FindChunk(hunkChunkId);
@@ -953,23 +960,62 @@ public:
                         id,
                         hunkChunkId);
                 }
-                referencedHunkChunks.push_back(hunkChunk);
+                result.ReferencedHunkChunks.push_back(hunkChunk);
             }
         }
 
-        chunk->ValidateConfirmation(chunkInfo, chunkMeta);
+        if (validateChunkMeta) {
+            ValidateChunkMetaOnConfirmation(chunkMeta);
+        }
 
-        // No exceptions below this point, please. Thank you kindly.
+        return result;
+    }
+
+    // Could have been noexcept, but @shakurov doesn't want to die.
+    void ConfirmChunk(
+        TChunk* chunk,
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta,
+        const TConfirmChunkSuccessfulValidationResult& validationResult) /*noexcept*/
+    {
+        try {
+            GuardedConfirmChunk(chunk, replicas, chunkInfo, chunkMeta, validationResult);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(
+                ex,
+                "An exception during chunk confirmation was thrown (ChunkId: %v)",
+                chunk->GetId());
+            throw; // For now.
+        }
+    }
+
+    void GuardedConfirmChunk(
+        TChunk* chunk,
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkInfo& chunkInfo,
+        const TChunkMeta& chunkMeta,
+        const TConfirmChunkSuccessfulValidationResult& validationResult) /*noexcept*/
+    {
+        auto id = chunk->GetId();
+        if (chunk->IsConfirmed()) {
+            YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
+                id);
+            return;
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* hunkChunk : referencedHunkChunks) {
+        for (auto* hunkChunk : validationResult.ReferencedHunkChunks) {
+            YT_VERIFY(IsObjectAlive(hunkChunk));
             objectManager->RefObject(hunkChunk);
         }
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
-        if (temporarySchema) {
-            tableManager->GetOrCreateNativeMasterTableSchema(temporarySchema->AsCompactTableSchema(), chunk);
+        if (validationResult.MasterTableSchema) {
+            tableManager->GetOrCreateNativeMasterTableSchema(validationResult.MasterTableSchema->AsCompactTableSchema(), chunk);
         }
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
@@ -991,7 +1037,7 @@ public:
         YT_LOG_DEBUG("Chunk confirmed (ChunkId: %v, Replicas: %v, ReferencedHunkChunkIds: %v)",
             chunk->GetId(),
             replicas,
-            MakeFormattableView(referencedHunkChunks, TObjectIdFormatter()));
+            MakeFormattableView(validationResult.ReferencedHunkChunks, TObjectIdFormatter()));
     }
 
     // Adds #chunk to its staging transaction resource usage.
@@ -1222,6 +1268,69 @@ public:
         ExecuteConfirmChunkSubrequest(
             request,
             /*response*/ nullptr);
+    }
+
+    void HydraPrepareConfirmMultipleChunks(
+        TTransaction* /*transaction*/,
+        NProto::TReqConfirmMultipleChunks* request,
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
+
+        YT_LOG_TRACE("Confirming multiple chunks (ChunkCount: %v)", request->chunk_confirmations_size());
+
+        std::vector<TConfirmChunkSuccessfulValidationResult> chunkConfirmationValidationResults;
+        chunkConfirmationValidationResults.reserve(request->chunk_confirmations_size());
+        for (const auto& protoChunkInfo : request->chunk_confirmations()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
+            YT_LOG_TRACE("Confirming chunk during multiple chunks confirmation (ChunkId: %v)",
+                chunkId);
+
+            auto schemaId = FromProto<TMasterTableSchemaId>(protoChunkInfo.schema_id());
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                // Chunk is dead, but we consider it a "success" here, so that we don't fail
+                // the whole batch. The rows in unapproved replica table will expire anyway,
+                // and we will also check if chunk is alive after 2pc, so we would reply with an error
+                // to this specific confirm request.
+                continue;
+            }
+
+            auto result = ValidateConfirmChunk(
+                chunk,
+                protoChunkInfo.chunk_meta(),
+                schemaId,
+                /*validateChunkMeta*/ false);
+
+            chunkConfirmationValidationResults.push_back(std::move(result));
+        }
+
+        if (std::ssize(chunkConfirmationValidationResults) != request->chunk_confirmations_size()) {
+                YT_LOG_ALERT("ChunkConfirmationValidationResults size is different fron chunk confirmations count "
+                    "(ChunkConfirmationValidationResultsSize: %v, ChunkConfirmationsCount: %v)",
+                    std::ssize(chunkConfirmationValidationResults),
+                    request->chunk_confirmations_size());
+                THROW_ERROR_EXCEPTION("ChunkConfirmationValidationResults size is different fron chunk confirmations count");
+        }
+
+        for (const auto& [protoChunkInfo, confirmationResult] : Zip(request->chunk_confirmations(), chunkConfirmationValidationResults)) {
+            auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
+            auto* chunk = FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                // Same.
+                continue;
+            }
+
+            auto replicas = FromProto<TChunkReplicaWithLocationList>(protoChunkInfo.replicas());
+
+            ConfirmChunk(
+                chunk,
+                replicas,
+                protoChunkInfo.chunk_info(),
+                protoChunkInfo.chunk_meta(),
+                confirmationResult);
+        }
     }
 
     void DestroyChunk(TChunk* chunk) override
@@ -2544,6 +2653,11 @@ private:
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
 
+    TPeriodicExecutorPtr SequoiaChunkBatchConfirmExecutor_;
+
+    std::vector<TReqConfirmChunk*> WaitingConfirmRequests_;
+    TPromise<void> BatchConfirmTransactionCommitPromise_;
+
     // Unlike chunk replicator and sealer, this is maintained on all
     // peers and is not cleared on epoch change.
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
@@ -3338,6 +3452,141 @@ private:
         }
     }
 
+    void OnSequoiaReplicaConfirm()
+    {
+        if (WaitingConfirmRequests_.empty()) {
+            return;
+        }
+
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        const auto& retriableErrorCodes = config->RetriableErrorCodes;
+        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
+
+        auto promise = std::exchange(BatchConfirmTransactionCommitPromise_, NewPromise<void>());
+        YT_LOG_ALERT_IF(
+            promise.IsSet(),
+            "Chunk confirmation promise is already set (Result: %v)",
+            promise.TryGet());
+
+        auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk*>());
+        if (std::ssize(requests) > config->ConfirmBatchSize) {
+            WaitingConfirmRequests_ = {requests.begin() + config->ConfirmBatchSize, requests.end()};
+            requests.resize(config->ConfirmBatchSize);
+        }
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        // TODO: support location indexes for confirm and remove this.
+        THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndex>> sequoiaChunkReplicas;
+        for (const auto& request : requests) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+            for (const auto& protoReplica : request->replicas()) {
+                auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
+                auto nodeId = replica.GetNodeId();
+                auto* node = nodeTracker->FindNode(nodeId);
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+
+                auto* location = FindLocationOnConfirmation(chunkId, node, replica);
+                if (!IsObjectAlive(location)) {
+                    continue;
+                }
+
+                TChunkReplicaWithLocationIndex replicaWithLocationIndex(
+                    nodeId,
+                    replica.GetReplicaIndex(),
+                    location->GetIndex());
+                sequoiaChunkReplicas[chunkId].push_back(replicaWithLocationIndex);
+            }
+        }
+
+        auto future = Bootstrap_
+            ->GetSequoiaConnection()
+            ->CreateClient(GetRootAuthenticationIdentity())
+            ->StartTransaction(
+                ESequoiaTransactionType::ChunkConfirmation,
+                {.CellTag = Bootstrap_->GetCellTag()})
+            .Apply(BIND([=,
+                requests = std::move(requests),
+                sequoiaChunkReplicas = std::move(sequoiaChunkReplicas),
+                promise = std::move(promise),
+                this,
+                this_ = MakeStrong(this)
+            ] (const ISequoiaTransactionPtr& transaction) mutable {
+                try {
+                    // TODO: validate requests are the same for the same chunks.
+                    // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
+                    // I hope they are the same and am okay with this for now.
+                    SortUniqueBy(requests, [] (const auto* request) {
+                        return FromProto<TChunkId>(request->chunk_id());
+                    });
+
+                    NProto::TReqConfirmMultipleChunks confirmChunksRequest;
+                    for (const auto& request : requests) {
+                        auto* chunkConfirmation = confirmChunksRequest.add_chunk_confirmations();
+                        *chunkConfirmation->mutable_chunk_id() = request->chunk_id();
+                        if (storeSequoiaReplicasOnMaster) {
+                            *chunkConfirmation->mutable_replicas() = std::move(request->replicas());
+                        }
+                        *chunkConfirmation->mutable_chunk_meta() = std::move(request->chunk_meta());
+                        *chunkConfirmation->mutable_chunk_info() = std::move(request->chunk_info());
+                        *chunkConfirmation->mutable_schema_id() = request->schema_id();
+
+                        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+                        auto it = sequoiaChunkReplicas.find(chunkId);
+                        const auto& replicas = it == sequoiaChunkReplicas.end() ? std::vector<TChunkReplicaWithLocationIndex>() : it->second;
+                        NRecords::TUnapprovedChunkReplicas chunkReplicas{
+                            .Key = {
+                                .ChunkId = chunkId,
+                            },
+                            .StoredReplicas = GetReplicasYson(replicas, {}),
+                            .ConfirmationTime = TInstant::Now(),
+                        };
+                        transaction->WriteRow(
+                            chunkReplicas,
+                            NTableClient::ELockType::SharedWrite,
+                            NTableClient::EValueFlags::Aggregate);
+
+                    }
+                    transaction->AddTransactionAction(
+                        Bootstrap_->GetCellTag(),
+                        NTransactionClient::MakeTransactionActionData(confirmChunksRequest));
+
+                    NApi::TTransactionCommitOptions commitOptions{
+                        .CoordinatorCellId = Bootstrap_->GetCellId(),
+                        .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                        .StronglyOrdered = true,
+                    };
+
+                    auto result = WaitFor(transaction->Commit(commitOptions));
+                    ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
+                } catch (const std::exception& ex) {
+                    promise.Set(TError(ex));
+                    return;
+                }
+                promise.Set(TError());
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+
+        YT_UNUSED_FUTURE(future);
+    }
+
+    TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk* request) override
+    {
+        WaitingConfirmRequests_.push_back(request);
+
+        if (!BatchConfirmTransactionCommitPromise_) {
+            YT_LOG_ALERT("Confirm transaction promise was not created");
+            BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
+        }
+
+        return BatchConfirmTransactionCommitPromise_
+            .ToFuture()
+            .ToUncancelable();
+    }
+
+    // COMPAT(aleksandra-zh).
     TFuture<void> ConfirmSequoiaChunk(TReqConfirmChunk* request) override
     {
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
@@ -4446,7 +4695,6 @@ private:
     void HydraUnstageExpiredChunks(NProto::TReqUnstageExpiredChunks* request) noexcept
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
         for (const auto& protoId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoId);
             auto* chunk = FindChunk(chunkId);
@@ -4698,12 +4946,17 @@ private:
         auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
 
         auto* chunk = GetChunkOrThrow(chunkId);
+        auto validationResult = ValidateConfirmChunk(
+            chunk,
+            subrequest->chunk_meta(),
+            schemaId,
+            /*validateChunkMeta*/ true);
         ConfirmChunk(
             chunk,
             replicas,
             subrequest->chunk_info(),
             subrequest->chunk_meta(),
-            schemaId);
+            validationResult);
 
         if (subresponse) {
             if (subrequest->request_statistics()) {
@@ -5538,6 +5791,13 @@ private:
             BIND(&TChunkManager::OnSequoiaReplicaRemoval, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
         SequoiaReplicaRemovalExecutor_->Start();
+
+        BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
+        SequoiaChunkBatchConfirmExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+            BIND(&TChunkManager::OnSequoiaReplicaConfirm, MakeWeak(this)),
+            GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
+        SequoiaChunkBatchConfirmExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -5551,6 +5811,16 @@ private:
         if (SequoiaReplicaRemovalExecutor_) {
             YT_UNUSED_FUTURE(SequoiaReplicaRemovalExecutor_->Stop());
             SequoiaReplicaRemovalExecutor_.Reset();
+        }
+
+        if (SequoiaChunkBatchConfirmExecutor_) {
+            YT_UNUSED_FUTURE(SequoiaChunkBatchConfirmExecutor_->Stop());
+            SequoiaChunkBatchConfirmExecutor_.Reset();
+        }
+
+        if (BatchConfirmTransactionCommitPromise_) {
+            BatchConfirmTransactionCommitPromise_.TrySet(TError("Hydra peer has stopped"));
+            BatchConfirmTransactionCommitPromise_.Reset();
         }
     }
 
@@ -5645,11 +5915,6 @@ private:
             if (request->chunk_records_size() >= config->RemovalBatchSize) {
                 break;
             }
-        }
-
-        if (ChunksBeingPurged_) {
-            YT_LOG_DEBUG("Chunks are still being purged");
-            return;
         }
 
         ChunksBeingPurged_ = true;
@@ -6399,6 +6664,7 @@ private:
             buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
             buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
             buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
+            buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
@@ -6729,6 +6995,10 @@ private:
 
         if (SequoiaReplicaRemovalExecutor_) {
             SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
+        }
+
+        if (SequoiaChunkBatchConfirmExecutor_) {
+            SequoiaChunkBatchConfirmExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
         }
     }
 };

@@ -76,7 +76,7 @@ struct TQueryUdfTag
 struct TCypressFunctionDescriptor
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     std::vector<TDescriptorType> ArgumentTypes;
     std::optional<TDescriptorType> RepeatedArgumentType;
     TDescriptorType ResultType;
@@ -114,7 +114,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 struct TCypressAggregateDescriptor
     : public NYTree::TYsonStruct
 {
-    TString Name;
+    std::string Name;
     TDescriptorType ArgumentType;
     TDescriptorType StateType;
     TDescriptorType ResultType;
@@ -153,7 +153,7 @@ TExternalCGInfo::TExternalCGInfo()
 
 namespace {
 
-TString GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
+TYPath GetUdfDescriptorPath(const TYPath& registryPath, const std::string& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(functionName);
 }
@@ -740,7 +740,7 @@ void FetchFunctionImplementationsFromFiles(
 
         YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
 
-        auto path = TString(rootPath) + "/" + function.Name;
+        auto path = TYPath(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
 
         auto implementationFiles = TEnumIndexedArray<EExecutionBackend, TSharedRef>();

@@ -537,6 +537,8 @@ struct TDataNodeTestingOptions
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
+    std::optional<TDuration> SleepBeforePerformPutBlocks;
+
     //! TChunkLocation::CheckWriteThrottling/TChunkLocation::CheckReadThrottling always return throttled.
     bool AlwaysThrottleLocation;
 

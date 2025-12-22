@@ -478,6 +478,36 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return true;
         }
 
+        case EInternedAttributeKey::ExpirationTimeUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto user = ConvertTo<std::string>(value);
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser() || !user.empty()) {
+                THROW_ERROR_EXCEPTION(R"("expiration_time_user" is not writable)");
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTime(node, TSetExpirationResetTime{});
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutUser: {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto user = ConvertTo<std::string>(value);
+            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser() || !user.empty()) {
+                THROW_ERROR_EXCEPTION(R"("expiration_timeout_user" is not writable)");
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTimeout(node, TSetExpirationResetTime{});
+
+            return true;
+        }
+
         case EInternedAttributeKey::Opaque: {
             ValidateNoTransaction();
             ValidateAdHocPermission(EPermission::Write);
@@ -536,34 +566,6 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTimeout(node, TRemoveExpiration{});
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ExpirationTimeUser: {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
-                return false;
-            }
-
-            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
-            auto* node = LockThisImpl(lockRequest);
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTime(node, TSetExpirationResetTime{});
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ExpirationTimeoutUser: {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            if (securityManager->GetAuthenticatedUser() != securityManager->GetRootUser()) {
-                return false;
-            }
-
-            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
-            auto* node = LockThisImpl(lockRequest);
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SetExpirationTimeout(node, TSetExpirationResetTime{});
 
             return true;
         }
@@ -668,10 +670,10 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeUser)
         .SetPresent(node->GetExpirationTimeUser().value_or(nullptr) != nullptr)
-        .SetRemovable(true));
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutUser)
         .SetPresent(node->GetExpirationTimeoutUser().value_or(nullptr) != nullptr)
-        .SetRemovable(true));
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeLastResetTime)
         .SetPresent(node->GetExpirationTimeLastResetTime().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutLastResetTime)

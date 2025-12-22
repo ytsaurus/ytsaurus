@@ -1794,6 +1794,16 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
             "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
             job->GetJobId());
         result = EMergeSessionResult::PermanentFailure;
+    } else if (state != EJobState::Completed) {
+        YT_LOG_DEBUG(
+            job->Error(),
+            "Chunk merger job did not finish successfully (JobState: %v, JobId: %v, Address: %v, NodeId: %v, AccountId: %v, ChunkId: %v)",
+            state,
+            job->GetJobId(),
+            job->NodeAddress(),
+            job->JobInfo().NodeId,
+            job->JobInfo().AccountId,
+            job->GetChunkIdWithIndexes());
     }
 
     {

@@ -509,6 +509,10 @@ void TJob::Start() noexcept
         return;
     }
 
+    if (auto slot = GetUserSlot()) {
+        slot->ValidateEnabled();
+    }
+
     YT_VERIFY(!std::exchange(Started_, true));
 
     PreparationStartTime_ = TInstant::Now();
@@ -789,6 +793,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingTmpfsVolumes:
         case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
+        case EJobPhase::LinkingVolumes:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
@@ -2438,6 +2443,9 @@ void TJob::RunWithWorkspaceBuilder()
 
             PrepareGpuCheckVolumeStartTime_ = timePoints.PrepareGpuCheckVolumeStartTime;
             PrepareGpuCheckVolumeFinishTime_ = timePoints.PrepareGpuCheckVolumeFinishTime;
+
+            LinkTmpfsVolumesStartTime_ = timePoints.LinkTmpfsVolumesStartTime;
+            LinkTmpfsVolumesFinishTime_ = timePoints.LinkTmpfsVolumesFinishTime;
         })
             .Via(Invoker_));
 
@@ -3230,7 +3238,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     {
         auto userSlot = GetUserSlot();
         ExecAttributes_.SlotIndex = userSlot->GetSlotIndex();
-        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(ESandboxKind::User);
+        ExecAttributes_.SandboxPath = userSlot->GetSandboxPath(
+            ESandboxKind::User,
+            RootVolume_,
+            Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS);
         ExecAttributes_.MediumName = userSlot->GetMediumName();
 
         ExecAttributes_.JobProxySocketPath = userSlot->GetJobProxyUnixDomainSocketPath();

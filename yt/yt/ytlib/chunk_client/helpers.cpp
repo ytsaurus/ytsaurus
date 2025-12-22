@@ -218,21 +218,16 @@ void GetUserObjectBasicAttributes(
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto* userObject : objects) {
-        if (!options.AllowColumnRenaming) {
-            if (userObject->Path.GetColumnRenameDescriptors()) {
-                THROW_ERROR_EXCEPTION("Renaming columns is not supported")
-                    << TErrorAttribute("path", userObject->Path);
-            }
-        }
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
         req->set_permission(ToProto(permission));
         req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
         req->set_omit_inaccessible_rows(options.OmitInaccessibleRows);
         req->set_populate_security_tags(options.PopulateSecurityTags);
         if (auto optionalColumns = userObject->Path.GetColumns()) {
-            if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
-                YT_VERIFY(options.AllowColumnRenaming);
-                BuildOriginalColumnNames(&*optionalColumns, *renameDescriptors);
+            if (options.RenameColumns) {
+                if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
+                    BuildOriginalColumnNames(&*optionalColumns, *renameDescriptors);
+                }
             }
             auto* protoColumns = req->mutable_columns();
             for (const auto& column : *optionalColumns) {
@@ -267,11 +262,12 @@ void GetUserObjectBasicAttributes(
 
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<std::string>>(rsp->omitted_inaccessible_columns().items());
-            if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
-                YT_VERIFY(options.AllowColumnRenaming);
-                RenameInaccessibleColumns(
-                    &userObject->OmittedInaccessibleColumns,
-                    *renameDescriptors);
+            if (options.RenameColumns) {
+                if (auto renameDescriptors = userObject->Path.GetColumnRenameDescriptors()) {
+                    RenameInaccessibleColumns(
+                        &userObject->OmittedInaccessibleColumns,
+                        *renameDescriptors);
+                }
             }
         }
         if (rsp->has_security_tags()) {

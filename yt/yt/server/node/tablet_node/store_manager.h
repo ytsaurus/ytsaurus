@@ -25,13 +25,13 @@ struct TAddStoreOptions
 {
     // Indicates whether intercepted chunk data is used during the compaction process,
     // and we expect to have exclusive access to it.
-    bool UseInterceptedChunkData;
+    bool UseInterceptedChunkData = false;
 
     // Indicates whether preloaded chunks are used that were specifically retained earlier
     // during the unmount.
-    bool UseRetainedPreloadedChunks;
+    bool UseRetainedPreloadedChunks = false;
 
-    bool OnFlush;
+    bool OnFlush = false;
     TPartitionId PartitionIdHint;
 };
 
@@ -39,9 +39,9 @@ struct TAddStoreOptions
 
 struct TMountOptions
 {
-    bool CreateDynamicStore;
-    bool UseRetainedPreloadedChunks;
-    const NTabletNode::NProto::TMountHint* MountHint;
+    bool CreateDynamicStore = false;
+    bool UseRetainedPreloadedChunks = false;
+    const NTabletNode::NProto::TMountHint* MountHint = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

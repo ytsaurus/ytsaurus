@@ -86,6 +86,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoPrepareTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoLinkTmpfsVolumes) {
+        return "DoLinkTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
         return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
@@ -164,7 +166,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 artifact.SandboxKind,
                 artifact.Key.GetCompressedDataSize());
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
             auto symlinkPath =
                 CombinePaths(sandboxPath, artifact.Name);
 
@@ -207,7 +209,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         if (artifact.AccessedViaBind) {
             YT_VERIFY(artifact.Artifact);
 
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
             auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
 
             YT_LOG_INFO(
@@ -230,8 +232,12 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
         }
     }
 
-    WaitFor(AllSucceeded(ioOperationFutures))
-        .ThrowOnError();
+    auto allSetFuture = AllSet(ioOperationFutures);
+    auto errors = WaitFor(allSetFuture).ValueOrThrow();
+    for (auto& error : errors) {
+        error.ThrowOnError();
+    }
+
     YT_LOG_INFO("Permissions for artifacts set");
 }
 
@@ -249,6 +255,7 @@ TFuture<void> TJobWorkspaceBuilder::Run()
         .Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
@@ -274,6 +281,13 @@ TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
     if (std::exchange(ResultExtracted_, true)) {
         YT_LOG_FATAL("Result has already been extracted");
     }
+
+    // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
+    // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
+    if (ResultHolder_.TmpfsVolumes.empty()) {
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+    }
+
     return std::move(ResultHolder_);
 }
 
@@ -353,7 +367,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -370,7 +384,7 @@ private:
                                 result.Volume->GetPath());
                         }));
 
-                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_));
@@ -388,11 +402,25 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+
+        YT_LOG_DEBUG("Link tmpfs volumes is not needed in simple workspace");
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -555,43 +583,23 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
                         << volumeResultsOrError;
                 }
 
-                auto& volumeResults = volumeResultsOrError.Value();
+                Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
 
                 YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
-                    MakeFormattableView(volumeResults,
+                    MakeFormattableView(Context_.PreparedTmpfsVolumes,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
                                 result.Path,
                                 result.Volume->GetPath());
                         }));
-
-                return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumeResults)
-                    .Apply(BIND([volumeResults = std::move(volumeResults), this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
-                        if (!error.IsOK()) {
-                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
-                                << error;
-                        }
-
-                        YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
-                            MakeFormattableView(volumeResults,
-                                [] (auto* builder, const TTmpfsVolumeResult& result) {
-                                    builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
-                                        result.Path,
-                                        result.Volume->GetPath());
-                            }));
-
-                        ResultHolder_.TmpfsVolumes = std::move(volumeResults);
-
-                        SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-                    }).AsyncVia(Invoker_))
-                    .ToUncancelable();
+                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_))
             .ToUncancelable();
     }
@@ -646,11 +654,45 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        SetNowTime(TimePoints_.LinkTmpfsVolumesStartTime);
+
+        const auto& volumes = Context_.PreparedTmpfsVolumes;
+        const auto& slot = Context_.Slot;
+        return slot->LinkTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
+            .Apply(BIND([volumeResults = volumes, this, this_ = MakeStrong(this)](const TErrorOr<void>& error) {
+                if (!error.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumeLinkingFailed, "Failed to link tmpfs volumes")
+                        << error;
+                }
+
+                YT_LOG_DEBUG("Linked tmpfs volumes (Volumes: %v)",
+                    MakeFormattableView(volumeResults,
+                        [] (auto* builder, const TTmpfsVolumeResult& result) {
+                            builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
+                                result.Path,
+                                result.Volume->GetPath());
+                    }));
+
+                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes.clear();
+
+                SetNowTime(TimePoints_.LinkTmpfsVolumesFinishTime);
+            }).AsyncVia(Invoker_))
+            .ToUncancelable();
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -927,7 +969,7 @@ private:
         }
 
         const auto& slot = Context_.Slot;
-        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes)
+        return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
             .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
@@ -944,7 +986,7 @@ private:
                                 result.Volume->GetPath());
                         }));
 
-                ResultHolder_.TmpfsVolumes = std::move(volumeResults);
+                Context_.PreparedTmpfsVolumes = std::move(volumeResults);
 
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_));
@@ -962,11 +1004,25 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_LOG_DEBUG("Link tmpfs volumes is not supported in cri workspace");
+
+        ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");

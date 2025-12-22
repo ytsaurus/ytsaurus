@@ -8,6 +8,8 @@ To a user, Cypress looks like a Linux [file system](https://en.wikipedia.org/wik
 
 Cypress is rooted at `/` which has **map_node** type (that is, it's a directory). Cypress nodes are addressed using [YPath](../../../user-guide/storage/ypath.md).
 
+The number of child nodes in a directory is limited. By default, the limit is 50,000, but it depends on the cluster configuration. The depth of Cypress is theoretically unlimited, but keep in mind that there is a limit on the path resolution depth in [YPath](../../../user-guide/storage/ypath.md).
+
 Example paths: `//tmp` is the temporary directory, `//tmp/@` is a pointer to the directory attributes, `//tmp/table/@type` is the path to the `type` attribute of the `//tmp/table` node.
 
 Using YPath, you can represent Cypress as follows:

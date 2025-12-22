@@ -843,7 +843,13 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (!CanStartNewSession(location, sessionId.MediumIndex)) {
+        if (location->GetMediumDescriptor().Index != sessionId.MediumIndex) {
+            continue;
+        }
+
+        if (auto error = location->CheckWritable(); !error.IsOK()) {
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(error);
             continue;
         }
 
@@ -851,9 +857,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
-                << TErrorAttribute("location_id", location->GetId())
-                << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
-                << TErrorAttribute("available_space", location->GetAvailableSpace()));
+                    << TErrorAttribute("location_id", location->GetId())
+                    << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
+                    << TErrorAttribute("available_space", location->GetAvailableSpace()));
                 continue;
             }
         }
@@ -993,23 +999,6 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     }
 
     return {location, std::move(lockedChunkGuard)};
-}
-
-bool TChunkStore::CanStartNewSession(
-    const TStoreLocationPtr& location,
-    int mediumIndex)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (!location->IsWritable()) {
-        return false;
-    }
-
-    if (location->GetMediumDescriptor().Index != mediumIndex) {
-        return false;
-    }
-
-    return true;
 }
 
 IChunkPtr TChunkStore::CreateFromDescriptor(

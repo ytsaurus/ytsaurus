@@ -1196,6 +1196,94 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
     }
 }
 
+TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"k", EValueType::Int64, ESortOrder::Ascending},
+            {"v", EValueType::Int64},
+        }))));
+
+    auto getFingerprint = [this] (TStringBuf query) -> std::string {
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+        auto plan = PreparePlanFragment(
+            &PrepareMock_,
+            parsedSource->Source,
+            std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+            parsedSource->AstHead,
+            DefaultExpressionBuilderVersion,
+            /*memoryTracker*/ nullptr,
+            /*syntaxVersion*/ 2,
+            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
+            /*hyperLogLogPrecision*/ 7);
+        return InferName(plan->Query, {.OmitValues = true});
+    };
+
+    {
+        auto fingerprint = getFingerprint("select cardinality(v) from [//t] group by 0");
+        EXPECT_TRUE(fingerprint.starts_with("SELECT hll_7(v) AS hll_7(v) GROUP BY"));
+    }
+    {
+        auto fingerprint = getFingerprint("select * from [//t] group by 0 having cardinality(v) > 42");
+        EXPECT_TRUE(fingerprint.contains("HAVING hll_7(v) >"));
+    }
+    {
+        auto fingerprint = getFingerprint("select k from [//t] group by k order by 1, (25 + cardinality(v)) limit 10");
+        EXPECT_TRUE(fingerprint.contains("ORDER BY ? ASC, ? + hll_7(v) ASC LIMIT ?"));
+    }
+    {
+        auto query = R"(
+            cardinality_merge(Subquery_2.x) AS c
+            FROM (
+                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                FROM (
+                    SELECT cardinality_state(v) as y, g
+                    FROM `//t`
+                    GROUP BY k as g
+                ) AS Subquery_1
+                GROUP BY Subquery_1.g % 2 as g
+            ) AS Subquery_2
+            GROUP BY 0)";
+
+        auto parsedSource = ParseSource(query, EParseMode::Query, {}, /*syntaxVersion*/ 1);
+
+        auto plan = PreparePlanFragment(
+            &PrepareMock_,
+            parsedSource->Source,
+            std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+            parsedSource->AstHead,
+            DefaultExpressionBuilderVersion,
+            /*memoryTracker*/ nullptr,
+            /*syntaxVersion*/ 2,
+            /*shouldRewriteCardinalityIntoHyperLogLog*/ true,
+            /*hyperLogLogPrecision*/ 7);
+
+        auto fingerprint0 = InferName(plan->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint0.contains("hll_7_merge(`Subquery_2.x`) AS c"));
+
+        auto fingerprint1 = InferName(plan->SubqueryFragment->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint1.contains("SELECT hll_7_merge_state(`Subquery_1.y`) AS x"));
+
+        auto fingerprint2 = InferName(plan->SubqueryFragment->SubqueryFragment->Query, {.OmitValues = true});
+        EXPECT_TRUE(fingerprint2.contains("SELECT hll_7_state(v) AS y"));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select * from [//t] where cardinality(v) > 42 group by 0"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select * from [//t] group by cardinality(v)"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
+    }
+    {
+        EXPECT_THROW_THAT(
+            getFingerprint("select max(cardinality(v)) from [//t] group by 0"),
+            HasSubstr("Misuse of aggregate function \"hll_7\""));
+    }
+}
+
 TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -1232,6 +1320,30 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
 
     EXPECT_EQ(query->OrderClause, nullptr);
     EXPECT_TRUE(query->IsOrdered(false));
+}
+
+TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//table"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", EValueType::Int64, ESortOrder::Ascending},
+            {"value_0", EValueType::Int64},
+        }))));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//join"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key_0", SimpleLogicalType(ESimpleLogicalValueType::Int16), ESortOrder::Ascending},
+            {"value_1", EValueType::Int64},
+        }))));
+
+    auto query = ParseAndPreparePlanFragment(
+        &PrepareMock_,
+        "select * from [//table] left join [//join] using key_0")
+        ->Query;
+
+    EXPECT_FALSE(query->JoinClauses[0]->ForeignEquations[0]->LogicalType->IsNullable());
+    auto outputSchema = query->GetTableSchema();
+    EXPECT_TRUE(outputSchema->GetColumnOrThrow("value_1").LogicalType()->IsNullable());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2510,6 +2622,42 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
         OrderedResultMatcher(result, {"av"}));
 }
 
+TEST_F(TQueryEvaluateTest, ClickBenchQ22)
+{
+    auto columns = std::vector<TColumnSchema>{
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"SearchPhrase", EValueType::String},
+        {"URL", EValueType::String},
+    };
+
+    for (auto& column : columns) {
+        column.SetRequired(true);
+    }
+
+    auto split = MakeSplit(columns);
+
+    auto source = TSource();
+
+    {
+        auto resultSplit = MakeSplit({
+            {"SearchPhrase", EValueType::String},
+            {"m", EValueType::String},
+            {"c", EValueType::Int64},
+        });
+
+        auto resultRows = TSource();
+
+        auto result = YsonToRows(resultRows, resultSplit);
+
+        EvaluateFullCoordinatedGroupBy(
+            "SearchPhrase, min(URL) as m, sum(1) AS c FROM [//t] WHERE URL LIKE '%google%' AND SearchPhrase != '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
+            split,
+            source,
+            ResultMatcher(result),
+            /*iterations*/ 1);
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
 {
     auto split = MakeSplit({
@@ -2559,6 +2707,25 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
             source,
             ResultMatcher(result),
             /*iterations*/ 1);
+
+        {
+            // TODO(dtorilov): Rebuild wasm UDFs.
+            auto sources = RandomSplitData(source);
+
+            EvaluateFullCoordinatedGroupByImpl(
+                "hll_14(v) as av FROM [//t] group by k0",
+                split,
+                sources,
+                OrderedResultMatcher(result, {"av"}),
+                EExecutionBackend::Native);
+
+            EvaluateFullCoordinatedGroupByImpl(
+                "hll_14(v) as av FROM [//t] group by k0 limit 10000",
+                split,
+                sources,
+                ResultMatcher(result),
+                EExecutionBackend::Native);
+        }
     }
 }
 

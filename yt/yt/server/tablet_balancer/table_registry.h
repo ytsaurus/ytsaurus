@@ -30,18 +30,12 @@ struct TTableProfilingCounters
     NProfiling::TCounter ReplicaNonTrivialReshards;
 };
 
-// Per bundle enity.
+// Per bundle entity.
+// TODO(alexelexa): Remove everything except profiling counters
+// and rename it to something more appropriate.
 class TTableRegistry final
 {
 public:
-    using TTableMap = THashMap<TTableId, TTablePtr>;
-
-    DEFINE_BYREF_RO_PROPERTY(TTableMap, Tables);
-
-public:
-    void AddTable(const TTablePtr& table);
-    void RemoveTable(const TTableId& tableId);
-
     TTableProfilingCounters& GetProfilingCounters(const TTable* table, const TString& groupName);
 
 private:
@@ -52,8 +46,6 @@ private:
     THashMap<TTableId, TTableProfilingCounters> ProfilingCounters_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProfilingCountersLock_);
 
-    void UnlinkTableFromOldBundle(const TTablePtr& table);
-    void UnlinkTabletFromCell(const TTabletPtr& tablet);
     TTableProfilingCounters InitializeProfilingCounters(const TTable* table, const TString& groupName) const;
 };
 

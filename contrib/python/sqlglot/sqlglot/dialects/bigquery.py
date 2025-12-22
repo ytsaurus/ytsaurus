@@ -32,6 +32,7 @@ from sqlglot.dialects.dialect import (
     unit_to_var,
     strposition_sql,
     groupconcat_sql,
+    sha2_digest_sql,
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import seq_get, split_num_words
@@ -310,11 +311,11 @@ def _build_levenshtein(args: t.List) -> exp.Levenshtein:
 
 def _build_format_time(expr_type: t.Type[exp.Expression]) -> t.Callable[[t.List], exp.TimeToStr]:
     def _builder(args: t.List) -> exp.TimeToStr:
-        return exp.TimeToStr(
-            this=expr_type(this=seq_get(args, 1)),
-            format=seq_get(args, 0),
-            zone=seq_get(args, 2),
+        formatted_time = build_formatted_time(exp.TimeToStr, "bigquery")(
+            [expr_type(this=seq_get(args, 1)), seq_get(args, 0)]
         )
+        formatted_time.set("zone", seq_get(args, 2))
+        return formatted_time
 
     return _builder
 
@@ -353,10 +354,21 @@ class BigQuery(Dialect):
     LOG_BASE_FIRST = False
     HEX_LOWERCASE = True
     FORCE_EARLY_ALIAS_REF_EXPANSION = True
+    EXPAND_ONLY_GROUP_ALIAS_REF = True
     PRESERVE_ORIGINAL_NAMES = True
     HEX_STRING_IS_INTEGER_TYPE = True
     BYTE_STRING_IS_BYTES_TYPE = True
     UUID_IS_STRING_TYPE = True
+    ANNOTATE_ALL_SCOPES = True
+    PROJECTION_ALIASES_SHADOW_SOURCE_NAMES = True
+    TABLES_REFERENCEABLE_AS_COLUMNS = True
+    SUPPORTS_STRUCT_STAR_EXPANSION = True
+    EXCLUDES_PSEUDOCOLUMNS_FROM_STAR = True
+    QUERY_RESULTS_ARE_STRUCTS = True
+    JSON_EXTRACT_SCALAR_SCALAR_ONLY = True
+
+    # https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#initcap
+    INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v\\[\\](){}/|<>!?@"^#$&~_,.:;*%+\\-'
 
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#case_sensitivity
     NORMALIZATION_STRATEGY = NormalizationStrategy.CASE_INSENSITIVE
@@ -366,6 +378,7 @@ class BigQuery(Dialect):
 
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/format-elements#format_elements_date_time
     TIME_MAPPING = {
+        "%x": "%m/%d/%y",
         "%D": "%m/%d/%y",
         "%E6S": "%S.%f",
         "%e": "%-d",
@@ -542,6 +555,12 @@ class BigQuery(Dialect):
             "EDIT_DISTANCE": _build_levenshtein,
             "FORMAT_DATE": _build_format_time(exp.TsOrDsToDate),
             "GENERATE_ARRAY": exp.GenerateSeries.from_arg_list,
+            "GREATEST": lambda args: exp.Greatest(
+                this=seq_get(args, 0), expressions=args[1:], null_if_any_null=True
+            ),
+            "LEAST": lambda args: exp.Least(
+                this=seq_get(args, 0), expressions=args[1:], null_if_any_null=True
+            ),
             "JSON_EXTRACT_SCALAR": _build_extract_json_with_default_path(exp.JSONExtractScalar),
             "JSON_EXTRACT_ARRAY": _build_extract_json_with_default_path(exp.JSONExtractArray),
             "JSON_EXTRACT_STRING_ARRAY": _build_extract_json_with_default_path(exp.JSONValueArray),
@@ -553,6 +572,7 @@ class BigQuery(Dialect):
             "JSON_VALUE_ARRAY": _build_extract_json_with_default_path(exp.JSONValueArray),
             "LENGTH": lambda args: exp.Length(this=seq_get(args, 0), binary=True),
             "MD5": exp.MD5Digest.from_arg_list,
+            "SHA1": exp.SHA1Digest.from_arg_list,
             "NORMALIZE_AND_CASEFOLD": lambda args: exp.Normalize(
                 this=seq_get(args, 0), form=seq_get(args, 1), is_casefold=True
             ),
@@ -574,7 +594,9 @@ class BigQuery(Dialect):
             "REGEXP_EXTRACT_ALL": _build_regexp_extract(
                 exp.RegexpExtractAll, default_group=exp.Literal.number(0)
             ),
-            "SHA256": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(256)),
+            "SHA256": lambda args: exp.SHA2Digest(
+                this=seq_get(args, 0), length=exp.Literal.number(256)
+            ),
             "SHA512": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(512)),
             "SPLIT": lambda args: exp.Split(
                 # https://cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#split
@@ -1074,7 +1096,7 @@ class BigQuery(Dialect):
             ),
             exp.GenerateSeries: rename_func("GENERATE_ARRAY"),
             exp.GroupConcat: lambda self, e: groupconcat_sql(
-                self, e, func_name="STRING_AGG", within_group=False
+                self, e, func_name="STRING_AGG", within_group=False, sep=None
             ),
             exp.Hex: lambda self, e: self.func("UPPER", self.func("TO_HEX", self.sql(e, "this"))),
             exp.HexString: lambda self, e: self.hexstring_sql(e, binary_function_repr="FROM_HEX"),
@@ -1133,6 +1155,8 @@ class BigQuery(Dialect):
             ),
             exp.SHA: rename_func("SHA1"),
             exp.SHA2: sha256_sql,
+            exp.SHA1Digest: rename_func("SHA1"),
+            exp.SHA2Digest: sha2_digest_sql,
             exp.StabilityProperty: lambda self, e: (
                 "DETERMINISTIC" if e.name == "IMMUTABLE" else "NOT DETERMINISTIC"
             ),

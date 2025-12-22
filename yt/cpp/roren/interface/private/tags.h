@@ -4,6 +4,7 @@
 
 
 #define DECLARE_ROREN_TAG(TagName, TObjectType, TValueType) \
+    extern const TTypeTag<TValueType> TagName ## Tag; \
     void Set ## TagName(TObjectType& object, TValueType value); \
     const TValueType& Get ## TagName(const TObjectType& object); \
     const TValueType& Get ## TagName(const TObjectType& object, const TValueType& defaultValue); \

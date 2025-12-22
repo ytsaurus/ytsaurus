@@ -47,6 +47,7 @@ class Redshift(Postgres):
     COPY_PARAMS_ARE_CSV = False
     HEX_LOWERCASE = True
     HAS_DISTINCT_ARRAY_CONSTRUCTORS = True
+    COALESCE_COMPARISON_NON_STANDARD = True
 
     # ref: https://docs.aws.amazon.com/redshift/latest/dg/r_FORMAT_strings.html
     TIME_FORMAT = "'YYYY-MM-DD HH24:MI:SS'"
@@ -218,6 +219,9 @@ class Redshift(Postgres):
             exp.TsOrDsAdd: date_delta_sql("DATEADD"),
             exp.TsOrDsDiff: date_delta_sql("DATEDIFF"),
             exp.UnixToTime: lambda self, e: self._unix_to_time_sql(e),
+            exp.SHA2Digest: lambda self, e: self.func(
+                "SHA2", e.this, e.args.get("length") or exp.Literal.number(256)
+            ),
         }
 
         # Postgres maps exp.Pivot to no_pivot_sql, but Redshift support pivots

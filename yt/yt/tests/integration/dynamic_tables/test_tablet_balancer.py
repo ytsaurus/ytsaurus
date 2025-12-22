@@ -14,6 +14,7 @@ from yt.common import update_inplace
 import pytest
 
 from time import sleep
+import builtins
 
 ##################################################################
 
@@ -90,6 +91,11 @@ class TestStandaloneTabletBalancerBase:
         first_iteration_start_time = self._get_last_iteration_start_time(instances)
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
 
+    def _get_state_freshness_time(self):
+        if self.bundle_state_freshness_time is None:
+            self.bundle_state_freshness_time = get(self.config_path + "/bundle_state_provider/state_freshness_time") / 1000
+        return self.bundle_state_freshness_time
+
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
         update_inplace(config, {
@@ -115,6 +121,7 @@ class TestStandaloneTabletBalancerBase:
         tablet_balancer_config = cls.Env._cluster_configuration["tablet_balancer"][0]
         cls.root_path = tablet_balancer_config.get("root", "//sys/tablet_balancer")
         cls.config_path = tablet_balancer_config.get("dynamic_config_path", cls.root_path + "/config")
+        cls.bundle_state_freshness_time = None
 
     @classmethod
     def _apply_dynamic_config_patch(cls, patch, driver=None):
@@ -262,6 +269,72 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         wait(lambda: get("//tmp/t3/@tablet_count") == 1)
         wait(lambda: get("//tmp/t4/@tablet_count") == 1)
+
+    @authors("ifsmirnov")
+    def test_smooth_movement(self):
+        self._configure_bundle("default")
+        cell_ids = sync_create_cells(2)
+
+        existing_action_ids = builtins.set(ls("//sys/tablet_actions"))
+
+        def _get_singular_new_action_id():
+            nonlocal existing_action_ids
+
+            new_action_ids = builtins.set(ls("//sys/tablet_actions"))
+            diff = new_action_ids - existing_action_ids
+            if len(diff) != 1:
+                print_debug(diff)
+            assert len(diff) == 1
+            existing_action_ids = new_action_ids
+
+            return diff.pop()
+
+        self._create_sorted_table(
+            "//tmp/t",
+            in_memory_mode="compressed",
+            pivot_keys=[[], [1]],
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+                "enable_auto_tablet_move": True,
+            })
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        insert_rows("//tmp/t", [{"key": 0, "value": "a"}, {"key": 1, "value": "b"}])
+
+        def _run_and_get_action():
+            sync_unmount_table("//tmp/t")
+            self._wait_full_iteration()
+            sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+            wait(lambda: len(builtins.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2)
+
+            action_id = _get_singular_new_action_id()
+
+            action = None
+
+            def _check():
+                nonlocal action
+                # Error is requested only to be displayed in test logs.
+                action = get(f"#{action_id}/@", attributes=["kind", "state", "error"])
+                return action["state"] == "completed"
+
+            wait(_check)
+            return action
+
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        remove("//tmp/t/@tablet_balancer_config/enable_smooth_movement")
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_smooth_movement", True)
+        assert _run_and_get_action()["kind"] == "smooth_move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
+
+        set("//tmp/t/@tablet_balancer_config/enable_smooth_movement", True)
+        set("//sys/tablet_balancer/config/enable_smooth_movement", False)
+        assert _run_and_get_action()["kind"] == "move"
 
 
 @pytest.mark.enabled_multidaemon
@@ -989,9 +1062,7 @@ class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTa
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
-        self._wait_full_iteration()
-        self._wait_full_iteration()
-        self._wait_full_iteration()
+        sleep(5)
         assert get("//tmp/t/@tablet_count") == 2
 
         set("//sys/tablet_cell_bundles/one/@node_tag_filter", "", driver=self.remote_driver)

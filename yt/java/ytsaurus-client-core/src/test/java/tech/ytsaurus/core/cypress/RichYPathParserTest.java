@@ -7,9 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import tech.ytsaurus.ysontree.YTree;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class RichYPathParserTest {
     @Test
@@ -50,8 +52,7 @@ public class RichYPathParserTest {
                 var binaryYPath = binaryYPathSb.toString().strip();
                 var textYson = textYsonSb.toString().strip();
 
-                Assert.assertEquals(
-                        RichYPathParser.parse(binaryYPath).toStableString(), textYson);
+                assertEquals(RichYPathParser.parse(binaryYPath).toStableString(), textYson);
             }
         }
     }
@@ -84,18 +85,18 @@ public class RichYPathParserTest {
                 }
                 var binaryYPath = binaryYPathSb.toString().strip();
 
-                Assert.assertThrows(
-                        "Path '" + binaryYPath + "' shouldn't parse correctly",
-                        Exception.class, () -> {
-                            RichYPathParser.parse(binaryYPath);
-                        });
+                assertThrows(
+                        Exception.class,
+                        () -> RichYPathParser.parse(binaryYPath),
+                        "Path '" + binaryYPath + "' shouldn't parse correctly"
+                );
             }
         }
     }
 
     @Test
     public void testRichYPath() {
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("<a=b>//home/ignat{a,b}[100:200]"),
                 RichYPath.simple("//home/ignat")
                         .withRange(RangeLimit.key(YTree.integerNode(100)), RangeLimit.key(YTree.integerNode(200)))
@@ -103,51 +104,58 @@ public class RichYPathParserTest {
                         .withAdditionalAttributes(Map.of("a", YTree.stringNode("b")))
         );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("<a=b>//home"),
                 RichYPath.simple("//home")
                         .withAdditionalAttributes(Map.of("a", YTree.stringNode("b")))
         );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("//home"),
                 RichYPath.simple("//home")
         );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("//home[:]"),
                 RichYPath.simple("//home").plusRange(Range.builder().build())
         );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("//home[(x, y):(a, b)]"),
                 RichYPath.simple("//home").withRange(
                         RangeLimit.key(YTree.stringNode("x"), YTree.stringNode("y")),
-                        RangeLimit.key(YTree.stringNode("a"), YTree.stringNode("b"))));
+                        RangeLimit.key(YTree.stringNode("a"), YTree.stringNode("b")))
+        );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse("//home[#1:#2,x:y]"),
                 RichYPath.simple("//home")
                         .withRange(RangeLimit.row(1), RangeLimit.row(2))
                         .withRange(
                                 RangeLimit.key(YTree.stringNode("x")),
-                                RangeLimit.key(YTree.stringNode("y"))));
+                                RangeLimit.key(YTree.stringNode("y")))
+        );
 
-        Assert.assertEquals(RichYPathParser.parse("//home[x:#1000]"),
-                RichYPath.simple("//home").withRange(RangeLimit.key(YTree.stringNode("x")), RangeLimit.row(1000)));
+        assertEquals(RichYPathParser.parse("//home[x:#1000]"),
+                RichYPath.simple("//home").withRange(RangeLimit.key(YTree.stringNode("x")), RangeLimit.row(1000))
+        );
 
-        Assert.assertEquals(RichYPathParser.parse(" <a=b> //home"),
-                RichYPath.simple("//home").withAdditionalAttributes(Map.of("a", YTree.stringNode("b"))));
+        assertEquals(RichYPathParser.parse(" <a=b> //home"),
+                RichYPath.simple("//home").withAdditionalAttributes(Map.of("a", YTree.stringNode("b")))
+        );
 
-        Assert.assertEquals(
+        assertEquals(
                 RichYPathParser.parse(
                         "<\"ranges\"=[{" +
                                 "\"lower_limit\"={\"row_index\"=0;\"tablet_index\"=0;};" +
                                 "\"upper_limit\"={\"row_index\"=1;\"tablet_index\"=0;};};];>" +
-                                "//home"),
+                                "//home"
+                ),
                 RichYPath.simple("//home")
                         .withRange(
-                            RangeLimit.builder().setRowIndex(0).setTabletIndex(0).build(),
-                            RangeLimit.builder().setRowIndex(1).setTabletIndex(0).build()));
+                                RangeLimit.builder().setRowIndex(0).setTabletIndex(0).build(),
+                                RangeLimit.builder().setRowIndex(1).setTabletIndex(0).build()
+                        )
+        );
     }
 }

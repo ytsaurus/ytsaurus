@@ -93,6 +93,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
+    registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
+        .Default();
 
     registrar.Parameter("allowed_replica_clusters", &TThis::AllowedReplicaClusters)
         .Default();
@@ -110,6 +112,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cluster_state_provider", &TThis::ClusterStateProvider)
         .DefaultNew();
+    registrar.Parameter("bundle_state_provider", &TThis::BundleStateProvider)
+        .DefaultNew();
 
     registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
         .Default();
@@ -120,6 +124,13 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");
         }
+
+        config->BundleStateProvider->FetchTabletCellsFromSecondaryMasters = config->FetchTabletCellsFromSecondaryMasters;
+        config->BundleStateProvider->UseStatisticsReporter = config->UseStatisticsReporter;
+        config->BundleStateProvider->StatisticsTablePath = config->StatisticsTablePath;
+
+        config->ClusterStateProvider->ClustersForBundleHealthCheck = config->ClustersForBundleHealthCheck;
+        config->ClusterStateProvider->MaxUnhealthyBundlesOnReplicaCluster = config->MaxUnhealthyBundlesOnReplicaCluster;
     });
 }
 
@@ -144,6 +155,11 @@ void TActionManagerConfig::Register(TRegistrar registrar)
 
 void TClusterStateProviderConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
+        .Default();
+    registrar.Parameter("max_unhealthy_bundles_on_replica_cluster", &TThis::MaxUnhealthyBundlesOnReplicaCluster)
+        .Default(5);
+
     registrar.Parameter("fetch_planner_period", &TThis::FetchPlannerPeriod)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
@@ -153,11 +169,47 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("nodes_freshness_time", &TThis::NodesFreshnessTime)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("unhealthy_bundles_freshness_time", &TThis::UnhealthyBundlesFreshnessTime)
+        .Default(TDuration::Seconds(20));
 
     registrar.Parameter("bundles_fetch_period", &TThis::BundlesFetchPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("nodes_fetch_period", &TThis::NodesFetchPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("unhealthy_bundles_fetch_period", &TThis::UnhealthyBundlesFetchPeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TBundleStateProviderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
+        .Default(false);
+    registrar.Parameter("use_statistics_reporter", &TThis::UseStatisticsReporter)
+        .Default(false);
+    registrar.Parameter("statistics_table_path", &TThis::StatisticsTablePath)
+        .Default(StatisticsTableDefaultPath)
+        .NonEmpty();
+
+    registrar.Parameter("fetch_planner_period", &TThis::FetchPlannerPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("state_freshness_time", &TThis::StateFreshnessTime)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("statistics_freshness_time", &TThis::StatisticsFreshnessTime)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("performance_counters_freshness_time", &TThis::PerformanceCountersFreshnessTime)
+        .Default(TDuration::Seconds(20));
+
+    registrar.Parameter("state_fetch_period", &TThis::StateFetchPeriod)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("statistics_fetch_period", &TThis::StatisticsFetchPeriod)
+        .Default(TDuration::Seconds(20));
+    registrar.Parameter("performance_counters_fetch_period", &TThis::PerformanceCountersFetchPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("chunk_invariants", &TThis::CheckInvariants)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

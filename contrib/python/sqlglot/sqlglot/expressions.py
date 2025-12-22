@@ -1484,7 +1484,7 @@ class Uncache(Expression):
 
 
 class Refresh(Expression):
-    pass
+    arg_types = {"this": True, "kind": True}
 
 
 class DDL(Expression):
@@ -1972,6 +1972,10 @@ class AutoIncrementColumnConstraint(ColumnConstraintKind):
     pass
 
 
+class ZeroFillColumnConstraint(ColumnConstraint):
+    arg_types = {}
+
+
 class PeriodForSystemTimeConstraint(ColumnConstraintKind):
     arg_types = {"this": True, "expression": True}
 
@@ -2141,6 +2145,7 @@ class Delete(DML):
         "using": False,
         "where": False,
         "returning": False,
+        "order": False,
         "limit": False,
         "tables": False,  # Multiple-Table Syntax (MySQL)
         "cluster": False,  # Clickhouse
@@ -2315,7 +2320,7 @@ class ColumnPrefix(Expression):
 
 
 class PrimaryKey(Expression):
-    arg_types = {"expressions": True, "options": False, "include": False}
+    arg_types = {"this": False, "expressions": True, "options": False, "include": False}
 
 
 # https://www.postgresql.org/docs/9.1/sql-selectinto.html
@@ -3619,7 +3624,10 @@ class SetOperation(Query):
 
     @property
     def named_selects(self) -> t.List[str]:
-        return self.this.unnest().named_selects
+        expression = self
+        while isinstance(expression, SetOperation):
+            expression = expression.this.unnest()
+        return expression.named_selects
 
     @property
     def is_star(self) -> bool:
@@ -3627,7 +3635,10 @@ class SetOperation(Query):
 
     @property
     def selects(self) -> t.List[Expression]:
-        return self.this.unnest().selects
+        expression = self
+        while isinstance(expression, SetOperation):
+            expression = expression.this.unnest()
+        return expression.selects
 
     @property
     def left(self) -> Query:
@@ -3662,7 +3673,7 @@ class Update(DML):
     arg_types = {
         "with_": False,
         "this": False,
-        "expressions": True,
+        "expressions": False,
         "from_": False,
         "where": False,
         "returning": False,
@@ -4532,6 +4543,7 @@ class Pivot(Expression):
         "include_nulls": False,
         "default_on_null": False,
         "into": False,
+        "with_": False,
     }
 
     @property
@@ -4653,6 +4665,7 @@ class DataType(Expression):
         SIMPLEAGGREGATEFUNCTION = auto()
         BIGDECIMAL = auto()
         BIGINT = auto()
+        BIGNUM = auto()
         BIGSERIAL = auto()
         BINARY = auto()
         BIT = auto()
@@ -4672,6 +4685,7 @@ class DataType(Expression):
         DECIMAL64 = auto()
         DECIMAL128 = auto()
         DECIMAL256 = auto()
+        DECFLOAT = auto()
         DOUBLE = auto()
         DYNAMIC = auto()
         ENUM = auto()
@@ -4739,6 +4753,7 @@ class DataType(Expression):
         TINYTEXT = auto()
         TIME = auto()
         TIMETZ = auto()
+        TIME_NS = auto()
         TIMESTAMP = auto()
         TIMESTAMPNTZ = auto()
         TIMESTAMPLTZ = auto()
@@ -4838,6 +4853,7 @@ class DataType(Expression):
         Type.DECIMAL64,
         Type.DECIMAL128,
         Type.DECIMAL256,
+        Type.DECFLOAT,
         Type.MONEY,
         Type.SMALLMONEY,
         Type.UDECIMAL,
@@ -5283,10 +5299,6 @@ class SimilarTo(Binary, Predicate):
     pass
 
 
-class Slice(Binary):
-    arg_types = {"this": False, "expression": False}
-
-
 class Sub(Binary):
     pass
 
@@ -5726,12 +5738,37 @@ class ApproxTopKAccumulate(AggFunc):
     arg_types = {"this": True, "expression": False}
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/approx_top_k_combine
+class ApproxTopKCombine(AggFunc):
+    arg_types = {"this": True, "expression": False}
+
+
+class ApproxTopKEstimate(Func):
+    arg_types = {"this": True, "expression": False}
+
+
 class ApproxTopSum(AggFunc):
     arg_types = {"this": True, "expression": True, "count": True}
 
 
 class ApproxQuantiles(AggFunc):
     arg_types = {"this": True, "expression": False}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/minhash
+class Minhash(AggFunc):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/minhash_combine
+class MinhashCombine(AggFunc):
+    pass
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/approximate_similarity
+class ApproximateSimilarity(AggFunc):
+    _sql_names = ["APPROXIMATE_SIMILARITY", "APPROXIMATE_JACCARD_INDEX"]
 
 
 class FarmFingerprint(Func):
@@ -5788,6 +5825,12 @@ class CombinedAggFunc(AnonymousAggFunc):
 
 class CombinedParameterizedAgg(ParameterizedAgg):
     arg_types = {"this": True, "expressions": True, "params": True}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/hash_agg
+class HashAgg(AggFunc):
+    arg_types = {"this": True, "expressions": False}
+    is_var_len_args = True
 
 
 # https://docs.snowflake.com/en/sql-reference/functions/hll
@@ -5864,6 +5907,22 @@ class ToNumber(Func):
 
 # https://docs.snowflake.com/en/sql-reference/functions/to_double
 class ToDouble(Func):
+    arg_types = {
+        "this": True,
+        "format": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/to_decfloat
+class ToDecfloat(Func):
+    arg_types = {
+        "this": True,
+        "format": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/try_to_decfloat
+class TryToDecfloat(Func):
     arg_types = {
         "this": True,
         "format": False,
@@ -6167,6 +6226,14 @@ class CastToStrType(Func):
     arg_types = {"this": True, "to": True}
 
 
+class CheckJson(Func):
+    arg_types = {"this": True}
+
+
+class CheckXml(Func):
+    arg_types = {"this": True, "disable_auto_convert": False}
+
+
 # https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/SQL-Functions-Expressions-and-Predicates/String-Operators-and-Functions/TRANSLATE/TRANSLATE-Function-Syntax
 class TranslateCharacters(Expression):
     arg_types = {"this": True, "expression": True, "with_error": False}
@@ -6239,6 +6306,16 @@ class CurrentDatetime(Func):
 
 
 class CurrentTime(Func):
+    arg_types = {"this": False}
+
+
+# https://www.postgresql.org/docs/current/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT
+# In Postgres, the difference between CURRENT_TIME vs LOCALTIME etc is that the latter does not have tz
+class Localtime(Func):
+    arg_types = {"this": False}
+
+
+class Localtimestamp(Func):
     arg_types = {"this": False}
 
 
@@ -6463,7 +6540,7 @@ class TimeTrunc(Func, TimeUnit):
 
 class DateFromParts(Func):
     _sql_names = ["DATE_FROM_PARTS", "DATEFROMPARTS"]
-    arg_types = {"year": True, "month": True, "day": True}
+    arg_types = {"year": True, "month": False, "day": False}
 
 
 class TimeFromParts(Func):
@@ -6670,7 +6747,7 @@ class Getbit(Func):
 
 
 class Greatest(Func):
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "null_if_any_null": False}
     is_var_len_args = True
 
 
@@ -7066,6 +7143,7 @@ class JSONExtractScalar(Binary, Func):
         "only_json_types": False,
         "expressions": False,
         "json_type": False,
+        "scalar_only": False,
     }
     _sql_names = ["JSON_EXTRACT_SCALAR"]
     is_var_len_args = True
@@ -7141,7 +7219,7 @@ class ParseDatetime(Func):
 
 
 class Least(Func):
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "null_if_any_null": False}
     is_var_len_args = True
 
 
@@ -7229,6 +7307,10 @@ class ScopeResolution(Expression):
     arg_types = {"this": False, "expression": True}
 
 
+class Slice(Expression):
+    arg_types = {"this": False, "expression": False, "step": False}
+
+
 class Stream(Expression):
     pass
 
@@ -7310,6 +7392,10 @@ class Ntile(AggFunc):
 
 class Normalize(Func):
     arg_types = {"this": True, "form": False, "is_casefold": False}
+
+
+class Normal(Func):
+    arg_types = {"this": True, "stddev": True, "gen": True}
 
 
 class Overlay(Func):
@@ -7409,6 +7495,10 @@ class Randn(Func):
     arg_types = {"this": False}
 
 
+class Randstr(Func):
+    arg_types = {"this": True, "generator": False}
+
+
 class RangeN(Func):
     arg_types = {"this": True, "expressions": True, "each": False}
 
@@ -7452,10 +7542,10 @@ class RegexpExtractAll(Func):
     arg_types = {
         "this": True,
         "expression": True,
+        "group": False,
+        "parameters": False,
         "position": False,
         "occurrence": False,
-        "parameters": False,
-        "group": False,
     }
 
 
@@ -7523,6 +7613,10 @@ class RegrAvgy(Func):
 
 
 class RegrAvgx(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSlope(Func):
     arg_types = {"this": True, "expression": True}
 
 
@@ -7672,6 +7766,11 @@ class Search(Func):
         "analyzer_options": False,  # BigQuery: analyzer_options_values
         "search_mode": False,  # Snowflake: OR | AND
     }
+
+
+# Snowflake: https://docs.snowflake.com/en/sql-reference/functions/search_ip
+class SearchIp(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 class StrToDate(Func):

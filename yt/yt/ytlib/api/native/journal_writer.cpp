@@ -197,7 +197,6 @@ private:
             YT_VERIFY(!Closing_);
 
             auto result = VoidFuture;
-            int payloadBytes = 0;
 
             for (const auto& row : rows) {
                 YT_VERIFY(row);
@@ -205,17 +204,6 @@ private:
                 // NB: We can form a handful of batches but since flushes are monotonic,
                 // the last one will do.
                 result = AppendToBatch(batch, row);
-
-                payloadBytes += row.Size();
-            }
-
-            if (auto writeObserver = Counters_.JournalWritesObserver) {
-                result.Subscribe(BIND([writeObserver, payloadBytes] (TError error) {
-                    if (!error.IsOK()) {
-                        return;
-                    }
-                    writeObserver->RegisterPayloadWrite(payloadBytes);
-                }));
             }
 
             QueueTrace_.Join(CurrentRowIndex_);

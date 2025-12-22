@@ -15,16 +15,28 @@ def build_user_disk():
         NodeTablet("yt.tablet_node.{}.hunks.chunk_reader_statistics.{}.rate").host_container_legend_format("hunks"))
 
     return (Rowset()
-            .aggr("table_tag", "table_path", "user")
+            .aggr("table_tag", "table_path", "user", "medium")
             .top()
             .min(0)
             .stack(False)
             .row()
-                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_transmitted"))
-                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_transmitted"))
+                .cell("Table lookup data bytes read from disk", reader_stats("lookup", "data_bytes_read_from_disk"))
+                .cell("Table select data bytes read from disk", reader_stats("select", "data_bytes_read_from_disk"))
             .row()
                 .cell("Table lookup chunk meta bytes read from disk", reader_stats("lookup", "meta_bytes_read_from_disk"))
                 .cell("Table select chunk meta bytes read from disk", reader_stats("select", "meta_bytes_read_from_disk"))
+            .row()
+                .cell(
+                    "Table lookup data bytes transmitted from data node",
+                    reader_stats("lookup", "data_bytes_transmitted"),
+                    description="Data nodes are cluster storage layer. If data is not found in tablet static memory or tablet node caches it is read via network from data nodes")
+                .cell(
+                    "Table select data bytes transmitted from data node",
+                    reader_stats("select", "data_bytes_transmitted"),
+                    description="Data nodes are cluster storage layer. If data is not found in tablet static memory or tablet node caches it is read via network from data nodes")
+            .row()
+                .cell("Table lookup chunk meta bytes transmitted from data node", reader_stats("lookup", "meta_bytes_transmitted"))
+                .cell("Table select chunk meta bytes transmitted from data node", reader_stats("select", "meta_bytes_transmitted"))
             .row()
                 .cell("Table lookup data wait time", reader_stats("lookup", "data_wait_time"))
                 .cell("Table select data wait time", reader_stats("select", "data_wait_time"))
@@ -44,8 +56,8 @@ def build_user_background_disk():
     top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}}")
 
     return (Rowset()
-            .all("#AB", "method", "medium")
-            .aggr("table_tag", "table_path")
+            .all("#AB", "method")
+            .aggr("table_tag", "table_path", "medium")
             .top()
             .stack()
             .row()

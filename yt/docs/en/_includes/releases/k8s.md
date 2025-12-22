@@ -13,7 +13,8 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 **Release date:** 2025-09-22
 
 
-## Major changes
+#### Major changes
+
 * Add support for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/525
 * Introduce cypress patches by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/531
 * Nvidia GPU support: nvidia-container-runtime & entrypoint for jobs container with GpuAgent by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/547
@@ -24,7 +25,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Add options for reconciler concurrency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/560
 * Add bundle controller to operator by @ifsmirnov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562
 
-## Minor changes
+#### Minor changes
 * Use golang 1.24 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/538
 * Fix go tool execution from other directories by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/539
 * Upgrade tools by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/540
@@ -41,7 +42,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Drop legacy operation spec option by @Kontakter in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
 * By default run upto 1 reconciles concurrently by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/561
 
-## New Contributors
+#### New Contributors
 * @epsilond1 made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/553
 * @Kontakter made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
 * @ifsmirnov made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562

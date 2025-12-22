@@ -412,11 +412,6 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/controller_agents/orchid",
-                transactionId,
-                EObjectType::Orchid);
-
-            ScheduleCreateNode(
                 "//sys/controller_agents/config",
                 transactionId,
                 EObjectType::Document,
@@ -590,11 +585,6 @@ private:
                 "//sys/chunk_locations",
                 transactionId,
                 EObjectType::ChunkLocationMap);
-
-            ScheduleCreateNode(
-                "//sys/chunk_locations_sharded",
-                transactionId,
-                EObjectType::MapNode);
 
             ScheduleCreateNode(
                 "//sys/chunks",

@@ -33,8 +33,8 @@ struct TExternalFunctionSpec
 struct TExternalFunctionImpl
 {
     bool IsAggregate = false;
-    TString Name;
-    TString SymbolName;
+    std::string Name;
+    std::string SymbolName;
     ECallingConvention CallingConvention;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 

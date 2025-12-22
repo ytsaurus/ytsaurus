@@ -22,7 +22,10 @@ YT_DEFINE_GLOBAL(const RE2, KeyPattern, "([Kk]ey) \"[\\w-]+\"");
 YT_DEFINE_GLOBAL(const RE2, TimestampPattern, "([Tt]imestamp) [[:xdigit:]]+");
 YT_DEFINE_GLOBAL(const RE2, AccountPattern, "([Aa]ccount) \"[\\w-]+\"");
 YT_DEFINE_GLOBAL(const RE2, AttributePattern, "([Aa]ttribute) \"[\\w-]+\"");
-YT_DEFINE_GLOBAL(const RE2, ReferencePattern, "([Rr]eference) \"[\\w-]+\"");
+YT_DEFINE_GLOBAL(const RE2, ReferencePattern, "([Rr]eference) \"[\\w-.]+\"");
+YT_DEFINE_GLOBAL(const RE2, ColumnPattern, "([Cc]olumn) \"[\\w-.]+\"");
+YT_DEFINE_GLOBAL(const RE2, UserPattern, "([Uu]ser) \"[\\w-.]+\"");
+YT_DEFINE_GLOBAL(const RE2, HexPattern, "[[:xdigit:]]{8,}");
 
 using TReplacements = std::vector<std::pair<const RE2*, std::string>>;
 YT_DEFINE_GLOBAL(const TReplacements, Replacements, {
@@ -35,6 +38,9 @@ YT_DEFINE_GLOBAL(const TReplacements, Replacements, {
     {&AccountPattern(), "\\1 <account>"},
     {&AttributePattern(), "\\1 <attribute>"},
     {&ReferencePattern(), "\\1 <reference>"},
+    {&ColumnPattern(), "\\1 <column>"},
+    {&UserPattern(), "\\1 <user>"},
+    {&HexPattern(), "<hex>"},
 });
 
 std::string GetErrorFingerprint(const TError& error)

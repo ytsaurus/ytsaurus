@@ -17,7 +17,7 @@ from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 def build_key_filter_rowset():
     lookup_row_count = NodeTablet("yt.tablet_node.lookup.{}_count.rate")
     lookup_key_filter = NodeTablet("yt.tablet_node.lookup.key_filter.{}_key_count.rate")
-    lookup_data_bytes = NodeTablet("yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_{}.rate")
+    lookup_data_bytes = NodeTablet("yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_{}.rate").aggr("medium")
 
     return (Rowset()
         .min(0)

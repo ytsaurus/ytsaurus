@@ -192,6 +192,24 @@ THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingM
     return clusterToMinorTables;
 }
 
+TTablePtr TTable::Clone(TTabletCellBundle* bundle, bool copyExtendedAttributes) const
+{
+    auto table = New<TTable>(Sorted, Path, ExternalCellTag, Id, bundle);
+
+    if (copyExtendedAttributes) {
+        table->Dynamic = Dynamic;
+        table->TableConfig = TableConfig;
+        table->InMemoryMode = InMemoryMode;
+        table->UpstreamReplicaId = UpstreamReplicaId;
+        table->PivotKeys = PivotKeys;
+        table->CompressedDataSize = CompressedDataSize;
+        table->UncompressedDataSize = UncompressedDataSize;
+        table->InMemoryMode = InMemoryMode;
+    }
+
+    return table;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAlienTable::TAlienTable(

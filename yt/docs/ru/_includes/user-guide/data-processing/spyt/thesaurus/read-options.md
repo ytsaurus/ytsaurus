@@ -1,7 +1,7 @@
 
 # Опции чтения
 
-## Мультикластерное чтение
+## Мультикластерное чтение { #multicluster_reading }
 
 По умолчанию, расчет обращается к данным на кластере, который предоставляет вычислительные мощности (при запуске напрямую или при использовании Standalone кластера). При этом SPYT поднимает собственные RPC прокси для разгрузки общих кластерных прокси.
 
@@ -19,7 +19,7 @@ spark.read.yt('//home/table').show() # Таблица на домашнем кл
 
 {% endnote %}
 
-## schema_hint
+## schema_hint { #schema_hint }
 
 Жесткое указание [типа колонки](../../../../../user-guide/storage/data-types.md). Полезно в случае, когда колонка имеет тип `any` (сериализованный в `yson` сложный тип).
 Значение будет десериализовано в указанный тип.
@@ -38,7 +38,7 @@ df.write
     .yt(tmpPath)
 ```
 
-## transaction
+## transaction { #transaction }
 
 Чтение под [транзакцией](../../../../../user-guide/storage/transactions.md). Подробнее можно узнать в разделе [Чтение и запись под транзакцией](../../../../../user-guide/data-processing/spyt/read-transaction.md).
 
@@ -50,11 +50,20 @@ df.write.transaction(transaction.getId.toString).yt(tmpPath)
 transaction.commit().get(10, TimeUnit.SECONDS)
 ```
 
-## Schema v3
+## Schema v3 { #type_v3 }
 
 Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1`. Настраивается в [Spark конфигурации](../../../../../user-guide/data-processing/spyt/cluster/configuration.md) или опции записи.
 
 Python example:
 ```python
 spark.read.option("parsing_type_v3", "true").yt("//sys/spark/examples/example_yson")
+```
+
+## readParallelism { #readParallelism }
+
+Настройка целевого числа партиций при чтении таблицы. Определяет максимальный размер партиции как `totalBytes / readParallelism`, тем самым устанавливая количество Spark‑тасков при чтении.
+
+Python example:
+```python
+spark.read.option("readParallelism", "5").yt("//home/table")
 ```

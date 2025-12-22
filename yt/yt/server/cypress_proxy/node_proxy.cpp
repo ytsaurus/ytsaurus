@@ -224,6 +224,7 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
 
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
@@ -272,6 +273,7 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -537,14 +539,16 @@ protected:
     {
         YT_VERIFY(TypeFromId(Id_) == EObjectType::Scion);
 
-        // TODO(kvk1920): think about transactions.
+        if (SequoiaSession_->GetCurrentCypressTransactionId()) {
+            THROW_ERROR_EXCEPTION("Rootstock cannot be removed under transaction")
+                << TErrorAttribute("scion_id", Id_)
+                << TErrorAttribute("cypress_transaction_id", SequoiaSession_->GetCurrentCypressTransactionId());
+        }
 
         // Scion removal causes rootstock removal.
         // Since rootstock's parent _always_ lives at the same cell as rootstock
         // `DetachChild()` isn't needed.
 
-        // TODO(kvk1920): Think about inferring rootstock's id from scion's one.
-        // TODO(kvk1920): make it a part of |TSequoiaSession::RemoveRootstock|.
         auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@rootstock_id");
         SetAllowResolveFromSequoiaObject(reqGet, true);
         auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
@@ -1058,6 +1062,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, EndUpload)
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, ReshardAutomatic)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
 
@@ -2243,10 +2256,12 @@ private:
         TNodeIdToChildDescriptors nodeIdToChildren;
         std::vector<TNodeId> scalarNodeIdsToFetchFromMaster;
 
-        int maxRetrievedDepth = 0;
+        int depth = 0;
         bool subtreeExceedesSizeLimit = false;
-        while (!layerToFetch.empty() && !subtreeExceedesSizeLimit) {
-            ++maxRetrievedDepth;
+        while (!layerToFetch.empty()) {
+            ++depth;
+
+            YT_LOG_TRACE("Fetching next layer (CurrentDepth: %v)", depth);
 
             std::vector<TNode> fetchedParents;
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncLayerChildren;
@@ -2277,21 +2292,24 @@ private:
                     return totalCount;
                 });
 
-            // If the number of nodes in a subtree of certain depth it equal to the limit, then we
-            // should fetch the next layer, so opaques can be set correctly. Thankfully it's
-            // cheap to fetch data from a dynamic table. Additionaly root node should not be made
-            // opaque, hence maxRetrievedDepth check.
-            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
+            // Root node should not be made opaque, hence depth check.
+            if (std::ssize(nodeIdToChildren) + layerChildrenCount > responseSizeLimit && depth > 1) {
+                YT_LOG_DEBUG(
+                    "Subtree exceeds size limit (ResponseSubtreeSize: %v, SubtreeDepth: %v "
+                    "NextLayerChildrenCount: %v, ResponseSizeLimit: %v)",
+                    std::ssize(nodeIdToChildren),
+                    depth,
+                    layerChildrenCount,
+                    responseSizeLimit);
+
                 subtreeExceedesSizeLimit = true;
+                break;
             }
 
             auto layerChildrenAcds = acdFetcher->Fetch(layerChildren);
             auto childAcdIt = layerChildrenAcds.begin();
 
-            // It's still useful to save extra node information even if subtree exceedes size limit.
-            // Said information can be useful during tree traversal.
             std::vector<TNode> nextLayerToFetch;
-
             YT_VERIFY(std::ssize(fetchedParents) == std::ssize(layerChildren));
             for (auto&& [parent, children] : Zip(fetchedParents, layerChildren)) {
                 for (const auto& child : children) {
@@ -2321,8 +2339,15 @@ private:
 
         if (!subtreeExceedesSizeLimit) {
             // TODO(danilalexeev): YT-26733.
-            maxRetrievedDepth = 0;
+            depth = 0;
         }
+
+        YT_LOG_DEBUG(
+            "Finished collecting nodes to fetch "
+            "(ResponseSubtreeSize: %v, ScalarNodeCount: %v, MasterAttribueFilter: %v)",
+            std::ssize(nodeIdToChildren),
+            std::ssize(scalarNodeIdsToFetchFromMaster),
+            masterAttributeFilter);
 
         auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             SequoiaSession_,
@@ -2339,7 +2364,7 @@ private:
 
         VisitSequoiaTree(
             Id_,
-            maxRetrievedDepth,
+            depth,
             &writer,
             fullAttributeFilter,
             std::move(nodeIdToChildren),

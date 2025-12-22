@@ -784,6 +784,13 @@ TFuture<void> TBlobSession::PreparePutBlocks(
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
+    if (auto sleepBeforePerformPutBlocks =
+        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks;
+        sleepBeforePerformPutBlocks.has_value()) {
+            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", sleepBeforePerformPutBlocks.value());
+            TDelayedExecutor::WaitForDuration(sleepBeforePerformPutBlocks.value());
+    }
+
     const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
     return AllSucceeded(std::vector{
@@ -795,6 +802,9 @@ TFuture<void> TBlobSession::PreparePutBlocks(
 void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSlot)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
+    // Run the validation again since the context could have been switched since the last check.
+    ValidateActive();
 
     auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
 

@@ -171,7 +171,7 @@ For example, `<attr=10>{x=y}` is represented as `{"$value": {"x": "y"}, "$attrib
 The strings in {{product-name}} — YSON strings — are byte strings, while JSON uses Unicode encoding.
 The format has an `encode_utf8` setting that allows you to manage conversions. The `encode_utf8` defaults to `%true`.
 
-- encode_utf8=%true { #utf8-true }
+- `encode_utf8=%true` { #utf8-true }
 
 To convert a YSON string to a JSON string, convert each byte to a Unicode character with the corresponding number and encode it in UTF-8. This conversion occurs, for example, when reading table data using the [`read_table`](../../../api/commands.md#read_table) command.
 
@@ -183,7 +183,7 @@ With `encode_utf8=%true`, Unicode characters outside the 0..255 range in the JSO
 
 {% endnote %}
 
-- encode_utf8=%false { #utf8-false }
+- `encode_utf8=%false` { #utf8-false }
 
 To convert a YSON string to a JSON string, the YSON string must contain a valid UTF-8 sequence. It will be converted to a Unicode JSON string.
 

@@ -854,6 +854,10 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     return;
                 }
 
+                if (auto slot = StaticPointerCast<IUserSlot>(GetResourceHolder()->GetUserSlot())) {
+                    slot->ValidateEnabled();
+                }
+
                 YT_LOG_INFO(
                     "Job cleanup finished and job stored; evicting previous and settling new job (PreviousJobId: %v)",
                     jobId);

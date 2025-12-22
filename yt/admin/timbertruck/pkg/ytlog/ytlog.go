@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
@@ -52,14 +53,18 @@ func ParseLine(line []byte) (result ParsedLine, err error) {
 	return
 }
 
-func NewParseLineTransform(logger *slog.Logger) pipelines.Transform[[]byte, ParsedLine] {
+func NewParseLineTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, ParsedLine] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, line []byte, emit pipelines.EmitFunc[ParsedLine]) {
 		result, err := ParseLine(line)
 		if err != nil {
-			logger.Warn("Detected broken line", "offset", meta.Begin)
-		} else {
-			emit(ctx, meta, result)
+			onSkippedRow(bytes.NewReader(line), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "text", "row_size": len(line), "error": err.Error()},
+			})
+			return
 		}
+		emit(ctx, meta, result)
 	})
 }
 
@@ -103,7 +108,8 @@ func (t *tskvTransform) Process(ctx context.Context, meta pipelines.RowMeta, par
 		t.buffer.WriteByte('\n')
 	}
 
-	if t.buffer.Len() > t.bufferLimit {
+	if t.buffer.Len() > t.bufferLimit && lenBefore > 0 {
+		// If buffer was empty and single line exceeds limit, keep it in buffer.
 		t.flush(ctx, lenBefore, emit)
 		t.meta.Begin = meta.Begin
 	}
@@ -136,10 +142,14 @@ func NewTskvTransform(bufferLimit int, cluster string, tskvFormat string) pipeli
 // Create new pipelines.TextLine -> pipelines.TextLine transform.
 //
 // This transform filters out lines that are not valid json.
-func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
+func NewValidateJSONTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if !json.Valid(in) {
-			logger.Warn("found invalid json", "offset", meta.Begin)
+			onSkippedRow(bytes.NewReader(in), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "json", "row_size": len(in)},
+			})
 			return
 		}
 		emit(ctx, meta, in)
@@ -147,10 +157,14 @@ func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, [
 }
 
 // This transform filters out lines that are not valid yson.
-func NewValidateYSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
+func NewValidateYSONTransform(logger *slog.Logger, onSkippedRow func(data io.WriterTo, info pipelines.SkippedRowInfo)) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if err := yson.ValidListFragment(in); err != nil {
-			logger.Warn("found invalid yson", "offset", meta.Begin)
+			onSkippedRow(bytes.NewReader(in), pipelines.SkippedRowInfo{
+				Reason: pipelines.SkipRowReasonUnparsed,
+				Offset: meta.Begin,
+				Attrs:  map[string]any{"format": "yson", "row_size": len(in), "error": err.Error()},
+			})
 			return
 		}
 		emit(ctx, meta, in)
@@ -182,7 +196,8 @@ func (b *batchLinesTransform) Process(ctx context.Context, meta pipelines.RowMet
 		b.buffer.WriteByte('\n')
 	}
 
-	if b.buffer.Len() > b.bufferLimit {
+	if b.buffer.Len() > b.bufferLimit && lenBefore > 0 {
+		// If buffer was empty and single line exceeds limit, keep it in buffer.
 		b.flush(ctx, lenBefore, emit)
 		b.meta.Begin = meta.Begin
 	}

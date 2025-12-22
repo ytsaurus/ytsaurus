@@ -31,6 +31,7 @@ struct TTabletCell final
 {
     const TTabletCellId Id;
 
+    // TODO(alexlexa): Make it just one i64 and implement deserialize inplace.
     TTabletCellStatistics Statistics;
     TTabletCellStatus Status;
     ETabletCellLifeStage LifeStage;
@@ -45,6 +46,8 @@ struct TTabletCell final
         ETabletCellLifeStage lifeStage);
 
     bool IsAlive() const;
+
+    TTabletCellPtr Clone() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCell)

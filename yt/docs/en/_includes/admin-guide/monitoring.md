@@ -14,8 +14,9 @@ To collect metrics do the following:
 1. Create a [ServiceMonitor](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml) for collecting metrics from {{product-name}} components.
 2. Create a ServiceMonitor for collecting Odin metrics by setting `metrics.serviceMonitor.enable: true` in the Helm chart values (it is not created by default).
 3. Create a [service account](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
-4. Grant the created account a [role](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
-5. [Create Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
+4. Create a [cluster role](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_cluster_role.yaml).
+5. Grant the created account a [role](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
+6. [Create Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
 
 ## Monitoring methods and important {{product-name}} metrics
 

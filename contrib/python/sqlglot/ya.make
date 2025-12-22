@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(28.0.0)
+VERSION(28.1.0)
 
 LICENSE(MIT)
 
@@ -77,6 +77,7 @@ PY_SRCS(
     sqlglot/optimizer/qualify.py
     sqlglot/optimizer/qualify_columns.py
     sqlglot/optimizer/qualify_tables.py
+    sqlglot/optimizer/resolver.py
     sqlglot/optimizer/scope.py
     sqlglot/optimizer/simplify.py
     sqlglot/optimizer/unnest_subqueries.py

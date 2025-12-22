@@ -553,8 +553,12 @@ class Snowflake(Dialect):
     ARRAY_AGG_INCLUDES_NULLS = None
     ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = False
     TRY_CAST_REQUIRES_STRING = True
+    SUPPORTS_ALIAS_REFS_IN_JOIN_CONDITIONS = True
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
+
+    # https://docs.snowflake.com/en/en/sql-reference/functions/initcap
+    INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v!?@"^#$&~_,.:;+\\-*%/|\\[\\](){}<>'
 
     TIME_MAPPING = {
         "YYYY": "%Y",
@@ -1416,6 +1420,7 @@ class Snowflake(Dialect):
                 ]
             ),
             exp.SHA: rename_func("SHA1"),
+            exp.SHA1Digest: rename_func("SHA1_BINARY"),
             exp.MD5Digest: rename_func("MD5_BINARY"),
             exp.MD5NumberLower64: rename_func("MD5_NUMBER_LOWER64"),
             exp.MD5NumberUpper64: rename_func("MD5_NUMBER_UPPER64"),
@@ -1472,6 +1477,9 @@ class Snowflake(Dialect):
             exp.ByteLength: rename_func("OCTET_LENGTH"),
             exp.ArrayConcatAgg: lambda self, e: self.func(
                 "ARRAY_FLATTEN", exp.ArrayAgg(this=e.this)
+            ),
+            exp.SHA2Digest: lambda self, e: self.func(
+                "SHA2_BINARY", e.this, e.args.get("length") or exp.Literal.number(256)
             ),
         }
 

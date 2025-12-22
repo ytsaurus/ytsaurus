@@ -2,7 +2,6 @@ package pipelines_test
 
 import (
 	"context"
-	"encoding/binary"
 	"io"
 	"log/slog"
 	"os"
@@ -15,18 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/zstdsync"
 )
-
-var zstdSyncTagPrefix = []byte{
-	0x50, 0x2A, 0x4D, 0x18, // zstd skippable frame magic number
-	0x18, 0x00, 0x00, 0x00, // data size: 128-bit ID + 64-bit offset
-
-	// 128-bit sync tag ID
-	0xF6, 0x79, 0x9C, 0x4E, 0xD1, 0x09, 0x90, 0x7E,
-	0x29, 0x91, 0xD9, 0xE6, 0xBE, 0xE4, 0x84, 0x40,
-
-	// 64-bit offset is written separately.
-}
 
 type stringLine struct {
 	String      string
@@ -135,9 +124,8 @@ func TestFollowingPipelinesWithCompression(t *testing.T) {
 		if err != nil {
 			return n1, err
 		}
-		offset := make([]byte, 8)
-		binary.LittleEndian.PutUint64(offset, uint64(fileSize))
-		n2, err := f.Write(append(zstdSyncTagPrefix, offset...))
+		syncTag := zstdsync.WriteSyncTag(int64(fileSize))
+		n2, err := f.Write(syncTag)
 		fileSize += n2
 		return n1 + n2, err
 	})
@@ -236,6 +224,9 @@ func newTestTextPipeline(t *testing.T, filepath string, filePosition pipelines.F
 	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, filePosition, pipelines.TextPipelineOptions{
 		LineLimit:   8,
 		BufferLimit: 64,
+		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
+			_, _ = data.WriteTo(io.Discard)
+		},
 	})
 	require.NoError(t, err)
 
@@ -260,4 +251,60 @@ func receive(line *stringLine, lineCh <-chan stringLine) bool {
 	case *line = <-lineCh:
 		return true
 	}
+}
+
+func TestOversizedLineSkippedRowsContent(t *testing.T) {
+	tempDir := t.TempDir()
+	filepath := path.Join(tempDir, "logfile")
+
+	longLine := strings.Repeat("x", 200) + "\n"
+	shortLines := "short1\nshort2\nshort3\n"
+	err := os.WriteFile(filepath, []byte(longLine+shortLines), 0644)
+	require.NoError(t, err)
+
+	var skippedData strings.Builder
+
+	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+		LineLimit:   10, // Long line will be truncated.
+		BufferLimit: 64, // Buffer is small, so long line won't fit.
+		OnTruncatedRow: func(data io.WriterTo, info pipelines.SkippedRowInfo) {
+			_, _ = data.WriteTo(&skippedData)
+		},
+	})
+	require.NoError(t, err)
+
+	lineCh := make(chan stringLine, 128)
+	pipelines.ApplyOutputFunc(func(ctx context.Context, meta pipelines.RowMeta, line pipelines.TextLine) {
+		lineCh <- stringLine{
+			String:    string(line.Bytes),
+			Truncated: line.Truncated,
+		}
+	}, s)
+
+	p.NotifyComplete()
+	ctx := context.Background()
+	err = p.Run(ctx)
+	require.NoError(t, err)
+
+	close(lineCh)
+	var outputLines []stringLine
+	for line := range lineCh {
+		outputLines = append(outputLines, line)
+	}
+
+	require.Len(t, outputLines, 4)
+	require.True(t, outputLines[0].Truncated)
+	require.False(t, outputLines[1].Truncated)
+	require.False(t, outputLines[2].Truncated)
+	require.False(t, outputLines[3].Truncated)
+
+	skippedContent := skippedData.String()
+
+	expectedSkipped := longLine
+	require.Equal(t, expectedSkipped, skippedContent,
+		"skipped_rows should contain only the truncated line, not subsequent lines")
+
+	require.NotContains(t, skippedContent, "short1", "skipped_rows should not contain 'short1'")
+	require.NotContains(t, skippedContent, "short2", "skipped_rows should not contain 'short2'")
+	require.NotContains(t, skippedContent, "short3", "skipped_rows should not contain 'short3'")
 }

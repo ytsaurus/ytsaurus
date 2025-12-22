@@ -263,7 +263,7 @@ public:
         guard.Release();
 
         if (chunkData) {
-            YT_LOG_INFO("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
+            YT_LOG_DEBUG("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
                 chunkId,
                 chunkData->InMemoryMode);
         }

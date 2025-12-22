@@ -2569,8 +2569,14 @@ Parameters:
 
 | **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | ------------ | ------- | ----------------- | ------------------------- | ----------------------- |
-| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | `GUID (string)`    | Yes |                           | Operation ID. |
 | `attributes` | `list` | No | `[]` | Operation attributes. |
+
+{% note info %}
+
+An operation can be accessed either via `operation_id` or `operation_alias`. For more information about operation aliases, see the section [Operation options](../../user-guide/data-processing/operations/operations-options.md#common_options).
+
+{% endnote %}
 
 Input data:
 
@@ -2603,7 +2609,7 @@ Parameters:
 
 | **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | -------------- | --------- | ---------------- | ------------------------- | -------------------------------------------------------------------- |
-| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | `GUID (string)` | Yes |                           | Operation ID. |
 | `event_type` | `string` | No | `Null` | Event type. If the value is empty, it returns events of all types. |
 
 Input data:
@@ -2664,7 +2670,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 
 Input data:
 
@@ -2692,7 +2698,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 
 Input data:
 
@@ -2721,7 +2727,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------------ | ------------- | ------------------------- | ----------------------------------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 | `abort_running_jobs` | No | `false` | Whether to abort the running operation jobs. |
 
 Input data:
@@ -2751,7 +2757,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 
 Input data:
 
@@ -2779,7 +2785,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | -------------------------------------------- | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 | `parameters` | Yes |                           | Dictionary with the operation parameters. |
 | *parameters[owners]* | No |                           | (deprecated, will be removed) List of new owners of the operation. |
 | *parameters[acl]* | No |                           | New ACL of the operation (it overlaps the base ACL). |
@@ -2922,7 +2928,7 @@ Parameters:
 
 | **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | -------------- | ------------- | ---------------- | ------------------------- | ------------ |
-| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | `GUID (string)` | Yes |                           | Operation ID. |
 | `job_id` | `GUID` | Yes |                           | Job ID. |
 | `attributes` | `list<string>` | No | `Null` | List of job attributes that need to be returned in the response. |
 
@@ -2978,7 +2984,7 @@ Parameters:
 
 | **Parameter** | **Type** | **Required** | **Default value** | **Description** |
 | -------------------- | ------------------------------------------------------------ | ---------------- | ------------------------- | ------------------------------------------------------------ |
-| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | `GUID (string)` | Yes |                           | Operation ID. |
 | `type (job_type)` | `EJobType` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_type`. |
 | `state (job_state)` | `EJobState` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_state`. |
 | `address` | `string` | No | `Null` | If this parameter is specified, the response will only include the jobs with an address that starts with `address`. |
@@ -3205,7 +3211,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
 
 Input data:
@@ -3235,7 +3241,7 @@ Parameters:
 
 | **Parameter** | **Required** | **Default value** | **Description** |
 | ------------ | ------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID. |
+| `operation_id (operation_alias)` | Yes |                           | Operation ID. |
 | `job_id` | Yes |                           | Job ID. |
 | `offset` | No |                            | Offset from the beginning in bytes. |
 | `limit` | No |                            | Maximum size in bytes. |
