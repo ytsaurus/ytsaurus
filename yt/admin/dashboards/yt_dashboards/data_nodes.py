@@ -5,7 +5,7 @@
 # [E128] continuation line under-indented for visual indent
 
 from .common.sensors import (
-    ExeNode, ExeNodeCpu, ExeNodeMemory, ExeNodePorto,
+    DatNodeAll, ExeNode, ExeNodeCpu, ExeNodeMemory, ExeNodePorto,
     CA, NodeMonitor, ProjectSensor,
     yt_host,
 )
@@ -16,11 +16,9 @@ from yt_dashboard_generator.taggable import NotEquals, SystemFields
 
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr, PlainMonitoringExpr
 
-DataNode = ProjectSensor("dat_node*", "yt-data-node.*")
-
 
 def _build_sensor(name, sensor, hidden=False):
-    return DataNode(sensor)        \
+    return DatNodeAll(sensor)      \
         .value("host", "{{host}}") \
         .name(name)
 

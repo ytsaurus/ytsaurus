@@ -17,6 +17,7 @@ from yt_dashboards.chyt import build_chyt_monitoring
 from yt_dashboards.key_filter import build_key_filter
 from yt_dashboards.exe_nodes import build_exe_nodes
 from yt_dashboards.data_nodes import build_data_nodes_common
+from yt_dashboards.data_node_local import build_data_node_local
 from yt_dashboards.user_load import build_user_load
 from yt_dashboards.http_proxies import build_http_proxies
 
@@ -247,6 +248,17 @@ dashboards = {
     "data-nodes-common": {
         "func": build_data_nodes_common,
         "monitoring": {},
+    },
+    "data-node-local": {
+        "func": build_data_node_local,
+        "monitoring": {
+            # has_porto = True
+            "args": [True],
+        },
+        "grafana": {
+            # has_porto = False
+            "args": [False],
+        },
     },
     "flow-general": {
         "func": flow.build_flow_general,

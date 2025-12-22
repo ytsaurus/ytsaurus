@@ -44,6 +44,7 @@ PY_SRCS(
     yt_dashboards/jobs_monitor.py
     yt_dashboards/exe_nodes.py
     yt_dashboards/data_nodes.py
+    yt_dashboards/data_node_local.py
     yt_dashboards/queue_and_consumer_metrics.py
     yt_dashboards/user_load.py
     yt_dashboards/common/__init__.py
