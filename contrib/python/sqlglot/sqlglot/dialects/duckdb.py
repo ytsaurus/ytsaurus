@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+from itertools import groupby
 import re
 import typing as t
 
@@ -9,7 +11,6 @@ from sqlglot.dialects.dialect import (
     Dialect,
     JSON_EXTRACT_TYPE,
     NormalizationStrategy,
-    Version,
     approx_count_distinct_sql,
     arrow_json_extract_sql,
     binary_from_function,
@@ -39,6 +40,7 @@ from sqlglot.dialects.dialect import (
     groupconcat_sql,
     inline_array_unless_query,
     regexp_replace_global_modifier,
+    sha2_digest_sql,
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import is_date_unit, seq_get
@@ -48,6 +50,24 @@ from sqlglot.parser import binary_range_parser
 # Regex to detect time zones in timestamps of the form [+|-]TT[:tt]
 # The pattern matches timezone offsets that appear after the time portion
 TIMEZONE_PATTERN = re.compile(r":\d{2}.*?[+\-]\d{2}(?::\d{2})?")
+
+# Characters that must be escaped when building regex expressions in INITCAP
+REGEX_ESCAPE_REPLACEMENTS = {
+    "\\": "\\\\",
+    "-": r"\-",
+    "^": r"\^",
+    "[": r"\[",
+    "]": r"\]",
+}
+
+# Whitespace control characters that DuckDB must process with `CHR({val})` calls
+WS_CONTROL_CHARS_TO_DUCK = {
+    "\u000b": 11,
+    "\u001c": 28,
+    "\u001d": 29,
+    "\u001e": 30,
+    "\u001f": 31,
+}
 
 
 # BigQuery -> DuckDB conversion for the DATE function
@@ -290,6 +310,102 @@ def _anyvalue_sql(self: DuckDB.Generator, expression: exp.AnyValue) -> str:
     return self.function_fallback_sql(expression)
 
 
+def _literal_sql_with_ws_chr(self: DuckDB.Generator, literal: str) -> str:
+    # DuckDB does not support \uXXXX escapes, so we must use CHR() instead of replacing them directly
+    if not any(ch in WS_CONTROL_CHARS_TO_DUCK for ch in literal):
+        return self.sql(exp.Literal.string(literal))
+
+    sql_segments: t.List[str] = []
+    for is_ws_control, group in groupby(literal, key=lambda ch: ch in WS_CONTROL_CHARS_TO_DUCK):
+        if is_ws_control:
+            for ch in group:
+                duckdb_char_code = WS_CONTROL_CHARS_TO_DUCK[ch]
+                sql_segments.append(self.func("CHR", exp.Literal.number(str(duckdb_char_code))))
+        else:
+            sql_segments.append(self.sql(exp.Literal.string("".join(group))))
+
+    sql = " || ".join(sql_segments)
+    return sql if len(sql_segments) == 1 else f"({sql})"
+
+
+def _escape_regex_metachars(
+    self: DuckDB.Generator, delimiters: t.Optional[exp.Expression], delimiters_sql: str
+) -> str:
+    r"""
+    Escapes regex metacharacters \ - ^ [ ] for use in character classes regex expressions.
+
+    Literal strings are escaped at transpile time, expressions handled with REPLACE() calls.
+    """
+    if not delimiters:
+        return delimiters_sql
+
+    if delimiters.is_string:
+        literal_value = delimiters.this
+        escaped_literal = "".join(REGEX_ESCAPE_REPLACEMENTS.get(ch, ch) for ch in literal_value)
+        return _literal_sql_with_ws_chr(self, escaped_literal)
+
+    escaped_sql = delimiters_sql
+    for raw, escaped in REGEX_ESCAPE_REPLACEMENTS.items():
+        escaped_sql = self.func(
+            "REPLACE",
+            escaped_sql,
+            self.sql(exp.Literal.string(raw)),
+            self.sql(exp.Literal.string(escaped)),
+        )
+
+    return escaped_sql
+
+
+def _build_capitalization_sql(
+    self: DuckDB.Generator,
+    value_to_split: str,
+    delimiters_sql: str,
+) -> str:
+    # empty string delimiter --> treat value as one word, no need to split
+    if delimiters_sql == "''":
+        return f"UPPER(LEFT({value_to_split}, 1)) || LOWER(SUBSTRING({value_to_split}, 2))"
+
+    delim_regex_sql = f"CONCAT('[', {delimiters_sql}, ']')"
+    split_regex_sql = f"CONCAT('([', {delimiters_sql}, ']+|[^', {delimiters_sql}, ']+)')"
+
+    # REGEXP_EXTRACT_ALL produces a list of string segments, alternating between delimiter and non-delimiter segments.
+    # We do not know whether the first segment is a delimiter or not, so we check the first character of the string
+    # with REGEXP_MATCHES. If the first char is a delimiter, we capitalize even list indexes, otherwise capitalize odd.
+    return self.func(
+        "ARRAY_TO_STRING",
+        exp.case()
+        .when(
+            f"REGEXP_MATCHES(LEFT({value_to_split}, 1), {delim_regex_sql})",
+            self.func(
+                "LIST_TRANSFORM",
+                self.func("REGEXP_EXTRACT_ALL", value_to_split, split_regex_sql),
+                "(seg, idx) -> CASE WHEN idx % 2 = 0 THEN UPPER(LEFT(seg, 1)) || LOWER(SUBSTRING(seg, 2)) ELSE seg END",
+            ),
+        )
+        .else_(
+            self.func(
+                "LIST_TRANSFORM",
+                self.func("REGEXP_EXTRACT_ALL", value_to_split, split_regex_sql),
+                "(seg, idx) -> CASE WHEN idx % 2 = 1 THEN UPPER(LEFT(seg, 1)) || LOWER(SUBSTRING(seg, 2)) ELSE seg END",
+            ),
+        ),
+        "''",
+    )
+
+
+def _initcap_sql(self: DuckDB.Generator, expression: exp.Initcap) -> str:
+    this_sql = self.sql(expression, "this")
+    delimiters = expression.args.get("expression")
+    if delimiters is None:
+        # fallback for manually created exp.Initcap w/o delimiters arg
+        delimiters = exp.Literal.string(self.dialect.INITCAP_DEFAULT_DELIMITER_CHARS)
+    delimiters_sql = self.sql(delimiters)
+
+    escaped_delimiters_sql = _escape_regex_metachars(self, delimiters, delimiters_sql)
+
+    return _build_capitalization_sql(self, this_sql, escaped_delimiters_sql)
+
+
 class DuckDB(Dialect):
     NULL_ORDERING = "nulls_are_last"
     SUPPORTS_USER_DEFINED_TYPES = True
@@ -308,6 +424,7 @@ class DuckDB(Dialect):
         **Dialect.DATE_PART_MAPPING,
         "DAYOFWEEKISO": "ISODOW",
     }
+
     DATE_PART_MAPPING.pop("WEEKDAY")
 
     def to_json_path(self, path: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
@@ -604,7 +721,7 @@ class DuckDB(Dialect):
         ) -> t.Optional[exp.Expression]:
             bracket = super()._parse_bracket(this)
 
-            if self.dialect.version < Version("1.2.0") and isinstance(bracket, exp.Bracket):
+            if self.dialect.version < (1, 2) and isinstance(bracket, exp.Bracket):
                 # https://duckdb.org/2025/02/05/announcing-duckdb-120.html#breaking-changes
                 bracket.set("returns_list_for_maps", True)
 
@@ -759,14 +876,16 @@ class DuckDB(Dialect):
             exp.JSONBExists: rename_func("JSON_EXISTS"),
             exp.JSONExtract: _arrow_json_extract_sql,
             exp.JSONExtractArray: _json_extract_value_array_sql,
-            exp.JSONExtractScalar: _arrow_json_extract_sql,
             exp.JSONFormat: _json_format_sql,
             exp.JSONValueArray: _json_extract_value_array_sql,
             exp.Lateral: explode_to_unnest_sql,
             exp.LogicalOr: rename_func("BOOL_OR"),
             exp.LogicalAnd: rename_func("BOOL_AND"),
             exp.MakeInterval: lambda self, e: no_make_interval_sql(self, e, sep=" "),
+            exp.Initcap: _initcap_sql,
             exp.MD5Digest: lambda self, e: self.func("UNHEX", self.func("MD5", e.this)),
+            exp.SHA1Digest: lambda self, e: self.func("UNHEX", self.func("SHA1", e.this)),
+            exp.SHA2Digest: lambda self, e: self.func("UNHEX", sha2_digest_sql(self, e)),
             exp.MonthsBetween: lambda self, e: self.func(
                 "DATEDIFF",
                 "'month'",
@@ -880,6 +999,7 @@ class DuckDB(Dialect):
             exp.DataType.Type.TIMESTAMP_S: "TIMESTAMP_S",
             exp.DataType.Type.TIMESTAMP_MS: "TIMESTAMP_MS",
             exp.DataType.Type.TIMESTAMP_NS: "TIMESTAMP_NS",
+            exp.DataType.Type.BIGDECIMAL: "DECIMAL(38, 5)",
         }
 
         # https://github.com/duckdb/duckdb/blob/ff7f24fd8e3128d94371827523dae85ebaf58713/third_party/libpg_query/grammar/keywords/reserved_keywords.list#L1-L77
@@ -986,6 +1106,38 @@ class DuckDB(Dialect):
             exp.Lead,
             exp.NthValue,
         )
+
+        def _greatest_least_sql(
+            self: DuckDB.Generator, expression: exp.Greatest | exp.Least
+        ) -> str:
+            """
+            Handle GREATEST/LEAST functions with dialect-aware NULL behavior.
+
+            - If null_if_any_null=True (BigQuery-style): return NULL if any argument is NULL
+            - If null_if_any_null=False (DuckDB/PostgreSQL-style): ignore NULLs, return greatest/least non-NULL value
+            """
+            # Get all arguments
+            all_args = [expression.this, *expression.expressions]
+            fallback_sql = self.function_fallback_sql(expression)
+
+            if expression.args.get("null_if_any_null"):
+                # BigQuery behavior: NULL if any argument is NULL
+                case_expr = exp.case().when(
+                    exp.or_(*[arg.is_(exp.null()) for arg in all_args], copy=False),
+                    exp.null(),
+                    copy=False,
+                )
+                case_expr.set("default", fallback_sql)
+                return self.sql(case_expr)
+
+            # DuckDB/PostgreSQL behavior: use native GREATEST/LEAST (ignores NULLs)
+            return self.sql(fallback_sql)
+
+        def greatest_sql(self: DuckDB.Generator, expression: exp.Greatest) -> str:
+            return self._greatest_least_sql(expression)
+
+        def least_sql(self: DuckDB.Generator, expression: exp.Least) -> str:
+            return self._greatest_least_sql(expression)
 
         def lambda_sql(
             self, expression: exp.Lambda, arrow_sep: str = "->", wrap: bool = True
@@ -1116,14 +1268,14 @@ class DuckDB(Dialect):
             return self.function_fallback_sql(expression)
 
         def countif_sql(self, expression: exp.CountIf) -> str:
-            if self.dialect.version >= Version("1.2"):
+            if self.dialect.version >= (1, 2):
                 return self.function_fallback_sql(expression)
 
             # https://github.com/tobymao/sqlglot/pull/4749
             return count_if_to_sum(self, expression)
 
         def bracket_sql(self, expression: exp.Bracket) -> str:
-            if self.dialect.version >= Version("1.2"):
+            if self.dialect.version >= (1, 2):
                 return super().bracket_sql(expression)
 
             # https://duckdb.org/2025/02/05/announcing-duckdb-120.html#breaking-changes
@@ -1262,7 +1414,7 @@ class DuckDB(Dialect):
             if isinstance(this, exp.First):
                 this = exp.AnyValue(this=this.this)
 
-            if not isinstance(this, exp.AnyValue):
+            if not isinstance(this, (exp.AnyValue, exp.ApproxQuantiles)):
                 self.unsupported("IGNORE NULLS is not supported for non-window functions.")
 
             return self.sql(this)
@@ -1429,3 +1581,72 @@ class DuckDB(Dialect):
                 return self.sql(exp.AtTimeZone(this=result_sql, zone=zone))
 
             return self.func("DATE_TRUNC", unit, timestamp)
+
+        def trim_sql(self, expression: exp.Trim) -> str:
+            result_sql = self.func(
+                "TRIM",
+                _cast_to_varchar(expression.this),
+                _cast_to_varchar(expression.expression),
+            )
+            return _cast_to_blob(self, expression, result_sql)
+
+        def round_sql(self, expression: exp.Round) -> str:
+            this = expression.this
+            decimals = expression.args.get("decimals")
+            truncate = expression.args.get("truncate")
+
+            func = "ROUND"
+            if truncate:
+                # BigQuery uses ROUND_HALF_EVEN; Snowflake uses HALF_TO_EVEN
+                if truncate.this in ("ROUND_HALF_EVEN", "HALF_TO_EVEN"):
+                    func = "ROUND_EVEN"
+                    truncate = None
+                # BigQuery uses ROUND_HALF_AWAY_FROM_ZERO; Snowflake uses HALF_AWAY_FROM_ZERO
+                elif truncate.this in ("ROUND_HALF_AWAY_FROM_ZERO", "HALF_AWAY_FROM_ZERO"):
+                    truncate = None
+
+            return self.func(func, this, decimals, truncate)
+
+        def approxquantiles_sql(self, expression: exp.ApproxQuantiles) -> str:
+            """
+            BigQuery's APPROX_QUANTILES(expr, n) returns an array of n+1 approximate quantile values
+            dividing the input distribution into n equal-sized buckets.
+
+            Both BigQuery and DuckDB use approximate algorithms for quantile estimation, but BigQuery
+            does not document the specific algorithm used so results may differ. DuckDB does not
+            support RESPECT NULLS.
+            """
+            this = expression.this
+            if isinstance(this, exp.Distinct):
+                # APPROX_QUANTILES requires 2 args and DISTINCT node grabs both
+                if len(this.expressions) < 2:
+                    self.unsupported("APPROX_QUANTILES requires a bucket count argument")
+                    return self.function_fallback_sql(expression)
+                num_quantiles_expr = this.expressions[1].pop()
+            else:
+                num_quantiles_expr = expression.expression
+
+            if not isinstance(num_quantiles_expr, exp.Literal) or not num_quantiles_expr.is_int:
+                self.unsupported("APPROX_QUANTILES bucket count must be a positive integer")
+                return self.function_fallback_sql(expression)
+
+            num_quantiles = t.cast(int, num_quantiles_expr.to_py())
+            if num_quantiles <= 0:
+                self.unsupported("APPROX_QUANTILES bucket count must be a positive integer")
+                return self.function_fallback_sql(expression)
+
+            quantiles = [
+                exp.Literal.number(Decimal(i) / Decimal(num_quantiles))
+                for i in range(num_quantiles + 1)
+            ]
+
+            return self.sql(
+                exp.ApproxQuantile(this=this, quantile=exp.Array(expressions=quantiles))
+            )
+
+        def jsonextractscalar_sql(self, expression: exp.JSONExtractScalar) -> str:
+            if expression.args.get("scalar_only"):
+                expression = exp.JSONExtractScalar(
+                    this=rename_func("JSON_VALUE")(self, expression), expression="'$'"
+                )
+            return _arrow_json_extract_sql(self, expression)

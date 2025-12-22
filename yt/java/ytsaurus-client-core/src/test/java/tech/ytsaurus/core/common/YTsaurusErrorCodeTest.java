@@ -2,8 +2,11 @@ package tech.ytsaurus.core.common;
 
 import java.util.Optional;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 public class YTsaurusErrorCodeTest {
 
@@ -11,7 +14,8 @@ public class YTsaurusErrorCodeTest {
     public void whenFindByCodeCalledWithExistingCodeThenCorrectInstanceReturned() {
         for (YTsaurusErrorCode errorCode : YTsaurusErrorCode.values()) {
             Optional<YTsaurusErrorCode> result = YTsaurusErrorCode.findByCode(errorCode.getCode());
-            Assert.assertEquals(errorCode, result.get());
+            assertTrue(result.isPresent());
+            assertEquals(errorCode, result.get());
         }
     }
 
@@ -19,6 +23,6 @@ public class YTsaurusErrorCodeTest {
     public void whenFindByCodeCalledWithInvalidCodeThenNullReturned() {
         int invalidCode = -1;
         Optional<YTsaurusErrorCode> result = YTsaurusErrorCode.findByCode(invalidCode);
-        Assert.assertTrue(result.isEmpty());
+        assertTrue(result.isEmpty());
     }
 }

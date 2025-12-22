@@ -259,10 +259,6 @@ private:
     // Such copies may have different sizes, too.
     THashMultiMap<TChunkId, TChunkEntry> ChunkMap_;
 
-    bool CanStartNewSession(
-        const TStoreLocationPtr& location,
-        int mediumIndex);
-
     bool ShouldChooseLocationBasedOnIOWeight();
 
     bool ShouldSkipWriteThrottlingLocations();

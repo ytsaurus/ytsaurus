@@ -2337,8 +2337,20 @@ class YTEnvSetup(object):
                 "cluster_state_provider": {
                     "bundles_freshness_time": 1000,
                     "nodes_freshness_time": 1000,
+                    # This is intended to check the case where freshness time is less than period.
+                    "unhealthy_bundles_freshness_time": 100,
                     "bundles_fetch_period": 400,
                     "nodes_fetch_period": 10000,
+                    "unhealthy_bundles_fetch_period": 300,
+                    "fetch_planner_period": 100,
+                },
+                "bundle_state_provider": {
+                    "state_freshness_time": 5000,
+                    "statistics_freshness_time": 2000,
+                    "performance_counters_freshness_time": 0,
+                    "state_fetch_period": 4000,
+                    "statistics_fetch_period": 800,
+                    "performance_counters_fetch_period": 300,
                     "fetch_planner_period": 100,
                 }
             }

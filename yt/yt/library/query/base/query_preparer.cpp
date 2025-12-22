@@ -1,5 +1,6 @@
 #include "query_preparer.h"
 
+#include "ast_visitors.h"
 #include "callbacks.h"
 #include "functions.h"
 #include "helpers.h"
@@ -574,6 +575,25 @@ void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableS
     innerSubquery->ProjectClause = std::move(projectClause);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TTableSchemaPtr MakeColumnTypesOptional(const TTableSchemaPtr& schema)
+{
+    std::vector<TColumnSchema> columns = schema->Columns();
+
+    for (auto& column : columns) {
+        if (!column.LogicalType()->IsNullable()) {
+            column.SetLogicalType(OptionalLogicalType(column.LogicalType()));
+        }
+    }
+
+    return New<TTableSchema>(columns,
+        schema->IsStrict(),
+        schema->IsUniqueKeys(),
+        schema->GetSchemaModification(),
+        schema->DeletedColumns());
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -687,9 +707,9 @@ TJoinClausePtr BuildJoinClause(
     auto foreignBuilder = CreateExpressionBuilder(source, functions, aliasMap, builderVersion);
 
     foreignBuilder->AddTable({
-        *joinClause->Schema.Original,
-        tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping,
+        .Schema = *foreignTableSchema,
+        .Alias = tableJoin.Table.Alias,
+        .Mapping = &joinClause->Schema.Mapping,
     });
 
     std::vector<TSelfEquation> selfEquations;
@@ -876,13 +896,16 @@ TJoinClausePtr BuildJoinClause(
             "JOIN-PREDICATE-clause");
     }
 
+    auto schemaAfterJoin = tableJoin.IsLeft ? MakeColumnTypesOptional(foreignTableSchema) : foreignTableSchema;
+
     builder->AddTable({
-        *joinClause->Schema.Original,
-        tableJoin.Table.Alias,
-        &joinClause->Schema.Mapping,
-        &joinClause->SelfJoinedColumns,
-        &joinClause->ForeignJoinedColumns,
-        commonColumnNames,
+        .Schema = *schemaAfterJoin,
+        .Alias = tableJoin.Table.Alias,
+        .Mapping = &joinClause->Schema.Mapping,
+        .SelfJoinedColumns = &joinClause->SelfJoinedColumns,
+        .ForeignJoinedColumns = &joinClause->ForeignJoinedColumns,
+        .SharedColumns = commonColumnNames,
+        .ModifiedSchemaHolder = std::move(schemaAfterJoin),
     });
 
     return joinClause;
@@ -999,6 +1022,98 @@ std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
     }
 
     return std::nullopt;
+}
+
+class TCardinalityIntoHyperLogLogWithPrecisionRewriter
+    : public NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>
+{
+public:
+    TCardinalityIntoHyperLogLogWithPrecisionRewriter(
+        TObjectsHolder* head,
+        int precision)
+        : NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>(head)
+        , Precision_(precision)
+    { }
+
+    NAst::TExpressionPtr OnFunction(NAst::TFunctionExpressionPtr functionExpr)
+    {
+        auto rewritten = NAst::TRewriter<TCardinalityIntoHyperLogLogWithPrecisionRewriter>::OnFunction(functionExpr)->As<NAst::TFunctionExpression>();
+        auto name = rewritten->FunctionName;
+
+        if (name == "cardinality") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_state") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_state", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_merge") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_merge", Precision_),
+                rewritten->Arguments);
+        } else if (name == "cardinality_merge_state") {
+            return Head->New<NAst::TFunctionExpression>(
+                NullSourceLocation,
+                Format("hll_%v_merge_state", Precision_),
+                rewritten->Arguments);
+        } else {
+            return rewritten;
+        }
+    }
+
+private:
+    const int Precision_;
+};
+
+void RewriteCardinalityIntoHyperLogLogWithPrecision(
+    NAst::TQuery* ast,
+    NAst::TAliasMap* aliasMap,
+    TObjectsHolder* holder,
+    int hyperLogLogPrecision)
+{
+    auto rewriter = TCardinalityIntoHyperLogLogWithPrecisionRewriter(holder, hyperLogLogPrecision);
+
+    if (auto* subquery = std::get_if<NAst::TQueryAstHeadPtr>(&ast->FromClause); subquery) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(
+            &subquery->Get()->Ast,
+            &subquery->Get()->AliasMap,
+            subquery->Get(),
+            hyperLogLogPrecision);
+    }
+
+    if (auto* expressions = std::get_if<NAst::TExpressionList>(&ast->FromClause); expressions) {
+        for (auto& item : *expressions) {
+            item = rewriter.Visit(item);
+        }
+    }
+
+    for (auto& [key, value] : *aliasMap) {
+        value = rewriter.Visit(value);
+    }
+
+    if (ast->SelectExprs) {
+        ast->SelectExprs = rewriter.Visit(ast->SelectExprs);
+    }
+
+    if (ast->WherePredicate) {
+        ast->WherePredicate = rewriter.Visit(ast->WherePredicate);
+    }
+
+    if (ast->GroupExprs) {
+        ast->GroupExprs = rewriter.Visit(ast->GroupExprs);
+    }
+
+    if (ast->HavingPredicate) {
+        ast->HavingPredicate = rewriter.Visit(ast->HavingPredicate);
+    }
+
+    for (auto& item : ast->OrderExpressions) {
+        item.Expressions = rewriter.Visit(item.Expressions);
+    }
 }
 
 void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
@@ -1340,12 +1455,18 @@ TPlanFragmentPtr PreparePlanFragment(
     int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int syntaxVersion,
+    bool shouldRewriteCardinalityIntoHyperLogLog,
+    int hyperLogLogPrecision,
     int depth)
 {
     auto aliasMap = astHead.AliasMap;
 
     if (syntaxVersion >= 3) {
         RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+    }
+
+    if (shouldRewriteCardinalityIntoHyperLogLog) {
+        RewriteCardinalityIntoHyperLogLogWithPrecision(&queryAst, &aliasMap, &astHead, hyperLogLogPrecision);
     }
 
     return PreparePlanFragmentImpl(

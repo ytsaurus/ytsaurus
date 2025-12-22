@@ -1102,7 +1102,7 @@ Sets the maximum number of columnar groups per intermediate query table. If the 
 
 | Value type | Default value | Static/<br/>dynamic |
 | --- | --- | --- |
-| Flag | true | Static |
+| Flag | true | Dynamic |
 
 Sets the `"force_job_size_adjuster"` option in the operation settings.
 

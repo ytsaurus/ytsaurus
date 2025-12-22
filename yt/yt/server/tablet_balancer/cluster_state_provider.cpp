@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -16,6 +18,7 @@ namespace NYT::NTabletBalancer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NTabletClient;
 using namespace NThreading;
 using namespace NYTree;
 
@@ -23,7 +26,28 @@ using namespace NYTree;
 
 constinit const auto Logger = TabletBalancerLogger;
 
+namespace {
+
+static const TYPath BannedReplicaClustersPath("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters");
+
 ////////////////////////////////////////////////////////////////////////////////
+
+THashSet<std::string> GetBannedReplicaClusters(const NApi::NNative::IClientPtr& client)
+{
+    auto bannedReplicaClusters = ConvertTo<IListNodePtr>(
+        WaitFor(client->GetNode(BannedReplicaClustersPath))
+            .ValueOrThrow());
+
+    THashSet<std::string> bannedReplicaClustersSet;
+    for (const auto& cluster : bannedReplicaClusters->GetChildren()) {
+        bannedReplicaClustersSet.insert(cluster->AsString()->GetValue());
+    }
+    return bannedReplicaClustersSet;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 class TClusterStateProvider
     : public IClusterStateProvider
@@ -41,6 +65,7 @@ public:
 
     TFuture<IListNodePtr> GetBundles() override;
     TFuture<IListNodePtr> GetNodes() override;
+    TFuture<THashMap<std::string, std::vector<std::string>>> GetUnhealthyBundles() override;
 
 private:
     const IBootstrap* Bootstrap_;
@@ -54,18 +79,23 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TInstant LastBundlesSuccessfulFetchTime_;
     TInstant LastNodesSuccessfulFetchTime_;
+    TInstant LastUnhealthyBundlesSuccessfulFetchTime_;
 
     IListNodePtr Bundles_;
     IListNodePtr Nodes_;
+    THashMap<std::string, std::vector<std::string>> UnhealthyBundles_;
 
     TFuture<IListNodePtr> BundlesFuture_;
     TFuture<IListNodePtr> NodesFuture_;
+    TFuture<THashMap<std::string, std::vector<std::string>>> UnhealthyBundlesFuture_;
 
 private:
     void FetchState();
 
     IListNodePtr FetchBundles();
     IListNodePtr FetchNodes();
+    THashMap<std::string, std::vector<std::string>> TryFetchUnhealthyBundles();
+    THashMap<std::string, std::vector<std::string>> FetchUnhealthyBundles();
 };
 
 TClusterStateProvider::TClusterStateProvider(
@@ -93,6 +123,7 @@ void TClusterStateProvider::Start()
 
         BundlesFuture_.Reset();
         NodesFuture_.Reset();
+        UnhealthyBundlesFuture_.Reset();
     }
 
     PollExecutor_->Start();
@@ -172,6 +203,29 @@ TFuture<IListNodePtr> TClusterStateProvider::GetNodes()
     return NodesFuture_;
 }
 
+TFuture<THashMap<std::string, std::vector<std::string>>> TClusterStateProvider::GetUnhealthyBundles()
+{
+    auto now = Now();
+    auto readerGuard = ReaderGuard(Lock_);
+    if (now <= LastUnhealthyBundlesSuccessfulFetchTime_ + Config_.Acquire()->UnhealthyBundlesFreshnessTime) {
+        return MakeFuture(UnhealthyBundles_);
+    }
+
+    if (!UnhealthyBundlesFuture_) {
+        readerGuard.Release();
+        YT_LOG_DEBUG("Planning to fetch unhealthy bundles due to a direct request");
+        auto writerGuard = WriterGuard(Lock_);
+        if (!UnhealthyBundlesFuture_) {
+            UnhealthyBundlesFuture_ = BIND(&TClusterStateProvider::TryFetchUnhealthyBundles, MakeStrong(this))
+                .AsyncVia(WorkerPool_->GetInvoker())
+                .Run();
+        }
+        return UnhealthyBundlesFuture_;
+    }
+
+    return UnhealthyBundlesFuture_;
+}
+
 void TClusterStateProvider::FetchState()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -183,12 +237,15 @@ void TClusterStateProvider::FetchState()
 
     YT_LOG_DEBUG("Started to plan cluster state provider fetches (Config: %v, "
         "LastBundlesSuccessfulFetchTime: %v, LastNodesSuccessfulFetchTime: %v, "
-        "HasBundleFuture: %v, HasNodeFuture: %v)",
+        "LastUnhealthyBundlesSuccessfulFetchTime: %v, HasBundleFuture: %v, "
+        "HasNodeFuture: %v, HasUnhealthyBundlesFuture: %v)",
         ConvertToYsonString(config, NYson::EYsonFormat::Text),
         LastBundlesSuccessfulFetchTime_,
         LastNodesSuccessfulFetchTime_,
+        LastUnhealthyBundlesSuccessfulFetchTime_,
         static_cast<bool>(BundlesFuture_),
-        static_cast<bool>(NodesFuture_));
+        static_cast<bool>(NodesFuture_),
+        static_cast<bool>(UnhealthyBundlesFuture_));
 
     if (LastBundlesSuccessfulFetchTime_ + config->BundlesFetchPeriod < now && !BundlesFuture_) {
         BundlesFuture_ = BIND(&TClusterStateProvider::FetchBundles, MakeStrong(this))
@@ -198,6 +255,15 @@ void TClusterStateProvider::FetchState()
 
     if (LastNodesSuccessfulFetchTime_ + config->NodesFetchPeriod < now && !NodesFuture_) {
         NodesFuture_ = BIND(&TClusterStateProvider::FetchNodes, MakeStrong(this))
+            .AsyncVia(WorkerPool_->GetInvoker())
+            .Run();
+    }
+
+    if (!config->ClustersForBundleHealthCheck.empty() &&
+        LastUnhealthyBundlesSuccessfulFetchTime_ + config->UnhealthyBundlesFetchPeriod < now &&
+        !UnhealthyBundlesFuture_)
+    {
+        UnhealthyBundlesFuture_ = BIND(&TClusterStateProvider::TryFetchUnhealthyBundles, MakeStrong(this))
             .AsyncVia(WorkerPool_->GetInvoker())
             .Run();
     }
@@ -267,6 +333,72 @@ IListNodePtr TClusterStateProvider::FetchNodes()
 
     YT_LOG_DEBUG("Finished fetching node statistics");
     return Nodes_;
+}
+
+THashMap<std::string, std::vector<std::string>> TClusterStateProvider::TryFetchUnhealthyBundles()
+{
+    try {
+        YT_LOG_DEBUG("Started fetching unhealthy bundles");
+        auto unhealthyBundles = FetchUnhealthyBundles();
+
+        auto now = Now();
+        auto guard = WriterGuard(Lock_);
+        if (LastUnhealthyBundlesSuccessfulFetchTime_ < now) {
+            LastUnhealthyBundlesSuccessfulFetchTime_ = now;
+            UnhealthyBundles_ = unhealthyBundles;
+        }
+
+        UnhealthyBundlesFuture_.Reset();
+
+        YT_LOG_DEBUG("Finished fetching unhealthy bundles");
+        return UnhealthyBundles_;
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to fetch unhealthy bundles");
+        auto guard = WriterGuard(Lock_);
+        UnhealthyBundlesFuture_.Reset();
+        throw ex;
+    }
+}
+
+THashMap<std::string, std::vector<std::string>> TClusterStateProvider::FetchUnhealthyBundles()
+{
+    auto config = Config_.Acquire();
+    if (config->ClustersForBundleHealthCheck.empty()) {
+        return {};
+    }
+
+    auto bannedReplicaClusters = GetBannedReplicaClusters(Bootstrap_->GetClient());
+    YT_LOG_DEBUG_IF(
+        !bannedReplicaClusters.empty(),
+        "Fetched banned replica clusters (Clusters: %v)",
+        bannedReplicaClusters);
+
+    TListNodeOptions options{.Attributes = {"health"}};
+    const auto& clientDirectory = Bootstrap_->GetClientDirectory();
+    THashMap<std::string, std::vector<std::string>> unhealthyBundles;
+    for (const auto& cluster : config->ClustersForBundleHealthCheck) {
+        if (bannedReplicaClusters.contains(cluster)) {
+            continue;
+        }
+
+        auto client = clientDirectory->GetClientOrThrow(cluster);
+        auto bundles = WaitFor(client->ListNode(TabletCellBundlesPath, options))
+            .ValueOrThrow();
+        auto bundlesList = ConvertTo<IListNodePtr>(bundles);
+        std::vector<std::string> clusterUnhealthyBundles;
+        for (const auto& bundle : bundlesList->GetChildren()) {
+            auto health = bundle->Attributes().Get<ETabletCellHealth>("health");
+            if (health != ETabletCellHealth::Good) {
+                clusterUnhealthyBundles.push_back(bundle->AsString()->GetValue());
+            }
+        }
+
+        if (!clusterUnhealthyBundles.empty()) {
+            EmplaceOrCrash(unhealthyBundles, cluster, std::move(clusterUnhealthyBundles));
+        }
+    }
+
+    return unhealthyBundles;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,6 @@ from yt_commands import (
     build_snapshot, multicell_sleep, raises_yt_error, get_driver,
     transfer_bundle_resources, create_user, make_ace)
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
-
 import yt_error_codes
 
 from yt.common import YtError
@@ -80,8 +78,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
     def setup_method(self, method):
         super().setup_method(method)
-        set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
-        set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+        self._multicell_set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+        self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
 
     @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
@@ -117,8 +115,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
     # TODO(ifsmirnov): YT-14310
     @authors("savrus")
-    # TODO(danilalexeev): YT-26788.
-    @not_implemented_in_sequoia
     def test_tablet_count_limit_create(self):
         create_account("test_account")
         sync_create_cells(1)
@@ -890,8 +886,6 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
             set("//tmp/t/@in_memory_mode", "none")
 
     @authors("ifsmirnov")
-    # TODO(danilalexeev): YT-26788.
-    @not_implemented_in_sequoia
     def test_balancer_cannot_exceed_tablet_count_limit(self):
         create_tablet_cell_bundle("b")
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 1)

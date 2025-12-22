@@ -272,7 +272,8 @@ private:
         TBase::DoSerializeNode(node, context);
 
         using NYT::Save;
-        Save(*context, node->ChaosCellBundle());
+        const auto& chaosCellBundle = node->GetTrunkNode()->ChaosCellBundle();
+        Save(*context, chaosCellBundle);
         Save(*context, node->GetReplicationCardId());
         Save(*context, node->GetOwnsReplicationCard());
     }

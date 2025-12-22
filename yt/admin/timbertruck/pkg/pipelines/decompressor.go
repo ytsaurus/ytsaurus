@@ -3,33 +3,15 @@ package pipelines
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 
 	"github.com/klauspost/compress/zstd"
+
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/zstdsync"
 )
-
-const (
-	// maxZstdFrameLength is equivalent to MaxZstdFrameLength constant in the server code.
-	//
-	// https://go.ytsaurus.tech/arcadia/yt/yt/core/logging/zstd_compression.cpp?rev=r16546242#L26
-	maxZstdFrameLength int = 5263360
-	zstdSyncTagLength  int = 32
-)
-
-var zstdSyncTagPrefix = []byte{
-	0x50, 0x2A, 0x4D, 0x18, // zstd skippable frame magic number
-	0x18, 0x00, 0x00, 0x00, // data size: 128-bit ID + 64-bit offset
-
-	// 128-bit sync tag ID
-	0xF6, 0x79, 0x9C, 0x4E, 0xD1, 0x09, 0x90, 0x7E,
-	0x29, 0x91, 0xD9, 0xE6, 0xBE, 0xE4, 0x84, 0x40,
-
-	// 64-bit offset is written separately.
-}
 
 type compressedFile struct {
 	decompressor            *decompressor
@@ -149,7 +131,7 @@ func newDecompressor(logger *slog.Logger, filepath string, filePosition int64) (
 		logger:              logger,
 		frameIterator:       frameIterator,
 		decoder:             decoder,
-		decompressedDataBuf: make([]byte, 0, maxZstdFrameLength*15),
+		decompressedDataBuf: make([]byte, 0, zstdsync.MaxZstdFrameLength*15),
 	}, nil
 }
 
@@ -237,7 +219,7 @@ func newZstdFrameIterator(logger *slog.Logger, filepath string, filePosition int
 	return &zstdFrameIterator{
 		logger:  logger,
 		ff:      ff,
-		buffer:  make([]byte, 5*(maxZstdFrameLength+zstdSyncTagLength)),
+		buffer:  make([]byte, 5*(zstdsync.MaxZstdFrameLength+zstdsync.SyncTagLength)),
 		filePos: filePosition,
 	}, nil
 }
@@ -247,15 +229,15 @@ func (d *zstdFrameIterator) next(ctx context.Context) ([]byte, error) {
 	for {
 		tagPos := d.findFirstSyncTagPos()
 		if tagPos >= 0 {
-			d.frameSize = tagPos + zstdSyncTagLength - d.frameStart
+			d.frameSize = tagPos + zstdsync.SyncTagLength - d.frameStart
 			return d.buffer[d.frameStart:tagPos], nil
 		}
 		if d.fileFullyRead {
 			return nil, io.EOF
 		}
 
-		if d.end-d.frameStart > maxZstdFrameLength+zstdSyncTagLength {
-			return nil, fmt.Errorf("no zstd sync tag in buffer of size %d > maxZstdFrameLength+zstdSyncTagLength (%d)", d.end-d.frameStart, maxZstdFrameLength+zstdSyncTagLength)
+		if d.end-d.frameStart > zstdsync.MaxZstdFrameLength+zstdsync.SyncTagLength {
+			return nil, fmt.Errorf("no zstd sync tag in buffer of size %d > maxZstdFrameLength+zstdSyncTagLength (%d)", d.end-d.frameStart, zstdsync.MaxZstdFrameLength+zstdsync.SyncTagLength)
 		}
 		read, err := d.ff.ReadContext(ctx, d.buffer[d.end:])
 		d.end += read
@@ -271,7 +253,7 @@ func (d *zstdFrameIterator) advanceToNextFrame() {
 	d.frameStart += d.frameSize
 	d.filePos += int64(d.frameSize)
 	d.frameSize = 0
-	if len(d.buffer)-d.frameStart < maxZstdFrameLength+zstdSyncTagLength {
+	if len(d.buffer)-d.frameStart < zstdsync.MaxZstdFrameLength+zstdsync.SyncTagLength {
 		copy(d.buffer[0:], d.buffer[d.frameStart:d.end])
 		d.end -= d.frameStart
 		d.frameStart = 0
@@ -282,19 +264,19 @@ func (d *zstdFrameIterator) findFirstSyncTagPos() int {
 	firstSyncTagPos := -1
 	begin := d.frameStart
 	for {
-		tagInd := bytes.Index(d.buffer[begin:d.end], zstdSyncTagPrefix)
+		tagInd := bytes.Index(d.buffer[begin:d.end], zstdsync.SyncTagPrefix)
 		if tagInd < 0 {
 			break
 		}
 
 		tagPos := begin + tagInd
-		if d.end-tagPos < zstdSyncTagLength {
+		if d.end-tagPos < zstdsync.SyncTagLength {
 			break
 		}
 
-		tagOffset := binary.LittleEndian.Uint64(d.buffer[tagPos+len(zstdSyncTagPrefix):])
+		tagOffset := zstdsync.ReadSyncTagOffset(d.buffer[tagPos:])
 		expectedOffset := d.filePos + int64(tagPos-d.frameStart)
-		if tagOffset == uint64(expectedOffset) {
+		if tagOffset == expectedOffset {
 			firstSyncTagPos = tagPos
 			break
 		}

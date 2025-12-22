@@ -39,14 +39,6 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
     }
 
     if (auto performanceCountersRow = std::get_if<NTableClient::TUnversionedOwningRow>(&PerformanceCounters)) {
-        YT_LOG_DEBUG_IF(Index == 0 &&
-                performanceCountersTableSchema->GetValueColumnCount() != std::ssize(performanceCountersKeys),
-            "Statistics reporter schema and current tablet balancer version has different performance counter keys "
-            "(StatisticsReporterValueColumnCount: %v, PerformanceCountersKeyCount: %v, TabletId: %v)",
-            performanceCountersTableSchema->GetValueColumnCount(),
-            std::ssize(performanceCountersKeys),
-            Id);
-
         return BuildYsonStringFluently()
             .DoMap([&] (TFluentMap fluent) {
                 for (const auto& performanceCounterKey : performanceCountersKeys) {
@@ -78,25 +70,31 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
         });
     }
 
+    YT_LOG_FATAL_IF(
+        !Table,
+        "Probably alien table missing performance counters (TabletId: %v, MountTime: %v, TabletState: %v)",
+        Id,
+        MountTime,
+        State);
+
     auto performanceCountersProto = std::get_if<TPerformanceCountersProtoList>(&PerformanceCounters);
     YT_VERIFY(performanceCountersProto);
 
-    if (performanceCountersProto->size() != std::ssize(performanceCountersKeys)) {
-        YT_LOG_WARNING("Logging current state before coredump (TabletId: %v, TableId: %v, TablePath: %v, "
-            "MountTime: %v, TabletState: %v, PerformanceCountersProtoSize: %v, PerformanceCountersKeysSize: %v, "
-            "PerformanceCountersProto: %v, PerformanceCountersKeys: %v)",
-            Id,
-            Table->Id,
-            Table->Path,
-            MountTime,
-            State,
-            performanceCountersProto->size(),
-            std::ssize(performanceCountersKeys),
-            performanceCountersProto,
-            performanceCountersKeys);
-    }
+    YT_LOG_FATAL_IF(
+        performanceCountersProto->size() != std::ssize(performanceCountersKeys),
+        "Performance counters proto has unexpected keys (TabletId: %v, TableId: %v, TablePath: %v, "
+        "MountTime: %v, TabletState: %v, PerformanceCountersProtoSize: %v, PerformanceCountersKeysSize: %v, "
+        "PerformanceCountersProto: %v, PerformanceCountersKeys: %v)",
+        Id,
+        Table->Id,
+        Table->Path,
+        MountTime,
+        State,
+        performanceCountersProto->size(),
+        std::ssize(performanceCountersKeys),
+        performanceCountersProto,
+        performanceCountersKeys);
 
-    YT_VERIFY(performanceCountersProto->size() == std::ssize(performanceCountersKeys));
     return BuildYsonStringFluently()
         .DoMap([&] (TFluentMap fluent) {
             for (int i = 0; i < std::ssize(performanceCountersKeys); ++i) {
@@ -108,6 +106,18 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
                     .Item(performanceCountersKeys[i] + "_1h_rate").Value(counter.rate_1h());
             }
     });
+}
+
+TTabletPtr TTablet::Clone(TTable* table) const
+{
+    auto tablet = New<TTablet>(Id, table);
+
+    tablet->Index = Index;
+    tablet->MountTime = MountTime;
+    tablet->Statistics = Statistics;
+    tablet->State = State;
+
+    return tablet;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

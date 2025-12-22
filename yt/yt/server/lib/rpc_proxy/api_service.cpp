@@ -221,21 +221,6 @@ void FromProto(
 }
 
 void FromProto(
-    TSuppressableAccessTrackingOptions* options,
-    const NApi::NRpcProxy::NProto::TSuppressableAccessTrackingOptions& proto)
-{
-    if (proto.has_suppress_access_tracking()) {
-        options->SuppressAccessTracking = proto.suppress_access_tracking();
-    }
-    if (proto.has_suppress_modification_tracking()) {
-        options->SuppressModificationTracking = proto.suppress_modification_tracking();
-    }
-    if (proto.has_suppress_expiration_timeout_renewal()) {
-        options->SuppressExpirationTimeoutRenewal = proto.suppress_expiration_timeout_renewal();
-    }
-}
-
-void FromProto(
     TTabletRangeOptions* options,
     const NApi::NRpcProxy::NProto::TTabletRangeOptions& proto)
 {
@@ -4597,6 +4582,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
         options.SyntaxVersion = request->syntax_version();
     }
     options.ExpressionBuilderVersion = YT_OPTIONAL_FROM_PROTO(*request, expression_builder_version);
+    options.HyperLogLogPrecision = YT_OPTIONAL_FROM_PROTO(*request, hyper_log_log_precision);
     if (request->has_execution_backend()) {
         options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
     }
@@ -6456,32 +6442,20 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    auto path = FromProto<NYPath::TRichYPath>(request->path());
-
-    auto format = GetFormat(context, request);
+    TRichYPath path;
+    std::optional<NYson::TYsonStringBuf> rawFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat desiredRowsetFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat arrowFallbackRowsetFormat;
 
     NApi::TTableReaderOptions options;
-    options.Unordered = request->unordered();
-    options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
-    options.OmitInaccessibleRows = request->omit_inaccessible_rows();
-    options.EnableTableIndex = request->enable_table_index();
-    options.EnableRowIndex = request->enable_row_index();
-    options.EnableRangeIndex = request->enable_range_index();
-    options.EnableAnyUnpacking = request->enable_any_unpacking();
-    if (request->has_config()) {
-        options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
-    }
 
-    if (request->has_transactional_options()) {
-        FromProto(&options, request->transactional_options());
-    }
+    ParseRequest(&path, &rawFormat, &desiredRowsetFormat, &arrowFallbackRowsetFormat, &options, *request);
 
-    if (request->has_suppressable_access_tracking_options()) {
-        FromProto(&options, request->suppressable_access_tracking_options());
+    std::optional<NFormats::TFormat> format;
+    if (rawFormat) {
+        ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(*rawFormat));
+        format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
-
-    auto desiredRowsetFormat = request->desired_rowset_format();
-    auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
     context->SetRequestInfo(
         "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, OmitInaccessibleRows: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",

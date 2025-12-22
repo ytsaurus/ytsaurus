@@ -30,7 +30,9 @@ def qualify(
     validate_qualify_columns: bool = True,
     quote_identifiers: bool = True,
     identify: bool = True,
+    canonicalize_table_aliases: bool = False,
     on_qualify: t.Optional[t.Callable[[exp.Expression], None]] = None,
+    sql: t.Optional[str] = None,
 ) -> exp.Expression:
     """
     Rewrite sqlglot AST to have normalized and qualified tables and columns.
@@ -62,7 +64,11 @@ def qualify(
             This step is necessary to ensure correctness for case sensitive queries.
             But this flag is provided in case this step is performed at a later time.
         identify: If True, quote all identifiers, else only necessary ones.
+        canonicalize_table_aliases: Whether to use canonical aliases (_0, _1, ...) for all sources
+            instead of preserving table names.
         on_qualify: Callback after a table has been qualified.
+        sql: Original SQL string for error highlighting. If not provided, errors will not include
+            highlighting. Requires that the expression has position metadata from parsing.
 
     Returns:
         The qualified expression.
@@ -81,6 +87,7 @@ def qualify(
         catalog=catalog,
         dialect=dialect,
         on_qualify=on_qualify,
+        canonicalize_table_aliases=canonicalize_table_aliases,
     )
 
     if isolate_tables:
@@ -100,6 +107,6 @@ def qualify(
         expression = quote_identifiers_func(expression, dialect=dialect, identify=identify)
 
     if validate_qualify_columns:
-        validate_qualify_columns_func(expression)
+        validate_qualify_columns_func(expression, sql=sql)
 
     return expression

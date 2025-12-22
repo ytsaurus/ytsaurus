@@ -513,32 +513,27 @@ TInputChunkSlice::TInputChunkSlice(
 template <class TProtoChunkSpec>
 void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec)
 {
-    if (!protoChunkSpec.has_row_count_override() && !protoChunkSpec.has_data_weight_override()) {
+    if (!protoChunkSpec.has_row_count_override()) {
+        YT_VERIFY(
+            !protoChunkSpec.has_data_weight_override() &&
+            !protoChunkSpec.has_compressed_data_size_override() &&
+            !protoChunkSpec.has_uncompressed_data_size_override());
         return;
     }
-    YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+    YT_VERIFY(
+        protoChunkSpec.has_data_weight_override() &&
+        protoChunkSpec.has_compressed_data_size_override() &&
+        protoChunkSpec.has_uncompressed_data_size_override());
 
-    i64 dataWeightOverride = std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor());
-    double dataWeightOverrideFactor = static_cast<double>(protoChunkSpec.data_weight_override()) / inputChunk->GetDataWeight();
-    i64 compressedDataSizeOverride;
-    if (protoChunkSpec.has_compressed_data_size_override()) {
-        compressedDataSizeOverride = protoChunkSpec.compressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.1 release.
-        compressedDataSizeOverride = inputChunk->GetCompressedDataSize() * dataWeightOverrideFactor;
-    }
-    i64 uncompressedDataSizeOverride;
-    if (protoChunkSpec.has_uncompressed_data_size_override()) {
-        uncompressedDataSizeOverride = protoChunkSpec.uncompressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.3 release.
-        uncompressedDataSizeOverride = inputChunk->GetUncompressedDataSize() * dataWeightOverrideFactor;
-    }
+    auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+        return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+    };
+
     OverrideSize(
         protoChunkSpec.row_count_override(),
-        dataWeightOverride,
-        compressedDataSizeOverride,
-        uncompressedDataSizeOverride);
+        computeSize(protoChunkSpec.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+        computeSize(protoChunkSpec.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+        computeSize(protoChunkSpec.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
 
 }
 

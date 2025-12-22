@@ -24,6 +24,7 @@ import pytest
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_CLOCKS = 3
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -125,6 +126,13 @@ class TestGrafting(YTEnvSetup):
         create("rootstock", "//tmp/sequoia2")
         with raises_yt_error("Scion cannot be cloned"):
             copy("//tmp/sequoia1", "//tmp/sequoia2")
+
+    @authors("kvk1920")
+    def test_rootstock_removal_under_tx(self):
+        create("rootstock", "//tmp/sequoia")
+        tx = start_transaction()
+        with raises_yt_error("Rootstock cannot be removed under transaction"):
+            remove("//tmp/sequoia", tx=tx)
 
 
 ##################################################################

@@ -13,7 +13,7 @@ from yt_commands import (
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
     get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id,
-    set_node_banned, sorted_dicts)
+    set_node_banned, sorted_dicts, build_snapshot)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 import yt_error_codes
@@ -261,7 +261,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 insert_rows(path, rows, require_sync_replica=require_sync_replica)
                 return
             except YtError as e:
-                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict):
+                if not e.contains_code(yt_error_codes.HunkTabletStoreToggleConflict) and \
+                   not e.contains_code(yt_error_codes.HunkStoreAllocationFailed):
                     raise e
 
     @authors("savrus")
@@ -751,13 +752,16 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", driver=self.replica_driver)
+
         timestamp = generate_timestamp()
         wait(lambda: are_items_equal(
             get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
             [replica_id1, replica_id2]))
 
         if mode == "sync":
-            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME), sleep_backoff=0.5)
 
         set(
             "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
@@ -1481,7 +1485,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("aozeritsky")
     def test_replication_unversioned(self):
-        self._create_cells()
+        primary_cells, _ = self._create_cells()
+        cell_id = primary_cells[0]
         self._create_replicated_table("//tmp/t")
         replica_id1 = create_table_replica(
             "//tmp/t",
@@ -1566,6 +1571,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_alter_table_replica_mode(replica_id1, "async")
         sync_alter_table_replica_mode(replica_id1, "sync")
+
+        build_snapshot(cell_id=cell_id)
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
+            pass
 
         _do()
 

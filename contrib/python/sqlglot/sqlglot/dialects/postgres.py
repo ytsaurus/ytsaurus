@@ -36,8 +36,8 @@ from sqlglot.dialects.dialect import (
     strposition_sql,
     count_if_to_sum,
     groupconcat_sql,
-    Version,
     regexp_replace_global_modifier,
+    sha2_digest_sql,
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import is_int, seq_get
@@ -262,7 +262,7 @@ def _levenshtein_sql(self: Postgres.Generator, expression: exp.Levenshtein) -> s
 def _versioned_anyvalue_sql(self: Postgres.Generator, expression: exp.AnyValue) -> str:
     # https://www.postgresql.org/docs/16/functions-aggregate.html
     # https://www.postgresql.org/about/featurematrix/
-    if self.dialect.version < Version("16.0"):
+    if self.dialect.version < (16,):
         return any_value_to_max_sql(self, expression)
 
     return rename_func("ANY_VALUE")(self, expression)
@@ -298,6 +298,11 @@ class Postgres(Dialect):
     NULL_ORDERING = "nulls_are_large"
     TIME_FORMAT = "'YYYY-MM-DD HH24:MI:SS'"
     TABLESAMPLE_SIZE_IS_PERCENT = True
+    TABLES_REFERENCEABLE_AS_COLUMNS = True
+
+    DEFAULT_FUNCTIONS_COLUMN_NAMES = {
+        exp.ExplodingGenerateSeries: "generate_series",
+    }
 
     TIME_MAPPING = {
         "d": "%u",  # 1-based day of week
@@ -694,6 +699,7 @@ class Postgres(Dialect):
                 ]
             ),
             exp.SHA2: sha256_sql,
+            exp.SHA2Digest: sha2_digest_sql,
             exp.StrPosition: lambda self, e: strposition_sql(self, e, func_name="POSITION"),
             exp.StrToDate: lambda self, e: self.func("TO_DATE", e.this, self.format_time(e)),
             exp.StrToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, self.format_time(e)),
@@ -837,6 +843,16 @@ class Postgres(Dialect):
 
         def isascii_sql(self, expression: exp.IsAscii) -> str:
             return f"({self.sql(expression.this)} ~ '^[[:ascii:]]*$')"
+
+        def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
+            # https://www.postgresql.org/docs/current/functions-window.html
+            self.unsupported("PostgreSQL does not support IGNORE NULLS.")
+            return self.sql(expression.this)
+
+        def respectnulls_sql(self, expression: exp.RespectNulls) -> str:
+            # https://www.postgresql.org/docs/current/functions-window.html
+            self.unsupported("PostgreSQL does not support RESPECT NULLS.")
+            return self.sql(expression.this)
 
         @unsupported_args("this")
         def currentschema_sql(self, expression: exp.CurrentSchema) -> str:

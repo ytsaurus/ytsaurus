@@ -54,6 +54,8 @@ TPlanFragmentPtr PreparePlanFragment(
     int builderVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,
     int syntaxVersion = 1,
+    bool shouldRewriteCardinalityIntoHyperLogLog = false, // COMPAT(dtorilov): Remove after 25.4.
+    int hyperLogLogPrecision = 14,
     int depth = 0);
 
 ////////////////////////////////////////////////////////////////////////////////

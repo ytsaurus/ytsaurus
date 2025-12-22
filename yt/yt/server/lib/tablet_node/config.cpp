@@ -386,6 +386,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);
 
+    registrar.Parameter("skip_value_blocks_for_missing_keys", &TThis::SkipValueBlocksForMissingKeys)
+        .Default(false);
+
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
 

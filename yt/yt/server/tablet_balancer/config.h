@@ -75,6 +75,7 @@ struct TTabletBalancerDynamicConfig
     bool CancelActionIfPickPivotKeysFails;
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
+    std::optional<bool> EnableSmoothMovement;
 
     THashSet<std::string> AllowedReplicaClusters;
 
@@ -120,14 +121,19 @@ DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 struct TClusterStateProviderConfig
     : public NYTree::TYsonStruct
 {
+    std::vector<std::string> ClustersForBundleHealthCheck;
+    int MaxUnhealthyBundlesOnReplicaCluster;
+
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
 
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
+    TDuration UnhealthyBundlesFreshnessTime;
 
     TDuration BundlesFetchPeriod;
     TDuration NodesFetchPeriod;
+    TDuration UnhealthyBundlesFetchPeriod;
 
     REGISTER_YSON_STRUCT(TClusterStateProviderConfig);
 
@@ -154,6 +160,8 @@ struct TBundleStateProviderConfig
     TDuration StateFetchPeriod;
     TDuration StatisticsFetchPeriod;
     TDuration PerformanceCountersFetchPeriod;
+
+    bool CheckInvariants;
 
     REGISTER_YSON_STRUCT(TBundleStateProviderConfig);
 

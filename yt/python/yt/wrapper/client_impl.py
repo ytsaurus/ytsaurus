@@ -781,8 +781,10 @@ class YtClient(ClientState):
 
     def dump_parquet(
             self,
-            table,
-            output_file=None, output_path=None, enable_several_files=False, unordered=False, file_compression_codec=None):
+            table: "Union[str, TablePath]",
+            output_file: "Optional[str]" = None, output_path: "Optional[str]" = None, enable_several_files: "Optional[bool]" = False,
+            unordered: "Optional[bool]" = False, file_compression_codec: "Optional[Union[Literal['uncompressed'], Literal['snappy'], Literal['gzip'], Literal['brotli'], Literal['zstd'], Literal['lz4'], Literal['lz4_frame'], Literal['lzo'], Literal['bz2'], Literal['lz4_hadoop']]]" = None,  # noqa
+            file_compression_level: "Optional[int]" = None):
         """
         Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
@@ -804,7 +806,7 @@ class YtClient(ClientState):
             table,
             client=self,
             output_file=output_file, output_path=output_path, enable_several_files=enable_several_files,
-            unordered=unordered, file_compression_codec=file_compression_codec)
+            unordered=unordered, file_compression_codec=file_compression_codec, file_compression_level=file_compression_level)
 
     def execute_batch(
             self,

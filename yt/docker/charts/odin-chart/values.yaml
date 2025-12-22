@@ -17,7 +17,7 @@ config:
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
       table: "//sys/odin/checks"
-      tabletCellBundle: "default"
+      tabletCellBundle: "sys"
     clusters:
       - proxy: "ytsaurus.http.proxy.tech"
         cluster: "minisaurus"

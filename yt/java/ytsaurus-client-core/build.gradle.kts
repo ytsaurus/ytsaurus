@@ -17,6 +17,9 @@ java {
 }
 
 dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
+    api("org.apache.commons:commons-math3:3.6.1")
+    api("com.google.guava:guava:31.0.1-jre")
     api(project(":yt:java:type-info"))
     api(project(":yt:java:yson"))
     api(project(":yt:java:yson-tree"))
@@ -24,9 +27,14 @@ dependencies {
     api(project(":yt:yt_proto:yt:formats"))
     api("com.google.protobuf:protobuf-java:4.33.0")
     testImplementation("com.google.protobuf:protobuf-java:4.33.0")
-    testImplementation("junit:junit:4.13")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.6.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.6.1")
     testImplementation("org.apache.logging.log4j:log4j-core:2.25.0")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.25.1")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 tasks.test {

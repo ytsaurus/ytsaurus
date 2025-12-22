@@ -67,6 +67,7 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingRootVolume)          ( 15))
     ((PreparingTmpfsVolumes)        ( 16))
     ((PreparingGpuCheckVolume)      ( 20))
+    ((LinkingVolumes)               ( 21))
     ((RunningCustomPreparations)    ( 24))
     ((PreparingSandboxDirectories)  ( 25))
     ((RunningSetupCommands)         ( 26))

@@ -196,7 +196,7 @@ class TestSequoiaInternals(YTEnvSetup):
         set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
 
         # First off, check that root node cannot appear opaque.
-        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": yson.YsonEntity(), "level_1_string": "level_1_value"}
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
         sleep(0.5)
         assert get(root) == expected_result
@@ -240,7 +240,7 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", f"{root}/child_1/grandchild_1")
         set(f"{root}/child_1/grandchild_1/@opaque", True)
 
-        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%false;>{};}'
+        expected_string = '<"opaque"=%false;>{"child_1"=<"opaque"=%true;>#;"child_2"=<"opaque"=%true;>#;}'
         assert get(root, attributes=["opaque"]) == yson.loads(expected_string.encode())
 
         root_id = get(f"{root}/@id")
@@ -249,7 +249,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         expected_string = \
             f'<"id"="{root_id}";"opaque"=%false;>' \
-            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%false;>{{}};}}'
+            f'{{"child_1"=<"id"="{child_1_id}";"opaque"=%true;>#;"child_2"=<"id"="{child_2_id}";"opaque"=%true;>#;}}'
         assert get(root, attributes=["opaque", "id"]) == yson.loads(expected_string.encode())
 
         set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)

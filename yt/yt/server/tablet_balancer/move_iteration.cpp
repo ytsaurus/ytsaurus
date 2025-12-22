@@ -10,6 +10,8 @@
 #include <yt/yt/server/lib/tablet_balancer/table.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTabletBalancer {
@@ -103,6 +105,49 @@ protected:
     const TBundleSnapshotPtr BundleSnapshot_;
     const TTabletBalancingGroupConfigPtr GroupConfig_;
     const TTabletBalancerDynamicConfigPtr DynamicConfig_;
+
+    std::vector<TMoveDescriptor> AnnotateSmoothMovementDescriptors(
+        std::vector<TMoveDescriptor> descriptors)
+    {
+        // EnableSmoothMovement flag occurs at global, bundle, group, and table levels.
+        // It may be true, false or unset at each of those levels. Smooth movement
+        // is enabled if at least one of the flags is true and none are false.
+        // NB: This behaviour is subject to change when smooth movement becomes stable enough.
+        bool hasTrue = false;
+        bool hasFalse = false;
+
+        auto onFlag = [&] (auto flag) {
+            if (flag) {
+                hasTrue |= *flag;
+                hasFalse |= !*flag;
+            }
+        };
+
+        onFlag(DynamicConfig_->EnableSmoothMovement);
+        onFlag(BundleSnapshot_->Bundle->Config->EnableSmoothMovement);
+        onFlag(GroupConfig_->EnableSmoothMovement);
+
+        if (hasFalse) {
+            return descriptors;
+        }
+
+        for (auto& descriptor : descriptors) {
+            const auto& tablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.TabletId);
+            const auto* table = tablet->Table;
+
+            if (!table->Sorted) {
+                continue;
+            }
+
+            if (TypeFromId(table->Id) != EObjectType::Table) {
+                continue;
+            }
+
+            descriptor.Smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
+        }
+
+        return descriptors;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +185,10 @@ public:
             /*movableTables*/ std::nullopt,
             Logger())
             .AsyncVia(invoker)
-            .Run();
+            .Run()
+            .Apply(BIND(
+                &TOrdinaryMoveIteration::AnnotateSmoothMovementDescriptors,
+                MakeStrong(this)));
     }
 
     TStringBuf GetActionSubtypeName() const override
@@ -191,7 +239,10 @@ public:
             /*ignoreTableWiseConfig*/ false,
             Logger())
             .AsyncVia(invoker)
-            .Run();
+            .Run()
+            .Apply(BIND(
+                &TInMemoryMoveIteration::AnnotateSmoothMovementDescriptors,
+                MakeStrong(this)));
     }
 
     TStringBuf GetActionSubtypeName() const override
@@ -285,7 +336,10 @@ public:
             MetricTracker_,
             Logger())
             .AsyncVia(invoker)
-            .Run();
+            .Run()
+            .Apply(BIND(
+                &TParameterizedMoveIteration::AnnotateSmoothMovementDescriptors,
+                MakeStrong(this)));
     }
 
     TStringBuf GetActionSubtypeName() const override
@@ -391,7 +445,10 @@ public:
             MetricTracker_,
             Logger())
             .AsyncVia(invoker)
-            .Run();
+            .Run()
+            .Apply(BIND(
+                &TReplicaMoveIteration::AnnotateSmoothMovementDescriptors,
+                MakeStrong(this)));
     }
 
     TStringBuf GetActionSubtypeName() const override

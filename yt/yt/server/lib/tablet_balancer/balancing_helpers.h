@@ -32,6 +32,7 @@ struct TMoveDescriptor
     TTabletId TabletId;
     TTabletCellId TabletCellId;
     TGuid CorrelationId;
+    bool Smooth = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -364,7 +364,8 @@ private:
             try {
                 DoAllocateStores(storeCount);
             } catch (const std::exception& ex) {
-                auto error = TError("Hunk tablet scanner failed to allocate stores")
+                auto error = TError(NTabletClient::EErrorCode::HunkStoreAllocationFailed,
+                    "Hunk tablet scanner failed to allocate stores")
                     << TError(ex);
                 Tablet_->OnStoreAllocationFailed(error);
                 THROW_ERROR(error);

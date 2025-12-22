@@ -539,6 +539,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         create("map_node", "//tmp/t")
         create("table", "//tmp/t/1", attributes={"schema": table_schema})
         create("table", "//tmp/t/2", attributes={"schema": table_schema})
+        create("table", "//tmp/t/empty", attributes={"schema": table_schema})
 
         write_table("//tmp/t/1", [{"a": i, "b": str(i), "c": 4 - i} for i in range(5)])
         write_table("//tmp/t/2", [{"a": i, "b": str(i), "c": 4 - i} for i in range(5, 10)])
@@ -547,6 +548,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t/2", [{"a": None, "b": None, "c": None}])
 
         with Clique(2, config_patch=patch, export_query_log=True) as clique:
+            assert clique.make_query("select min(a) from '//tmp/t/empty'") == [{"min(a)": None}]
             self.make_query_and_check_block_rows(
                 clique, query_log_path, "select min(a) from '//tmp/t/1'", 2, [{"min(a)": 0}]
             )

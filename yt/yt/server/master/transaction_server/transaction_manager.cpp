@@ -3885,6 +3885,10 @@ private:
             transactionSupervisor->OnProfiling(&buffer);
         }
 
+        if (const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher()) {
+            transactionFinisher->OnProfiling(&buffer);
+        }
+
         BufferedProducer_->Update(std::move(buffer));
     }
 

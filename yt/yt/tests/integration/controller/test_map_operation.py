@@ -2599,6 +2599,31 @@ print(json.dumps(input))
                 ],
             })
 
+    @authors("coteeq")
+    def test_rename_columns_for_output_tables(self):
+        # NB: Renaming is _not_ supported here. This test just checks that controller does not mind
+        # having "rename_columns" in path.
+        create_user("u")
+        create("table", "//tmp/t_in")
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            },
+        )
+
+        write_table("//tmp/t_in", [{"key": 42, "value": "hi"}])
+
+        map(
+            in_="//tmp/t_in",
+            out="<rename_columns={key=key1;value=value2;non_existent=non_existent}>//tmp/t_out",
+            command="cat",
+        )
+
 
 ##################################################################
 

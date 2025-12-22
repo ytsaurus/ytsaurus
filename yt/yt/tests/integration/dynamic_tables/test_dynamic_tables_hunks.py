@@ -1619,7 +1619,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i)} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
@@ -1651,7 +1651,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         hunk_store_id = self._get_active_store_id("//tmp/h")
 
         for i in range(len(rows)):
@@ -1799,7 +1799,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
@@ -1977,7 +1977,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         sync_unmount_table("//tmp/h")
@@ -2003,10 +2003,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         for i in range(5):
-            insert_rows(
+            self._insert_rows_with_hunk_storage(
                 "//tmp/t",
-                [{"$tablet_index": i, "key": i, "value": str(i) + "x" * 20}],
-            )
+                [{"$tablet_index": i, "key": i, "value": str(i) + "x" * 20}])
 
         sync_unmount_table("//tmp/t")
         sync_unmount_table("//tmp/h")
@@ -2043,7 +2042,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
         for i in range(4):
-            insert_rows(
+            self._insert_rows_with_hunk_storage(
                 "//tmp/t",
                 [{"$tablet_index": i, "key": i, "value": str(i) + "y" * 20}],
             )
@@ -2078,7 +2077,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
         sync_unmount_table("//tmp/h")
@@ -2114,7 +2113,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
         assert read_table("//tmp/t") == rows
@@ -2153,8 +2152,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t2")
 
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
-        insert_rows("//tmp/t1", rows)
-        insert_rows("//tmp/t2", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t1", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t2", rows)
 
         sync_unmount_table("//tmp/t1")
         sync_unmount_table("//tmp/t2")
@@ -2191,7 +2190,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/h")
 
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
@@ -2214,7 +2213,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
 
@@ -2251,7 +2250,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
 
@@ -3177,8 +3176,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert not exists("#{}/@compression_dictionary_id".format(dictionary_ids[1]))
 
         self._perform_forced_compaction("//tmp/t", "compaction")
+        wait(lambda: len(self._find_referenced_dictionary_hunk_chunks("//tmp/t", 1)) == 1)
         dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 1)
-        wait(lambda: len(dictionary_ids) == 1)
         assert dictionary_ids[0] in new_dictionary_ids and dictionary_ids[0] != old_dictionary_id
 
         assert get("#{}/@compression_dictionary_id".format(self._get_store_chunk_ids("//tmp/t")[0])) == dictionary_ids[0]

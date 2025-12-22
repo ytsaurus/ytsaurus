@@ -50,6 +50,7 @@ struct TJobWorkspaceBuildingContext
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
+    std::vector<TTmpfsVolumeResult> PreparedTmpfsVolumes;
 
     bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
@@ -87,6 +88,9 @@ struct TJobWorkspaceBuilderTimePoints
 
     std::optional<TInstant> GpuCheckStartTime;
     std::optional<TInstant> GpuCheckFinishTime;
+
+    std::optional<TInstant> LinkTmpfsVolumesStartTime;
+    std::optional<TInstant> LinkTmpfsVolumesFinishTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +132,8 @@ protected:
     virtual TFuture<void> DoPrepareTmpfsVolumes() = 0;
 
     virtual TFuture<void> DoPrepareGpuCheckVolume() = 0;
+
+    virtual TFuture<void> DoLinkTmpfsVolumes() = 0;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 

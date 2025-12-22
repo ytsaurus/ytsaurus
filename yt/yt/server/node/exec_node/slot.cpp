@@ -391,7 +391,7 @@ public:
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
         return Location_->CreateTmpfsDirectoriesInsideSandbox(userSandboxPath, volumeParams)
-            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), volumeParams, this, this_ = MakeStrong(this)]() {
+            .Apply(BIND([userSandboxPath = std::move(userSandboxPath), rootVolume, volumeParams, this, this_ = MakeStrong(this)]() mutable {
                 // Check if tmpfs volumes are enabled only after tmpfs directories are created.
                 if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
                     YT_LOG_INFO("Do not prepare tmpfs volumes since tmpfs is disabled in slot manager");
@@ -401,17 +401,19 @@ public:
                 return RunPreparationAction(
                     /*actionName*/ "PrepareTmpfsVolumes",
                     /*uncancelable*/ false,
-                    [userSandboxPath = std::move(userSandboxPath), volumeParams, this, this_ = MakeStrong(this)] {
+                    [userSandboxPath = std::move(userSandboxPath), rootVolume = std::move(rootVolume), volumeParams = std::move(volumeParams), this, this_ = MakeStrong(this)] {
                         return VolumeManager_->PrepareTmpfsVolumes(userSandboxPath, volumeParams)
-                            .AsUnique().Apply(BIND([volumeParams, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                            .AsUnique().Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
                                 if (!volumeResultsOrError.IsOK()) {
                                     THROW_ERROR_EXCEPTION("Failed to prepare tmpfs volumes: %v",
                                         volumeResultsOrError);
                                 }
 
+                                auto& volumeResults = volumeResultsOrError.Value();
+
                                 // Inform slot location about tmpfses to be used.
-                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, volumeParams);
-                                return volumeResultsOrError.Value();
+                                Location_->TakeIntoAccountTmpfsVolumes(SlotIndex_, rootVolume, volumeResults);
+                                return std::move(volumeResults);
                             })
                             .AsyncVia(Bootstrap_->GetJobInvoker()));
                     });
@@ -665,6 +667,17 @@ public:
                 SlotIndex_,
                 sandboxKind);
         }
+    }
+
+    void ValidateEnabled() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        if (!IsEnabled_.load()) {
+            THROW_ERROR_EXCEPTION("User slot is disabled")
+                << TErrorAttribute("slot_index", SlotIndex_);
+        }
+
+        Location_->ValidateEnabled();
     }
 
 private:

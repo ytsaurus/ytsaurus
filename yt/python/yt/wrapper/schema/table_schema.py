@@ -50,8 +50,8 @@ class ColumnSchema:
     def __init__(
         self,
         name: str,
-        type,
-        sort_order=None,
+        type: typing.Union[ti.type_base.Type, typing.Type],
+        sort_order: typing.Optional[typing.Literal["ascending", "descending"]] = None,
         group: typing.Optional[str] = None,
         aggregate: typing.Optional[str] = None,
         expression: typing.Optional[str] = None,
@@ -148,7 +148,12 @@ class TableSchema:
     See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
     """
 
-    def __init__(self, columns=None, strict=None, unique_keys=None):
+    def __init__(
+        self,
+        columns: typing.Optional[typing.List[ColumnSchema]] = None,
+        strict: typing.Optional[bool] = None,
+        unique_keys: typing.Optional[bool] = None,
+    ):
         if columns is None:
             self.columns = []
         else:

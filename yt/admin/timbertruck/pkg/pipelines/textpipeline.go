@@ -24,11 +24,15 @@ type TextPipelineOptions struct {
 
 	// Size of internal buffer. BufferLimit must be > LineLimit.
 	BufferLimit int
+
+	// OnTruncatedRow is called when a row is truncated.
+	OnTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
 }
 
 type textFollower struct {
-	logger    *slog.Logger
-	lineLimit int
+	logger         *slog.Logger
+	lineLimit      int
+	onTruncatedRow func(data io.WriterTo, info SkippedRowInfo)
 
 	file LogFile
 
@@ -38,6 +42,7 @@ type textFollower struct {
 	scanEnd int
 
 	beginPosition FilePosition
+	readErr       error
 }
 
 func NewTextPipeline(
@@ -57,10 +62,11 @@ func NewTextPipeline(
 	}
 
 	root := &textFollower{
-		logger:    logger,
-		lineLimit: options.LineLimit,
-		file:      file,
-		buffer:    make([]byte, options.BufferLimit),
+		logger:         logger,
+		lineLimit:      options.LineLimit,
+		onTruncatedRow: options.OnTruncatedRow,
+		file:           file,
+		buffer:         make([]byte, options.BufferLimit),
 	}
 	p, s = NewPipelineFromRootTransform(root, root.stop)
 	return
@@ -77,15 +83,36 @@ func (t *textFollower) rewind() {
 	t.begin = 0
 }
 
-func (t *textFollower) skipBrokenLine(ctx context.Context) (err error) {
-	for !t.searchLineEnd() {
+// writeBrokenLineTo writes a line that hasn't been fully read yet (no newline found in buffer).
+func (t *textFollower) writeBrokenLineTo(ctx context.Context, writer io.Writer) (n int64, err error) {
+	written, err := writer.Write(t.buffer[t.begin:t.end])
+	n = int64(written)
+	if err != nil {
+		return
+	}
+
+	for {
 		t.begin = 0
 		t.scanEnd = 0
 		t.end, err = t.file.ReadContext(ctx, t.buffer)
 		if err != nil {
+			t.readErr = err
+			return
+		}
+
+		if t.searchLineEnd() {
+			break
+		}
+
+		written, err = writer.Write(t.buffer[:t.end])
+		n += int64(written)
+		if err != nil {
 			return
 		}
 	}
+	written, err = writer.Write(t.buffer[:t.scanEnd])
+	n += int64(written)
+
 	t.beginPosition = t.lineEndPosition()
 	t.begin = t.scanEnd
 	return
@@ -117,6 +144,16 @@ func (t *textFollower) lineEndPosition() FilePosition {
 	}
 }
 
+// computeMetaEnd computes the end position for a line, accounting for truncated bytes.
+func (t *textFollower) computeMetaEnd(truncatedBytes int64) FilePosition {
+	lineEndPos := t.lineEndPosition()
+	return FilePosition{
+		LogicalOffset:       lineEndPos.LogicalOffset - truncatedBytes,
+		BlockPhysicalOffset: lineEndPos.BlockPhysicalOffset,
+		InsideBlockOffset:   max(0, lineEndPos.InsideBlockOffset-truncatedBytes),
+	}
+}
+
 func (t *textFollower) emitAllLines(ctx context.Context, emit EmitFunc[TextLine]) {
 	for t.searchLineEnd() {
 		t.emitLine(ctx, emit)
@@ -127,27 +164,30 @@ func (t *textFollower) emitAllLines(ctx context.Context, emit EmitFunc[TextLine]
 }
 
 func (t *textFollower) emitLine(ctx context.Context, emit EmitFunc[TextLine]) {
-	meta := RowMeta{}
-	meta.Begin = t.beginPosition
-
 	line := TextLine{}
 	line.Bytes = t.buffer[t.begin:t.scanEnd]
 	truncatedBytes := 0
 	if len(line.Bytes) > t.lineLimit {
+		t.onTruncatedRow(
+			bytes.NewBuffer(line.Bytes),
+			SkippedRowInfo{
+				Reason: SkipRowReasonTruncated,
+				Offset: t.beginPosition,
+				Attrs:  map[string]any{"size": len(line.Bytes)},
+			},
+		)
 		line.Truncated = true
 		truncatedBytes = len(line.Bytes) - t.lineLimit
 		line.Bytes = line.Bytes[:t.lineLimit]
 	}
 
-	lineEndPos := t.lineEndPosition()
-	meta.End = FilePosition{
-		LogicalOffset:       lineEndPos.LogicalOffset - int64(truncatedBytes),
-		BlockPhysicalOffset: lineEndPos.BlockPhysicalOffset,
-		InsideBlockOffset:   max(0, lineEndPos.InsideBlockOffset-int64(truncatedBytes)), // 0 for uncompressed file
+	meta := RowMeta{
+		Begin: t.beginPosition,
+		End:   t.computeMetaEnd(int64(truncatedBytes)),
 	}
 	emit(ctx, meta, line)
 
-	t.beginPosition = lineEndPos
+	t.beginPosition = t.lineEndPosition()
 	t.begin = t.scanEnd
 }
 
@@ -163,8 +203,43 @@ func (t *textFollower) emitRemainingLines(ctx context.Context, emit EmitFunc[Tex
 	}
 }
 
+// emitOversizedLine handles lines that exceed lineLimit and have no newline in the buffer.
+// It emits the first lineLimit bytes and writes the full line to skipped rows file.
+func (t *textFollower) emitOversizedLine(ctx context.Context, emit EmitFunc[TextLine]) {
+	if t.begin+t.lineLimit > t.end {
+		panic(fmt.Sprintf("emitOversizedLine: buffer doesn't have enough data for lineLimit: begin=%d, lineLimit=%d, end=%d", t.begin, t.lineLimit, t.end))
+	}
+	line := TextLine{
+		Bytes:     t.buffer[t.begin : t.begin+t.lineLimit],
+		Truncated: true,
+	}
+	meta := RowMeta{
+		Begin: t.beginPosition,
+		End:   t.computeMetaEnd(int64(t.end - t.begin - t.lineLimit)),
+	}
+	emit(ctx, meta, line)
+
+	// The line is not fully read yet (no newline found), so we use brokenLineWriter
+	// to continue reading and streaming the full line from the file.
+	brokenLineWriterCalled := false
+	brokenLineWriter := writerToFunc(func(w io.Writer) (int64, error) {
+		if brokenLineWriterCalled {
+			panic("writeBrokenLineTo was called more than once")
+		}
+		brokenLineWriterCalled = true
+		return t.writeBrokenLineTo(ctx, w)
+	})
+	t.onTruncatedRow(brokenLineWriter, SkippedRowInfo{
+		Reason: SkipRowReasonTruncated,
+		Offset: t.beginPosition,
+	})
+
+	if !brokenLineWriterCalled {
+		panic("onTruncatedRow did not call WriteTo on brokenLineWriter")
+	}
+}
+
 func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit EmitFunc[TextLine]) {
-	var err error
 	for {
 		avail := len(t.buffer) - t.end
 		if avail < t.lineLimit {
@@ -174,32 +249,32 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 			panic(fmt.Sprintf("Internal error len(t.buffer) == %v && t.end == %v", len(t.buffer), t.end))
 		}
 		var read int
-		read, err = t.file.ReadContext(ctx, t.buffer[t.end:])
+		read, t.readErr = t.file.ReadContext(ctx, t.buffer[t.end:])
 		t.end += read
-		if err != nil {
+		if t.readErr != nil {
 			break
 		}
 
 		t.emitAllLines(ctx, emit)
 
 		if t.end-t.begin > t.lineLimit {
-			t.emitLine(ctx, emit)
-			err = t.skipBrokenLine(ctx)
-			if err != nil {
+			t.emitOversizedLine(ctx, emit)
+
+			if t.readErr != nil {
 				break
 			}
-			// After skipBrokenLine, emit all remaining lines in buffer.
+			// After processing oversized line, emit all remaining lines in buffer.
 			t.emitAllLines(ctx, emit)
 		}
 	}
 
-	if errors.Is(err, io.EOF) {
+	if errors.Is(t.readErr, io.EOF) {
 		t.emitRemainingLines(ctx, emit)
-	} else if errors.Is(err, io.ErrUnexpectedEOF) {
-		t.logger.Warn("Unexpected EOF: file may be corrupted", "error", err, "end_position", t.file.FilePosition())
+	} else if errors.Is(t.readErr, io.ErrUnexpectedEOF) {
+		t.logger.Warn("Unexpected EOF: file may be corrupted", "error", t.readErr, "end_position", t.file.FilePosition())
 		t.emitRemainingLines(ctx, emit)
-	} else if err != nil && !errors.Is(err, context.Canceled) {
-		panic(fmt.Sprintf("unexpected error while reading file: %s", err.Error()))
+	} else if t.readErr != nil && !errors.Is(t.readErr, context.Canceled) {
+		panic(fmt.Sprintf("unexpected error while reading file: %s", t.readErr.Error()))
 	}
 }
 
@@ -207,10 +282,17 @@ func (t *textFollower) Close(ctx context.Context, out EmitFunc[TextLine]) {
 	_ = t.file.Close()
 }
 
+// writerToFunc adapts a function to io.WriterTo interface.
+type writerToFunc func(io.Writer) (int64, error)
+
+func (f writerToFunc) WriteTo(w io.Writer) (int64, error) {
+	return f(w)
+}
+
 func NewDiscardTruncatedLinesTransform(logger *slog.Logger) Transform[TextLine, []byte] {
 	return NewFuncTransform(func(ctx context.Context, meta RowMeta, line TextLine, emit EmitFunc[[]byte]) {
 		if line.Truncated {
-			logger.Warn("Detected truncated line", "offset", meta.Begin)
+			logger.Debug("Detected truncated line", "offset", meta.Begin)
 		} else {
 			emit(ctx, meta, line.Bytes)
 		}
@@ -219,7 +301,7 @@ func NewDiscardTruncatedLinesTransform(logger *slog.Logger) Transform[TextLine, 
 
 func NewDiscardEmptyLinesTransform(logger *slog.Logger) Transform[TextLine, TextLine] {
 	return NewFuncTransform(func(ctx context.Context, meta RowMeta, line TextLine, emit EmitFunc[TextLine]) {
-		if len(line.Bytes) == 0 {
+		if len(bytes.TrimSpace(line.Bytes)) == 0 {
 			logger.Debug("Detected empty line, skipping", "offset", meta.Begin)
 		} else {
 			emit(ctx, meta, line)
