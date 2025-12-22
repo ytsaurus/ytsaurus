@@ -913,8 +913,8 @@ extend google.protobuf.FieldOptions
     // Sets custom field name in generated cpp code.
     optional string custom_cpp_camel_case_name = 31054;
 
-    // Allows to overwrite certain base options.
-    repeated string allow_mixin_overwrite_options = 31036;
+    // List of option names that must not be overridden by mixins.
+    repeated string pin_field_options = 31036;
 
     // Defines attribute used to store latest touch timestamp only.
     optional bool is_timestamp_attribute = 31037;
@@ -1004,6 +1004,12 @@ extend google.protobuf.EnumOptions
 {
     // The file into which this enum should be exported.
     optional string enum_output_filename = 33006;
+}
+
+extend google.protobuf.EnumValueOptions
+{
+    // List of option names that must not be overridden by mixins.
+    repeated string pin_enum_value_options = 33007;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
