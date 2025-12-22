@@ -795,9 +795,3 @@ class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
-
-    @authors("coteeq")
-    def test_read_partition_rls(self):
-        # This is actually an xfail, because RPC driver does not know how to output partitions yet.
-        with raises_yt_error("Table schemas are unknown"):
-            super().test_read_partition_rls()
