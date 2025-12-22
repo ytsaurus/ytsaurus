@@ -920,20 +920,20 @@ class TestListJobs(TestListJobsCommon):
                     "master": {
                         "job_count": 1,
                         "command": ":",
-                        "distributed_job_options": {"factor": 2},
+                        "collective_options": {"size": 2},
                     },
                 },
             },
         )
         wait(lambda: len(op.list_jobs()) == 2)
         main, replica = sorted(
-            list_jobs(op.id, attributes=["distributed_group_job_index", "distributed_group_main_job_id"])["jobs"],
-            key=lambda job: job["distributed_group_job_index"],
+            list_jobs(op.id, attributes=["collective_member_rank", "collective_id"])["jobs"],
+            key=lambda job: job["collective_member_rank"],
         )
-        assert main["distributed_group_main_job_id"] == main["id"]
-        assert main["distributed_group_job_index"] == 0
-        assert replica["distributed_group_main_job_id"] == main["id"]
-        assert replica["distributed_group_job_index"] == 1
+        assert main["collective_id"] == main["id"]
+        assert main["collective_member_rank"] == 0
+        assert replica["collective_id"] == main["id"]
+        assert replica["collective_member_rank"] == 1
 
     @authors("gritukan")
     def test_task_name(self):

@@ -1429,16 +1429,16 @@ DEFINE_REFCOUNTED_TYPE(TSidecarJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDistributedJobOptions
+struct TCollectiveOptions
     : public NYTree::TYsonStruct
 {
-    int Factor;
+    int Size;
 
-    REGISTER_YSON_STRUCT(TDistributedJobOptions);
+    REGISTER_YSON_STRUCT(TCollectiveOptions);
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDistributedJobOptions)
+DEFINE_REFCOUNTED_TYPE(TCollectiveOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1627,7 +1627,7 @@ struct TUserJobSpec
     //! This option applicable only in case of separate root volume.
     bool EnableGpuCheck;
 
-    TDistributedJobOptionsPtr DistributedJobOptions;
+    TCollectiveOptionsPtr CollectiveOptions;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.

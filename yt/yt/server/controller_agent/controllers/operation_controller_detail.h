@@ -716,7 +716,7 @@ protected:
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
-    void ValidateDistributedJobOptions();
+    void ValidateCollectiveOptions();
     void ValidateSecureVault();
 
     // Preparation.
@@ -1496,7 +1496,7 @@ private:
     void UpdatePreemptibleProgressStartTime(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
-    void ReportJobDistributedGroupInfo(const TJobletPtr& joblet) const;
+    void ReportJobCollectiveInfo(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;

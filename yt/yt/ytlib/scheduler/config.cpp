@@ -1223,9 +1223,9 @@ void TJobExperimentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDistributedJobOptions::Register(TRegistrar registrar)
+void TCollectiveOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("factor", &TThis::Factor)
+    registrar.Parameter("size", &TThis::Size)
         .GreaterThan(1);
 }
 
@@ -1382,7 +1382,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
         .Default(false);
-    registrar.Parameter("distributed_job_options", &TThis::DistributedJobOptions)
+    registrar.Parameter("collective_options", &TThis::CollectiveOptions)
         .Default();
     registrar.Parameter("job_speculation_timeout", &TThis::JobSpeculationTimeout)
         .Default()
@@ -2594,7 +2594,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
-        TStringBuf distributedJobsTaskName;
+        TStringBuf collectiveTaskName;
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
@@ -2610,8 +2610,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
-            if (taskSpec->DistributedJobOptions) {
-                distributedJobsTaskName = taskName;
+            if (taskSpec->CollectiveOptions) {
+                collectiveTaskName = taskName;
             }
             if (taskSpec->GangOptions) {
                 taskWithGangOptionsName = taskName;
@@ -2627,9 +2627,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (taskWithGangOptionsName && distributedJobsTaskName) {
+        if (taskWithGangOptionsName && collectiveTaskName) {
             THROW_ERROR_EXCEPTION(
-                "Operation with \"distributed_job_options\" can not have tasks with \"gang_options\"")
+                "Operation with \"collective_options\" can not have tasks with \"gang_options\"")
                 << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
         }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {

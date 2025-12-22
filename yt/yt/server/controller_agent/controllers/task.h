@@ -10,7 +10,7 @@
 #include "job_splitter.h"
 #include "helpers.h"
 #include "probing_job_manager.h"
-#include "distributed_job_manager.h"
+#include "job_collective_manager.h"
 #include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -448,8 +448,8 @@ private:
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
-    TDistributedJobManager DistributedJobManager_;
-    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &DistributedJobManager_};
+    TJobCollectiveManager JobCollectiveManager_;
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &JobCollectiveManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -510,7 +510,7 @@ private:
     {
         std::optional<EJobCompetitionType> CompetitionType;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
-        int DistributedGroupJobIndex = 0;
+        int CollectiveMemberRank = 0;
     };
 
     std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(
