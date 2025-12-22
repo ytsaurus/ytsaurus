@@ -97,6 +97,11 @@ func From[T any](v *T) T {
 	return *v
 }
 
+// EqualVal nil-safe compare dereference values. True if both pointers are nil
+func EqualVal[T comparable](v *T, w *T) bool {
+	return (v == nil && w == nil) || (v != nil && w != nil && *v == *w)
+}
+
 // isZero checks if provided value is empty value for the T
 func isZero[T comparable](v T) bool {
 	var t T

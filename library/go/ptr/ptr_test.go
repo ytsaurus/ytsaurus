@@ -98,3 +98,57 @@ func TestTOrNilStruct(t *testing.T) {
 		})
 	}
 }
+
+func TestEqualVal(t *testing.T) {
+	type S struct {
+		i int
+		s string
+	}
+
+	tests := []struct {
+		name string
+		v    *S
+		w    *S
+		want bool
+	}{
+		{
+			name: "equal nil",
+			v:    nil,
+			w:    nil,
+			want: true,
+		},
+		{
+			name: "v nil",
+			v:    nil,
+			w:    T(S{i: 0, s: "s"}),
+			want: false,
+		},
+		{
+			name: "w nil",
+			v:    T(S{i: 9, s: "c"}),
+			w:    nil,
+			want: false,
+		},
+		{
+			name: "equal non-nil",
+			v:    T(S{i: 1, s: "a"}),
+			w:    T(S{i: 1, s: "a"}),
+			want: true,
+		},
+		{
+			name: "not equal non-nil",
+			v:    T(S{i: 1, s: "a"}),
+			w:    T(S{i: 5, s: "a"}),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EqualVal(tt.v, tt.w)
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+}
