@@ -108,6 +108,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((UseCounterGuardsInChunkPoolMerger)     (302201))
     ((FileRlsReadSpec)                       (302202))
     ((DropExcessFieldsInOrderedController)   (302203))
+    ((ChunkPoolStatistics)                   (302204))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
