@@ -945,16 +945,16 @@ echo {v = 2} >&7
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
-                command='if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then sleep infinity; else echo secondary; fi',
+                command='if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then sleep infinity; else echo slave; fi',
                 reduce_by=["key"],
-                spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
+                spec={"reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             )
         op = reduce(
             in_="//tmp/in",
             out="//tmp/out",
-            command=with_breakpoint('if [ "$YT_DISTRIBUTED_GROUP_JOB_INDEX" == 0 ]; then BREAKPOINT; cat; echo primary>&2; else echo secondary>&2; fi'),
+            command=with_breakpoint('if [ "$YT_COLLECTIVE_MEMBER_RANK" == 0 ]; then BREAKPOINT; cat; echo master>&2; else echo slave>&2; fi'),
             reduce_by=["key"],
-            spec={"reducer": {"distributed_job_options": {"factor": 2}, "close_stdout_if_unused": True}, "job_count": 1},
+            spec={"reducer": {"collective_options": {"size": 2}, "close_stdout_if_unused": True}, "job_count": 1},
             track=False,
         )
         wait_breakpoint(job_count=1)
@@ -966,8 +966,8 @@ echo {v = 2} >&7
         stderrs_bytes = {op.read_stderr(job_id).decode() for job_id in job_ids}
 
         assert stderrs_bytes == {
-            "primary\n",
-            "secondary\n",
+            "master\n",
+            "slave\n",
         }
 
         assert not get("//tmp/out/@sorted")
