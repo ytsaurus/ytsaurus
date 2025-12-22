@@ -706,6 +706,12 @@ public: \
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options),
         (jobId, shellName, parameters, options))
+    IMPLEMENT_METHOD(NConcurrency::IAsyncZeroCopyInputStreamPtr, RunJobShellCommand, (
+        NScheduler::TJobId jobId,
+        const std::optional<std::string>& shellName,
+        const std::string& command,
+        const TRunJobShellCommandOptions& options),
+        (jobId, shellName, command, options))
     IMPLEMENT_METHOD(void, AbortJob, (
         NScheduler::TJobId jobId,
         const TAbortJobOptions& options),

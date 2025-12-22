@@ -766,6 +766,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbandonJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PollJobShell);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RunJobShellCommand);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobProxyLog);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LookupRows);
@@ -1106,6 +1107,9 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PollJobShell));
+    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RunJobShellCommand)
+        .SetStreamingEnabled(true)
+        .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
@@ -4042,6 +4046,30 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PollJobShell)
         });
 }
 
+DEFINE_RPC_SERVICE_METHOD(TApiService, RunJobShellCommand)
+{
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
+    auto jobId = FromProto<TJobId>(request->job_id());
+    auto command = request->command();
+    auto shellName = request->has_shell_name()
+        ? std::optional<std::string>(request->shell_name())
+        : std::nullopt;
+
+    TRunJobShellCommandOptions options;
+    SetTimeoutOptions(&options, context.Get());
+
+    context->SetRequestInfo("JobId: %v, Command: %v, ShellName: %v",
+        jobId,
+        command,
+        shellName);
+
+    auto inputStream = WaitFor(client->RunJobShellCommand(jobId, shellName, command, options))
+        .ValueOrThrow();
+
+    HandleInputStreamingRequest(context, inputStream);
+}
+
 DEFINE_RPC_SERVICE_METHOD(TApiService, AbortJob)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -5999,7 +6027,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RequestRestart)
     context->SetRequestInfo("NodeAddress: %v", nodeAddress);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
-
     ExecuteCall(
         context,
         [=] {
@@ -6997,7 +7024,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteFileSession)
     TRichYPath path;
     TDistributedWriteFileSessionStartOptions options;
     ParseRequest(&path, &options, *request);
-
     context->SetRequestInfo(
         "Path: %v",
         path);
