@@ -80,6 +80,7 @@ public:
         , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
+        , BuildFirstJobOnFinishedInput_(options.BuildFirstJobOnFinishedInput)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -110,7 +111,8 @@ public:
             "Unordered chunk pool created (DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
             "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
-            "SamplingRate: %v, JobCount: %v, IsExplicitJobCount: %v, HasJobSizeAdjuster: %v)",
+            "SamplingRate: %v, JobCount: %v, IsExplicitJobCount: %v, HasJobSizeAdjuster: %v, "
+            "BuildFirstJobOnFinishedInput: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetCompressedDataSizePerJob(),
@@ -121,7 +123,8 @@ public:
             JobSizeConstraints_->GetSamplingRate(),
             JobSizeConstraints_->GetJobCount(),
             JobSizeConstraints_->IsExplicitJobCount(),
-            static_cast<bool>(JobSizeAdjuster_));
+            static_cast<bool>(JobSizeAdjuster_),
+            BuildFirstJobOnFinishedInput_);
 
         UpdateFreeJobCounter();
     }
@@ -151,11 +154,19 @@ public:
 
     void Finish() override
     {
-        if (!Finished) {
-            TChunkPoolInputBase::Finish();
+        if (Finished) {
+            return;
         }
 
+        TChunkPoolInputBase::Finish();
+
         UpdateFreeJobCounter();
+
+        // Option allows building only single job to allow job size adjuster adjust the size of future jobs.
+        if (BuildFirstJobOnFinishedInput_ && AddJobToJobManager()) {
+            YT_LOG_DEBUG("Job was build after input finish (JobCounter: %v)", JobCounter_);
+        }
+
         CheckCompleted();
     }
 
@@ -274,91 +285,11 @@ public:
             const auto& jobManagerJobCounter = JobManager_->JobCounter();
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
-
-                i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
-                i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
-
-                auto jobStub = std::make_unique<TNewJobStub>();
-
-                // Take local chunks first.
-                std::optional<int> stripeIndexesSize;
-                if (nodeId != InvalidNodeId) {
-                    auto it = NodeIdToEntry_.find(nodeId);
-                    if (it != NodeIdToEntry_.end()) {
-                        const auto& entry = it->second;
-                        stripeIndexesSize = std::ssize(entry.StripeIndexes);
-                        AddStripesToJob(
-                            jobStub.get(),
-                            entry.StripeIndexes.begin(),
-                            entry.StripeIndexes.end(),
-                            idealDataWeightPerJob,
-                            idealCompressedDataSizePerJob);
-                    }
-                }
-
-                // Take non-local chunks.
-                int freeStripesSize = std::ssize(FreeStripes_);
-                AddStripesToJob(
-                    jobStub.get(),
-                    FreeStripes_.begin(),
-                    FreeStripes_.end(),
-                    idealDataWeightPerJob,
-                    idealCompressedDataSizePerJob);
-
-                jobStub->Finalize();
-
-                if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
-                    YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
-                    auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices().back();
-                    if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
-                        TryTeleportChunk(dataSlice))
-                    {
-                        YT_LOG_DEBUG("Teleported single chunk (ChunkId: %v, NodeId: %v, IdealDataWeightPerJob: %v, TableIndex: %v, "
-                                "ChunkCount: %v, DataWeight: %v, RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
-                                "IsTeleportable: %v, IsLegacy: %v, HasLimits: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, "
-                                "LowerLimit: %v, UpperLimit: %v, StripeIndexesSize: %v, FreeStripesSize: %v, Pending: %v, Blocked: %v)",
-                            dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
-                            nodeId,
-                            idealDataWeightPerJob,
-                            dataSlice->GetTableIndex(),
-                            dataSlice->GetChunkCount(),
-                            dataSlice->GetDataWeight(),
-                            dataSlice->GetRowCount(),
-                            dataSlice->GetValueCount(),
-                            dataSlice->GetMaxBlockSize(),
-                            dataSlice->GetRangeIndex(),
-                            dataSlice->IsTrivial(),
-                            dataSlice->IsTeleportable,
-                            dataSlice->IsLegacy,
-                            dataSlice->HasLimits(),
-                            dataSlice->LegacyLowerLimit(),
-                            dataSlice->LegacyUpperLimit(),
-                            dataSlice->LowerLimit(),
-                            dataSlice->UpperLimit(),
-                            stripeIndexesSize,
-                            freeStripesSize,
-                            jobCounter->GetPending(),
-                            jobCounter->GetBlocked());
-
-                        // We have teleported single chunk so there is no need for a job.
-                        UpdateFreeJobCounter();
-                        CheckCompleted();
-                        continue;
-                    }
-                }
-
-                JobManager_->AddJob(std::move(jobStub));
-
-                if (JobSizeConstraints_->IsExplicitJobCount()) {
-                    FreeJobCounter_->AddPending(-1);
-                    YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
-                }
+                AddJobToJobManager(nodeId);
             }
 
-            YT_VERIFY(jobManagerJobCounter->GetPending() > 0);
             cookie = JobManager_->ExtractCookie();
 
-            UpdateFreeJobCounter();
             CheckCompleted();
         }
 
@@ -515,6 +446,8 @@ private:
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
 
+    bool BuildFirstJobOnFinishedInput_ = false;
+
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
     {
@@ -528,12 +461,98 @@ private:
 
         const auto& chunk = dataSlice->GetSingleUnversionedChunk();
 
-        if (chunk->IsCompleteChunk()) {
-            if (Sampler_.Sample()) {
-                ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
-            } else {
-                // Drop this teleport chunk.
+        if (!chunk->IsCompleteChunk()) {
+            return false;
+        }
+
+        if (Sampler_.Sample()) {
+            ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
+        } else {
+            // Drop this teleport chunk.
+        }
+
+        const auto& jobCounter = GetJobCounter();
+
+        YT_LOG_DEBUG(
+            "Teleported single chunk (ChunkId: %v, TableIndex: %v, ChunkCount: %v, DataWeight: %v, "
+            "RowCount: %v, ValueCount: %v, MaxBlockSize: %v, RangeIndex: %v, IsTrivial: %v, "
+            "IsTeleportable: %v, IsLegacy: %v, HasLimits: %v, LegacyLowerLimit: %v, LegacyUpperLimit: %v, "
+            "LowerLimit: %v, UpperLimit: %v, Pending: %v, Blocked: %v)",
+            dataSlice->GetSingleUnversionedChunk()->GetChunkId(),
+            dataSlice->GetTableIndex(),
+            dataSlice->GetChunkCount(),
+            dataSlice->GetDataWeight(),
+            dataSlice->GetRowCount(),
+            dataSlice->GetValueCount(),
+            dataSlice->GetMaxBlockSize(),
+            dataSlice->GetRangeIndex(),
+            dataSlice->IsTrivial(),
+            dataSlice->IsTeleportable,
+            dataSlice->IsLegacy,
+            dataSlice->HasLimits(),
+            dataSlice->LegacyLowerLimit(),
+            dataSlice->LegacyUpperLimit(),
+            dataSlice->LowerLimit(),
+            dataSlice->UpperLimit(),
+            jobCounter->GetPending(),
+            jobCounter->GetBlocked());
+
+        return true;
+    }
+
+    bool AddJobToJobManager(TNodeId nodeId = InvalidNodeId)
+    {
+        while (!FreeStripes_.empty()) {
+            i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
+            i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
+
+            auto jobStub = std::make_unique<TNewJobStub>();
+
+            // Take local chunks first.
+            if (nodeId != InvalidNodeId) {
+                auto it = NodeIdToEntry_.find(nodeId);
+                if (it != NodeIdToEntry_.end()) {
+                    const auto& entry = it->second;
+                    AddStripesToJob(
+                        jobStub.get(),
+                        entry.StripeIndexes.begin(),
+                        entry.StripeIndexes.end(),
+                        idealDataWeightPerJob,
+                        idealCompressedDataSizePerJob);
+                }
             }
+
+            // Take non-local chunks.
+            AddStripesToJob(
+                jobStub.get(),
+                FreeStripes_.begin(),
+                FreeStripes_.end(),
+                idealDataWeightPerJob,
+                idealCompressedDataSizePerJob);
+
+            jobStub->Finalize();
+
+            if (jobStub->GetStripeList()->GetAggregateStatistics().ChunkCount == 1) {
+                YT_VERIFY(std::ssize(jobStub->GetStripeList()->Stripes()) == 1);
+                auto dataSlice = jobStub->GetStripeList()->Stripes().back()->DataSlices().back();
+                if (SingleChunkTeleportStrategy_ == ESingleChunkTeleportStrategy::Enabled &&
+                    TryTeleportChunk(dataSlice))
+                {
+                    // We have teleported single chunk so there is no need for a job.
+                    UpdateFreeJobCounter();
+                    CheckCompleted();
+                    continue;
+                }
+            }
+
+            JobManager_->AddJob(std::move(jobStub));
+
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                FreeJobCounter_->AddPending(-1);
+                YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
+            }
+
+            UpdateFreeJobCounter();
 
             return true;
         }
@@ -1016,6 +1035,7 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(21, IsCompleted_);
     PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_);
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
+    PHOENIX_REGISTER_FIELD(25, BuildFirstJobOnFinishedInput_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

@@ -104,6 +104,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropUnusedOutputCookieGenerator)       (302124))
     ((StorePreemptibleProgressInJoblets)     (302125))
     ((FileRlsReadSpec)                       (302126))
+    ((FixSimpleSort)                         (302127))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

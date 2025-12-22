@@ -880,7 +880,7 @@ protected:
             TSortControllerBase* controller,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
             std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
-            bool isFinalSort)
+            std::optional<bool> isFinalSort)
             : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
             , Controller_(controller)
             , IsFinalSort_(isFinalSort)
@@ -895,8 +895,7 @@ protected:
 
         void SetupJobCounters()
         {
-            // Cannot move it to ctor since GetJobCounter is a virtual function.
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 GetJobCounter()->AddParent(Controller_->FinalSortJobCounter_);
             } else {
                 GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter_);
@@ -923,7 +922,7 @@ protected:
 
         EJobType GetJobType() const override
         {
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 return Controller_->GetFinalSortJobType();
             } else {
                 return Controller_->GetIntermediateSortJobType();
@@ -941,7 +940,7 @@ protected:
             const TChunkStripePtr& stripe,
             const TOutputStreamDescriptorPtr& descriptor) override
         {
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 // Somehow we failed resuming a lost stripe in a sink. No comments.
                 TTask::OnStripeRegistrationFailed(error, cookie, stripe, descriptor);
             }
@@ -969,16 +968,19 @@ protected:
 
         bool IsFinal() const
         {
-            return IsFinalSort_;
+            YT_VERIFY(IsFinalSort_.has_value());
+            return *IsFinalSort_;
         }
 
     protected:
+        TSortControllerBase* Controller_ = nullptr;
+
         TExtendedJobResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
             if (Controller_->SimpleSortTask_) {
                 return Controller_->GetSimpleSortResources(stat);
             } else {
-                return Controller_->GetPartitionSortResources(IsFinalSort_, stat);
+                return Controller_->GetPartitionSortResources(IsFinal(), stat);
             }
         }
 
@@ -995,7 +997,7 @@ protected:
         {
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 jobSpec->CopyFrom(Controller_->FinalSortJobSpecTemplate_);
             } else {
                 jobSpec->CopyFrom(Controller_->IntermediateSortJobSpecTemplate_);
@@ -1010,7 +1012,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 Controller_->AccountRows(jobSummary);
 
                 RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
@@ -1051,7 +1053,7 @@ protected:
 
             Controller_->CheckMergeStartThreshold();
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 Controller_->UpdateTask(Controller_->SortedMergeTask_.Get());
             }
 
@@ -1072,7 +1074,7 @@ protected:
         {
             TTask::OnTaskCompleted();
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 Controller_->SortedMergeTask_->FinishInput();
                 Controller_->UpdateMergeTasks();
                 Controller_->ValidateMergeDataSliceLimit();
@@ -1086,16 +1088,13 @@ protected:
 
         void SetIsFinalSort(bool isFinalSort)
         {
+            YT_VERIFY(!IsFinalSort_.has_value());
             IsFinalSort_ = isFinalSort;
         }
 
-    protected:
-        TSortControllerBase* Controller_ = nullptr;
-
-        bool IsFinalSort_ = false;
-
     private:
         int CurrentInputStreamIndex_ = 0;
+        std::optional<bool> IsFinalSort_;
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortTaskBase, 0x184a5af8);
     };
@@ -1125,7 +1124,7 @@ protected:
         TDuration GetLocalityTimeout() const override
         {
             // Locality for one-job partition is not important.
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 return TDuration::Zero();
             }
 
@@ -1164,7 +1163,7 @@ protected:
 
         TUserJobSpecPtr GetUserJobSpec() const override
         {
-            return Controller_->GetSortUserJobSpec(IsFinalSort_);
+            return Controller_->GetSortUserJobSpec(IsFinal());
         }
 
         TInputChunkMappingPtr GetChunkMapping() const override
@@ -1191,7 +1190,7 @@ protected:
 
         bool IsActive() const override
         {
-            return Controller_->SortStartThresholdReached_ || IsFinalSort_;
+            return Controller_->SortStartThresholdReached_ || IsFinal();
         }
 
         bool HasInputLocality() const final
@@ -1246,7 +1245,7 @@ protected:
                     *jobSummary.TotalInputDataStatistics);
             }
 
-            if (!IsFinalSort_) {
+            if (!IsFinal()) {
                 auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
                 const auto& partition = Controller_->UnorderedFinalPartitions_[partitionIndex];
                 if (partition->ChunkPoolOutput()->IsCompleted()) {
@@ -1265,7 +1264,7 @@ protected:
         {
             TSortTaskBase::OnTaskCompleted();
 
-            if (IsFinalSort_)  {
+            if (IsFinal())  {
                 for (const auto& partition : Partitions_) {
                     Controller_->OnFinalPartitionCompleted(partition);
                 }
@@ -1285,18 +1284,22 @@ protected:
 
         TSimpleSortTask(
             TSortControllerBase* controller,
-            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
             IJobSizeConstraintsPtr jobSizeConstraints)
             : TSortTaskBase(
                 controller,
-                std::move(outputStreamDescriptors),
+                /*outputStreamDescriptors*/ {},
                 /*inputStreamDescriptors*/ {},
-                /*isFinalSort*/ true)
+                /*isFinalSort*/ std::nullopt)
             , ChunkPool_(CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
                     .JobSizeConstraints = std::move(jobSizeConstraints),
                     .RowBuffer = controller->RowBuffer_,
                     .Logger = Logger().WithTag("Name: SimpleSort"),
+                    // Build the first job from finished input to reliably determine the total job count.
+                    // This prevents incorrect strategy selection caused by the unordered chunk pool's
+                    // unpredictable behavior, which could otherwise cause job count estimates to
+                    // fluctuate between 1 and 2, leading to choosing final sort vs sorted merge incorrectly.
+                    .BuildFirstJobOnFinishedInput = true,
                 },
                 controller->GetInputStreamDirectory()))
         {
@@ -1331,20 +1334,9 @@ protected:
 
             YT_VERIFY(std::ssize(Controller_->UnorderedFinalPartitions_) == 1);
             Controller_->SortedMergeTask_->Finalize();
-            if (IsFinalSort_) {
+            if (IsFinal()) {
                 ++Controller_->CompletedPartitionCount_;
             }
-        }
-
-        // TODO(max42, gritukan): this is a dirty way add sorted merge when we
-        // finally understand that it is needed. Re-write this.
-        void OnSortedMergeNeeded()
-        {
-            GetJobCounter()->RemoveParent(Controller_->FinalSortJobCounter_);
-            GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter_);
-
-            SetIsFinalSort(false);
-            OutputStreamDescriptors_ = {Controller_->GetSortedMergeStreamDescriptor()};
         }
 
         IChunkPoolOutput::TCookie ExtractCookieForAllocation(
@@ -1357,6 +1349,13 @@ protected:
                 YT_VERIFY(GetChunkPoolOutput()->GetJobCounter()->GetTotal() > 1);
             }
             return cookie;
+        }
+
+        void SetIsFinalSort(bool isFinalSort, std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors)
+        {
+            TSortTaskBase::SetIsFinalSort(isFinalSort);
+            YT_VERIFY(OutputStreamDescriptors_.empty());
+            OutputStreamDescriptors_ = std::move(outputStreamDescriptors);
         }
 
     private:
@@ -3426,16 +3425,13 @@ private:
 
         SimpleSortTask_ = New<TSimpleSortTask>(
             this,
-            /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
             jobSizeConstraints);
 
-        SimpleSortTask_->SetupJobCounters();
         RegisterTask(SimpleSortTask_);
 
-        SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         ProcessInputs(SimpleSortTask_, jobSizeConstraints);
 
-        FinishTaskInput(SimpleSortTask_);
+        SimpleSortTask_->FinishInput();
 
         auto decision = SimpleSortTask_->GetChunkPoolOutput()->GetJobCounter()->GetTotal() <= 1
             ? EPartitionDispatchDecision::SortInSingleJob
@@ -3458,10 +3454,16 @@ private:
 
         if (decision == EPartitionDispatchDecision::IntermediateSortAndMerge) {
             SortedMergeTask_->RegisterPartition(partition);
-            // TODO(apollo1321): Remove this dirty hack.
-            SimpleSortTask_->OnSortedMergeNeeded();
+
+            SimpleSortTask_->SetIsFinalSort(false, {GetSortedMergeStreamDescriptor()});
+            SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
+        } else {
+            SimpleSortTask_->SetIsFinalSort(true, GetFinalStreamDescriptors());
         }
 
+        SimpleSortTask_->SetupJobCounters();
+
+        SimpleSortTask_->RegisterInGraph(TDataFlowGraph::SourceDescriptor);
         UpdateTask(SimpleSortTask_.Get());
     }
 
