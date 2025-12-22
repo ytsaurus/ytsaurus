@@ -294,6 +294,8 @@ public:
         Usage_ = Profiler_.Gauge("/usage");
         Usage_.Update(0);
 
+        Acquired_ = Profiler_.Counter("/acquired");
+
         QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
         QueueTotalAmount_.Update(0);
 
@@ -316,6 +318,7 @@ private:
 
     TProfiler Profiler_;
     TGauge Limit_;
+    TCounter Acquired_;
     TGauge Usage_;
     TGauge QueueTotalAmount_;
     TTimeGauge EstimatedOverdraftDuration_;
@@ -329,6 +332,7 @@ private:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
+        Acquired_.Increment(amount);
         if (amount > 0) {
             Initialize();
         }
