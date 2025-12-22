@@ -1631,7 +1631,7 @@ int GetHyperLogLogPrecision(std::optional<int> inputPrecision)
         MinHyperLogLogPrecision,
         MaxHyperLogLogPrecision);
 
-    return MinHyperLogLogPrecision;
+    return *inputPrecision;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
