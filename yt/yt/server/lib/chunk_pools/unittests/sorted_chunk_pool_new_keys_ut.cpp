@@ -2086,6 +2086,114 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
     CheckEverything(stripeLists);
 }
 
+DEFINE_ENUM(ESliceByRowsWithForeignKind,
+    (Left)
+    (LeftCover)
+    (Inside)
+    (RightCover)
+    (Right)
+);
+
+class TSortedChunkPoolNewKeysTestSliceByRows
+    : public WithParamInterface<ESliceByRowsWithForeignKind>
+    , public TSortedChunkPoolNewKeysTest
+{ };
+
+TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 100_KB;
+    PrimaryDataWeightPerJob_ = 10_KB;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(2);
+    InitForeignComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto primarySlice = CreateDataSlice(CreateChunk(BuildRow({101, 5}), BuildRow({201, 5}), 0, 100_KB, 100'000));
+
+    std::vector<std::pair<bool, TLegacyDataSlicePtr>> foreignSlices;
+
+    switch (GetParam()) {
+        case ESliceByRowsWithForeignKind::Left: {
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({100}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({101}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({101}), BuildRow({101}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::LeftCover: {
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({100}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({100}), BuildRow({102}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::Inside: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({120}), BuildRow({180}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::RightCover: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({200}), BuildRow({202}), 1, 10_KB)));
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({202}), BuildRow({202}), 1, 10_KB)));
+            break;
+        }
+        case ESliceByRowsWithForeignKind::Right: {
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({201}), BuildRow({201}), 1, 10_KB)));
+            foreignSlices.emplace_back(true, CreateDataSlice(CreateChunk(BuildRow({201}), BuildRow({202}), 1, 10_KB)));
+            foreignSlices.emplace_back(false, CreateDataSlice(CreateChunk(BuildRow({202}), BuildRow({202}), 1, 10_KB)));
+            break;
+        }
+    }
+
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(primarySlice);
+
+    for (const auto& [_, slice] : foreignSlices) {
+        CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(slice);
+    }
+
+    CreateChunkPool();
+
+    AddDataSlice(primarySlice);
+    for (const auto& [_, slice] : foreignSlices) {
+        AddDataSlice(slice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(stripeLists.size(), 10u);
+    for (const auto& [mustAttach, originalForeignSlice] : foreignSlices) {
+        for (const auto& stripeList : stripeLists) {
+            ASSERT_EQ(stripeList->Stripes.size(), 2u);
+            const auto& foreignStripe = stripeList->Stripes[1];
+            bool attached = false;
+            for (const auto& slice : foreignStripe->DataSlices) {
+                if (originalForeignSlice->GetSingleUnversionedChunk()->GetChunkId() == slice->GetSingleUnversionedChunk()->GetChunkId()) {
+                    ASSERT_FALSE(attached);
+                    attached = true;
+                }
+            }
+            EXPECT_EQ(attached, mustAttach);
+        }
+
+    }
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+
+    CheckEverything(stripeLists);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Instantiate,
+    TSortedChunkPoolNewKeysTestSliceByRows,
+    ValuesIn(TEnumTraits<ESliceByRowsWithForeignKind>::GetDomainValues()),
+    [](const TestParamInfo<ESliceByRowsWithForeignKind>& info) {
+        return Format("%v", info.param);
+    });
+
 TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2594,6 +2702,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
 TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    Options_.ChunkPoolStatistics = New<TSortedChunkPoolStatistics>();
     InitTables(
         {false, true} /*isForeign*/,
         {false, false} /*isTeleportable*/,
@@ -2628,6 +2737,14 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
     auto stripeLists = GetAllStripeLists();
     EXPECT_GE(stripeLists.size(), 90u);
     EXPECT_LE(stripeLists.size(), 110u);
+
+    EXPECT_GE(Options_.ChunkPoolStatistics->ForeignSlicesCheckCountInDecideRowSliceability, 900);
+    // NB: This line checks that check count is proportional
+    // to (slice count + foreign slice count)
+    // rather than (slice count * foreign slice count).
+    // 1100 might be too strict for future code modifications, but for now
+    // there is no reason for it to be much greater.
+    EXPECT_LE(Options_.ChunkPoolStatistics->ForeignSlicesCheckCountInDecideRowSliceability, 1100);
 
     CheckEverything(stripeLists);
 }

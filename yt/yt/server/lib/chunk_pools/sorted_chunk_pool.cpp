@@ -9,6 +9,27 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSortedChunkPoolStatistics::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, ForeignSlicesCheckCountInDecideRowSliceability);
+}
+
+PHOENIX_DEFINE_TYPE(TSortedChunkPoolStatistics);
+
+void FormatValue(TStringBuilderBase* builder, const TSortedChunkPoolStatisticsPtr& statistics, TStringBuf /*spec*/)
+{
+    if (!statistics) {
+        builder->AppendString("<null>");
+        return;
+    }
+
+    builder->AppendFormat(
+        "{ForeignSlicesCheckCountInDecideRowSliceability: %v}",
+        statistics->ForeignSlicesCheckCountInDecideRowSliceability);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void IChunkSliceFetcherFactory::RegisterMetadata(auto&& /*registrar*/)
 { }
 

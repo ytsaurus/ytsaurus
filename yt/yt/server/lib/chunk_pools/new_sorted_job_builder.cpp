@@ -148,6 +148,7 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         int retryIndex,
         const TInputStreamDirectory& inputStreamDirectory,
+        TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
         TLogger logger,
         TLogger structuredLogger)
         : Options_(options)
@@ -162,6 +163,7 @@ public:
         , RowBuffer_(std::move(rowBuffer))
         , InputStreamDirectory_(inputStreamDirectory)
         , TeleportChunkUpperBounds_(BuildTeleportChunkUpperBounds(Options_, teleportChunks, RowBuffer_))
+        , ChunkPoolStatistics_(std::move(chunkPoolStatistics))
     {
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
 
@@ -460,6 +462,8 @@ private:
     const TInputStreamDirectory& InputStreamDirectory_;
 
     const std::vector<TKeyBound> TeleportChunkUpperBounds_;
+
+    const TSortedChunkPoolStatisticsPtr ChunkPoolStatistics_;
 
     //! Consider teleport chunks. They divide key space into segments. Each segment may be processed
     //! independently. Some segments may remain empty.
@@ -810,7 +814,11 @@ private:
         // Refer to SuchForeignMuchData unittest for an example, or to "TFilterRedirectsReducer" operation
         // by Jupiter.
         auto foreignVector = StagingArea_->GetForeignResourceVector();
-        for (const auto& dataSlice : ForeignSlices_) {
+        for (const auto& dataSlice : ForeignSlices_ | std::views::drop(FirstUnstagedForeignIndex_)) {
+            if (ChunkPoolStatistics_) {
+                ChunkPoolStatistics_->ForeignSlicesCheckCountInDecideRowSliceability++;
+            }
+
             if (Options_.PrimaryComparator.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, maxUpperBound)) {
                 break;
             }
@@ -1166,6 +1174,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const std::vector<TInputChunkPtr>& teleportChunks,
     int retryIndex,
     const TInputStreamDirectory& inputStreamDirectory,
+    TSortedChunkPoolStatisticsPtr chunkPoolStatistics,
     TLogger logger,
     TLogger structuredLogger)
 {
@@ -1176,6 +1185,7 @@ INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
         teleportChunks,
         retryIndex,
         inputStreamDirectory,
+        std::move(chunkPoolStatistics),
         std::move(logger),
         std::move(structuredLogger));
 }
