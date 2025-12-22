@@ -33,7 +33,7 @@ struct IUserDirectorySynchronizer
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Synchronized);
 
     //! Raised when user descriptor is updated.
-    DECLARE_INTERFACE_SIGNAL(void(const std::string&), UserDescriptorUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(const std::vector<std::string>&), UserDescriptorUpdated);
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserDirectorySynchronizer)

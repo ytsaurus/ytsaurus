@@ -101,6 +101,11 @@ TSubjectDescriptorPtr TUserDirectory::GetSubjectByIdOrThrow(NSecurityClient::TSu
     return result;
 }
 
+const THashMap<std::string, TUserDescriptorPtr>& TUserDirectory::GetNameOrAliasToUserDescriptor() const
+{
+    return NameOrAliasToUserDescriptor_;
+}
+
 void TUserDirectory::Clear()
 {
     auto guard = WriterGuard(SpinLock_);
