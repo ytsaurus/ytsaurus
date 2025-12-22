@@ -36,9 +36,9 @@ struct TTmpfsVolumeParams
 {
     //! Path relative to sandbox, e.g. my_tmpfs
     TString Path;
-    i64 Size;
+    i64 Size = 0;
     //! Slot user id.
-    int UserId;
+    int UserId = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
