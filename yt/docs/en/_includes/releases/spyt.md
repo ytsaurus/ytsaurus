@@ -8,6 +8,17 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.8.2**" %}
+
+**Release date:** 2025-12-23
+
+Maintenance release with minor enhancements
+
+- Improving stability of distributed write and read API support
+- Other minor fixes
+
+{% endcut %}
+
 {% cut "**2.8.0**" %}
 
 **Release date:** 2025-11-27
