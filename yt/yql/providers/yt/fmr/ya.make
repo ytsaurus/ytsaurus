@@ -6,6 +6,7 @@ RECURSE(
     job
     job_factory
     job_launcher
+    job_preparer
     process
     proto
     request_options
