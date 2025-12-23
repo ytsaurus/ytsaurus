@@ -24,6 +24,7 @@ from yt_commands import (
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config,
     get_supported_erasure_codecs)
 
+from yt_operations_archive_helpers import get_job_from_archive
 
 import subprocess
 
@@ -4747,6 +4748,117 @@ class TestUserJobDebugOptions(YTEnvSetup):
             assert False, "Process not found"
 
         release_breakpoint()
+
+
+##################################################################
+
+@authors("bystrovserg")
+class TestStatisticsReportingPeriod(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestStatisticsReportingPeriod, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    def test_large_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 600000,  # 10 minutes
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+
+        # Wait some time to check statistics does not update on heartbeat.
+        time.sleep(3.0)
+
+        current_job = get_job_from_archive(op.id, job_id)
+        current_statistics = current_job.get("statistics")
+
+        assert initial_statistics == current_statistics, \
+            "Statistics should be the same because of large statistics_reporting_period"
+
+        release_breakpoint()
+        op.track()
+
+        @wait_no_assert
+        def check_final_statistics():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            final_statistics = job.get("statistics")
+            assert final_statistics is not None, "Final statistics must be reported"
+            assert final_statistics != initial_statistics, "Final statistics should differ from initial statistics"
+
+    def test_statistics_reporting_period(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "statistics_reporting_period": 100,
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+
+        (job_id,) = wait_breakpoint()
+        wait(lambda: get_job_from_archive(op.id, job_id) is not None)
+        initial_job = get_job_from_archive(op.id, job_id)
+        initial_statistics = initial_job.get("statistics")
+        time.sleep(1.0)
+
+        @wait_no_assert
+        def check_statistics_updated():
+            job = get_job_from_archive(op.id, job_id)
+            assert job is not None
+            statistics = job.get("statistics")
+            assert statistics is not None, "Statistics must be reported"
+            assert statistics != initial_statistics, "Statistics should differ from initial statistics"
+
+        release_breakpoint()
+        op.track()
 
 
 ##################################################################
