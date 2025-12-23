@@ -1058,25 +1058,7 @@ private:
         }
 
         try {
-            // Volumes are not expected to be used since all jobs must be dead by now.
-            auto volumePaths = WaitFor(VolumeExecutor_->ListVolumePaths())
-                .ValueOrThrow();
-
-            std::vector<TFuture<void>> unlinkFutures;
-            for (const auto& volumePath : volumePaths) {
-                if (volumePath.StartsWith(VolumesPath_)) {
-                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
-                }
-            }
-
-            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
-                .ValueOrThrow();
-
-            for (const auto& unlinkError : unlinkResults) {
-                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
-                    THROW_ERROR(unlinkError);
-                }
-            }
+            RemoveVolumes();
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
             RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
@@ -1776,6 +1758,90 @@ private:
 
         WaitFor(VolumeExecutor_->UnlinkVolume(source, "self", target))
             .ThrowOnError();
+    }
+
+    //! Remove porto volumes that belong to this location.
+    //! Volumes are not expected to be used since all jobs must be dead by now.
+    void RemoveVolumes(TDuration timeout = TDuration::Minutes(30))
+    {
+        auto startTime = TInstant::Now();
+        auto deadLine = startTime + timeout;
+
+        YT_LOG_DEBUG("Removing volumes (DeadLine: %v)",
+            deadLine);
+
+        auto checkDeadLine = [&] {
+            auto now = TInstant::Now();
+            if (now > deadLine) {
+                THROW_ERROR_EXCEPTION("Failed to wait for volumes already being unlinked")
+                    << TErrorAttribute("timeout", timeout);
+            }
+        };
+
+        int volumesRemoved = 0;
+
+        while (true) {
+            checkDeadLine();
+
+            auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
+                .ValueOrThrow();
+
+            auto waitForVolumesToBecomeReady = false;
+            std::vector<TFuture<void>> unlinkFutures;
+            for (const auto& volume : volumes) {
+                if (!volume.Path.StartsWith(VolumesPath_)) {
+                    // This volume is not from my location.
+                    continue;
+                }
+
+                static const TString ReadyState = "ready";
+                if (volume.State != ReadyState) {
+                    waitForVolumesToBecomeReady = true;
+                    YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
+                        volume.Path,
+                        volume.State);
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Trying to unlink volume (Path: %v, State: %v)",
+                    volume.Path,
+                    volume.State);
+
+                // Unlink volume even if it was linked to a different container.
+                unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
+            }
+
+            if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
+                // All volumes have been unlinked.
+                break;
+            }
+
+            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+                .ValueOrThrow();
+
+            for (const auto& unlinkError : unlinkResults) {
+                if (unlinkError.IsOK()) {
+                    ++volumesRemoved;
+                } else if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
+                    THROW_ERROR(unlinkError);
+                }
+            }
+
+            if (waitForVolumesToBecomeReady) {
+                checkDeadLine();
+
+                static const TDuration Duration = TDuration::Seconds(30);
+
+                YT_LOG_DEBUG("Waiting for volumes to become ready (Duration: %v)",
+                    Duration);
+
+                TDelayedExecutor::WaitForDuration(Duration);
+            }
+        }
+
+        YT_LOG_DEBUG("Removed volumes (Count: %v, Duration: %v)",
+            volumesRemoved,
+            (TInstant::Now() - startTime));
     }
 };
 
