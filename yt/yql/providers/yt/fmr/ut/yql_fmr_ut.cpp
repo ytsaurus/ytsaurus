@@ -82,6 +82,14 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     auto tableDataServiceServer = MakeTableDataServiceServer(port);
     fmrServices->TableDataServiceDiscoveryFilePath = discoveryFile.Name();
 
+    TFileStorageConfig fsConfig;
+    fsConfig.SetThreads(3);
+    auto fileStorage = WithAsync(CreateFileStorage(fsConfig, {}));
+
+    fmrServices->FileStorage = fileStorage;
+    auto jobPreparer = NFmr::MakeFmrJobPreparer(fileStorage, discoveryFile.Name());
+    fmrServices->JobPreparer = jobPreparer;
+
     auto [fmrGateway, worker] = InitializeFmrGateway(ytGateway, fmrServices);
 
     TVector<TDataProviderInitializer> dataProvidersInit;
