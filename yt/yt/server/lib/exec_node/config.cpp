@@ -708,6 +708,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_finish_timeout_after_interruption_call_failed", &TThis::JobFinishTimeoutAfterInterruptionCallFailed)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("statistics_reporting_period", &TThis::StatisticsReportingPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

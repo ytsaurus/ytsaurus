@@ -216,6 +216,9 @@ public:
 
     void ReportProfile();
 
+    // Report statistics if enough time has passed since last report.
+    void TryReportStatistics();
+
     NYson::TYsonString BuildArchiveFeatures() const;
 
     void SetHasJobTrace(bool value);
@@ -348,7 +351,10 @@ private:
     std::vector<TGpuStatisticsWithUpdateTime> GpuStatistics_;
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
     std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
+    //! Last time statistics were sent to controller agent.
     TInstant StatisticsLastSendTime_ = TInstant::Now();
+    //! Last time statistics were reported to operations archive.
+    TInstant StatisticsLastArchiveReportTime_ = TInstant::Now();
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
