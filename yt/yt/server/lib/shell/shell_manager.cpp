@@ -2,7 +2,6 @@
 #include "shell.h"
 #include "private.h"
 #include "config.h"
-#include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/library/containers/instance.h>
 
@@ -17,6 +16,8 @@
 
 #include <yt/yt/server/tools/proc.h>
 #include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/ytlib/shell/public.h>
 
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/api/client.h>

@@ -786,6 +786,9 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PollJobShell));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RunJobShellCommand)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
@@ -3734,6 +3737,30 @@ private:
                 auto* response = &context->Response();
                 response->set_result(ToProto(pollJobShellResponse.Result));
             });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RunJobShellCommand)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto command = request->command();
+        auto shellName = request->has_shell_name()
+            ? std::optional<std::string>(request->shell_name())
+            : std::nullopt;
+
+        TRunJobShellCommandOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v, Command: %v, ShellName: %v",
+            jobId,
+            command,
+            shellName);
+
+        auto inputStream = WaitFor(client->RunJobShellCommand(jobId, shellName, command, options))
+            .ValueOrThrow();
+
+        HandleInputStreamingRequest(context, inputStream);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortJob)

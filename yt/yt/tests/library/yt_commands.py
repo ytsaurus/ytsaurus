@@ -686,6 +686,12 @@ def poll_job_shell(job_id, authenticated_user=None, shell_name=None, **kwargs):
     return execute_command("poll_job_shell", kwargs, parse_yson=True)
 
 
+def run_job_shell_command(job_id, command, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["command"] = command
+    return execute_command("run_job_shell_command", kwargs)
+
+
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command("abort_job", kwargs)
