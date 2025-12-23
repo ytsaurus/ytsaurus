@@ -6,6 +6,7 @@ import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
@@ -275,6 +276,8 @@ message TReqGetBlockSet
 
     optional uint64 ally_replicas_revision = 13;
 
+    optional TChunkReplicaSpec replica_spec = 14;
+
     reserved 3, 4, 9;
 }
 
@@ -457,6 +460,8 @@ message TReqGetChunkMeta
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 8;
+
+    optional TChunkReplicaSpec replica_spec = 10;
 }
 
 message TRspGetChunkMeta
