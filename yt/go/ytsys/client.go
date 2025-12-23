@@ -34,11 +34,11 @@ const (
 	TabletCellBundlesPath = ypath.Path("//sys/tablet_cell_bundles")
 
 	ChunksCountPath = ypath.Path("//sys/chunks/@count")
-	LVCCountPath    = ypath.Path("//sys/lost_vital_chunks/@count")
-	DMCCountPath    = ypath.Path("//sys/data_missing_chunks/@count")
-	PMCCountPath    = ypath.Path("//sys/parity_missing_chunks/@count")
+	LVCCountPath    = ypath.Path("//sys/@lost_vital_chunk_count")
+	DMCCountPath    = ypath.Path("//sys/@data_missing_chunk_count")
+	PMCCountPath    = ypath.Path("//sys/@parity_missing_chunk_count")
 	URCCountPath    = ypath.Path("//sys/underreplicated_chunks/@count")
-	QMCCountPath    = ypath.Path("//sys/quorum_missing_chunks/@count")
+	QMCCountPath    = ypath.Path("//sys/@quorum_missing_chunk_count")
 
 	ChunkRequisitionUpdateEnabledPath = ypath.Path("//sys/@chunk_requisition_update_enabled")
 	ChunkRefreshEnabledPath           = ypath.Path("//sys/@chunk_refresh_enabled")
