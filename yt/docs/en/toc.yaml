@@ -333,6 +333,8 @@ items:
                    href: user-guide/data-processing/spyt/API/spyt-java.md
              - name: Thesaurus
                items:
+                 - name: Data type mapping
+                   href: user-guide/data-processing/spyt/thesaurus/data-types.md
                  - name: Configuration parameters
                    href: user-guide/data-processing/spyt/thesaurus/configuration.md
                  - name: Read options
