@@ -409,6 +409,7 @@ class TDataNodeTest
 public:
     struct TDataNodeTestParams
     {
+        NIO::EIOEngineType IOEngineType = NIO::EIOEngineType::FairShareHierarchical;
         NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
         bool EnableHugePageManager = false;
         NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
@@ -441,7 +442,7 @@ public:
     {
         auto storeLocationConfig = New<TStoreLocationConfig>();
         storeLocationConfig->Path = Format("%v/%v/chunk_store", RootLocationsPath_, GenerateRandomString(5, Generator_));
-        storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
+        storeLocationConfig->IOEngineType = TestParams_.IOEngineType;
         auto ioEngineConfig = New<TIOEngineConfig>();
         ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
         ioEngineConfig->WriteThreadCount = TestParams_.WriteThreadCount;
@@ -815,12 +816,13 @@ struct TGetBlockSetTestCase
     NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
     bool EnableHugePageManager = false;
     bool UseDirectIOForReads = false;
+    bool UseFairShareIOEngine = false;
     i64 MinRequestSizeToUseHugePages = 1_KB;
 };
 
 std::vector<TGetBlockSetTestCase> GenerateGetBlockSetParams()
 {
-    const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(8);
+    const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(9);
     std::vector<TGetBlockSetTestCase> result;
     result.reserve(testCases.size());
 
@@ -834,6 +836,7 @@ std::vector<TGetBlockSetTestCase> GenerateGetBlockSetParams()
         getblockSetTestCase.PreallocateDiskSpace = testCase[5];
         getblockSetTestCase.EnableHugePageManager = testCase[6];
         getblockSetTestCase.UseDirectIOForReads = testCase[7];
+        getblockSetTestCase.UseFairShareIOEngine = testCase[8];
         result.push_back(getblockSetTestCase);
     }
 
@@ -850,6 +853,7 @@ public:
     TGetBlockSetTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
+                .IOEngineType = GetParam().UseFairShareIOEngine ? NIO::EIOEngineType::FairShareHierarchical : NIO::EIOEngineType::ThreadPool,
                 .HugePageManagerType = GetParam().HugePageManagerType,
                 .EnableHugePageManager = GetParam().EnableHugePageManager,
                 .UseDirectIOForReads = GetParam().UseDirectIOForReads ? NIO::EDirectIOPolicy::Always : NIO::EDirectIOPolicy::Never,
