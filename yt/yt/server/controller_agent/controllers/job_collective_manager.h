@@ -8,18 +8,18 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Multiple jobs are created when DistributedJobOptions.Factor is > 1.
-//! The cookie group counts as completed when all the jobs successfully complete.
+//! Multiple jobs are created when CollectiveOptions.Size is > 1.
+//! The cookie collective counts as completed when all the jobs successfully complete.
 //! When some jobs fail or abort, then it gets restarted.
 
-class TDistributedJobManager
+class TJobCollectiveManager
     : public IExtraJobManager
 {
 public:
     //! Used only for persistence.
-    TDistributedJobManager() = default;
+    TJobCollectiveManager() = default;
 
-    TDistributedJobManager(
+    TJobCollectiveManager(
         TTask* host,
         NLogging::TLogger logger);
 
@@ -45,29 +45,29 @@ public:
 
     TProgressCounterPtr GetProgressCounter() const override final;
 
-    int GetDistributedJobFactor() const;
+    int GetCollectiveSize() const;
 
     void InitializeCounter();
 
 private:
-    struct TSecondary
+    struct TSlave
     {
         TJobId JobId;
         TProgressCounterGuard ProgressCounterGuard;
 
-        PHOENIX_DECLARE_TYPE(TSecondary, 0x9f237b98);
+        PHOENIX_DECLARE_TYPE(TSlave, 0x9f237b98);
     };
 
-    struct TGroup
+    struct TCollective
     {
-        TJobId MainJobId;
-        TCompactVector<TSecondary, 3> Secondaries;
+        TJobId MasterJobId;
+        TCompactVector<TSlave, 3> Slaves;
         int Pending = 0;
 
-        PHOENIX_DECLARE_TYPE(TGroup, 0x9f237b97);
+        PHOENIX_DECLARE_TYPE(TCollective, 0x9f237b97);
     };
 
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TGroup> CookieToGroup_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCollective> CookieToCollective_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
     TProgressCounterPtr JobCounter_;
 
@@ -80,7 +80,7 @@ private:
     bool OnUnsuccessfulJobFinish(const TJobletPtr& joblet);
 
     PHOENIX_DECLARE_FRIEND();
-    PHOENIX_DECLARE_TYPE(TDistributedJobManager, 0xccfb1994);
+    PHOENIX_DECLARE_TYPE(TJobCollectiveManager, 0xccfb1994);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

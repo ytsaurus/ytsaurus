@@ -3328,8 +3328,8 @@ private:
         if (request->has_with_competitors()) {
             options.WithCompetitors = request->with_competitors();
         }
-        if (request->has_distributed_group_main_job_id()) {
-            options.DistributedGroupMainJobId = FromProto<TJobId>(request->distributed_group_main_job_id());
+        if (request->has_collective_id()) {
+            options.CollectiveId = FromProto<TGuid>(request->collective_id());
         }
         if (request->has_job_competition_id()) {
             options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
