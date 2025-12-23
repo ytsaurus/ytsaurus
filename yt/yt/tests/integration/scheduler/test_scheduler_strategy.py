@@ -579,6 +579,40 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait(lambda: get(scheduler_orchid_pool_path("parent_pool", "default") + "/limited_resource_demand/cpu", default=None) == 3.0)
 
+    @authors("renadeen")
+    def test_fifo_pool_cannot_be_default_parent_pool(self):
+        create_pool("fifo_pool", attributes={"mode": "fifo"})
+        update_pool_tree_config("default", {"default_parent_pool": "fifo_pool"})
+
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alerts = get("//sys/scheduler/@alerts")
+        assert any("as default parent pool because it has fifo mode" in str(alert).lower() for alert in alerts)
+
+        # Ephemeral pool should be created under root, not under fifo_pool
+        run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
+        wait(lambda: exists(scheduler_orchid_pool_path("ephemeral_pool")))
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral_pool") + "/parent") == "<Root>")
+
+        update_pool_tree_config("default", {"default_parent_pool": "<Root>"})
+        wait(lambda: not get("//sys/scheduler/@alerts"))
+
+    @authors("renadeen")
+    def test_cannot_make_pool_fifo_while_it_has_ephemeral_subpools(self):
+        create_pool("fifo_pool")
+        update_pool_tree_config("default", {"default_parent_pool": "fifo_pool"})
+
+        run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
+
+        wait(lambda: exists(scheduler_orchid_pool_path("ephemeral_pool")))
+
+        set("//sys/pool_trees/default/fifo_pool/@mode", "fifo")
+
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alerts = get("//sys/scheduler/@alerts")
+        assert any("is in fifo mode but has ephemeral subpools" in str(alert).lower() for alert in alerts)
+
+        remove("//sys/pool_trees/default/fifo_pool/@mode")
+        wait(lambda: not get("//sys/scheduler/@alerts"))
 
 ##################################################################
 
@@ -2408,7 +2442,6 @@ class TestEphemeralPools(YTEnvSetup):
         wait_breakpoint()
 
         set("//sys/pools/ephemeral_hub/@create_ephemeral_subpools", False)
-        set("//sys/pools/ephemeral_hub/@mode", "fifo")
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool") == "ephemeral_hub")
 
