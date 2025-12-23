@@ -603,7 +603,7 @@ private:
         while (currentBlockIndex < blockCount) {
             if (DynamicConfig_->EnableReplicationJobThrottling) {
                 auto startThorttling = TInstant::Now();
-                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor).Enabled) {
+                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ false, /*isReplication*/ true).Enabled) {
                     if (TInstant::Now() - startThorttling > DynamicConfig_->ThrottlingSleepDeadline) {
                         THROW_ERROR_EXCEPTION("Throttling timeout exceeded");
                     }
