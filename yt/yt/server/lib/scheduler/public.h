@@ -66,6 +66,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((UnrecognizedPoolTreeConfigOptions)            (20))
     ((NodesWithInsufficientResourceLimits)          (21))
     ((OperationStuckInRemoval)                      (22))
+    ((InvalidDefaultParentPool)                     (23))
 );
 
 DEFINE_ENUM(EOperationAlertType,
