@@ -21,6 +21,7 @@ struct TVolumeSpec
 {
     TString Path;
     TString Backend;
+    TString State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +123,7 @@ struct IPortoExecutor
     virtual TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name,
-        const TString& target = All) = 0;
+        const TString& target = AnyTarget) = 0;
     virtual TFuture<std::vector<TString>> ListVolumePaths() = 0;
     virtual TFuture<std::vector<TVolumeSpec>> GetVolumes() = 0;
 

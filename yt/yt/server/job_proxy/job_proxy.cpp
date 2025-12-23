@@ -1594,7 +1594,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     } else {
         environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
         // COMPAT(yuryalekseev): Remove this after tasklets move to using default place.
-        environmentOptions.Places.push_back(All);
+        environmentOptions.Places.push_back(AnyTarget);
     }
 
     if (options.EnableCoreDumps) {
