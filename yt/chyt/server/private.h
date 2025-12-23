@@ -48,7 +48,11 @@ constexpr int MaxSupportedCHDecimalPrecision = 76;
 extern const TString CacheUserName;
 extern const TString ChytSqlObjectsUserName;
 extern const TString InternalRemoteUserName;
+
+//! Contains the main attributes of the table that are used in CHYT, with the exception of schema and schema_id.
 extern const std::vector<std::string> TableAttributesToFetch;
+extern const std::string TableSchemaAttribute;
+extern const std::string TableSchemaIdAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +126,8 @@ DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskPuller)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
 DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
+DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
+DECLARE_REFCOUNTED_CLASS(TCachedTableSchema)
 
 struct TValue;
 struct TSubquerySpec;

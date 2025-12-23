@@ -1,6 +1,7 @@
 #include "table.h"
 
 #include "host.h"
+#include "table_schema_cache.h"
 #include "query_context.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -17,6 +18,9 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NYPath;
@@ -27,6 +31,87 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NConcurrency;
 using namespace NApi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>& tables)
+{
+    const auto& client = queryContext->Client();
+    // TableSchemaCache may be not configured.
+    const auto& tableSchemaCache = queryContext->Host->GetTableSchemaCache();
+
+    THashMap<TGuid, std::vector<TTablePtr>> schemaIdToTables;
+    for (const auto& table : tables) {
+        schemaIdToTables[table->SchemaId].push_back(table);
+    }
+
+    THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
+    // Iterate over schemaIds and filter those that are not in the cache and must be additionally fetched.
+    // Group missed schemaIds by externall cell of table.
+    for (auto& [schemaId, tablesWithIdenticalSchema] : schemaIdToTables) {
+        auto schema = tableSchemaCache ? tableSchemaCache->Get(schemaId) : nullptr;
+        if (!schema) {
+            const auto& table = schemaIdToTables[schemaId].front();
+            cellTagToSchemaIds[table->ExternalCellTag].push_back(schemaId);
+            continue;
+        }
+
+        for (const auto& table : tablesWithIdenticalSchema) {
+            table->Schema = schema;
+        }
+    }
+
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+    asyncResults.reserve(cellTagToSchemaIds.size());
+    for (const auto& [cellTag, cellSchemaIds] : cellTagToSchemaIds) {
+        auto proxy = CreateObjectServiceReadProxy(client, NApi::EMasterChannelKind::Follower, cellTag);
+        auto batchReq = proxy.ExecuteBatch();
+
+        // NB: Schemas can be accessed by ID without the use of transactions, thus no need to specify one here.
+        for (const auto& schemaId : cellSchemaIds) {
+            auto req = TTableYPathProxy::Get(FromObjectId(schemaId));
+            const auto& table = schemaIdToTables[schemaId].front();
+            AddCellTagToSyncWith(req, table->ObjectId);
+
+            req->Tag() = schemaId;
+            batchReq->AddRequest(req);
+        }
+
+        asyncResults.push_back(batchReq->Invoke());
+    }
+
+    auto checkError = [] (const auto& error) {
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error fetching table schemas");
+    };
+
+    auto result = WaitFor(AllSucceeded(asyncResults));
+    checkError(result);
+
+    for (const auto& batchRsp : result.Value()) {
+        checkError(GetCumulativeError(batchRsp));
+        for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
+            const auto& rsp = rspOrError.Value();
+            auto ysonSchema = NYson::TYsonString(rsp->value());
+            auto schemaId = std::any_cast<TGuid>(rsp->Tag());
+            auto schema = ConvertTo<TTableSchemaPtr>(ysonSchema);
+            for (const auto& table : schemaIdToTables[schemaId]) {
+                table->Schema = schema;
+            }
+
+            if (tableSchemaCache) {
+                tableSchemaCache->Insert(schemaId, std::move(schema));
+            }
+        }
+    }
+
+    for (const auto& table : tables) {
+        table->Comparator = table->Schema->ToComparator();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,9 +128,13 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Revision = attributes->Get<NHydra::TRevision>("revision");
-    Schema = attributes->Get<TTableSchemaPtr>("schema");
-    Comparator = Schema->ToComparator();
     RowCount = attributes->Find<i64>("row_count");
+
+    SchemaId = attributes->Get<TObjectId>("schema_id", NullObjectId);
+    Schema = attributes->Find<TTableSchemaPtr>("schema");
+    if (Schema) {
+        Comparator = Schema->ToComparator();
+    }
 }
 
 bool TTable::IsSortedDynamic() const
@@ -194,6 +283,11 @@ std::vector<TTablePtr> FetchTables(
     throwOnErrors();
 
     YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());
+
+    if (queryContext->Host->GetConfig()->EnableSchemaIdFetching) {
+        FetchTableSchemas(queryContext, tables);
+        YT_LOG_INFO("Table schemas fetched");
+    }
 
     if (dynamicTableCount) {
         // Let's fetch table mount infos.

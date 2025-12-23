@@ -15,6 +15,7 @@
 #include "storage_system_clique.h"
 #include "storage_system_log_table_exporter.h"
 #include "table_functions.h"
+#include "table_schema_cache.h"
 #include "user_defined_sql_objects_storage.h"
 #include "yt_database.h"
 #include "yt_directory_database.h"
@@ -137,6 +138,12 @@ public:
         , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
+        TableAttributesToFetch_ = TableAttributesToFetch;
+        auto schemeAttribute = Config_->EnableSchemaIdFetching
+            ? TableSchemaIdAttribute
+            : TableSchemaAttribute;
+        TableAttributesToFetch_.push_back(schemeAttribute);
+
         InitializeClients();
         InitializeCaches();
         InitializeReaderMemoryManager();
@@ -366,6 +373,11 @@ public:
             }));
     }
 
+    const std::vector<std::string>& GetObjectAttributeNamesToFetch() const
+    {
+        return TableAttributesToFetch_;
+    }
+
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
         const std::vector<TYPath>& paths,
         const IClientPtr& client)
@@ -470,6 +482,11 @@ public:
             WaitFor(AllSet(futures))
                 .ThrowOnError();
         }
+    }
+
+    const TTableSchemaCachePtr& GetTableSchemaCache() const
+    {
+        return TableSchemaCache_;
     }
 
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
@@ -804,6 +821,9 @@ private:
     TPermissionCachePtr PermissionCache_;
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
+    TTableSchemaCachePtr TableSchemaCache_;
+
+    std::vector<std::string> TableAttributesToFetch_;
 
     IDiscoveryPtr Discovery_;
     int InstanceCookie_;
@@ -853,7 +873,7 @@ private:
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
-            TableAttributesToFetch,
+            TableAttributesToFetch_,
             Connection_,
             ControlInvoker_,
             Logger(),
@@ -865,6 +885,12 @@ private:
             FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/table_columnar_statistics_cache"));
+
+        if (Config_->EnableSchemaIdFetching) {
+            TableSchemaCache_ = New<TTableSchemaCache>(
+                Config_->TableSchemaCache,
+                ClickHouseYtProfiler().WithPrefix("/table_schema_cache"));
+        }
     }
 
     void InitializeReaderMemoryManager()
@@ -1120,6 +1146,11 @@ TFuture<std::vector<TErrorOr<EPreliminaryCheckPermissionResult>>> THost::Prelimi
     return Impl_->PreliminaryCheckPermissions(paths, user);
 }
 
+const std::vector<std::string>& THost::GetObjectAttributeNamesToFetch() const
+{
+    return Impl_->GetObjectAttributeNamesToFetch();
+}
+
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(
     const std::vector<NYPath::TYPath>& paths,
     const IClientPtr& client)
@@ -1138,6 +1169,11 @@ void THost::InvalidateCachedObjectAttributesGlobally(
     TDuration timeout)
 {
     Impl_->InvalidateCachedObjectAttributesGlobally(paths, mode, timeout);
+}
+
+const TTableSchemaCachePtr& THost::GetTableSchemaCache() const
+{
+    return Impl_->GetTableSchemaCache();
 }
 
 const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
