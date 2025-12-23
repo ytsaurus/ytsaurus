@@ -795,7 +795,7 @@ private:
             ? TTableId{}
             : action->Tablets()[0]->GetOwner()->GetId();
         YT_LOG_DEBUG("Change tablet action state (ActionId: %v, State: %v, "
-            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v),",
+            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
             state,
             tableId,
