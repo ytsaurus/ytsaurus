@@ -88,6 +88,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         }
     }
 
+    ThrottledReplicationReads = profiler.Counter("/throttled_replication_reads");
+
     ThrottledProbingReads = profiler.Counter("/throttled_probing_reads");
     ThrottledProbingWrites = profiler.Counter("/throttled_probing_writes");
     ThrottledReads = profiler.Counter("/throttled_reads");
@@ -146,6 +148,11 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     TrashChunkCount = profiler.Gauge("/trash_chunk_count");
     TrashSpace = profiler.Gauge("/trash_space");
     Full = profiler.Gauge("/full");
+}
+
+void TLocationPerformanceCounters::ReportThrottledReplicationRead()
+{
+    ThrottledReplicationReads.Increment();
 }
 
 void TLocationPerformanceCounters::ReportThrottledProbingRead()
@@ -895,7 +902,8 @@ bool TChunkLocation::IsWriteThrottling() const
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
-    bool isProbing) const
+    bool isProbing,
+    bool isReplication) const
 {
     auto readQueueSize =
         GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read, workloadDescriptor) +
@@ -950,7 +958,9 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     throttled = throttled || ShouldAlwaysThrottle();
 
     if (throttled) {
-        if (isProbing) {
+        if (isReplication) {
+            ReportThrottledReplicationRead();
+        } else if (isProbing) {
             ReportThrottledProbingRead();
         } else {
             ReportThrottledRead();
@@ -962,6 +972,11 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         .QueueSize = readQueueSize,
         .Error = std::move(error),
     };
+}
+
+void TChunkLocation::ReportThrottledReplicationRead() const
+{
+    PerformanceCounters_->ReportThrottledReplicationRead();
 }
 
 void TChunkLocation::ReportThrottledProbingRead() const
