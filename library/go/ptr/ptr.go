@@ -88,13 +88,20 @@ func TOrNil[T comparable](v T) *T {
 	return &v
 }
 
-// From returns value from pointer
-func From[T any](v *T) T {
+// Value returns value from pointer
+func Value[T any](v *T) T {
 	if v == nil {
-		return *new(T)
+		var zero T
+		return zero
 	}
 
 	return *v
+}
+
+// From returns value from pointer
+// Deprecated: use Value function instead
+func From[T any](v *T) T {
+	return Value[T](v)
 }
 
 // EqualVal nil-safe compare dereference values. True if both pointers are nil
