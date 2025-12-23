@@ -98,14 +98,14 @@ public:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         std::vector<TBlock> blocks,
-        TFairShareSlotId fairShareSlotId)
+        TLocationFairShareSlotPtr fairShareQueueSlot)
     {
         return EnqueueCommand(BIND(&TBlobWritePipeline::DoWriteBlocks,
             MakeStrong(this),
             options,
             firstBlockIndex,
             std::move(blocks),
-            fairShareSlotId));
+            std::move(fairShareQueueSlot)));
     }
 
     TFuture<void> Close(
@@ -238,7 +238,7 @@ private:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         const std::vector<TBlock>& blocks,
-        TFairShareSlotId fairShareSlotId)
+        TLocationFairShareSlotPtr fairShareQueueSlot)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -252,10 +252,10 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareSlotId));
+        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareQueueSlot->GetSlot()->GetSlotId()));
 
         return Writer_->GetReadyEvent().Apply(
-            BIND([=, this, this_ = MakeStrong(this)] {
+            BIND([=, fairShareQueueSlot = std::move(fairShareQueueSlot), this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished writing blocks (Blocks: %v, Time: %v)",
@@ -806,8 +806,6 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
     // Run the validation again since the context could have been switched since the last check.
     ValidateActive();
 
-    auto fairShareSlotId = fairShareQueueSlot->GetSlot()->GetSlotId();
-
     // Organize blocks in packs of BytesPerWrite size and pass them to the pipeline.
     int firstBlockIndex = WindowIndex_;
     std::vector<TBlock> blocksToWrite;
@@ -826,7 +824,7 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
         }
 
         preallocateDiskSpace
-            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareSlotId))
+            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareQueueSlot))
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
