@@ -120,6 +120,7 @@ struct IConnection
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetBundleControllerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetTabletBalancerChannel() = 0;
+    virtual const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual NRpc::IChannelPtr GetChaosChannelByCellId(

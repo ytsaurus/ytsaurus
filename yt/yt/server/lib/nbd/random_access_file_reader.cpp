@@ -425,7 +425,7 @@ private:
                     readerOptions,
                     ChunkReaderHost_,
                     chunkId,
-                    /*seedReplicas*/ {}),
+                    TChunkReplicaList{}),
                 .ReadBlocksOptions = {
                     .ClientOptions = {
                         .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
