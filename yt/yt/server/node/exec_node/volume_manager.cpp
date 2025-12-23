@@ -2452,10 +2452,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            TSlruCacheConfig::CreateWithCapacity(
-                config->EnableLayersCache
-                ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
-                : 0),
+            CreateCacheConfig(config, layerLocations),
             ExecNodeProfiler().WithPrefix("/layer_cache"))
         , DynamicConfigManager_(dynamicConfigManager)
         , ArtifactCache_(std::move(artifactCache))
@@ -2707,14 +2704,44 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    bool IsResurrectionSupported() const override
+    static TSlruCacheConfigPtr CreateCacheConfig(
+        const NDataNode::TVolumeManagerConfigPtr& config,
+        const std::vector<TLayerLocationPtr>& layerLocations)
     {
-        return false;
+        auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
+            config->EnableLayersCache
+            ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+            : 0);
+        cacheConfig->ShardCount = 1;
+        return cacheConfig;
     }
 
     i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
+    }
+
+    void OnAdded(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer added to cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnRemoved(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer removed from cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnWeightUpdated(i64 weightDelta) override
+    {
+        YT_LOG_DEBUG("Layer cache weight updated (WeightDelta: %v)", weightDelta);
     }
 
     void ProfileLocation(const TLayerLocationPtr& location) {
