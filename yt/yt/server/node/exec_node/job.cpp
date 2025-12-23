@@ -1428,9 +1428,6 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    HandleJobReport(MakeDefaultJobReport()
-        .Statistics(StatisticsYson_));
-
     UpdateUserJobMonitoring();
 }
 
@@ -1721,6 +1718,24 @@ void TJob::ReportProfile()
             .Profile(std::move(profile)));
     }
 }
+
+void TJob::TryReportStatistics()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto now = TInstant::Now();
+    auto statisticsReportingPeriod = CommonConfig_->StatisticsReportingPeriod;
+
+    bool shouldReport = !statisticsReportingPeriod ||
+        now - StatisticsLastArchiveReportTime_ >= *statisticsReportingPeriod;
+
+    if (shouldReport) {
+        HandleJobReport(MakeDefaultJobReport()
+            .Statistics(StatisticsYson_));
+        StatisticsLastArchiveReportTime_ = now;
+    }
+}
+
 void TJob::AbortJobAfterInterruptionCallFailed(const std::exception& ex)
 {
     if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
