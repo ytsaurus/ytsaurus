@@ -7,7 +7,7 @@ from yt.common import YtError
 from yt.yson import YsonList, YsonEntity
 
 from yt_commands import (
-    authors, sync_create_cells, create_user, add_member, make_ace,
+    authors, extract_statistic_v2, sync_create_cells, create_user, add_member, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
     copy, move, get_singular_chunk_id, wait, get, concatenate, get_table_columnar_statistics,
     get_account_disk_space_limit, set_account_disk_space_limit,
@@ -1888,13 +1888,19 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
-        map(
+        op = map(
             command="cat",
             in_="//tmp/imported",
             out="//tmp/out",
             spec={"max_failed_job_count": 1})
 
         assert_items_equal(read_table("//tmp/out"), [record1, record2])
+
+        statistics = op.get_statistics()
+        chunk_reader_statistics = statistics["chunk_reader_statistics"]
+
+        assert extract_statistic_v2(chunk_reader_statistics, "data_bytes_read_from_disk") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_read_from_disk", summary_type="count") > 0
 
     @authors("faucct")
     def test_attach_and_map_non_strict_schema(self):

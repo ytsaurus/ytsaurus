@@ -13,6 +13,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/result.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -70,16 +72,13 @@ public:
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = {}) override
     {
-        // TODO(achulkov2): [PDuringReview] Fill statistics in options.
-        Y_UNUSED(options);
-
         // TODO(achulkov2): [PDuringReview] Support partition tag and extension tags.
         Y_UNUSED(partitionTag);
         Y_UNUSED(extensionTags);
 
         // TODO(achulkov2): [PForReview] Can we just ignore partition tag and extension tag parameters? Or should we throw an exception instead.
 
-        return DoGetMeta();
+        return DoGetMeta(options);
     }
 
     TChunkId GetChunkId() const override
@@ -125,7 +124,7 @@ private:
         const TBlocksExtPtr& blocksExt = nullptr)
     {
         if (!blocksExt) {
-            return GetBlocksExt(GetSessionInvoker(options))
+            return GetBlocksExt(options.ClientOptions, GetSessionInvoker(options))
                 .Apply(BIND(&TS3Reader::ReadBlockRanges, MakeStrong(this), options, blockRanges).AsyncVia(GetSessionInvoker(options)));
         }
 
@@ -162,17 +161,43 @@ private:
         request.Range = Format("bytes=%v-%v", readRequest.Offset, readRequest.Offset + readRequest.Size - 1);
 
         return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this), blockRange, blocksExt] (const NS3::TGetObjectResponse& response) {
-                // TODO(achulkov2): [PDuringReview] Increment counters in statistics. Maybe even do it inside chunk layout reader.
+            .Apply(BIND([
+                this, this_ = MakeStrong(this),
+                blockRange, blocksExt,
+                statistics = options.ClientOptions.ChunkReaderStatistics
+            ] (const NS3::TGetObjectResponse& response) {
+                statistics->DataBytesReadFromDisk.fetch_add(response.Data.Size(), std::memory_order::relaxed);
                 return ChunkLayoutReader_->DeserializeBlocks(response.Data, blockRange, blocksExt);
             })
             .AsyncVia(GetSessionInvoker(options)));
     }
 
-    TFuture<TRefCountedChunkMetaPtr> GenerateMetaFromChunkFile(EChunkFormat format)
+    TFuture<TRefCountedChunkMetaPtr> GenerateMetaFromChunkFile(const TClientChunkReadOptions& options, EChunkFormat format)
     {
+        class TChunkFile
+            : public TS3ArrowRandomAccessFile
+        {
+        public:
+            TChunkFile(TString bucket, TString key, NS3::IClientPtr client, TChunkReaderStatisticsPtr chunkReaderStatistics)
+                : TS3ArrowRandomAccessFile(bucket, key, client)
+                , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
+            { }
+
+            arrow20::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override
+            {
+                auto result = TS3ArrowRandomAccessFile::ReadAt(position, nbytes, out);
+                if (result.ok()) {
+                    ChunkReaderStatistics_->MetaBytesReadFromDisk.fetch_add(result.ValueOrDie(), std::memory_order::relaxed);
+                }
+                return result;
+            }
+
+        private:
+            TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+        };
+
         // TODO(achulkov2): Path to read chunk file from needs to end up here.
-        auto chunkFile = std::make_shared<TS3ArrowRandomAccessFile>(ChunkPlacement_.Bucket(), ChunkPlacement_.Key(), Client_);
+        auto chunkFile = std::make_shared<TChunkFile>(ChunkPlacement_.Bucket(), ChunkPlacement_.Key(), Client_, options.ChunkReaderStatistics);
         auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(
             format,
             std::move(chunkFile),
@@ -185,7 +210,7 @@ private:
         return MakeFuture(chunkMetaGenerator->GetChunkMeta());
     }
 
-    TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile()
+    TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile(const TClientChunkReadOptions& options)
     {
         NS3::TGetObjectRequest request;
         auto chunkMetaPlacement = GetChunkMetaPlacement();
@@ -193,17 +218,21 @@ private:
         request.Key = chunkMetaPlacement.Key();
 
         return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
+            .Apply(BIND([
+                this, this_ = MakeStrong(this),
+                statistics = options.ChunkReaderStatistics
+            ] (const NS3::TGetObjectResponse& response) {
+                statistics->MetaBytesReadFromDisk.fetch_add(response.Data.Size(), std::memory_order::relaxed);
                 auto metaWithChunkId = ChunkLayoutReader_->DeserializeMeta(response.Data);
                 return metaWithChunkId.ChunkMeta;
             }));
     }
 
-    TFuture<TRefCountedChunkMetaPtr> FetchOrGenerateMeta()
+    TFuture<TRefCountedChunkMetaPtr> FetchOrGenerateMeta(const TClientChunkReadOptions& options)
     {
         return ReplicaWithMedium_.GetMetaPersistence() == EChunkMetaPersistence::S3
-            ? FetchMetaFromMetaFile()
-            : GenerateMetaFromChunkFile(ChunkFormat_);
+            ? FetchMetaFromMetaFile(options)
+            : GenerateMetaFromChunkFile(options, ChunkFormat_);
     }
 
     TRefCountedChunkMetaPtr CacheChunkMeta(const TRefCountedChunkMetaPtr& chunkMeta)
@@ -218,7 +247,7 @@ private:
         return ChunkMeta_;
     }
 
-    TFuture<TRefCountedChunkMetaPtr> DoGetMeta(IInvokerPtr invoker = nullptr)
+    TFuture<TRefCountedChunkMetaPtr> DoGetMeta(const TClientChunkReadOptions& options, IInvokerPtr invoker = nullptr)
     {
         {
             auto guard = ReaderGuard(MetaLock_);
@@ -228,16 +257,16 @@ private:
             }
         }
 
-        return FetchOrGenerateMeta()
+        return FetchOrGenerateMeta(options)
             .Apply(
                 BIND(&TS3Reader::CacheChunkMeta, MakeStrong(this))
                 .AsyncVia(invoker ? invoker : GetCurrentInvoker()));
     }
 
 
-    TFuture<TBlocksExtPtr> GetBlocksExt(IInvokerPtr invoker = nullptr)
+    TFuture<TBlocksExtPtr> GetBlocksExt(const TClientChunkReadOptions& options, IInvokerPtr invoker = nullptr)
     {
-        return DoGetMeta(invoker)
+        return DoGetMeta(options, invoker)
             .AsVoid()
             .Apply(BIND([this, this_ = MakeStrong(this)] () {
                 auto guard = ReaderGuard(MetaLock_);
