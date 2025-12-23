@@ -4738,7 +4738,7 @@ class TestCypressMulticell(TestCypress):
         create_tablet_cell_bundle("tcb")
 
         # Must not raise.
-        get("//sys/tablet_cell_bundles/@count") == 1
+        assert "tcb" in ls("//sys/tablet_cell_bundles")
 
         with raises_yt_error("is banned"):
             ls("//sys/tablet_cell_bundles", attributes=["tablet_actions"], authenticated_user="u")
