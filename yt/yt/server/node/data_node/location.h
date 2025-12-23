@@ -60,10 +60,12 @@ struct TLocationPerformanceCounters
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> UsedMemory;
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> LegacyUsedMemory;
 
+    NProfiling::TCounter ThrottledReplicationReads;
     NProfiling::TCounter ThrottledProbingReads;
     NProfiling::TCounter ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
+    void ReportThrottledReplicationRead();
     void ReportThrottledProbingRead();
     void ReportThrottledRead();
 
@@ -279,9 +281,11 @@ public:
     //! and the total number of bytes to read from disk including those accounted by out throttler.
     TDiskThrottlingResult CheckReadThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
-        bool isProbing = false) const;
+        bool isProbing = false,
+        bool isReplication = false) const;
 
     //! Reports throttled read.
+    void ReportThrottledReplicationRead() const;
     void ReportThrottledProbingRead() const;
     void ReportThrottledRead() const;
 
