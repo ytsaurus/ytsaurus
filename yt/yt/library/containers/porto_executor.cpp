@@ -1007,7 +1007,7 @@ private:
             "UnlinkVolume",
             /*idempotent*/ false);
 
-        if (target == All) {
+        if (target == AnyTarget) {
             VolumeSurplus_ -= 1;
         }
     }
@@ -1043,6 +1043,7 @@ private:
             specs.emplace_back(TVolumeSpec{
                 .Path = spec.path(),
                 .Backend = spec.backend(),
+                .State = spec.state(),
             });
         }
 
