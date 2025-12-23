@@ -624,6 +624,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("table_attribute_cache", &TThis::TableAttributeCache)
         .DefaultNew();
 
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
+        .DefaultNew();
+
     registrar.Parameter("table_columnar_statistics_cache", &TThis::TableColumnarStatisticsCache)
         .DefaultNew();
 
@@ -641,6 +644,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("system_log_table_exporters", &TThis::SystemLogTableExporters)
         .DefaultNew();
+
+    registrar.Parameter("enable_schema_id_fetching", &TThis::EnableSchemaIdFetching)
+        .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {
         config->TableAttributeCache->ExpireAfterAccessTime = TDuration::Minutes(2);
@@ -676,6 +682,8 @@ void TLauncherConfig::Register(TRegistrar registrar)
 void TMemoryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TThis::Reader)
+        .Default();
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .Default();
     registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Default();
@@ -773,6 +781,17 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
             if (config->Memory->ChunkMetaCache) {
                 initDefault(config->ClusterConnection->Dynamic->ChunkMetaCache);
                 config->ClusterConnection->Dynamic->ChunkMetaCache->Capacity = *config->Memory->ChunkMetaCache;
+            }
+            if (config->Memory->TableSchemaCache) {
+                initDefault(config->Yt->TableSchemaCache);
+
+                auto& currentCapacity = config->Yt->TableSchemaCache->Capacity;
+                const auto& limit = *config->Memory->TableSchemaCache;
+                if (currentCapacity == 0) {
+                    currentCapacity = limit;
+                } else if (limit != 0) {
+                    currentCapacity = std::min(currentCapacity, limit);
+                }
             }
 
             if (config->Memory->MaxServerMemoryUsage) {

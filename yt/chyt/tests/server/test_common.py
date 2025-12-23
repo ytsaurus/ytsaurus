@@ -1,4 +1,4 @@
-from helpers import (get_object_attribute_cache_config, get_schema_from_description,
+from helpers import (get_object_attribute_cache_config, get_schema_from_description, get_disabled_cache_config,
                      get_breakpoint_node, release_breakpoint, wait_breakpoint)
 
 from yt_commands import (authors, raises_yt_error, create, create_user, make_ace, exists, abort_job, write_table, get,
@@ -11,7 +11,7 @@ from yt_sequoia_helpers import not_implemented_in_sequoia
 from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia, enable_sequoia_acls,
                   grant_system_permissions_to_clickhouse_user)
 
-from yt.common import YtError, wait, parts_to_uuid
+from yt.common import YtError, wait, parts_to_uuid, update as config_update
 
 from yt.test_helpers import assert_items_equal
 
@@ -2527,6 +2527,38 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with breakpoint(bp_name):
                 with raises_yt_error("TOO_SLOW"):
                     clique.make_query(query, settings=settings)
+
+    @authors("buyval01")
+    def test_table_schema_cache(self):
+        schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "int64"},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        rows = [{"key": 0, "value1": "//tmp/t", "value2": 0}]
+        write_table("//tmp/t", rows)
+
+        patch = {
+            "yt": {
+                "enable_schema_id_fetching": 1,
+                "table_schema_cache": {
+                    "capacity": 10 * 1024**2,
+                },
+            }
+        }
+        patch = config_update(patch, get_disabled_cache_config())
+
+        with Clique(1, config_patch=patch) as clique:
+            table_schema_cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/table_schema_cache/hit")
+
+            before = table_schema_cache_hit_counter.get_delta()
+            assert clique.make_query('select * from "//tmp/t"') == rows
+            wait(lambda: table_schema_cache_hit_counter.get_delta() == before)
+
+            assert clique.make_query('select * from concatYtTables("//tmp/t")') == rows
+            wait(lambda: table_schema_cache_hit_counter.get_delta() > before)
 
 
 class TestClickHouseNoCache(ClickHouseTestBase):

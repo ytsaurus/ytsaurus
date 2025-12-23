@@ -18,6 +18,7 @@ struct TTable
     : public TRefCounted
     , public NChunkClient::TUserObject
 {
+    NObjectClient::TObjectId SchemaId;
     NTableClient::TTableSchemaPtr Schema;
     NTableClient::TComparator Comparator;
     //! Operand index according to JOIN clause (if any):
