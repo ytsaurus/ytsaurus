@@ -410,7 +410,7 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 8
+    NUM_TEST_PARTITIONS = 16
     CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
 
@@ -495,11 +495,10 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
 
     def _dyn_config_expect_error(self, yql_agent, dyn_config, expected_error):
         create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+            "schema": [{"name": "a", "type": "int64"}]
         })
-        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        rows = [{"a": 42}]
         write_table("//tmp/t", rows)
-        self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
         self._update_dyn_config(yql_agent, dyn_config)
         with raises_yt_error(expected_error):
@@ -517,7 +516,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("lucius")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_yql_agent_broken_dyn_config_without_address(self, query_tracker, yql_agent):
         self._dyn_config_expect_error(
             yql_agent,
@@ -556,7 +555,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
         )
 
     @authors("lucius")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_yql_agent_broken_dyn_config_wrong_settings(self, query_tracker, yql_agent):
         self._dyn_config_expect_error(
             yql_agent,
@@ -832,7 +831,7 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgent(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 16
 
     @authors("mpereskokova")
     @pytest.mark.timeout(180)

@@ -5,7 +5,7 @@ from yt_commands import (
     write_file, write_table, get_job, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config,
-    wait_breakpoint, with_breakpoint)
+    wait_breakpoint, with_breakpoint, print_debug)
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
@@ -15,10 +15,13 @@ from yt_helpers import profiler_factory
 import pytest
 
 import os
+import io
+import gzip
 import re
 import sys
 import time
 import tempfile
+import zstandard as zstd
 
 from builtins import set as Set
 from collections import Counter
@@ -741,6 +744,246 @@ class TestDockerImage(TestPortoLayersBase):
 
         with raises_yt_error('External docker image is not supported in Porto job environment'):
             self.run_map(self.INVALID_EXTERNAL_IMAGE)
+
+
+class TestLayerCacheBase(TestPortoLayersBase):
+    NUM_NODES = 1
+
+    def setup_files(self):
+        create("file", "//tmp/layer1", attributes={"replication_factor": 1})
+        write_file("//tmp/layer1", open("layers/static-bin.tar", "rb").read())
+
+    def _get_node_debug_logs(self, filter_string):
+        writers = self.Env.configs["node"][0]["logging"]["writers"]
+        node_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                node_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert node_debug_logs_filename is not None
+
+        if node_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(node_debug_logs_filename, "rb")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+        elif node_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(node_debug_logs_filename, "b")
+        else:
+            logfile = open(node_debug_logs_filename, "b")
+
+        def _filter(line):
+            return filter_string in line
+
+        return [line for line in logfile if _filter(line)]
+
+
+class TestLayerCacheEviction(TestLayerCacheBase):
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_layers_cache": True,
+                "cache_capacity_fraction": 1.0,
+                "layer_locations": [
+                    {
+                        # Size of unpacked layer layers/static-bin.tar is 3207704.
+                        "quota": 4 * 1024 * 1024,
+                    },
+                ],
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_layer_not_evicted(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        print_debug("Node config: ", get(f"//sys/cluster_nodes/{node}/orchid/config"))
+
+        profiler = profiler_factory().at_node(node)
+        cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
+        cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
+
+        finished_job_counter = profiler.counter("job_controller/job_final_state")
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                },
+            },
+        )
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+        assert len(logs) == 1
+        logs = self._get_node_debug_logs("Layer removed from cache")
+        assert len(logs) == 0
+
+        # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
+        wait(lambda: finished_job_counter.get_delta() == 1)
+
+        # We call IsLayeeCached that do Find and increase missed counter.
+        assert cache_missed_counter.get_delta() > 0
+
+        layer_missed_count = cache_missed_counter.get_delta()
+
+        # We touch layer from cache when creating overlay volume.
+        assert cache_hit_counter.get_delta() == 1
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                },
+            },
+        )
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+        assert len(logs) == 1
+        logs = self._get_node_debug_logs("Layer removed from cache")
+        assert len(logs) == 0
+
+        # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
+        wait(lambda: finished_job_counter.get_delta() == 2)
+
+        assert cache_missed_counter.get_delta() == layer_missed_count
+        # We touch layer from cache when creating overlay volume, so we expect it should be +2 from previous delta (1 + 2).
+        assert cache_hit_counter.get_delta() > 2
+
+
+class TestLayerCacheResurrection(TestLayerCacheBase):
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_layers_cache": True,
+                "cache_capacity_fraction": 1.0,
+                "layer_locations": [
+                    {
+                        # Size of unpacked layer layers/static-bin.tar is 3207704.
+                        "quota": 1 * 1024 * 1024,
+                    },
+                ],
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
+                "user_slots": 2,
+            },
+        },
+    }
+
+    @authors("pogorelov")
+    def test_layer_not_evicted(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        print_debug("Node config: ", get(f"//sys/cluster_nodes/{node}/orchid/config"))
+
+        profiler = profiler_factory().at_node(node)
+        cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
+        cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
+
+        finished_job_counter = profiler.counter("job_controller/job_final_state")
+
+        map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<append=%true>//tmp/t_out",
+            command=with_breakpoint("cat; BREAKPOINT"),
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint(job_count=1)
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+        assert len(logs) == 1
+        logs = self._get_node_debug_logs("Layer removed from cache")
+        assert len(logs) == 1
+
+        # Wait some time for sensors to be collected.
+        time.sleep(1)
+
+        # We call IsLayeeCached that do Find and increase missed counter.
+        assert cache_missed_counter.get_delta() > 0
+
+        cache_hit_count = cache_hit_counter.get_delta()
+
+        map(
+            in_="//tmp/t_in",
+            out="<append=%true>//tmp/t_out",
+            command="cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                },
+            },
+        )
+
+        # We want to ensure layer cache metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
+        wait(lambda: finished_job_counter.get_delta() == 1)
+        # We touch layer from cache when creating overlay volume, so we expect it should be +2 from previous delta (1 + 2).
+        assert cache_hit_counter.get_delta() > cache_hit_count
+
+        logs = self._get_node_debug_logs("Layer added to cache")
+        assert len(logs) == 2
+        logs = self._get_node_debug_logs("Layer removed from cache")
+        assert len(logs) == 2
 
 
 @authors("khlebnikov")

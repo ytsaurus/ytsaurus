@@ -458,6 +458,18 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_global_sequoia_chunk_refresh", &TThis::EnableGlobalSequoiaChunkRefresh)
+        .Default(true);
+
+    registrar.Parameter("global_sequoia_chunk_refresh_period", &TThis::GlobalSequoiaChunkRefreshPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("global_sequoia_chunk_refresh_batch_size", &TThis::GlobalSequoiaChunkRefreshBatchSize)
+        .Default(100'000);
+
+    registrar.Parameter("max_unsuccessful_global_sequoia_chunk_refresh_iterations", &TThis::MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations)
+        .Default(10);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
@@ -466,10 +478,6 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
 
         if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
             THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
-        }
-
-        if (config->Enable && !config->EnableSequoiaChunkRefresh) {
-            THROW_ERROR_EXCEPTION("Cannot enable Sequoia chunk replicas without enabling Sequoia chunk refresh");
         }
     });
 }

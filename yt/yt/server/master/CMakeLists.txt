@@ -192,6 +192,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/global_sequoia_chunk_refresher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp

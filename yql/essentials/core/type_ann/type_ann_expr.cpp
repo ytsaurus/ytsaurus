@@ -425,7 +425,7 @@ private:
                 FunctionStack_.MarkUsed();
                 input->UpdateSideEffectsFromChildren();
                 auto cyclesBefore = PrintCallableTimes ? GetCycleCount() : 0;
-                auto status = CallableTransformer_->Transform(input, output, ctx);
+                auto status = DoCallableTransform(input, output, ctx);
                 auto cyclesAfter = PrintCallableTimes ? GetCycleCount() : 0;
                 if (PrintCallableTimes) {
                     auto& x = CallableTimes_[input->Content()];
@@ -581,6 +581,12 @@ private:
 
             input.SetWorldLinks(std::make_shared<TExprNode::TListType>(std::move(candidates)));
         }
+    }
+
+protected:
+    virtual IGraphTransformer::TStatus DoCallableTransform(const TExprNode::TPtr& input,
+        TExprNode::TPtr& output, TExprContext& ctx) {
+        return CallableTransformer_->Transform(input, output, ctx);
     }
 
 private:
@@ -743,6 +749,77 @@ TExprNode::TPtr ParseAndAnnotate(
     }
 
     return exprRoot;
+}
+
+class TPartialTypeAnnotationTransformer : public TTypeAnnotationTransformer {
+    using TBase = TTypeAnnotationTransformer;
+public:
+    TPartialTypeAnnotationTransformer(TAutoPtr<IGraphTransformer> callableTransformer, TTypeAnnotationContext& types)
+        : TBase(callableTransformer, types, ETypeCheckMode::Initial)
+    {
+    }
+
+    IGraphTransformer::TStatus DoCallableTransform(const TExprNode::TPtr& input,
+        TExprNode::TPtr& output, TExprContext& ctx) final {
+        output = input;
+        if (input->IsCallable({"Commit!", "CommitAll!", "Write!", "Configure!"})) {
+            input->SetTypeAnn(ctx.MakeType<TWorldExprType>());
+            return IGraphTransformer::TStatus::Ok;
+        }
+
+        if (input->IsCallable("MrTableConcat")) {
+            input->SetTypeAnn(ctx.MakeType<TUnitExprType>());
+            return IGraphTransformer::TStatus::Ok;
+        }
+
+        if (input->IsCallable("Read!")) {
+            TTypeAnnotationNode::TListType children;
+            children.push_back(ctx.MakeType<TWorldExprType>());
+            children.push_back(ctx.MakeType<TListExprType>(ctx.MakeType<TUniversalStructExprType>()));
+            input->SetTypeAnn(ctx.MakeType<TTupleExprType>(children));
+            return IGraphTransformer::TStatus::Ok;
+        }
+
+        for (auto child : input->Children()) {
+            if (child->GetTypeAnn() && child->GetTypeAnn()->GetKind() == ETypeAnnotationKind::Universal) {
+                input->SetTypeAnn(child->GetTypeAnn());
+                return IGraphTransformer::TStatus::Ok;
+            }
+        }
+
+        return TBase::DoCallableTransform(input, output, ctx);
+    }
+
+private:
+};
+
+TAutoPtr<IGraphTransformer> CreatePartialTypeAnnotationTransformer(
+    TAutoPtr<IGraphTransformer> callableTransformer, TTypeAnnotationContext& types) {
+    return new TPartialTypeAnnotationTransformer(callableTransformer, types);
+}
+
+bool PartialAnnonateTypes(TAstNode* astRoot, TLangVersion langver, TIssues& issues) {
+    TExprContext ctx;
+    TExprNode::TPtr exprRoot;
+    if (!CompileExpr(*astRoot, exprRoot, ctx, /* resolver= */ nullptr, /* urlListerManager */ nullptr,
+                        /* hasAnnotations= */ false, /* typeAnnotationIndex= */ Max<ui32>(), /* syntaxVersion= */ 1)) {
+        issues.AddIssues(ctx.IssueManager.GetCompletedIssues());
+        return false;
+    }
+
+    TTypeAnnotationContext typeCtx;
+    typeCtx.LangVer = langver;
+    auto callableTypeAnnTransformer = CreateExtCallableTypeAnnotationTransformer(typeCtx);
+    TVector<TTransformStage> transformers;
+    transformers.push_back(TTransformStage(CreateFunctorTransformer(&ExpandApply),
+                                            "ExpandApply", TIssuesIds::CORE_PRE_TYPE_ANN));
+    transformers.push_back(TTransformStage(
+        CreatePartialTypeAnnotationTransformer(std::move(callableTypeAnnTransformer), typeCtx),
+        "PartialTypeAnn", TIssuesIds::CORE_PARTIAL_TYPE_ANN));
+    auto transformer = CreateCompositeGraphTransformer(transformers, /* useIssueScopes= */ true);
+    auto status = InstantTransform(*transformer, exprRoot, ctx);
+    issues.AddIssues(ctx.IssueManager.GetCompletedIssues());
+    return status == IGraphTransformer::TStatus::Ok;
 }
 
 void CheckFatalTypeError(IGraphTransformer::TStatus status) {

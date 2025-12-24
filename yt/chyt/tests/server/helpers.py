@@ -1,6 +1,7 @@
 from yt_commands import exists, create
 
 from yt.common import wait, YtError
+from yt.wrapper.common import MB
 
 
 def get_scheduling_options(user_slots):
@@ -17,7 +18,7 @@ def get_async_expiring_cache_config(expire_after_access_time, expire_after_succe
     }
 
 
-def get_object_attribute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period):
+def get_object_attribute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period, table_schema_cache_capacity=100*MB):
     return {
         "yt": {
             "table_attribute_cache": get_async_expiring_cache_config(
@@ -26,6 +27,9 @@ def get_object_attribute_cache_config(expire_after_access_time, expire_after_suc
             "permission_cache": get_async_expiring_cache_config(
                 expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period
             ),
+            "table_schema_cache": {
+                "capacity": table_schema_cache_capacity,
+            }
         },
     }
 

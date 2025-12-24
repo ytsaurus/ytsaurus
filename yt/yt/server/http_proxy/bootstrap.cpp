@@ -174,7 +174,6 @@ void TBootstrap::DoInitialize()
         Logger());
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
-    // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     Connection_->GetQueueConsumerRegistrationManager()->StartSync();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();

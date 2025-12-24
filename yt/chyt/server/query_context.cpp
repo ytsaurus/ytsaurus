@@ -972,7 +972,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         auto nodeIdOrPath = GetNodeIdOrPath(path);
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
-        NYT::ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
+        NYT::ToProto(req->mutable_attributes()->mutable_keys(), Host->GetObjectAttributeNamesToFetch());
         SetTransactionId(req, transactionId);
         SetCachingHeader(req, connection, masterReadOptions);
 

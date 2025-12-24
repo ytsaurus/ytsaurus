@@ -713,6 +713,9 @@ struct TYtConfig
     //! Config for cache which is used for getting table's attributes, like id, schema, external_cell_tag, etc.
     NObjectClient::TObjectAttributeCacheConfigPtr TableAttributeCache;
 
+    //! Config for cache which is used for getting table's schema by schema_id attribute.
+    TSlruCacheConfigPtr TableSchemaCache;
+
     //! Config for cache which is used for WHERE to PREWHERE optimizator.
     NTableClient::TTableColumnarStatisticsCacheConfigPtr TableColumnarStatisticsCache;
 
@@ -755,6 +758,14 @@ struct TYtConfig
     bool EnableHttpHeaderLog;
     NRe2::TRe2Ptr HttpHeaderBlacklist;
 
+    //! By default, CHYT gets the table schema along with the rest of the attributes.
+    //! This option allows you to separate the schema fetch from the attribute fetch
+    //! by requesting the schema_id, which is later used to get the schema.
+    //! In a special case, this is an additional request to construct a TTable object,
+    //! but for scenarios with concatTables over directories with a large number of tables
+    //! with the same schemas, we will be able to fetch only unique ones.
+    bool EnableSchemaIdFetching;
+
     REGISTER_YSON_STRUCT(TYtConfig);
 
     static void Register(TRegistrar registrar);
@@ -785,8 +796,10 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig)
 // | <================== #MaxServerMemoryUsage ==================> | <========== (ClickHouseWatermark) ==========> |
 // | #Reader | #UncompressedBlockCache + | (CH Memory + Footprint) |                       | #WatchdogOomWatermark |
 // |         | #CompressedBlockCache +   |            | <============== #WatchdogOomWindowWatermark =============> |
-// |         | #ClientBlockMetaCache     |
+// |         | #ClientBlockMetaCache +   |            |                                                            |
+// |         | #TableSchemaCache +       |            |                                                            |
 //                                                         ^              ^                     ^                  ^
+//                                                         |              |                     |                  |
 // If min rss over 15 min window resides in this __________|              |                     |                  |
 // range, instance performs graceful self-interruption.                   |                     |                  |
 //                                                                        |                     |                  |
@@ -802,6 +815,7 @@ struct TMemoryConfig
     : public NYTree::TYsonStruct
 {
     std::optional<i64> Reader;
+    std::optional<i64> TableSchemaCache;
     std::optional<i64> UncompressedBlockCache;
     std::optional<i64> CompressedBlockCache;
     std::optional<i64> ChunkMetaCache;

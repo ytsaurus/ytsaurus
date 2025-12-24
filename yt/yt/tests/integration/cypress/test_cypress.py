@@ -4490,7 +4490,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("kvk1920")
     def test_cluster_connection_attribute(self):
-        with raises_yt_error("Cannot be parsed"):
+        with raises_yt_error("cannot be parsed"):
             set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
         set("//sys/@cluster_connection", {"default_input_row_limit": 1024})
         assert {"default_input_row_limit": 1024} == get("//sys/@cluster_connection")
@@ -4738,7 +4738,7 @@ class TestCypressMulticell(TestCypress):
         create_tablet_cell_bundle("tcb")
 
         # Must not raise.
-        get("//sys/tablet_cell_bundles/@count") == 1
+        assert "tcb" in ls("//sys/tablet_cell_bundles")
 
         with raises_yt_error("is banned"):
             ls("//sys/tablet_cell_bundles", attributes=["tablet_actions"], authenticated_user="u")

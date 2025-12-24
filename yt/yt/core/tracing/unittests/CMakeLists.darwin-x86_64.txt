@@ -48,6 +48,7 @@ target_link_options(unittester-core-tracing PRIVATE
 
 target_sources(unittester-core-tracing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/unittests/trace_context_guard_ut.cpp
 )
 
 

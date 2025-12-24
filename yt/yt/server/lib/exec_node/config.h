@@ -601,6 +601,9 @@ struct TJobCommonConfig
 
     TDuration JobFinishTimeoutAfterInterruptionCallFailed;
 
+    //! Period between statistics reports to operations archive for running jobs.
+    std::optional<TDuration> StatisticsReportingPeriod;
+
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
     static void Register(TRegistrar registrar);

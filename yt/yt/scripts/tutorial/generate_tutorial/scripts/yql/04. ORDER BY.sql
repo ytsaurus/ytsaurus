@@ -1,3 +1,6 @@
+-- Sorts products by length of name (descending), then by is_rx (ascending).
+-- Demonstrates multi-column sorting and use of LENGTH() function.
+
 SELECT
     n.id
    ,n.name

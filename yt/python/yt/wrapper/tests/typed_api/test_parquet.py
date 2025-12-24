@@ -567,8 +567,8 @@ class TestParquet(object):
                 .add_column("z", type_info.Optional[type_info.Struct[
                     "foo": type_info.Optional[type_info.Struct[
                         "a": type_info.Optional[type_info.Uint8],
-                        "b": type_info.Optional[type_info.String]]],
-                    "bar": type_info.Optional[type_info.String]]])
+                        "b": type_info.Optional[type_info.Utf8]]],
+                    "bar": type_info.Optional[type_info.Utf8]]])
 
             schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
             assert schema == schema_from_attr

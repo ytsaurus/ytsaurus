@@ -9,7 +9,9 @@ constexpr TStringBuf DefaultPortoNetworkInterface = "veth";
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This is a wildcard pattern that matches everything.
-constexpr const char* All = "***";
+constexpr const char* AnyTarget = "***";
+//! This is a wildcard pattern that matches everything.
+constexpr const char* AnyContainer = "***";
 
 ////////////////////////////////////////////////////////////////////////////////
 

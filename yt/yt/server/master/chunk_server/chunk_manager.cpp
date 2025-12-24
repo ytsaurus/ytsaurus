@@ -22,6 +22,7 @@
 #include "data_node_tracker.h"
 #include "dynamic_store.h"
 #include "dynamic_store_type_handler.h"
+#include "global_sequoia_chunk_refresher.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
@@ -401,6 +402,7 @@ public:
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
+        , GlobalSequoiaChunkRefresher_(CreateGlobalSequoiaChunkRefresher(bootstrap))
         , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
@@ -1271,17 +1273,19 @@ public:
     }
 
     void HydraPrepareConfirmMultipleChunks(
-        TTransaction* /*transaction*/,
+        TTransaction* transaction,
         NProto::TReqConfirmMultipleChunks* request,
         const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
-        YT_LOG_TRACE("Confirming multiple chunks (ChunkCount: %v)", request->chunk_confirmations_size());
+        YT_LOG_DEBUG("Confirming multiple chunks (ChunkCount: %v, TransactionId: %v)",
+            request->chunk_confirmations_size(),
+            GetObjectId(transaction));
 
-        std::vector<TConfirmChunkSuccessfulValidationResult> chunkConfirmationValidationResults;
-        chunkConfirmationValidationResults.reserve(request->chunk_confirmations_size());
+        THashMap<TChunkId, TConfirmChunkSuccessfulValidationResult> chunkToConfirmationValidationResult;
+        chunkToConfirmationValidationResult.reserve(request->chunk_confirmations_size());
         for (const auto& protoChunkInfo : request->chunk_confirmations()) {
             auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
             YT_LOG_TRACE("Confirming chunk during multiple chunks confirmation (ChunkId: %v)",
@@ -1303,18 +1307,15 @@ public:
                 schemaId,
                 /*validateChunkMeta*/ false);
 
-            chunkConfirmationValidationResults.push_back(std::move(result));
+            if (!chunkToConfirmationValidationResult.emplace(chunkId, result).second) {
+                YT_LOG_ALERT("A chunk was found in confirmation batch multiple times (ChunkId: %v)",
+                    chunkId);
+                THROW_ERROR_EXCEPTION("A chunk %v was found in confirmation batch multiple times",
+                    chunkId);
+            }
         }
 
-        if (std::ssize(chunkConfirmationValidationResults) != request->chunk_confirmations_size()) {
-                YT_LOG_ALERT("ChunkConfirmationValidationResults size is different fron chunk confirmations count "
-                    "(ChunkConfirmationValidationResultsSize: %v, ChunkConfirmationsCount: %v)",
-                    std::ssize(chunkConfirmationValidationResults),
-                    request->chunk_confirmations_size());
-                THROW_ERROR_EXCEPTION("ChunkConfirmationValidationResults size is different fron chunk confirmations count");
-        }
-
-        for (const auto& [protoChunkInfo, confirmationResult] : Zip(request->chunk_confirmations(), chunkConfirmationValidationResults)) {
+       for (const auto& protoChunkInfo : request->chunk_confirmations()) {
             auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
             auto* chunk = FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
@@ -1324,6 +1325,15 @@ public:
 
             auto replicas = FromProto<TChunkReplicaWithLocationList>(protoChunkInfo.replicas());
 
+            auto it = chunkToConfirmationValidationResult.find(chunkId);
+            if (it == chunkToConfirmationValidationResult.end()) {
+                YT_LOG_ALERT("Chunk is not present in confirmation validation result list (ChunkId: %v)",
+                    chunkId);
+                THROW_ERROR_EXCEPTION("Chunk %v is not present in confirmation validation result list",
+                    chunkId);
+            }
+
+            const auto& confirmationResult = it->second;
             ConfirmChunk(
                 chunk,
                 replicas,
@@ -2675,6 +2685,8 @@ private:
 
     const IMasterCellChunkStatisticsCollectorPtr MasterCellChunkStatisticsCollector_;
 
+    const IGlobalSequoiaChunkRefresherPtr GlobalSequoiaChunkRefresher_;
+
     // Global chunk lists; cf. TChunkDynamicData.
     using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;
     using TShardedGlobalChunkList = std::array<TGlobalChunkList, ChunkShardCount>;
@@ -2794,6 +2806,7 @@ private:
                 })
                 .Item("endorsement_count").Value(EndorsementCount_)
                 .Item("chunk_replicator_enabled").Value(ChunkReplicator_->IsReplicatorEnabled())
+                .Item("global_sequoia_chunk_refresh_status").Value(GlobalSequoiaChunkRefresher_->GetStatus())
             .EndMap();
     }
 
@@ -3467,12 +3480,7 @@ private:
             promise.IsSet(),
             "Chunk confirmation promise is already set (Result: %v)",
             promise.TryGet());
-
         auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk*>());
-        if (std::ssize(requests) > config->ConfirmBatchSize) {
-            WaitingConfirmRequests_ = {requests.begin() + config->ConfirmBatchSize, requests.end()};
-            requests.resize(config->ConfirmBatchSize);
-        }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         // TODO: support location indexes for confirm and remove this.
@@ -3574,8 +3582,14 @@ private:
 
     TFuture<void> ConfirmSequoiaChunkBatched(TReqConfirmChunk* request) override
     {
-        WaitingConfirmRequests_.push_back(request);
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (std::ssize(WaitingConfirmRequests_) > config->ConfirmBatchSize) {
+            YT_LOG_DEBUG("Flushing Sequoia confirms due to batch size limit (ConfirmRequestCount: %v)",
+                std::ssize(WaitingConfirmRequests_));
+            OnSequoiaReplicaConfirm();
+        }
 
+        WaitingConfirmRequests_.push_back(request);
         if (!BatchConfirmTransactionCommitPromise_) {
             YT_LOG_ALERT("Confirm transaction promise was not created");
             BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
@@ -5849,6 +5863,8 @@ private:
             BIND(&TChunkManager::OnSequoiaChunkRefresh, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->SequoiaChunkRefreshPeriod);
         SequoiaChunkRefreshExecutor_->Start();
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void OnEpochFinished()
@@ -5864,6 +5880,8 @@ private:
         }
 
         FetchingSequoiaChunksToRefresh_ = false;
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -6666,6 +6684,10 @@ private:
             buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
             buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
 
+            buffer.AddGauge(
+                "/sequoia_global_refresh_chunks_processed",
+                GlobalSequoiaChunkRefresher_->GetStatus().ChunksProcessed);
+
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
                 buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
@@ -7000,6 +7022,8 @@ private:
         if (SequoiaChunkBatchConfirmExecutor_) {
             SequoiaChunkBatchConfirmExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
         }
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 };
 

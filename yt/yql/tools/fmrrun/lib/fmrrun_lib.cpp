@@ -50,6 +50,12 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;
     fmrServices->NeedToTransformTmpTablePaths = false;
 
+    fmrServices->FileStorage = GetFileStorage();
+    if (!fmrServices->DisableLocalFmrWorker) {
+        auto jobPreparer = NFmr::MakeFmrJobPreparer(GetFileStorage(), TableDataServiceDiscoveryFilePath_);
+        fmrServices->JobPreparer = jobPreparer;
+    }
+
     auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, fmrServices);
     FmrWorker_ = std::move(worker);
     return fmrGateway;

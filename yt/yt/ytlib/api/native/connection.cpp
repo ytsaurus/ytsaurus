@@ -997,8 +997,11 @@ public:
         DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
-        TimestampProvider_->Reconfigure(
-            GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
+        if (dynamicConfig->TimestampProvider) {
+            TimestampProvider_->Reconfigure(
+                GetTimestampProviderStaticConfig()->ApplyDynamic(dynamicConfig->TimestampProvider));
+        }
+
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(StaticConfig_->ChunkReplicaCache->ApplyDynamic(dynamicConfig->ChunkReplicaCache));
         ChaosResidencyCache_->Reconfigure(StaticConfig_->ChaosResidencyCache->ApplyDynamic(dynamicConfig->ChaosResidencyCache));

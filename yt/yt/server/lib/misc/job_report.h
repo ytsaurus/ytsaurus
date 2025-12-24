@@ -107,8 +107,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, DistributedGroupJobIndex);
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, DistributedGroupMainJobId);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, CollectiveMemberRank);
+    DEFINE_BYREF_RO_PROPERTY(TGuid, CollectiveId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, Address);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NNodeTrackerClient::TAddressMap>, Addresses);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerState);

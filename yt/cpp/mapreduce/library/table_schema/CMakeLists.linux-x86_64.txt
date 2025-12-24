@@ -30,6 +30,7 @@ target_link_libraries(mapreduce-library-table_schema PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
+  yt-library-formats
   libs-apache-arrow_next
 )
 

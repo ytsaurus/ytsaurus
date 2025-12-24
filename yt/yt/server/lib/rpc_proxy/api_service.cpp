@@ -766,6 +766,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbandonJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PollJobShell);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RunJobShellCommand);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortJob);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobProxyLog);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LookupRows);
@@ -1106,6 +1107,9 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PollJobShell));
+    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RunJobShellCommand)
+        .SetStreamingEnabled(true)
+        .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
@@ -3634,8 +3638,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ListJobs)
     if (request->has_with_competitors()) {
         options.WithCompetitors = request->with_competitors();
     }
-    if (request->has_distributed_group_main_job_id()) {
-        options.DistributedGroupMainJobId = FromProto<TJobId>(request->distributed_group_main_job_id());
+    if (request->has_collective_id()) {
+        options.CollectiveId = FromProto<TGuid>(request->collective_id());
     }
     if (request->has_job_competition_id()) {
         options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
@@ -4040,6 +4044,30 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PollJobShell)
             auto* response = &context->Response();
             response->set_result(ToProto(pollJobShellResponse.Result));
         });
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, RunJobShellCommand)
+{
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
+    auto jobId = FromProto<TJobId>(request->job_id());
+    auto command = request->command();
+    auto shellName = request->has_shell_name()
+        ? std::optional<std::string>(request->shell_name())
+        : std::nullopt;
+
+    TRunJobShellCommandOptions options;
+    SetTimeoutOptions(&options, context.Get());
+
+    context->SetRequestInfo("JobId: %v, Command: %v, ShellName: %v",
+        jobId,
+        command,
+        shellName);
+
+    auto inputStream = WaitFor(client->RunJobShellCommand(jobId, shellName, command, options))
+        .ValueOrThrow();
+
+    HandleInputStreamingRequest(context, inputStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, AbortJob)
@@ -5999,7 +6027,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, RequestRestart)
     context->SetRequestInfo("NodeAddress: %v", nodeAddress);
 
     auto client = GetAuthenticatedClientOrThrow(context, request);
-
     ExecuteCall(
         context,
         [=] {
@@ -6751,7 +6778,14 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
 {
     auto client = GetAuthenticatedClientOrThrow(context, request);
 
-    auto cookie = ConvertTo<TTablePartitionCookiePtr>(TYsonStringBuf(request->cookie()));
+    TTablePartitionCookiePtr cookie;
+    std::optional<NYson::TYsonStringBuf> rawFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat desiredRowsetFormat;
+    NApi::NRpcProxy::NProto::ERowsetFormat arrowFallbackRowsetFormat;
+
+    NApi::TReadTablePartitionOptions options;
+
+    ParseRequest(&cookie, &rawFormat, &desiredRowsetFormat, &arrowFallbackRowsetFormat, &options, *request);
 
     YT_VERIFY(cookie);
 
@@ -6761,20 +6795,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
         THROW_ERROR_EXCEPTION("Signature validation failed");
     }
 
-    auto format = GetFormat(context, request);
-
-    NApi::TReadTablePartitionOptions options;
-    options.Unordered = request->unordered();
-    options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
-    options.EnableTableIndex = request->enable_table_index();
-    options.EnableRowIndex = request->enable_row_index();
-    options.EnableRangeIndex = request->enable_range_index();
-    if (request->has_config()) {
-        options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
+    std::optional<NFormats::TFormat> format;
+    if (rawFormat) {
+        ValidateFormat(context->GetAuthenticationIdentity().User, ConvertToNode(*rawFormat));
+        format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
-
-    auto desiredRowsetFormat = request->desired_rowset_format();
-    auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
     context->SetRequestInfo(
         "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
@@ -6999,7 +7024,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteFileSession)
     TRichYPath path;
     TDistributedWriteFileSessionStartOptions options;
     ParseRequest(&path, &options, *request);
-
     context->SetRequestInfo(
         "Path: %v",
         path);

@@ -426,7 +426,11 @@ def upload_tutorials(args: argparse.Namespace):
     if client.exists(path_to_query_ids_table):
         query_ids = client.read_table_structured(table=path_to_query_ids_table, row_type=TutorialQueryId)
         for query_id in query_ids:
-            client.alter_query(query_id=query_id.query_id, stage=args.stage, annotations={})
+            try:
+                client.alter_query(query_id=query_id.query_id, stage=args.stage, annotations={})
+            except Exception as e:
+                print(f"Failed to remove annotation from query {query_id.query_id}")
+                print(str(e).rstrip("\n"))
 
     client.create(
         type="table",
@@ -441,38 +445,33 @@ def upload_tutorials(args: argparse.Namespace):
     for root, dirs, files in os.walk(root_dir):
         if files:
             print(f" Root: {root}, Dirs: {dirs}, Files: {files}")
-            for file in files:
-                if file.endswith('.sql'):
-                    print(f"Engine: {root.split('/')[1]}")
-                    file_path = os.path.join(root, file)
-                    with open(file_path, 'r') as f:
-                        script = Template(f.read()).safe_substitute(
-                            nomenclature=path_to_tables_directory + "/nomenclature",
-                            price=path_to_tables_directory + "/price",
-                            orders=path_to_tables_directory + "/orders",
-                            start_date=datetime.date.today() - timedelta(days=args.days_to_generate - 1),
-                            end_date=datetime.date.today(),
-                        )
-                        query_id = yt.wrapper.driver.make_request(
-                            "start_query",
-                            {
-                                "engine": root.split('/')[1],
-                                "query": script,
-                                "settings": {
-                                    "cluster": args.proxy,
-                                },
-                                "access_control_objects": ["everyone"],
-                                "annotations": {
-                                    "title": (root.split('/')[1]).upper() + " " + file,
-                                    "is_tutorial": True,
-                                },
-                                "draft": True,
-                                "stage": args.stage,
-                            },
-                            client=client,
-                        )
-                        query_ids.append(TutorialQueryId(query_id=json.loads(query_id.decode("utf-8"))["query_id"]))
-                        print(f"Processed script: {file_path}\n{script}\n")
+            sql_files = [f for f in files if f.endswith(".sql")][::-1]
+            for file in sql_files:
+                print(f"Engine: {root.split("/")[1]}")
+                file_path = os.path.join(root, file)
+                with open(file_path, "r") as f:
+                    script = Template(f.read()).safe_substitute(
+                        nomenclature=path_to_tables_directory + "/nomenclature",
+                        price=path_to_tables_directory + "/price",
+                        orders=path_to_tables_directory + "/orders",
+                        start_date=datetime.date.today() - timedelta(days=args.days_to_generate - 1),
+                        end_date=datetime.date.today(),
+                    )
+                    query_id = yt.wrapper.driver.make_request(
+                        "start_query",
+                        {
+                            "engine": root.split("/")[1],
+                            "query": script,
+                            "settings": {"cluster": args.cluster_name} if args.cluster_name else {},
+                            "access_control_objects": ["everyone"],
+                            "annotations": {"title": (root.split("/")[1]).upper() + " " + file, "is_tutorial": True},
+                            "draft": True,
+                            "stage": args.stage,
+                        },
+                        client=client,
+                    )
+                    query_ids.append(TutorialQueryId(query_id=json.loads(query_id.decode("utf-8"))["query_id"]))
+                    print(f"Processed script: {file_path}\n{script}\n")
 
     client.write_table_structured(table=path_to_query_ids_table, row_type=TutorialQueryId, input_stream=query_ids)
 
@@ -490,12 +489,15 @@ def main():
     )
     parser.add_argument("--days-to-generate", help="Number of days in price and orders tables", default=7, type=int)
     parser.add_argument("--max-order-size", help="Max order size in orders table", default=200, type=int)
-    parser.add_argument("--desired-order-size", help="Desired row number per day in orders table", default=2000, type=int)
+    parser.add_argument(
+        "--desired-order-size", help="Desired row number per day in orders table", default=2000, type=int
+    )
     parser.add_argument("-f", "--force", help="Ignore that YT directory isn't empty", action="store_true")
     parser.add_argument("--scripts-folder", help="Folder with queries templates", default="scripts")
     parser.add_argument(
         "--full-wipe-annotations", help="Full wipe non-empty query annotations for user", action="store_true"
     )
+    parser.add_argument("--cluster-name", help="Name of the target cluster")
     parser.add_argument("--stage", help="Stage for queries", default="experimental")
 
     args = parser.parse_args()

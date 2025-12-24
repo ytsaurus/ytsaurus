@@ -1046,9 +1046,9 @@ private:
             Bootstrap_);
 
         return WaitFor(future)
-                .ValueOrThrow(
-                    EErrorCode::PortoVolumeManagerFailure,
-                    "Failed to initialize volume manager");
+            .ValueOrThrow(
+                EErrorCode::PortoVolumeManagerFailure,
+                "Failed to initialize volume manager");
     }
 };
 

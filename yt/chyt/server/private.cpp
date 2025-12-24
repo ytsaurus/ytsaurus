@@ -9,8 +9,6 @@ const TString ChytSqlObjectsUserName("chyt-sql-objects");
 const TString InternalRemoteUserName("$remote");
 const std::vector<std::string> TableAttributesToFetch{
     "id",
-    // TODO(dakovalkov): Eliminate this with "schema_id" (CHYT-687).
-    "schema",
     "type",
     "dynamic",
     "chunk_count",
@@ -22,6 +20,8 @@ const std::vector<std::string> TableAttributesToFetch{
     "chyt_banned",
     "row_count",
 };
+const std::string TableSchemaAttribute("schema");
+const std::string TableSchemaIdAttribute("schema_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 

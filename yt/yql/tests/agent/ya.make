@@ -42,6 +42,10 @@ IF (SANITIZER_TYPE)
     REQUIREMENTS(
         ram:60
     )
+ELSE()
+    REQUIREMENTS(
+        ram:32
+    )
 ENDIF()
 
 FORK_SUBTESTS()

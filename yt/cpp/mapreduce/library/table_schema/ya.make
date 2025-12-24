@@ -11,6 +11,8 @@ SRCS(
 PEERDIR(
     yt/cpp/mapreduce/interface
 
+    yt/yt/library/formats
+
     contrib/libs/apache/arrow_next
 )
 

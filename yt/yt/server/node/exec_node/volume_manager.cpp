@@ -607,12 +607,12 @@ public:
             // The rbind volume is destroyed when the passed in root volume is destroyed.
             return VolumeExecutor_->CreateVolume(path, volumeProperties);
         })
-        .AsyncVia(LocationQueue_->GetInvoker())
-        .Run()
-        .Apply(BIND([volume](const TString&) {
-            // Just return the passed in volume.
-            return volume;
-        }));
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run()
+            .Apply(BIND([volume](const TString&) {
+                // Just return the passed in volume.
+                return volume;
+            }));
     }
 
     TFuture<TVolumeMeta> CreateOverlayVolume(
@@ -1058,25 +1058,7 @@ private:
         }
 
         try {
-            // Volumes are not expected to be used since all jobs must be dead by now.
-            auto volumePaths = WaitFor(VolumeExecutor_->ListVolumePaths())
-                .ValueOrThrow();
-
-            std::vector<TFuture<void>> unlinkFutures;
-            for (const auto& volumePath : volumePaths) {
-                if (volumePath.StartsWith(VolumesPath_)) {
-                    unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
-                }
-            }
-
-            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
-                .ValueOrThrow();
-
-            for (const auto& unlinkError : unlinkResults) {
-                if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
-                    THROW_ERROR(unlinkError);
-                }
-            }
+            RemoveVolumes();
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
             RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
@@ -1777,6 +1759,90 @@ private:
         WaitFor(VolumeExecutor_->UnlinkVolume(source, "self", target))
             .ThrowOnError();
     }
+
+    //! Remove porto volumes that belong to this location.
+    //! Volumes are not expected to be used since all jobs must be dead by now.
+    void RemoveVolumes(TDuration timeout = TDuration::Minutes(30))
+    {
+        auto startTime = TInstant::Now();
+        auto deadLine = startTime + timeout;
+
+        YT_LOG_DEBUG("Removing volumes (DeadLine: %v)",
+            deadLine);
+
+        auto checkDeadLine = [&] {
+            auto now = TInstant::Now();
+            if (now > deadLine) {
+                THROW_ERROR_EXCEPTION("Failed to wait for volumes already being unlinked")
+                    << TErrorAttribute("timeout", timeout);
+            }
+        };
+
+        int volumesRemoved = 0;
+
+        while (true) {
+            checkDeadLine();
+
+            auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
+                .ValueOrThrow();
+
+            auto waitForVolumesToBecomeReady = false;
+            std::vector<TFuture<void>> unlinkFutures;
+            for (const auto& volume : volumes) {
+                if (!volume.Path.StartsWith(VolumesPath_)) {
+                    // This volume is not from my location.
+                    continue;
+                }
+
+                static const TString ReadyState = "ready";
+                if (volume.State != ReadyState) {
+                    waitForVolumesToBecomeReady = true;
+                    YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
+                        volume.Path,
+                        volume.State);
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Trying to unlink volume (Path: %v, State: %v)",
+                    volume.Path,
+                    volume.State);
+
+                // Unlink volume even if it was linked to a different container.
+                unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
+            }
+
+            if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
+                // All volumes have been unlinked.
+                break;
+            }
+
+            auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+                .ValueOrThrow();
+
+            for (const auto& unlinkError : unlinkResults) {
+                if (unlinkError.IsOK()) {
+                    ++volumesRemoved;
+                } else if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked && unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound) {
+                    THROW_ERROR(unlinkError);
+                }
+            }
+
+            if (waitForVolumesToBecomeReady) {
+                checkDeadLine();
+
+                static const TDuration Duration = TDuration::Seconds(30);
+
+                YT_LOG_DEBUG("Waiting for volumes to become ready (Duration: %v)",
+                    Duration);
+
+                TDelayedExecutor::WaitForDuration(Duration);
+            }
+        }
+
+        YT_LOG_DEBUG("Removed volumes (Count: %v, Duration: %v)",
+            volumesRemoved,
+            (TInstant::Now() - startTime));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayerLocation)
@@ -2386,10 +2452,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
-            TSlruCacheConfig::CreateWithCapacity(
-                config->EnableLayersCache
-                ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
-                : 0),
+            CreateCacheConfig(config, layerLocations),
             ExecNodeProfiler().WithPrefix("/layer_cache"))
         , DynamicConfigManager_(dynamicConfigManager)
         , ArtifactCache_(std::move(artifactCache))
@@ -2641,14 +2704,44 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    bool IsResurrectionSupported() const override
+    static TSlruCacheConfigPtr CreateCacheConfig(
+        const NDataNode::TVolumeManagerConfigPtr& config,
+        const std::vector<TLayerLocationPtr>& layerLocations)
     {
-        return false;
+        auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
+            config->EnableLayersCache
+            ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
+            : 0);
+        cacheConfig->ShardCount = 1;
+        return cacheConfig;
     }
 
     i64 GetWeight(const TLayerPtr& layer) const override
     {
         return layer->GetSize();
+    }
+
+    void OnAdded(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer added to cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnRemoved(const TLayerPtr& layer) override
+    {
+        YT_LOG_DEBUG(
+            "Layer removed from cache (LayerId: %v, ArtifactPath: %v, Size: %v)",
+            layer->GetMeta().Id,
+            layer->GetCypressPath(),
+            layer->GetSize());
+    }
+
+    void OnWeightUpdated(i64 weightDelta) override
+    {
+        YT_LOG_DEBUG("Layer cache weight updated (WeightDelta: %v)", weightDelta);
     }
 
     void ProfileLocation(const TLayerLocationPtr& location) {
@@ -2783,8 +2876,6 @@ public:
         , Location_(std::move(location))
     { }
 
-    ~TPortoVolumeBase() override = default;
-
     const TVolumeId& GetId() const override final
     {
         return VolumeMeta_.Id;
@@ -2816,7 +2907,7 @@ public:
         // Use MakeWeak here since Removed is called from derived class destructors.
         auto this_ = MakeWeak(this).Lock();
         if (!this_) {
-            YT_LOG_DEBUG("Trying to remove already destroyed volume object.");
+            YT_LOG_DEBUG("Trying to remove already destroyed volume object");
             return VoidFuture;
         }
 
@@ -2846,6 +2937,10 @@ public:
     }
 
 protected:
+    const NProfiling::TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TLayerLocationPtr Location_;
+
     //! Remove the actual volume.
     virtual TFuture<void> DoRemoveImpl() = 0;
 
@@ -2869,10 +2964,6 @@ protected:
         return AllSucceeded(std::move(futures))
             .ToUncancelable();
     }
-
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
 
 private:
     TAsyncReaderWriterLock Lock_;
@@ -3223,9 +3314,9 @@ public:
             config->Detach = DetachUnmount_;
             RunTool<TUmountAsRootTool>(config);
         })
-        .AsyncVia(Invoker_)
-        .Run()
-        .ToUncancelable();
+            .AsyncVia(Invoker_)
+            .Run()
+            .ToUncancelable();
 
         return RemoveFuture_;
     }
@@ -3388,6 +3479,9 @@ public:
     { }
 
 private:
+    const IInvokerPtr Invoker_;
+    const bool DetachUnmount_;
+
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
         const TString& sandboxPath,
@@ -3457,10 +3551,8 @@ private:
         .AsyncVia(Invoker_)
         .Run();
     }
-
-    const IInvokerPtr Invoker_;
-    const bool DetachUnmount_;
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoVolumeManager
@@ -4191,21 +4283,22 @@ private:
             std::move(volumeCreateTimeGuard),
             volumeParams);
 
-        return future.AsUnique().Apply(BIND(
-            [
-                tmpfsPath = volumeParams.Path,
-                tagSet = std::move(tagSet),
-                location = std::move(location)
-            ] (TVolumeMeta&& meta) mutable {
-                TTmpfsVolumeResult result;
-                result.Path = std::move(tmpfsPath);
-                result.Volume = New<TTmpfsVolume>(
+        return future.AsUnique()
+            .Apply(BIND(
+                [
+                    tmpfsPath = volumeParams.Path,
+                    tagSet = std::move(tagSet),
+                    location = std::move(location)
+                ] (TVolumeMeta&& meta) mutable {
+                    TTmpfsVolumeResult result;
+                    result.Path = std::move(tmpfsPath);
+                    result.Volume = New<TTmpfsVolume>(
                         std::move(tagSet),
                         std::move(meta),
                         std::move(location));
-                return result;
-        }))
-        .ToUncancelable();
+                    return result;
+                }))
+            .ToUncancelable();
     }
 
     TNbdVolumePtr CreateNbdVolume(

@@ -545,6 +545,11 @@ struct TDynamicSequoiaChunkReplicasConfig
     // COMPAT(aleksandra-zh).
     bool BatchChunkConfirmation;
 
+    bool EnableGlobalSequoiaChunkRefresh;
+    TDuration GlobalSequoiaChunkRefreshPeriod;
+    int GlobalSequoiaChunkRefreshBatchSize;
+    int MaxUnsuccessfulGlobalSequoiaChunkRefreshIterations;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);

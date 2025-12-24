@@ -65,6 +65,8 @@ public:
 
     TSubjectDescriptorPtr GetSubjectByIdOrThrow(NSecurityClient::TSubjectId subjectId) const;
 
+    const THashMap<std::string, TUserDescriptorPtr>& GetNameOrAliasToUserDescriptor() const;
+
     std::vector<std::string> LoadFrom(
         std::vector<TUserDescriptor> users,
         std::vector<TGroupDescriptor> groups);

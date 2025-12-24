@@ -1,0 +1,18 @@
+proxy: http://http-proxies.default.svc.cluster.local/
+token_env_variable: YT_ACCESS_LOG_VIEWER_TOKEN
+lock_path: //sys/admin/yt-microservices/access_master_log/lock
+force_cluster_name: ytsaurus
+access_log_export_path: //sys/admin/logs/export/master-access
+work_path: //sys/admin/yt-microservices/raw_log_processing
+max_input_tables: 2
+processings:
+  30min:
+    output_path: //sys/admin/logs/export/master-access-parsed/30min
+    interval: 30m
+    table_format: "2006-01-02T15:04:05"
+    cutoff_time: 2h
+  1d:
+    output_path: //sys/admin/logs/export/master-access-parsed/1d
+    interval: 24h
+    table_format: "2006-01-02"
+    cutoff_time: 2h
