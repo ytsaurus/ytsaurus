@@ -3123,6 +3123,7 @@ class TestQuerySequoia(TestQuery):
             "sequoia_chunk_replicas": {
                 "enable": True,
                 "enable_sequoia_chunk_refresh": True,
+                "enable_global_sequoia_chunk_refresh": False,  # TODO(grphil): Do not apply DELTA_DYNAMIC_MASTER_CONFIG to ground
                 "sequoia_chunk_refresh_period": 100,
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,

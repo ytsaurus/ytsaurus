@@ -3986,11 +3986,6 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         &TChunkReplicator::ScheduleGlobalChunkRefresh,
         "Chunk refresh");
     updateToggle(
-        &SequoiaRefreshEnabled_,
-        newConfig->SequoiaChunkReplicas->EnableSequoiaChunkRefresh,
-        &TChunkReplicator::ScheduleGlobalChunkRefresh,
-        "Sequoia chunk refresh");
-    updateToggle(
         &RequisitionUpdateEnabled_,
         newConfig->EnableChunkRequisitionUpdate,
         &TChunkReplicator::ScheduleGlobalRequisitionUpdate,

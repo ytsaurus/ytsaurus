@@ -22,6 +22,7 @@
 #include "data_node_tracker.h"
 #include "dynamic_store.h"
 #include "dynamic_store_type_handler.h"
+#include "global_sequoia_chunk_refresher.h"
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
@@ -401,6 +402,7 @@ public:
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
+        , GlobalSequoiaChunkRefresher_(CreateGlobalSequoiaChunkRefresher(bootstrap))
         , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
@@ -2683,6 +2685,8 @@ private:
 
     const IMasterCellChunkStatisticsCollectorPtr MasterCellChunkStatisticsCollector_;
 
+    const IGlobalSequoiaChunkRefresherPtr GlobalSequoiaChunkRefresher_;
+
     // Global chunk lists; cf. TChunkDynamicData.
     using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;
     using TShardedGlobalChunkList = std::array<TGlobalChunkList, ChunkShardCount>;
@@ -2802,6 +2806,7 @@ private:
                 })
                 .Item("endorsement_count").Value(EndorsementCount_)
                 .Item("chunk_replicator_enabled").Value(ChunkReplicator_->IsReplicatorEnabled())
+                .Item("global_sequoia_chunk_refresh_status").Value(GlobalSequoiaChunkRefresher_->GetStatus())
             .EndMap();
     }
 
@@ -5858,6 +5863,8 @@ private:
             BIND(&TChunkManager::OnSequoiaChunkRefresh, MakeWeak(this)),
             GetDynamicConfig()->SequoiaChunkReplicas->SequoiaChunkRefreshPeriod);
         SequoiaChunkRefreshExecutor_->Start();
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void OnEpochFinished()
@@ -5873,6 +5880,8 @@ private:
         }
 
         FetchingSequoiaChunksToRefresh_ = false;
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -6675,6 +6684,10 @@ private:
             buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
             buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
 
+            buffer.AddGauge(
+                "/sequoia_global_refresh_chunks_processed",
+                GlobalSequoiaChunkRefresher_->GetStatus().ChunksProcessed);
+
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
                 buffer.AddCounter("/ally_replicas_announced", ImmediateAllyReplicasAnnounced_);
@@ -7009,6 +7022,8 @@ private:
         if (SequoiaChunkBatchConfirmExecutor_) {
             SequoiaChunkBatchConfirmExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
         }
+
+        GlobalSequoiaChunkRefresher_->AdjustRefresherState();
     }
 };
 
