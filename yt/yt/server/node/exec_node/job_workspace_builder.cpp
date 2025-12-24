@@ -86,6 +86,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoPrepareTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
         return "DoPrepareGpuCheckVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoBindRootVolume) {
+        return "DoBindRootVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoLinkTmpfsVolumes) {
         return "DoLinkTmpfsVolumes";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
@@ -255,6 +257,7 @@ TFuture<void> TJobWorkspaceBuilder::Run()
         .Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoBindRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkTmpfsVolumes>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
@@ -402,12 +405,23 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoLinkTmpfsVolumes() override
+    TFuture<void> DoBindRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
         SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_LOG_DEBUG("Root volume binding is not needed in simple workspace");
+
+         ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoLinkTmpfsVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
 
@@ -555,7 +569,7 @@ private:
                         rootVolume,
                         Context_.UserSandboxOptions.UserId)
                         .Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] () {
-                            ResultHolder_.RootVolume = rootVolume;
+                            Context_.RootVolume = rootVolume;
                             YT_LOG_DEBUG("Root volume prepared");
                             SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                         }).AsyncVia(Invoker_));
@@ -602,6 +616,36 @@ private:
                 SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
             }).AsyncVia(Invoker_))
             .ToUncancelable();
+    }
+
+    TFuture<void> DoBindRootVolume() override
+    {
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        auto slot = Context_.Slot;
+        auto slotPath = slot->GetSlotPath();
+        if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
+            return slot->RbindRootVolume(Context_.RootVolume, slotPath)
+                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                    Context_.RootVolume.Reset();
+
+                    if (!volumeOrError.IsOK()) {
+                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                            << volumeOrError;
+                    }
+
+                    ResultHolder_.RootVolume = std::move(volumeOrError.Value());
+            }).AsyncVia(Invoker_))
+            .ToImmediatelyCancelable();
+        } else {
+            ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+            YT_LOG_DEBUG("Root volume binding is not needed");
+        }
+
+        return VoidFuture;
     }
 
     TFuture<void> DoPrepareGpuCheckVolume() override
@@ -657,9 +701,6 @@ private:
     TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
-        SetJobPhase(EJobPhase::LinkingVolumes);
 
         SetNowTime(TimePoints_.LinkTmpfsVolumesStartTime);
 
@@ -1004,12 +1045,23 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoLinkTmpfsVolumes() override
+    TFuture<void> DoBindRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
         SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_LOG_DEBUG("Root volume binding is not needed in cri workspace");
+
+        ResultHolder_.RootVolume = Context_.RootVolume;
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoLinkTmpfsVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Link tmpfs volumes is not supported in cri workspace");
 
