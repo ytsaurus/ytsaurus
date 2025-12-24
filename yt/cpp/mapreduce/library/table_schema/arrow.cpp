@@ -60,6 +60,7 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType, con
             return NTi::Double();
 
         case arrow20::Type::type::STRING:
+            return NTi::Utf8();
         case arrow20::Type::type::BINARY:
         case arrow20::Type::type::FIXED_SIZE_BINARY:
             if (metadataYTType && *metadataYTType == YTTypeMetadataValueYson) {
