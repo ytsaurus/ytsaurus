@@ -1992,8 +1992,13 @@ protected:
         endCurrentMerging();
     }
 
-    void OnPartitionProcessedByJobs(TIntermediatePartitionPtr partition)
+    void OnPartitionProcessedByJobs(TWeakPtr<TIntermediatePartition> weakPartition)
     {
+        auto partition = weakPartition.Lock();
+        if (!partition) {
+            return;
+        }
+
         YT_VERIFY(partition->IsAllDataCollected());
 
         YT_LOG_DEBUG(
@@ -2045,7 +2050,7 @@ protected:
             partition->ChunkPoolOutput()->SubscribeCompleted(BIND(
                 &TSortControllerBase::OnPartitionProcessedByJobs,
                 MakeWeak(this),
-                partition));
+                MakeWeak(partition)));
         }
     }
 
