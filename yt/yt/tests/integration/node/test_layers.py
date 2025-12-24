@@ -827,7 +827,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
 
         finished_job_counter = profiler.counter("job_controller/job_final_state")
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
@@ -855,7 +855,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
         # We touch layer from cache when creating overlay volume.
         assert cache_hit_counter.get_delta() == 1
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
@@ -935,11 +935,11 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
 
         finished_job_counter = profiler.counter("job_controller/job_final_state")
 
-        op = map(
+        map(
             track=False,
             in_="//tmp/t_in",
             out="<append=%true>//tmp/t_out",
-            command=with_breakpoint("BREAKPOINT"),
+            command=with_breakpoint("cat; BREAKPOINT"),
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
@@ -963,7 +963,7 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
 
         cache_hit_count = cache_hit_counter.get_delta()
 
-        op = map(
+        map(
             in_="//tmp/t_in",
             out="<append=%true>//tmp/t_out",
             command="cat",
