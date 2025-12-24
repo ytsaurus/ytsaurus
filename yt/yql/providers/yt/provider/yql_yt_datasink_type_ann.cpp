@@ -1953,6 +1953,13 @@ private:
             return TStatus::Error;
         }
 
+        if (input->ChildrenSize() < 4U) {// Add empty settings.
+            auto children = input->ChildrenList();
+            children.emplace_back(ctx.NewList(input->Pos(), {}));
+            output = ctx.ChangeChildren(*input, std::move(children));
+            return TStatus::Repeat;
+        }
+
         const auto table = input->ChildPtr(TYtIsolatedOpBase::idx_Table);
         if (!EnsureCallable(*table, ctx)) {
             return TStatus::Error;
@@ -1967,20 +1974,18 @@ private:
         }
 
         const bool isDropTable = input->IsCallable(TYtDropTable::CallableName());
+        const auto settings = input->Child(isDropTable ? TYtDropTable::idx_Settings : TYtDropView::idx_Settings);
+        if (!EnsureTuple(*settings, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateSettings(*settings, EYtSettingType::Mode, ctx)) {
+            return TStatus::Error;
+        }
+
         bool ifExists = false;
-        if (input->ChildrenSize() > 3U) {
-            const auto settings = input->Child(isDropTable ? TYtDropTable::idx_Settings : TYtDropView::idx_Settings);
-            if (!EnsureTuple(*settings, ctx)) {
-                return TStatus::Error;
-            }
-
-            if (!ValidateSettings(*settings, EYtSettingType::Mode, ctx)) {
-                return TStatus::Error;
-            }
-
-            if (const auto m = NYql::GetSetting(*settings, EYtSettingType::Mode)) {
-                ifExists = (isDropTable ? EYtWriteMode::DropIfExists : EYtWriteMode::DropObjectIfExists) == FromString<EYtWriteMode>(m->Tail().Content());
-            }
+        if (const auto m = NYql::GetSetting(*settings, EYtSettingType::Mode)) {
+            ifExists = (isDropTable ? EYtWriteMode::DropIfExists : EYtWriteMode::DropObjectIfExists) == FromString<EYtWriteMode>(m->Tail().Content());
         }
 
         const TYtIsolatedOpBase drop(input);

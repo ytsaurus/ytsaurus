@@ -398,7 +398,7 @@
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtDropTable!"},
             "Children": [
-                {"Index": 3, "Name": "Settings", "Type": "TCoNameValueTupleList", "Optional": true}
+                {"Index": 3, "Name": "Settings", "Type": "TCoNameValueTupleList"}
             ]
         },
         {
@@ -406,7 +406,7 @@
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtDropView!"},
             "Children": [
-                {"Index": 3, "Name": "Settings", "Type": "TCoNameValueTupleList", "Optional": true}
+                {"Index": 3, "Name": "Settings", "Type": "TCoNameValueTupleList"}
             ]
         },
         {
