@@ -885,6 +885,16 @@ class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):
         },
     }
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chaos_manager": {
+            "alien_cell_synchronizer": {
+                "enable": True,
+                "sync_period": 100,
+                "full_sync_period": 200,
+            },
+        },
+    }
+
     # Creates bundle in production-like configuration.
     # Cf. YT-20134
     def _create_chaos_bundle(self, chaos_bundle_name):
