@@ -113,6 +113,7 @@ constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf
     {"FiniteStreams", "0"},
     {"GatewayThreads", "16"},
     {"GracefulUpdate", "1"},
+    {"UpdateTimeout", "600s"},
     {"ControllerCount", "1"},
     {"ControllerCpuLimit", "1.0"},
     {"ControllerMemoryLimit", "1G"},
