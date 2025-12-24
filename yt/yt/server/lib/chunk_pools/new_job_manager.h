@@ -125,8 +125,6 @@ public:
     // Used if we know which cookie we want to extract.
     void ExtractCookie(IChunkPoolOutput::TCookie cookie);
 
-    std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
-
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie) const;

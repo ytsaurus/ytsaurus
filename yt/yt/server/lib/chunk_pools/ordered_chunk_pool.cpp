@@ -184,6 +184,10 @@ public:
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
+            ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
+
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
