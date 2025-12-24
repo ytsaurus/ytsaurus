@@ -532,6 +532,11 @@ void TContext::SetContentDispositionAndMimeType()
                     operationIdNode->GetValue<std::string>(),
                     jobIdNode->GetValue<std::string>());
             }
+        } else if (Descriptor_->CommandName == "flow_execute_plaintext") {
+            disposition = "inline";
+            if (auto flowCommandNode = DriverRequest_.Parameters->FindChild("flow-command")) {
+                filename = Format("flow_execute_plaintext_%v", flowCommandNode->GetValue<std::string>());
+            }
         }
 
         if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
