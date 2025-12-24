@@ -276,7 +276,7 @@ public:
         return it == NodeIdToEntry_.end() ? 0 : it->second.Locality;
     }
 
-    IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
+    TOutputCookie Extract(TNodeId nodeId) override
     {
         auto cookie = IChunkPoolOutput::NullCookie;
         const auto& jobCounter = GetJobCounter();
@@ -296,17 +296,17 @@ public:
         return cookie;
     }
 
-    TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    TChunkStripeListPtr GetStripeList(TOutputCookie cookie) override
     {
         return JobManager_->GetStripeList(cookie);
     }
 
-    int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
+    int GetStripeListSliceCount(TOutputCookie cookie) const override
     {
         return JobManager_->GetStripeList(cookie)->GetAggregateStatistics().ChunkCount;
     }
 
-    void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
+    void Completed(TOutputCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
@@ -318,6 +318,9 @@ public:
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
+            ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
 
@@ -331,7 +334,7 @@ public:
         CheckCompleted();
     }
 
-    std::vector<IChunkPoolOutput::TCookie> SplitJob(
+    std::vector<TOutputCookie> SplitJob(
         const std::vector<TLegacyDataSlicePtr>& dataSlices,
         int jobCount)
     {
@@ -341,11 +344,12 @@ public:
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
         TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/);
-        std::vector<IChunkPoolOutput::TCookie> childCookies;
+        std::vector<TOutputCookie> childCookies;
         auto flushStripe = [&] {
             auto outputCookie = AddStripe(std::move(stripe), /*solid*/ true);
-            if (outputCookie != IChunkPoolOutput::NullCookie) {
-                childCookies.push_back(outputCookie);
+            YT_VERIFY(outputCookie.has_value());
+            if (*outputCookie != IChunkPoolOutput::NullCookie) {
+                childCookies.push_back(*outputCookie);
             }
             stripe = New<TChunkStripe>(false /*foreign*/);
         };
@@ -376,17 +380,17 @@ public:
         return childCookies;
     }
 
-    void Failed(IChunkPoolOutput::TCookie cookie) override
+    void Failed(TOutputCookie cookie) override
     {
         JobManager_->Failed(cookie);
     }
 
-    void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
+    void Aborted(TOutputCookie cookie, EAbortReason reason) override
     {
         JobManager_->Aborted(cookie, reason);
     }
 
-    void Lost(IChunkPoolOutput::TCookie cookie) override
+    void Lost(TOutputCookie cookie) override
     {
         JobManager_->Lost(cookie);
         CheckCompleted();
@@ -661,10 +665,10 @@ private:
             Stripes_.size() - oldSize);
     }
 
-    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe, bool solid)
+    std::optional<TOutputCookie> AddStripe(TChunkStripePtr stripe, bool solid)
     {
         if (!solid && !Sampler_.Sample()) {
-            return IChunkPoolOutput::NullCookie;
+            return std::nullopt;
         }
 
         int internalCookie = Stripes_.size();
@@ -675,8 +679,9 @@ private:
 
         GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices().size());
 
+        std::optional<TOutputCookie> result;
         if (solid) {
-            AddSolid(internalCookie);
+            result = AddSolid(internalCookie);
         } else {
             Register(internalCookie);
         }
@@ -691,7 +696,7 @@ private:
             }
         }
 
-        return internalCookie;
+        return result;
     }
 
     i64 GetAdjustedDataWeightPerJob() const
@@ -841,7 +846,7 @@ private:
         YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
     }
 
-    void AddSolid(int stripeIndex)
+    TOutputCookie AddSolid(int stripeIndex)
     {
         const auto& suspendableStripe = Stripes_[stripeIndex];
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
@@ -853,7 +858,7 @@ private:
         }
         jobStub->Finalize();
 
-        JobManager_->AddJob(std::move(jobStub));
+        return JobManager_->AddJob(std::move(jobStub));
     }
 
     void Unregister(int stripeIndex)

@@ -17,6 +17,7 @@ namespace NYT::NChunkPools {
 using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,6 +376,72 @@ size_t TJobSplittingBase::GetMaxVectorSize() const
         CookieIsSplittable_.size(),
         CookieShouldBeSplitProperly_.size(),
     });
+}
+
+void TJobSplittingBase::ValidateChildJobSizes(
+    TOutputCookie parentCookie,
+    const std::vector<TOutputCookie>& childCookies,
+    const std::function<TChunkStripeListPtr(TOutputCookie)>& getStripeList) const
+{
+    auto getPrimaryAndForeignStatistics = [&] (TOutputCookie cookie) -> std::pair<TChunkStripeStatistics, TChunkStripeStatistics> {
+        TChunkStripeStatistics primaryStatistics;
+        TChunkStripeStatistics foreignStatistics;
+
+        for (auto stripeList = getStripeList(cookie); const auto& stripe : stripeList->Stripes()) {
+            if (!stripe->IsForeign()) {
+                primaryStatistics += stripe->GetStatistics();
+            } else {
+                foreignStatistics += stripe->GetStatistics();
+            }
+        }
+
+        return {primaryStatistics, foreignStatistics};
+    };
+
+    auto [parentPrimaryStatistics, parentForeignStatistics] = getPrimaryAndForeignStatistics(parentCookie);
+
+    TChunkStripeStatistics totalChildPrimaryStatistics;
+    TChunkStripeStatistics totalChildForeignStatistics;
+
+    auto hasGreaterComponent = [] (const TChunkStripeStatistics& childStatistics, const TChunkStripeStatistics& parentStatistics) {
+        return childStatistics.DataWeight > parentStatistics.DataWeight ||
+            childStatistics.CompressedDataSize > parentStatistics.CompressedDataSize ||
+            childStatistics.RowCount > parentStatistics.RowCount ||
+            childStatistics.ChunkCount > parentStatistics.ChunkCount;
+    };
+
+    for (auto childCookie : childCookies) {
+        auto [childPrimaryStatistics, childForeignStatistics] = getPrimaryAndForeignStatistics(childCookie);
+
+        YT_LOG_ALERT_IF(
+            hasGreaterComponent(childPrimaryStatistics, parentPrimaryStatistics) ||
+            hasGreaterComponent(childForeignStatistics, parentForeignStatistics),
+            "Child job is greater than parent job "
+            "(ParentCookie: %v, ChildCookie: %v, ParentPrimaryStatistics: %v, ChildPrimaryStatistics: %v, "
+            "ParentForeignStatistics: %v, ChildForeignStatistics: %v)",
+            parentCookie,
+            childCookie,
+            parentPrimaryStatistics,
+            childPrimaryStatistics,
+            parentForeignStatistics,
+            childForeignStatistics);
+
+        totalChildPrimaryStatistics += childPrimaryStatistics;
+        totalChildForeignStatistics += childForeignStatistics;
+    }
+
+    YT_LOG_ALERT_IF(
+        totalChildPrimaryStatistics.DataWeight > parentPrimaryStatistics.DataWeight ||
+        totalChildPrimaryStatistics.RowCount > parentPrimaryStatistics.RowCount,
+        "Child jobs have greater primary data weight or primary row count than parent job "
+        "(ParentCookie: %v, ChildCookies: %v, ParentPrimaryStatistics: %v, ParentForeignStatistics: %v, "
+        "TotalChildPrimaryStatistics: %v, TotalChildForeignStatistics: %v)",
+        parentCookie,
+        childCookies,
+        parentPrimaryStatistics,
+        parentForeignStatistics,
+        totalChildPrimaryStatistics,
+        totalChildForeignStatistics);
 }
 
 void TJobSplittingBase::RegisterMetadata(auto&& registrar)

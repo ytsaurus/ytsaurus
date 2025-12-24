@@ -202,19 +202,44 @@ public:
                 cookie,
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
-            auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
-            for (auto& dataSlice : foreignSlices) {
-                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(
-                    dataSlice->LowerLimit().KeyBound,
-                    SortedJobOptions_.ForeignComparator.GetLength(),
-                    RowBuffer_);
 
-                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(
-                    dataSlice->UpperLimit().KeyBound,
-                    SortedJobOptions_.ForeignComparator.GetLength(),
-                    RowBuffer_);
+            std::vector<TLegacyDataSlicePtr> foreignSlices;
+            for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
+                if (!stripe->IsForeign()) {
+                    continue;
+                }
+                for (const auto& dataSlice : stripe->DataSlices()) {
+                    dataSlice->LowerLimit().KeyBound = ShortenKeyBound(
+                        dataSlice->LowerLimit().KeyBound,
+                        SortedJobOptions_.ForeignComparator.GetLength(),
+                        RowBuffer_);
+
+                    dataSlice->UpperLimit().KeyBound = ShortenKeyBound(
+                        dataSlice->UpperLimit().KeyBound,
+                        SortedJobOptions_.ForeignComparator.GetLength(),
+                        RowBuffer_);
+
+                    foreignSlices.push_back(dataSlice);
+                }
             }
-            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount, cookie);
+
+            auto childCookies = SplitJob(
+                jobSummary.UnreadInputDataSlices,
+                foreignSlices,
+                jobSummary.SplitJobCount,
+                cookie);
+
+            ValidateChildJobSizes(cookie, childCookies, [&] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
+
+            for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
+                // TODO(apollo1321): Chunk stripe list aggregate statistics should be updated.
+                if (stripe->IsForeign()) {
+                    stripe->DataSlices().clear();
+                }
+            }
+
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
@@ -644,7 +669,7 @@ private:
 
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
-        std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
+        const std::vector<TLegacyDataSlicePtr>& foreignInputDataSlices,
         int splitJobCount,
         TOutputCookie cookie)
     {
