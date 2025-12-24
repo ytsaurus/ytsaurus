@@ -19,6 +19,18 @@ from yt.common import YtError
 
 import yt.yson as yson
 
+from concurrent.futures import ThreadPoolExecutor
+
+##################################################################
+
+
+def map_in_parallel(mapper, args):
+    mapped = []
+    with ThreadPoolExecutor() as executor:
+        for r in executor.map(mapper, args):
+            mapped.append(r)
+    return mapped
+
 
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 1
