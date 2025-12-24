@@ -26,6 +26,7 @@ DEFINE_ENUM(ESequoiaTransactionType,
     (DeadChunkReplicaRemoval)
     (GroundUpdateQueueFlush)
     (ObjectDestruction)
+    (GlobalRefresh)
 );
 
 DEFINE_ENUM(ESequoiaTable,
