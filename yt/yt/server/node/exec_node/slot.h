@@ -100,6 +100,10 @@ struct IUserSlot
         const std::vector<TTmpfsVolumeParams>& volumes,
         bool testRootFs) = 0;
 
+    virtual TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) = 0;
+
     virtual TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
         const std::vector<TTmpfsVolumeResult>& volumes,

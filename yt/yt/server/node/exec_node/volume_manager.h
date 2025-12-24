@@ -70,13 +70,16 @@ struct IVolumeManager
     //! Prepare root overlayfs volume.
     virtual TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options,
-        const std::optional<TString>& slotPath = std::nullopt) = 0;
+        const TVolumePreparationOptions& options) = 0;
 
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
         const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
+
+    virtual TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) = 0;
 
     //! Link tmpfs volumes into destination directory.
     virtual TFuture<void> LinkTmpfsVolumes(

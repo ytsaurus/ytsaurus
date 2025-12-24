@@ -3383,8 +3383,7 @@ public:
     //! Prepare root overlayfs volume.
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>&,
-        const TVolumePreparationOptions&,
-        const std::optional<TString>&) override
+        const TVolumePreparationOptions&) override
     {
         YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
     }
@@ -3404,6 +3403,13 @@ public:
             futures.push_back(CreateTmpfsVolume(tag, *sandboxPath, volume));
         }
         return AllSucceeded(std::move(futures));
+    }
+
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr&,
+        const TString&) override
+    {
+        YT_UNIMPLEMENTED("RbindRootVolume is not implemented for SimpleVolumeManager");
     }
 
     TFuture<void> LinkTmpfsVolumes(
@@ -3648,8 +3654,7 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TVolumePreparationOptions& options,
-        const std::optional<TString>& slotPath) override
+        const TVolumePreparationOptions& options) override
     {
         YT_VERIFY(!artifactKeys.empty());
 
@@ -3787,15 +3792,7 @@ public:
             .ToImmediatelyCancelable()
             .As<IVolumePtr>();
 
-        if (!slotPath || options.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return future;
-        }
-
-        // TODO(yuryalekseev): Remove me when slot rbind is removed.
-        return future.Apply(BIND([slotPath = *slotPath, this, this_ = MakeStrong(this)] (const IVolumePtr& volume) {
-            return RbindRootVolume(volume, slotPath);
-        }).AsyncVia(GetCurrentInvoker()))
-        .ToImmediatelyCancelable();
+        return future;
     }
 
     //! Prepare tmpfs volumes.
@@ -3862,6 +3859,15 @@ public:
         DynamicConfig_.Store(newConfig);
 
         LayerCache_->OnDynamicConfigChanged(oldConfig->LayerCache, newConfig->LayerCache);
+    }
+
+    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) override
+    {
+        auto location = LayerCache_->PickLocation();
+        return location->RbindRootVolume(volume, slotPath);
     }
 
 private:
@@ -4250,15 +4256,6 @@ private:
                     artifactKey,
                     artifact);
             }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
-    }
-
-    //! TODO(yuryalekseev): Remove me when slot rbind is removed.
-    TFuture<IVolumePtr> RbindRootVolume(
-        const IVolumePtr& volume,
-        const TString& slotPath)
-    {
-        auto location = LayerCache_->PickLocation();
-        return location->RbindRootVolume(volume, slotPath);
     }
 
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
