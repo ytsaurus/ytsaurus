@@ -68,7 +68,7 @@ dynamic memory almost always means that write throughput is too large.
 
 def build_reserved_memory():
     TabNodeMemory = TabNode("yt.cluster_node.memory_usage.{}")
-    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static"
+    user_categories = "block_cache|lookup_rows_cache|versioned_chunk_meta|tablet_dynamic|tablet_static|query"
 
     reserved_limit = (
         MonitoringExpr(TabNodeMemory("total_limit"))

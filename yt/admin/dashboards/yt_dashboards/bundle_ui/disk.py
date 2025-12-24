@@ -53,7 +53,7 @@ def build_user_disk():
 
 
 def build_user_background_disk():
-    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}}")
+    top_disk = NodeTablet("yt.tablet_node.{}.{}.rate").host_container_legend_format("{{account}} {{method}}")
 
     return (Rowset()
             .all("#AB", "method")
