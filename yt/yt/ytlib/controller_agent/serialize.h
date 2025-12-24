@@ -105,6 +105,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StorePreemptibleProgressInJoblets)     (302125))
     ((FileRlsReadSpec)                       (302126))
     ((FixSimpleSort)                         (302127))
+    ((ChunkPoolStatistics)                   (302128))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
