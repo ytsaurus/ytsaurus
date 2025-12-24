@@ -229,16 +229,19 @@ public:
         ArrowStatusCallback_(outputFileOrError.status());
         auto outputFile = outputFileOrError.ValueOrDie();
 
-        auto properties = parquet20::WriterProperties::Builder()
-            .compression(config.FileCompression)
-                ->compression_level(config.FileCompressionLevel.value_or(std::numeric_limits<int>::min()))
-                ->build();
+        auto propertiesBuilder = parquet20::WriterProperties::Builder();
+        propertiesBuilder.compression(config.FileCompression);
+        propertiesBuilder.compression_level(config.FileCompressionLevel.value_or(std::numeric_limits<int>::min()));
+        auto properties = propertiesBuilder.build();
 
         auto writerOrError = parquet20::arrow20::FileWriter::Open(
             schema,
             arrow20::default_memory_pool(),
             outputFile,
-            properties);
+            std::move(properties),
+            parquet20::ArrowWriterProperties::Builder()
+                .store_schema()
+                ->build());
 
         ArrowStatusCallback_(writerOrError.status());
         Writer_ = std::move(writerOrError.ValueOrDie());
