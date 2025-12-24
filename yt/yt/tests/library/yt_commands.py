@@ -3853,7 +3853,14 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
-def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
+def flow_execute(
+    pipeline_path: str,
+    flow_command: str,
+    flow_argument=None,
+    is_raw=False,
+    plaintext=False,
+    **kwargs
+):
     is_input_raw = is_raw or "input_format" in kwargs
     if not is_input_raw:
         flow_argument = yson.dumps(flow_argument)
@@ -3868,11 +3875,14 @@ def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_r
     kwargs["pipeline_path"] = pipeline_path
     kwargs["flow_command"] = flow_command
 
-    is_output_raw = is_raw or "output_format" in kwargs
+    if plaintext:
+        kwargs["flow_argument"] = flow_argument
+
+    is_output_raw = plaintext or is_raw or "output_format" in kwargs
     return execute_command(
-        "flow_execute",
+        "flow_execute" if not plaintext else "flow_execute_plaintext",
         kwargs,
-        input_stream=BytesIO(flow_argument),
+        input_stream=BytesIO(flow_argument) if not plaintext else None,
         parse_yson=not is_output_raw,
         unwrap_v4_result=False)
 
