@@ -679,8 +679,20 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
             [context, response] (int&& result) {
                 response->set_tablet_count(result);
+
+                context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+                    response->tablets_size(),
+                    response->tablet_cells_size(),
+                    response->replicas_size(),
+                    response->indices_size());
             })));
     } else {
+        context->SetResponseInfo("TabletCount: %v, TabletCellCount: %v, ReplicaCount: %v, IndexCount: %v",
+            response->tablets_size(),
+            response->tablet_cells_size(),
+            response->replicas_size(),
+            response->indices_size());
+
         context->Reply();
     }
 }
