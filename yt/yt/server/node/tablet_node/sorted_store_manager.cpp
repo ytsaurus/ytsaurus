@@ -1515,11 +1515,26 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
         return TSortedDynamicStore::TRowBlockedHandler();
     }
 
-    return BIND_NO_PROPAGATE(
-        &TSortedStoreManager::OnRowBlocked,
-        MakeWeak(this),
-        Unretained(store.Get()),
-        std::move(epochInvoker));
+    return BIND_NO_PROPAGATE([
+        weakThis = MakeWeak(this),
+        storePtr = store.Get(),
+        invoker = std::move(epochInvoker)
+    ] (
+        TSortedDynamicRow row,
+        TSortedDynamicStore::TConflictInfo conflictInfo,
+        TDuration timeout)
+    {
+        if (auto lockedThis = weakThis.Lock()) {
+            return lockedThis->OnRowBlocked(
+                storePtr,
+                std::move(invoker),
+                row,
+                conflictInfo,
+                timeout);
+        }
+
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
+    });
 }
 
 void TSortedStoreManager::DrainSerializationHeap(
@@ -1641,14 +1656,14 @@ void TSortedStoreManager::CommitPerRowsSerializedLockGroup(
     transaction->DecrementPartsLeftToPerRowSerialize();
 }
 
-void TSortedStoreManager::OnRowBlocked(
+TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::OnRowBlocked(
     IStore* store,
     IInvokerPtr invoker,
     TSortedDynamicRow row,
     TSortedDynamicStore::TConflictInfo conflictInfo,
     TDuration timeout)
 {
-    Y_UNUSED(WaitFor(
+    return WaitFor(
         BIND(
             &TSortedStoreManager::WaitOnBlockedRow,
             MakeStrong(this),
@@ -1657,10 +1672,11 @@ void TSortedStoreManager::OnRowBlocked(
             conflictInfo,
             timeout)
         .AsyncVia(invoker)
-        .Run()));
+        .Run())
+    .ValueOrThrow();
 }
 
-void TSortedStoreManager::WaitOnBlockedRow(
+TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlockedRow(
     IStorePtr /*store*/,
     TSortedDynamicRow row,
     TSortedDynamicStore::TConflictInfo conflictInfo,
@@ -1669,22 +1685,31 @@ void TSortedStoreManager::WaitOnBlockedRow(
     const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[conflictInfo.LockIndex];
     const auto* transaction = lock.PreparedTransaction;
 
+    TSortedDynamicStore::TRowBlockedWaitingResult result;
+
     if (!transaction) {
-        return;
+        return result;
     }
 
     if (lock.PrepareTimestamp.load() >= conflictInfo.ReadTimestamp) {
-        return;
+        return result;
     }
 
+    auto transactionId = transaction->GetId();
     YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, ReadTimestamp: %v, Timeout: %v)",
         RowToKey(*Tablet_->GetPhysicalSchema(), row),
         conflictInfo.LockIndex,
-        transaction->GetId(),
+        transactionId,
         conflictInfo.ReadTimestamp,
         timeout);
 
-    Y_UNUSED(WaitFor(transaction->GetFinished().WithTimeout(timeout)));
+    auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
+    if (!waitResult.IsOK() &&  waitResult.GetCode() != NYT::EErrorCode::Timeout) {
+        waitResult.ThrowOnError();
+    }
+
+    result.TransactionId = transactionId;
+    return result;
 }
 
 bool TSortedStoreManager::IsOverflowRotationNeeded() const
