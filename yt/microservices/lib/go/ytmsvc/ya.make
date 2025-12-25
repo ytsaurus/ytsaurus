@@ -2,8 +2,11 @@ GO_LIBRARY()
 
 SRCS(
     common.go
+    crypto.go
     http.go
 )
+
+GO_TEST_SRCS(crypto_test.go)
 
 IF (OPENSOURCE)
     SRCS(
@@ -19,3 +22,7 @@ ELSE()
 ENDIF()
 
 END()
+
+RECURSE(
+    gotest
+)

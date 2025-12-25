@@ -201,6 +201,7 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         ]
         env = {
             "YT_PROXY": self.Env.get_http_proxy_address(),
+            "RESOURCE_USAGE_CONTINUATION_TOKEN_SECRET": "ANYSECRET",
         }
         return subprocess.Popen(args, env=env)
 
@@ -927,3 +928,57 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
             },
         )
         assert len(response["transactions"]) == 0
+
+    def test_continuation_token(self, yt_client: YtClient, home_ypath: str):
+        yt_client.set(home_ypath + "/@account", "test_account")
+        content = [{"foo": "bar"} for _ in range(5)]
+        for i in range(10):
+            table_path = home_ypath + "/test_table_versioned_default_" + str(i)
+            yt_client.create_table(table_path, attributes={"primary_medium": self.DEFAULT_MEDIUM})
+            yt_client.write_table(table_path, content)
+
+        newer_snapshot_timestamp = self.snapshot_runner.build_and_export_master_snapshot(
+            YtClient(self.Env.get_http_proxy_address()), None
+        )
+        self.run_preprocessing()
+
+        response_0_5 = self._run_request(
+            "get-resource-usage",
+            {
+                "cluster": "local",
+                "account": "test_account",
+                "row_filter": {"exclude_map_nodes": False, "base_path": home_ypath},
+                "page": {"index": 0, "size": 5, "enable_continuation_token": True},
+                "timestamp": newer_snapshot_timestamp,
+            },
+        )
+
+        assert len(response_0_5["items"]) == 5
+
+        response_1_5 = self._run_request(
+            "get-resource-usage",
+            {
+                "cluster": "local",
+                "account": "test_account",
+                "row_filter": {"exclude_map_nodes": False, "base_path": home_ypath},
+                "page": {"index": 1, "size": 5, "enable_continuation_token": True},
+                "timestamp": newer_snapshot_timestamp,
+            },
+        )
+
+        assert len(response_1_5["items"]) == 5
+
+        response_1_5_ct = self._run_request(
+            "get-resource-usage",
+            {
+                "cluster": "local",
+                "account": "test_account",
+                "row_filter": {"exclude_map_nodes": False, "base_path": home_ypath},
+                "page": {"index": 1e10, "size": 5, "continuation_token": response_0_5["continuation_token"]},
+                "timestamp": newer_snapshot_timestamp,
+            },
+        )
+
+        assert len(response_1_5_ct["items"]) == 5
+
+        assert response_1_5["items"] == response_1_5_ct["items"]

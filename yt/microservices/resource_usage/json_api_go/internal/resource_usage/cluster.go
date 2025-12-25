@@ -206,15 +206,16 @@ func (cluster *Cluster) updateClusterData(ctx context.Context) {
 
 			resourceUsageTablePath := cluster.Config.BasePath.YPath().Child(node)
 			resourceUsageTable := &ResourceUsageTable{
-				Timestamp:            timestampInt,
-				SnapshotID:           timestampInt,
-				l:                    resourceUsageTableLogger,
-				Path:                 resourceUsageTablePath,
-				Proxy:                cluster.Config.Proxy,
-				ExcludedFields:       cluster.Config.ExcludedFields,
-				ClusterSchemaCache:   cluster.SchemasCache,
-				ClusterFeaturesCache: cluster.FeaturesCache,
-				TokenEnvVariable:     cluster.TokenEnvVariable,
+				Timestamp:                   timestampInt,
+				SnapshotID:                  timestampInt,
+				l:                           resourceUsageTableLogger,
+				Path:                        resourceUsageTablePath,
+				Proxy:                       cluster.Config.Proxy,
+				ExcludedFields:              cluster.Config.ExcludedFields,
+				ClusterSchemaCache:          cluster.SchemasCache,
+				ClusterFeaturesCache:        cluster.FeaturesCache,
+				TokenEnvVariable:            cluster.TokenEnvVariable,
+				ContinuationTokenSerializer: cluster.ContinuationTokenSerializer,
 			}
 			resourceUsageTables = append(resourceUsageTables, resourceUsageTable)
 			previousSnapshotId = ""
