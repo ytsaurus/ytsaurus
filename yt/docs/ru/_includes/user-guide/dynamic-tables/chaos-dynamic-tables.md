@@ -65,7 +65,7 @@ $ yt create chaos_table_replica --attr '
      "enabled" = %true;
 }'
 5-6-7-8
-$ yt --proxy zeno create replication_log_table //path/to/replication_queue --attr '{dynamic=%true; schema=[...]; upstream_replica_id="5-6-7-8"}'
+$ yt --proxy replica_cluster create replication_log_table //path/to/replication_queue --attr '{dynamic=%true; schema=[...]; upstream_replica_id="5-6-7-8"}'
 ```
 
 ## Работа с хаосной реплицированной динтаблицей
