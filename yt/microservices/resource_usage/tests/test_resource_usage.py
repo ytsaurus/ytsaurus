@@ -201,7 +201,7 @@ bulk_acl_checker_base_url: "https://yt-bulk-acl-checker.ytsaurus.tech/"
         ]
         env = {
             "YT_PROXY": self.Env.get_http_proxy_address(),
-            "RESOURCE_USAGE_CONTINUATION_TOKEN_SECRET": "ANYSECRET",
+            "CRYPTO_SECRET": "ANYSECRET",
         }
         return subprocess.Popen(args, env=env)
 
