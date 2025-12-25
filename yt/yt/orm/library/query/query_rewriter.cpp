@@ -16,18 +16,26 @@ TExpressionPtr DummyReferenceMapping(const TReference&)
     return nullptr;
 }
 
+TExpressionPtr DummyExpressionRewriter(TExpressionPtr)
+{
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryRewriter::TQueryRewriter(
     TObjectsHolder* holder,
     TReferenceMapping referenceMapping,
-    TFunctionRewriter functionRewriter)
+    TFunctionRewriter functionRewriter,
+    TExpressionRewriter expressionRewriter)
     : TRewriter(holder)
     , ReferenceMapping_(std::move(referenceMapping))
     , FunctionRewriter_(std::move(functionRewriter))
+    , ExpressionRewriter_(std::move(expressionRewriter))
 {
     YT_VERIFY(ReferenceMapping_);
     YT_VERIFY(FunctionRewriter_);
+    YT_VERIFY(ExpressionRewriter_);
 }
 
 TExpressionPtr TQueryRewriter::Run(const TExpressionPtr& expr)
@@ -38,18 +46,104 @@ TExpressionPtr TQueryRewriter::Run(const TExpressionPtr& expr)
 
 TExpressionPtr TQueryRewriter::OnReference(TReferenceExpressionPtr referenceExpr)
 {
+    if (auto* newExpr = ExpressionRewriter_(referenceExpr)) {
+        return newExpr;
+    }
     if (auto* newExpr = ReferenceMapping_(referenceExpr->Reference)) {
         return newExpr;
     }
-    return referenceExpr;
+    return TRewriter::OnReference(referenceExpr);
 }
 
 TExpressionPtr TQueryRewriter::OnFunction(TFunctionExpressionPtr functionExpr)
 {
+    if (auto* newExpr = ExpressionRewriter_(functionExpr)) {
+        return newExpr;
+    }
     if (auto* newExpr = FunctionRewriter_(functionExpr)) {
         return newExpr;
     }
     return TRewriter::OnFunction(functionExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnLiteral(TLiteralExpressionPtr literalExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(literalExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnLiteral(literalExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnAlias(TAliasExpressionPtr aliasExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(aliasExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnAlias(aliasExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnUnary(TUnaryOpExpressionPtr unaryExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(unaryExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnUnary(unaryExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnBinary(TBinaryOpExpressionPtr binaryExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(binaryExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnBinary(binaryExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnIn(TInExpressionPtr inExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(inExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnIn(inExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnBetween(TBetweenExpressionPtr betweenExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(betweenExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnBetween(betweenExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnTransform(TTransformExpressionPtr transformExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(transformExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnTransform(transformExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnCase(TCaseExpressionPtr caseExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(caseExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnCase(caseExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnLike(TLikeExpressionPtr likeExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(likeExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnLike(likeExpr);
+}
+
+TExpressionPtr TQueryRewriter::OnQuery(TQueryExpressionPtr queryExpr)
+{
+    if (auto* newExpr = ExpressionRewriter_(queryExpr)) {
+        return newExpr;
+    }
+    return TRewriter::OnQuery(queryExpr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
