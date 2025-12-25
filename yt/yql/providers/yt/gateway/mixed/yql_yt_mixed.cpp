@@ -328,6 +328,10 @@ public:
         return NativeGateway_->DownloadTable(std::move(options));
     }
 
+    IYtTokenResolver::TPtr GetYtTokenResolver() const override {
+        return NativeGateway_->GetYtTokenResolver();
+    }
+
 private:
     NFile::TYtFileServices::TPtr FileServices_;
     IYtGateway::TPtr FileGateway_;
