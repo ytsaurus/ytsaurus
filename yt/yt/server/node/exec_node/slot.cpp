@@ -328,14 +328,26 @@ public:
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
 
-        // COMPAT(yuryalekseev): Remove me when slot rbind is removed.
-        auto slotPath = GetSlotPath();
-
         return RunPreparationAction(
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, options, slotPath);
+                return VolumeManager_->PrepareVolume(layers, options);
+            });
+    }
+
+    // COMPAT(krasovav): Remove when LinkRootFS is ready
+    TFuture<IVolumePtr> RbindRootVolume(
+        const IVolumePtr& volume,
+        const TString& slotPath) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return RunPreparationAction(
+            /*actionName*/ "RbindRootVolume",
+            /*uncancelable*/ false,
+            [&] {
+                return VolumeManager_->RbindRootVolume(volume, slotPath);
             });
     }
 
