@@ -80,6 +80,13 @@ struct TUserWorkload
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSuccessfulPermissionValidationResult
+{
+    bool HasRowLevelAce = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISecurityManager
     : public virtual TRefCounted
 {
@@ -324,14 +331,14 @@ public:
     virtual bool IsSuperuser(const TUser* user) const = 0;
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;
 
     //! Another overload that uses the current user.
-    virtual void ValidatePermission(
+    virtual TSuccessfulPermissionValidationResult ValidatePermission(
         NObjectServer::TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) = 0;

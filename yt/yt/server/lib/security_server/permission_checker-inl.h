@@ -56,7 +56,6 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         }
     }
 
-
     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
         return;
     }
@@ -85,6 +84,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
     // we can be sure that the caller must have requested read, so we can safely
     // emplace into RowLevelAcl in the response.
     if (ace.RowAccessPredicate && !Response_.RowLevelAcl) {
+        Response_.HasRowLevelAce = true;
         Response_.RowLevelAcl.emplace();
     }
 
