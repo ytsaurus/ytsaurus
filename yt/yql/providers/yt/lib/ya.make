@@ -24,5 +24,6 @@ RECURSE(
     yt_download
     yt_file_download
     yt_rpc_helpers
+    yt_token_resolver
     yt_url_lister
 )
