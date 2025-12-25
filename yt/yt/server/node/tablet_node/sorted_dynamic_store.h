@@ -56,6 +56,7 @@ public:
 
     struct TRowBlockedWaitingResult
     {
+        // Transaction id the timeout happend during waiting on blocked row if any.
         TTransactionId TransactionId = {};
     };
 
