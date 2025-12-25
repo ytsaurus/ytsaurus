@@ -237,13 +237,13 @@ private:
 
     bool SortedStoreSerializationStateProbabilisticVerificationNeeded() const;
 
-    void OnRowBlocked(
+    TSortedDynamicStore::TRowBlockedWaitingResult OnRowBlocked(
         IStore* store,
         IInvokerPtr invoker,
         TSortedDynamicRow row,
         TSortedDynamicStore::TConflictInfo conflictInfo,
         TDuration timeout);
-    void WaitOnBlockedRow(
+    TSortedDynamicStore::TRowBlockedWaitingResult WaitOnBlockedRow(
         IStorePtr store,
         TSortedDynamicRow row,
         TSortedDynamicStore::TConflictInfo conflictInfo,
