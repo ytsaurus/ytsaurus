@@ -40,7 +40,8 @@ public:
         IIOEnginePtr ioEngine,
         NChunkClient::TChunkId chunkId,
         TString fileName,
-        bool syncOnClose = true);
+        bool syncOnClose = true,
+        bool useDirectIO = false);
 
     // IChunkWriter implementation.
     TFuture<void> Open() override;
@@ -119,6 +120,7 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
+    const bool UseDirectIO_;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
@@ -140,6 +142,7 @@ private:
 
     void SetFailed(const TError& error);
     TError TryChangeState(EState oldState, EState newState);
+    TFlags<EOpenModeFlag> GetFileMode() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFileWriter)

@@ -40,13 +40,24 @@ TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
     TChunkId chunkId,
     TString fileName,
-    bool syncOnClose)
+    bool syncOnClose,
+    bool useDirectIO)
     : IOEngine_(std::move(ioEngine))
     , ChunkId_(chunkId)
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
+    , UseDirectIO_(useDirectIO)
 {
     BlocksExt_.set_sync_on_close(SyncOnClose_);
+}
+
+TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
+{
+    if (UseDirectIO_) {
+        return FileMode | DirectAligned;
+    } else {
+        return FileMode;
+    }
 }
 
 void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
@@ -104,7 +115,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
+    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, GetFileMode()})
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -307,7 +318,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
-            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
+            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, GetFileMode()});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
         .Apply(BIND([
             this,

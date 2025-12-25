@@ -17,6 +17,7 @@ struct IHugePageManager
 
     virtual int GetUsedHugePageCount() const = 0;
     virtual i64 GetHugePageMemoryLimit() const = 0;
+    virtual i64 GetHugePageBlobSize() const = 0;
     virtual i64 GetHugePageSize() const = 0;
     virtual bool IsEnabled() const = 0;
 

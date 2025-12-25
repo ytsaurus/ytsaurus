@@ -114,7 +114,7 @@ public:
             return GetUsedHugePageCount();
         });
         Profiler_.AddFuncGauge("/huge_page_blob_size", MakeStrong(this), [this] {
-            return GetHugeBlobSize();
+            return GetHugePageBlobSize();
         });
         profiler.AddFuncGauge("/huge_page_memory", MakeStrong(this), [this] {
             return GetHugePageSize() * GetUsedHugePageCount();
@@ -127,7 +127,7 @@ public:
     TErrorOr<TSharedMutableRef> ReserveHugePageBlob() override
     {
         auto guard = Guard(Lock_);
-        auto blobSize = GetHugeBlobSize();
+        auto blobSize = GetHugePageBlobSize();
         auto& freeBlobs = HugePageSizeToFreeBlobs_[blobSize];
         TSharedMutableRef hugeBlob;
 
@@ -166,6 +166,11 @@ public:
         return HugePageSize_;
     }
 
+    i64 GetHugePageBlobSize() const override
+    {
+        return GetHugePagePerBlob() * HugePageSize_;
+    }
+
     bool IsEnabled() const override
     {
         return DynamicConfig_.Acquire()->Enabled.value_or(StaticConfig_->Enabled);
@@ -179,7 +184,7 @@ public:
 
         auto currentPagesPerBlob = GetHugePagePerBlob();
         if (config->PagesPerBlob != currentPagesPerBlob) {
-            HugePageSizeToFreeBlobs_.erase(GetHugeBlobSize());
+            HugePageSizeToFreeBlobs_.erase(GetHugePageBlobSize());
         }
 
         DynamicConfig_ = config;
@@ -235,16 +240,11 @@ private:
         return DynamicConfig_.Acquire()->PagesPerBlob.value_or(StaticConfig_->PagesPerBlob);
     }
 
-    i64 GetHugeBlobSize() const
-    {
-        return GetHugePagePerBlob() * HugePageSize_;
-    }
-
     void UnlockHugePageBlob(TMutableRef blob)
     {
         auto guard = Guard(Lock_);
 
-        if (std::ssize(blob) == GetHugeBlobSize()) {
+        if (std::ssize(blob) == GetHugePageBlobSize()) {
             HugePageSizeToFreeBlobs_[blob.Size()].push_back(blob);
         } else {
             UsedHugePageCount_ -= blob.Size() / HugePageSize_;
@@ -428,6 +428,11 @@ public:
     i64 GetHugePageSize() const override
     {
         return HugePageManager_.Acquire()->GetHugePageSize();
+    }
+
+    i64 GetHugePageBlobSize() const override
+    {
+        return HugePageManager_.Acquire()->GetHugePageBlobSize();
     }
 
     void Reconfigure(const THugePageManagerDynamicConfigPtr& config) override

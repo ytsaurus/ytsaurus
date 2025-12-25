@@ -64,6 +64,12 @@ void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWriteResponse DoWriteAligned(
+    const TWriteRequest& request,
+    int directIoBlockSize,
+    i64 maxBytesPerWrite,
+    const TIOEngineSensorsPtr& sensors,
+    TSharedMutableRef hugePageBlob);
 TWriteResponse DoWriteImpl(
     const TWriteRequest& request,
     i64 maxBytesPerWrite,
@@ -221,6 +227,11 @@ TInternalReadResponse DoRead(
     YT_VERIFY(fileOffset % blockSize == 0);
     YT_VERIFY(toReadRemaining % blockSize == 0);
 
+    if (hugePageBlob) {
+        YT_VERIFY(reinterpret_cast<i64>(hugePageBlob.Begin()) % blockSize == 0);
+        YT_VERIFY(hugePageBlob.Size() % blockSize == 0);
+    }
+
     TInternalReadResponse response;
 
     NFS::WrapIOErrors([&] {
@@ -325,21 +336,33 @@ TInternalReadResponse DoRead(
 TWriteResponse DoWrite(
     const TWriteRequest& request,
     i64 maxBytesPerWrite,
+    int directIoBlockSize,
     TRequestCounterGuard requestCounterGuard,
     bool syncFlush,
     bool asyncFlush,
     bool enableSync,
     std::optional<i64> simulatedMaxBytesPerWrite,
     const TIOEngineSensorsPtr& sensors,
+    TSharedMutableRef hugePageBlob,
     bool enablePwritev)
 {
     auto guard = std::move(requestCounterGuard);
-    auto writeResponse = DoWriteImpl(
-        request,
-        maxBytesPerWrite,
-        simulatedMaxBytesPerWrite,
-        sensors,
-        enablePwritev);
+    TWriteResponse writeResponse;
+    if (hugePageBlob) {
+        writeResponse = DoWriteAligned(
+            request,
+            directIoBlockSize,
+            maxBytesPerWrite,
+            sensors,
+            hugePageBlob);
+    } else {
+        writeResponse = DoWriteImpl(
+            request,
+            maxBytesPerWrite,
+            simulatedMaxBytesPerWrite,
+            sensors,
+            enablePwritev);
+    }
 
     if ((syncFlush || asyncFlush) && writeResponse.WrittenBytes) {
         auto flushFileRangeResponse = DoFlushFileRange(
@@ -358,6 +381,77 @@ TWriteResponse DoWrite(
     return writeResponse;
 }
 
+TWriteResponse DoWriteAligned(
+    const TWriteRequest& request,
+    int directIoBlockSize,
+    i64 maxBytesPerWrite,
+    const TIOEngineSensorsPtr& sensors,
+    TSharedMutableRef hugePageBlob)
+{
+    sensors->UpdateKernelStatistics();
+
+    YT_VERIFY(hugePageBlob);
+    YT_VERIFY(reinterpret_cast<i64>(hugePageBlob.Begin()) % directIoBlockSize == 0);
+    YT_VERIFY(hugePageBlob.Size() % directIoBlockSize == 0);
+
+    auto fileOffset = request.Offset;
+
+    TWriteResponse response;
+
+    NFS::WrapIOErrors([&] {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+
+        auto fileSize = request.Handle->GetLength();
+        auto totalSize = static_cast<i64>(GetByteSize(request.Buffers));
+
+        auto toWriteRemaining = AlignUp<i64>(totalSize, directIoBlockSize);
+        memset(hugePageBlob.Begin() + totalSize, 0, toWriteRemaining - totalSize);
+
+        YT_VERIFY(static_cast<i64>(hugePageBlob.Size()) >= toWriteRemaining);
+
+        i64 hugePageBlobBufferOffset = 0;
+        for (const auto& buffer : request.Buffers) {
+            memcpy(
+                hugePageBlob.Begin() + hugePageBlobBufferOffset,
+                buffer.Begin(),
+                buffer.Size());
+            hugePageBlobBufferOffset += buffer.Size();
+        }
+
+        i64 bufferOffset = 0; // within current buffer
+
+        while (toWriteRemaining > 0) {
+            const auto& buffer = hugePageBlob;
+            auto toWrite = static_cast<ui32>(Min(toWriteRemaining, maxBytesPerWrite, std::ssize(buffer) - bufferOffset));
+
+            i32 reallyWritten;
+            {
+                TRequestStatsGuard statsGuard(sensors->WriteSensors, /*usingHugePages*/ true);
+                NTracing::TNullTraceContextGuard nullTraceContextGuard;
+                reallyWritten = HandleEintr(::pwrite, *request.Handle, const_cast<char*>(buffer.Begin()) + bufferOffset, toWrite, fileOffset);
+            }
+
+            if (reallyWritten < 0) {
+                ythrow TFileError();
+            }
+
+            sensors->RegisterWrittenBytes(reallyWritten);
+            fileOffset += reallyWritten;
+            bufferOffset += reallyWritten;
+            toWriteRemaining -= reallyWritten;
+
+            ++response.IOWriteRequests;
+        }
+
+        if (ftruncate(*request.Handle, fileSize + totalSize) < 0) {
+            ythrow TFileError();
+        }
+    });
+    response.WrittenBytes = fileOffset - request.Offset;
+
+    return response;
+}
+
 TWriteResponse DoWriteImpl(
     const TWriteRequest& request,
     i64 maxBytesPerWrite,
@@ -366,6 +460,8 @@ TWriteResponse DoWriteImpl(
     bool enablePwritev)
 {
     sensors->UpdateKernelStatistics();
+
+    YT_VERIFY(!request.Handle->IsOpenForDirectIO());
 
     auto fileOffset = request.Offset;
 
@@ -945,15 +1041,22 @@ public:
                 TWallTimer timer,
                 TRequestCounterGuard requestCounterGuard) {
                 AddWriteWaitTimeSample(timer.GetElapsedTime());
+                auto toWriteRemaining = static_cast<i64>(GetByteSize(request.Buffers));
+                TSharedMutableRef writeBlob;
+                if (request.Handle->IsOpenForDirectIO()) {
+                    writeBlob = AllocateWriteBlob(toWriteRemaining, config->DirectIOBlockSize);
+                }
                 return DoWrite(
                     request,
                     config->MaxBytesPerWrite,
+                    config->DirectIOBlockSize,
                     std::move(requestCounterGuard),
                     config->FlushAfterWrite && request.Flush,
                     config->AsyncFlushAfterWrite,
                     config->EnableSync,
                     config->SimulatedMaxBytesPerWrite,
                     Sensors_,
+                    writeBlob,
                     config->EnablePwritev);
             })
                 .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
@@ -1219,15 +1322,21 @@ public:
                 timer = TWallTimer(),
                 requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write)] () mutable {
                 AddWriteWaitTimeSample(timer.GetElapsedTime());
+                TSharedMutableRef writeBlob;
+                if (request.Handle->IsOpenForDirectIO()) {
+                    writeBlob = AllocateWriteBlob(toWriteRemaining, config->DirectIOBlockSize);
+                }
                 return DoWrite(
                     request,
                     config->MaxBytesPerWrite,
+                    config->DirectIOBlockSize,
                     std::move(requestCounterGuard),
                     config->FlushAfterWrite && request.Flush,
                     config->AsyncFlushAfterWrite,
                     config->EnableSync,
                     config->SimulatedMaxBytesPerWrite,
                     Sensors_,
+                    writeBlob,
                     config->EnablePwritev);
             });
 

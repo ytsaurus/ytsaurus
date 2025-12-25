@@ -1101,6 +1101,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
         .Default(false);
 
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIo)
+        .Default(false);
+
     registrar.Parameter("wait_preceding_blocks_received", &TThis::WaitPrecedingBlocksReceived)
         .Default(true);
 

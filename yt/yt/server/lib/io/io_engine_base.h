@@ -230,6 +230,9 @@ protected:
     void DoResize(const TResizeRequest& request);
     void AddWriteWaitTimeSample(TDuration duration);
     void AddReadWaitTimeSample(TDuration duration);
+    TSharedMutableRef AllocateWriteBlob(
+        i64 size,
+        i64 directIoBlockSize);
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
