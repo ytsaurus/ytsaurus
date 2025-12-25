@@ -259,6 +259,32 @@ NProfiling::TTaggedCounters<int>& VolumeCounters()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue>
+using TAsyncMapValueBase = TAsyncCacheValueBase<TKey, TValue>;
+
+// NB(pogorelov): It is pretty dirty map.
+// The cache shard capacity is calculated to be 1,
+// so since we have the weight of each element equal to 2,
+// we get that the cache does not work as a cache, but works as a ValueMap.
+template <class TKey, class TValue>
+class TAsyncMapBase
+    : public TAsyncSlruCacheBase<TKey, TValue>
+{
+    using TBase = TAsyncSlruCacheBase<TKey, TValue>;
+public:
+    TAsyncMapBase(const NProfiling::TProfiler& profiler = {})
+        : TBase(TSlruCacheConfig::CreateWithCapacity(0, /*shardCount*/ 1), profiler)
+    { }
+
+private:
+    i64 GetWeight(const TBase::TValuePtr& /*value*/) const override
+    {
+        return 2;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeArtifactAdapter
     : public IVolumeArtifact
 {
@@ -1730,6 +1756,101 @@ DEFINE_REFCOUNTED_TYPE(TLayer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSquashFSVolume
+    : public IVolume
+    , public TAsyncMapValueBase<TArtifactKey, TSquashFSVolume>
+{
+public:
+    TSquashFSVolume(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta&& volumeMeta,
+        IVolumeArtifactPtr chunkCacheArtifact,
+        TLayerLocationPtr location,
+        const TArtifactKey& artifactKey)
+        : TAsyncMapValueBase<TArtifactKey, TSquashFSVolume>(artifactKey)
+        , TagSet_(std::move(tagSet))
+        , VolumeMeta_(std::move(volumeMeta))
+        , ChunkCacheArtifact_(std::move(chunkCacheArtifact))
+        , Location_(std::move(location))
+    { }
+
+    ~TSquashFSVolume()
+    {
+        Destroying_.store(true);
+        YT_LOG_DEBUG("Squashfs volume object is destroyed (ArtifactKey: %v, VolumeId: %v, VolumePath: %v)", GetKey(), GetId(), GetPath());
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+    TFuture<void> Remove() override
+    {
+        YT_LOG_FATAL_UNLESS(
+            Destroying_.load(),
+            "SquashFS volume is being removed while it is still in use (VolumeId: %v)",
+            GetId());
+
+        if (RemoveFuture_) {
+            return RemoveFuture_;
+        }
+
+        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
+            .Update(VolumeCounters().Decrement(TagSet_));
+
+        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+
+        const auto& volumeId = GetId();
+        const auto& volumePath = GetPath();
+        YT_LOG_DEBUG("Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
+            volumeId,
+            volumePath);
+
+        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
+            YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
+                volumeId,
+                volumePath);
+        })).ToUncancelable();
+
+        return RemoveFuture_;
+    }
+
+    const TVolumeId& GetId() const override
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const TString& GetPath() const override
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    bool IsRootVolume() const override
+    {
+        return false;
+    }
+
+    bool IsCached() const override final
+    {
+        return true;
+    }
+
+private:
+    std::atomic<bool> Destroying_ = false;
+
+    const NProfiling::TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TArtifactKey ArtifactKey_;
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr ChunkCacheArtifact_;
+    const TLayerLocationPtr Location_;
+
+    TFuture<void> RemoveFuture_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTmpfsLayerCacheCounters
 {
 public:
@@ -2185,6 +2306,173 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCache)
 DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSquashFSVolumeMap
+    : public TAsyncMapBase<TArtifactKey, class TSquashFSVolume>
+{
+public:
+    TSquashFSVolumeMap(
+        std::vector<TLayerLocationPtr> layerLocations,
+        IVolumeChunkCachePtr chunkCache)
+        : TAsyncMapBase(ExecNodeProfiler().WithPrefix("/squashfs_volume_map"))
+        , ChunkCache_(std::move(chunkCache))
+        , LayerLocations_(std::move(layerLocations))
+    { }
+
+    bool IsEnabled() const
+    {
+        for (const auto& location : LayerLocations_) {
+            if (location->IsEnabled()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    TLayerLocationPtr PickLocation()
+    {
+        return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+            return candidate->GetVolumeCount() < current->GetVolumeCount();
+        });
+    }
+
+    TFuture<TSquashFSVolumePtr> PrepareVolume(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
+    {
+        auto cookie = BeginInsert(artifactKey);
+        auto value = cookie.GetValue();
+        if (cookie.IsActive()) {
+            DownloadAndPrepareVolume(artifactKey, downloadOptions, tag)
+                .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TSquashFSVolumePtr>& volumeOrError) mutable {
+                    if (volumeOrError.IsOK()) {
+                        YT_LOG_DEBUG(
+                            "Squashfs volume has been inserted into map (Tag: %v, ArtifactPath: %v, VolumeId: %v)",
+                            tag,
+                            artifactKey.data_source().path(),
+                            volumeOrError.Value()->GetId());
+                        cookie.EndInsert(volumeOrError.Value());
+                    } else {
+                        YT_LOG_DEBUG(
+                            volumeOrError,
+                            "Insert squashfs volume into map canceled (Tag: %v, ArtifactPath: %v)",
+                            tag,
+                            artifactKey.data_source().path());
+                        cookie.Cancel(volumeOrError);
+                    }
+                })
+                .Via(GetCurrentInvoker()));
+        } else {
+            YT_LOG_DEBUG(
+                "Squashfs volume is already being loaded into map (Tag: %v, ArtifactPath: %v, VolumeId: %v)",
+                tag,
+                artifactKey.data_source().path(),
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetId()) : "Importing");
+        }
+
+        return value;
+    }
+
+private:
+    const IVolumeChunkCachePtr ChunkCache_;
+    const std::vector<TLayerLocationPtr> LayerLocations_;
+
+    TFuture<TSquashFSVolumePtr> DownloadAndPrepareVolume(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
+    {
+        YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+        YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
+        YT_VERIFY(!artifactKey.has_nbd_export_id());
+
+        YT_LOG_DEBUG(
+            "Downloading and preparing squashfs volume (Tag: %v, Path: %v)",
+            tag,
+            artifactKey.data_source().path());
+
+        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunk) {
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                return CreateSquashFSVolume(
+                    tag,
+                    std::move(tagSet),
+                    std::move(volumeCreateTimeGuard),
+                    artifactKey,
+                    chunk);
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    TSquashFSVolumePtr CreateSquashFSVolume(
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        const TArtifactKey& artifactKey,
+        IVolumeArtifactPtr artifact)
+    {
+        auto squashFSFilePath = artifact->GetFileName();
+
+        YT_LOG_DEBUG(
+            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
+            tag,
+            squashFSFilePath);
+
+        auto location = PickLocation();
+        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
+        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
+            [
+                tagSet = std::move(tagSet),
+                artifactKey,
+                artifact = std::move(artifact),
+                location = std::move(location)
+            ] (TVolumeMeta&& volumeMeta) mutable {
+            return New<TSquashFSVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                std::move(artifact),
+                std::move(location),
+                std::move(artifactKey));
+        })).ToUncancelable();
+        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
+        // and protects from Porto volume leak.
+
+        auto volume = WaitFor(volumeFuture)
+            .ValueOrThrow();
+
+        YT_LOG_INFO(
+            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+            tag,
+            volume->GetId(),
+            squashFSFilePath);
+
+        return volume;
+    }
+
+    void OnAdded(const TSquashFSVolumePtr& volume) override
+    {
+        YT_LOG_DEBUG(
+            "Squashfs volume added to map (VolumeId: %v)",
+            volume->GetId());
+    }
+
+    void OnRemoved(const TSquashFSVolumePtr& volume) override
+    {
+        YT_LOG_DEBUG(
+            "Squashfs volume removed from map (VolumeId: %v)",
+            volume->GetId());
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeMap)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolumeMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2683,6 +2971,11 @@ public:
         return IsRootVolume_;
     }
 
+    bool IsCached() const override final
+    {
+        return false;
+    }
+
 private:
     //! Overlayfs stores its upper/work directories in root volume.
     const bool IsRootVolume_;
@@ -2716,6 +3009,7 @@ public:
 
     ~TOverlayVolume() override
     {
+        YT_LOG_DEBUG("Overlay volume object is destroyed (VolumeId: %v)", GetId());
         YT_UNUSED_FUTURE(Remove());
     }
 
@@ -2775,6 +3069,11 @@ public:
         return OverlayDataArray_;
     }
 
+    bool IsCached() const override final
+    {
+        return false;
+    }
+
 private:
     const NProfiling::TTagSet TagSet_;
     const TVolumeMeta VolumeMeta_;
@@ -2787,84 +3086,6 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
 DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSquashFSVolume
-    : public IVolume
-{
-public:
-    TSquashFSVolume(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& volumeMeta,
-        IVolumeArtifactPtr chunkCacheArtifact,
-        TLayerLocationPtr location)
-        : TagSet_(std::move(tagSet))
-        , VolumeMeta_(std::move(volumeMeta))
-        , ChunkCacheArtifact_(std::move(chunkCacheArtifact))
-        , Location_(std::move(location))
-    { }
-
-    ~TSquashFSVolume()
-    {
-        YT_UNUSED_FUTURE(Remove());
-    }
-
-    TFuture<void> Remove() override
-    {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
-
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
-
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
-
-        const auto& volumeId = GetId();
-        const auto& volumePath = GetPath();
-        YT_LOG_DEBUG("Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
-            volumeId,
-            volumePath);
-
-        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-            YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
-                volumeId,
-                volumePath);
-        })).ToUncancelable();
-
-        return RemoveFuture_;
-    }
-
-    const TVolumeId& GetId() const override
-    {
-        return VolumeMeta_.Id;
-    }
-
-    const TString& GetPath() const override
-    {
-        return VolumeMeta_.MountPath;
-    }
-
-    bool IsRootVolume() const override
-    {
-        return false;
-    }
-
-private:
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr ChunkCacheArtifact_;
-    const TLayerLocationPtr Location_;
-
-    TFuture<void> RemoveFuture_;
-};
-
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
-DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2883,7 +3104,12 @@ TFuture<void> TOverlayData::Remove()
         return VoidFuture;
     }
 
-    return GetVolume()->Remove();
+    const auto& self = GetVolume();
+    if (self->IsCached()) {
+        return VoidFuture;
+    }
+
+    return self->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2945,6 +3171,10 @@ public:
             auto wrappedError = TError("Failed to initialize layer locations") << errorOrResults;
             YT_LOG_WARNING(wrappedError);
         }
+
+        SquashFSVolumeCache_ = New<TSquashFSVolumeMap>(
+            locations,
+            ChunkCache_);
 
         auto tmpfsExecutor = CreatePortoExecutor(
             dynamicConfig->LayerCache->TmpfsCache->PortoExecutor,
@@ -3158,6 +3388,7 @@ private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TLayerCachePtr LayerCache_;
+    TSquashFSVolumeMapPtr SquashFSVolumeCache_;
 
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
@@ -3497,7 +3728,8 @@ private:
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG("Prepare squashfs volume (Tag: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Prepare squashfs volume (Tag: %v, Path: %v)",
             tag,
             artifactKey.data_source().path());
 
@@ -3505,20 +3737,7 @@ private:
         YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
         YT_VERIFY(!artifactKey.has_nbd_export_id());
 
-        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-                // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                return CreateSquashFSVolume(
-                    tag,
-                    std::move(tagSet),
-                    std::move(volumeCreateTimeGuard),
-                    artifactKey,
-                    chunkCacheArtifact);
-            }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+        return SquashFSVolumeCache_->PrepareVolume(artifactKey, downloadOptions, tag).As<TOverlayData>();
     }
 
     TNbdVolumePtr CreateNbdVolume(
@@ -3665,48 +3884,6 @@ private:
         YT_LOG_DEBUG("Created overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volume->GetId());
-
-        return volume;
-    }
-
-    TSquashFSVolumePtr CreateSquashFSVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
-        const TArtifactKey& artifactKey,
-        IVolumeArtifactPtr chunkCacheArtifact)
-    {
-        auto squashFSFilePath = chunkCacheArtifact->GetFileName();
-
-        YT_LOG_DEBUG("Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
-            tag,
-            squashFSFilePath);
-
-        auto location = LayerCache_->PickLocation();
-        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
-        auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
-            [
-                tagSet = std::move(tagSet),
-                artifactKey,
-                chunkCacheArtifact = std::move(chunkCacheArtifact),
-                location = std::move(location)
-            ] (TVolumeMeta&& volumeMeta) {
-            return New<TSquashFSVolume>(
-                std::move(tagSet),
-                std::move(volumeMeta),
-                std::move(chunkCacheArtifact),
-                std::move(location));
-        })).ToUncancelable();
-        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
-        // and protects from Porto volume leak.
-
-        auto volume = WaitFor(volumeFuture)
-            .ValueOrThrow();
-
-        YT_LOG_INFO("Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
-            tag,
-            volume->GetId(),
-            squashFSFilePath);
 
         return volume;
     }

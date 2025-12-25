@@ -50,6 +50,7 @@ struct IVolume
     //! Overlayfs stores its upper/work directories in root volume.
     virtual bool IsRootVolume() const = 0;
     virtual TFuture<void> Remove() = 0;
+    virtual bool IsCached() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolume)

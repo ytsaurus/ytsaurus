@@ -2441,6 +2441,10 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
+    // NB(pogorelov): We want to release some refcounted stuff that holded by original future
+    // (that holded by WorkspaceBuildingFuture_).
+    WorkspaceBuildingFuture_ = VoidFuture;
+
     GuardedAction(
         "OnWorkspacePreparationFinished",
         [&] {

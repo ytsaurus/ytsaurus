@@ -5,7 +5,7 @@ from yt_commands import (
     write_file, write_table, get_job, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config,
-    wait_breakpoint, with_breakpoint, print_debug)
+    wait_breakpoint, with_breakpoint, print_debug, release_breakpoint)
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
@@ -682,6 +682,23 @@ class TestDockerImage(TestLayers):
             self.run_map(self.INVALID_EXTERNAL_IMAGE)
 
 
+class TestPortoLayersBase(TestLayersBase):
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+
 class TestLayerCacheBase(TestPortoLayersBase):
     NUM_NODES = 1
 
@@ -768,7 +785,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
             out="//tmp/t_out",
             command="cat",
             spec={
-                "max_failed_job_count": 1,
+                "fail_on_job_restart": True,
                 "mapper": {
                     "layer_paths": ["//tmp/layer1"],
                 },
@@ -796,7 +813,7 @@ class TestLayerCacheEviction(TestLayerCacheBase):
             out="//tmp/t_out",
             command="cat",
             spec={
-                "max_failed_job_count": 1,
+                "fail_on_job_restart": True,
                 "mapper": {
                     "layer_paths": ["//tmp/layer1"],
                 },
@@ -863,15 +880,13 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
         assert len(nodes) == 1
         node = nodes[0]
 
-        print_debug("Node config: ", get(f"//sys/cluster_nodes/{node}/orchid/config"))
-
         profiler = profiler_factory().at_node(node)
         cache_missed_counter = profiler.counter("exec_node/layer_cache/missed_count")
         cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/layer_cache/hit_count")
 
         finished_job_counter = profiler.counter("job_controller/job_final_state")
 
-        map(
+        op1 = map(
             track=False,
             in_="//tmp/t_in",
             out="<append=%true>//tmp/t_out",
@@ -920,6 +935,9 @@ class TestLayerCacheResurrection(TestLayerCacheBase):
         assert len(logs) == 2
         logs = self._get_node_debug_logs("Layer removed from cache")
         assert len(logs) == 2
+
+        release_breakpoint()
+        op1.track()
 
 
 @authors("khlebnikov")
@@ -1452,8 +1470,8 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
             assert "Scheduler jobs disabled" not in alert["message"]
 
 
-@authors("yuryalekseev")
 class TestLocalSquashFSLayers(YTEnvSetup):
+    NUM_NODES = 1
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -1467,26 +1485,56 @@ class TestLocalSquashFSLayers(YTEnvSetup):
             "job_proxy": {
                 "test_root_fs": True,
             },
-        }
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
+                "user_slots": 2,
+            },
+        },
     }
 
     USE_PORTO = True
 
+    def _get_node_debug_logs(self, filter_string):
+        writers = self.Env.configs["node"][0]["logging"]["writers"]
+        node_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                node_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert node_debug_logs_filename is not None
+
+        if node_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(node_debug_logs_filename, "rb")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+        elif node_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(node_debug_logs_filename, "b")
+        else:
+            logfile = open(node_debug_logs_filename, "b")
+
+        def _filter(line):
+            return filter_string in line
+
+        return [line for line in logfile if _filter(line)]
+
     def setup_files(self):
-        create("file", "//tmp/corrupted_layer")
+        create("file", "//tmp/corrupted_layer", attributes={"replication_factor": 1})
         write_file("//tmp/corrupted_layer", open("layers/corrupted.tar.gz", "rb").read())
 
-        create("file", "//tmp/corrupted_squashfs.img")
+        create("file", "//tmp/corrupted_squashfs.img", attributes={"replication_factor": 1})
         write_file("//tmp/corrupted_squashfs.img", open("layers/corrupted.tar.gz", "rb").read())
         set("//tmp/corrupted_squashfs.img/@access_method", "local")
         set("//tmp/corrupted_squashfs.img/@filesystem", "squashfs")
 
-        create("file", "//tmp/squashfs.img")
+        create("file", "//tmp/squashfs.img", attributes={"replication_factor": 1})
         write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
         set("//tmp/squashfs.img/@access_method", "local")
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
-        create("file", "//tmp/empty_squashfs.img")
+        create("file", "//tmp/empty_squashfs.img", attributes={"replication_factor": 1})
         set("//tmp/squashfs.img/@access_method", "local")
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
@@ -1494,8 +1542,8 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     def test_empty_squashfs_layer(self):
         self.setup_files()
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
@@ -1522,8 +1570,8 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     def test_squashfs_layer(self):
         self.setup_files()
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
 
@@ -1560,8 +1608,8 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     def test_corrupted_squashfs_layer(self):
         self.setup_files()
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
         op = map(
@@ -1598,8 +1646,8 @@ class TestLocalSquashFSLayers(YTEnvSetup):
     @pytest.mark.timeout(150)
     def test_corrupted_layer_with_squashfs_layer(self):
         self.setup_files()
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
         with pytest.raises(YtError):
@@ -1618,6 +1666,94 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+    @authors("pogorelov")
+    def test_squashfs_layer_deduplication(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        profiler = profiler_factory().at_node(node)
+        cache_missed_counter = profiler.counter("exec_node/squashfs_volume_map/missed_count")
+        cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/squashfs_volume_map/hit_count")
+
+        finished_job_counter = profiler.counter("job_controller/job_final_state")
+        squashfs_volume_count = profiler.with_tags({"type": "squashfs"}).gauge("volumes/count")
+        assert not squashfs_volume_count.get()
+
+        initial_adding_log_count = len(self._get_node_debug_logs("Squashfs volume added to map"))
+        initial_removing_log_count = len(self._get_node_debug_logs("Squashfs volume removed from map"))
+
+        op1 = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<append=%true>//tmp/t_out",
+            command=with_breakpoint("cat; BREAKPOINT", breakpoint_name="first_operation"),
+            spec={
+                "fail_on_job_restart": True,
+                "mapper": {
+                    "layer_paths": ["//tmp/squashfs.img"],
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint(job_count=1, breakpoint_name="first_operation")
+
+        print_debug(f"First operation job id is {job_id}")
+
+        logs = self._get_node_debug_logs("Squashfs volume added to map")
+        assert len(logs) == initial_adding_log_count + 1
+        logs = self._get_node_debug_logs("Squashfs volume removed from map")
+        assert len(logs) == initial_removing_log_count + 1
+
+        # Wait some time for sensors to be collected.
+        time.sleep(1)
+
+        wait(lambda: squashfs_volume_count.get() == 1)
+
+        assert cache_missed_counter.get_delta() > 0
+
+        cache_hit_count = cache_hit_counter.get_delta()
+
+        map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<append=%true>//tmp/t_out",
+            command=with_breakpoint("cat; BREAKPOINT", breakpoint_name="second_operation"),
+            spec={
+                "fail_on_job_restart": True,
+                "mapper": {
+                    "layer_paths": ["//tmp/squashfs.img"],
+                },
+            },
+        )
+
+        job_id, = wait_breakpoint(job_count=1, breakpoint_name="second_operation")
+        time.sleep(1)
+        assert squashfs_volume_count.get() == 1
+
+        release_breakpoint(breakpoint_name="second_operation")
+
+        # We want to ensure squashfs volume map metrics are collected, so we wait for latest metrics collection to get correct missed layer count.
+        wait(lambda: finished_job_counter.get_delta() == 1)
+        assert cache_hit_counter.get_delta() > cache_hit_count
+
+        logs = self._get_node_debug_logs("Squashfs volume added to map")
+        assert len(logs) == initial_adding_log_count + 2
+        logs = self._get_node_debug_logs("Squashfs volume removed from map")
+        assert len(logs) == initial_removing_log_count + 2
+
+        assert squashfs_volume_count.get() == 1
+
+        release_breakpoint(breakpoint_name="first_operation")
+        op1.track()
 
 
 @authors("yuryalekseev")
