@@ -1111,32 +1111,45 @@ void TOperationControllerBase::CreateOutputTables(
     EOutputTableType outputTableType,
     EObjectType desiredType)
 {
-    std::vector<TUserObject*> tablesToCreate;
-    std::ranges::copy_if(
-        tables,
-        std::back_inserter(tablesToCreate),
-        [] (auto* table) { return table->Path.GetCreate(); });
-    if (tablesToCreate.empty()) {
-        return;
-    }
-
-    YT_LOG_DEBUG("Creating output tables (TableCount: %v, OutputTableType: %v)",
-        tablesToCreate.size(),
-        outputTableType);
-
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
-    for (auto* table : tablesToCreate) {
+    for (const auto& table: tables) {
+        bool skipTable = false;
+        std::optional<IAttributeDictionaryPtr> maybeAttributes;
+
+        Visit(table->Path.GetCreate(), TOverloaded{
+            [&] (bool create) {
+                if (!create) {
+                    skipTable = true;
+                }
+            },
+            [&] (const IAttributeDictionaryPtr& attributes) {
+                maybeAttributes = attributes;
+            },
+        });
+
+        if (skipTable) {
+            continue;
+        }
+
         auto req = TCypressYPathProxy::Create(table->Path.GetPath());
         req->set_ignore_existing(true);
         req->set_type(ToProto(desiredType));
+        if (maybeAttributes.has_value()) {
+            ToProto(req->mutable_node_attributes(), **maybeAttributes);
+        }
 
         NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
         GenerateMutationId(req);
 
         batchReq->AddRequest(req);
     }
+
+    YT_LOG_DEBUG(
+        "Creating output tables (TableCount: %v, OutputTableType: %v)",
+        batchReq->GetSize(),
+        outputTableType);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating output tables");

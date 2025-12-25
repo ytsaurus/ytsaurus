@@ -2239,6 +2239,58 @@ print(json.dumps(input))
         assert exists("//tmp/stderr_table1")
         assert exists("//tmp/core_table1")
 
+    @authors("dann239")
+    def test_auto_create_with_attributes(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        map(
+            in_="//tmp/in",
+            out='<create={}>//tmp/out',
+            command="cat",
+        )
+
+        assert exists("//tmp/out")
+
+        map(
+            in_="//tmp/in",
+            out='<create={abacaba="dabacaba"}>//tmp/out2',
+            command="cat",
+        )
+
+        assert exists("//tmp/out2")
+        assert get("//tmp/out2/@abacaba") == "dabacaba"
+
+        with pytest.raises(YtError, match="Create of type 'Int64' is not supported"):
+            map(
+                in_="//tmp/in",
+                out="<create=42>//tmp/out3",
+                command="cat",
+            )
+
+        with pytest.raises(YtError, match="Error parsing boolean value"):
+            map(
+                in_="//tmp/in",
+                out="<create=please>//tmp/out4",
+                command="cat",
+            )
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/in",
+                out='<create={}>//tmp/out2',
+                command="exit 1",
+                spec={
+                    "core_table_path": '<create={abacaba="daba"}>//tmp/core_table2',
+                    "stderr_table_path": '<create={abacaba="caba"}>//tmp/stderr_table2',
+                },
+            )
+
+        assert exists("//tmp/core_table2")
+        assert get("//tmp/core_table2/@abacaba") == "daba"
+        assert exists("//tmp/stderr_table2")
+        assert get("//tmp/stderr_table2/@abacaba") == "caba"
+
     @authors("galtsev")
     @pytest.mark.parametrize("hunks", [True, False])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
