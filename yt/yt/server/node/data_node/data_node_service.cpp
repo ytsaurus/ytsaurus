@@ -303,9 +303,10 @@ private:
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
         options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
         options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
+        options.UseDirectIo = GetDynamicConfig()->UseDirectIo && request->use_direct_io();
 
         context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
-            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v",
+            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v, UseDirectIo: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
@@ -313,7 +314,8 @@ private:
             options.PlacementId,
             options.DisableSendBlocks,
             options.UseProbePutBlocks,
-            options.PreallocateDiskSpace);
+            options.PreallocateDiskSpace,
+            options.UseDirectIo);
 
         ValidateOnline();
 
