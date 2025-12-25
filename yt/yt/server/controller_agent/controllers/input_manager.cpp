@@ -1068,7 +1068,7 @@ void TInputManager::InitInputChunkScrapers()
                 MakeWeak(Host_),
                 BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this))),
             Host_->GetChunkAvailabilityPolicy(),
-            Logger.WithTag("Cluster", clusterName));
+            Logger.WithTag("Cluster: %v", clusterName));
     }
 
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
