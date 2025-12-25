@@ -1104,6 +1104,7 @@ struct TDataNodeDynamicConfig
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
+    bool UseDirectIo;
 
     bool WaitPrecedingBlocksReceived;
 
