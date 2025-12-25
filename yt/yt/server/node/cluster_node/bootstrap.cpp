@@ -852,9 +852,7 @@ private:
         if (!Connection_) {
             Connection_ = NApi::NNative::CreateConnection(
                 Config_->ClusterConnection,
-                std::move(connectionOptions),
-                /*clusterDirectoryOverride*/ nullptr,
-                NodeMemoryUsageTracker_);
+                std::move(connectionOptions));
         }
 
         // Cycles are fine for bootstrap.
