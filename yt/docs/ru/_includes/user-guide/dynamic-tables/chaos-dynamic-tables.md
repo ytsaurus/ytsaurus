@@ -118,7 +118,7 @@ $ yt --proxy replica_cluster create replication_log_table //path/to/replication_
 
 1. Завести новые реплики-очереди с желаемым количеством шардов в sync-режиме и указав `catchup=%false` и `replicated_table_tracker_enabled=%false` с новым путем. Последнее нужно, чтобы все новые реплики не стали async.
 2. Убедиться, что в них началась запись: лаг реплики в интерфейсе должен оставаться околонулевым, а атрибут replication_lag_time должен расти
-3. Сгенерировать таймстемп `yt --proxy markov generate-timestamp` и запомнить его
+3. Сгенерировать таймстемп `yt generate-timestamp` и запомнить его
 4. Дождаться, когда значение replication_lag_timestamp _всех_ реплик будет больше, чем timestamp, сгенерированный на предыдущем шаге. Посмотреть replication_lag_timestamp реплик таблицы можно командой
 ```bash
 $ yt get "<путь к chaos_replicated_table>/@replicas" | grep replication_lag_timestamp
