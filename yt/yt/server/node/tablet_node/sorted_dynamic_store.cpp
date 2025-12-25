@@ -1034,14 +1034,23 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TFormatString<>& message) {
-            THROW_ERROR_EXCEPTION(errorCode, message)
+        auto throwError = [&] (
+            NTabletClient::EErrorCode errorCode,
+            const TFormatString<>& message,
+            TTransactionId blockingTransactionId = {})
+        {
+            auto error = TError(errorCode, message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("timeout", maxBlockedRowWaitTime)
                 << TErrorAttribute("timestamp", timestamp);
+            if (blockingTransactionId) {
+                error <<= TErrorAttribute("blocking_transaction_id", blockingTransactionId);
+            }
+
+            THROW_ERROR(std::move(error));
         };
 
         auto handler = GetRowBlockedHandler();
@@ -1051,7 +1060,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
 
         auto timeLeft = NProfiling::CpuDurationToDuration(deadline - NProfiling::GetCpuInstant());
 
-        handler.Run(
+        auto blockingTransactionId = handler.Run(
             row,
             TConflictInfo{
                 .LockIndex = lockIndex,
@@ -1060,7 +1069,10 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             timeLeft);
 
         if (NProfiling::GetCpuInstant() > deadline) {
-            throwError(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
+            throwError(
+                NTabletClient::EErrorCode::BlockedRowWaitTimeout,
+                "Timed out waiting on blocked row",
+                blockingTransactionId.TransactionId);
         }
     }
 }

@@ -1153,6 +1153,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
         TDuration /*timeout*/)
     {
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Not blocked.
@@ -1184,6 +1185,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedAbort)
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, old value is read.
@@ -1215,6 +1217,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
         WriteRow(transaction.get(), dynamicRow, row);
         CommitRow(transaction.get(), dynamicRow);
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, new value is read.
@@ -1241,6 +1244,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedTimeout)
     {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Blocked, timeout.
@@ -1878,6 +1882,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, WriteNotBlocked)
         TDuration /*timeout*/)
     {
         blocked = true;
+        return TSortedDynamicStore::TRowBlockedWaitingResult();
     }));
 
     // Not blocked, not conflicted.
