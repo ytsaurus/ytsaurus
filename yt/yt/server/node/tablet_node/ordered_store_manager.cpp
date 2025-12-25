@@ -275,9 +275,6 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         auto writerOptions = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterOptions);
         writerOptions->ValidateResourceUsageIncrease = false;
         writerOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
-        writerOptions->MemoryUsageTracker = TabletContext_
-            ->GetNodeMemoryUsageTracker()
-            ->WithCategory(EMemoryCategory::TabletBackground);
         writerOptions->Postprocess();
 
         auto writerConfig = CloneYsonStruct(tabletSnapshot->Settings.StoreWriterConfig);
@@ -323,8 +320,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         chunkTimestamps.MaxTimestamp = orderedDynamicStore->GetMaxTimestamp();
 
         tableWriter = CreateSchemalessChunkWriter(
-            writerConfig,
-            writerOptions,
+            tabletSnapshot->Settings.StoreWriterConfig,
+            tabletSnapshot->Settings.StoreWriterOptions,
             tabletSnapshot->PhysicalSchema,
             /*nameTable*/ nullptr,
             chunkWriter,
