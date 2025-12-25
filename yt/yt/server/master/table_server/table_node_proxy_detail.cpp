@@ -221,7 +221,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
-        .SetPresent(!isDynamic));
+        .SetPresent(!isDynamic && !ShouldHideRowCount()));
     // TODO(savrus) remove "unmerged_row_count" in 20.0
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnmergedRowCount)
         .SetPresent(isDynamic && isSorted));
@@ -503,7 +503,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::RowCount:
-            if (isDynamic) {
+            if (isDynamic || ShouldHideRowCount()) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -2051,6 +2051,27 @@ IAttributeDictionary* TTableNodeProxy::MutableCustomAttributesOrNull()
         this,
         MutableMountConfigAttributes_,
         [&] { return TBase::MutableCustomAttributesOrNull(); }).Get();
+}
+
+void TTableNodeProxy::ValidatePermission(
+    NObjectServer::TObject* object,
+    NYTree::EPermission permission)
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto successfulValidationResult = securityManager->ValidatePermission(object, permission);
+    YT_LOG_ALERT_IF(
+        CachedHasRowLevelAce_ && *CachedHasRowLevelAce_ != successfulValidationResult.HasRowLevelAce,
+        "Cached row-level ACE presence info differs from the recently computed one (CachedHasRowLevelAce: %v, NewHasRowLevelAce: %v)",
+        *CachedHasRowLevelAce_,
+        successfulValidationResult.HasRowLevelAce);
+    CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
+}
+
+bool TTableNodeProxy::ShouldHideRowCount() const
+{
+    // NB(coteeq): CachedHasRowLevelAce_ may be null if we did not check permissions for the subject.
+    // This may happen if the subject is a superuser.
+    return CachedHasRowLevelAce_.value_or(false);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)

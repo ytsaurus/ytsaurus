@@ -2628,6 +2628,31 @@ class TestRowAcls(YTEnvSetup):
         # Check that 'writer' has row-level acl in effect.
         assert self._read("writer") == []
 
+    @authors("coteeq")
+    def test_row_count_attribute(self):
+        create_user("u")
+        create_user("data_owner")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace("u"),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+                make_ace("allow", "data_owner", "full_read"),
+            ],
+            "lookup",
+        )
+
+        with raises_yt_error("Attribute \"row_count\" is not found"):
+            get("//tmp/t/@row_count", authenticated_user="u")
+
+        # Even owner cannot see @row_count.
+        with raises_yt_error("Attribute \"row_count\" is not found"):
+            get("//tmp/t/@row_count", authenticated_user="data_owner")
+
+        # Request as root.
+        get("//tmp/t/@row_count")
+
 
 ##################################################################
 
