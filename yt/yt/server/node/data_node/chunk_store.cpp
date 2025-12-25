@@ -15,8 +15,6 @@
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <yt/yt/library/random/discrete_distribution.h>
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/fs.h>
@@ -909,10 +907,21 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         }
 
-        if (options.PlacementId || ShouldChooseLocationBasedOnIOWeight()) {
+        if (options.PlacementId) {
             candidateIndices.push_back(index);
         } else {
-            int count = location->GetSessionCount();
+            int count;
+            auto ioWeight = location->GetIOWeight();
+            if (ShouldChooseLocationBasedOnIOWeight()) {
+                if (ioWeight > 0) {
+                    // To schedule sessions on locations with bigger io_weight, when there are only locations with zero sessions.
+                    count = static_cast<int>((location->GetSessionCount() + 1) / ioWeight);
+                } else {
+                    count = std::numeric_limits<int>::max();
+                }
+            } else {
+                count = location->GetSessionCount();
+            }
             if (count < minCount) {
                 candidateIndices.clear();
                 minCount = count;
@@ -954,28 +963,6 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         location = Locations_[currentIndex];
         YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v)",
             options.PlacementId,
-            sessionId,
-            location->GetId());
-    } else if (ShouldChooseLocationBasedOnIOWeight()) {
-        std::vector<double> weights;
-        std::vector<int> sessionCounts;
-        weights.reserve(candidateIndices.size());
-        sessionCounts.reserve(candidateIndices.size());
-        for (int index : candidateIndices) {
-            auto ioWeight = Locations_[index]->GetIOWeight();
-            auto sessionCount = Locations_[index]->GetSessionCount();
-            auto sessionCountLimit = Locations_[index]->GetSessionCountLimit();
-            weights.push_back(ioWeight * (sessionCountLimit - sessionCount) * 1. / sessionCountLimit);
-            sessionCounts.push_back(Locations_[index]->GetSessionCount());
-        }
-
-        YT_LOG_DEBUG("Choosing random location based on IO weights (CandidateIndices: %v, Weights: %v, SessionCounts: %v)",
-            candidateIndices,
-            weights,
-            sessionCounts);
-
-        location = Locations_[candidateIndices[DiscreteDistribution(std::move(weights))]];
-        YT_LOG_DEBUG("Random location is chosen for chunk based on IO weights (ChunkId: %v, LocationId: %v)",
             sessionId,
             location->GetId());
     } else {
