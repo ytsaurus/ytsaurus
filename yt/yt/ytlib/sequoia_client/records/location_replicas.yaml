@@ -2,7 +2,7 @@ namespace: NYT::NSequoiaClient::NRecords
 
 types:
   - table_name: location_replicas
-    table_group: chunk_tables
+    table_group: location_replicas_table
     type_name: TLocationReplicas
     fields:
       - cpp_name: CellTag
