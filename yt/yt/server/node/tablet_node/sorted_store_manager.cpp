@@ -1704,7 +1704,7 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlocked
         timeout);
 
     auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
-    if (!waitResult.IsOK() &&  waitResult.GetCode() != NYT::EErrorCode::Timeout) {
+    if (!waitResult.IsOK() && waitResult.GetCode() != NYT::EErrorCode::Timeout) {
         waitResult.ThrowOnError();
     }
 
