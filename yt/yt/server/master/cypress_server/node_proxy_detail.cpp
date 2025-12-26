@@ -400,7 +400,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 return TYsonString();
             }
-            THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
+            THROW_ERROR_EXCEPTION(code, "Error requesting attribute %Qv of object %v from cell %v",
                 key,
                 GetVersionedId(),
                 externalCellTag)
