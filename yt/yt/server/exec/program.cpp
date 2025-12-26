@@ -68,9 +68,6 @@ private:
 
         auto config = GetConfig();
 
-        // Delete the config file immediately after reading it, as it can contain secrets.
-        NFS::Remove(GetConfigPath());
-
         JobId_ = config->JobId;
 
         try {
