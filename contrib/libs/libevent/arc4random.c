@@ -484,6 +484,7 @@ arc4random(void)
 }
 #endif
 
+#if !defined(__GLIBC__) || (__GLIBC__ < 2) || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 36)
 ARC4RANDOM_EXPORT void
 arc4random_buf(void *buf_, size_t n)
 {
@@ -497,6 +498,7 @@ arc4random_buf(void *buf_, size_t n)
 	}
 	ARC4_UNLOCK_();
 }
+#endif
 
 #ifndef ARC4RANDOM_NOUNIFORM
 /*
