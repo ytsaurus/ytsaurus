@@ -2435,7 +2435,7 @@ public:
         return false;
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         TUser* user,
         EPermission permission,
@@ -2448,14 +2448,16 @@ public:
             object->GetId());
 
         if (IsPermissionValidationSuppressed()) {
-            return;
+            return {};
         }
 
         YT_VERIFY(!options.Columns);
 
         auto response = CheckPermission(object, user, permission, std::move(options));
         if (response.Action == ESecurityAction::Allow) {
-            return;
+            return {
+                .HasRowLevelAce = response.HasRowLevelAce,
+            };
         }
 
         TPermissionCheckTarget target;
@@ -2465,14 +2467,16 @@ public:
             user,
             permission,
             response);
+
+        YT_UNREACHABLE();
     }
 
-    void ValidatePermission(
+    TSuccessfulPermissionValidationResult ValidatePermission(
         TObject* object,
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
-        ValidatePermission(
+        return ValidatePermission(
             object,
             GetAuthenticatedUser(),
             permission,

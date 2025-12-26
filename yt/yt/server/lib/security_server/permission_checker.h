@@ -62,8 +62,27 @@ struct TPermissionCheckResponse
     //! If TPermissionCheckBasicOptions::Columns are given, this array contains
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
-    //! If there are RL ACEs for the object, this array contains descriptors for reader.
+
+    //! Generally, this array contains instructions for the reader, telling it
+    //! which rows are allowed to read (which implies that there are some
+    //! restrictions).
+    //! Null means that there are no restrictions, empty array means that none
+    //! of the rows can be read.
+    //!
+    //! Here is a list of scenarios and description of the |RowLevelAcl| value:
+    //! 1. If there are no RL ACEs for the object, this array is always null.
+    //! 2. If there are RL ACEs for the object, this array contains ACEs
+    //!    relevant to the subject.
+    //! 3. If none of them are relevant, the array will be empty (but not null).
+    //! 4. But if the subject has full_read, the array will be null, indicating
+    //!    that all rows are allowed to be read.
     std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RowLevelAcl;
+
+    //! This is a generic indicator of the mere existence of RL ACEs for
+    //! the object. Note that this flag is always the same for any subject,
+    //! regardless of the subject having full_read or even being a superuser.
+    //! This flag should be used by master internally.
+    bool HasRowLevelAce = false;
 };
 
 TPermissionCheckResponse MakeFastCheckPermissionResponse(
