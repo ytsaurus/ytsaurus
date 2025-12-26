@@ -92,10 +92,11 @@ def _annotate_within_group(self: TypeAnnotator, expression: exp.WithinGroup) -> 
     """Annotate WithinGroup with correct type based on the inner function.
 
     1) Annotate args first
-    2) Check if this is PercentileDisc and if so, re-annotate its type to match the ordered expression's type
+    2) Check if this is PercentileDisc/PercentileCont and if so, re-annotate its type to match the ordered expression's type
     """
+
     if (
-        isinstance(expression.this, exp.PercentileDisc)
+        isinstance(expression.this, (exp.PercentileDisc, exp.PercentileCont))
         and isinstance(order_expr := expression.expression, exp.Order)
         and len(order_expr.expressions) == 1
         and isinstance(ordered_expr := order_expr.expressions[0], exp.Ordered)
@@ -141,6 +142,44 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
     return expression
 
 
+def _annotate_variance(self: TypeAnnotator, expression: exp.Expression) -> exp.Expression:
+    """Annotate variance functions (VAR_POP, VAR_SAMP, VARIANCE, VARIANCE_POP) with correct return type.
+
+    Based on Snowflake behavior:
+    - DECFLOAT -> DECFLOAT(38)
+    - FLOAT/DOUBLE -> FLOAT
+    - INT, NUMBER(p, 0) -> NUMBER(38, 6)
+    - NUMBER(p, s) -> NUMBER(38, max(12, s))
+    """
+    # First annotate the argument to get its type
+    expression = self._annotate_by_args(expression, "this")
+
+    # Get the input type
+    input_type = expression.this.type
+
+    # Special case: DECFLOAT -> DECFLOAT(38)
+    if input_type.is_type(exp.DataType.Type.DECFLOAT):
+        self._set_type(expression, exp.DataType.build("DECFLOAT", dialect="snowflake"))
+    # Special case: FLOAT/DOUBLE -> DOUBLE
+    elif input_type.is_type(exp.DataType.Type.FLOAT, exp.DataType.Type.DOUBLE):
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
+    # For NUMBER types: determine the scale
+    else:
+        exprs = input_type.expressions
+        scale_expr = seq_get(exprs, 1)
+        scale = scale_expr.this.to_py() if scale_expr else 0
+
+        # If scale is 0 (INT, BIGINT, NUMBER(p,0)): return NUMBER(38, 6)
+        # Otherwise, Snowflake appears to assign scale through the formula MAX(12, s)
+        new_scale = 6 if scale == 0 else max(12, scale)
+
+        # Build the new NUMBER type
+        new_type = exp.DataType.build(f"NUMBER({MAX_PRECISION}, {new_scale})", dialect="snowflake")
+        self._set_type(expression, new_type)
+
+    return expression
+
+
 def _annotate_math_with_float_decfloat(
     self: TypeAnnotator, expression: exp.Expression
 ) -> exp.Expression:
@@ -173,6 +212,7 @@ EXPRESSION_METADATA = {
             exp.DateTrunc,
             exp.Floor,
             exp.Left,
+            exp.Mode,
             exp.Pad,
             exp.Right,
             exp.Round,
@@ -188,6 +228,8 @@ EXPRESSION_METADATA = {
             exp.ApproxTopK,
             exp.ApproxTopKEstimate,
             exp.ArrayAgg,
+            exp.ArrayConstructCompact,
+            exp.ArrayUniqueAgg,
             exp.ArrayUnionAgg,
             exp.RegexpExtractAll,
             exp.Split,
@@ -205,6 +247,7 @@ EXPRESSION_METADATA = {
             exp.MD5NumberLower64,
             exp.MD5NumberUpper64,
             exp.Rand,
+            exp.Zipf,
         }
     },
     **{
@@ -215,9 +258,11 @@ EXPRESSION_METADATA = {
             exp.BitmapOrAgg,
             exp.Compress,
             exp.DecompressBinary,
+            exp.HexString,
             exp.MD5Digest,
             exp.SHA1Digest,
             exp.SHA2Digest,
+            exp.ToBinary,
             exp.TryBase64DecodeBinary,
             exp.TryHexDecodeBinary,
             exp.Unhex,
@@ -234,6 +279,7 @@ EXPRESSION_METADATA = {
             exp.IsNullValue,
             exp.Search,
             exp.SearchIp,
+            exp.ToBoolean,
         }
     },
     **{
@@ -260,18 +306,18 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.DOUBLE}
         for expr_type in {
+            exp.ApproxPercentileEstimate,
             exp.ApproximateSimilarity,
             exp.Asinh,
             exp.Atanh,
             exp.Cbrt,
             exp.Cosh,
+            exp.CosineDistance,
+            exp.DotProduct,
+            exp.EuclideanDistance,
+            exp.ManhattanDistance,
             exp.MonthsBetween,
             exp.Normal,
-            exp.RegrAvgx,
-            exp.RegrAvgy,
-            exp.RegrSlope,
-            exp.RegrValx,
-            exp.RegrValy,
             exp.Sinh,
         }
     },
@@ -297,6 +343,17 @@ EXPRESSION_METADATA = {
             exp.Log,
             exp.Pow,
             exp.Radians,
+            exp.RegrAvgx,
+            exp.RegrAvgy,
+            exp.RegrCount,
+            exp.RegrIntercept,
+            exp.RegrR2,
+            exp.RegrSlope,
+            exp.RegrSxx,
+            exp.RegrSxy,
+            exp.RegrSyy,
+            exp.RegrValx,
+            exp.RegrValy,
             exp.Sin,
             exp.Sqrt,
             exp.Tan,
@@ -329,8 +386,11 @@ EXPRESSION_METADATA = {
             exp.ObjectAgg,
             exp.ParseIp,
             exp.ParseUrl,
+            exp.ApproxPercentileCombine,
+            exp.ApproxPercentileAccumulate,
             exp.ApproxTopKAccumulate,
             exp.ApproxTopKCombine,
+            exp.XMLGet,
         }
     },
     **{
@@ -352,6 +412,24 @@ EXPRESSION_METADATA = {
             exp.Chr,
             exp.Collate,
             exp.Collation,
+            exp.CurrentAccount,
+            exp.CurrentAccountName,
+            exp.CurrentAvailableRoles,
+            exp.CurrentClient,
+            exp.CurrentDatabase,
+            exp.CurrentIpAddress,
+            exp.CurrentSchemas,
+            exp.CurrentSecondaryRoles,
+            exp.CurrentSession,
+            exp.CurrentStatement,
+            exp.CurrentVersion,
+            exp.CurrentTransaction,
+            exp.CurrentWarehouse,
+            exp.CurrentOrganizationUser,
+            exp.CurrentRegion,
+            exp.CurrentRole,
+            exp.CurrentRoleType,
+            exp.CurrentOrganizationName,
             exp.DecompressString,
             exp.HexDecodeString,
             exp.HexEncode,
@@ -381,6 +459,13 @@ EXPRESSION_METADATA = {
             exp.Minhash,
             exp.MinhashCombine,
         }
+    },
+    **{
+        expr_type: {"annotator": _annotate_variance}
+        for expr_type in (
+            exp.Variance,
+            exp.VariancePop,
+        )
     },
     exp.ArgMax: {"annotator": _annotate_arg_max_min},
     exp.ArgMin: {"annotator": _annotate_arg_max_min},
