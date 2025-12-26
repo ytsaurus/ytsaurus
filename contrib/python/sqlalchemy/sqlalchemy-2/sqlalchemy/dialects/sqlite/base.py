@@ -2541,9 +2541,12 @@ class SQLiteDialect(default.DefaultDialect):
         constraint_name = None
         table_data = self._get_table_sql(connection, table_name, schema=schema)
         if table_data:
-            PK_PATTERN = r"CONSTRAINT (\w+) PRIMARY KEY"
+            PK_PATTERN = r'CONSTRAINT +(?:"(.+?)"|(\w+)) +PRIMARY KEY'
             result = re.search(PK_PATTERN, table_data, re.I)
-            constraint_name = result.group(1) if result else None
+            if result:
+                constraint_name = result.group(1) or result.group(2)
+            else:
+                constraint_name = None
 
         cols = self.get_columns(connection, table_name, schema, **kw)
         # consider only pk columns. This also avoids sorting the cached
@@ -2643,7 +2646,7 @@ class SQLiteDialect(default.DefaultDialect):
             # so parsing the columns is really about matching it up to what
             # we already have.
             FK_PATTERN = (
-                r"(?:CONSTRAINT (\w+) +)?"
+                r'(?:CONSTRAINT +(?:"(.+?)"|(\w+)) +)?'
                 r"FOREIGN KEY *\( *(.+?) *\) +"
                 r'REFERENCES +(?:(?:"(.+?)")|([a-z0-9_]+)) *\( *((?:(?:"[^"]+"|[a-z0-9_]+) *(?:, *)?)+)\) *'  # noqa: E501
                 r"((?:ON (?:DELETE|UPDATE) "
@@ -2653,6 +2656,7 @@ class SQLiteDialect(default.DefaultDialect):
             )
             for match in re.finditer(FK_PATTERN, table_data, re.I):
                 (
+                    constraint_quoted_name,
                     constraint_name,
                     constrained_columns,
                     referred_quoted_name,
@@ -2661,7 +2665,8 @@ class SQLiteDialect(default.DefaultDialect):
                     onupdatedelete,
                     deferrable,
                     initially,
-                ) = match.group(1, 2, 3, 4, 5, 6, 7, 8)
+                ) = match.group(1, 2, 3, 4, 5, 6, 7, 8, 9)
+                constraint_name = constraint_quoted_name or constraint_name
                 constrained_columns = list(
                     self._find_cols_in_sig(constrained_columns)
                 )
@@ -2756,14 +2761,17 @@ class SQLiteDialect(default.DefaultDialect):
         def parse_uqs():
             if table_data is None:
                 return
-            UNIQUE_PATTERN = r'(?:CONSTRAINT "?(.+?)"? +)?UNIQUE *\((.+?)\)'
+            UNIQUE_PATTERN = (
+                r'(?:CONSTRAINT +(?:"(.+?)"|(\w+)) +)?UNIQUE *\((.+?)\)'
+            )
             INLINE_UNIQUE_PATTERN = (
                 r'(?:(".+?")|(?:[\[`])?([a-z0-9_]+)(?:[\]`])?)[\t ]'
                 r"+[a-z0-9_ ]+?[\t ]+UNIQUE"
             )
 
             for match in re.finditer(UNIQUE_PATTERN, table_data, re.I):
-                name, cols = match.group(1, 2)
+                quoted_name, unquoted_name, cols = match.group(1, 2, 3)
+                name = quoted_name or unquoted_name
                 yield name, list(self._find_cols_in_sig(cols))
 
             # we need to match inlines as well, as we seek to differentiate
@@ -2794,27 +2802,88 @@ class SQLiteDialect(default.DefaultDialect):
             connection, table_name, schema=schema, **kw
         )
 
-        # NOTE NOTE NOTE
-        # DO NOT CHANGE THIS REGULAR EXPRESSION.   There is no known way
-        # to parse CHECK constraints that contain newlines themselves using
-        # regular expressions, and the approach here relies upon each
-        # individual
-        # CHECK constraint being on a single line by itself.   This
-        # necessarily makes assumptions as to how the CREATE TABLE
-        # was emitted.   A more comprehensive DDL parsing solution would be
-        # needed to improve upon the current situation. See #11840 for
-        # background
-        CHECK_PATTERN = r"(?:CONSTRAINT (.+) +)?CHECK *\( *(.+) *\),? *"
+        # Extract CHECK constraints by properly handling balanced parentheses
+        # and avoiding false matches when CHECK/CONSTRAINT appear in table
+        # names. See #12924 for context.
+        #
+        # SQLite supports 4 identifier quote styles (see
+        # sqlite.org/lang_keywords.html):
+        # - Double quotes "..." (standard SQL)
+        # - Brackets [...] (MS Access/SQL Server compatibility)
+        # - Backticks `...` (MySQL compatibility)
+        # - Single quotes '...' (SQLite extension)
+        #
+        # NOTE: there is not currently a way to parse CHECK constraints that
+        # contain newlines as the approach here relies upon each individual
+        # CHECK constraint being on a single line by itself.   This necessarily
+        # makes assumptions as to how the CREATE TABLE was emitted.
+        CHECK_PATTERN = re.compile(
+            r"""
+            (?<![A-Za-z0-9_])   # Negative lookbehind: ensure CHECK is not
+                                # part of an identifier (e.g., table name
+                                # like "tableCHECK")
+
+            (?:                 # Optional CONSTRAINT clause
+                CONSTRAINT\s+
+                (               # Group 1: Constraint name (quoted or unquoted)
+                    "(?:[^"]|"")+"        # Double-quoted: "name" or "na""me"
+                    |'(?:[^']|'')+'  # Single-quoted: 'name' or 'na''me'
+                    |\[(?:[^\]]|\]\])+\]  # Bracket-quoted: [name] or [na]]me]
+                    |`(?:[^`]|``)+`       # Backtick-quoted: `name` or `na``me`
+                    |\S+                  # Unquoted: simple_name
+                )
+                \s+
+            )?
+
+            CHECK\s*\(          # CHECK keyword followed by opening paren
+            """,
+            re.VERBOSE | re.IGNORECASE,
+        )
         cks = []
 
-        for match in re.finditer(CHECK_PATTERN, table_data or "", re.I):
+        for match in re.finditer(CHECK_PATTERN, table_data or ""):
+            constraint_name = match.group(1)
 
-            name = match.group(1)
+            if constraint_name:
+                # Remove surrounding quotes if present
+                # Double quotes: "name" -> name
+                # Single quotes: 'name' -> name
+                # Brackets: [name] -> name
+                # Backticks: `name` -> name
+                constraint_name = re.sub(
+                    r'^(["\'`])(.+)\1$|^\[(.+)\]$',
+                    lambda m: m.group(2) or m.group(3),
+                    constraint_name,
+                    flags=re.DOTALL,
+                )
 
-            if name:
-                name = re.sub(r'^"|"$', "", name)
+            # Find the matching closing parenthesis by counting balanced parens
+            # Must track string context to ignore parens inside string literals
+            start = match.end()  # Position after 'CHECK ('
+            paren_count = 1
+            in_single_quote = False
+            in_double_quote = False
 
-            cks.append({"sqltext": match.group(2), "name": name})
+            for pos, char in enumerate(table_data[start:], start):
+                # Track string literal context
+                if char == "'" and not in_double_quote:
+                    in_single_quote = not in_single_quote
+                elif char == '"' and not in_single_quote:
+                    in_double_quote = not in_double_quote
+                # Only count parens when not inside a string literal
+                elif not in_single_quote and not in_double_quote:
+                    if char == "(":
+                        paren_count += 1
+                    elif char == ")":
+                        paren_count -= 1
+                        if paren_count == 0:
+                            # Successfully found matching closing parenthesis
+                            sqltext = table_data[start:pos].strip()
+                            cks.append(
+                                {"sqltext": sqltext, "name": constraint_name}
+                            )
+                            break
+
         cks.sort(key=lambda d: d["name"] or "~")  # sort None as last
         if cks:
             return cks

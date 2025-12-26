@@ -109,6 +109,7 @@ if typing.TYPE_CHECKING:
     from .elements import Null
     from .elements import True_
     from .functions import Function
+    from .schema import CheckConstraint
     from .schema import Column
     from .schema import Constraint
     from .schema import ForeignKeyConstraint
@@ -6074,9 +6075,7 @@ class SQLCompiler(Compiled):
                 self._insertmanyvalues = _InsertManyValues(
                     True,
                     self.dialect.default_metavalue_token,
-                    cast(
-                        "List[crud._CrudParamElementStr]", crud_params_single
-                    ),
+                    crud_params_single,
                     counted_bindparam,
                     sort_by_parameter_order=(
                         insert_stmt._sort_by_parameter_order
@@ -6098,99 +6097,122 @@ class SQLCompiler(Compiled):
                     for crud_param_set in crud_params_struct.all_multi_params
                 ),
             )
-        else:
-            insert_single_values_expr = ", ".join(
-                [
-                    value
-                    for _, _, value, _ in cast(
-                        "List[crud._CrudParamElementStr]",
-                        crud_params_single,
-                    )
-                ]
-            )
+        elif use_insertmanyvalues:
+            if (
+                implicit_sentinel
+                and (
+                    self.dialect.insertmanyvalues_implicit_sentinel
+                    & InsertmanyvaluesSentinelOpts.USE_INSERT_FROM_SELECT
+                )
+                # this is checking if we have
+                # INSERT INTO table (id) VALUES (DEFAULT).
+                and not (crud_params_struct.is_default_metavalue_only)
+            ):
+                # if we have a sentinel column that is server generated,
+                # then for selected backends render the VALUES list as a
+                # subquery.  This is the orderable form supported by
+                # PostgreSQL and in fewer cases SQL Server
+                embed_sentinel_value = True
 
-            if use_insertmanyvalues:
-                if (
-                    implicit_sentinel
-                    and (
-                        self.dialect.insertmanyvalues_implicit_sentinel
-                        & InsertmanyvaluesSentinelOpts.USE_INSERT_FROM_SELECT
-                    )
-                    # this is checking if we have
-                    # INSERT INTO table (id) VALUES (DEFAULT).
-                    and not (crud_params_struct.is_default_metavalue_only)
-                ):
-                    # if we have a sentinel column that is server generated,
-                    # then for selected backends render the VALUES list as a
-                    # subquery.  This is the orderable form supported by
-                    # PostgreSQL and SQL Server.
-                    embed_sentinel_value = True
+                render_bind_casts = (
+                    self.dialect.insertmanyvalues_implicit_sentinel
+                    & InsertmanyvaluesSentinelOpts.RENDER_SELECT_COL_CASTS
+                )
 
-                    render_bind_casts = (
-                        self.dialect.insertmanyvalues_implicit_sentinel
-                        & InsertmanyvaluesSentinelOpts.RENDER_SELECT_COL_CASTS
-                    )
+                add_sentinel_set = add_sentinel_cols or ()
 
-                    colnames = ", ".join(
-                        f"p{i}" for i, _ in enumerate(crud_params_single)
-                    )
+                insert_single_values_expr = ", ".join(
+                    [
+                        value
+                        for col, _, value, _ in crud_params_single
+                        if col not in add_sentinel_set
+                    ]
+                )
 
-                    if render_bind_casts:
-                        # render casts for the SELECT list.  For PG, we are
-                        # already rendering bind casts in the parameter list,
-                        # selectively for the more "tricky" types like ARRAY.
-                        # however, even for the "easy" types, if the parameter
-                        # is NULL for every entry, PG gives up and says
-                        # "it must be TEXT", which fails for other easy types
-                        # like ints.  So we cast on this side too.
-                        colnames_w_cast = ", ".join(
+                colnames = ", ".join(
+                    f"p{i}"
+                    for i, cp in enumerate(crud_params_single)
+                    if cp[0] not in add_sentinel_set
+                )
+
+                if render_bind_casts:
+                    # render casts for the SELECT list.  For PG, we are
+                    # already rendering bind casts in the parameter list,
+                    # selectively for the more "tricky" types like ARRAY.
+                    # however, even for the "easy" types, if the parameter
+                    # is NULL for every entry, PG gives up and says
+                    # "it must be TEXT", which fails for other easy types
+                    # like ints.  So we cast on this side too.
+                    colnames_w_cast = ", ".join(
+                        (
                             self.render_bind_cast(
                                 col.type,
                                 col.type._unwrapped_dialect_impl(self.dialect),
                                 f"p{i}",
                             )
-                            for i, (col, *_) in enumerate(crud_params_single)
+                            if col not in add_sentinel_set
+                            else expr
                         )
-                    else:
-                        colnames_w_cast = colnames
-
-                    text += (
-                        f" SELECT {colnames_w_cast} FROM "
-                        f"(VALUES ({insert_single_values_expr})) "
-                        f"AS imp_sen({colnames}, sen_counter) "
-                        "ORDER BY sen_counter"
+                        for i, (col, _, expr, _) in enumerate(
+                            crud_params_single
+                        )
                     )
                 else:
-                    # otherwise, if no sentinel or backend doesn't support
-                    # orderable subquery form, use a plain VALUES list
-                    embed_sentinel_value = False
-                    text += f" VALUES ({insert_single_values_expr})"
+                    colnames_w_cast = ", ".join(
+                        (f"p{i}" if col not in add_sentinel_set else expr)
+                        for i, (col, _, expr, _) in enumerate(
+                            crud_params_single
+                        )
+                    )
 
-                self._insertmanyvalues = _InsertManyValues(
-                    is_default_expr=False,
-                    single_values_expr=insert_single_values_expr,
-                    insert_crud_params=cast(
-                        "List[crud._CrudParamElementStr]",
-                        crud_params_single,
-                    ),
-                    num_positional_params_counted=counted_bindparam,
-                    sort_by_parameter_order=(
-                        insert_stmt._sort_by_parameter_order
-                    ),
-                    includes_upsert_behaviors=(
-                        insert_stmt._post_values_clause is not None
-                    ),
-                    sentinel_columns=add_sentinel_cols,
-                    num_sentinel_columns=(
-                        len(add_sentinel_cols) if add_sentinel_cols else 0
-                    ),
-                    sentinel_param_keys=named_sentinel_params,
-                    implicit_sentinel=implicit_sentinel,
-                    embed_values_counter=embed_sentinel_value,
+                insert_crud_params = [
+                    elem
+                    for elem in crud_params_single
+                    if elem[0] not in add_sentinel_set
+                ]
+
+                text += (
+                    f" SELECT {colnames_w_cast} FROM "
+                    f"(VALUES ({insert_single_values_expr})) "
+                    f"AS imp_sen({colnames}, sen_counter) "
+                    "ORDER BY sen_counter"
                 )
 
             else:
+                # otherwise, if no sentinel or backend doesn't support
+                # orderable subquery form, use a plain VALUES list
+                embed_sentinel_value = False
+                insert_crud_params = crud_params_single
+                insert_single_values_expr = ", ".join(
+                    [value for _, _, value, _ in crud_params_single]
+                )
+
                 text += f" VALUES ({insert_single_values_expr})"
+
+            self._insertmanyvalues = _InsertManyValues(
+                is_default_expr=False,
+                single_values_expr=insert_single_values_expr,
+                insert_crud_params=insert_crud_params,
+                num_positional_params_counted=counted_bindparam,
+                sort_by_parameter_order=(insert_stmt._sort_by_parameter_order),
+                includes_upsert_behaviors=(
+                    insert_stmt._post_values_clause is not None
+                ),
+                sentinel_columns=add_sentinel_cols,
+                num_sentinel_columns=(
+                    len(add_sentinel_cols) if add_sentinel_cols else 0
+                ),
+                sentinel_param_keys=named_sentinel_params,
+                implicit_sentinel=implicit_sentinel,
+                embed_values_counter=embed_sentinel_value,
+            )
+
+        else:
+            insert_single_values_expr = ", ".join(
+                [value for _, _, value, _ in crud_params_single]
+            )
+
+            text += f" VALUES ({insert_single_values_expr})"
 
         if insert_stmt._post_values_clause is not None:
             post_values_clause = self.process(
@@ -7073,26 +7095,14 @@ class DDLCompiler(Compiled):
             return self.visit_check_constraint(constraint)
 
     def visit_check_constraint(self, constraint, **kw):
-        text = ""
-        if constraint.name is not None:
-            formatted_name = self.preparer.format_constraint(constraint)
-            if formatted_name is not None:
-                text += "CONSTRAINT %s " % formatted_name
-        text += "CHECK (%s)" % self.sql_compiler.process(
-            constraint.sqltext, include_table=False, literal_binds=True
-        )
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_check_body(constraint, **kw)
         text += self.define_constraint_deferrability(constraint)
         return text
 
     def visit_column_check_constraint(self, constraint, **kw):
-        text = ""
-        if constraint.name is not None:
-            formatted_name = self.preparer.format_constraint(constraint)
-            if formatted_name is not None:
-                text += "CONSTRAINT %s " % formatted_name
-        text += "CHECK (%s)" % self.sql_compiler.process(
-            constraint.sqltext, include_table=False, literal_binds=True
-        )
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_check_body(constraint, **kw)
         text += self.define_constraint_deferrability(constraint)
         return text
 
@@ -7101,42 +7111,16 @@ class DDLCompiler(Compiled):
     ) -> str:
         if len(constraint) == 0:
             return ""
-        text = ""
-        if constraint.name is not None:
-            formatted_name = self.preparer.format_constraint(constraint)
-            if formatted_name is not None:
-                text += "CONSTRAINT %s " % formatted_name
-        text += "PRIMARY KEY "
-        text += "(%s)" % ", ".join(
-            self.preparer.quote(c.name)
-            for c in (
-                constraint.columns_autoinc_first
-                if constraint._implicit_generated
-                else constraint.columns
-            )
-        )
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_primary_key_body(constraint, **kw)
         text += self.define_constraint_deferrability(constraint)
         return text
 
-    def visit_foreign_key_constraint(self, constraint, **kw):
-        preparer = self.preparer
-        text = ""
-        if constraint.name is not None:
-            formatted_name = self.preparer.format_constraint(constraint)
-            if formatted_name is not None:
-                text += "CONSTRAINT %s " % formatted_name
-        remote_table = list(constraint.elements)[0].column.table
-        text += "FOREIGN KEY(%s) REFERENCES %s (%s)" % (
-            ", ".join(
-                preparer.quote(f.parent.name) for f in constraint.elements
-            ),
-            self.define_constraint_remote_table(
-                constraint, remote_table, preparer
-            ),
-            ", ".join(
-                preparer.quote(f.column.name) for f in constraint.elements
-            ),
-        )
+    def visit_foreign_key_constraint(
+        self, constraint: ForeignKeyConstraint, **kw: Any
+    ) -> str:
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_foreign_key_body(constraint, **kw)
         text += self.define_constraint_match(constraint)
         text += self.define_constraint_cascades(constraint)
         text += self.define_constraint_deferrability(constraint)
@@ -7152,16 +7136,67 @@ class DDLCompiler(Compiled):
     ) -> str:
         if len(constraint) == 0:
             return ""
+        text = self.define_constraint_preamble(constraint, **kw)
+        text += self.define_unique_body(constraint, **kw)
+        text += self.define_constraint_deferrability(constraint)
+        return text
+
+    def define_constraint_preamble(
+        self, constraint: Constraint, **kw: Any
+    ) -> str:
         text = ""
         if constraint.name is not None:
             formatted_name = self.preparer.format_constraint(constraint)
             if formatted_name is not None:
                 text += "CONSTRAINT %s " % formatted_name
-        text += "UNIQUE %s(%s)" % (
+        return text
+
+    def define_primary_key_body(
+        self, constraint: PrimaryKeyConstraint, **kw: Any
+    ) -> str:
+        text = ""
+        text += "PRIMARY KEY "
+        text += "(%s)" % ", ".join(
+            self.preparer.quote(c.name)
+            for c in (
+                constraint.columns_autoinc_first
+                if constraint._implicit_generated
+                else constraint.columns
+            )
+        )
+        return text
+
+    def define_foreign_key_body(
+        self, constraint: ForeignKeyConstraint, **kw: Any
+    ) -> str:
+        preparer = self.preparer
+        remote_table = list(constraint.elements)[0].column.table
+        text = "FOREIGN KEY(%s) REFERENCES %s (%s)" % (
+            ", ".join(
+                preparer.quote(f.parent.name) for f in constraint.elements
+            ),
+            self.define_constraint_remote_table(
+                constraint, remote_table, preparer
+            ),
+            ", ".join(
+                preparer.quote(f.column.name) for f in constraint.elements
+            ),
+        )
+        return text
+
+    def define_unique_body(
+        self, constraint: UniqueConstraint, **kw: Any
+    ) -> str:
+        text = "UNIQUE %s(%s)" % (
             self.define_unique_constraint_distinct(constraint, **kw),
             ", ".join(self.preparer.quote(c.name) for c in constraint),
         )
-        text += self.define_constraint_deferrability(constraint)
+        return text
+
+    def define_check_body(self, constraint: CheckConstraint, **kw: Any) -> str:
+        text = "CHECK (%s)" % self.sql_compiler.process(
+            constraint.sqltext, include_table=False, literal_binds=True
+        )
         return text
 
     def define_unique_constraint_distinct(
@@ -7207,7 +7242,7 @@ class DDLCompiler(Compiled):
             )
         return text
 
-    def define_constraint_match(self, constraint):
+    def define_constraint_match(self, constraint: ForeignKeyConstraint) -> str:
         text = ""
         if constraint.match is not None:
             text += " MATCH %s" % constraint.match

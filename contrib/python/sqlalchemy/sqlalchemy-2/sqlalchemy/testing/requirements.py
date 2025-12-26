@@ -690,6 +690,15 @@ class SuiteRequirements(Requirements):
         return exclusions.closed()
 
     @property
+    def column_collation_reflection(self):
+        """Indicates if the database support column collation reflection.
+
+        This requirement also uses ``get_order_by_collation`` to get
+        an available collation.
+        """
+        return exclusions.closed()
+
+    @property
     def view_column_reflection(self):
         """target database must support retrieval of the columns in a view,
         similarly to how a table is inspected.
@@ -1504,14 +1513,10 @@ class SuiteRequirements(Requirements):
     def ad_hoc_engines(self):
         """Test environment must allow ad-hoc engine/connection creation.
 
-        DBs that scale poorly for many connections, even when closed, i.e.
-        Oracle, may use the "--low-connections" option which flags this
-        requirement as not present.
+        No longer used in any tests; is a no-op
 
         """
-        return exclusions.skip_if(
-            lambda config: config.options.low_connections
-        )
+        return exclusions.open()
 
     @property
     def no_windows(self):
@@ -1623,6 +1628,12 @@ class SuiteRequirements(Requirements):
     def python312(self):
         return exclusions.only_if(
             lambda: util.py312, "Python 3.12 or above required"
+        )
+
+    @property
+    def python314(self):
+        return exclusions.only_if(
+            lambda: util.py314, "Python 3.14 or above required"
         )
 
     @property

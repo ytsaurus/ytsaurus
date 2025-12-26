@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: SQLAlchemy
-Version: 2.0.44
+Version: 2.0.45
 Summary: Database Abstraction Library
 Home-page: https://www.sqlalchemy.org
 Author: Mike Bayer
