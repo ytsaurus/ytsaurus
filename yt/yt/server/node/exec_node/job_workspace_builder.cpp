@@ -90,6 +90,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoBindRootVolume";
     } else if (Step == &TJobWorkspaceBuilder::DoLinkTmpfsVolumes) {
         return "DoLinkTmpfsVolumes";
+    } else if (Step == &TJobWorkspaceBuilder::DoValidateRootFS) {
+        return "DoValidateRootFS";
     } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
         return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
@@ -259,6 +261,7 @@ TFuture<void> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoBindRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkTmpfsVolumes>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoValidateRootFS>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
@@ -430,11 +433,21 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoValidateRootFS() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -618,36 +631,6 @@ private:
             .ToUncancelable();
     }
 
-    TFuture<void> DoBindRootVolume() override
-    {
-        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
-        SetJobPhase(EJobPhase::LinkingVolumes);
-
-        auto slot = Context_.Slot;
-        auto slotPath = slot->GetSlotPath();
-        if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
-            return slot->RbindRootVolume(Context_.RootVolume, slotPath)
-                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                    Context_.RootVolume.Reset();
-
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
-
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
-
-                    ResultHolder_.RootVolume = std::move(volumeOrError.Value());
-            }).AsyncVia(Invoker_))
-            .ToImmediatelyCancelable();
-        } else {
-            ResultHolder_.RootVolume = std::move(Context_.RootVolume);
-            YT_LOG_DEBUG("Root volume binding is not needed");
-        }
-
-        return VoidFuture;
-    }
-
     TFuture<void> DoPrepareGpuCheckVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -698,9 +681,43 @@ private:
         return VoidFuture;
     }
 
+    TFuture<void> DoBindRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        auto slot = Context_.Slot;
+        auto slotPath = slot->GetSlotPath();
+        if (Context_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
+            return slot->RbindRootVolume(Context_.RootVolume, slotPath)
+                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                    Context_.RootVolume.Reset();
+
+                    if (!volumeOrError.IsOK()) {
+                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                            << volumeOrError;
+                    }
+
+                    ResultHolder_.RootVolume = std::move(volumeOrError.Value());
+            }).AsyncVia(Invoker_))
+            .ToImmediatelyCancelable();
+        } else {
+            ResultHolder_.RootVolume = std::move(Context_.RootVolume);
+            YT_LOG_DEBUG("Root volume binding is not needed");
+        }
+
+        return VoidFuture;
+    }
+
     TFuture<void> DoLinkTmpfsVolumes() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
 
         SetNowTime(TimePoints_.LinkTmpfsVolumesStartTime);
 
@@ -729,11 +746,31 @@ private:
             .ToUncancelable();
     }
 
-    TFuture<void> DoPrepareSandboxDirectories() override
+    TFuture<void> DoValidateRootFS() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
+
+        if (!ResultHolder_.RootVolume || Context_.TestRootFS) {
+            return VoidFuture;
+        }
+
+        SetNowTime(TimePoints_.ValidateRootFSStartTime);
+        const auto& slot = Context_.Slot;
+        return slot->ValidateRootFS(ResultHolder_.RootVolume)
+            .Apply(BIND([this, this_ = MakeStrong(this)] () {
+                SetNowTime(TimePoints_.ValidateRootFSFinishTime);
+            })
+            .AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
@@ -1063,9 +1100,21 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+
         YT_LOG_DEBUG("Link tmpfs volumes is not supported in cri workspace");
 
         ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoValidateRootFS() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
 
         return VoidFuture;
     }
@@ -1074,7 +1123,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::LinkingVolumes);
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");

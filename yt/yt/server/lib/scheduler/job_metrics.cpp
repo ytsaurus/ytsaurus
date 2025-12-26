@@ -122,6 +122,7 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
         std::pair{EJobMetricName::PrepareTime, &TTimeStatistics::PrepareDuration},
         std::pair{EJobMetricName::PrepareRootFSTime, &TTimeStatistics::PrepareRootFSDuration},
+        std::pair{EJobMetricName::ValidateRootFSTime, &TTimeStatistics::ValidateRootFSDuration},
         std::pair{EJobMetricName::ArtifactsCachingTime, &TTimeStatistics::ArtifactsCachingDuration},
     };
 

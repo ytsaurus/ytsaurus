@@ -72,6 +72,7 @@ message TTimeStatistics
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;
     optional int64 prepare_tmpfs_duration = 8;
+    optional int64 validate_root_fs_duration = 9;
 }
 
 // Describes the current job status.

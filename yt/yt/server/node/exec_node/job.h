@@ -375,6 +375,9 @@ private:
     std::optional<TInstant> PrepareRootVolumeStartTime_;
     std::optional<TInstant> PrepareRootVolumeFinishTime_;
 
+    std::optional<TInstant> ValidateRootFSStartTime_;
+    std::optional<TInstant> ValidateRootFSFinishTime_;
+
     std::optional<TInstant> PrepareTmpfsVolumesStartTime_;
     std::optional<TInstant> PrepareTmpfsVolumesFinishTime_;
 
