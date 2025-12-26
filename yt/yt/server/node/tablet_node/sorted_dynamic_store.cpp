@@ -2598,6 +2598,10 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         // Ensure deterministic snapshots.
         tableWriterOptions->SetChunkCreationTime = false;
+        if (auto nodeMemoryUsageTracker = Tablet_->MaybeGetNodeMemoryUsageTracker()) {
+            tableWriterOptions->MemoryUsageTracker = nodeMemoryUsageTracker
+                ->WithCategory(EMemoryCategory::TabletBackground);
+        }
         tableWriterOptions->Postprocess();
 
         auto tableWriter = CreateVersionedChunkWriter(
