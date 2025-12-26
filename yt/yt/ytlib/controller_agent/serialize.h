@@ -110,6 +110,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropExcessFieldsInOrderedController)   (302203))
     ((ChunkPoolStatistics)                   (302204))
     ((FixSimpleSort)                         (302205))
+    ((ValidateRootFS)                        (302206))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

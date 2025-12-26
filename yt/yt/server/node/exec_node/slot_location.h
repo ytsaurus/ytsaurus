@@ -136,6 +136,8 @@ public:
 
     TFuture<void> CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const;
 
+    TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const;
+
     void ValidateEnabled() const;
 
 private:
