@@ -20,7 +20,9 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/concurrency/coroutine.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
@@ -33,6 +35,9 @@
 
 #include <util/generic/hash_set.h>
 #include <util/string/builder.h>
+
+#include <string>
+#include <vector>
 
 namespace NYT::NYqlAgent {
 
@@ -112,6 +117,13 @@ public:
 private:
     int MaxSimultaneousQueries_;
     std::atomic<int> ActiveQueries_;
+};
+
+struct TDiscoveredSecret
+{
+    TYsonString Content;
+    std::optional<TYsonString> Category;
+    std::optional<TYsonString> Subcategory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -744,6 +756,8 @@ private:
         const TString& user,
         THashMap<TString, IClientPtr>& queryClients)
     {
+        std::vector<TFuture<void>> fillCredentialFutures;
+
         for (const auto& src : secrets) {
             auto& dst = credentials[src.id()];
             auto ypath = NYPath::TRichYPath(src.ypath());
@@ -781,16 +795,20 @@ private:
             }
 
             auto getNodeOptions = NApi::TGetNodeOptions();
-            getNodeOptions.Attributes = TAttributeFilter({"type"});
+            getNodeOptions.Attributes = TAttributeFilter({
+                "type",
+                "_yqla_secret_category",
+                "_yqla_secret_subcategory",
+            });
 
-            auto contentFuture = queryClient->GetNode(ypath.GetPath(), getNodeOptions)
+            auto future = queryClient->GetNode(ypath.GetPath(), getNodeOptions)
                 .Apply(BIND([
                     queryClient,
                     ypath,
-                    commonErrorAttributes = std::move(commonErrorAttributes)
-                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TString> {
+                    commonErrorAttributes
+                ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TDiscoveredSecret> {
                     if (!valueOrError.IsOK()) {
-                        return MakeFuture<TString>(TError("Cannot get provided secret")
+                        return MakeFuture<TDiscoveredSecret>(TError("Cannot get provided secret")
                             << commonErrorAttributes
                             << std::vector<TError>{valueOrError});
                     }
@@ -798,19 +816,66 @@ private:
                     const auto& ysonString = valueOrError.Value();
                     auto node = ConvertTo<INodePtr>(ysonString);
 
+                    TDiscoveredSecret discoveredSecret;
+
+                    if (auto category = node->Attributes().FindYson("_yqla_secret_category")) {
+                        discoveredSecret.Category = std::move(category);
+                    }
+
+                    if (auto subcategory = node->Attributes().FindYson("_yqla_secret_subcategory")) {
+                        discoveredSecret.Subcategory = std::move(subcategory);
+                    }
+
+                    // document nodes don't return type attribute via GetNode call
+                    if (auto type = node->Attributes().Find<NObjectClient::EObjectType>("type")) {
+                        switch (*type) {
+                        // just safety precaution in case GetNode behavior
+                        // regarding document nodes changes in future
+                        case NObjectClient::EObjectType::Document:
+                        case NObjectClient::EObjectType::StringNode:
+                            discoveredSecret.Content = ysonString;
+                            return MakeFuture(std::move(discoveredSecret));
+
+                        case NObjectClient::EObjectType::File:
+                            break;
+
+                        default:
+                            return MakeFuture(TErrorOr<TDiscoveredSecret>(
+                                TError("Unexpected secret node type")
+                                    << commonErrorAttributes
+                                    << TErrorAttribute("node_type", *type)));
+                        }
+
+                        return queryClient->CreateFileReader(ypath.GetPath())
+                            .Apply(BIND([
+                                discoveredSecret = std::move(discoveredSecret)
+                            ](const NApi::IFileReaderPtr& fileReader) mutable {
+                                auto contentRef = fileReader->ReadAll();
+                                discoveredSecret.Content = ConvertToYsonString(
+                                    contentRef.ToStringBuf());
+
+                                return std::move(discoveredSecret);
+                            }));
+                    }
+
+                    discoveredSecret.Content = ysonString;
+                    return MakeFuture(std::move(discoveredSecret));
+                })).Apply(BIND([
+                    &src,
+                    &dst,
+                    commonErrorAttributes = std::move(commonErrorAttributes)
+                ] (const TDiscoveredSecret& discoveredSecret) -> TFuture<void> {
                     auto safeConvertToString = [](
                         const TYsonString& ysonString,
-                        const std::vector<TErrorAttribute>& errorAttributes
+                        const std::vector<TErrorAttribute>& errorAttributes,
+                        auto errorMessage
                     ) -> TErrorOr<TString> {
-                        constexpr std::string_view errorMessage(
-                            "Cannot convert secret value to string");
-
                         TErrorOr<TString> valueOrError;
 
                         try {
                             valueOrError = ConvertTo<TString>(ysonString);
                         } catch (const std::exception& exception) {
-                            valueOrError = TError(errorMessage)
+                            valueOrError = TError(errorMessage, TError::DisableFormat)
                                 << errorAttributes
                                 << std::vector{TError(exception)};
                         }
@@ -818,45 +883,99 @@ private:
                         return valueOrError;
                     };
 
-                    // document nodes don't return type attribute via GetNode call
-                    if (auto type = node->Attributes().Find<NObjectClient::EObjectType>("type")) {
-                        auto errorAttributes = commonErrorAttributes;
-                        errorAttributes.push_back(TErrorAttribute("node_type", *type));
+                    auto contentOrError = safeConvertToString(
+                        discoveredSecret.Content,
+                        commonErrorAttributes,
+                        "Cannot convert secret value to string");
 
-                        switch (*type) {
-                        // just safety precaution in case GetNode behavior
-                        // regarding document nodes changes in future
-                        case NObjectClient::EObjectType::Document:
-                        case NObjectClient::EObjectType::StringNode:
-                            return MakeFuture(
-                                safeConvertToString(ysonString, errorAttributes));
-
-                        case NObjectClient::EObjectType::File:
-                            break;
-
-                        default:
-                            return MakeFuture<TString>(TError("Unexpected secret node type")
-                                << errorAttributes);
-                        }
-
-                        return queryClient->CreateFileReader(ypath.GetPath())
-                            .Apply(BIND([](const NApi::IFileReaderPtr& fileReader) {
-                                auto contentRef = fileReader->ReadAll();
-                                return TString(contentRef.ToStringBuf());
-                            }));
+                    if (!contentOrError.IsOK()) {
+                        return MakeFuture(TError(std::move(contentOrError)));
                     }
 
-                    return MakeFuture(
-                        safeConvertToString(ysonString, commonErrorAttributes));
+                    dst["content"] = contentOrError.Value();
+
+                    std::optional<TString> discoveredCategory;
+                    if (discoveredSecret.Category) {
+                        auto categoryOrError = safeConvertToString(
+                            *discoveredSecret.Category,
+                            commonErrorAttributes,
+                            "Cannot convert secret category to string");
+
+                        if (!categoryOrError.IsOK()) {
+                            return MakeFuture(TError(std::move(categoryOrError)));
+                        }
+
+                        discoveredCategory = categoryOrError.Value();
+                    }
+
+                    std::optional<TString> discoveredSubcategory;
+                    if (discoveredSecret.Subcategory) {
+                        auto subcategoryOrError = safeConvertToString(
+                            *discoveredSecret.Subcategory,
+                            commonErrorAttributes,
+                            "Cannot convert secret subcategory to string");
+
+                        if (!subcategoryOrError.IsOK()) {
+                            return MakeFuture(TError(std::move(subcategoryOrError)));
+                        }
+
+                        discoveredSubcategory = subcategoryOrError.Value();
+                    }
+
+                    // TODO: switch back to has_category when api will provide empty category
+                    if (src.category() || discoveredCategory) {
+                        if (src.category() &&
+                            discoveredCategory &&
+                            src.category() != *discoveredCategory
+                        ) {
+                            auto error = TError("Found mismatch between provided and discovered secret categories")
+                                << commonErrorAttributes
+                                << TErrorAttribute("provided_category", src.category())
+                                << TErrorAttribute("discovered_category", *discoveredCategory);
+
+                            return MakeFuture(std::move(error));
+                        }
+
+                        dst["category"] = src.category()
+                            ? src.category()
+                            : *discoveredCategory;
+                    } else if (
+                        auto secretIdBuf = TStringBuf(src.id());
+                        secretIdBuf.SkipPrefix("default_")
+                    ) {
+                        dst["category"] = TString(secretIdBuf);
+                    }
+
+                    // TODO: switch back to has_subcategory when api will provide empty subcategory
+                    if (src.subcategory() || discoveredSubcategory) {
+                        if (src.subcategory() &&
+                            discoveredSubcategory &&
+                            src.subcategory() != *discoveredSubcategory
+                        ) {
+                            auto error = TError("Found mismatch between provided and discovered secret subcategories")
+                                << commonErrorAttributes
+                                << TErrorAttribute("provided_subcategory", src.subcategory())
+                                << TErrorAttribute("discovered_subcategory", *discoveredSubcategory);
+
+                            return MakeFuture(std::move(error));
+                        }
+
+                        dst["subcategory"] = src.subcategory()
+                            ? src.subcategory()
+                            : *discoveredSubcategory;
+                    }
+
+                    return VoidFuture;
                 }));
 
-            dst["content"] = WaitFor(contentFuture).ValueOrThrow();
-            if (src.has_category()) {
-                dst["category"] = src.category();
-            }
-            if (src.has_subcategory()) {
-                dst["subcategory"] = src.subcategory();
-            }
+            fillCredentialFutures.push_back(std::move(future));
+        }
+
+        auto resultFutures = WaitFor(AllSet(std::move(fillCredentialFutures)))
+            .ValueOrThrow();
+
+        for (const auto& resultFuture : resultFutures) {
+            resultFuture.ThrowOnError();
         }
     }
 };
