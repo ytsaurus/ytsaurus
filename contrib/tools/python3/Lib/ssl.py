@@ -543,7 +543,10 @@ class SSLContext(_SSLContext):
         if not isinstance(purpose, _ASN1Object):
             raise TypeError(purpose)
 
-        self.load_verify_locations(cadata=builtin_cadata())
+        cafile, capath, cadata = os.environ.get("SSL_CERT_FILE"), os.environ.get("SSL_CERT_DIR"), None
+        if cafile is None:
+            cadata=builtin_cadata()
+        self.load_verify_locations(cafile=cafile, capath=capath, cadata=cadata)
 
         if sys.platform == "win32":
             for storename in self._windows_cert_stores:
