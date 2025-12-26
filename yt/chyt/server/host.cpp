@@ -177,7 +177,7 @@ public:
             default:
                 YT_ABORT();
         }
-        if (Config_->DictionaryRepository->Enabled) {
+        if (Config_->DictionaryRepository) {
             CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(CreateClient(ChytSqlObjectsUserName), Config_->DictionaryRepository);
         }
 
@@ -744,7 +744,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+                NNet::BuildServiceAddress(attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.RemoveSqlObject();
@@ -777,7 +777,7 @@ public:
             }
 
             auto channel = ChannelFactory_->CreateChannel(
-                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+                NNet::BuildServiceAddress(attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
 
             auto req = proxy.ReloadDictionary();
@@ -790,7 +790,8 @@ public:
             .ThrowOnError();
     }
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository() {
+    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
+    {
         return CypressDictionaryConfigRepository_;
     }
 

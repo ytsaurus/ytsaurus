@@ -164,8 +164,7 @@ class Clique(object):
 
         config["yt"]["dictionary_repository"] = dict()
         self.dictionaries_path = "//sys/strawberry/chyt/{}/dictionaries".format(self.alias)
-        config["yt"]["dictionary_repository"]["path"] = self.dictionaries_path
-        config["yt"]["dictionary_repository"]["enabled"] = True
+        config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
         create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
             "acl": [ace],
         })

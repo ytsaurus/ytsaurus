@@ -6,6 +6,8 @@
 
 #include <Interpreters/IExternalLoaderConfigRepository.h>
 
+#include <Interpreters/StorageID.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,22 +22,23 @@ public:
 
     std::set<std::string> GetAllDictionaryNames();
     bool DictionaryExists(const std::string& dictionaryName);
+    std::optional<DBPoco::Timestamp> GetDictionaryUpdateTime(const std::string& dictionaryName);
+
     DB::LoadablesConfigurationPtr LoadDictionary(const std::string& dictionaryName);
 
     void WriteDictionary(
         const DB::ContextPtr& context,
         const std::string& name,
         const DB::LoadablesConfigurationPtr& config);
-    bool DeleteDictionary(
+    void DeleteDictionary(
         const DB::ContextPtr& context,
-        const std::string& name,
-        const std::string& databaseName);
+        const DB::StorageID& storageId);
 
 private:
     const NApi::NNative::IClientPtr Client_;
-    const NYPath::TYPath PathToDictionaries_;
+    const NYPath::TYPath RootPath_;
 
-    NYPath::TYPath GetPathToConfig(const std::string& dictionaryName);
+    NYPath::TYPath GetPathToConfig(const std::string& dictionaryName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressDictionaryConfigRepository)

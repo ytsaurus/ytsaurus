@@ -592,6 +592,7 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig)
 struct TUserDefinedSqlObjectsStorageConfig
     : public NYTree::TYsonStruct
 {
+    // TODO(buyval01): Migrate the configuration to enable it, if present.
     bool Enabled;
     NYPath::TYPath Path;
     TDuration UpdatePeriod;
@@ -609,8 +610,7 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 struct TDictionaryRepositoryConfig
     : public NYTree::TYsonStruct
 {
-    bool Enabled;
-    NYPath::TYPath Path;
+    NYPath::TYPath RootPath;
 
     REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
 

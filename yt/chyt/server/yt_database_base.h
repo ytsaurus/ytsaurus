@@ -53,7 +53,7 @@ protected:
     DB::StoragePtr DoGetTable(DB::ContextPtr context, const String& name) const;
 
 private:
-    DB::StoragePtr DoGetDictionary(DB::ContextPtr context, const String& name) const;
+    DB::StoragePtr DoGetDictionary(DB::ContextPtr context, const DB::StorageID& storageId) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
