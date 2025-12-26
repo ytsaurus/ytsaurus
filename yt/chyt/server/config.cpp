@@ -471,15 +471,8 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 
 void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
-    registrar.Parameter("path", &TThis::Path)
-        .Default();
-    registrar.Postprocessor([] (TThis* config) {
-        if (config->Enabled && config->Path.empty()) {
-            THROW_ERROR_EXCEPTION("Path to Cypress dictionary repository is not set");
-        }
-    });
+    registrar.Parameter("root_path", &TThis::RootPath)
+        .NonEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,7 +633,7 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("dictionary_repository", &TThis::DictionaryRepository)
-        .DefaultNew();
+        .Default();
 
     registrar.Parameter("system_log_table_exporters", &TThis::SystemLogTableExporters)
         .DefaultNew();

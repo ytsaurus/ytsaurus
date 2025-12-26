@@ -225,7 +225,6 @@ class TestYtDictionaries(ClickHouseTestBase):
         with Clique(2, alias="test_alias") as clique:
             clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
             test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
-            assert clique.make_query(test_query) == [{"value": 2}]
             instances = clique.get_active_instances()
             for instance in instances:
                 assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
