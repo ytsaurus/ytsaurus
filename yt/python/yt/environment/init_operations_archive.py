@@ -1328,6 +1328,13 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     )
 
 
+def get_client_config():
+    config = get_config_from_env()
+    # NB(bystrovserg): Increase default timeout in case of big tables.
+    config["tablets_ready_timeout"] = 120 * 1000
+    return config
+
+
 # NB(bystrovserg): Do not forget to update args in luigi.
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -1368,7 +1375,7 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
-    client = YtClient(proxy=args.proxy, config=get_config_from_env())
+    client = YtClient(proxy=args.proxy, config=get_client_config())
 
     run(
         client=client,
