@@ -373,8 +373,8 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcessBase::TProcessBase(const TString& path)
-    : Path_(path)
+TProcessBase::TProcessBase(TStringBuf path)
+    : Path_(TString(path))
     , ProcessId_(InvalidProcessId)
 { }
 

@@ -27,7 +27,7 @@ class TProcessBase
     : public TRefCounted
 {
 public:
-    explicit TProcessBase(const TString& path);
+    explicit TProcessBase(TStringBuf path);
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
