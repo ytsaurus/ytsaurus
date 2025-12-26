@@ -33,9 +33,9 @@ DECLARE_REFCOUNTED_STRUCT(TFormattedLatency)
 struct TFormattedOutput
     : public NYTree::TYsonStruct
 {
-    TString Name;
-    TString Info;
-    TString Uname;
+    std::string Name;
+    std::string Info;
+    std::string Uname;
     NYTree::TYsonStructPtr Config;
     std::vector<TFormattedEpochPtr> Epochs;
 
@@ -49,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TFormattedOutput)
 struct TFormattedEpoch
     : public NYTree::TYsonStruct
 {
-    TString EpochName;
+    std::string EpochName;
     NYTree::TYsonStructPtr Config;
     std::vector<TFormattedGenerationPtr> Generations;
 
