@@ -185,7 +185,11 @@ class _Dialect(type):
         klass.FORMAT_TRIE = (
             new_trie(klass.FORMAT_MAPPING) if klass.FORMAT_MAPPING else klass.TIME_TRIE
         )
-        klass.INVERSE_TIME_MAPPING = {v: k for k, v in klass.TIME_MAPPING.items()}
+        # Merge class-defined INVERSE_TIME_MAPPING with auto-generated mappings
+        # This allows dialects to define custom inverse mappings for roundtrip correctness
+        klass.INVERSE_TIME_MAPPING = {v: k for k, v in klass.TIME_MAPPING.items()} | (
+            klass.__dict__.get("INVERSE_TIME_MAPPING") or {}
+        )
         klass.INVERSE_TIME_TRIE = new_trie(klass.INVERSE_TIME_MAPPING)
         klass.INVERSE_FORMAT_MAPPING = {v: k for k, v in klass.FORMAT_MAPPING.items()}
         klass.INVERSE_FORMAT_TRIE = new_trie(klass.INVERSE_FORMAT_MAPPING)
@@ -291,6 +295,22 @@ class _Dialect(type):
             if enum != "oracle":
                 no_paren_functions.pop(TokenType.LOCALTIMESTAMP, None)
             klass.parser_class.NO_PAREN_FUNCTIONS = no_paren_functions
+
+        if enum in (
+            "",
+            "postgres",
+            "duckdb",
+            "trino",
+        ):
+            no_paren_functions = klass.parser_class.NO_PAREN_FUNCTIONS.copy()
+            no_paren_functions[TokenType.CURRENT_CATALOG] = exp.CurrentCatalog
+            klass.parser_class.NO_PAREN_FUNCTIONS = no_paren_functions
+        else:
+            # For dialects that don't support this keyword, treat it as a regular identifier
+            # This fixes the "Unexpected token" error in BQ, Spark, etc.
+            klass.parser_class.ID_VAR_TOKENS = klass.parser_class.ID_VAR_TOKENS | {
+                TokenType.CURRENT_CATALOG,
+            }
 
         klass.VALID_INTERVAL_UNITS = {
             *klass.VALID_INTERVAL_UNITS,
@@ -634,6 +654,9 @@ class Dialect(metaclass=_Dialect):
     REGEXP_EXTRACT_DEFAULT_GROUP = 0
     """The default value for the capturing group."""
 
+    REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL = True
+    """Whether REGEXP_EXTRACT returns NULL when the position arg exceeds the string length."""
+
     SET_OP_DISTINCT_BY_DEFAULT: t.Dict[t.Type[exp.Expression], t.Optional[bool]] = {
         exp.Except: True,
         exp.Intersect: True,
@@ -694,6 +717,13 @@ class Dialect(metaclass=_Dialect):
 
     For example, in Postgres, generate_series function outputs a column named "generate_series" by default,
     so we map the ExplodingGenerateSeries expression to "generate_series" string.
+    """
+
+    DEFAULT_NULL_TYPE = exp.DataType.Type.UNKNOWN
+    """
+    The default type of NULL for producing the correct projection type.
+
+    For example, in BigQuery the default type of the NULL value is INT64.
     """
 
     # --- Autofilled ---
@@ -757,6 +787,7 @@ class Dialect(metaclass=_Dialect):
         "WEEKDAY_ISO": "DAYOFWEEKISO",
         "DOW_ISO": "DAYOFWEEKISO",
         "DW_ISO": "DAYOFWEEKISO",
+        "DAYOFWEEK_ISO": "DAYOFWEEKISO",
         "DAY OF YEAR": "DAYOFYEAR",
         "DOY": "DAYOFYEAR",
         "DY": "DAYOFYEAR",
@@ -992,42 +1023,50 @@ class Dialect(metaclass=_Dialect):
         )
         return any(unsafe(char) for char in text)
 
-    def can_identify(self, text: str, identify: str | bool = "safe") -> bool:
-        """Checks if text can be identified given an identify option.
+    def can_quote(self, identifier: exp.Identifier, identify: str | bool = "safe") -> bool:
+        """Checks if an identifier can be quoted
 
         Args:
-            text: The text to check.
+            identifier: The identifier to check.
             identify:
-                `"always"` or `True`: Always returns `True`.
+                `True`: Always returns `True` except for certain cases.
                 `"safe"`: Only returns `True` if the identifier is case-insensitive.
+                `"unsafe"`: Only returns `True` if the identifier is case-sensitive.
 
         Returns:
             Whether the given text can be identified.
         """
-        if identify is True or identify == "always":
+        if identifier.quoted:
+            return True
+        if not identify:
+            return False
+        if isinstance(identifier.parent, exp.Func):
+            return False
+        if identify is True:
             return True
 
-        if identify == "safe":
-            return not self.case_sensitive(text)
+        is_safe = not self.case_sensitive(identifier.this) and bool(
+            exp.SAFE_IDENTIFIER_RE.match(identifier.this)
+        )
 
-        return False
+        if identify == "safe":
+            return is_safe
+        if identify == "unsafe":
+            return not is_safe
+
+        raise ValueError(f"Unexpected argument for identify: '{identify}'")
 
     def quote_identifier(self, expression: E, identify: bool = True) -> E:
         """
-        Adds quotes to a given identifier.
+        Adds quotes to a given expression if it is an identifier.
 
         Args:
             expression: The expression of interest. If it's not an `Identifier`, this method is a no-op.
             identify: If set to `False`, the quotes will only be added if the identifier is deemed
                 "unsafe", with respect to its characters and this dialect's normalization strategy.
         """
-        if isinstance(expression, exp.Identifier) and not isinstance(expression.parent, exp.Func):
-            name = expression.this
-            expression.set(
-                "quoted",
-                identify or self.case_sensitive(name) or not exp.SAFE_IDENTIFIER_RE.match(name),
-            )
-
+        if isinstance(expression, exp.Identifier):
+            expression.set("quoted", self.can_quote(expression, identify or "unsafe"))
         return expression
 
     def to_json_path(self, path: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
@@ -1961,11 +2000,21 @@ def build_like(
 
 def build_regexp_extract(expr_type: t.Type[E]) -> t.Callable[[t.List, Dialect], E]:
     def _builder(args: t.List, dialect: Dialect) -> E:
+        # The "position" argument specifies the index of the string character to start matching from.
+        # `null_if_pos_overflow` reflects the dialect's behavior when position is greater than the string
+        # length. If true, returns NULL. If false, returns an empty string. `null_if_pos_overflow` is
+        # only needed for exp.RegexpExtract - exp.RegexpExtractAll always returns an empty array if
+        # position overflows.
         return expr_type(
             this=seq_get(args, 0),
             expression=seq_get(args, 1),
             group=seq_get(args, 2) or exp.Literal.number(dialect.REGEXP_EXTRACT_DEFAULT_GROUP),
             parameters=seq_get(args, 3),
+            **(
+                {"null_if_pos_overflow": dialect.REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL}
+                if expr_type is exp.RegexpExtract
+                else {}
+            ),
         )
 
     return _builder

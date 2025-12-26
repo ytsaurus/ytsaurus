@@ -60,6 +60,10 @@ REGEX_ESCAPE_REPLACEMENTS = {
     "]": r"\]",
 }
 
+# Used to in RANDSTR transpilation
+RANDSTR_CHAR_POOL = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+RANDSTR_SEED = 123456
+
 # Whitespace control characters that DuckDB must process with `CHR({val})` calls
 WS_CONTROL_CHARS_TO_DUCK = {
     "\u000b": 11,
@@ -67,6 +71,18 @@ WS_CONTROL_CHARS_TO_DUCK = {
     "\u001d": 29,
     "\u001e": 30,
     "\u001f": 31,
+}
+
+# Days of week to ISO 8601 day-of-week numbers
+# ISO 8601 standard: Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6, Sunday=7
+WEEK_START_DAY_TO_DOW = {
+    "MONDAY": 1,
+    "TUESDAY": 2,
+    "WEDNESDAY": 3,
+    "THURSDAY": 4,
+    "FRIDAY": 5,
+    "SATURDAY": 6,
+    "SUNDAY": 7,
 }
 
 
@@ -250,9 +266,86 @@ def _implicit_datetime_cast(
     return arg
 
 
+def _week_unit_to_dow(unit: t.Optional[exp.Expression]) -> t.Optional[int]:
+    """
+    Compute the Monday-based day shift to align DATE_DIFF('WEEK', ...) coming
+    from other dialects, e.g BigQuery's WEEK(<day>) or ISOWEEK unit parts.
+
+    Args:
+        unit: The unit expression (Var for ISOWEEK or WeekStart)
+
+    Returns:
+        The ISO 8601 day number (Monday=1, Sunday=7 etc) or None if not a week unit or if day is dynamic (not a constant).
+
+        Examples:
+            "WEEK(SUNDAY)" -> 7
+            "WEEK(MONDAY)" -> 1
+            "ISOWEEK" -> 1
+    """
+    # Handle plain Var expressions for ISOWEEK only
+    if isinstance(unit, exp.Var) and unit.name.upper() in "ISOWEEK":
+        return 1
+
+    # Handle WeekStart expressions with explicit day
+    if isinstance(unit, exp.WeekStart):
+        return WEEK_START_DAY_TO_DOW.get(unit.name.upper())
+
+    return None
+
+
+def _build_week_trunc_expression(date_expr: exp.Expression, start_dow: int) -> exp.Expression:
+    """
+    Build DATE_TRUNC expression for week boundaries with custom start day.
+
+    Args:
+        date_expr: The date expression to truncate
+        shift_days: ISO 8601 day-of-week number (Monday=0, ..., Sunday=6)
+
+    DuckDB's DATE_TRUNC('WEEK', ...) aligns weeks to Monday (ISO standard).
+    To align to a different start day, we shift the date before truncating.
+
+    Shift formula: Sunday (7) gets +1, others get (1 - start_dow)
+    Examples:
+        Monday (1): shift = 0 (no shift needed)
+        Tuesday (2): shift = -1 (shift back 1 day) ...
+        Sunday (7): shift = +1 (shift forward 1 day, wraps to next Monday-based week)
+    """
+    shift_days = 1 if start_dow == 7 else 1 - start_dow
+
+    # Shift date to align week boundaries with the desired start day
+    # No shift needed for Monday-based weeks (shift_days == 0)
+    shifted_date = (
+        exp.DateAdd(
+            this=date_expr,
+            expression=exp.Interval(this=exp.Literal.string(str(shift_days)), unit=exp.var("DAY")),
+        )
+        if shift_days != 0
+        else date_expr
+    )
+
+    return exp.DateTrunc(unit=exp.var("WEEK"), this=shifted_date)
+
+
 def _date_diff_sql(self: DuckDB.Generator, expression: exp.DateDiff) -> str:
     this = _implicit_datetime_cast(expression.this)
     expr = _implicit_datetime_cast(expression.expression)
+    unit = expression.args.get("unit")
+
+    # DuckDB's WEEK diff does not respect Monday crossing (week boundaries), it checks (end_day - start_day) / 7:
+    #  SELECT DATE_DIFF('WEEK', CAST('2024-12-13' AS DATE), CAST('2024-12-17' AS DATE)) --> 0 (Monday crossed)
+    #  SELECT DATE_DIFF('WEEK', CAST('2024-12-13' AS DATE), CAST('2024-12-20' AS DATE)) --> 1 (7 days difference)
+    # Whereas for other units such as MONTH it does respect month boundaries:
+    #  SELECT DATE_DIFF('MONTH', CAST('2024-11-30' AS DATE), CAST('2024-12-01' AS DATE)) --> 1 (Month crossed)
+    date_part_boundary = expression.args.get("date_part_boundary")
+
+    # Extract week start day; returns None if day is dynamic (column/placeholder)
+    week_start = _week_unit_to_dow(unit)
+    if date_part_boundary and week_start and this and expr:
+        expression.set("unit", exp.Literal.string("WEEK"))
+
+        # Truncate both dates to week boundaries to respect input dialect semantics
+        this = _build_week_trunc_expression(this, week_start)
+        expr = _build_week_trunc_expression(expr, week_start)
 
     return self.func("DATE_DIFF", unit_to_str(expression), expr, this)
 
@@ -293,12 +386,38 @@ def _cast_to_varchar(arg: t.Optional[exp.Expression]) -> t.Optional[exp.Expressi
     return arg
 
 
-def _cast_to_blob(self: DuckDB.Generator, expression: exp.Expression, result_sql: str) -> str:
-    is_binary = expression.is_type(exp.DataType.Type.BINARY)
-    if is_binary:
+def _is_binary(arg: exp.Expression) -> bool:
+    return arg.is_type(
+        exp.DataType.Type.BINARY,
+        exp.DataType.Type.VARBINARY,
+        exp.DataType.Type.BLOB,
+    )
+
+
+def _gen_with_cast_to_blob(
+    self: DuckDB.Generator, expression: exp.Expression, result_sql: str
+) -> str:
+    if _is_binary(expression):
         blob = exp.DataType.build("BLOB", dialect="duckdb")
         result_sql = self.sql(exp.Cast(this=result_sql, to=blob))
     return result_sql
+
+
+def _cast_to_bit(arg: exp.Expression) -> exp.Expression:
+    if not _is_binary(arg):
+        return arg
+
+    if isinstance(arg, exp.HexString):
+        arg = exp.Unhex(this=exp.Literal.string(arg.this))
+
+    return exp.cast(arg, exp.DataType.Type.BIT)
+
+
+def _prepare_binary_bitwise_args(expression: exp.Binary) -> None:
+    if _is_binary(expression.this):
+        expression.set("this", _cast_to_bit(expression.this))
+    if _is_binary(expression.expression):
+        expression.set("expression", _cast_to_bit(expression.expression))
 
 
 def _anyvalue_sql(self: DuckDB.Generator, expression: exp.AnyValue) -> str:
@@ -426,6 +545,10 @@ class DuckDB(Dialect):
     }
 
     DATE_PART_MAPPING.pop("WEEKDAY")
+
+    INVERSE_TIME_MAPPING = {
+        "%e": "%-d",  # BigQuery's space-padded day (%e) -> DuckDB's no-padding day (%-d)
+    }
 
     def to_json_path(self, path: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
         if isinstance(path, exp.Literal):
@@ -836,9 +959,10 @@ class DuckDB(Dialect):
             exp.ArrayUniqueAgg: lambda self, e: self.func(
                 "LIST", exp.Distinct(expressions=[e.this])
             ),
+            exp.BitwiseAnd: lambda self, e: self._bitwise_op(e, "&"),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
+            exp.BitwiseOr: lambda self, e: self._bitwise_op(e, "|"),
             exp.BitwiseOrAgg: rename_func("BIT_OR"),
-            exp.BitwiseXor: rename_func("XOR"),
             exp.BitwiseXorAgg: rename_func("BIT_XOR"),
             exp.CommentColumnConstraint: no_comment_column_constraint_sql,
             exp.CosineDistance: rename_func("LIST_COSINE_DISTANCE"),
@@ -987,6 +1111,7 @@ class DuckDB(Dialect):
             exp.DataType.Type.BPCHAR: "TEXT",
             exp.DataType.Type.CHAR: "TEXT",
             exp.DataType.Type.DATETIME: "TIMESTAMP",
+            exp.DataType.Type.DECFLOAT: "DECIMAL(38, 5)",
             exp.DataType.Type.FLOAT: "REAL",
             exp.DataType.Type.JSONB: "JSON",
             exp.DataType.Type.NCHAR: "TEXT",
@@ -1106,6 +1231,80 @@ class DuckDB(Dialect):
             exp.Lead,
             exp.NthValue,
         )
+
+        def randstr_sql(self: DuckDB.Generator, expression: exp.Randstr) -> str:
+            """
+            Transpile Snowflake's RANDSTR to DuckDB equivalent using deterministic hash-based random.
+
+            RANDSTR(length, generator) generates a random string of specified length.
+            - With numeric seed: Use HASH(i + seed) for deterministic output (same seed = same result)
+            - With RANDOM(): Use RANDOM() in the hash for non-deterministic output
+            - No generator: Use default seed value
+            """
+            length = expression.this
+            generator = expression.args.get("generator")
+
+            if generator:
+                if isinstance(generator, exp.Rand):
+                    # If it's RANDOM(), use its seed if available, otherwise use RANDOM() itself
+                    seed_value = generator.this or generator
+                else:
+                    # Const/int or other expression - use as seed directly
+                    seed_value = generator
+            else:
+                # No generator specified, use default seed (arbitrary but deterministic)
+                seed_value = exp.Literal.number(RANDSTR_SEED)
+
+            length_sql = self.sql(length)
+            seed_sql = self.sql(seed_value)
+
+            query: exp.Select = exp.maybe_parse(
+                f"""
+                SELECT LISTAGG(
+                    SUBSTRING(
+                        '{RANDSTR_CHAR_POOL}',
+                        1 + CAST(FLOOR(random_value * 62) AS INT),
+                        1
+                    ),
+                    ''
+                )
+                FROM (
+                    SELECT (ABS(HASH(i + {seed_sql})) % 1000) / 1000.0 AS random_value
+                    FROM RANGE({length_sql}) AS t(i)
+                )
+                """,
+                dialect="duckdb",
+            )
+            return f"({self.sql(query)})"
+
+        def tobinary_sql(self: DuckDB.Generator, expression: exp.ToBinary) -> str:
+            """
+            TO_BINARY(value, format) transpilation if the return type is BINARY:
+            - 'HEX': TO_BINARY('48454C50', 'HEX') → UNHEX('48454C50')
+            - 'UTF-8': TO_BINARY('TEST', 'UTF-8') → ENCODE('TEST')
+            - 'BASE64': TO_BINARY('SEVMUA==', 'BASE64') → FROM_BASE64('SEVMUA==')
+
+            format can be 'HEX', 'UTF-8' or 'BASE64'
+            return type can be either VARCHAR or BINARY
+            """
+            value = expression.this
+            format_arg = expression.args.get("format")
+
+            fmt = "HEX"
+            if format_arg:
+                fmt = format_arg.name.upper()
+
+            if expression.is_type(exp.DataType.Type.BINARY):
+                if fmt == "UTF-8":
+                    return self.func("ENCODE", value)
+                if fmt == "BASE64":
+                    return self.func("FROM_BASE64", value)
+
+                # Hex
+                return self.func("UNHEX", value)
+
+            # Fallback, which needs to be updated if want to support transpilation from other dialects than Snowflake
+            return self.func("TO_BINARY", value)
 
         def _greatest_least_sql(
             self: DuckDB.Generator, expression: exp.Greatest | exp.Least
@@ -1344,11 +1543,11 @@ class DuckDB(Dialect):
 
         def lower_sql(self, expression: exp.Lower) -> str:
             result_sql = self.func("LOWER", _cast_to_varchar(expression.this))
-            return _cast_to_blob(self, expression, result_sql)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def upper_sql(self, expression: exp.Upper) -> str:
             result_sql = self.func("UPPER", _cast_to_varchar(expression.this))
-            return _cast_to_blob(self, expression, result_sql)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def replace_sql(self, expression: exp.Replace) -> str:
             result_sql = self.func(
@@ -1357,7 +1556,17 @@ class DuckDB(Dialect):
                 _cast_to_varchar(expression.expression),
                 _cast_to_varchar(expression.args.get("replacement")),
             )
-            return _cast_to_blob(self, expression, result_sql)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
+
+        def _bitwise_op(self, expression: exp.Binary, op: str) -> str:
+            _prepare_binary_bitwise_args(expression)
+            result_sql = self.binary(expression, op)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
+
+        def bitwisexor_sql(self, expression: exp.BitwiseXor) -> str:
+            _prepare_binary_bitwise_args(expression)
+            result_sql = self.func("XOR", expression.this, expression.expression)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def objectinsert_sql(self, expression: exp.ObjectInsert) -> str:
             this = expression.this
@@ -1443,8 +1652,13 @@ class DuckDB(Dialect):
             params = expression.args.get("parameters")
             position = expression.args.get("position")
             occurrence = expression.args.get("occurrence")
+            null_if_pos_overflow = expression.args.get("null_if_pos_overflow")
+
             if position and (not position.is_int or position.to_py() > 1):
                 this = exp.Substring(this=this, start=position)
+
+                if null_if_pos_overflow:
+                    this = exp.Nullif(this=this, expression=exp.Literal.string(""))
 
             # Do not render group if there is no following argument,
             # and it's the default value for this dialect
@@ -1588,12 +1802,21 @@ class DuckDB(Dialect):
                 _cast_to_varchar(expression.this),
                 _cast_to_varchar(expression.expression),
             )
-            return _cast_to_blob(self, expression, result_sql)
+            return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def round_sql(self, expression: exp.Round) -> str:
             this = expression.this
             decimals = expression.args.get("decimals")
             truncate = expression.args.get("truncate")
+
+            # DuckDB requires the scale (decimals) argument to be an INT
+            # Some dialects (e.g., Snowflake) allow non-integer scales and cast to an integer internally
+            if decimals is not None and expression.args.get("casts_non_integer_decimals"):
+                if isinstance(decimals, exp.Literal):
+                    if not decimals.is_int:
+                        decimals = exp.cast(decimals, exp.DataType.Type.INT)
+                elif not decimals.is_type(*exp.DataType.INTEGER_TYPES):
+                    decimals = exp.cast(decimals, exp.DataType.Type.INT)
 
             func = "ROUND"
             if truncate:
@@ -1650,3 +1873,20 @@ class DuckDB(Dialect):
                     this=rename_func("JSON_VALUE")(self, expression), expression="'$'"
                 )
             return _arrow_json_extract_sql(self, expression)
+
+        def bitwisenot_sql(self, expression: exp.BitwiseNot) -> str:
+            this = expression.this
+
+            if _is_binary(this):
+                expression.type = exp.DataType.build("BINARY")
+
+            arg = _cast_to_bit(this)
+
+            if isinstance(this, exp.Neg):
+                arg = exp.Paren(this=arg)
+
+            expression.set("this", arg)
+
+            result_sql = f"~{self.sql(expression, 'this')}"
+
+            return _gen_with_cast_to_blob(self, expression, result_sql)

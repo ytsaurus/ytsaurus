@@ -1353,7 +1353,7 @@ class Query(Expression):
         append: bool = True,
         dialect: DialectType = None,
         copy: bool = True,
-        scalar: bool = False,
+        scalar: t.Optional[bool] = None,
         **opts,
     ) -> Q:
         """
@@ -5137,7 +5137,7 @@ class Connector(Binary):
 
 
 class BitwiseAnd(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class BitwiseLeftShift(Binary):
@@ -5145,7 +5145,7 @@ class BitwiseLeftShift(Binary):
 
 
 class BitwiseOr(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class BitwiseRightShift(Binary):
@@ -5153,7 +5153,7 @@ class BitwiseRightShift(Binary):
 
 
 class BitwiseXor(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "padside": False}
 
 
 class Div(Binary):
@@ -5633,7 +5633,15 @@ class CosineDistance(Func):
     arg_types = {"this": True, "expression": True}
 
 
+class DotProduct(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class EuclideanDistance(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class ManhattanDistance(Func):
     arg_types = {"this": True, "expression": True}
 
 
@@ -5755,6 +5763,11 @@ class ApproxQuantiles(AggFunc):
     arg_types = {"this": True, "expression": False}
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_combine
+class ApproxPercentileCombine(AggFunc):
+    pass
+
+
 # https://docs.snowflake.com/en/sql-reference/functions/minhash
 class Minhash(AggFunc):
     arg_types = {"this": True, "expressions": True}
@@ -5864,6 +5877,10 @@ class Ascii(Func):
 
 # https://docs.snowflake.com/en/sql-reference/functions/to_array
 class ToArray(Func):
+    pass
+
+
+class ToBoolean(Func):
     pass
 
 
@@ -6013,7 +6030,7 @@ class ArrayConcatAgg(AggFunc):
 
 
 class ArrayConstructCompact(Func):
-    arg_types = {"expressions": True}
+    arg_types = {"expressions": False}
     is_var_len_args = True
 
 
@@ -6297,6 +6314,58 @@ class Cbrt(Func):
     pass
 
 
+class CurrentAccount(Func):
+    arg_types = {}
+
+
+class CurrentAccountName(Func):
+    arg_types = {}
+
+
+class CurrentAvailableRoles(Func):
+    arg_types = {}
+
+
+class CurrentClient(Func):
+    arg_types = {}
+
+
+class CurrentIpAddress(Func):
+    arg_types = {}
+
+
+class CurrentDatabase(Func):
+    arg_types = {}
+
+
+class CurrentSchemas(Func):
+    arg_types = {"this": False}
+
+
+class CurrentSecondaryRoles(Func):
+    arg_types = {}
+
+
+class CurrentSession(Func):
+    arg_types = {}
+
+
+class CurrentStatement(Func):
+    arg_types = {}
+
+
+class CurrentVersion(Func):
+    arg_types = {}
+
+
+class CurrentTransaction(Func):
+    arg_types = {}
+
+
+class CurrentWarehouse(Func):
+    arg_types = {}
+
+
 class CurrentDate(Func):
     arg_types = {"this": False}
 
@@ -6327,12 +6396,36 @@ class CurrentTimestampLTZ(Func):
     arg_types = {}
 
 
+class CurrentOrganizationName(Func):
+    arg_types = {}
+
+
 class CurrentSchema(Func):
     arg_types = {"this": False}
 
 
 class CurrentUser(Func):
     arg_types = {"this": False}
+
+
+class CurrentCatalog(Func):
+    arg_types = {}
+
+
+class CurrentRegion(Func):
+    arg_types = {}
+
+
+class CurrentRole(Func):
+    arg_types = {}
+
+
+class CurrentRoleType(Func):
+    arg_types = {}
+
+
+class CurrentOrganizationUser(Func):
+    arg_types = {}
 
 
 class UtcDate(Func):
@@ -6361,7 +6454,14 @@ class DateSub(Func, IntervalOp):
 
 class DateDiff(Func, TimeUnit):
     _sql_names = ["DATEDIFF", "DATE_DIFF"]
-    arg_types = {"this": True, "expression": True, "unit": False, "zone": False, "big_int": False}
+    arg_types = {
+        "this": True,
+        "expression": True,
+        "unit": False,
+        "zone": False,
+        "big_int": False,
+        "date_part_boundary": False,
+    }
 
 
 class DateTrunc(Func):
@@ -6675,6 +6775,10 @@ class ToBase64(Func):
     pass
 
 
+class ToBinary(Func):
+    arg_types = {"this": True, "format": False}
+
+
 # https://docs.snowflake.com/en/sql-reference/functions/base64_decode_binary
 class Base64DecodeBinary(Func):
     arg_types = {"this": True, "alphabet": False}
@@ -6986,7 +7090,13 @@ class JSONArrayAgg(Func):
 
 
 class JSONExists(Func):
-    arg_types = {"this": True, "path": True, "passing": False, "on_condition": False}
+    arg_types = {
+        "this": True,
+        "path": True,
+        "passing": False,
+        "on_condition": False,
+        "from_dcolonqmark": False,
+    }
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/JSON_TABLE.html
@@ -7365,6 +7475,10 @@ class Median(AggFunc):
     pass
 
 
+class Mode(AggFunc):
+    arg_types = {"this": False, "deterministic": False}
+
+
 class Min(AggFunc):
     arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
@@ -7396,6 +7510,11 @@ class Normalize(Func):
 
 class Normal(Func):
     arg_types = {"this": True, "stddev": True, "gen": True}
+
+
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/net_functions#nethost
+class NetHost(Func):
+    _sql_names = ["NET.HOST"]
 
 
 class Overlay(Func):
@@ -7480,6 +7599,16 @@ class ApproxQuantile(Quantile):
     }
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_accumulate
+class ApproxPercentileAccumulate(AggFunc):
+    pass
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/approx_percentile_estimate
+class ApproxPercentileEstimate(Func):
+    arg_types = {"this": True, "percentile": True}
+
+
 class Quarter(Func):
     pass
 
@@ -7535,6 +7664,7 @@ class RegexpExtract(Func):
         "occurrence": False,
         "parameters": False,
         "group": False,
+        "null_if_pos_overflow": False,  # for transpilation target behavior
     }
 
 
@@ -7600,23 +7730,47 @@ class RegexpCount(Func):
     }
 
 
-class RegrValx(Func):
+class RegrValx(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrValy(Func):
+class RegrValy(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrAvgy(Func):
+class RegrAvgy(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrAvgx(Func):
+class RegrAvgx(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
-class RegrSlope(Func):
+class RegrCount(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrIntercept(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrR2(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSxx(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSxy(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSyy(AggFunc):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrSlope(AggFunc):
     arg_types = {"this": True, "expression": True}
 
 
@@ -7636,7 +7790,12 @@ class Radians(Func):
 # https://learn.microsoft.com/en-us/sql/t-sql/functions/round-transact-sql?view=sql-server-ver16
 # tsql third argument function == trunctaion if not 0
 class Round(Func):
-    arg_types = {"this": True, "decimals": False, "truncate": False}
+    arg_types = {
+        "this": True,
+        "decimals": False,
+        "truncate": False,
+        "casts_non_integer_decimals": False,
+    }
 
 
 class RowNumber(Func):
@@ -8078,6 +8237,11 @@ class XMLElement(Func):
     arg_types = {"this": True, "expressions": False}
 
 
+class XMLGet(Func):
+    _sql_names = ["XMLGET"]
+    arg_types = {"this": True, "expression": True, "instance": False}
+
+
 class XMLTable(Func):
     arg_types = {
         "this": True,
@@ -8099,6 +8263,10 @@ class XMLKeyValueOption(Expression):
 
 class Year(Func):
     pass
+
+
+class Zipf(Func):
+    arg_types = {"this": True, "elementcount": True, "gen": True}
 
 
 class Use(Expression):
@@ -8421,7 +8589,7 @@ def _apply_cte_builder(
     append: bool = True,
     dialect: DialectType = None,
     copy: bool = True,
-    scalar: bool = False,
+    scalar: t.Optional[bool] = None,
     **opts,
 ) -> E:
     alias_expression = maybe_parse(alias, dialect=dialect, into=TableAlias, **opts)
@@ -8437,7 +8605,7 @@ def _apply_cte_builder(
         append=append,
         copy=copy,
         into=With,
-        properties={"recursive": recursive or False},
+        properties={"recursive": recursive} if recursive else {},
     )
 
 

@@ -14,10 +14,13 @@ from sqlglot.dialects.dialect import (
     timestrtotime_sql,
     timestamptrunc_sql,
     build_date_delta,
+    no_last_day_sql,
+    DATE_ADD_OR_SUB,
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
+from sqlglot.optimizer.scope import build_scope
 
 if t.TYPE_CHECKING:
     from sqlglot.dialects.dialect import DialectType
@@ -73,12 +76,11 @@ def _build_nullifzero(args: t.List) -> exp.If:
 # https://docs.exasol.com/db/latest/sql/select.htm#:~:text=If%20you%20have,local.x%3E10
 def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
     if isinstance(expression, exp.Select):
-        aliases: dict[str, bool] = {}
-        for sel in expression.selects:
-            alias = sel.args.get("alias")
-
-            if isinstance(sel, exp.Alias) and alias:
-                aliases[alias.name] = bool(alias.args.get("quoted"))
+        aliases: dict[str, bool] = {
+            alias.name: bool(alias.args.get("quoted"))
+            for sel in expression.selects
+            if isinstance(sel, exp.Alias) and (alias := sel.args.get("alias"))
+        }
 
         table = expression.find(exp.Table)
         table_ident = table.this if table else None
@@ -90,18 +92,33 @@ def _add_local_prefix_for_aliases(expression: exp.Expression) -> exp.Expression:
         ):
             table_ident.replace(exp.to_identifier(table_ident.name.upper(), quoted=True))
 
-        def prefix_local(node):
+        def prefix_local(node, visible_aliases: dict[str, bool]) -> exp.Expression:
             if isinstance(node, exp.Column) and not node.table:
-                if node.name in aliases:
+                if node.name in visible_aliases:
                     return exp.Column(
-                        this=exp.to_identifier(node.name, quoted=aliases[node.name]),
+                        this=exp.to_identifier(node.name, quoted=visible_aliases[node.name]),
                         table=exp.to_identifier("LOCAL", quoted=False),
                     )
             return node
 
         for key in ("where", "group", "having"):
             if arg := expression.args.get(key):
-                expression.set(key, arg.transform(prefix_local))
+                expression.set(key, arg.transform(lambda node: prefix_local(node, aliases)))
+
+        seen_aliases: dict[str, bool] = {}
+        new_selects: list[exp.Expression] = []
+        for sel in expression.selects:
+            if isinstance(sel, exp.Alias):
+                inner = sel.this.transform(lambda node: prefix_local(node, seen_aliases))
+                sel.set("this", inner)
+
+                alias_node = sel.args.get("alias")
+
+                seen_aliases[sel.alias] = bool(alias_node and getattr(alias_node, "quoted", False))
+                new_selects.append(sel)
+            else:
+                new_selects.append(sel.transform(lambda node: prefix_local(node, seen_aliases)))
+        expression.set("expressions", new_selects)
 
     return expression
 
@@ -165,6 +182,89 @@ def _substring_index_sql(self: Exasol.Generator, expression: exp.SubstringIndex)
 
     length = self.func("NVL", f"{nullable_pos} - 1", self.func("LENGTH", haystack_sql))
     return self.func("SUBSTR", haystack_sql, direction, length)
+
+
+# https://docs.exasol.com/db/latest/sql/select.htm#:~:text=The%20select_list%20defines%20the%20columns%20of%20the%20result%20table.%20If%20*%20is%20used%2C%20all%20columns%20are%20listed.%20You%20can%20use%20an%20expression%20like%20t.*%20to%20list%20all%20columns%20of%20the%20table%20t%2C%20the%20view%20t%2C%20or%20the%20object%20with%20the%20table%20alias%20t.
+def _qualify_unscoped_star(expression: exp.Expression) -> exp.Expression:
+    """
+    Exasol doesn't support a bare * alongside other select items, so we rewrite it
+    Rewrite: SELECT *, <other> FROM <Table>
+    Into: SELECT T.*, <other> FROM <Table> AS T
+    """
+
+    if not isinstance(expression, exp.Select):
+        return expression
+
+    select_expressions = expression.expressions or []
+
+    def is_bare_star(expr: exp.Expression) -> bool:
+        return isinstance(expr, exp.Star) and expr.this is None
+
+    has_other_expression = False
+    bare_star_expr: exp.Expression | None = None
+    for expr in select_expressions:
+        has_bare_star = is_bare_star(expr)
+        if has_bare_star and bare_star_expr is None:
+            bare_star_expr = expr
+        elif not has_bare_star:
+            has_other_expression = True
+        if bare_star_expr and has_other_expression:
+            break
+
+    if not (bare_star_expr and has_other_expression):
+        return expression
+
+    scope = build_scope(expression)
+
+    if not scope or not scope.selected_sources:
+        return expression
+
+    table_identifiers: list[exp.Identifier] = []
+
+    for source_name, (source_expr, _) in scope.selected_sources.items():
+        ident = (
+            source_expr.this.copy()
+            if isinstance(source_expr, exp.Table) and isinstance(source_expr.this, exp.Identifier)
+            else exp.to_identifier(source_name)
+        )
+        table_identifiers.append(ident)
+
+    qualified_star_columns = [
+        exp.Column(this=bare_star_expr.copy(), table=ident) for ident in table_identifiers
+    ]
+
+    new_select_expressions: list[exp.Expression] = []
+
+    for select_expr in select_expressions:
+        new_select_expressions.extend(qualified_star_columns) if is_bare_star(
+            select_expr
+        ) else new_select_expressions.append(select_expr)
+
+    expression.set("expressions", new_select_expressions)
+    return expression
+
+
+def _add_date_sql(self: Exasol.Generator, expression: DATE_ADD_OR_SUB) -> str:
+    interval = expression.expression if isinstance(expression.expression, exp.Interval) else None
+
+    unit = (
+        (interval.text("unit") or "DAY").upper()
+        if interval is not None
+        else (expression.text("unit") or "DAY").upper()
+    )
+
+    if unit not in DATE_UNITS:
+        self.unsupported(f"'{unit}' is not supported in Exasol.")
+        return self.function_fallback_sql(expression)
+
+    offset_expr: exp.Expression = expression.expression
+    if interval is not None:
+        offset_expr = interval.this
+
+    if isinstance(expression, exp.DateSub):
+        offset_expr = exp.Neg(this=offset_expr)
+
+    return self.func(f"ADD_{unit}S", expression.this, offset_expr)
 
 
 DATE_UNITS = {"DAY", "WEEK", "MONTH", "YEAR", "HOUR", "MINUTE", "SECOND"}
@@ -365,6 +465,9 @@ class Exasol(Dialect):
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/bit_xor.htm
             exp.BitwiseXor: rename_func("BIT_XOR"),
             exp.DateDiff: _date_diff_sql,
+            exp.DateAdd: _add_date_sql,
+            exp.TsOrDsAdd: _add_date_sql,
+            exp.DateSub: _add_date_sql,
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/div.htm#DIV
             exp.IntDiv: rename_func("DIV"),
             exp.TsOrDsDiff: _date_diff_sql,
@@ -425,6 +528,7 @@ class Exasol(Dialect):
             exp.CommentColumnConstraint: lambda self, e: f"COMMENT IS {self.sql(e, 'this')}",
             exp.Select: transforms.preprocess(
                 [
+                    _qualify_unscoped_star,
                     _add_local_prefix_for_aliases,
                 ]
             ),
@@ -435,6 +539,7 @@ class Exasol(Dialect):
             # https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/to_timestamp.htm
             exp.Timestamp: rename_func("TO_TIMESTAMP"),
             exp.Quarter: lambda self, e: f"CEIL(MONTH(TO_DATE({self.sql(e, 'this')}))/3)",
+            exp.LastDay: no_last_day_sql,
         }
 
         def converttimezone_sql(self, expression: exp.ConvertTimezone) -> str:
@@ -450,14 +555,6 @@ class Exasol(Dialect):
             true = self.sql(expression, "true")
             false = self.sql(expression, "false")
             return f"IF {this} THEN {true} ELSE {false} ENDIF"
-
-        def dateadd_sql(self, expression: exp.DateAdd) -> str:
-            unit = expression.text("unit").upper() or "DAY"
-            if unit not in DATE_UNITS:
-                self.unsupported(f"'{unit}' is not supported in Exasol.")
-                return self.function_fallback_sql(expression)
-
-            return self.func(f"ADD_{unit}S", expression.this, expression.expression)
 
         def collate_sql(self, expression: exp.Collate) -> str:
             return self.sql(expression.this)

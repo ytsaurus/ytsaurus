@@ -242,10 +242,28 @@ def _build_datetime(args: t.List) -> exp.Func:
     return exp.TimestampFromParts.from_arg_list(args)
 
 
+def build_date_diff(args: t.List) -> exp.Expression:
+    expr = exp.DateDiff(
+        this=seq_get(args, 0),
+        expression=seq_get(args, 1),
+        unit=seq_get(args, 2),
+        date_part_boundary=True,
+    )
+
+    # Normalize plain WEEK to WEEK(SUNDAY) to preserve the semantic in the AST to facilitate transpilation
+    # This is done post exp.DateDiff construction since the TimeUnit mixin performs canonicalizations in its constructor too
+    unit = expr.args.get("unit")
+
+    if isinstance(unit, exp.Var) and unit.name.upper() == "WEEK":
+        expr.set("unit", exp.WeekStart(this=exp.var("SUNDAY")))
+
+    return expr
+
+
 def _build_regexp_extract(
     expr_type: t.Type[E], default_group: t.Optional[exp.Expression] = None
-) -> t.Callable[[t.List], E]:
-    def _builder(args: t.List) -> E:
+) -> t.Callable[[t.List, BigQuery], E]:
+    def _builder(args: t.List, dialect: BigQuery) -> E:
         try:
             group = re.compile(args[1].name).groups == 1
         except re.error:
@@ -258,6 +276,11 @@ def _build_regexp_extract(
             position=seq_get(args, 2),
             occurrence=seq_get(args, 3),
             group=exp.Literal.number(1) if group else default_group,
+            **(
+                {"null_if_pos_overflow": dialect.REGEXP_EXTRACT_POSITION_OVERFLOW_RETURNS_NULL}
+                if expr_type is exp.RegexpExtract
+                else {}
+            ),
         )
 
     return _builder
@@ -366,6 +389,7 @@ class BigQuery(Dialect):
     EXCLUDES_PSEUDOCOLUMNS_FROM_STAR = True
     QUERY_RESULTS_ARE_STRUCTS = True
     JSON_EXTRACT_SCALAR_SCALAR_ONLY = True
+    DEFAULT_NULL_TYPE = exp.DataType.Type.BIGINT
 
     # https://docs.cloud.google.com/bigquery/docs/reference/standard-sql/string_functions#initcap
     INITCAP_DEFAULT_DELIMITER_CHARS = ' \t\n\r\f\v\\[\\](){}/|<>!?@"^#$&~_,.:;*%+\\-'
@@ -382,6 +406,15 @@ class BigQuery(Dialect):
         "%D": "%m/%d/%y",
         "%E6S": "%S.%f",
         "%e": "%-d",
+        "%F": "%Y-%m-%d",
+        "%T": "%H:%M:%S",
+        "%c": "%a %b %e %H:%M:%S %Y",
+    }
+
+    INVERSE_TIME_MAPPING = {
+        # Preserve %E6S instead of expanding to %T.%f - since both %E6S & %T.%f are semantically different in BigQuery
+        # %E6S is semantically different from %T.%f: %E6S works as a single atomic specifier for seconds with microseconds, while %T.%f expands incorrectly and fails to parse.
+        "%H:%M:%S.%f": "%H:%M:%E6S",
     }
 
     FORMAT_MAPPING = {
@@ -416,6 +449,13 @@ class BigQuery(Dialect):
     }
     COERCES_TO[exp.DataType.Type.DECIMAL] |= {exp.DataType.Type.BIGDECIMAL}
     COERCES_TO[exp.DataType.Type.BIGINT] |= {exp.DataType.Type.BIGDECIMAL}
+    COERCES_TO[exp.DataType.Type.VARCHAR] |= {
+        exp.DataType.Type.DATE,
+        exp.DataType.Type.DATETIME,
+        exp.DataType.Type.TIME,
+        exp.DataType.Type.TIMESTAMP,
+        exp.DataType.Type.TIMESTAMPTZ,
+    }
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
@@ -542,6 +582,7 @@ class BigQuery(Dialect):
             "CONTAINS_SUBSTR": _build_contains_substring,
             "DATE": _build_date,
             "DATE_ADD": build_date_delta_with_interval(exp.DateAdd),
+            "DATE_DIFF": build_date_diff,
             "DATE_SUB": build_date_delta_with_interval(exp.DateSub),
             "DATE_TRUNC": lambda args: exp.DateTrunc(
                 unit=seq_get(args, 1),
@@ -1020,6 +1061,18 @@ class BigQuery(Dialect):
                 options=self._parse_properties(),
                 this=self._match_text_seq("AS") and self._parse_select(),
             )
+
+        def _parse_column_ops(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
+            this = super()._parse_column_ops(this)
+
+            if isinstance(this, exp.Dot):
+                if this.this.name == "NET":
+                    if this.name.upper() == "HOST":
+                        this = self.expression(
+                            exp.NetHost, this=seq_get(this.expression.expressions, 0)
+                        )
+
+            return this
 
     class Generator(generator.Generator):
         INTERVAL_ALLOWS_PLURAL_FORM = False

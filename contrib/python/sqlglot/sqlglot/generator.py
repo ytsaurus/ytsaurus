@@ -80,7 +80,7 @@ class Generator(metaclass=_Generator):
             Default: False.
         identify: Determines when an identifier should be quoted. Possible values are:
             False (default): Never quote, except in cases where it's mandatory by the dialect.
-            True or 'always': Always quote.
+            True: Always quote except for specials cases.
             'safe': Only quote identifiers that are case insensitive.
         normalize: Whether to normalize identifiers to lowercase.
             Default: False.
@@ -137,6 +137,7 @@ class Generator(metaclass=_Generator):
         exp.CopyGrantsProperty: lambda *_: "COPY GRANTS",
         exp.CredentialsProperty: lambda self,
         e: f"CREDENTIALS=({self.expressions(e, 'expressions', sep=' ')})",
+        exp.CurrentCatalog: lambda *_: "CURRENT_CATALOG",
         exp.DateFormatColumnConstraint: lambda self, e: f"FORMAT {self.sql(e, 'this')}",
         exp.DefaultColumnConstraint: lambda self, e: f"DEFAULT {self.sql(e, 'this')}",
         exp.DynamicProperty: lambda *_: "DYNAMIC",
@@ -226,7 +227,6 @@ class Generator(metaclass=_Generator):
         exp.VarMap: lambda self, e: self.func("MAP", e.args["keys"], e.args["values"]),
         exp.ViewAttributeProperty: lambda self, e: f"WITH {self.sql(e, 'this')}",
         exp.VolatileProperty: lambda *_: "VOLATILE",
-        exp.WeekStart: lambda self, e: f"WEEK({self.sql(e, 'this')})",
         exp.WithJournalTableProperty: lambda self, e: f"WITH JOURNAL TABLE={self.sql(e, 'this')}",
         exp.WithProcedureOptions: lambda self, e: f"WITH {self.expressions(e, flat=True)}",
         exp.WithSchemaBindingProperty: lambda self, e: f"WITH SCHEMA {self.sql(e, 'this')}",
@@ -1679,7 +1679,7 @@ class Generator(metaclass=_Generator):
         text = text.replace(self._identifier_end, self._escaped_identifier_end)
         if (
             expression.quoted
-            or self.dialect.can_identify(text, self.identify)
+            or self.dialect.can_quote(expression, self.identify)
             or lower in self.RESERVED_KEYWORDS
             or (not self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT and text[:1].isdigit())
         ):
@@ -3841,6 +3841,10 @@ class Generator(metaclass=_Generator):
             for expr in exprs[1:]:
                 like_expr = connective(like_expr, exp_class(this=this, expression=expr))
 
+            parent = expression.parent
+            if not isinstance(parent, type(like_expr)) and isinstance(parent, exp.Condition):
+                like_expr = exp.paren(like_expr, copy=False)
+
             return self.sql(like_expr)
 
         return self.binary(expression, op)
@@ -5452,3 +5456,11 @@ class Generator(metaclass=_Generator):
     def localtimestamp_sql(self, expression: exp.Localtime) -> str:
         this = expression.this
         return self.func("LOCALTIMESTAMP", this) if this else "LOCALTIMESTAMP"
+
+    def weekstart_sql(self, expression: exp.WeekStart) -> str:
+        this = expression.this.name.upper()
+        if self.dialect.WEEK_OFFSET == -1 and this == "SUNDAY":
+            # BigQuery specific optimization since WEEK(SUNDAY) == WEEK
+            return "WEEK"
+
+        return self.func("WEEK", expression.this)
