@@ -1870,7 +1870,7 @@ private:
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
 
         auto reader = CreateWireProtocolRowsetReader(
-            request->Attachments(),
+            std::move(request->Attachments()),
             session->GetCodecId(),
             schema,
             /*schemaful*/ true,
