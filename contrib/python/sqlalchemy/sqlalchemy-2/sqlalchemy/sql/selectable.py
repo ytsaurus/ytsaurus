@@ -116,6 +116,7 @@ if TYPE_CHECKING:
     from ._typing import _MAYBE_ENTITY
     from ._typing import _NOT_ENTITY
     from ._typing import _OnClauseArgument
+    from ._typing import _OnlyColumnArgument
     from ._typing import _SelectStatementForCompoundArgument
     from ._typing import _T0
     from ._typing import _T1
@@ -166,13 +167,18 @@ _JoinTargetElement = Union["FromClause", _JoinTargetProtocol]
 _OnClauseElement = Union["ColumnElement[bool]", _JoinTargetProtocol]
 
 _ForUpdateOfArgument = Union[
-    # single column, Table, ORM Entity
+    # single column, Table, ORM entity
     Union[
         "_ColumnExpressionArgument[Any]",
         "_FromClauseArgument",
     ],
-    # or sequence of single column elements
-    Sequence["_ColumnExpressionArgument[Any]"],
+    # or sequence of column, Table, ORM entity
+    Sequence[
+        Union[
+            "_ColumnExpressionArgument[Any]",
+            "_FromClauseArgument",
+        ]
+    ],
 ]
 
 
@@ -3332,6 +3338,7 @@ class Values(roles.InElementRole, HasCTE, Generative, LateralFromClause):
     __visit_name__ = "values"
 
     _data: Tuple[Sequence[Tuple[Any, ...]], ...] = ()
+    _column_args: Tuple[NamedColumn[Any], ...]
 
     _unnamed: bool
     _traverse_internals: _TraverseInternalsType = [
@@ -3345,12 +3352,15 @@ class Values(roles.InElementRole, HasCTE, Generative, LateralFromClause):
 
     def __init__(
         self,
-        *columns: ColumnClause[Any],
+        *columns: _OnlyColumnArgument[Any],
         name: Optional[str] = None,
         literal_binds: bool = False,
     ):
         super().__init__()
-        self._column_args = columns
+        self._column_args = tuple(
+            coercions.expect(roles.LabeledColumnExprRole, col)
+            for col in columns
+        )
 
         if name is None:
             self._unnamed = True
@@ -3494,7 +3504,7 @@ class ScalarValues(roles.InElementRole, GroupedElement, ColumnElement[Any]):
 
     def __init__(
         self,
-        columns: Sequence[ColumnClause[Any]],
+        columns: Sequence[NamedColumn[Any]],
         data: Tuple[Sequence[Tuple[Any, ...]], ...],
         literal_binds: bool,
     ):
@@ -3950,6 +3960,9 @@ class SelectStatementGrouping(GroupedElement, SelectBase, Generic[_SB]):
     @util.ro_non_memoized_property
     def _from_objects(self) -> List[FromClause]:
         return self.element._from_objects
+
+    def _scalar_type(self) -> TypeEngine[Any]:
+        return self.element._scalar_type()
 
     def add_cte(self, *ctes: CTE, nest_here: bool = False) -> Self:
         # SelectStatementGrouping not generative: has no attribute '_generate'
@@ -7208,11 +7221,28 @@ TextAsFrom = TextualSelect
 
 
 class AnnotatedFromClause(Annotated):
-    def _copy_internals(self, **kw: Any) -> None:
+    def _copy_internals(
+        self,
+        _annotations_traversal: bool = False,
+        ind_cols_on_fromclause: bool = False,
+        **kw: Any,
+    ) -> None:
         super()._copy_internals(**kw)
-        if kw.get("ind_cols_on_fromclause", False):
-            ee = self._Annotated__element  # type: ignore
 
+        # passed from annotations._shallow_annotate(), _deep_annotate(), etc.
+        # the traversals used by annotations for these cases are not currently
+        # designed around expecting that inner elements inside of
+        # AnnotatedFromClause's element are also deep copied, so skip for these
+        # cases. in other cases such as plain visitors.cloned_traverse(), we
+        # expect this to happen. see issue #12915
+        if not _annotations_traversal:
+            ee = self._Annotated__element  # type: ignore
+            ee._copy_internals(**kw)
+
+        if ind_cols_on_fromclause:
+            # passed from annotations._deep_annotate().  See that function
+            # for notes
+            ee = self._Annotated__element  # type: ignore
             self.c = ee.__class__.c.fget(self)  # type: ignore
 
     @util.ro_memoized_property

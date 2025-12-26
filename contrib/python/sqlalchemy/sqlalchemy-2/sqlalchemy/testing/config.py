@@ -333,8 +333,19 @@ class Config:
             db.url.query.get("async_fallback", False)
         )
 
+        from . import provision
+
+        self.is_default_dialect = provision.is_preferred_driver(self, db)
+
     _stack = collections.deque()
     _configs = set()
+
+    def __repr__(self):
+        return (
+            f"sqlalchemy.testing.config.Config"
+            f"({self.db.name}+{self.db.driver}, "
+            f"{self.db.dialect.server_version_info})"
+        )
 
     def _set_name(self, db):
         suffix = "_async" if db.dialect.is_async else ""
