@@ -500,6 +500,7 @@ public:
         const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         incumbentManager->RegisterIncumbent(this);
 
+        RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSendAccountStatisticsGossip, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
@@ -4247,6 +4248,15 @@ private:
 
     void OnAccountStatisticsGossip()
     {
+        NProto::TReqSendAccountStatisticsGossip request;
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger()));
+    }
+
+
+    void HydraSendAccountStatisticsGossip(NProto::TReqSendAccountStatisticsGossip* /*request*/)
+    {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
@@ -4270,7 +4280,7 @@ private:
                     ToProto(entry->mutable_account_id(), account->GetId());
                     ToProto(entry->mutable_statistics(), clusterStatistics - cellStatistics);
                 }
-                multicellManager->PostToMaster(request, cellTag, false);
+                multicellManager->PostToMaster(request, cellTag, true);
             }
         } else {
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
@@ -4285,7 +4295,7 @@ private:
                 ToProto(entry->mutable_account_id(), account->GetId());
                 ToProto(entry->mutable_statistics(), account->LocalStatistics());
             }
-            multicellManager->PostToPrimaryMaster(request, false);
+            multicellManager->PostToPrimaryMaster(request, true);
         }
     }
 
