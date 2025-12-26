@@ -358,9 +358,9 @@ private:
     TErrorOr<TQueryStatistics> OnResponse(const TErrorOr<TQueryServiceProxy::TRspExecutePtr>& responseOrError)
     {
         if (responseOrError.IsOK()) {
-            auto response = responseOrError.Value();
+            const auto& response = responseOrError.Value();
             RowsetReader_.Store(CreateWireProtocolRowsetReader(
-                response->Attachments(),
+                std::move(response->Attachments()),
                 CodecId_,
                 Schema_,
                 /*schemaful*/ false,
