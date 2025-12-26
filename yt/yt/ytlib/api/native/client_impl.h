@@ -986,7 +986,7 @@ public: \
         (pipelinePath, viewPath, options))
     IMPLEMENT_METHOD(TFlowExecuteResult, FlowExecute, (
         const NYPath::TYPath& pipelinePath,
-        const TString& command,
+        const std::string& command,
         const NYson::TYsonString& argument,
         const TFlowExecuteOptions& options),
         (pipelinePath, command, argument, options))
@@ -1611,9 +1611,9 @@ private:
     // Flow
     //
 
-    TString DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
+    std::string DiscoverPipelineControllerLeader(const NYPath::TYPath& pipelinePath);
 
-    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const TString& address);
+    NFlow::NController::TControllerServiceProxy CreatePipelineControllerLeaderProxy(const std::string& address);
 
     void ValidatePipelinePermission(const NYPath::TYPath& pipelinePath, NYTree::EPermission permission);
 };
