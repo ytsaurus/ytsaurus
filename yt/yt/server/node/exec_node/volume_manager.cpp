@@ -2904,35 +2904,11 @@ public:
 
     TFuture<void> Remove() override final
     {
-        // Use MakeWeak here since Removed is called from derived class destructors.
-        auto this_ = MakeWeak(this).Lock();
-        if (!this_) {
-            YT_LOG_DEBUG("Trying to remove already destroyed volume object");
-            return VoidFuture;
-        }
-
         return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([this, this_] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                if (RemoveFuture_) {
-                    return RemoveFuture_;
-                }
-
-                // Unlink targets prior to removing volume.
-                RemoveFuture_ = UnlinkTargets()
-                    .Apply(BIND([guard = std::move(guard), this, this_] (const TErrorOr<void>& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
-                                GetPath());
-                        } else {
-                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
-                                GetPath());
-                        }
-
-                        // Now remove the actual volume.
-                        return DoRemoveImpl();
-                }));
-
-                return RemoveFuture_;
+            .AsUnique().Apply(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+                Y_UNUSED(guard);
+                // guard protects RemoveLocked call.
+                return RemoveLocked();
             }));
     }
 
@@ -2941,34 +2917,70 @@ protected:
     const TVolumeMeta VolumeMeta_;
     const TLayerLocationPtr Location_;
 
-    //! Remove the actual volume.
-    virtual TFuture<void> DoRemoveImpl() = 0;
-
-    TFuture<void> UnlinkTargets()
+    void SetRemoveCallback(TCallback<TFuture<void>()> callback)
     {
-        const auto& source = GetPath();
+        // Unlink targets prior to removing volume.
+        RemoveCallback_ = BIND(
+            [
+                location = Location_,
+                volumePath = VolumeMeta_.MountPath,
+                callback = std::move(callback)
+            ] (const std::vector<TString>& targets) {
+                return UnlinkTargets(location, volumePath, targets)
+                    .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
+                                volumePath);
+                        } else {
+                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
+                                volumePath);
+                        }
+                        // Now remove the actual volume.
+                        return callback();
+                    }));
+            });
+    }
 
-        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
-            source,
-            Targets_);
+    //! No need to take lock when called from destructor, otherwise take lock.
+    TFuture<void> RemoveLocked()
+    {
+        if (RemoveFuture_) {
+            return RemoveFuture_;
+        }
 
-        if (Targets_.empty()) {
+        if (!RemoveCallback_) {
             return VoidFuture;
         }
 
-        std::vector<TFuture<void>> futures;
-        futures.reserve(Targets_.size());
-        for (const auto& target : Targets_) {
-            futures.emplace_back(Location_->UnlinkVolume(source, target));
-        }
-        return AllSucceeded(std::move(futures))
-            .ToUncancelable();
+        RemoveFuture_ = RemoveCallback_(Targets_);
+        return RemoveFuture_;
     }
 
 private:
     TAsyncReaderWriterLock Lock_;
     std::vector<TString> Targets_;
     TFuture<void> RemoveFuture_;
+    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
+    {
+        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
+            source,
+            targets);
+
+        if (targets.empty()) {
+            return VoidFuture;
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(targets.size());
+        for (const auto& target : targets) {
+            futures.emplace_back(location->UnlinkVolume(source, target));
+        }
+
+        return AllSucceeded(std::move(futures))
+            .ToUncancelable();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2991,11 +3003,20 @@ public:
         , IsRootVolume_(isRootVolume)
         , NbdExportId_(std::move(nbdExportId))
         , NbdServer_(std::move(nbdServer))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TNbdVolume::DoRemove,
+            TagSet_,
+            Location_,
+            VolumeMeta_,
+            NbdExportId_,
+            NbdServer_
+        ));
+    }
 
     ~TNbdVolume() override
     {
-        YT_UNUSED_FUTURE(Remove());
+        YT_UNUSED_FUTURE(RemoveLocked());
     }
 
     bool IsRootVolume() const override final
@@ -3004,33 +3025,38 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
+    //! Overlayfs stores its upper/work directories in root volume.
+    const bool IsRootVolume_;
+    const TString NbdExportId_;
+    const INbdServerPtr NbdServer_;
+
+    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta, TString nbdExportId, INbdServerPtr nbdServer)
     {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
 
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
 
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
 
         const auto volumeType = EVolumeType::Nbd;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v, ExportId: %v)",
             volumeType,
             volumeId,
             volumePath,
-            NbdExportId_);
+            nbdExportId);
 
         // At first remove volume, then unregister export.
-        auto future = Location_->RemoveVolume(TagSet_, volumeId);
+        auto future = location->RemoveVolume(tagSet, volumeId);
         return future.Apply(BIND(
             [
                 volumeType = volumeType,
                 volumeId = volumeId,
-                nbdExportId = NbdExportId_,
-                nbdServer = NbdServer_,
+                nbdExportId = nbdExportId,
+                nbdServer = nbdServer,
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] {
                 YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
@@ -3045,11 +3071,6 @@ private:
                 return VoidFuture;
         })).ToUncancelable();
     }
-
-    //! Overlayfs stores its upper/work directories in root volume.
-    const bool IsRootVolume_;
-    const TString NbdExportId_;
-    const INbdServerPtr NbdServer_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNbdVolume)
@@ -3070,11 +3091,19 @@ public:
             std::move(meta),
             std::move(location))
         , OverlayDataArray_(std::move(overlayDataArray))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TOverlayVolume::DoRemove,
+            TagSet_,
+            Location_,
+            VolumeMeta_,
+            OverlayDataArray_
+        ));
+    }
 
     ~TOverlayVolume() override
     {
-        YT_UNUSED_FUTURE(Remove());
+        YT_UNUSED_FUTURE(RemoveLocked());
     }
 
     bool IsRootVolume() const override final
@@ -3083,18 +3112,21 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
+    // Holds volumes and layers (so that they are not destroyed) while they are needed.
+    const std::vector<TOverlayData> OverlayDataArray_;
+
+    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta, std::vector<TOverlayData> overlayDataArray)
     {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
 
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
 
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
 
         const auto volumeType = EVolumeType::Local;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
@@ -3102,12 +3134,12 @@ private:
             volumePath);
 
         // At first remove overlay volume, then remove constituent volumes and layers.
-        auto future = Location_->RemoveVolume(TagSet_, volumeId);
+        auto future = location->RemoveVolume(tagSet, volumeId);
         return future.Apply(BIND(
             [
                 volumeType = volumeType,
                 volumeId = volumeId,
-                overlayDataArray = OverlayDataArray_,
+                overlayDataArray = std::move(overlayDataArray),
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] () mutable {
                 YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
@@ -3122,9 +3154,6 @@ private:
                 return AllSucceeded(std::move(futures));
         })).ToUncancelable();
     }
-
-    // Holds volumes and layers (so that they are not destroyed) while they are needed.
-    const std::vector<TOverlayData> OverlayDataArray_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
@@ -3146,11 +3175,18 @@ public:
             std::move(volumeMeta),
             std::move(location))
         , Artifact_(std::move(artifact))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TSquashFSVolume::DoRemove,
+            TagSet_,
+            Location_,
+            VolumeMeta_
+        ));
+    }
 
     ~TSquashFSVolume() override
     {
-        YT_UNUSED_FUTURE(Remove());
+        YT_UNUSED_FUTURE(RemoveLocked());
     }
 
     bool IsRootVolume() const override final
@@ -3159,35 +3195,35 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
+    const TArtifactKey ArtifactKey_;
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr Artifact_;
+
+    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta)
     {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
 
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
 
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
 
         const auto volumeType = EVolumeType::Local;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
             volumePath);
 
-        return Location_->RemoveVolume(TagSet_, volumeId)
+        return location->RemoveVolume(tagSet, volumeId)
             .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
                 YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
                     volumeType,
                     volumeId);
             })).ToUncancelable();
     }
-
-    const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr Artifact_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
@@ -3207,11 +3243,18 @@ public:
             std::move(tagSet),
             std::move(meta),
             std::move(location))
-    { }
+    {
+        SetRemoveCallback(BIND(
+            &TTmpfsVolume::DoRemove,
+            TagSet_,
+            Location_,
+            VolumeMeta_
+        ));
+    }
 
     ~TTmpfsVolume() override
     {
-        YT_UNUSED_FUTURE(Remove());
+        YT_UNUSED_FUTURE(RemoveLocked());
     }
 
     bool IsRootVolume() const override final
@@ -3220,25 +3263,25 @@ public:
     }
 
 private:
-    TFuture<void> DoRemoveImpl() override final
+    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta)
     {
-        TVolumeProfilerCounters::Get()->GetGauge(TagSet_, "/count")
-            .Update(VolumeCounters().Decrement(TagSet_));
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
 
-        TVolumeProfilerCounters::Get()->GetCounter(TagSet_, "/removed").Increment(1);
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
 
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
 
         const auto volumeType = EVolumeType::Tmpfs;
-        const auto& volumeId = VolumeMeta_.Id;
-        const auto& volumePath = VolumeMeta_.MountPath;
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
 
         YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
             volumePath);
 
-        return Location_->RemoveVolume(TagSet_, volumeId)
+        return location->RemoveVolume(tagSet, volumeId)
             .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
                 YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
                     volumeType,
