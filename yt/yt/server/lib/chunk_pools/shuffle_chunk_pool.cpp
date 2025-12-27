@@ -1,8 +1,8 @@
 #include "shuffle_chunk_pool.h"
 
-#include <yt/yt/server/lib/controller_agent/progress_counter.h>
+#include "chunk_pool.h"
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -10,17 +10,23 @@
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
+namespace {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int DataSliceCounterUpdatePeriod = 100;
 
+// NB: Sort job cannot handle more than numeric_limits<i32>::max() rows.
+constexpr i64 MaxRowCountPerPartition = std::numeric_limits<i32>::max();
+
 ////////////////////////////////////////////////////////////////////////////////
+
 
 DEFINE_ENUM(EShuffleChunkPoolRunState,
     (Initializing)
@@ -39,10 +45,10 @@ public:
 
     TShuffleChunkPool(
         int partitionCount,
-        i64 dataSizeThreshold,
-        i64 chunkSliceThreshold)
-        : DataWeightThreshold_(dataSizeThreshold)
-        , ChunkSliceThreshold_(chunkSliceThreshold)
+        i64 maxDataWeightPerPartition,
+        i64 maxChunkSlicePerPartition)
+        : MaxDataWeightPerPartition_(maxDataWeightPerPartition)
+        , MaxChunkSliceCountPerPartition_(maxChunkSlicePerPartition)
     {
         Outputs_.reserve(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
@@ -91,7 +97,7 @@ public:
             const auto* uncompressedDataSizes = partitionsExt->uncompressed_data_sizes().data();
             const auto* rowCounts = partitionsExt->row_counts().data();
             for (int index = 0; index < std::ssize(Outputs_); ++index) {
-                YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold_);
+                YT_VERIFY(partitionsExt->row_counts(index) <= MaxRowCountPerPartition);
                 Outputs_[index]->AddStripe(
                     elementaryIndex,
                     // NB: Currently uncompressed data size and data weight for partition chunks are roughly
@@ -175,9 +181,6 @@ public:
 private:
     using ERunState = EShuffleChunkPoolRunState;
 
-    // NB: Sort job cannot handle more than numeric_limits<i32>::max() rows.
-    static const i64 RowCountThreshold_ = std::numeric_limits<i32>::max();
-
     class TOutput
         : public TChunkPoolOutputWithCountersBase
     {
@@ -204,15 +207,18 @@ private:
         void AddStripe(int elementaryIndex, i64 dataWeight, i64 rowCount)
         {
             auto* run = &Runs_.back();
-            if (run->DataWeight > 0) {
-                if (run->DataWeight + dataWeight > Owner_->DataWeightThreshold_ ||
-                    run->RowCount + rowCount > Owner_->RowCountThreshold_ ||
-                    run->GetSliceCount() >= Owner_->ChunkSliceThreshold_)
-                {
-                    SealLastRun();
-                    AddNewRun();
-                    run = &Runs_.back();
-                }
+
+            bool isPartitionOversized = IsPartitionOversized(
+                run->DataWeight + dataWeight,
+                run->RowCount + rowCount,
+                run->GetSliceCount() + 1,
+                Owner_->MaxDataWeightPerPartition_,
+                Owner_->MaxChunkSliceCountPerPartition_);
+
+            if (run->DataWeight > 0 && isPartitionOversized) {
+                SealLastRun();
+                AddNewRun();
+                run = &Runs_.back();
             }
 
             YT_VERIFY(elementaryIndex == run->ElementaryIndexEnd);
@@ -264,7 +270,7 @@ private:
 
             YT_VERIFY(JobCounter_->GetPending() > 0);
 
-            NTableClient::TChunkStripeStatisticsVector result(1);
+            TChunkStripeStatisticsVector result(1);
 
             // This is the next run to be given by #Extract.
             auto it = PendingRuns_.begin();
@@ -576,8 +582,8 @@ private:
     std::vector<TInputStripe> InputStripes_;
     std::vector<TChunkStripePtr> ElementaryStripes_;
 
-    i64 DataWeightThreshold_ = -1;
-    i64 ChunkSliceThreshold_ = -1;
+    i64 MaxDataWeightPerPartition_ = -1;
+    i64 MaxChunkSliceCountPerPartition_ = -1;
     i64 TotalJobCount_ = 0;
     i64 TotalDataWeight_ = 0;
 
@@ -592,23 +598,13 @@ void TShuffleChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Outputs_);
     PHOENIX_REGISTER_FIELD(2, InputStripes_);
     PHOENIX_REGISTER_FIELD(3, ElementaryStripes_);
-    PHOENIX_REGISTER_FIELD(4, DataWeightThreshold_);
-    PHOENIX_REGISTER_FIELD(5, ChunkSliceThreshold_);
+    PHOENIX_REGISTER_FIELD(4, MaxDataWeightPerPartition_);
+    PHOENIX_REGISTER_FIELD(5, MaxChunkSliceCountPerPartition_);
     PHOENIX_REGISTER_FIELD(6, TotalJobCount_);
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool);
 
-IShuffleChunkPoolPtr CreateShuffleChunkPool(
-    int partitionCount,
-    i64 dataWeightThreshold,
-    i64 chunkSliceThreshold)
-{
-    return New<TShuffleChunkPool>(
-        partitionCount,
-        dataWeightThreshold,
-        chunkSliceThreshold);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -652,6 +648,35 @@ void TShuffleChunkPool::TInputStripe::RegisterMetadata(auto&& registrar)
 }
 
 PHOENIX_DEFINE_TYPE(TShuffleChunkPool::TInputStripe);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+IShuffleChunkPoolPtr CreateShuffleChunkPool(
+    int partitionCount,
+    i64 maxDataWeightPerPartition,
+    i64 maxChunkSlicePerPartition)
+{
+    return New<TShuffleChunkPool>(
+        partitionCount,
+        maxDataWeightPerPartition,
+        maxChunkSlicePerPartition);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsPartitionOversized(
+    i64 partitionDataWeight,
+    i64 partitionRowCount,
+    i64 partitionSliceCount,
+    i64 maxDataWeightPerPartition,
+    i64 maxChunkSlicePerPartition) noexcept
+{
+    return partitionDataWeight > maxDataWeightPerPartition ||
+        partitionRowCount > MaxRowCountPerPartition ||
+        partitionSliceCount >= maxChunkSlicePerPartition;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

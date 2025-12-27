@@ -1818,10 +1818,10 @@ protected:
 
         if (Spec_->PartitionCount.has_value()) {
             return std::nullopt;
-        } else if (Spec_->PartitionDataWeight.has_value()) {
-            return *Spec_->PartitionDataWeight;
+        } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
+            return *Spec_->PartitionDataWeightForMerging;
         } else {
-            return Spec_->DataWeightPerShuffleJob;
+            return std::min(Options_->DefaultPartitionDataWeightForMerging, Spec_->DataWeightPerShuffleJob);
         }
     }
 
@@ -1949,8 +1949,9 @@ protected:
         // NB(apollo1321): The greedy algorithm is optimal for sequential bin packing,
         // where partitions order must be preserved. However, for hash-based partitioning,
         // we can reorder partitions to achieve better packing.
-        i64 groupDataWeight = 0;
-        i64 groupDataSliceCount = 0;
+        i64 accumulatedDataWeight = 0;
+        i64 accumulatedDataSliceCount = 0;
+        i64 accumulatedRowCount = 0;
         TCompactVector<int, 1> physicalPartitionIndices;
 
         auto endCurrentMerging = [&] {
@@ -1960,8 +1961,9 @@ protected:
 
             TryDispatchPhysicalPartitionsForProcessing(partition, physicalPartitionIndices, isAllDataCollected);
 
-            groupDataWeight = 0;
-            groupDataSliceCount = 0;
+            accumulatedDataWeight = 0;
+            accumulatedDataSliceCount = 0;
+            accumulatedRowCount = 0;
             physicalPartitionIndices.clear();
         };
 
@@ -1969,24 +1971,34 @@ protected:
 
         for (int physicalPartitionIndex : std::views::iota(0, partition->GetPhysicalPartitionCount())) {
             if (partition->DispatchedPhysicalPartitions().contains(physicalPartitionIndex)) {
-                endCurrentMerging();
+                // There is no need to end current merging for hash-based partitioning.
+                if (partition->PhysicalChildPartitionsBounds().has_value()) {
+                    endCurrentMerging();
+                }
                 continue;
             }
 
             auto chunkPoolOutput = partition->ShuffleChunkPool()->GetOutput(physicalPartitionIndex);
             i64 dataWeight = chunkPoolOutput->GetDataWeightCounter()->GetTotal();
             i64 dataSliceCount = chunkPoolOutput->GetDataSliceCounter()->GetTotal();
+            i64 rowCount = chunkPoolOutput->GetRowCounter()->GetTotal();
 
             if (!Spec_->EnableFinalPartitionsMerging ||
                 !isAllDataCollected ||
-                groupDataWeight + dataWeight > *partitionDataWeightForMerging)
+                IsPartitionOversized(
+                    accumulatedDataWeight + dataWeight,
+                    accumulatedRowCount + rowCount,
+                    accumulatedDataSliceCount + dataSliceCount,
+                    *partitionDataWeightForMerging,
+                    Spec_->MaxChunkSlicePerShuffleJob))
             {
                 endCurrentMerging();
             }
 
             physicalPartitionIndices.push_back(physicalPartitionIndex);
-            groupDataWeight += dataWeight;
-            groupDataSliceCount += dataSliceCount;
+            accumulatedDataWeight += dataWeight;
+            accumulatedDataSliceCount += dataSliceCount;
+            accumulatedRowCount += rowCount;
         }
 
         endCurrentMerging();

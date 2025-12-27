@@ -2084,6 +2084,9 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .Alias("partition_data_size")
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("partition_data_weight_for_merging", &TThis::PartitionDataWeightForMerging)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("data_weight_per_sort_job", &TThis::DataWeightPerShuffleJob)
         .Alias("data_size_per_sort_job")
         .Default(2_GB)
@@ -2178,6 +2181,24 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
             "Option %Qv cannot be specified when %Qv is enabled",
             "partition_count",
             "enable_final_partitions_merging");
+
+        THROW_ERROR_EXCEPTION_IF(
+            !spec->EnableFinalPartitionsMerging && spec->PartitionDataWeightForMerging.has_value(),
+            "Option %Qv cannot be specified when %Qv is not enabled",
+            "partition_data_weight_for_merging",
+            "enable_final_partitions_merging");
+
+        if (spec->EnableFinalPartitionsMerging &&
+            spec->PartitionDataWeightForMerging.has_value() &&
+            *spec->PartitionDataWeightForMerging > spec->DataWeightPerShuffleJob)
+        {
+            THROW_ERROR_EXCEPTION(
+                "Option %Qv cannot be greater than %Qv",
+                "partition_data_weight_for_merging",
+                "data_weight_per_sort_job")
+                << TErrorAttribute("partition_data_weight_for_merging", *spec->PartitionDataWeightForMerging)
+                << TErrorAttribute("data_weight_per_sort_job", spec->DataWeightPerShuffleJob);
+        }
     });
 }
 
