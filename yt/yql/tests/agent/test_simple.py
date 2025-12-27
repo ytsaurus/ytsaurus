@@ -1094,12 +1094,14 @@ class TestQueriesYqlAuth(TestQueriesYqlAuthBase):
 
 
 class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
+    NUM_TEST_PARTITIONS = 8
+
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize(
         "secret_node_type", ["document", "string_node", "file"]
     )
-    def test_pragma_auth(self, query_tracker, yql_agent, secret_node_type):
+    def test_secret_with_provided_category(self, query_tracker, yql_agent, secret_node_type):
         def run_query(username):
             token, token_hash = issue_token(username)
 
@@ -1124,6 +1126,200 @@ class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
 
         with raises_yt_error('Access denied for user "denied_user"'):
             run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_trailing_newline(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8') + b'\n')
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_discovered_category_from_attribute(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", b"yt")
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_discovered_category_from_name(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'default_yt'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "default_yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_bad_secret(self, query_tracker, yql_agent):
+        def run_query(username):
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "document", vault_token_path,
+                recursive=True,
+            )
+
+            set(vault_token_path, 42)
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Cannot convert secret value to string'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_conflicting_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", b"yt")
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "non-yt", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Found mismatch between provided and discovered secret categories'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_bad_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            set(f"{vault_token_path}/@_yqla_secret_category", 42)
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Cannot convert secret category to string'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_unsupported_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'default_non_supported_category'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "default_non_supported_category", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Mismatch credential category, expected: yt, but found: non_supported_category'):
+            run_query("allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_with_not_discovered_category(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8'))
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "ypath": vault_token_path}],
+            )
+
+        with raises_yt_error('Mismatch credential category, expected: yt, but found: '):
+            run_query("allowed_user")
 
 
 class TestQueriesYqlWithSecretProtection(TestQueriesYqlAuthBase):
