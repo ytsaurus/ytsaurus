@@ -173,6 +173,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
     registrar.Parameter("connection_name", &TThis::ConnectionName)
         .Alias("name")
         .Default("default");
+    registrar.Parameter("region", &TThis::Region)
+        .Default();
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
         .DefaultNew();
 }
