@@ -533,6 +533,7 @@ struct TSortOperationOptionsBase
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
+    i64 DefaultPartitionDataWeightForMerging;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
