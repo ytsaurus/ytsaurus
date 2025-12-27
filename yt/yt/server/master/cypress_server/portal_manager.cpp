@@ -662,14 +662,14 @@ private:
 
         auto* exitNode = node->As<TPortalExitNode>();
         if (exitNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (EntranceNodeId: %v)",
+            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (ExitNodeId: %v)",
                 exitNodeId);
             return;
         }
 
         exitNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG("Portal exit removal started (EntranceNodeId: %v)",
+        YT_LOG_DEBUG("Portal exit removal started (ExitNodeId: %v)",
             exitNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
