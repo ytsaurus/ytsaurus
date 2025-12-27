@@ -576,6 +576,10 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
+
+    registrar.Parameter("default_partition_data_weight_for_merging", &TThis::DefaultPartitionDataWeightForMerging)
+        .Default(50_MBs)
+        .GreaterThanOrEqual(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

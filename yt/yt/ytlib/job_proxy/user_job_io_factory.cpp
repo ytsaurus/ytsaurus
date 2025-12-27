@@ -21,6 +21,8 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -38,8 +40,6 @@
 #include <yt/yt/client/table_client/row_batch.h>
 
 #include <yt/yt/ytlib/job_proxy/private.h>
-
-#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 #include <limits>
 #include <vector>

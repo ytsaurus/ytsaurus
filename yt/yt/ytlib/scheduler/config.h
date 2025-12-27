@@ -2113,6 +2113,9 @@ struct TSortOperationSpecBase
     std::optional<i64> PartitionDataWeight;
     std::optional<int> PartitionCount;
 
+    //! Maximum data weight of a partition after merging physical partitions.
+    std::optional<i64> PartitionDataWeightForMerging;
+
     //! Maximum number of child partitions of a partition.
     std::optional<int> MaxPartitionFactor;
 
