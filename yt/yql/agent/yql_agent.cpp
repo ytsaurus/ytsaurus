@@ -851,8 +851,10 @@ private:
                                 discoveredSecret = std::move(discoveredSecret)
                             ](const NApi::IFileReaderPtr& fileReader) mutable {
                                 auto contentRef = fileReader->ReadAll();
-                                discoveredSecret.Content = ConvertToYsonString(
-                                    contentRef.ToStringBuf());
+                                auto contentBuf = contentRef.ToStringBuf();
+                                contentBuf.ChopSuffix("\n");
+
+                                discoveredSecret.Content = ConvertToYsonString(contentBuf);
 
                                 return std::move(discoveredSecret);
                             }));

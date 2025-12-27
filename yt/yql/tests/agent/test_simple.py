@@ -1128,6 +1128,31 @@ class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
 
     @authors("ngc224")
     @pytest.mark.timeout(180)
+    def test_secret_with_trailing_newline(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "file", vault_token_path,
+                recursive=True,
+            )
+
+            write_file(vault_token_path, token.encode('utf8') + b'\n')
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
     def test_secret_with_discovered_category_from_attribute(self, query_tracker, yql_agent):
         def run_query(username):
             token, token_hash = issue_token(username)
