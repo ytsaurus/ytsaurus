@@ -339,22 +339,96 @@ void TSortedChunkStore::Initialize()
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
 
+    // Pick the strongest of the three inclusive lower bounds (chunk min key,
+    // chunk view, or tablet pivot key).
     MinKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
     const auto& chunkViewLowerBound = ReadRange_.Front().first;
     if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
         MinKey_ = TLegacyOwningKey(chunkViewLowerBound);
     }
+    if (auto pivotKey = Tablet_->GetPivotKey(); pivotKey > MinKey_) {
+        MinKey_ = TLegacyOwningKey(pivotKey);
+    }
     MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
 
+    // Pick the strongest of the two exclusive upper bounds (next tablet pivot key
+    // or chunk view).
+    auto exclusiveUpperBound = Tablet_->GetNextPivotKey();
+    if (const auto& chunkViewUpperBound = ReadRange_.Front().second;
+        chunkViewUpperBound && chunkViewUpperBound < exclusiveUpperBound)
+    {
+        exclusiveUpperBound = TLegacyOwningKey(chunkViewUpperBound);
+    }
+
     UpperBoundKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.max());
-    const auto& chunkViewUpperBound = ReadRange_.Front().second;
-    if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
-        UpperBoundKey_ = TLegacyOwningKey(chunkViewUpperBound);
+
+    // Compare exclusive upper bound with the inclusive one (induced from the chunk).
+    bool upperBoundIsExclusive;
+    if (exclusiveUpperBound <= UpperBoundKey_) {
+        UpperBoundKey_ = std::move(exclusiveUpperBound);
+        upperBoundIsExclusive = true;
     } else {
         UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
+        upperBoundIsExclusive = false;
     }
 
     ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
+
+    if (UpperBoundKey_ < MinKey_) {
+        // This may happen in a rare case when actual bounds look like
+        // [ [x], [x, #] ) and table schema is wider than the upper key.
+        // Lower bound is inclusive and widened. Upper bound is exclusive
+        // and not widened. Effectively the range is empty, but technically
+        // the inequality fails in the unexpected way.
+        // Here we assert that it is indeed the exact case and mitigate it
+        // by widening the upper bound appropriately.
+        // See YT-27034.
+        //
+        // NB: This is a temporary hack until TKeyBound is adopted here.
+        int prefixLength = std::min(MinKey_.GetCount(), UpperBoundKey_.GetCount());
+
+        auto onFailure = [&] {
+            YT_LOG_ALERT("Sorted chunk store has invalid key bounds "
+                "(ChunkId: %v, MinKey: %v, UpperBoundKey: %v)",
+                GetChunkId(),
+                MinKey_,
+                UpperBoundKey_);
+        };
+
+        if (!upperBoundIsExclusive) {
+            onFailure();
+            return;
+        }
+
+        if (UpperBoundKey_.GetCount() != prefixLength) {
+            onFailure();
+            return;
+        }
+
+        if (CompareRows(MinKey_, UpperBoundKey_, prefixLength) != 0) {
+            onFailure();
+            return;
+        }
+
+        for (auto it = MinKey_.Begin() + prefixLength; it != MinKey_.End(); ++it) {
+            if (it->Type != EValueType::Null) {
+                onFailure();
+                return;
+            }
+        }
+
+        for (auto it : UpperBoundKey_.Elements()) {
+            if (IsSentinelType(it.Type)) {
+                onFailure();
+                return;
+            }
+        }
+
+        UpperBoundKey_ = WidenKey(UpperBoundKey_, KeyColumnCount_);
+        YT_VERIFY(UpperBoundKey_ == MinKey_);
+
+        ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
+    }
 }
 
 EStoreType TSortedChunkStore::GetType() const
@@ -424,15 +498,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp = std::min(timestamp, MaxClipTimestamp_);
     }
 
-    auto tabletBounds = MakeSingletonRowRange(tabletSnapshot->PivotKey, tabletSnapshot->NextPivotKey);
-    auto lowerClipBound = std::max(tabletBounds.Front().first, ClippingRange_.Front().first);
-    auto upperClipBound = std::min(tabletBounds.Front().second, ClippingRange_.Front().second);
-
     ranges = NColumnarChunkFormat::ClipRanges(
         ranges,
-        lowerClipBound,
-        upperClipBound,
-        MakeSharedRangeHolder(ClippingRange_.GetHolder(), tabletBounds.GetHolder()));
+        ClippingRange_.Front().first,
+        ClippingRange_.Front().second,
+        ClippingRange_.GetHolder());
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
