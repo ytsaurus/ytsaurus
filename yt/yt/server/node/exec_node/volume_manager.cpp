@@ -1433,7 +1433,7 @@ private:
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
                 case EPortoErrorCode::NbdSocketTimeout:
-                case EPortoErrorCode::NbdSocketUnavaliable:
+                case EPortoErrorCode::NbdSocketUnavailable:
                 case EPortoErrorCode::NbdUnkownExport:
                     break;
 
@@ -1713,7 +1713,7 @@ private:
                 case EPortoErrorCode::NbdProtoError:
                 case EPortoErrorCode::NbdSocketError:
                 case EPortoErrorCode::NbdSocketTimeout:
-                case EPortoErrorCode::NbdSocketUnavaliable:
+                case EPortoErrorCode::NbdSocketUnavailable:
                 case EPortoErrorCode::NbdUnkownExport:
                     THROW_ERROR(error);
                 default:
