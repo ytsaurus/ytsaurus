@@ -107,7 +107,7 @@ enum EError {
     NbdSocketTimeout = 33;
 
     // Failed connect to nbd server
-    NbdSocketUnavaliable = 34;
+    NbdSocketUnavailable = 34;
 
     // Other nbd connection error
     NbdSocketError = 35;
