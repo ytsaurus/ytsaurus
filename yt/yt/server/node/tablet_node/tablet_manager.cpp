@@ -1572,6 +1572,17 @@ private:
 
             auto tabletHolder = TabletMap_.Release(tabletId);
 
+            if (auto endpointId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId()) {
+                UnregisterSiblingTabletAvenue(endpointId);
+            }
+
+            if (auto endpointId = tablet->GetMasterAvenueEndpointId()) {
+                UnregisterMasterAvenue(endpointId);
+            }
+
+            // NB: UnregisterXxxAvenue methods may abort transactions that hold locks
+            // to the tablet and cause its destruction, so we handle orphaned tablets
+            // at the end.
             if (tablet->GetTotalTabletLockCount() > 0) {
                 SetTabletOrphaned(std::move(tabletHolder));
             } else {
@@ -1586,14 +1597,6 @@ private:
             const auto& storeManager = tablet->GetStoreManager();
             for (const auto& store : storeManager->GetLockedStores()) {
                 SetStoreOrphaned(tablet, store);
-            }
-
-            if (auto endpointId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId()) {
-                UnregisterSiblingTabletAvenue(endpointId);
-            }
-
-            if (auto endpointId = tablet->GetMasterAvenueEndpointId()) {
-                UnregisterMasterAvenue(endpointId);
             }
 
             if (!IsRecovery()) {

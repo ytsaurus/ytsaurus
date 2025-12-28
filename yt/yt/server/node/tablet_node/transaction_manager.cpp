@@ -1765,6 +1765,10 @@ private:
 
     void RegisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
@@ -1774,14 +1778,28 @@ private:
 
     void UnregisterPrepareTimestamp(TTransaction* transaction)
     {
+        if (transaction->IsExternalizedToThisCell()) {
+            return;
+        }
+
         auto prepareTimestamp = transaction->GetPrepareTimestamp();
         if (prepareTimestamp == NullTimestamp) {
             return;
         }
+
         auto pair = std::pair(prepareTimestamp, transaction);
         auto it = PreparedTransactions_.find(pair);
-        YT_VERIFY(it != PreparedTransactions_.end());
-        PreparedTransactions_.erase(it);
+        if (it != PreparedTransactions_.end()) {
+            PreparedTransactions_.erase(it);
+        } else {
+            YT_LOG_ALERT("Attempted to unregister nonexistent transaction prepare timestamp "
+                "(%v, PrepareTimestamp: %v)",
+                FormatTransactionId(
+                    transaction->GetId(),
+                    transaction->GetExternalizationToken()),
+                prepareTimestamp);
+        }
+
         CheckBarrier();
     }
 
