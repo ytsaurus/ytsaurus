@@ -81,6 +81,9 @@ struct TJobWorkspaceBuilderTimePoints
     std::optional<TInstant> PrepareRootVolumeStartTime;
     std::optional<TInstant> PrepareRootVolumeFinishTime;
 
+    std::optional<TInstant> ValidateRootFSStartTime;
+    std::optional<TInstant> ValidateRootFSFinishTime;
+
     std::optional<TInstant> PrepareTmpfsVolumesStartTime;
     std::optional<TInstant> PrepareTmpfsVolumesFinishTime;
 
@@ -137,6 +140,8 @@ protected:
     virtual TFuture<void> DoBindRootVolume() = 0;
 
     virtual TFuture<void> DoLinkTmpfsVolumes() = 0;
+
+    virtual TFuture<void> DoValidateRootFS() = 0;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 

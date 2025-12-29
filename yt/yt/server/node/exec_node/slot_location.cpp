@@ -249,6 +249,37 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
     .Run();
 }
 
+TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
+{
+    // We assume that dynamic linker resides in one of the following paths.
+    static constexpr std::string_view ldLinuxPaths[] = {
+        "lib64/ld-linux-x86-64.so.2",
+        "lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+        "usr/lib64/ld-linux-x86-64.so.2",
+        "usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+    };
+
+    return BIND([rootVolume, this, this_ = MakeStrong(this)] {
+        YT_VERIFY(rootVolume);
+        const auto& rootVolumeMountPath = rootVolume->GetPath();
+        YT_VERIFY(NFS::Exists(rootVolumeMountPath));
+
+        for (const auto& p : ldLinuxPaths) {
+            auto path = NFS::CombinePaths(rootVolumeMountPath, p);
+            if (NFS::Exists(path)) {
+                YT_LOG_DEBUG("Found dynamic linker ld-linux in root fs (Path: %v)",
+                    path);
+                return;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root fs")
+            << TErrorAttribute("root_volume_path", rootVolumeMountPath);
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
+}
+
 TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
 {
     return BIND([userSandboxPath, volumeParams] () {

@@ -659,6 +659,13 @@ public:
         return Location_->CreateSlotDirectories(rootVolume, userId);
     }
 
+    TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const override
+    {
+        VerifyEnabled();
+
+        return Location_->ValidateRootFS(rootVolume);
+    }
+
     TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
     {
         VerifyEnabled();

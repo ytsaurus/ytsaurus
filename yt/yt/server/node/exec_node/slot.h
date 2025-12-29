@@ -156,6 +156,8 @@ struct IUserSlot
 
     virtual TFuture<void> CreateSlotDirectories(const IVolumePtr& rootVolume, int userId) const = 0;
 
+    virtual TFuture<void> ValidateRootFS(const IVolumePtr& rootVolume) const = 0;
+
     virtual void ValidateEnabled() const = 0;
 };
 

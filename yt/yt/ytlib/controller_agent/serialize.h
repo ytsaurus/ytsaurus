@@ -106,6 +106,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FileRlsReadSpec)                       (302126))
     ((FixSimpleSort)                         (302127))
     ((ChunkPoolStatistics)                   (302128))
+    ((ValidateRootFS)                        (302129))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
