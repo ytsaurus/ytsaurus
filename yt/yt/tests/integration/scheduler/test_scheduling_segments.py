@@ -1975,9 +1975,12 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
     def _check_alert(self, message):
         wait(lambda: get("//sys/scheduler/@alerts"))
-        alert = get("//sys/scheduler/@alerts")[0]
-        assert alert["attributes"]["alert_type"] == "manage_scheduling_segments"
-        assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
+
+        @wait_no_assert
+        def do_check():
+            alert = get("//sys/scheduler/@alerts")[0]
+            assert alert["attributes"]["alert_type"] == "manage_scheduling_segments"
+            assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
 
     def setup_method(self, method):
         super(TestInfinibandClusterTagValidation, self).setup_method(method)
