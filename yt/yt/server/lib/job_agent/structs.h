@@ -35,10 +35,10 @@ struct TTimeStatistics
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> ArtifactsCachingDuration;
     std::optional<TDuration> PrepareRootFSDuration;
-    std::optional<TDuration> ValidateRootFSDuration;
     std::optional<TDuration> PrepareTmpfsDuration;
-    std::optional<TDuration> ExecDuration;
     std::optional<TDuration> PrepareGpuCheckFSDuration;
+    std::optional<TDuration> ValidateRootFSDuration;
+    std::optional<TDuration> ExecDuration;
     std::optional<TDuration> GpuCheckDuration;
 
     void AddSamplesTo(TStatistics* statistics) const;
