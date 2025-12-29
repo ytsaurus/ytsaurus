@@ -13,18 +13,18 @@ namespace NYT::NQueryClient {
 template <class TOnInsert, class TOnEvict>
 const TPIValue* TTopCollector::AddRow(const TPIValue* row, TOnInsert onInsert, TOnEvict onEvict)
 {
-    if (Heap_.Size() < Limit_) {
+    if (std::ssize(Heap_) < Limit_) {
         auto* destination = std::bit_cast<TPIValue*>(
             RowsContext_.AllocateAligned(
                 sizeof(TPIValue) * RowSize_,
                 NWebAssembly::EAddressSpace::WebAssembly));
 
         auto capturedRow = Capture(row, destination);
-        Heap_.PushBack(capturedRow);
+        Heap_.push_back(capturedRow);
         onInsert(capturedRow.Row);
 
-        if (Heap_.Size() == Limit_) {
-            MakeHeap(Heap_.Begin(), Heap_.End(), [&] (const auto& lhs, const auto& rhs) {
+        if (std::ssize(Heap_) == Limit_) {
+            MakeHeap(Heap_.begin(), Heap_.end(), [&] (const auto& lhs, const auto& rhs) {
                 // NB: Inverse |lhs| and |rhs|.
                 return Comparer_(rhs.Row, lhs.Row);
             });
@@ -33,13 +33,13 @@ const TPIValue* TTopCollector::AddRow(const TPIValue* row, TOnInsert onInsert, T
         return capturedRow.Row;
     }
 
-    if (!Heap_.Empty() && Comparer_(row, Heap_[0].Row)) {
+    if (!Heap_.empty() && Comparer_(row, Heap_[0].Row)) {
         auto popped = Heap_[0].Row;
         AccountGarbage(popped);
         onEvict(popped);
         auto capturedRow = Capture(row, popped);
         Heap_[0].ContextIndex = capturedRow.ContextIndex;
-        AdjustHeapFront(Heap_.Begin(), Heap_.End(), [&] (const auto& lhs, const auto& rhs) {
+        AdjustHeapFront(Heap_.begin(), Heap_.end(), [&] (const auto& lhs, const auto& rhs) {
             // NB: Inverse |lhs| and |rhs|.
             return Comparer_(rhs.Row, lhs.Row);
         });
