@@ -1772,6 +1772,102 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 
 ##################################################################
 
+class TestAbsoluteToleranceInStarvingOperationsAndPreemptionBorder(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"safe_scheduler_online_time": 1000000000}}
+
+    DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"cpu": 10, "user_slots": 10}}}
+
+    def setup_method(self, method):
+        super(TestAbsoluteToleranceInStarvingOperationsAndPreemptionBorder, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.8,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+        })
+
+    def _get_op_starvation_status(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/starvation_status", default=None)
+
+    def _get_op_fair_share(self, op):
+        return get(scheduler_orchid_operation_path(op.id) + "/detailed_dominant_fair_share/total", default=None)
+
+    @authors("yaishenka")
+    def test_allocation_on_border_not_preemptible(self):
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 6.0}, spec={"pool": "regular_pool"})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, job_count=1, spec={"pool": "starving_pool"})
+
+        wait(lambda: self._get_op_fair_share(op) >= 0.5 and self._get_op_fair_share(op) < 0.6)
+        wait(lambda: self._get_op_fair_share(op2) >= 0.5)
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        assert get(scheduler_orchid_operation_path(op.id) + "/preemptible_job_count") == 0
+
+    @authors("yaishenka")
+    def test_allocation_on_border_preemptible(self):
+        update_pool_tree_config_option("default", "consider_allocation_on_fair_share_bound_preemptible", True)
+
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 6.0}, spec={"pool": "regular_pool"})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, job_count=1, spec={"pool": "starving_pool"})
+        wait(lambda: len(op2.get_running_jobs()) == 1)
+
+        wait(lambda: self._get_op_fair_share(op) >= 0.5 and self._get_op_fair_share(op) < 0.6)
+        wait(lambda: len(op.get_running_jobs()) == 0)
+
+    @authors("yaishenka")
+    def test_default_settings_starving(self):
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 5.0)
+
+        starving_op = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, job_count=2, spec={"pool": "starving_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 3.0)
+        wait(lambda: self._get_op_fair_share(starving_op) - get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) < 3.0)
+
+        assert self._get_op_starvation_status(starving_op) == "starving"
+
+    @authors("yaishenka")
+    def test_below_fair_share_absolute_tolerance_not_starving(self):
+        update_pool_tree_config_option("default", "enable_absolute_fair_share_starvation_tolerance", True)
+
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 5.0}})
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 5.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 5.0)
+
+        starving_op = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, job_count=2, spec={"pool": "starving_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 3.0)
+        wait(lambda: self._get_op_fair_share(starving_op) - get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) < 3.0)
+
+        assert self._get_op_starvation_status(starving_op) != "starving"
+
+
+##################################################################
+
 class BaseTestDiskPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1

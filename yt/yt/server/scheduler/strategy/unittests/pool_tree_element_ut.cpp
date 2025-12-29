@@ -1198,6 +1198,66 @@ TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
     EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus());
 }
 
+TEST_F(TPoolTreeElementTest, TestBelowFairShareAbsoluteTolerance)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(20);
+    nodeResources.SetMemory(100);
+    nodeResources.SetNetwork(100);
+    nodeResources.SetGpu(8);
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto pool = CreateTestPool(strategyHost.Get(), "pool", CreateSimplePoolConfig());
+
+    pool->AttachParent(rootElement.Get());
+
+    TJobResources allocationResourcesA;
+    allocationResourcesA.SetUserSlots(1);
+    allocationResourcesA.SetCpu(11);
+    allocationResourcesA.SetMemory(50);
+    allocationResourcesA.SetNetwork(0);
+    allocationResourcesA.SetGpu(1);
+
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA, pool.Get());
+    IncreaseOperationResourceUsage(operationElementA, allocationResourcesA);
+
+    TJobResourcesWithQuota allocationResourcesB;
+    allocationResourcesB.SetUserSlots(1);
+    allocationResourcesB.SetCpu(20);
+    allocationResourcesB.SetMemory(50);
+    allocationResourcesB.SetNetwork(0);
+    allocationResourcesB.SetGpu(1);
+
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, allocationResourcesB));
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB, pool.Get());
+
+    DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+    EXPECT_TRUE(Dominates(
+        operationElementB->Attributes().DemandShare + TResourceVector::Epsilon(),
+        operationElementB->Attributes().FairShare.Total));
+
+    EXPECT_TRUE(
+        Dominates(
+            operationElementB->Attributes().FairShare.Total,
+            operationElementB->Attributes().UsageShare));
+
+    EXPECT_TRUE(
+        Dominates(
+            TResourceVector::FromJobResources(allocationResourcesB, nodeResources),
+            operationElementB->Attributes().FairShare.Total - operationElementB->Attributes().UsageShare));
+
+    EXPECT_EQ(ESchedulableStatus::BelowFairShare, operationElementB->GetStatus());
+
+    TreeConfig_->EnableAbsoluteFairShareStarvationTolerance = true;
+
+    EXPECT_EQ(ESchedulableStatus::Normal, operationElementB->GetStatus());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Integral volume tests.

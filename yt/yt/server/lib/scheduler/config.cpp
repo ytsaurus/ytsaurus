@@ -687,6 +687,11 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
 
+    registrar.Parameter("enable_absolute_fair_share_starvation_tolerance", &TThis::EnableAbsoluteFairShareStarvationTolerance)
+        .Default(false);
+    registrar.Parameter("consider_allocation_on_fair_share_bound_preemptible", &TThis::ConsiderAllocationOnFairShareBoundPreemptible)
+        .Default(false);
+
     registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
         .Default(true);
 
