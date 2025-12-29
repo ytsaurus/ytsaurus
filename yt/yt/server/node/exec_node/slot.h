@@ -62,7 +62,7 @@ struct IUserSlot
         const TString& linkPath,
         bool executable) = 0;
 
-    virtual TFuture<void> MakeSandboxBind(
+    virtual TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,

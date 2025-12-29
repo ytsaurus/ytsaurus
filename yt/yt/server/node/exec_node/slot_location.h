@@ -71,7 +71,10 @@ public:
         const TString& linkPath,
         bool executable);
 
-    TFuture<void> MakeSandboxBind(
+    //! Create file for container bind with proper ownership. We do it since
+    //! porto creates bind target with root ownership if bind target does not
+    //! exist. This is not what we need so we create bind target ourselves.
+    TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         int slotIndex,
         const TString& artifactName,

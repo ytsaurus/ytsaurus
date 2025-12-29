@@ -230,7 +230,7 @@ public:
             });
     }
 
-    TFuture<void> MakeSandboxBind(
+    TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
         const TString& artifactName,
         ESandboxKind sandboxKind,
@@ -246,7 +246,7 @@ public:
             /*actionName*/ "MakeBind",
             /*uncancelable*/ false,
             [&] {
-                return Location_->MakeSandboxBind(
+                return Location_->MakeFileForSandboxBind(
                     jobId,
                     SlotIndex_,
                     artifactName,
