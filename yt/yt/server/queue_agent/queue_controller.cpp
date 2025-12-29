@@ -1,13 +1,13 @@
 #include "queue_controller.h"
 
-#include "snapshot.h"
-#include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 #include "profile_manager.h"
 #include "queue_exporter.h"
 #include "queue_exporter_old.h"
-#include "queue_export_manager.h"
+#include "snapshot.h"
+#include "snapshot_representation.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -18,6 +18,8 @@
 
 #include <yt/yt/client/api/internal_client.h>
 #include "yt/yt/client/api/table_client.h"
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -332,6 +334,8 @@ public:
         const IObjectStore* store,
         const IQueueExportManagerPtr& queueExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
+        const TProfiler& profiler,
+        const TLogger& logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
@@ -342,7 +346,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueControllerLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , Logger(logger)
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -350,18 +354,11 @@ public:
                 .Period = dynamicConfig->PassPeriod,
                 .Splay = dynamicConfig->PassPeriod,
             }))
-        , ProfileManager_(CreateQueueProfileManager(
-            QueueAgentProfilerGlobal()
-                .WithRequiredTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster)
-                .WithTag("queue_tag", queueRow.QueueProfilingTag.value_or(NoneProfilingTag)),
-            Logger))
+        , ProfileManager_(CreateQueueProfileManager(profiler, Logger, queueRow, leading))
+        , PassProfiler_(ProfileManager_->GetPassProfiler().WithPrefix("/controller"))
         , AlertManager_(CreateAlertManager(
             Logger,
-            QueueAgentProfilerGlobal()
-                .WithTag("queue_path", TrimProfilingTagValue(QueueRef_.Path))
-                .WithTag("queue_cluster", QueueRef_.Cluster)
-                .WithPrefix("/queue"),
+            ProfileManager_->GetAlertManagerProfiler(),
             Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
         , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
@@ -498,7 +495,9 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
+
     const IQueueProfileManagerPtr ProfileManager_;
+    const TPassProfiler PassProfiler_;
     const IAlertManagerPtr AlertManager_;
     // TODO(achulkov2, nadya73): Separate trim into separate periodic executor.
     const IAlertCollectorPtr TrimAlertCollector_;
@@ -513,6 +512,11 @@ private:
     void Pass()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        auto startTime = TInstant::Now();
+        auto previousQueueSnapshot = QueueSnapshot_.Acquire();
+        if (!!previousQueueSnapshot) {
+            PassProfiler_.OnStart(previousQueueSnapshot->PassIndex + 1, startTime);
+        }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
@@ -553,13 +557,13 @@ private:
         auto nextQueueSnapshot = New<TQueueSnapshotBuildSession>(
             QueueRow_.Load(),
             ReplicatedTableMappingRow_.Load(),
-            QueueSnapshot_.Acquire(),
+            previousQueueSnapshot,
             std::move(registrations),
             Logger,
             ClientDirectory_,
             enableVerboseLogging)
             ->Build();
-        auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
+        QueueSnapshot_.Store(nextQueueSnapshot);
 
         // XXX(apachee): Is it ok that we do not check snapshot error here?
 
@@ -567,6 +571,7 @@ private:
 
         auto finalizePass = Finally([&] {
             YT_LOG_INFO("Queue controller pass finished");
+            PassProfiler_.OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextQueueSnapshot->Banned) {
@@ -625,6 +630,7 @@ private:
                         QueueExportManager_,
                         CreateAlertCollector(AlertManager_),
                         ProfileManager_->GetQueueProfiler(),
+                        ProfileManager_->GetPassProfiler(),
                         Logger);
                 case EQueueExporterImplementation::Old:
                     return New<TQueueExporterOld>(
@@ -1624,14 +1630,17 @@ bool UpdateQueueController(
     // Recreating an error controller on each iteration seems ok as it does
     // not have any state. By doing so we make sure that the error of a queue controller
     // is not stale.
+    const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Ref, leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
+        YT_LOG_WARNING(row.SynchronizationError.value(), "Queue synchronization error");
         return true;
     }
 
     auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
     if (!queueFamily.IsOK()) {
+        YT_LOG_WARNING(queueFamily, "Error while deducing queue family");
         controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
         return true;
     }
@@ -1651,6 +1660,8 @@ bool UpdateQueueController(
                 store,
                 queueExportManager,
                 dynamicConfig,
+                QueueAgentProfiler(),
+                Logger,
                 std::move(clientDirectory),
                 std::move(invoker));
             newController->Initialize();
