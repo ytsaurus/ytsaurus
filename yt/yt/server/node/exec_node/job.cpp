@@ -790,11 +790,11 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingRootVolume:
-        case EJobPhase::ValidatingRootFS:
         case EJobPhase::PreparingTmpfsVolumes:
-        case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::LinkingVolumes:
+        case EJobPhase::ValidatingRootFS:
+        case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
         case EJobPhase::RunningGpuCheckCommand:
@@ -1174,9 +1174,10 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsCachingDuration = getDuration(NodeDirectoryPreparationStartTime_, ArtifactsDownloadedTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
+        .PrepareTmpfsDuration = getDuration(PrepareTmpfsVolumesStartTime_, PrepareTmpfsVolumesFinishTime_),
+        .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
         .ValidateRootFSDuration = getDuration(ValidateRootFSStartTime_, ValidateRootFSFinishTime_),
         .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
-        .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
         .GpuCheckDuration = sumOptionals(
             getDuration(PreliminaryGpuCheckStartTime_, PreliminaryGpuCheckFinishTime_),
             getDuration(ExtraGpuCheckStartTime_, ExtraGpuCheckFinishTime_)),
@@ -2449,14 +2450,8 @@ void TJob::RunWithWorkspaceBuilder()
                 return;
             }
 
-            PreliminaryGpuCheckStartTime_ = timePoints.GpuCheckStartTime;
-            PreliminaryGpuCheckFinishTime_ = timePoints.GpuCheckFinishTime;
-
             PrepareRootVolumeStartTime_ = timePoints.PrepareRootVolumeStartTime;
             PrepareRootVolumeFinishTime_ = timePoints.PrepareRootVolumeFinishTime;
-
-            ValidateRootFSStartTime_ = timePoints.ValidateRootFSStartTime;
-            ValidateRootFSFinishTime_ = timePoints.ValidateRootFSFinishTime;
 
             PrepareTmpfsVolumesStartTime_ = timePoints.PrepareTmpfsVolumesStartTime;
             PrepareTmpfsVolumesFinishTime_ = timePoints.PrepareTmpfsVolumesFinishTime;
@@ -2466,6 +2461,12 @@ void TJob::RunWithWorkspaceBuilder()
 
             LinkTmpfsVolumesStartTime_ = timePoints.LinkTmpfsVolumesStartTime;
             LinkTmpfsVolumesFinishTime_ = timePoints.LinkTmpfsVolumesFinishTime;
+
+            ValidateRootFSStartTime_ = timePoints.ValidateRootFSStartTime;
+            ValidateRootFSFinishTime_ = timePoints.ValidateRootFSFinishTime;
+
+            PreliminaryGpuCheckStartTime_ = timePoints.GpuCheckStartTime;
+            PreliminaryGpuCheckFinishTime_ = timePoints.GpuCheckFinishTime;
         })
             .Via(Invoker_));
 
