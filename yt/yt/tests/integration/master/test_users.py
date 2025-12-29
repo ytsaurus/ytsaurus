@@ -714,7 +714,7 @@ class TestUsers(YTEnvSetup):
         check_profiling_counters("u", False)
         check_profiling_counters("v", True)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         # Shutdown masters and wait a bit.
         with Restarter(self.Env, MASTERS_SERVICE):

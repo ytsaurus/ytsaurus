@@ -2258,7 +2258,7 @@ class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkRepl
 
         replicas_before = get("#{}/@stored_replicas".format(chunk_ids[0]))
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -2406,7 +2406,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 
         next(checker_state)
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass

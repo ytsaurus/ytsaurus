@@ -2014,7 +2014,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         enable_tablet_cells_on_node(node)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        build_snapshot(cell_id=None)
+        build_snapshot(cell_id=get("//sys/@cell_id"))
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
