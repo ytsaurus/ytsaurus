@@ -44,7 +44,7 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
         .GatewayType = "file"
     });
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
-    fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
+    fmrServices->YtJobService = NFmr::MakeFileYtJobService();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
     fmrServices->CoordinatorServerUrl = FmrCoordinatorServerUrl_;
     fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;

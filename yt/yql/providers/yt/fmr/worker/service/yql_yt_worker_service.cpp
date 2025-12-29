@@ -123,7 +123,7 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobSerivce();
+        auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobService();
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
             .FmrJobBinaryPath = options.FmrJobBinaryPath,
