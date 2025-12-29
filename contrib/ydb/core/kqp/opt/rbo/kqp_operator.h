@@ -32,25 +32,39 @@ enum EPrintPlanOptions: ui32 {
  * Currently we only record the name and alias of the column, but we will extend it in the future
  */
 struct TInfoUnit {
-    TInfoUnit(TString alias, TString column, bool scalarContext=false) : 
-        Alias(alias), 
-        ColumnName(column), 
-        ScalarContext(scalarContext) {}
+    TInfoUnit(TString alias, TString column, bool scalarContext = false)
+        : Alias(alias)
+        , ColumnName(column)
+        , ScalarContext(scalarContext) {
+    }
 
-    TInfoUnit(TString name, bool scalarContext=false);
-    TInfoUnit() {}
+    TInfoUnit(TString name, bool scalarContext = false);
+    TInfoUnit() = default;
+    ~TInfoUnit() = default;
 
-    TString GetFullName() const { return ((Alias != "") ? ("_alias_" + Alias + ".") : "") + ColumnName; }
+    TString GetFullName() const {
+        return (Alias != "" ? Alias + "." : "") + ColumnName;
+    }
 
-    TString Alias;
-    TString ColumnName;
-    bool ScalarContext = false;
+    TString GetAlias() const { return Alias; }
+    TString GetColumnName() const { return ColumnName; }
+    bool IsScalarContext() const { return ScalarContext; }
+    void SetScalarContext(bool scalarContext) { ScalarContext = scalarContext; }
 
-    bool operator==(const TInfoUnit &other) const { return Alias == other.Alias && ColumnName == other.ColumnName; }
+    bool operator==(const TInfoUnit& other) const {
+        return Alias == other.Alias && ColumnName == other.ColumnName;
+    }
 
     struct THashFunction {
-        size_t operator()(const TInfoUnit &c) const { return THash<TString>{}(c.Alias) ^ THash<TString>{}(c.ColumnName); }
+        size_t operator()(const TInfoUnit& c) const {
+            return THash<TString>{}(c.Alias) ^ THash<TString>{}(c.ColumnName);
+        }
     };
+
+private:
+    TString Alias;
+    TString ColumnName;
+    bool ScalarContext{false};
 };
 
 /**
@@ -359,6 +373,7 @@ class IOperator {
     virtual TString ToString(TExprContext& ctx) = 0;
 
     bool IsSingleConsumer() { return Parents.size() <= 1; }
+    const TTypeAnnotationNode * GetTypeAnn() { return Type; }
 
     const EOperator Kind;
     TPhysicalOpProps Props;
@@ -421,6 +436,9 @@ class TOpEmptySource : public IOperator {
 class TOpRead : public IOperator {
   public:
     TOpRead(TExprNode::TPtr node);
+    TOpRead(const TString& alias, const TVector<TString>& columns, const TVector<TInfoUnit>& outputIUs, const NYql::EStorageType storageType,
+            const TExprNode::TPtr& tableCallable, const TExprNode::TPtr& olapFilterLambda, TPositionHandle pos);
+
     virtual TVector<TInfoUnit> GetOutputIUs() override;
     virtual TString ToString(TExprContext& ctx) override;
     void RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFunction> &renameMap, TExprContext &ctx, const THashSet<TInfoUnit, TInfoUnit::THashFunction> &stopList = {}) override;
@@ -428,14 +446,15 @@ class TOpRead : public IOperator {
 
     virtual void ComputeMetadata(TRBOContext& ctx, TPlanProps& planProps) override;
     virtual void ComputeStatistics(TRBOContext& ctx, TPlanProps& planProps) override;
-    NYql::EStorageType GetTableStorageType();
+    NYql::EStorageType GetTableStorageType() const;
 
-   // TODO: make it private members, we should not access it directly
+    // TODO: make it private members, we should not access it directly
     TString Alias;
     TVector<TString> Columns;
     TVector<TInfoUnit> OutputIUs;
     NYql::EStorageType StorageType;
     TExprNode::TPtr TableCallable;
+    TExprNode::TPtr OlapFilterLambda;
 };
 
 class TOpMap : public IUnaryOperator {
@@ -504,6 +523,7 @@ class TOpAggregate : public IUnaryOperator {
 class TOpFilter : public IUnaryOperator {
   public:
     TOpFilter(std::shared_ptr<IOperator> input, TPositionHandle pos, TExprNode::TPtr filterLambda);
+
     virtual TVector<TInfoUnit> GetOutputIUs() override;
     virtual TVector<TInfoUnit> GetScalarSubplanIUs(TPlanProps& props) override;
     virtual TString ToString(TExprContext& ctx) override;

@@ -170,7 +170,7 @@ void GetAllMembers(TExprNode::TPtr node, TVector<TInfoUnit> &IUs, TPlanProps& pr
         auto iu = TInfoUnit(member.Name().StringValue());
         if (props.ScalarSubplans.PlanMap.contains(iu)){
             if (withScalarContext) {
-                iu.ScalarContext = true;
+                iu.SetScalarContext(true);
                 IUs.push_back(iu);
             }
         }
@@ -260,10 +260,10 @@ TExprNode::TPtr TShuffleConnection::BuildConnection(TExprNode::TPtr inputStage, 
     TVector<TCoAtom> keyColumns;
     for (const auto& k : Keys) {
         TString columnName;
-        if (FromSourceStageStorageType != NYql::EStorageType::NA || k.Alias == "") {
-            columnName = k.ColumnName;
+        if (FromSourceStageStorageType != NYql::EStorageType::NA || k.GetAlias() == "") {
+            columnName = k.GetColumnName();
         } else {
-            columnName = "_alias_" + k.Alias + "." + k.ColumnName;
+            columnName = k.GetFullName();
         }
         auto atom = Build<TCoAtom>(ctx, pos).Value(columnName).Done();
         keyColumns.push_back(atom);
@@ -351,7 +351,7 @@ std::pair<TExprNode::TPtr, TVector<TExprNode::TPtr>> BuildSortKeySelector(TVecto
     TVector<TExprNode::TPtr> directions;
     TVector<TExprNode::TPtr> members;
 
-    for (auto el : sortElements) {
+    for (const auto& el : sortElements) {
         // clang-format off
         members.push_back(Build<TCoMember>(ctx, pos)
             .Struct(arg)
@@ -425,7 +425,17 @@ TOpRead::TOpRead(TExprNode::TPtr node) : IOperator(EOperator::Source, node->Pos(
     Alias = alias;
     StorageType = opSource.SourceType().StringValue() == "Row" ? NYql::EStorageType::RowStorage : NYql::EStorageType::ColumnStorage;
     TableCallable = opSource.Table().Ptr();
-    Pos = node->Pos();
+}
+
+TOpRead::TOpRead(const TString& alias, const TVector<TString>& columns, const TVector<TInfoUnit>& outputIUs, const NYql::EStorageType storageType, const TExprNode::TPtr& tableCallable,
+                 const TExprNode::TPtr& olapFilterLambda, TPositionHandle pos)
+    : IOperator(EOperator::Source, pos)
+    , Alias(alias)
+    , Columns(columns)
+    , OutputIUs(outputIUs)
+    , StorageType(storageType)
+    , TableCallable(tableCallable)
+    , OlapFilterLambda(olapFilterLambda) {
 }
 
 TVector<TInfoUnit> TOpRead::GetOutputIUs() {
@@ -452,7 +462,7 @@ void TOpRead::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFun
     }
 }
 
-NYql::EStorageType TOpRead::GetTableStorageType() {
+NYql::EStorageType TOpRead::GetTableStorageType() const {
     return StorageType;
 }
 
@@ -461,15 +471,17 @@ TString TOpRead::ToString(TExprContext& ctx) {
     auto res = TStringBuilder();
     res << "Read (" << TKqpTable(TableCallable).Path().StringValue() << "," << Alias << ", [";
 
-    for (size_t i=0; i<Columns.size(); i++) {
+    for (size_t i = 0; i < Columns.size(); i++) {
         res << Columns[i] << ":" << OutputIUs[i].GetFullName();
-        if (i != Columns.size()-1) {
+        if (i != Columns.size() - 1) {
             res << ", ";
         }
     }
     res << "])";
     const TString storageType = StorageType == NYql::EStorageType::RowStorage ? "Row" : "Column";
     res << " (StorageType: " << storageType << ")";
+    if (OlapFilterLambda)
+        res << " OlapFilter: (" << PrintRBOExpression(OlapFilterLambda, ctx) << ")";
     return res;
 }
 
@@ -515,8 +527,8 @@ TVector<TInfoUnit> TOpMap::GetScalarSubplanIUs(TPlanProps& props) {
         }
     }
 
-    for ( auto iu : allVars) {
-        if (iu.ScalarContext) {
+    for (const auto& iu : allVars) {
+        if (iu.IsScalarContext()) {
             res.push_back(iu);
         }
     }
@@ -647,8 +659,8 @@ TOpProject::TOpProject(std::shared_ptr<IOperator> input, TPositionHandle pos, TV
 TVector<TInfoUnit> TOpProject::GetOutputIUs() {
     TVector<TInfoUnit> res;
 
-    for (auto p : ProjectList) {
-        res.push_back(p);
+    for (const auto& projection : ProjectList) {
+        res.push_back(projection);
     }
     return res;
 }
@@ -657,9 +669,9 @@ void TOpProject::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THash
     Y_UNUSED(ctx);
     Y_UNUSED(stopList);
 
-    for (auto &p : ProjectList) {
-        if (renameMap.contains(p)) {
-            p = renameMap.at(p);
+    for (auto &projection : ProjectList) {
+        if (renameMap.contains(projection)) {
+            projection = renameMap.at(projection);
         }
     }
 }
@@ -669,7 +681,7 @@ TString TOpProject::ToString(TExprContext& ctx) {
     auto res = TStringBuilder();
     res << "Project [";
     for (size_t i = 0; i < ProjectList.size(); i++) {
-        auto iu = ProjectList[i];
+        const auto& iu = ProjectList[i];
         res << iu.GetFullName();
         if (i != ProjectList.size()-1) {
             res << ", ";
@@ -712,8 +724,8 @@ TVector<TInfoUnit> TOpFilter::GetFilterIUs(TPlanProps& props) const {
 
 TVector<TInfoUnit> TOpFilter::GetScalarSubplanIUs(TPlanProps& props) {
     TVector<TInfoUnit> res;
-    for (auto iu : GetFilterIUs(props)) {
-        if (iu.ScalarContext) {
+    for (const auto& iu : GetFilterIUs(props)) {
+        if (iu.IsScalarContext()) {
             res.push_back(iu);
         }
     }
@@ -892,8 +904,7 @@ TVector<TInfoUnit> TOpSort::GetOutputIUs() { return GetInput()->GetOutputIUs(); 
 void TOpSort::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFunction> &renameMap, TExprContext &ctx, const THashSet<TInfoUnit, TInfoUnit::THashFunction> &stopList) {
     Y_UNUSED(stopList);
     TVector<TSortElement> newSortElements;
-    for (auto &el : SortElements) {
-
+    for (const auto &el : SortElements) {
         TInfoUnit newIU(el.SortColumn);
 
         if (renameMap.contains(el.SortColumn)) {
@@ -1043,8 +1054,6 @@ TString TOpCBOTree::ToString(TExprContext& ctx) {
     return res;
 }
 
-
-
 /**
  * OpRoot operator methods
  */
@@ -1119,7 +1128,7 @@ void TOpRoot::PlanToStringRec(std::shared_ptr<IOperator> op, TExprContext& ctx, 
 TVector<TInfoUnit> IUSetDiff(TVector<TInfoUnit> left, TVector<TInfoUnit> right) {
     TVector<TInfoUnit> res;
 
-    for (auto &unit : left) {
+    for (const auto &unit : left) {
         if (std::find(right.begin(), right.end(), unit) == right.end()) {
             res.push_back(unit);
         }
