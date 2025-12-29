@@ -1949,6 +1949,65 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert saved_size == data_bytes_counter2.get_delta()
 
+    @authors("ifsmirnov")
+    def test_empty_chunk_view_range(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        rows = [{"k1": i, "k2": i*100, "value": str(i)} for i in range(10)]
+
+        self._create_simple_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        # Create chunk view with ranges <[5], [5;#]> in the second tablet.
+        # This range is effectively empty.
+        # Remove all other chunks.
+        sync_reshard_table("//tmp/t", [[], [5], [5, None]])
+        set("//tmp/t/@forced_compaction_revision", 1)
+        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        mount_table("//tmp/t", first_tablet_index=2, last_tablet_index=2)
+        wait(lambda: len(builtins.set(get("//tmp/t/@chunk_ids"))) == 3)
+        sync_unmount_table("//tmp/t")
+        remove("//tmp/t/@forced_compaction_revision")
+
+        def _check():
+            actual = select_rows("* from [//tmp/t]")
+            assert_items_equal(actual, rows)
+
+            actual = lookup_rows(
+                "//tmp/t",
+                [{k: r[k] for k in ("k1", "k2")} for r in rows])
+            assert_items_equal(actual, rows)
+
+        # Second tablet now has chunk view <[5], [5;#]> and pivot key [5].
+        # After alter, when lower pivot key is widened in reader, the range becomes
+        # <[5;#;#], [5;#]>, and so end may appear less than begin unless
+        # correct comparator is used.
+        sync_reshard_table("//tmp/t", [[], [5]])
+
+        root_chunk_list = get("//tmp/t/@chunk_list_id")
+        get(f"#{root_chunk_list}/@tree")
+
+        sync_mount_table("//tmp/t")
+        _check()
+        sync_unmount_table("//tmp/t")
+
+        schema[2:2] = [
+            {"name": "k3", "type": "int64", "sort_order": "ascending"},
+        ]
+        alter_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        rows = [{**row, "k3": yson.YsonEntity()} for row in rows]
+        _check()
+
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
