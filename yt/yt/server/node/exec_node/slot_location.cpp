@@ -703,7 +703,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         /*canUseLightInvoker*/ IsInsideTmpfs(slotIndex, sourcePath));
 }
 
-TFuture<void> TSlotLocation::MakeSandboxBind(
+TFuture<void> TSlotLocation::MakeFileForSandboxBind(
     TJobId jobId,
     int slotIndex,
     const TString& artifactName,

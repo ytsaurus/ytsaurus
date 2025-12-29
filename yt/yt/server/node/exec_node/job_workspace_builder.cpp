@@ -198,7 +198,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
     YT_LOG_INFO("Artifact symlinks are made");
 }
 
-void TJobWorkspaceBuilder::PrepareArtifactBinds()
+void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 {
     const auto& slot = Context_.Slot;
 
@@ -224,7 +224,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
                 artifact.SandboxKind,
                 artifact.Key.GetCompressedDataSize());
 
-            ioOperationFutures.push_back(slot->MakeSandboxBind(
+            ioOperationFutures.push_back(slot->MakeFileForSandboxBind(
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
@@ -782,7 +782,7 @@ private:
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
-                    PrepareArtifactBinds();
+                    MakeFilesForArtifactBinds();
                 } else {
                     MakeArtifactSymlinks();
                 }
@@ -1130,7 +1130,7 @@ private:
 
         return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
             .Apply(BIND([this, this_ = MakeStrong(this)] {
-                PrepareArtifactBinds();
+                MakeFilesForArtifactBinds();
 
                 YT_LOG_INFO("Finished preparing sandbox directories");
             }).AsyncVia(Invoker_));

@@ -159,7 +159,10 @@ protected:
 
     void MakeArtifactSymlinks();
 
-    void PrepareArtifactBinds();
+    //! We first create files for artifact binds and then create actual container
+    //! binds for artifacts. If we do not create files ourselves porto will
+    //! create them with root ownership which is not what we need.
+    void MakeFilesForArtifactBinds();
 
     void SetNowTime(std::optional<TInstant>& timeField);
 
