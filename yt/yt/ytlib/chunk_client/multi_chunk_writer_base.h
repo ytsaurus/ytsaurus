@@ -95,7 +95,7 @@ private:
 
     bool Closing_ = false;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     NProto::TDataStatistics DataStatistics_;

@@ -147,7 +147,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     }
 
     if (req->sample_requests_size() == 0) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return req->Invoke().Apply(

@@ -126,7 +126,7 @@ private:
     std::atomic<EState> State_ = EFileWriterState::Created;
     NThreading::TAtomicObject<TError> Error_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     i64 DataSize_ = 0;
     i64 MetaDataSize_ = 0;

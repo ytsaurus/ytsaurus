@@ -1463,7 +1463,7 @@ public:
             cellIdsToSyncWith.empty() &&
             !transactionIdToRevokeLeases)
         {
-            return VoidFuture;
+            return OKFuture;
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -3308,7 +3308,7 @@ private:
             case ETransactionLeasesState::Revoking:
                 return transaction->LeasesRevokedPromise().ToFuture().ToUncancelable();
             case ETransactionLeasesState::Revoked:
-                return VoidFuture;
+                return OKFuture;
         }
     }
 
@@ -3665,7 +3665,7 @@ private:
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         if (!transactionSupervisor) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
@@ -3782,7 +3782,7 @@ private:
         if (!IsObjectAlive(transaction) ||
             transaction->GetPersistentState() != ETransactionState::Active)
         {
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
@@ -3791,7 +3791,7 @@ private:
                 "(TransactionId: %v, LeasesState: %v)",
                 transaction->GetId(),
                 transaction->GetTransactionLeasesState());
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (GetDynamicConfig()->Testing->ThrowOnLeaseRevocation) {

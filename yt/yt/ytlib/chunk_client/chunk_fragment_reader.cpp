@@ -1877,7 +1877,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
-    TFuture<void> SessionFuture_ = VoidFuture;
+    TFuture<void> SessionFuture_ = OKFuture;
 
 
     void OnFatalError(TError error)

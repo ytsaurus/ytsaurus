@@ -73,7 +73,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         // NB(psushin): typically memory manager is finalized by block fetcher.
         // When block fetcher is not created, we should do it explicitly.
         YT_UNUSED_FUTURE(MemoryManagerHolder_->Get()->Finalize());
-        return VoidFuture;
+        return OKFuture;
     }
 
     SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(

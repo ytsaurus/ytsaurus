@@ -704,7 +704,7 @@ public:
     TFuture<void> Open() override
     {
         UpdateLimits();
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -746,7 +746,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -848,12 +848,12 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override

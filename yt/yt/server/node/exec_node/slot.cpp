@@ -450,7 +450,7 @@ public:
 
         if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableTmpfs) {
             YT_LOG_INFO("Do not link tmpfs volumes since tmpfs is disabled in slot manager");
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);

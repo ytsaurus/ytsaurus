@@ -112,18 +112,18 @@ TFuture<void> TP2PBlockCache::WaitSessionIteration(TGuid sessionId, i64 iteratio
 {
     auto config = GetConfig();
     if (!config->Enabled) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     if (ActiveWaiters_.load() > config->MaxWaitingRequests) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto guard = Guard(Lock_);
 
     auto& session = ActiveSessions_[sessionId];
     if (iteration <= session.LastIteration) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto it = session.Waiters.find(iteration);

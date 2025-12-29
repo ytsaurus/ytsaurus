@@ -723,7 +723,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
 private:

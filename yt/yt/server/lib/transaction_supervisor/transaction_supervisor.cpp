@@ -263,7 +263,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Config_->EnableWaitUntilPreparedTransactionsFinished) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto guard = Guard(SequencerLock_);
@@ -272,7 +272,7 @@ public:
             YT_LOG_DEBUG(
                 "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
                 NextStronglyOrderedTransactionSequenceNumber_);
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto lastStronglyOrderedTransactionSequenceNumber = NextStronglyOrderedTransactionSequenceNumber_ - 1;
@@ -1589,7 +1589,7 @@ private:
             YT_VERIFY(TryParseResponseHeader(message, &header));
             return header.has_error()
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
-                : VoidFuture;
+                : OKFuture;
         }));
     }
 

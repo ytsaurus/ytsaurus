@@ -71,12 +71,12 @@ public:
     TFuture<void> Throttle() const override
     {
         if (!Config_->Enable) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto now = TInstant::Now();
         if (now > AllowedTime_) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return TDelayedExecutor::MakeDelayed(AllowedTime_ - now);

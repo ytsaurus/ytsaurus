@@ -482,7 +482,7 @@ public:
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
         const std::vector<TCellId>& /*cellIdsToSyncWith*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     void PrepareTransactionCommit(

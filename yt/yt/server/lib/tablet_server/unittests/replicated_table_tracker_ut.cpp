@@ -474,7 +474,7 @@ public:
             .CheckSecondaryMasterCells = true,
         };
         EXPECT_CALL(*client, CheckClusterLiveness(options))
-            .WillRepeatedly(Return(VoidFuture));
+            .WillRepeatedly(Return(OKFuture));
         EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
             .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
         EXPECT_CALL(*client, GetNode("//sys/@hydra_read_only", _))
@@ -491,7 +491,7 @@ public:
             .CheckTabletCellBundle = BundleName
         };
         EXPECT_CALL(*client, CheckClusterLiveness(options))
-            .WillRepeatedly(Return(VoidFuture));
+            .WillRepeatedly(Return(OKFuture));
     }
 
     void MockGoodTable(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
@@ -728,7 +728,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
         .CheckTabletCellBundle = BundleName
     }))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     EXPECT_CALL(*client, GetNode(TablePath1 + "/@tablet_cell_bundle", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(BundleName))));
@@ -748,7 +748,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
         .CheckTabletCellBundle = BundleName
     }))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
 
     WaitForUpdatesFromTracker();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
@@ -1309,7 +1309,7 @@ TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
     EXPECT_CALL(*client, CheckClusterLiveness(options))
-        .WillRepeatedly(Return(VoidFuture));
+        .WillRepeatedly(Return(OKFuture));
     WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }

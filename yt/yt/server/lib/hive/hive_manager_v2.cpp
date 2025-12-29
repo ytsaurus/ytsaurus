@@ -521,7 +521,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellId == SelfCellId_) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (enableBatching) {
@@ -1599,7 +1599,7 @@ private:
                 YT_LOG_DEBUG("Remote instance has no mailbox; no synchronization needed (SrcCellId: %v, DstCellId: %v)",
                     cellId,
                     SelfCellId_);
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto messageId = rsp->last_outcoming_message_id();
@@ -1611,7 +1611,7 @@ private:
                     SelfCellId_,
                     messageId,
                     nextPersistentIncomingMessageId);
-                return VoidFuture;
+                return OKFuture;
             }
 
             YT_LOG_DEBUG("Waiting for synchronization with remote instance (SrcCellId: %v, DstCellId: %v, "

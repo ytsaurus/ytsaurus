@@ -932,7 +932,7 @@ private:
     static TFuture<void> OnLeaderLeaseCheckThunk(const TWeakPtr<TCellarOccupant>& weakThis)
     {
         auto this_ = weakThis.Lock();
-        return this_ ? this_->OnLeaderLeaseCheck() : VoidFuture;
+        return this_ ? this_->OnLeaderLeaseCheck() : OKFuture;
     }
 
     TFuture<void> OnLeaderLeaseCheck()

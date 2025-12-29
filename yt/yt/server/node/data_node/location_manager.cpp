@@ -80,7 +80,7 @@ TFuture<void> TLocationManager::FailDiskByName(
                 }
             }
 
-            return VoidFuture;
+            return OKFuture;
         }));
 }
 
@@ -176,7 +176,7 @@ TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 TFuture<void> TLocationManager::UpdateDiskCache()
 {
     if (!DiskInfoProvider_) {
-        return VoidFuture;
+        return OKFuture;
     }
     return DiskInfoProvider_->UpdateDiskCache();
 }

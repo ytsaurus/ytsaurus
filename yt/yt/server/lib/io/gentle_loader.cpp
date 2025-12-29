@@ -331,7 +331,7 @@ private:
                     return IOEngine_->FlushFile({handle, EFlushFileMode::Data})
                         .AsVoid();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
 
         WaitFor(future)

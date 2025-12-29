@@ -762,7 +762,7 @@ public:
         if (validatePools) {
             return ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2512,7 +2512,7 @@ private:
             if (Tree_) {
                 return Tree_->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, skipScheduleAllocations);
             }
-            return VoidFuture;
+            return OKFuture;
         }
 
         int GetSchedulingHeartbeatComplexity() const override

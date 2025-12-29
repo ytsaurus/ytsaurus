@@ -1419,7 +1419,7 @@ private:
 
         auto future = RemoteTransactionReplicationSession_->InvokeReplicationRequests();
         if (!future) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return future.Apply(BIND(
@@ -1869,7 +1869,7 @@ private:
 
             auto throttlerFuture = Owner_->EnablePerUserThrottling_.load(std::memory_order::relaxed)
                 ? securityManager->ThrottleUser(User_.Get(), 1, WorkloadType)
-                : VoidFuture;
+                : OKFuture;
 
             if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalRead) {
                 if (User_.Get() != securityManager->GetRootUser()) {

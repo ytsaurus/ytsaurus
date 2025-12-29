@@ -81,7 +81,7 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
     auto guard = Guard(ReconfigureSpinLock_);
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    auto returnFuture = VoidFuture;
+    auto returnFuture = OKFuture;
 
     InitializeCryptographyIfRequired(config);
     if (config->Generation) {
@@ -161,16 +161,16 @@ TFuture<void> TSignatureComponents::DoStartRotation() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Start();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::StopRotation()
 {
     auto guard = Guard(ReconfigureSpinLock_);
-    return KeyRotator_ ? KeyRotator_->Stop() : VoidFuture;
+    return KeyRotator_ ? KeyRotator_->Stop() : OKFuture;
 }
 
 TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
@@ -183,10 +183,10 @@ TFuture<void> TSignatureComponents::DoRotateOutOfBand() const
                 if (auto keyRotator = weakRotator.Lock()) {
                     return keyRotator->Rotate();
                 }
-                return VoidFuture;
+                return OKFuture;
             }));
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TSignatureComponents::RotateOutOfBand()

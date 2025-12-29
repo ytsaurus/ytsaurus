@@ -654,7 +654,7 @@ public:
 
         auto prevResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId - 1);
         auto prevResult = prevResultIt == MultiplexedChangelogIdToCleanResult_.end()
-            ? VoidFuture
+            ? OKFuture
             : prevResultIt->second.ToFuture();
 
         auto config = Config_.Acquire();

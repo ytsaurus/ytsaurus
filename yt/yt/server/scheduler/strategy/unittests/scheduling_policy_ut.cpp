@@ -193,7 +193,7 @@ public:
         const TError& /*alert*/,
         std::optional<TDuration> /*timeout*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     NYson::IYsonConsumer* GetEventLogConsumer() override
@@ -246,7 +246,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override

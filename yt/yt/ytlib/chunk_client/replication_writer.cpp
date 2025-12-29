@@ -1399,7 +1399,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
                 }
             }));
         } else {
-            throttleFuture = VoidFuture;
+            throttleFuture = OKFuture;
         }
 
         putBlocksFutures.push_back(throttleFuture.Apply(BIND([req] {

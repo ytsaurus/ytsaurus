@@ -56,7 +56,7 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
                 "Skip workspace building action (JobPhase: %v, ActionName: %v)",
                 jobPhase,
                 GetStepName<Step>());
-            return VoidFuture;
+            return OKFuture;
 
         case EJobPhase::Created:
             YT_VERIFY(Context_.Job->GetState() == EJobState::Waiting);
@@ -354,7 +354,7 @@ private:
                 "External docker image is not supported in simple job environment"));
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoPrepareTmpfsVolumes() override
@@ -369,7 +369,7 @@ private:
         const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            return VoidFuture;
+            return OKFuture;
         }
 
         const auto& slot = Context_.Slot;
@@ -405,7 +405,7 @@ private:
         ValidateJobPhase(EJobPhase::PreparingTmpfsVolumes);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoBindRootVolume() override
@@ -419,7 +419,7 @@ private:
 
          ResultHolder_.RootVolume = std::move(Context_.RootVolume);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoLinkTmpfsVolumes() override
@@ -430,7 +430,7 @@ private:
 
         YT_LOG_DEBUG("Link tmpfs volumes is not needed in simple workspace");
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoValidateRootFS() override
@@ -440,7 +440,7 @@ private:
         ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::ValidatingRootFS);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoPrepareSandboxDirectories() override
@@ -469,7 +469,7 @@ private:
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoRunCustomPreparations() override
@@ -481,7 +481,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningCustomPreparations);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoRunGpuCheckCommand() override
@@ -493,7 +493,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
         // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
-        return VoidFuture;
+        return OKFuture;
     }
 };
 
@@ -590,7 +590,7 @@ private:
                 }).AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -606,7 +606,7 @@ private:
         const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            return VoidFuture;
+            return OKFuture;
         }
 
         const auto& slot = Context_.Slot;
@@ -675,10 +675,10 @@ private:
                 }));
         } else {
             YT_LOG_DEBUG("GPU check volume preparation is not needed");
-            return VoidFuture;
+            return OKFuture;
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoBindRootVolume() override
@@ -710,7 +710,7 @@ private:
             YT_LOG_DEBUG("Root volume binding is not needed");
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoLinkTmpfsVolumes() override
@@ -754,7 +754,7 @@ private:
         SetJobPhase(EJobPhase::ValidatingRootFS);
 
         if (!ResultHolder_.RootVolume || Context_.TestRootFS) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         SetNowTime(TimePoints_.ValidateRootFSStartTime);
@@ -831,7 +831,7 @@ private:
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
         if (!ResultHolder_.RootVolume) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         const auto& slot = Context_.Slot;
@@ -842,7 +842,7 @@ private:
         if (commands.empty()) {
             YT_LOG_DEBUG("No setup command is needed");
 
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_INFO("Running setup commands");
@@ -870,7 +870,7 @@ private:
         SetJobPhase(EJobPhase::RunningCustomPreparations);
 
         if (!Context_.NeedGpu) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto networkPriority = Context_.Job->GetAllocation()->GetNetworkPriority();
@@ -936,7 +936,7 @@ private:
             // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
             YT_LOG_INFO("No preliminary GPU check is needed");
 
-            return VoidFuture;
+            return OKFuture;
         }
     }
 };
@@ -1027,7 +1027,7 @@ private:
                 }));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -1043,7 +1043,7 @@ private:
         const auto& volumes = Context_.UserSandboxOptions.TmpfsVolumes;
         if (volumes.empty()) {
             SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            return VoidFuture;
+            return OKFuture;
         }
 
         const auto& slot = Context_.Slot;
@@ -1079,7 +1079,7 @@ private:
         ValidateJobPhase(EJobPhase::PreparingTmpfsVolumes);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoBindRootVolume() override
@@ -1093,7 +1093,7 @@ private:
 
         ResultHolder_.RootVolume = Context_.RootVolume;
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoLinkTmpfsVolumes() override
@@ -1106,7 +1106,7 @@ private:
 
         ResultHolder_.TmpfsVolumes = std::move(Context_.PreparedTmpfsVolumes);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoValidateRootFS() override
@@ -1116,7 +1116,7 @@ private:
         ValidateJobPhase(EJobPhase::LinkingVolumes);
         SetJobPhase(EJobPhase::ValidatingRootFS);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoPrepareSandboxDirectories() override
@@ -1145,7 +1145,7 @@ private:
 
         if (Context_.SetupCommands.empty()) {
             YT_LOG_DEBUG("No setup command is needed");
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_INFO("Running setup commands");
@@ -1183,7 +1183,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningCustomPreparations);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DoRunGpuCheckCommand() override
@@ -1195,7 +1195,7 @@ private:
         ValidateJobPhase(EJobPhase::RunningCustomPreparations);
         // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
-        return VoidFuture;
+        return OKFuture;
     }
 
 private:

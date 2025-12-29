@@ -967,7 +967,7 @@ private:
                             : *discoveredSubcategory;
                     }
 
-                    return VoidFuture;
+                    return OKFuture;
                 }));
 
             fillCredentialFutures.push_back(std::move(future));

@@ -201,7 +201,7 @@ protected:
             Codec_->Compress(Writer_->Finish())));
         ResponseCompressionTime_ = timer->GetElapsedTime();
         timer->Restart();
-        return VoidFuture;
+        return OKFuture;
     }
 };
 
@@ -1240,7 +1240,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CancelationSpinLock_);
     std::optional<TError> CancelationError_;
-    TFuture<void> SessionFuture_ = VoidFuture;
+    TFuture<void> SessionFuture_ = OKFuture;
 
 
     TPartitionSession CreatePartitionSession(

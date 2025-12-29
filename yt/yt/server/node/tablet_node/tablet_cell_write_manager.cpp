@@ -243,7 +243,7 @@ public:
                     // Client already decided to go on with the next generation of rows, so we are ok to even ignore
                     // possible commit errors. Note that the result of this particular write does not affect the outcome of the
                     // transaction any more, so we are safe to lose some of freshly enqueued mutations.
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 updateReplicationProgress = tablet->GetReplicationCardId() && !params.Versioned;

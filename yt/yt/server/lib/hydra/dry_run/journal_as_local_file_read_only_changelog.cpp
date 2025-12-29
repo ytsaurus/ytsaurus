@@ -95,7 +95,7 @@ TFuture<std::vector<TSharedRef>> TJournalAsLocalFileReadOnlyChangelog::Read(
 
 TFuture<void> TJournalAsLocalFileReadOnlyChangelog::Close()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> TJournalAsLocalFileReadOnlyChangelog::Append(TRange<TSharedRef> /*records*/)
