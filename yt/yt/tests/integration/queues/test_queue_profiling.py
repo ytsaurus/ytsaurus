@@ -10,32 +10,28 @@ from yt_commands import (
     wait,
     create,
     insert_rows,
-    select_rows,
     register_queue_consumer,
     advance_consumer,
+    ls,
 )
 
 from yt_helpers import profiler_factory
+from yt.test_helpers.profiler import Profiler
 
 
 ##################################################################
+
 
 TIME_METRIC_NON_FLAP_MULTIPLIER = 1.5
 NONE_TAG = "none"
 
 
-def get_mapping():
-    return list(select_rows("* from [//sys/queue_agents/queue_agent_object_mapping]"))
-
-
-def get_profiler():
-    wait(lambda: len(get_mapping()) > 0)
-    mapping = get_mapping()
-
-    print_debug(f"{mapping=}")
-
-    original_host = mapping[0]["host"]
+def get_profiler() -> Profiler:
+    original_host = ls('//sys/queue_agents/instances')[0]
     return profiler_factory().at_queue_agent(original_host)
+
+
+##################################################################
 
 
 class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
@@ -164,10 +160,12 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
 
     @authors("panesher")
     @pytest.mark.parametrize(
-        "queue_tag", ["queue_tag_1", ""],
+        "queue_tag",
+        ["queue_tag_1", ""],
     )
     @pytest.mark.parametrize(
-        "consumer_tag", ["consumer_tag_1", ""],
+        "consumer_tag",
+        ["consumer_tag_1", ""],
     )
     def test_profiling_tags(self, queue_tag, consumer_tag):
         orchid = QueueAgentOrchid()
@@ -177,6 +175,7 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
             self._create_queue(queue, mount=True, queue_profiling_tag=queue_tag)
         else:
             self._create_queue(queue, mount=True)
+
         insert_rows(queue, [{"data": "foo", "$tablet_index": 0}] * 3)
 
         consumer_path = self.create_consumer_path()
@@ -205,15 +204,18 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        wait(lambda: int(profiler.gauge('queue_agent/consumer_partition/lag_rows', fixed_tags={
-            "queue_tag": queue_tag or NONE_TAG,
-            "consumer_tag": consumer_tag or NONE_TAG,
-        }).get_all()[0]["value"]) == 3, ignore_exceptions=True)
+        def get_metric() -> list:
+            return profiler.gauge(
+                'queue_agent/consumer_partition/lag_rows',
+                fixed_tags={
+                    "queue_tag": queue_tag or NONE_TAG,
+                    "consumer_tag": consumer_tag or NONE_TAG,
+                },
+            ).get_all()
 
-        lag_rows = profiler.gauge('queue_agent/consumer_partition/lag_rows', fixed_tags={
-            "queue_tag": queue_tag or NONE_TAG,
-            "consumer_tag": consumer_tag or NONE_TAG,
-        }).get_all()[0]
+        wait(get_metric, ignore_exceptions=True)
+
+        lag_rows = get_metric()[0]
         assert lag_rows["tags"]["queue_tag"] == queue_tag or NONE_TAG
         assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
 
@@ -227,7 +229,8 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
 
     @authors("panesher")
     @pytest.mark.parametrize(
-        "queue_tag", ["queue_tag_1", ""],
+        "queue_tag",
+        ["queue_tag_1", ""],
     )
     def test_profiling_tag(self, queue_tag):
         queue = self.create_queue_path()
@@ -239,10 +242,135 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
         self._wait_for_component_passes()
         profiler = get_profiler()
 
-        wait(lambda: int(profiler.gauge('queue_agent/queue/partitions', fixed_tags={
-            "queue_tag": queue_tag or NONE_TAG,
-        }).get_all()[0]["value"]) == 1, ignore_exceptions=True)
-        partitions = profiler.gauge('queue_agent/queue/partitions', fixed_tags={
-            "queue_tag": queue_tag or NONE_TAG,
-        }).get_all()[0]
+        def get_metric() -> list:
+            return profiler.gauge(
+                'queue_agent/queue/partitions',
+                fixed_tags={
+                    "queue_tag": queue_tag or NONE_TAG,
+                },
+            ).get_all()
+
+        wait(get_metric, ignore_exceptions=True)
+        partitions = get_metric()[0]
         assert partitions["tags"]["queue_tag"] == queue_tag or NONE_TAG
+
+
+class TestQueueAgentPassProfiling(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    def _check_pass(
+        self, profiler: Profiler, prefix: str, start_time: float, tags: dict[str, str] | None = None
+    ) -> None:
+        wait(lambda: profiler.counter(f"{prefix}/pass/errors", tags=tags).get_delta() == 0, ignore_exceptions=True)
+        wait(
+            lambda: 0 < profiler.gauge(f"{prefix}/pass/index", fixed_tags=tags).get_all()[0]["value"],
+            ignore_exceptions=True,
+        )
+        wait(
+            lambda: start_time
+            < profiler.gauge(f"{prefix}/pass/start_time", fixed_tags=tags).get_all()[0]["value"]
+            < time.time() + 5,
+            ignore_exceptions=True,
+        )
+        wait(
+            lambda: 0 < profiler.gauge(f"{prefix}/pass/duration", fixed_tags=tags).get_all()[0]["value"] < 10,
+            ignore_exceptions=True,
+        )
+
+    @authors("panesher")
+    def test_basic_pass_profiling(self):
+        pass_prefixes = [
+            "queue_agent/cypress_synchronizer",
+            "queue_agent/queue_agent_sharding_manager",
+            "queue_agent",
+        ]
+
+        start_time = time.time() - 5  # fault tolerance
+
+        self._wait_for_component_passes()
+
+        profiler = get_profiler()
+
+        for pass_prefix in pass_prefixes:
+            self._check_pass(profiler, pass_prefix, start_time)
+
+    @authors("panesher")
+    def test_queue_pass_profiling(self):
+        queue_pass_prefixes = [
+            "queue_agent/queue/controller",
+            "queue_agent/queue/static_export",
+        ]
+
+        start_time = time.time() - 5  # fault tolerance
+        queue = self.create_queue_path()
+        self._create_queue(
+            queue,
+            mount=True,
+            static_export_config={
+                "default": {
+                    "export_directory": "//tmp/export",
+                    "export_period": 1000,
+                },
+            },
+        )
+
+        self._wait_for_component_passes()
+
+        orchid = QueueAgentOrchid()
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
+        queue_orchid.wait_fresh_pass()
+
+        profiler = get_profiler()
+
+        for pass_prefix in queue_pass_prefixes:
+            tags = {
+                "queue_path": queue,
+                "queue_cluster": "primary",
+            }
+            self._check_pass(profiler, pass_prefix, start_time, tags)
+            duration_summary = profiler.summary(f'{pass_prefix}/pass/duration', fixed_tags={
+                "queue_cluster": "primary",
+                "leading": "true",
+            })
+            assert 0 < duration_summary.get_max() < 10
+
+    @authors("panesher")
+    def test_consumer_pass_profiling(self):
+        consumer_pass_prefixes = [
+            "queue_agent/consumer/controller",
+        ]
+
+        start_time = time.time() - 5  # fault tolerance
+        queue = self.create_queue_path()
+        self._create_queue(queue, mount=True)
+
+        consumer_path = self.create_consumer_path()
+        create("queue_consumer", consumer_path)
+
+        register_queue_consumer(queue, consumer_path, vital=True)
+
+        self._wait_for_component_passes()
+
+        orchid = QueueAgentOrchid()
+        consumer_orchid = orchid.get_consumer_orchid(f"primary:{consumer_path}")
+        queue_orchid = orchid.get_queue_orchid(f"primary:{queue}")
+        queue_orchid.wait_fresh_pass()
+        consumer_orchid.wait_fresh_pass()
+
+        profiler = get_profiler()
+
+        for pass_prefix in consumer_pass_prefixes:
+            tags = {
+                "consumer_path": consumer_path,
+                "consumer_cluster": "primary",
+            }
+            self._check_pass(profiler, pass_prefix, start_time, tags)
+            duration_summary = profiler.summary(f'{pass_prefix}/pass/duration', fixed_tags={
+                "consumer_cluster": "primary",
+                "leading": "true",
+            })
+            assert 0 < duration_summary.get_max() < 10

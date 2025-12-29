@@ -130,6 +130,7 @@ IQueueExporterPtr CreateQueueExporter(
     IQueueExportManagerPtr queueExportManager,
     NAlertManager::IAlertCollectorPtr alertCollector,
     const NProfiling::TProfiler& queueProfiler,
+    const NProfiling::TProfiler& queuePassProfiler,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
