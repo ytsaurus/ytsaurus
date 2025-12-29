@@ -516,30 +516,31 @@ void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TPro
     if (!protoChunkSpec.has_row_count_override() && !protoChunkSpec.has_data_weight_override()) {
         return;
     }
-    YT_VERIFY((protoChunkSpec.has_row_count_override() && protoChunkSpec.has_data_weight_override()));
+    YT_VERIFY(
+        protoChunkSpec.has_data_weight_override() &&
+        protoChunkSpec.has_compressed_data_size_override() &&
+        protoChunkSpec.has_uncompressed_data_size_override());
 
-    i64 dataWeightOverride = std::max<i64>(1, protoChunkSpec.data_weight_override() * inputChunk->GetDataWeightSelectivityFactor());
-    double dataWeightOverrideFactor = static_cast<double>(protoChunkSpec.data_weight_override()) / inputChunk->GetDataWeight();
-    i64 compressedDataSizeOverride;
-    if (protoChunkSpec.has_compressed_data_size_override()) {
-        compressedDataSizeOverride = protoChunkSpec.compressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.1 release.
-        compressedDataSizeOverride = inputChunk->GetCompressedDataSize() * dataWeightOverrideFactor;
+    // COMPAT(apollo1321): Remove in 26.1.
+    if (!protoChunkSpec.use_new_override_semantics()) {
+        auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+            return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+        };
+
+        OverrideSize(
+            protoChunkSpec.row_count_override(),
+            computeSize(protoChunkSpec.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+            computeSize(protoChunkSpec.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+            computeSize(protoChunkSpec.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+
+        return;
     }
-    i64 uncompressedDataSizeOverride;
-    if (protoChunkSpec.has_uncompressed_data_size_override()) {
-        uncompressedDataSizeOverride = protoChunkSpec.uncompressed_data_size_override() * inputChunk->GetReadSizeSelectivityFactor();
-    } else {
-        // COMPAT(apollo1321): make compressed_data_size required field after 25.3 release.
-        uncompressedDataSizeOverride = inputChunk->GetUncompressedDataSize() * dataWeightOverrideFactor;
-    }
+
     OverrideSize(
         protoChunkSpec.row_count_override(),
-        dataWeightOverride,
-        compressedDataSizeOverride,
-        uncompressedDataSizeOverride);
-
+        protoChunkSpec.data_weight_override(),
+        protoChunkSpec.compressed_data_size_override(),
+        protoChunkSpec.uncompressed_data_size_override());
 }
 
 std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeight, i64 sliceRowCount, TRowBufferPtr rowBuffer) const
@@ -1029,6 +1030,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     chunkSpec->set_compressed_data_size_override(inputSlice->GetCompressedDataSize());
     chunkSpec->set_uncompressed_data_size_override(inputSlice->GetUncompressedDataSize());
+    // COMPAT(apollo1321): Remove in 26.1.
+    chunkSpec->set_use_new_override_semantics(true);
 
     if (inputSlice->GetInputChunk()->IsDynamicStore()) {
         SetTabletId(chunkSpec, inputSlice->GetInputChunk()->GetTabletId());

@@ -27,7 +27,6 @@ target_link_libraries(cpp-integration-test-reader PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   tests-cpp-test_base
@@ -48,7 +47,8 @@ target_link_options(cpp-integration-test-reader PRIVATE
 )
 
 target_sources(cpp-integration-test-reader PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_partition_reader/test_partition_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_readers/test_interruptions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_readers/test_partition_reader.cpp
 )
 
 

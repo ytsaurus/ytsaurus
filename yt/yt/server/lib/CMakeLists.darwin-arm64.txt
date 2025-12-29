@@ -43,8 +43,8 @@ add_subdirectory(scheduler)
 add_subdirectory(node_tracker_server)
 add_subdirectory(chunk_pools)
 add_subdirectory(discovery_server)
-add_subdirectory(cypress_election)
 add_subdirectory(cross_cluster_replicated_state)
+add_subdirectory(cypress_election)
 
 add_library(ytserver INTERFACE)
 

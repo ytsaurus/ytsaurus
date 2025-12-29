@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
+
 add_executable(cpp-integration-test-reader)
 
 
@@ -24,9 +26,11 @@ target_compile_options(cpp-integration-test-reader PRIVATE
 )
 
 target_link_libraries(cpp-integration-test-reader PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
+  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   tests-cpp-test_base
@@ -35,19 +39,24 @@ target_link_libraries(cpp-integration-test-reader PUBLIC
 )
 
 target_allocator(cpp-integration-test-reader
-  system_allocator
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-reader PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lrt
+  -ldl
+  -lutil
 )
 
 target_sources(cpp-integration-test-reader PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_partition_reader/test_partition_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_readers/test_interruptions.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_readers/test_partition_reader.cpp
 )
 
 

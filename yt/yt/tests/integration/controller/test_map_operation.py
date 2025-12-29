@@ -9,7 +9,7 @@ from yt_commands import (
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
-    get_singular_chunk_id, check_all_stderrs,
+    get_singular_chunk_id, check_all_stderrs, make_random_string,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
 
@@ -2676,6 +2676,84 @@ print(json.dumps(input))
             out="<rename_columns={key=key1;value=value2;non_existent=non_existent}>//tmp/t_out",
             command="cat",
         )
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_interruption_with_inaccurate_columnar_statistics_estimation(self, ordered):
+        MAPPER = """
+python3 -u -c '
+import json
+import os
+import sys
+
+unbuffered_stdin = os.fdopen(sys.stdin.fileno(), "rb", buffering=0)
+input = json.loads(unbuffered_stdin.readline())
+
+print(json.dumps(input))
+'"""
+
+        table_count = 2
+        column_count = 20
+        for j in range(table_count):
+            create("table", f"//tmp/t_in{j}", attributes={
+                "schema": make_schema([
+                    {"name": f"col{i}", "type": "string"}
+                    for i in range(column_count)
+                ]),
+                "optimize_for": "scan",
+            })
+
+        def sample_size():
+            return max(int(random.gauss(200, 100)), 1)
+
+        set("//sys/@config/chunk_manager/max_heavy_columns", 1)
+
+        for q in range(table_count):
+            for _ in range(1 if ordered else 2):
+                write_table(
+                    f"<append=%true>//tmp/t_in{q}",
+                    [{f"col{i}": make_random_string(sample_size()) for i in range(column_count)} for _ in range(2)],
+                    table_writer={"block_size": 1, "desired_chunk_size": 1},
+                )
+
+        columns = [f"col{i}" for i in range(column_count)]
+
+        def choose_columns():
+            selected_columns = random.sample(columns, k=column_count - 1)
+            return "{{{}}}".format(",".join(selected_columns))
+
+        op = map(
+            ordered=True,
+            track=False,
+            in_=[f"//tmp/t_in{i}{choose_columns()}" for i in range(table_count)],
+            out=[f"<create=%true>//tmp/t_out{i}" for i in range(table_count)],
+            command=with_breakpoint(MAPPER + "; BREAKPOINT; cat"),
+            spec={
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1,
+                "ordered": ordered,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 200,
+                },
+                "enable_job_splitting": False,
+                "max_speculative_job_count_per_task": 0,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+                "job_count": 1,
+                "force_allow_job_interruption": True,
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=1)
+
+        op.interrupt_job(jobs[0])
+
+        release_breakpoint()
+
+        op.track()
 
 
 ##################################################################

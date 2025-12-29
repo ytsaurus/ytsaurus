@@ -3,6 +3,7 @@ GTEST(cpp-integration-test-reader)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    test_interruptions.cpp
     test_partition_reader.cpp
 )
 
