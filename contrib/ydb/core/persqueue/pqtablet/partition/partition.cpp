@@ -1064,6 +1064,10 @@ void TPartition::Handle(TEvPQ::TEvPartitionStatus::TPtr& ev, const TActorContext
         result.SetScaleStatus(NKikimrPQ::EScaleStatus::NORMAL);
     }
 
+    for (const auto& [_, consumer] : MLPConsumers) {
+        result.MutableAggregatedCounters()->AddMLPConsumerCounters()->CopyFrom(consumer.Metrics);
+    }
+
     ctx.Send(ev->Get()->Sender, new TEvPQ::TEvPartitionStatusResponse(result, Partition));
 }
 
@@ -4499,7 +4503,7 @@ IActor* CreatePartitionActor(ui64 tabletId, const TPartitionId& partition, const
         return s
             ->GetSubgroup("Account", TopicConverter->GetAccount())
             ->GetSubgroup("TopicPath", TopicConverter->GetFederationPath())
-            ->GetSubgroup("OriginDC", TopicConverter->GetCluster())
+            ->GetSubgroup("OriginDC", to_title(TopicConverter->GetCluster()))
             ->GetSubgroup("Partition", ToString(Partition.InternalPartitionId));
     }
 }
