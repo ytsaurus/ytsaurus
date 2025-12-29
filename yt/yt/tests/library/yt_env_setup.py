@@ -1430,6 +1430,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def _apply_effective_config_patch(cls, base_config, param_name, cluster_index=None):
+        if cluster_index is not None and cls._is_ground_cluster(cluster_index):
+            # DELTA_*_CONFIG for ground cluster is not supported.
+            return
+
         param_name = param_name if cluster_index is None else cls._get_param_real_name(param_name, cluster_index)
         for base in cls.__mro__[::-1]:
             patch = base.__dict__.get(param_name, {})
@@ -1537,7 +1541,7 @@ class YTEnvSetup(object):
             self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
 
         if self._is_ground_cluster(cluster_index):
-            yt_commands.ls("//sys/cluster_nodes", attributes=["user_tags"])
+            yt_commands.ls("//sys/cluster_nodes", attributes=["user_tags"], driver=driver)
             yt_commands.set(
                 "//sys/cluster_nodes/@config/%true/tablet_node",
                 {
