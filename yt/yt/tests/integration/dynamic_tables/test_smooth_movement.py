@@ -617,6 +617,12 @@ class TestSmoothMovementLargeCommitDelay(SmoothMovementBase):
         }
     }
 
+    DELTA_MASTER_CONFIG = {
+        "transaction_supervisor": {
+            "rpc_timeout": 20000,
+        },
+    }
+
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         node_to_method = {
