@@ -80,7 +80,9 @@ def build_user_caches():
                 .cell(
                     "Versioned chunk meta cache hit weight rate",
                     NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.hit_weight.rate").aggr("hit_type").host_container_legend_format())
-                .cell("Versioned chunk meta cache miss weight rate", misses("tablet", "versioned_chunk_meta_cache"))
+                .cell(
+                    "Versioned chunk meta cache miss weight rate",
+                    NodeTablet("yt.tablet_node.versioned_chunk_meta_cache.missed_weight.rate").host_container_legend_format())
             .row()
                 .cell(
                     "Block cache hit weight rate",
