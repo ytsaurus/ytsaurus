@@ -36,7 +36,7 @@ TFuture<void> TClusterResolver::Init()
     return LocalClient_->GetClusterName()
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::optional<std::string>>& clusterNameOrError) {
             LocalClusterName_ = clusterNameOrError.ValueOrDefault(std::nullopt);
-            return VoidFuture;
+            return OKFuture;
         }));
 }
 

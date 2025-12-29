@@ -5397,7 +5397,7 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            return VoidFuture;
+            return OKFuture;
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));
         }

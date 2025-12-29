@@ -1694,7 +1694,7 @@ public:
         if (Config_->UpdateLastMeteringLogTime) {
             return MasterConnector_->UpdateLastMeteringLogTime(time);
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 

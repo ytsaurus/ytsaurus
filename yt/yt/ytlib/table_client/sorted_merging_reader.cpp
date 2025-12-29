@@ -487,7 +487,7 @@ public:
                     lastKey,
                     key);
 
-                SetReadyEvent(VoidFuture);
+                SetReadyEvent(OKFuture);
                 StreamHeap_.clear();
                 return rows.empty()
                     ? nullptr

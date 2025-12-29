@@ -79,7 +79,7 @@ public:
             .Apply(BIND([this, weakThis = MakeWeak(this)] {
                 auto this_ = weakThis.Lock();
                 if (!this_) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
                 return AllSucceeded(
                     std::vector{QueueHasBeenProcessed_, AllPendingAckProcessedPromise_.ToFuture()});
@@ -202,7 +202,7 @@ private:
     TMiscExt ChunkMiscMeta_;
     std::vector<TDataBlockMeta> DataBlocksMeta_;
 
-    TFuture<void> QueueHasBeenProcessed_ = VoidFuture;
+    TFuture<void> QueueHasBeenProcessed_ = OKFuture;
     const TPromise<void> AllPendingAckProcessedPromise_ = NewPromise<void>();
 
     TFuture<void> DoSendBlocks(

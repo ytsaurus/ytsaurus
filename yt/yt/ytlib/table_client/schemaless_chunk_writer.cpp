@@ -192,7 +192,7 @@ public:
 
         if (RowCount_ == 0) {
             // Empty chunk.
-            return VoidFuture;
+            return OKFuture;
         }
 
         return BIND(&TUnversionedChunkWriterBase::DoClose, MakeStrong(this))

@@ -133,14 +133,14 @@ public:
     TFuture<void> GetReadyEvent() const override
     {
         if (SkipBefore_ > 0) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (!SkippingAfter_) {
             return UnderlyingReader_->GetReadyEvent();
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsFetchingCompleted() const override
@@ -798,7 +798,7 @@ private:
                     columnFilter,
                     chunkReadOptions),
                 chunkReadOptions);
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Check for backing store.
@@ -814,7 +814,7 @@ private:
                 chunkReadOptions,
                 /*workloadCategory*/ std::nullopt);
             UnderlyingReaderInitialized_.store(true);
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto backendReaders = chunk->GetBackendReaders(workloadCategory);
@@ -832,7 +832,7 @@ private:
                 produceAllVersions,
                 chunk,
                 std::move(keys));
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(/*prepareColumnMeta*/ true)) {
@@ -922,7 +922,7 @@ private:
                 chunkReadOptions,
                 std::move(backendReaders),
                 std::move(chunkMeta));
-            return VoidFuture;
+            return OKFuture;
         }
 
         return filteringResultFuture.AsUnique().Apply(BIND([

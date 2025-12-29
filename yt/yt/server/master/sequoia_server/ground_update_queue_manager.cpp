@@ -193,7 +193,7 @@ public:
     {
         auto& queueState = QueueStates_[queue];
         if (queueState.Records.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto& syncPromise = queueState.Records.back().SyncPromise;
@@ -369,7 +369,7 @@ private:
                 auto& queueState = QueueStates_[queue];
 
                 if (!queueState.IsFlushNeeded()) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 const auto& config = GetDynamicConfig();

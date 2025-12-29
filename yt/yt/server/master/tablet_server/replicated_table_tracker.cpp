@@ -391,7 +391,7 @@ private:
                     if (auto this_ = weakThis.Lock()) {
                         return CheckReplicaState();
                     } else {
-                        return VoidFuture;
+                        return OKFuture;
                     }
                 }));
         }

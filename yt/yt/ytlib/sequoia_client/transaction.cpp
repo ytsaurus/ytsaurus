@@ -910,7 +910,7 @@ private:
         futures.reserve(TabletCommitSessions_.size());
         if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
             for (const auto& [tabletId, tabletCommitSession] : SortHashMapByKeys(TabletCommitSessions_)) {
-                auto previousFuture = futures.empty() ? VoidFuture : futures.back();
+                auto previousFuture = futures.empty() ? OKFuture : futures.back();
                 futures.push_back(previousFuture.Apply(
                     BIND([session = tabletCommitSession] (const TError& /*error*/) {
                         return session->Invoke();

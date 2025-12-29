@@ -84,7 +84,7 @@ private:
         const TTabletId& /*key*/,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     static TAsyncExpiringCacheConfigPtr GetCacheConfig(const TTableMountConfigPtr& mountConfig)

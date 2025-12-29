@@ -66,9 +66,9 @@ protected:
     const NElection::TCellManagerPtr CellManager_;
 
     NProto::TMutationHeader MutationHeader_;
-    TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
+    TFuture<void> LastLoggedMutationFuture_ = OKFuture;
 
-    TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
+    TFuture<void> LastOffloadedMutationsFuture_ = OKFuture;
 
     TCompactFlatMap<int, TFuture<IChangelogPtr>, 4> NextChangelogs_;
     IChangelogPtr Changelog_;

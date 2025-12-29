@@ -199,7 +199,7 @@ public:
 
     TFuture<void> Flush() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Initialize() override

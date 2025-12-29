@@ -3422,7 +3422,7 @@ private:
     TFuture<void> DoPullRows()
     {
         if (IsTrivial_) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         try {
@@ -3467,7 +3467,7 @@ private:
 
         } catch (const std::exception& ex) {
             OnPullRowsResponse(TError("Failed to prepare request") << ex);
-            return VoidFuture;
+            return OKFuture;
         }
     }
 

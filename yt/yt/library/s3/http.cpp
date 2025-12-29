@@ -258,7 +258,7 @@ public:
 
     TFuture<void> Start() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<NHttp::IResponsePtr> MakeRequest(THttpRequest request) override

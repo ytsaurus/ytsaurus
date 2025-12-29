@@ -136,7 +136,7 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
 TFuture<void> TBatchAttributeFetcher::Fetch()
 {
     if (Entries_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return BIND(&TBatchAttributeFetcher::DoFetch, MakeWeak(this))

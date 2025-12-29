@@ -238,7 +238,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Stopped) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_INFO("Hydra instance is finalizing");
@@ -366,7 +366,7 @@ public:
                 .AsyncVia(epochContext->EpochControlInvoker)
                 .Run();
         }
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsEnteringReadOnlyMode() const override
@@ -530,7 +530,7 @@ public:
             epochContext->Discombobulated)
         {
             // NB: Leader lease is already checked in IsActive.
-            return VoidFuture;
+            return OKFuture;
         }
 
         return epochContext->LeaderSyncBatcher->Run();
@@ -2799,7 +2799,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (GetAutomatonState() == EPeerState::Leading) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Synchronizing with leader");

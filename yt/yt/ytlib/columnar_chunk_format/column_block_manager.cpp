@@ -370,7 +370,7 @@ private:
     std::vector<TGroupBlockHolder> BlockHolders_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
     TTraceContextPtr TraceContext_;
@@ -668,7 +668,7 @@ private:
     NCompression::ICodec* const Codec_;
 
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
     TTraceContextPtr TraceContext_;
@@ -757,7 +757,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsFetchingCompleted() const override

@@ -94,7 +94,7 @@ protected:
         {
             Expectation expectation = EXPECT_CALL(*ChunkSliceFetcher, Fetch())
                 .After(AllChunksAreAdded)
-                .WillOnce(Return(VoidFuture));
+                .WillOnce(Return(OKFuture));
 
             EXPECT_CALL(*ChunkSliceFetcher, GetChunkSlices())
                 .After(expectation)

@@ -499,7 +499,7 @@ public:
         SetAborted(TError("Transaction aborted by user request"));
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendAbort(options);
@@ -510,7 +510,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SendPing(options);
@@ -634,7 +634,7 @@ public:
     TFuture<void> ValidateNoDownedParticipants()
     {
         if (Atomicity_ != EAtomicity::Full) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto participantIds = Owner_->DownedCellTracker_->RetainDowned(GetRegisteredParticipantIds());
@@ -1067,7 +1067,7 @@ private:
         YT_VERIFY(Ping_);
         RunPeriodicPings();
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> StartNonAtomicTabletTransaction()
@@ -1088,7 +1088,7 @@ private:
             Id_,
             Durability_);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     void FireCommitted()
@@ -1280,7 +1280,7 @@ private:
     TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
     {
         if (participantIds.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_VERIFY(CoordinatorCellId_);
@@ -1718,7 +1718,7 @@ private:
     {
         auto channel = FindParticipantChannel(cellId);
         if (!channel) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",

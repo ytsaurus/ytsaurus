@@ -1100,7 +1100,7 @@ private:
             blocksSize);
 
         if (blocksSize == 0) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // NB: We throttle only heavy responses that contain a non-empty attachment

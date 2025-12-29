@@ -233,7 +233,7 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
     if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
         OnFetchingStarted();
-        return VoidFuture;
+        return OKFuture;
     }
 
     return TFetcherBase::Fetch();

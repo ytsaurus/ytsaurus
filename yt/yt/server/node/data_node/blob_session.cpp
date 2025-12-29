@@ -368,7 +368,7 @@ TFuture<void> TBlobSession::DoStart()
             .Via(SessionInvoker_));
 
     // No need to wait for the writer to get opened.
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TBlobSession::OnStarted(const TError& error)
@@ -817,7 +817,7 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
             return;
         }
 
-        TFuture<void> preallocateDiskSpace = VoidFuture;
+        TFuture<void> preallocateDiskSpace = OKFuture;
 
         if (PreallocateDiskSpace_) {
             preallocateDiskSpace = Pipeline_->PreallocateDiskSpace(MaxCumulativeBlockSize_);
@@ -940,7 +940,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     auto netIsThrottling = !throttler->TryAcquire(requestSize);
-    auto throttleFuture = VoidFuture;
+    auto throttleFuture = OKFuture;
     if (netIsThrottling) {
         if (instantReplyOnThrottling) {
             return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true});

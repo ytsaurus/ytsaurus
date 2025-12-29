@@ -201,7 +201,7 @@ public:
                     })));
                 }
 
-                return RejectedMultiplexedAppends_ ? flushResult : VoidFuture;
+                return RejectedMultiplexedAppends_ ? flushResult : OKFuture;
             }))
             .ToUncancelable();
     }

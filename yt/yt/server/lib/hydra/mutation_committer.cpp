@@ -292,7 +292,7 @@ TFuture<void> TLeaderCommitter::GetLastMutationFuture()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (MutationQueue_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return MutationQueue_.back()->LocalCommitPromise

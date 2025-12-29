@@ -153,7 +153,7 @@ TFuture<void> TChunkFileWriter::PreallocateDiskSpace(
         DiskSpace_ = spaceSize;
         return IOEngine_->Allocate(TAllocateRequest{.Handle = DataFile_, .Size = DiskSpace_}, workloadDescriptor.Category);
     } else {
-        return VoidFuture;
+        return OKFuture;
     }
 }
 
@@ -389,7 +389,7 @@ TFuture<void> TChunkFileWriter::Close(
             NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
 
             if (!SyncOnClose_) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)})

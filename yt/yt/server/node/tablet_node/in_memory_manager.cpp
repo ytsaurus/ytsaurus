@@ -937,7 +937,7 @@ private:
 
     std::vector<TNodePtr> Nodes_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
     std::atomic<bool> Sending_ = false;
     std::atomic<bool> Dropped_ = false;
 
@@ -1117,7 +1117,7 @@ public:
 
     TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 };
 

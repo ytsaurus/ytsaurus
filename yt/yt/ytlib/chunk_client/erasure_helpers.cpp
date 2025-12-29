@@ -328,7 +328,7 @@ public:
         if (!Writer_->WriteBlocks(WriteBlocksOptions_, WorkloadDescriptor_, blocksToWrite)) {
             return Writer_->GetReadyEvent();
         }
-        return VoidFuture;
+        return OKFuture;
     }
 
     TChecksum GetPartChecksum() const

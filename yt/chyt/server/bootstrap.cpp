@@ -231,7 +231,7 @@ void TBootstrap::HandleSigint()
         discoveryStopFuture = Host_->StopDiscovery();
     } else {
         YT_LOG_INFO("Host is not set up");
-        discoveryStopFuture = VoidFuture;
+        discoveryStopFuture = OKFuture;
     }
     YT_UNUSED_FUTURE(discoveryStopFuture.Apply(BIND([this] {
         TDelayedExecutor::WaitForDuration(Config_->GracefulInterruptionDelay);

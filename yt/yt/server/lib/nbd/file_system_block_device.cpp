@@ -132,7 +132,7 @@ public:
 
     TFuture<void> Flush() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Initialize() override
@@ -144,7 +144,7 @@ public:
 
     TFuture<void> Finalize() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
 private:

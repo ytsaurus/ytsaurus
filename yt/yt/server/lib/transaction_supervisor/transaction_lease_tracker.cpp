@@ -562,7 +562,7 @@ public:
 
     TFuture<void> PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/, std::optional<std::string> /*pingerAddress*/) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<TInstant> GetLastPingTime(TTransactionId /*transactionId*/) override

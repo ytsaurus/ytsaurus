@@ -172,7 +172,7 @@ public:
         auto removeFuture = mutation->Commit().AsVoid().Apply(BIND([this, this_ = MakeStrong(this), chaosLeaseId] {
             auto* chaosLease = FindChaosLease(chaosLeaseId);
             if (!chaosLease) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return chaosLease->RemovePromise().ToFuture();

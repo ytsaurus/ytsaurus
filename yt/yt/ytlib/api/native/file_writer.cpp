@@ -98,7 +98,7 @@ public:
             }
 
             if (Writer_->Write(data)) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return Writer_->GetReadyEvent();

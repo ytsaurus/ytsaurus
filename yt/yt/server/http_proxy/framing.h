@@ -30,7 +30,7 @@ public:
 private:
     const NConcurrency::IFlushableAsyncOutputStreamPtr Underlying_;
     const IInvokerPtr Invoker_;
-    TFuture<void> PendingOperationFuture_ = VoidFuture;
+    TFuture<void> PendingOperationFuture_ = OKFuture;
     bool Closed_ = false;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
