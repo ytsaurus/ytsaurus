@@ -33,6 +33,8 @@
 #include <yt/yt/library/process/public.h>
 #include <yt/yt/library/process/process.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 #include <util/string/hex.h>
 
 #include <util/system/execpath.h>
@@ -350,7 +352,7 @@ public:
         }
 
         if (EnableJobShellSeccopm) {
-            EnsureToolBinaryPath(subcontainerName);
+            EnsureToolBinaryPath(subcontainerName, options.get());
         }
 #endif
 
@@ -363,7 +365,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
 
 #ifdef _linux_
-    void EnsureToolBinaryPath(const TString& container) const
+    void EnsureToolBinaryPath(const TString& container, TNonNullPtr<TShellOptions> options) const
     {
         auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
             .ValueOrThrow();
@@ -375,20 +377,17 @@ private:
         auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
         }
 
-        if (IsDirEmpty(toolDirectory)) {
-            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
-            THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
+        auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
+        THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
-            THashMap<TString, TString> volumeProperties;
-            volumeProperties["backend"] = "bind";
-            volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
+        TBind toolBind;
+        toolBind.SourcePath = toolPathOrError.Value();
+        toolBind.TargetPath = JoinPaths(toolDirectory, TString(NTools::ToolsProgramName));
+        toolBind.ReadOnly = true;
+        options->Binds.push_back(toolBind);
 
-            auto pathOrError = WaitFor(PortoExecutor_->CreateVolume(toolDirectory, volumeProperties));
-            THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind tools inside job shell");
-        }
     }
 #endif
 };
