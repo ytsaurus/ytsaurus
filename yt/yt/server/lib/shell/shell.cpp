@@ -326,6 +326,10 @@ public:
             toolConfig->Command = Options_->Command;
             auto args = GenerateToolArguments<TSpawnShellTool>(toolConfig);
 
+            if (!Options_->Binds.empty()) {
+                launcher->SetBinds(Options_->Binds);
+            }
+
             Instance_ = WaitFor(launcher->Launch(ShellToolPath, args, env))
                 .ValueOrThrow();
         } else {
