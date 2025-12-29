@@ -18,6 +18,8 @@
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 #include <yt/yt/library/query/engine_api/top_collector.h>
 
+#include <yt/yt/library/query/misc/alloc.h>
+
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
@@ -1250,7 +1252,7 @@ private:
     // This function compares prefixes of length P.
     const NWebAssembly::TCompartmentFunction<TComparerFunction> PrefixEqComparer_;
 
-    TLookupRows GroupedIntermediateRows_;
+    TGroupRows GroupedIntermediateRows_;
     const int GroupKeySize_;
     const int GroupStateSize_;
     const int OrderKeySize_;
@@ -1277,9 +1279,9 @@ private:
     const TWebAssemblyRowsConsumer ConsumeTotals_;
 
     const TPIValue* LastKey_ = nullptr;
-    std::vector<const TPIValue*> Intermediate_;
-    std::vector<const TPIValue*> Aggregated_;
-    std::vector<const TPIValue*> Totals_;
+    TGroupVector Intermediate_;
+    TGroupVector Aggregated_;
+    TGroupVector Totals_;
 
     // Defines the stage of the stream processing.
     EGroupOpProcessingStage CurrentSegment_ = EGroupOpProcessingStage::LeftBorder;
@@ -1336,7 +1338,8 @@ TGroupByClosure::TGroupByClosure(
     , GroupedIntermediateRows_(
         InitialGroupOpHashtableCapacity,
         groupHasher,
-        groupComparer)
+        groupComparer,
+        TGroupRows::allocator_type(chunkProvider, GetRefCountedTypeCookie<TLookupRows>()))
     , GroupKeySize_(groupKeySize)
     , GroupStateSize_(groupStateSize)
     , OrderKeySize_(orderKeySize)
@@ -1350,6 +1353,9 @@ TGroupByClosure::TGroupByClosure(
     , ConsumeDelta_(consumeDelta)
     , ConsumeTotalsClosure_(consumeTotalsClosure)
     , ConsumeTotals_(consumeTotals)
+    , Intermediate_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Aggregated_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
+    , Totals_(TGroupVector::allocator_type(chunkProvider, GetRefCountedTypeCookie<TGroupVector>()))
     , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
 {
     GroupedIntermediateRows_.set_empty_key(
@@ -2025,7 +2031,10 @@ TPIValue* LookupInRowset(
 
     auto& lookupTable = (*lookupContext)->LookupTable;
     if (lookupTable == nullptr) {
-        lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
+        lookupTable = std::make_unique<TLookupRows>(
+            rowset->Size(),
+            hasher,
+            eqComparer);
         lookupTable->set_empty_key(nullptr);
 
         if (GetCurrentCompartment()) {
