@@ -525,15 +525,26 @@ void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TPro
         protoChunkSpec.has_compressed_data_size_override() &&
         protoChunkSpec.has_uncompressed_data_size_override());
 
-    auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
-        return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
-    };
+    // COMPAT(apollo1321): Remove in 26.1.
+    if (!protoChunkSpec.use_new_override_semantics()) {
+        auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+            return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+        };
+
+        OverrideSize(
+            protoChunkSpec.row_count_override(),
+            computeSize(protoChunkSpec.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+            computeSize(protoChunkSpec.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+            computeSize(protoChunkSpec.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+
+        return;
+    }
 
     OverrideSize(
         protoChunkSpec.row_count_override(),
-        computeSize(protoChunkSpec.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
-        computeSize(protoChunkSpec.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
-        computeSize(protoChunkSpec.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+        protoChunkSpec.data_weight_override(),
+        protoChunkSpec.compressed_data_size_override(),
+        protoChunkSpec.uncompressed_data_size_override());
 
 }
 
@@ -1024,6 +1035,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     chunkSpec->set_compressed_data_size_override(inputSlice->GetCompressedDataSize());
     chunkSpec->set_uncompressed_data_size_override(inputSlice->GetUncompressedDataSize());
+    // COMPAT(apollo1321): Remove in 26.1.
+    chunkSpec->set_use_new_override_semantics(true);
 
     if (inputSlice->GetInputChunk()->IsDynamicStore()) {
         SetTabletId(chunkSpec, inputSlice->GetInputChunk()->GetTabletId());
