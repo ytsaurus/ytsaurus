@@ -51,6 +51,7 @@ DEFINE_ENUM(EJobMetricName,
     (MainResourceConsumptionOperationAborted)
 
     (ValidateRootFSTime)
+    (PrepareTmpfsTime)
 );
 
 DEFINE_ENUM(ESummaryValueType,
