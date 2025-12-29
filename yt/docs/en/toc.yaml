@@ -120,6 +120,8 @@ items:
                href: user-guide/dynamic-tables/queues.md
          - name: Replicated tables
            href: user-guide/dynamic-tables/replicated-dynamic-tables.md
+         - name: Chaos replicated tables
+           href: user-guide/dynamic-tables/chaos-dynamic-tables.md   
          - name: Multi-versioning and transactions of dynamic tables
            href: user-guide/dynamic-tables/transactions.md
          - name: Sharding
