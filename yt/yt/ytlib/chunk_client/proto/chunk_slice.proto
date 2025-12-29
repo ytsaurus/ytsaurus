@@ -20,6 +20,9 @@ message TChunkSlice
     optional int64 data_weight_override = 5;
     optional int64 compressed_data_size_override = 6;
     optional int64 uncompressed_data_size_override = 7;
+
+    // COMPAT(apollo1321): Remove in 26.1.
+    optional bool use_new_override_semantics = 8;
 }
 
 message TSliceRequest
