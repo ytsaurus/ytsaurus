@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "vector_over_memory_chunk_provider.h"
 
 #include <yt/yt/library/query/engine_api/public.h>
+
+#include <yt/yt/library/query/misc/alloc.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -81,8 +82,10 @@ struct TColumnConstraint
     bool IsUniversal() const;
 };
 
+using TColumnConstraintsBase = std::vector<TConstraint, TAllocatorOverChunkProvider<TConstraint>>;
+
 struct TColumnConstraints
-    : public TVectorOverMemoryChunkProvider<TConstraint>
+    : public TColumnConstraintsBase
 {
     TColumnConstraints(
         TRefCountedTypeCookie cookie,
