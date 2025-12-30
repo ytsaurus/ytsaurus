@@ -733,7 +733,7 @@ public:
 
         operation->UpdateJobShellOptions(update->OptionsPerJobShell);
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
@@ -944,7 +944,7 @@ public:
         if (!controller) {
             YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
-            return VoidFuture;
+            return OKFuture;
         }
 
         if (!controller->GetCancelableContext()->IsCanceled()) {

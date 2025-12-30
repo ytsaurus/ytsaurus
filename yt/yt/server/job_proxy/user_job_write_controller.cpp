@@ -128,7 +128,7 @@ private:
         TFuture<void> Flush() override
         {
             if (RowBuffer_->GetSize() == 0) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             return
@@ -143,7 +143,7 @@ private:
 
                     bool ready = writer->Write(rows);
                     rowBuffer->Clear();
-                    return ready ? VoidFuture :  writer->GetReadyEvent();
+                    return ready ? OKFuture :  writer->GetReadyEvent();
                 })
                 .AsyncVia(Owner_->SerializedInvoker_)
                 .Run();

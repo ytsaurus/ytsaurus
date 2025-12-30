@@ -192,7 +192,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
 
                     if (BlocksExt_) {
                         ChunkFragmentReadsPrepared_[directIOFlag].store(true);
-                        return VoidFuture;
+                        return OKFuture;
                     }
 
                     if (BlocksExtCache_) {
@@ -201,7 +201,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
 
                     if (BlocksExt_) {
                         ChunkFragmentReadsPrepared_[directIOFlag].store(true);
-                        return VoidFuture;
+                        return OKFuture;
                     }
                 }
 

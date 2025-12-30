@@ -1854,7 +1854,7 @@ protected:
 
     const NLogging::TLogger Logger;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<void> ReadyEvent_ = OKFuture;
 
     using IRowBatchPtr = typename TRowBatchTrait<TImmutableRow>::IRowBatchPtr;
 

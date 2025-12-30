@@ -785,13 +785,13 @@ TFuture<void> THttpOutput::Write(const TSharedRef& data)
 
 TFuture<void> THttpOutput::Flush()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 TFuture<void> THttpOutput::Close()
 {
     if (MessageFinished_) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     if (!HeadersFlushed_) {

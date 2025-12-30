@@ -321,7 +321,7 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 
     if (CanSkipLookup_) {
         SetInitialAndResultingRows({});
-        return VoidFuture;
+        return OKFuture;
     }
 
     TLookupRowsOptions options;
@@ -733,7 +733,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
     }
 
     if (extraIndexKeys.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     auto keyTableIdMapping = BuildColumnIdMapping(

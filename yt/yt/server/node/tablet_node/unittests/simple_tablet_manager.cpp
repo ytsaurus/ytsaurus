@@ -238,7 +238,7 @@ const ILeaseManagerPtr& TSimpleTabletManager::GetLeaseManager() const
 
 TFuture<void> TSimpleTabletManager::IssueLeases(const std::vector<TLeaseId>& /*leaseIds*/)
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const

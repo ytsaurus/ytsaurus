@@ -2081,7 +2081,7 @@ public:
     TFuture<void> Initialize()
     {
         if (!Config_->LayersDirectoryPath) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
@@ -2162,10 +2162,10 @@ public:
                     .Apply(BIND(&TLayerLocation::Disable, TmpfsLocation_, error, persistentDisable));
             } else {
                 TmpfsLocation_->Disable(error, persistentDisable);
-                return VoidFuture;
+                return OKFuture;
             }
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2949,7 +2949,7 @@ protected:
         }
 
         if (!RemoveCallback_) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         RemoveFuture_ = RemoveCallback_(Targets_);
@@ -2969,7 +2969,7 @@ private:
             targets);
 
         if (targets.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         std::vector<TFuture<void>> futures;
@@ -3068,7 +3068,7 @@ private:
                     return device->Finalize();
                 }
 
-                return VoidFuture;
+                return OKFuture;
         })).ToUncancelable();
     }
 };
@@ -3404,7 +3404,7 @@ const TString& TOverlayData::GetPath() const
 TFuture<void> TOverlayData::Remove()
 {
     if (IsLayer()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return GetVolume()->Remove();
@@ -3486,7 +3486,7 @@ public:
             }
         }
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsLayerCached(const TArtifactKey&) const override
@@ -3509,12 +3509,12 @@ public:
 
     TFuture<void> GetVolumeReleaseEvent() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> DisableLayerCache(const TError&) override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     bool IsEnabled() const override
@@ -3953,7 +3953,7 @@ private:
         TTagSet tagSet,
         const TPrepareNbdVolumeOptions& options)
     {
-        auto future = VoidFuture;
+        auto future = OKFuture;
 
         const auto& layer = options.ArtifactKey;
 
@@ -4025,7 +4025,7 @@ private:
         TTagSet tagSet,
         const TPrepareNbdRootVolumeOptions& options)
     {
-        auto future = VoidFuture;
+        auto future = OKFuture;
         try {
             YT_LOG_DEBUG(
                 "Preparing NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",

@@ -244,7 +244,7 @@ public:
         , Codec_(NErasure::GetCodec(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
         , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetWordSize()))
-        , ReadyEvent_(VoidFuture)
+        , ReadyEvent_(OKFuture)
         , Writers_(writers)
         , BlockReorderer_(Config_)
     {
@@ -510,7 +510,7 @@ TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& opt
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     if (blocks.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     BlockReorderer_.ReorderBlocks(blocks);

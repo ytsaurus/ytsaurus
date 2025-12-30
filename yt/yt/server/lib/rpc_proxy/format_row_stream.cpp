@@ -139,12 +139,12 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<void> Close() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     const NTableClient::TNameTablePtr& GetNameTable() const override

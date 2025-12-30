@@ -236,7 +236,7 @@ TFuture<void> TTransactionPresenceCache::SubscribeRemoteTransactionReplicated(TT
 
         case ETransactionPresence::Replicated:
         case ETransactionPresence::RecentlyFinished:
-            return VoidFuture;
+            return OKFuture;
 
         default:
             YT_ABORT();

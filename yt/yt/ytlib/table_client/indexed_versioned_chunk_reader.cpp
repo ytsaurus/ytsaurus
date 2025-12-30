@@ -122,7 +122,7 @@ private:
     {
         while (true) {
             if (Controller_->IsFinished()) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto request = Controller_->GetReadRequest();

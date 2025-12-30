@@ -692,7 +692,7 @@ public:
             YT_LOG_TRACE("Got sync snapshot block (Size: %v)", blockCopy.Size());
             SyncBlocks_.push_back(blockCopy);
             SyncSize_ += block.Size();
-            return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : VoidFuture;
+            return SuspendedPromise_ ? SuspendedPromise_.ToFuture() : OKFuture;
         }
     }
 
@@ -717,7 +717,7 @@ private:
     i64 AsyncSize_ = 0;
     IAsyncZeroCopyOutputStreamPtr UnderlyingStream_;
     std::vector<TSharedRef> SyncBlocks_;
-    TFuture<void> LastForwardResult_ = VoidFuture;
+    TFuture<void> LastForwardResult_ = OKFuture;
 
 
     TFuture<void> ForwardBlock(const TSharedRef& block)

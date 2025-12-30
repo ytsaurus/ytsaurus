@@ -54,7 +54,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         THROW_ERROR_EXCEPTION("Cannot process a heartbeat with invalid node id");
     }
 
-    auto unregisterFuture = VoidFuture;
+    auto unregisterFuture = OKFuture;
 
     {
         auto guard = Guard(NodeAddressToNodeIdLock_);

@@ -1213,7 +1213,7 @@ private:
 
         // Fast path.
         if (ReplicateToCellTags_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Another fast path.
@@ -1224,7 +1224,7 @@ private:
                 .AddTransaction(std::move(createdTransaction))
                 .AddCells(ReplicateToCellTags_)
                 .Run();
-            return VoidFuture;
+            return OKFuture;
         }
 
         return New<TTransactionReplicator>(
@@ -1317,7 +1317,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (PrerequisiteTransactionIds_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return SequoiaTransaction_->LookupRows(ToTransactionKeys<NRecords::TDoomedTransactionKey>(PrerequisiteTransactionIds_))
@@ -1456,7 +1456,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (CurrentTransactions_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return FetchNextTransaction()
@@ -1625,7 +1625,7 @@ private:
 
         // Fast path; transaction is missing.
         if (!target) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto transaction = *target;
@@ -1644,7 +1644,7 @@ private:
 
         // Fast path; transaction is already doomed, no need to mark it as doomed again.
         if (target) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         return New<TDependentTransactionCollector>(
@@ -1759,7 +1759,7 @@ protected:
                 if (keptResponse.has_value()) {
                     // NB: Sequoia transaction is no-op here.
                     Response_ = *keptResponse;
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 return FetchTransaction<NRecords::TTransaction>(TransactionId_)
@@ -1912,7 +1912,7 @@ private:
 
         // Fast path.
         if (TransactionFinishIsNoop(target)) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // Case of absence target transaction is handled in
@@ -2216,7 +2216,7 @@ private:
         ValidateTransactionAncestors(transactions);
 
         if (transactions.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         // |TTransactionReplicator| handles transactions hierarchy to allow us
@@ -2402,7 +2402,7 @@ TFuture<void> ReplicateCypressTransactions(
 {
     // Fast path.
     if (transactionIds.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return New<TReplicateCypressTransactions>(

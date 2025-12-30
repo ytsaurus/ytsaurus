@@ -69,7 +69,7 @@ public:
 
     TFuture<void> GetBlockFuture() const override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     TCachedBlock GetBlock() const override

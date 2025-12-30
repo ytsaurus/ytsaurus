@@ -118,7 +118,7 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfig
     if (!ownerNode.IsOK()) {
         if (ownerNode.FindMatching(NYTree::EErrorCode::ResolveError)) {
             YT_LOG_ERROR(ownerNode, "Skipping cleaning up keys: owner node doesn't exist");
-            return VoidFuture;
+            return OKFuture;
         }
         return MakeFuture(TError(ownerNode));
     }
@@ -127,7 +127,7 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnReachedLimit(TCypressKeyWriterConfig
     auto currentKeyCount = currentKeys->GetChildCount();
     if (currentKeyCount + 1 <= *config->MaxKeyCount) {
         YT_LOG_DEBUG("Skipping cleaning up keys (CurrentKeyCount: %v, MaxKeyCount: %v)", currentKeyCount, *config->MaxKeyCount);
-        return VoidFuture;
+        return OKFuture;
     }
 
     int keysToDelete = currentKeyCount + 1 - *config->MaxKeyCount;
@@ -168,7 +168,7 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
     // We should not register keys belonging to other owners.
     YT_VERIFY(ownerId == OwnerId_);
 
-    auto cleanUpFuture = config->MaxKeyCount ? CleanUpKeysIfLimitReached(config) : VoidFuture;
+    auto cleanUpFuture = config->MaxKeyCount ? CleanUpKeysIfLimitReached(config) : OKFuture;
     return cleanUpFuture
         .Apply(BIND([
                 this,

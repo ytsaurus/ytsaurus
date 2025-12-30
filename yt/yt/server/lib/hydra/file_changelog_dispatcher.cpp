@@ -97,7 +97,7 @@ public:
         auto guard = WriterGuard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         FlushForced_.store(true);

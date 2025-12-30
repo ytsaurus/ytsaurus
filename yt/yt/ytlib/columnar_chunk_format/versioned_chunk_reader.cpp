@@ -479,7 +479,7 @@ public:
 
     TFuture<void> Open() override
     {
-        return VoidFuture;
+        return OKFuture;
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override

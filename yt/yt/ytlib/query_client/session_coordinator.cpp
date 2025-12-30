@@ -228,7 +228,7 @@ private:
         {
             auto guard = Guard(SessionCoordinatorLock_);
             if (!SessionMembers_.insert(address).second) {
-                return VoidFuture;
+                return OKFuture;
             }
         }
 

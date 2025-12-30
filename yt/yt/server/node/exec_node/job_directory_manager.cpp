@@ -70,7 +70,7 @@ public:
     TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (!EnableDiskQuota_) {
-            return VoidFuture;
+            return OKFuture;
         }
         return DoCreateVolume(path, properties, false);
     }
@@ -136,7 +136,7 @@ private:
         } else if (properties.DiskSpaceLimit || properties.InodeLimit) {
             volumeProperties["backend"] = "quota";
         } else {
-            return VoidFuture;
+            return OKFuture;
         }
 
         volumeProperties["user"] = ToString(properties.UserId);
@@ -209,7 +209,7 @@ public:
     TFuture<void> ApplyQuota(const TString& path, const TJobDirectoryProperties& properties) override
     {
         if (!properties.InodeLimit && !properties.DiskSpaceLimit) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto config = New<TFSQuotaConfig>();

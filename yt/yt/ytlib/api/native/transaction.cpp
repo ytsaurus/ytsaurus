@@ -946,12 +946,12 @@ private:
         TFuture<void> WriteHunks()
         {
             if (HunkPayloads_.empty()) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             const auto& hunkTableInfo = TableSession_->GetHunkTableInfo();
@@ -1346,7 +1346,7 @@ private:
             } else {
                 auto transaction = Transaction_.Lock();
                 if (!transaction) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 const auto& replicationCardCache = transaction->Client_->GetReplicationCardCache();
@@ -1395,12 +1395,12 @@ private:
             YT_ASSERT_THREAD_AFFINITY_ANY();
 
             if (!TableInfo_->HunkStorageId) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             auto hunkStorageId = TableInfo_->HunkStorageId;
@@ -1410,7 +1410,7 @@ private:
             auto maybeTableInfoOrError = tableInfoFuture.TryGet();
             if (maybeTableInfoOrError && maybeTableInfoOrError->IsOK()) {
                 OnGotHunkTableMountInfo(maybeTableInfoOrError->Value());
-                return VoidFuture;
+                return OKFuture;
             } else {
                 return tableInfoFuture
                     .Apply(BIND(
@@ -1655,7 +1655,7 @@ private:
             [&] {
                 const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
                 if (clusterDirectory->FindConnection(replicaInfo->ClusterName)) {
-                    return VoidFuture;
+                    return OKFuture;
                 }
 
                 YT_LOG_DEBUG("Replica cluster is not known; waiting for cluster directory sync (ClusterName: %v)",
@@ -2163,7 +2163,7 @@ private:
                 tabletSession->PrepareRequests();
             }
 
-            return VoidFuture;
+            return OKFuture;
         }
     }
 
@@ -2179,7 +2179,7 @@ private:
     TFuture<void> DoCommitTabletSessions()
     {
         if (TabletIdToSession_.empty()) {
-            return VoidFuture;
+            return OKFuture;
         }
 
         std::vector<ITabletCommitSessionPtr> sessions;
@@ -2345,13 +2345,13 @@ private:
             [&] {
                 return needsFlush
                     ? AllSucceeded(GetTableSessionsPrepareFutures(PendingSessions_))
-                    : VoidFuture;
+                    : OKFuture;
             }()
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
 
-                    return needsFlush ? PrepareRequests() : VoidFuture;
+                    return needsFlush ? PrepareRequests() : OKFuture;
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
                 BIND([=, this, this_ = MakeStrong(this)] {

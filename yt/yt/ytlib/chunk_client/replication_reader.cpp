@@ -1452,7 +1452,7 @@ private:
     //! Sets the value upon cancelation.
     std::optional<TError> CancelationError_;
     //! Future of the previous cancellable action within session (e.g. Throttle, GetBlockSet).
-    TFuture<void> SessionFuture_ = VoidFuture;
+    TFuture<void> SessionFuture_ = OKFuture;
 
 
     int ComparePeerLocality(const TPeer& lhs, const TPeer& rhs) const
@@ -2194,7 +2194,7 @@ private:
 
                 return future;
             } else {
-                return VoidFuture;
+                return OKFuture;
             }
         }
 

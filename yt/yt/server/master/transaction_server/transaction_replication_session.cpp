@@ -418,7 +418,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
     return syncSession->Sync(cellTags, std::move(additionalFutures))
         .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] {
             if (!asyncResult) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             YT_VERIFY(asyncResult.IsSet());
@@ -502,7 +502,7 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
                     this, this_ = MakeStrong(this), result = std::move(result)
                 ] () mutable {
                     for (auto mirroredTransactionId : MirroredTransactionIds_) {
-                        EmplaceOrCrash(result, mirroredTransactionId, VoidFuture);
+                        EmplaceOrCrash(result, mirroredTransactionId, OKFuture);
                     }
                     return result;
                 }));

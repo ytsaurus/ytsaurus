@@ -204,7 +204,7 @@ void TCompositeAutomatonPart::CheckInvariants()
 
 TFuture<void> TCompositeAutomatonPart::GetReadyToEnterReadOnlyMode()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TCompositeAutomatonPart::StartEpoch()
@@ -335,7 +335,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
         });
 
     if (AsyncSavers_.empty()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_VERIFY(AsyncSnapshotInvoker_);

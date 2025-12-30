@@ -25,7 +25,7 @@ TFuture<TSharedRange<TUnversionedRow>> TSimpleRowsetWriter::GetResult() const
 TFuture<void> TSimpleRowsetWriter::Close()
 {
     Result_.TrySet(GetRows());
-    return VoidFuture;
+    return OKFuture;
 }
 
 bool TSimpleRowsetWriter::Write(TRange<TUnversionedRow> rows)
@@ -38,7 +38,7 @@ bool TSimpleRowsetWriter::Write(TRange<TUnversionedRow> rows)
 
 TFuture<void> TSimpleRowsetWriter::GetReadyEvent()
 {
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TSimpleRowsetWriter::Fail(const TError& error)

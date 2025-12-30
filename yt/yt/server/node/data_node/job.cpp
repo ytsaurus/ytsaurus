@@ -480,7 +480,7 @@ private:
 
                 chunkStore->RemoveNonexistentChunk(ChunkId_, locationUuid);
             }
-            return VoidFuture;
+            return OKFuture;
         }
 
         return chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);

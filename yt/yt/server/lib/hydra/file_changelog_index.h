@@ -127,7 +127,7 @@ private:
     i64 DataFileLength_ = -1;
 
     std::atomic<bool> Flushing_ = false;
-    TFuture<void> FlushFuture_ = VoidFuture;
+    TFuture<void> FlushFuture_ = OKFuture;
 
     struct TRecord
     {

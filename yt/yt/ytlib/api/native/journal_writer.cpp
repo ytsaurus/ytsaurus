@@ -196,7 +196,7 @@ private:
 
             YT_VERIFY(!Closing_);
 
-            auto result = VoidFuture;
+            auto result = OKFuture;
 
             for (const auto& row : rows) {
                 YT_VERIFY(row);
@@ -213,7 +213,7 @@ private:
         TFuture<void> Close()
         {
             if (Config_->DontClose) {
-                return VoidFuture;
+                return OKFuture;
             }
 
             EnqueueCommand(TCloseCommand());

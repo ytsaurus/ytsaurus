@@ -1829,7 +1829,7 @@ TFuture<void> TOperationControllerBase::AbortInputTransactions() const
     if (InputTransactions_) {
         return InputTransactions_->Abort(SchedulerInputClient_);
     }
-    return VoidFuture;
+    return OKFuture;
 }
 
 void TOperationControllerBase::PickIntermediateDataCells()

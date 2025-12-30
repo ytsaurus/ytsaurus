@@ -213,7 +213,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         YT_LOG_DEBUG(
             "Slot manager is already in (%v) state; skipping environment initialization",
             expected);
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_LOG_INFO(

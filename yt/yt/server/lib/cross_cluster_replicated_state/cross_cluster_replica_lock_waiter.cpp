@@ -100,7 +100,7 @@ public:
                 << TErrorAttribute("node_path", NodePath_)
                 << TErrorAttribute("target_version", TargetVersion_);
             Acquired_.Set(std::move(exceededError));
-            return VoidFuture;
+            return OKFuture;
         }
 
         auto checkVersion = [this, this_ = MakeStrong(this)] (TYsonString&& rsp) {
@@ -108,7 +108,7 @@ public:
             auto version = ExtractVersion(node);
             if (version >= TargetVersion_) {
                 Acquired_.Set(ELockAcquisionState::Outdated);
-                return VoidFuture;
+                return OKFuture;
             }
 
             return LockEntry_->CheckLockState()

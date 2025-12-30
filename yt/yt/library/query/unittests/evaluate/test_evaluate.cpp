@@ -146,7 +146,7 @@ TQueryStatistics DoExecuteQuery(
     EXPECT_CALL(*readerMock, Read(_))
         .WillRepeatedly(Invoke(readRows));
     ON_CALL(*readerMock, GetReadyEvent())
-        .WillByDefault(Return(VoidFuture));
+        .WillByDefault(Return(OKFuture));
 
     return evaluator->Run(
         query,
@@ -770,7 +770,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         EXPECT_CALL(*readerMock, Read(_))
             .WillRepeatedly(Invoke(readRows));
         ON_CALL(*readerMock, GetReadyEvent())
-            .WillByDefault(Return(VoidFuture));
+            .WillByDefault(Return(OKFuture));
 
         auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
         resultStatistics[index] = Evaluator_->Run(
@@ -862,7 +862,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
     EXPECT_CALL(*readerMock, Read(_))
         .WillRepeatedly(Invoke(readRows));
     ON_CALL(*readerMock, GetReadyEvent())
-        .WillByDefault(Return(VoidFuture));
+        .WillByDefault(Return(OKFuture));
 
     auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
 

@@ -656,7 +656,7 @@ TFuture<void> TDistributedElectionManager::Abandon(const TError& error)
 
     switch (State_) {
         case EPeerState::Stopped:
-            return VoidFuture;
+            return OKFuture;
 
         case EPeerState::Voting:
             return StopVoting(error);
@@ -959,7 +959,7 @@ TFuture<void> TDistributedElectionManager::Discombobulate(i64 leaderSequenceNumb
 
     if (EpochContext_->Discombobulated) {
         YT_LOG_INFO("Already in discombobulated state");
-        return VoidFuture;
+        return OKFuture;
     }
 
     YT_LOG_INFO("Entering discombobulated state (EpochId: %v)",

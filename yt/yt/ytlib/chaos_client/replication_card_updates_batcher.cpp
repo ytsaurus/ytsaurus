@@ -221,7 +221,7 @@ private:
             replicaId,
             std::make_unique<TReplicationProgressUpdatesSerializer>(std::move(progressUpdate)));
 
-        return VoidFuture;
+        return OKFuture;
     }
 
     TFuture<TReplicationCardPtr> ToReplicationCardFuture(
