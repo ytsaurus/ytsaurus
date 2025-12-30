@@ -1,0 +1,18 @@
+{{- if and .Values.microservices.accessLogViewer.enabled .Values.microservices.accessLogViewer.api.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-access-log-viewer-service
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: access-log-viewer
+spec:
+  type: {{ .Values.microservices.accessLogViewer.api.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.microservices.accessLogViewer.api.service.port }}
+      targetPort: http
+  selector:
+    {{- include "ytmsvc.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: access-log-viewer
+{{- end }}
