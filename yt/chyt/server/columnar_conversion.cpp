@@ -761,8 +761,8 @@ void ReduceFilterToDistinct(
         ytColumn.StartIndex + ytColumn.ValueCount,
         dictionaryIndexes,
         rleIndexes,
-        [] (i64 index) {
-            return index + 1;
+        [&] (i64 index) {
+            return index - ytValueColumn->StartIndex + 1;
         },
         [&] (i64 index) {
             hasNull |= (index == 0);
