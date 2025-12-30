@@ -1,0 +1,91 @@
+{{- if and .Values.microservices.accessLogViewer.enabled .Values.microservices.accessLogViewer.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ytmsvc.fullname" . }}-access-log-viewer-api
+  labels:
+    {{- include "ytmsvc.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: access-log-viewer
+spec:
+  selector:
+    matchLabels:
+      {{- include "ytmsvc.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: access-log-viewer
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ytmsvc.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/component: access-log-viewer
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (.Values.microservices.accessLogViewer.image.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+            - "./access_log_viewer"
+            - "-i"
+            - {{ .Values.cluster.name | quote }}
+            - "-p"
+            - {{ .Values.microservices.accessLogViewer.api.service.port | quote }}
+            - "--chyt-cluster-name"
+            - {{ .Values.cluster.name | quote }}
+            - "--chyt-alias"
+            - {{ .Values.microservices.accessLogViewer.api.config.chytAlias | quote }}
+            - "--snapshot-root"
+            - {{ .Values.microservices.accessLogViewer.preprocessing.config.outputPath | quote }}
+            - "--auth-cookie-name"
+            - {{ .Values.authCookieName | quote }}
+            {{- if .Values.cors.allowedHosts }}
+            - "--allowed-hosts"
+            - {{ .Values.cors.allowedHosts | join "," | quote }}
+            {{- end }}
+            {{- if .Values.cors.allowedHostSuffixes }}
+            - "--allowed-hosts-suffixes"
+            - {{ .Values.cors.allowedHostSuffixes | join "," | quote }}
+            {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "ytmsvc.image" (dict "image" .Values.microservices.accessLogViewer.image "root" .) }}
+          imagePullPolicy: {{ .Values.microservices.accessLogViewer.image.pullPolicy | default .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.microservices.accessLogViewer.api.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+          env:
+            - name: YT_PROXY
+              value: "{{ .Values.cluster.name }}"
+            - name: YT_PROXY_URL_ALIASING_CONFIG
+              value: "{\"{{ .Values.cluster.name }}\"=\"{{ .Values.cluster.proxy }}\";}"
+          envFrom:
+          {{- with .Values.microservices.accessLogViewer.secretRefs | default .Values.secretRefs }}
+            {{- range . }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml (.Values.microservices.accessLogViewer.resources | default .Values.resources) | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -11,7 +11,7 @@ spec:
   successfulJobsHistoryLimit: {{ .Values.microservices.resourceUsage.preprocessing.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.microservices.resourceUsage.preprocessing.failedJobsHistoryLimit }}
   startingDeadlineSeconds: {{ .Values.microservices.resourceUsage.preprocessing.startingDeadlineSeconds }}
-  concurrencyPolicy: {{ .Values.microservices.resourceUsage.preprocessing.concurrencyPolicy | quote }}
+  concurrencyPolicy: "Forbid"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: {{ .Values.microservices.resourceUsage.preprocessing.ttlSecondsAfterFinished }}
@@ -93,7 +93,7 @@ spec:
   successfulJobsHistoryLimit: {{ .Values.microservices.resourceUsage.removeExcessive.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.microservices.resourceUsage.removeExcessive.failedJobsHistoryLimit }}
   startingDeadlineSeconds: {{ .Values.microservices.resourceUsage.removeExcessive.startingDeadlineSeconds }}
-  concurrencyPolicy: {{ .Values.microservices.resourceUsage.removeExcessive.concurrencyPolicy | quote }}
+  concurrencyPolicy: "Forbid"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: {{ .Values.microservices.resourceUsage.removeExcessive.ttlSecondsAfterFinished }}
