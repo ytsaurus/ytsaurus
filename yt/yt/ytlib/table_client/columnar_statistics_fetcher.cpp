@@ -226,6 +226,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             // Versioned tables are currently not supported; default to the previous estimation method.
             chunk->SetReadSizeSelectivityFactor(chunk->GetColumnSelectivityFactor());
         }
+        chunk->SetReadSizeSelectivityFactor(std::min(chunk->GetReadSizeSelectivityFactor(), 1.0));
     }
 }
 
