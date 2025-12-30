@@ -1315,7 +1315,7 @@ private:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         // This is context switch, chunk may die.
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk)
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunk, /*includeUnapproved*/ true)
             .ValueOrThrow();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());

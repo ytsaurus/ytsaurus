@@ -422,7 +422,7 @@ private:
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
 
-                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
+                    auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
 
                     BuildChunkSpec(
@@ -520,7 +520,9 @@ private:
             chunks.emplace_back(chunk);
         }
 
-        auto replicas = chunkReplicaFetcher->GetChunkReplicas(chunks);
+        auto replicas = chunkReplicaFetcher->GetChunkReplicas(
+            chunks,
+            /*includeUnapproved*/ true);
 
         for (const auto& subrequest : request->subrequests()) {
             auto sessionId = FromProto<TSessionId>(subrequest.session_id());
