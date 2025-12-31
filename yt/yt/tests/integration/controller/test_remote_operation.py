@@ -1162,7 +1162,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         with pytest.raises(YtError) as err:
             op.track(timeout=datetime.timedelta(seconds=10))
 
-        assert 'has not finished in' in str(err.value)
+        assert 'has not finished in' in str(err.value) or 'running for too long' in str(err.value)
 
         # Check that operation scheduling was paused due to unavailable network bandwidth.
         assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()
