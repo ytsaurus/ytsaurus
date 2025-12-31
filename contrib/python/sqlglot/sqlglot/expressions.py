@@ -4691,6 +4691,7 @@ class DataType(Expression):
         ENUM = auto()
         ENUM8 = auto()
         ENUM16 = auto()
+        FILE = auto()
         FIXEDSTRING = auto()
         FLOAT = auto()
         GEOGRAPHY = auto()
@@ -4788,6 +4789,7 @@ class DataType(Expression):
         TDIGEST = auto()
 
     STRUCT_TYPES = {
+        Type.FILE,
         Type.NESTED,
         Type.OBJECT,
         Type.STRUCT,
@@ -5161,6 +5163,14 @@ class Div(Binary):
 
 
 class Overlaps(Binary):
+    pass
+
+
+class ExtendsLeft(Binary):
+    pass
+
+
+class ExtendsRight(Binary):
     pass
 
 
@@ -5881,7 +5891,7 @@ class ToArray(Func):
 
 
 class ToBoolean(Func):
-    pass
+    arg_types = {"this": True, "safe": False}
 
 
 # https://materialize.com/docs/sql/types/list/
@@ -5919,6 +5929,8 @@ class ToNumber(Func):
         "nlsparam": False,
         "precision": False,
         "scale": False,
+        "safe": False,
+        "safe_name": False,
     }
 
 
@@ -5927,6 +5939,7 @@ class ToDouble(Func):
     arg_types = {
         "this": True,
         "format": False,
+        "safe": False,
     }
 
 
@@ -5943,6 +5956,15 @@ class TryToDecfloat(Func):
     arg_types = {
         "this": True,
         "format": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/to_file
+class ToFile(Func):
+    arg_types = {
+        "this": True,
+        "path": False,
+        "safe": False,
     }
 
 
@@ -6396,6 +6418,14 @@ class CurrentTimestampLTZ(Func):
     arg_types = {}
 
 
+class CurrentTimezone(Func):
+    arg_types = {}
+
+
+class Sysdate(Func):
+    arg_types = {}
+
+
 class CurrentOrganizationName(Func):
     arg_types = {}
 
@@ -6425,6 +6455,10 @@ class CurrentRoleType(Func):
 
 
 class CurrentOrganizationUser(Func):
+    arg_types = {}
+
+
+class SessionUser(Func):
     arg_types = {}
 
 
@@ -6597,8 +6631,13 @@ class Exists(Func, SubqueryPredicate):
     arg_types = {"this": True, "expression": False}
 
 
+class Elt(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
 class Timestamp(Func):
-    arg_types = {"this": False, "zone": False, "with_tz": False}
+    arg_types = {"this": False, "zone": False, "with_tz": False, "safe": False}
 
 
 class TimestampAdd(Func, TimeUnit):
@@ -6776,7 +6815,7 @@ class ToBase64(Func):
 
 
 class ToBinary(Func):
-    arg_types = {"this": True, "format": False}
+    arg_types = {"this": True, "format": False, "safe": False}
 
 
 # https://docs.snowflake.com/en/sql-reference/functions/base64_decode_binary
@@ -8090,6 +8129,10 @@ class Unhex(Func):
 
 class Unicode(Func):
     pass
+
+
+class Uniform(Func):
+    arg_types = {"this": True, "expression": True, "gen": False, "seed": False}
 
 
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#unix_date
