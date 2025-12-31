@@ -53,6 +53,21 @@ def _build_strtok(args: t.List) -> exp.SplitPart:
     return exp.SplitPart.from_arg_list(args)
 
 
+def _build_approx_top_k(args: t.List) -> exp.ApproxTopK:
+    """
+    Normalizes APPROX_TOP_K arguments to match Snowflake semantics.
+
+    Snowflake APPROX_TOP_K signature: APPROX_TOP_K(column [, k] [, counters])
+    - k defaults to 1 if omitted (per Snowflake documentation)
+    - counters is optional precision parameter
+    """
+    # Add default k=1 if only column is provided
+    if len(args) == 1:
+        args.append(exp.Literal.number(1))
+
+    return exp.ApproxTopK.from_arg_list(args)
+
+
 def _build_datetime(
     name: str, kind: exp.DataType.Type, safe: bool = False
 ) -> t.Callable[[t.List], exp.Func]:
@@ -580,6 +595,16 @@ def _build_round(args: t.List) -> exp.Round:
     return expression
 
 
+def _build_try_to_number(args: t.List[exp.Expression]) -> exp.Expression:
+    return exp.ToNumber(
+        this=seq_get(args, 0),
+        format=seq_get(args, 1),
+        precision=seq_get(args, 2),
+        scale=seq_get(args, 3),
+        safe=True,
+    )
+
+
 class Snowflake(Dialect):
     # https://docs.snowflake.com/en/sql-reference/identifiers-syntax
     NORMALIZATION_STRATEGY = NormalizationStrategy.UPPERCASE
@@ -667,6 +692,7 @@ class Snowflake(Dialect):
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
             "APPROX_PERCENTILE": exp.ApproxQuantile.from_arg_list,
+            "APPROX_TOP_K": _build_approx_top_k,
             "ARRAY_CONSTRUCT": lambda args: exp.Array(expressions=args),
             "ARRAY_CONTAINS": lambda args: exp.ArrayContains(
                 this=seq_get(args, 1), expression=seq_get(args, 0), ensure_variant=False
@@ -716,6 +742,7 @@ class Snowflake(Dialect):
             ),
             "FLATTEN": exp.Explode.from_arg_list,
             "GET": exp.GetExtract.from_arg_list,
+            "GETDATE": exp.CurrentTimestamp.from_arg_list,
             "GET_PATH": lambda args, dialect: exp.JSONExtract(
                 this=seq_get(args, 0),
                 expression=dialect.to_json_path(seq_get(args, 1)),
@@ -761,18 +788,34 @@ class Snowflake(Dialect):
             "TIMESTAMPNTZFROMPARTS": _build_timestamp_from_parts,
             "TIMESTAMP_NTZ_FROM_PARTS": _build_timestamp_from_parts,
             "TRY_PARSE_JSON": lambda args: exp.ParseJSON(this=seq_get(args, 0), safe=True),
+            "TRY_TO_BINARY": lambda args: exp.ToBinary(
+                this=seq_get(args, 0), format=seq_get(args, 1), safe=True
+            ),
+            "TRY_TO_BOOLEAN": lambda args: exp.ToBoolean(this=seq_get(args, 0), safe=True),
             "TRY_TO_DATE": _build_datetime("TRY_TO_DATE", exp.DataType.Type.DATE, safe=True),
+            **dict.fromkeys(
+                ("TRY_TO_DECIMAL", "TRY_TO_NUMBER", "TRY_TO_NUMERIC"), _build_try_to_number
+            ),
+            "TRY_TO_DOUBLE": lambda args: exp.ToDouble(
+                this=seq_get(args, 0), format=seq_get(args, 1), safe=True
+            ),
+            "TRY_TO_FILE": lambda args: exp.ToFile(
+                this=seq_get(args, 0), path=seq_get(args, 1), safe=True
+            ),
             "TRY_TO_TIME": _build_datetime("TRY_TO_TIME", exp.DataType.Type.TIME, safe=True),
             "TRY_TO_TIMESTAMP": _build_datetime(
                 "TRY_TO_TIMESTAMP", exp.DataType.Type.TIMESTAMP, safe=True
             ),
             "TO_CHAR": build_timetostr_or_tochar,
             "TO_DATE": _build_datetime("TO_DATE", exp.DataType.Type.DATE),
-            "TO_NUMBER": lambda args: exp.ToNumber(
-                this=seq_get(args, 0),
-                format=seq_get(args, 1),
-                precision=seq_get(args, 2),
-                scale=seq_get(args, 3),
+            **dict.fromkeys(
+                ("TO_DECIMAL", "TO_NUMBER", "TO_NUMERIC"),
+                lambda args: exp.ToNumber(
+                    this=seq_get(args, 0),
+                    format=seq_get(args, 1),
+                    precision=seq_get(args, 2),
+                    scale=seq_get(args, 3),
+                ),
             ),
             "TO_TIME": _build_datetime("TO_TIME", exp.DataType.Type.TIME),
             "TO_TIMESTAMP": _build_datetime("TO_TIMESTAMP", exp.DataType.Type.TIMESTAMP),
@@ -790,6 +833,7 @@ class Snowflake(Dialect):
             "ILIKE": build_like(exp.ILike),
             "SEARCH": _build_search,
             "SKEW": exp.Skewness.from_arg_list,
+            "SYSTIMESTAMP": exp.CurrentTimestamp.from_arg_list,
             "WEEKISO": exp.WeekOfYear.from_arg_list,
             "WEEKOFYEAR": exp.Week.from_arg_list,
         }
@@ -1001,29 +1045,7 @@ class Snowflake(Dialect):
             expression = (
                 self._match_set((TokenType.FROM, TokenType.COMMA)) and self._parse_bitwise()
             )
-
-            this = map_date_part(this)
-            name = this.name.upper()
-
-            if name.startswith("EPOCH"):
-                if name == "EPOCH_MILLISECOND":
-                    scale = 10**3
-                elif name == "EPOCH_MICROSECOND":
-                    scale = 10**6
-                elif name == "EPOCH_NANOSECOND":
-                    scale = 10**9
-                else:
-                    scale = None
-
-                ts = self.expression(exp.Cast, this=expression, to=exp.DataType.build("TIMESTAMP"))
-                to_unix: exp.Expression = self.expression(exp.TimeToUnix, this=ts)
-
-                if scale:
-                    to_unix = exp.Mul(this=to_unix, expression=exp.Literal.number(scale))
-
-                return to_unix
-
-            return self.expression(exp.Extract, this=this, expression=expression)
+            return self.expression(exp.Extract, this=map_date_part(this), expression=expression)
 
         def _parse_bracket_key_value(self, is_map: bool = False) -> t.Optional[exp.Expression]:
             if is_map:
@@ -1324,6 +1346,9 @@ class Snowflake(Dialect):
             "TIMESTAMP_TZ": TokenType.TIMESTAMPTZ,
             "TOP": TokenType.TOP,
             "WAREHOUSE": TokenType.WAREHOUSE,
+            # https://docs.snowflake.com/en/sql-reference/data-types-numeric#float
+            # FLOAT is a synonym for DOUBLE in Snowflake
+            "FLOAT": TokenType.DOUBLE,
         }
         KEYWORDS.pop("/*+")
 
@@ -1437,7 +1462,26 @@ class Snowflake(Dialect):
             exp.Max: max_or_greatest,
             exp.Min: min_or_least,
             exp.ParseJSON: lambda self, e: self.func(
-                "TRY_PARSE_JSON" if e.args.get("safe") else "PARSE_JSON", e.this
+                f"{'TRY_' if e.args.get('safe') else ''}PARSE_JSON", e.this
+            ),
+            exp.ToBinary: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}TO_BINARY", e.this, e.args.get("format")
+            ),
+            exp.ToBoolean: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}TO_BOOLEAN", e.this
+            ),
+            exp.ToDouble: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}TO_DOUBLE", e.this, e.args.get("format")
+            ),
+            exp.ToFile: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}TO_FILE", e.this, e.args.get("path")
+            ),
+            exp.ToNumber: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}TO_NUMBER",
+                e.this,
+                e.args.get("format"),
+                e.args.get("precision"),
+                e.args.get("scale"),
             ),
             exp.JSONFormat: rename_func("TO_JSON"),
             exp.PartitionedByProperty: lambda self, e: f"PARTITION BY {self.sql(e, 'this')}",
@@ -1499,14 +1543,13 @@ class Snowflake(Dialect):
             exp.TimeToUnix: lambda self, e: f"EXTRACT(epoch_second FROM {self.sql(e, 'this')})",
             exp.ToArray: rename_func("TO_ARRAY"),
             exp.ToChar: lambda self, e: self.function_fallback_sql(e),
-            exp.ToDouble: rename_func("TO_DOUBLE"),
             exp.TsOrDsAdd: date_delta_sql("DATEADD", cast=True),
             exp.TsOrDsDiff: date_delta_sql("DATEDIFF"),
             exp.TsOrDsToDate: lambda self, e: self.func(
-                "TRY_TO_DATE" if e.args.get("safe") else "TO_DATE", e.this, self.format_time(e)
+                f"{'TRY_' if e.args.get('safe') else ''}TO_DATE", e.this, self.format_time(e)
             ),
             exp.TsOrDsToTime: lambda self, e: self.func(
-                "TRY_TO_TIME" if e.args.get("safe") else "TO_TIME", e.this, self.format_time(e)
+                f"{'TRY_' if e.args.get('safe') else ''}TO_TIME", e.this, self.format_time(e)
             ),
             exp.Unhex: rename_func("HEX_DECODE_BINARY"),
             exp.UnixToTime: rename_func("TO_TIMESTAMP"),
@@ -1573,6 +1616,15 @@ class Snowflake(Dialect):
             return super().values_sql(expression, values_as_table=values_as_table)
 
         def datatype_sql(self, expression: exp.DataType) -> str:
+            # Check if this is a FLOAT type nested inside a VECTOR type
+            # VECTOR only accepts FLOAT (not DOUBLE), INT, and STRING as element types
+            # https://docs.snowflake.com/en/sql-reference/data-types-vector
+            if expression.is_type(exp.DataType.Type.DOUBLE):
+                parent = expression.parent
+                if isinstance(parent, exp.DataType) and parent.is_type(exp.DataType.Type.VECTOR):
+                    # Preserve FLOAT for VECTOR types instead of mapping to synonym DOUBLE
+                    return "FLOAT"
+
             expressions = expression.expressions
             if expressions and expression.is_type(*exp.DataType.STRUCT_TYPES):
                 for field_type in expressions:
@@ -1778,9 +1830,10 @@ class Snowflake(Dialect):
             return f"SET{exprs}{file_format}{copy_options}{tag}"
 
         def strtotime_sql(self, expression: exp.StrToTime):
-            safe_prefix = "TRY_" if expression.args.get("safe") else ""
             return self.func(
-                f"{safe_prefix}TO_TIMESTAMP", expression.this, self.format_time(expression)
+                f"{'TRY_' if expression.args.get('safe') else ''}TO_TIMESTAMP",
+                expression.this,
+                self.format_time(expression),
             )
 
         def timestampsub_sql(self, expression: exp.TimestampSub):
@@ -1938,3 +1991,17 @@ class Snowflake(Dialect):
                 expression.set("part_index", exp.Literal.number(1))
 
             return rename_func("SPLIT_PART")(self, expression)
+
+        def uniform_sql(self, expression: exp.Uniform) -> str:
+            gen = expression.args.get("gen")
+            seed = expression.args.get("seed")
+
+            # From Databricks UNIFORM(min, max, seed) -> Wrap gen in RANDOM(seed)
+            if seed:
+                gen = exp.Rand(this=seed)
+
+            # No gen argument (from Databricks 2-arg UNIFORM(min, max)) -> Add RANDOM()
+            if not gen:
+                gen = exp.Rand()
+
+            return self.func("UNIFORM", expression.this, expression.expression, gen)
