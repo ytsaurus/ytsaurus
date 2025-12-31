@@ -230,16 +230,18 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-        RpcProxyProfiler().WithPrefix("/bus_server"),
-        GetControlInvoker());
+        TCertProfiler{
+            RpcProxyProfiler().WithPrefix("/bus_server"),
+            GetWorkerInvoker()});
 
     if (Config_->PublicRpcPort) {
         PublicBusServer_ = CreateBusServer(
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
             MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
-            RpcProxyProfiler().WithPrefix("/public_bus_server"),
-            GetControlInvoker());
+            TCertProfiler{
+                RpcProxyProfiler().WithPrefix("/public_bus_server"),
+                GetWorkerInvoker()});
     }
 
     if (Config_->TvmOnlyRpcPort) {
@@ -249,8 +251,9 @@ void TBootstrap::DoInitialize()
             busConfigCopy,
             GetYTPacketTranscoderFactory(),
             GetNullMemoryUsageTracker(),
-            RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
-            GetControlInvoker());
+            TCertProfiler{
+                RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+                GetWorkerInvoker()});
     }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
