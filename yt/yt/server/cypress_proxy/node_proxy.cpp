@@ -1485,7 +1485,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
             .Apply(BIND([&] (const INodePtr& rsp) {
                 return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
-        : TrueFuture;
+        : MakeFuture(true);
 
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();

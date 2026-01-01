@@ -2857,7 +2857,7 @@ private:
                     CancelAllBlocks(
                         blocks,
                         TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
-                    return FalseFuture;
+                    return MakeFuture(false);
                 }
             }
 

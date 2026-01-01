@@ -156,7 +156,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 TFuture<bool> TLocationManager::GetHotSwapEnabled()
 {
     if (!DiskInfoProvider_) {
-        return FalseFuture;
+        return MakeFuture(false);
     }
     return DiskInfoProvider_->GetHotSwapEnabled();
 }
