@@ -36,7 +36,7 @@ struct IUnbufferedFileChangelog
      *  \note
      *  Thread affinity: any
      */
-    virtual const TString& GetFileName() const = 0;
+    virtual const std::string& GetFileName() const = 0;
 
     //! Opens an existing changelog.
     virtual void Open() = 0;
@@ -118,7 +118,7 @@ DEFINE_REFCOUNTED_TYPE(IUnbufferedFileChangelog)
 IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    TString fileName,
+    std::string fileName,
     TFileChangelogConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

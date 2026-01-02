@@ -27,14 +27,14 @@ struct IFileChangelogDispatcher
     //! Asynchronously creates a new changelog.
     virtual TFuture<IFileChangelogPtr> CreateChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const NProto::TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config) = 0;
 
     //! Synchronously opens an existing changelog.
     virtual TFuture<IFileChangelogPtr> OpenChangelog(
         int id,
-        const TString& path,
+        const std::string& path,
         const TFileChangelogConfigPtr& config) = 0;
 
     //! Flushes all active changelogs owned by this dispatcher.

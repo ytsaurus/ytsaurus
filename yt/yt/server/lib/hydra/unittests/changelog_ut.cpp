@@ -54,7 +54,8 @@ protected:
 
     void TearDown() override
     {
-        NFS::RemoveRecursive(ChangelogStoreConfig_->Path);
+        // TODO(babenko): migrate to std::string
+        NFS::RemoveRecursive(TString(ChangelogStoreConfig_->Path));
     }
 
 
