@@ -29,7 +29,7 @@ struct TFileChangelogIndexRecordsTag
 TFileChangelogIndex::TFileChangelogIndex(
     IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    TString fileName,
+    std::string fileName,
     TFileChangelogConfigPtr config,
     EWorkloadCategory workloadCategory)
     : IOEngine_(std::move(ioEngine))
@@ -44,12 +44,14 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
 {
     Clear();
 
-    if (!NFS::Exists(FileName_)) {
+    // TODO(babenko): migrate to std::string
+    if (!NFS::Exists(TString(FileName_))) {
         Create();
         return EFileChangelogIndexOpenResult::MissingCreated;
     }
 
-    auto handle = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr}))
+    // TODO(babenko): migrate to std::string
+    auto handle = WaitFor(IOEngine_->Open({.Path = TString(FileName_), .Mode = RdWr}))
         .ValueOrThrow();
 
     auto recreate = [&] (EFileChangelogIndexOpenResult result) {
@@ -172,7 +174,8 @@ void TFileChangelogIndex::Create()
 {
     Clear();
 
-    auto handle = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | CreateAlways}))
+    // TODO(babenko): migrate to std::string
+    auto handle = WaitFor(IOEngine_->Open({.Path = TString(FileName_), .Mode = RdWr | CreateAlways}))
         .ValueOrThrow();
 
     auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(sizeof(TChangelogIndexHeader), {.InitializeStorage = false});

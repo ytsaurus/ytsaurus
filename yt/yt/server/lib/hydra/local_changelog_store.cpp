@@ -35,21 +35,21 @@ DECLARE_REFCOUNTED_CLASS(TEpochBoundLocalChangelog)
 
 namespace {
 
-TString GetChangelogPath(const TString& path, int id)
+std::string GetChangelogPath(const std::string& path, int id)
 {
     return NFS::CombinePaths(
         path,
         Format("%09d.%v", id, ChangelogExtension));
 }
 
-TString GetTermFileName(const TString& path)
+std::string GetTermFileName(const std::string& path)
 {
     return NFS::CombinePaths(
         path,
         TermFileName);
 }
 
-TString GetLockFileName(const TString& path)
+std::string GetLockFileName(const std::string& path)
 {
     return NFS::CombinePaths(
         path,
@@ -424,7 +424,8 @@ private:
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
             auto path = GetChangelogPath(Config_->Path, id);
-            if (!NFS::Exists(path)) {
+            // TODO(babenko): migrate to std::string
+            if (!NFS::Exists(TString(path))) {
                 cookie.Cancel(TError(
                     NHydra::EErrorCode::NoSuchChangelog,
                     "No such changelog %v",
@@ -518,9 +519,11 @@ private:
     {
         YT_LOG_INFO("Initializing local changelog store");
 
-        NFS::MakeDirRecursive(Config_->Path);
+        // TODO(babenko): migrate to std::string
+        NFS::MakeDirRecursive(TString(Config_->Path));
         AcquireLock();
-        NFS::CleanTempFiles(Config_->Path);
+        // TODO(babenko): migrate to std::string
+        NFS::CleanTempFiles(TString(Config_->Path));
 
         YT_LOG_INFO("Local changelog store initialized");
     }
@@ -542,7 +545,8 @@ private:
     TChangelogStoreScanResult Scan(ui64 epoch)
     {
         std::vector<int> changelogIds;
-        auto fileNames = NFS::EnumerateFiles(Config_->Path);
+        // TODO(babenko): migrate to std::string
+        auto fileNames = NFS::EnumerateFiles(TString(Config_->Path));
         for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
             if (extension != ChangelogExtension) {
@@ -604,7 +608,8 @@ private:
         auto fileName = GetTermFileName(Config_->Path);
 
         try {
-            if (!NFS::Exists(fileName)) {
+            // TODO(babenko): migrate to std::string
+            if (!NFS::Exists(TString(fileName))) {
                 WriteTermImpl(0);
                 return 0;
             }
@@ -623,7 +628,8 @@ private:
     void WriteTermImpl(int term)
     {
         auto fileName = GetTermFileName(Config_->Path);
-        auto tempFileName = GetTermFileName(Config_->Path) + NFS::TempFileSuffix;
+        // TODO(babenko): migrate to std::string
+        auto tempFileName = TString(GetTermFileName(Config_->Path)) + NFS::TempFileSuffix;
 
         try {
             auto termString = Format("%v\n", term);
@@ -634,7 +640,8 @@ private:
                 output.Flush();
             }
 
-            NFS::Rename(tempFileName, fileName);
+            // TODO(babenko): migrate to std::string
+            NFS::Rename(tempFileName, TString(fileName));
         } catch (const std::exception& ex) {
             YT_LOG_FATAL(ex, "Error writing term to local changelog store (Path: %v)",
                 Config_->Path);
