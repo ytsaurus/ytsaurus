@@ -6422,10 +6422,6 @@ class CurrentTimezone(Func):
     arg_types = {}
 
 
-class Sysdate(Func):
-    arg_types = {}
-
-
 class CurrentOrganizationName(Func):
     arg_types = {}
 
@@ -7118,7 +7114,7 @@ class JSONArray(Func):
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/JSON_ARRAYAGG.html
-class JSONArrayAgg(Func):
+class JSONArrayAgg(AggFunc):
     arg_types = {
         "this": True,
         "order": False,
@@ -7976,7 +7972,7 @@ class StrToDate(Func):
 
 
 class StrToTime(Func):
-    arg_types = {"this": True, "format": True, "zone": False, "safe": False}
+    arg_types = {"this": True, "format": True, "zone": False, "safe": False, "target_type": False}
 
 
 # Spark allows unix_timestamp()
