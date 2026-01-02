@@ -23,6 +23,7 @@ from sqlglot.dialects.dialect import (
     no_datetime_sql,
     encode_decode_sql,
     build_formatted_time,
+    months_between_sql,
     no_comment_column_constraint_sql,
     no_time_sql,
     no_timestamp_sql,
@@ -1071,6 +1072,7 @@ class DuckDB(Dialect):
             **generator.Generator.TRANSFORMS,
             exp.AnyValue: _anyvalue_sql,
             exp.ApproxDistinct: approx_count_distinct_sql,
+            exp.Boolnot: lambda self, e: f"NOT ({self.sql(e, 'this')})",
             exp.Array: transforms.preprocess(
                 [transforms.inherit_struct_field_names],
                 generator=inline_array_unless_query,
@@ -1134,12 +1136,7 @@ class DuckDB(Dialect):
             exp.MD5Digest: lambda self, e: self.func("UNHEX", self.func("MD5", e.this)),
             exp.SHA1Digest: lambda self, e: self.func("UNHEX", self.func("SHA1", e.this)),
             exp.SHA2Digest: lambda self, e: self.func("UNHEX", sha2_digest_sql(self, e)),
-            exp.MonthsBetween: lambda self, e: self.func(
-                "DATEDIFF",
-                "'month'",
-                exp.cast(e.expression, exp.DataType.Type.TIMESTAMP, copy=True),
-                exp.cast(e.this, exp.DataType.Type.TIMESTAMP, copy=True),
-            ),
+            exp.MonthsBetween: months_between_sql,
             exp.PercentileCont: rename_func("QUANTILE_CONT"),
             exp.PercentileDisc: rename_func("QUANTILE_DISC"),
             # DuckDB doesn't allow qualified columns inside of PIVOT expressions.
@@ -1953,11 +1950,11 @@ class DuckDB(Dialect):
             return self.func("DATE_TRUNC", unit, timestamp)
 
         def trim_sql(self, expression: exp.Trim) -> str:
-            result_sql = self.func(
-                "TRIM",
-                _cast_to_varchar(expression.this),
-                _cast_to_varchar(expression.expression),
-            )
+            expression.this.replace(_cast_to_varchar(expression.this))
+            if expression.expression:
+                expression.expression.replace(_cast_to_varchar(expression.expression))
+
+            result_sql = super().trim_sql(expression)
             return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def round_sql(self, expression: exp.Round) -> str:

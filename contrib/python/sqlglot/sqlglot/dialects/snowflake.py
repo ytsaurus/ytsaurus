@@ -41,6 +41,15 @@ if t.TYPE_CHECKING:
     from sqlglot._typing import E, B
 
 
+# Timestamp types used in _build_datetime
+TIMESTAMP_TYPES = {
+    exp.DataType.Type.TIMESTAMP: "TO_TIMESTAMP",
+    exp.DataType.Type.TIMESTAMPLTZ: "TO_TIMESTAMP_LTZ",
+    exp.DataType.Type.TIMESTAMPNTZ: "TO_TIMESTAMP_NTZ",
+    exp.DataType.Type.TIMESTAMPTZ: "TO_TIMESTAMP_TZ",
+}
+
+
 def _build_strtok(args: t.List) -> exp.SplitPart:
     # Add default delimiter (space) if missing - per Snowflake docs
     if len(args) == 1:
@@ -89,7 +98,7 @@ def _build_datetime(
 
             # Handles `TO_TIMESTAMP(str, fmt)` and `TO_TIMESTAMP(num, scale)` as special
             # cases so we can transpile them, since they're relatively common
-            if kind == exp.DataType.Type.TIMESTAMP:
+            if kind in TIMESTAMP_TYPES:
                 if not safe and (int_value or int_scale_or_fmt):
                     # TRY_TO_TIMESTAMP('integer') is not parsed into exp.UnixToTime as
                     # it's not easily transpilable
@@ -97,6 +106,7 @@ def _build_datetime(
                 if not int_scale_or_fmt and not is_float(value.name):
                     expr = build_formatted_time(exp.StrToTime, "snowflake")(args)
                     expr.set("safe", safe)
+                    expr.set("target_type", exp.DataType.build(kind, dialect="snowflake"))
                     return expr
 
         if kind in (exp.DataType.Type.DATE, exp.DataType.Type.TIME) and not int_value:
@@ -778,6 +788,7 @@ class Snowflake(Dialect):
             "SHA2_HEX": exp.SHA2.from_arg_list,
             "SQUARE": lambda args: exp.Pow(this=seq_get(args, 0), expression=exp.Literal.number(2)),
             "STRTOK": _build_strtok,
+            "SYSDATE": lambda args: exp.CurrentTimestamp(this=seq_get(args, 0), sysdate=True),
             "TABLE": lambda args: exp.TableFromRows(this=seq_get(args, 0)),
             "TIMEADD": _build_date_time_add(exp.TimeAdd),
             "TIMEDIFF": _build_datediff,
@@ -820,7 +831,7 @@ class Snowflake(Dialect):
             "TO_TIME": _build_datetime("TO_TIME", exp.DataType.Type.TIME),
             "TO_TIMESTAMP": _build_datetime("TO_TIMESTAMP", exp.DataType.Type.TIMESTAMP),
             "TO_TIMESTAMP_LTZ": _build_datetime("TO_TIMESTAMP_LTZ", exp.DataType.Type.TIMESTAMPLTZ),
-            "TO_TIMESTAMP_NTZ": _build_datetime("TO_TIMESTAMP_NTZ", exp.DataType.Type.TIMESTAMP),
+            "TO_TIMESTAMP_NTZ": _build_datetime("TO_TIMESTAMP_NTZ", exp.DataType.Type.TIMESTAMPNTZ),
             "TO_TIMESTAMP_TZ": _build_datetime("TO_TIMESTAMP_TZ", exp.DataType.Type.TIMESTAMPTZ),
             "TO_VARCHAR": build_timetostr_or_tochar,
             "TO_JSON": exp.JSONFormat.from_arg_list,
@@ -1416,6 +1427,9 @@ class Snowflake(Dialect):
             exp.BitwiseLeftShift: rename_func("BITSHIFTLEFT"),
             exp.BitwiseRightShift: rename_func("BITSHIFTRIGHT"),
             exp.Create: transforms.preprocess([_flatten_structured_types_unless_iceberg]),
+            exp.CurrentTimestamp: lambda self, e: self.func("SYSDATE")
+            if e.args.get("sysdate")
+            else self.function_fallback_sql(e),
             exp.DateAdd: date_delta_sql("DATEADD"),
             exp.DateDiff: date_delta_sql("DATEDIFF"),
             exp.DatetimeAdd: date_delta_sql("TIMESTAMPADD"),
@@ -1830,8 +1844,21 @@ class Snowflake(Dialect):
             return f"SET{exprs}{file_format}{copy_options}{tag}"
 
         def strtotime_sql(self, expression: exp.StrToTime):
+            # target_type is stored as a DataType instance
+            target_type = expression.args.get("target_type")
+
+            # Get the type enum from DataType instance or from type annotation
+            if isinstance(target_type, exp.DataType):
+                type_enum = target_type.this
+            elif expression.type:
+                type_enum = expression.type.this
+            else:
+                type_enum = exp.DataType.Type.TIMESTAMP
+
+            func_name = TIMESTAMP_TYPES.get(type_enum, "TO_TIMESTAMP")
+
             return self.func(
-                f"{'TRY_' if expression.args.get('safe') else ''}TO_TIMESTAMP",
+                f"{'TRY_' if expression.args.get('safe') else ''}{func_name}",
                 expression.this,
                 self.format_time(expression),
             )
