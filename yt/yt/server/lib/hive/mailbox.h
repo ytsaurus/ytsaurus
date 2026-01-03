@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private_v2.h"
+#include "private.h"
 #include "persistent_mailbox_state_cookie.h"
 
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
@@ -23,7 +23,7 @@
 
 #include <deque>
 
-namespace NYT::NHiveServer::NV2 {
+namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,4 +235,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer::NV2
+} // namespace NYT::NHiveServer

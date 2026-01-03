@@ -16,8 +16,6 @@ void TLogicalTimeRegistryConfig::Register(TRegistrar registrar)
 
 void THiveManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_new", &TThis::UseNew)
-        .Default(true);
     registrar.Parameter("ping_period", &TThis::PingPeriod)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("idle_post_period", &TThis::IdlePostPeriod)

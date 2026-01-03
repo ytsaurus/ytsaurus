@@ -1,4 +1,4 @@
-#include "mailbox_v2.h"
+#include "mailbox.h"
 
 #include "helpers.h"
 #include "persistent_mailbox_state_cookie.h"
@@ -10,7 +10,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-namespace NYT::NHiveServer::NV2 {
+namespace NYT::NHiveServer {
 
 using namespace NHydra;
 using namespace NObjectClient;
@@ -258,4 +258,4 @@ void TAvenueMailbox::SetRuntimeData(TAvenueMailboxRuntimeDataPtr runtimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer::NV2
+} // namespace NYT::NHiveServer
