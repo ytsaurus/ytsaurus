@@ -11,7 +11,6 @@ namespace NYT::NSchedulerPoolServer {
 struct ISchedulerPoolManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual TSchedulerPool* CreateSchedulerPool() = 0;

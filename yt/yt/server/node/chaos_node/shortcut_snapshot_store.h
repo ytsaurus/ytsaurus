@@ -14,7 +14,6 @@ struct TShortcutSnapshot
 struct IShortcutSnapshotStore
     : public virtual TRefCounted
 {
-public:
     virtual void UpdateShortcut(TChaosObjectId chaosObjectId, TShortcutSnapshot snapshot) = 0;
     virtual void RemoveShortcut(TChaosObjectId chaosObjectId) = 0;
 
