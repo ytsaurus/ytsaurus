@@ -44,10 +44,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytSettings
+struct TSpytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
@@ -80,7 +79,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytSettings)
-DECLARE_REFCOUNTED_CLASS(TSpytSettings)
+DECLARE_REFCOUNTED_STRUCT(TSpytSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 

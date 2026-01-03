@@ -45,10 +45,9 @@ using namespace spark::connect;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytConnectSettings
+struct TSpytConnectSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::string Proxy;
@@ -103,7 +102,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytConnectSettings);
-DECLARE_REFCOUNTED_CLASS(TSpytConnectSettings);
+DECLARE_REFCOUNTED_STRUCT(TSpytConnectSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
