@@ -90,7 +90,6 @@ struct TSuccessfulPermissionValidationResult
 struct ISecurityManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Account, TAccount);

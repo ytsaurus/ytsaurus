@@ -19,7 +19,6 @@ struct TUpdateQueryOptions
 struct ISearchIndex
     : public TRefCounted
 {
-public:
     virtual void AddQuery(const NApi::TQuery& query, NApi::ITransactionPtr transaction) = 0;
 
     virtual void UpdateQuery(const NApi::TQuery& query, const TUpdateQueryOptions& options, NApi::ITransactionPtr transaction) = 0;

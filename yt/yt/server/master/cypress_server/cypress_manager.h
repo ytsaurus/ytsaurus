@@ -63,7 +63,6 @@ using TSetExpiration = std::variant<TTime, TSetExpirationResetTime, TRemoveExpir
 struct ICypressManager
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     virtual void RegisterHandler(INodeTypeHandlerPtr handler) = 0;

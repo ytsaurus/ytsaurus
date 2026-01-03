@@ -20,7 +20,6 @@ namespace NYT::NTableServer {
 struct ITableManager
     : public virtual TRefCounted
 {
-public:
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(SecondaryIndex, TSecondaryIndex);
