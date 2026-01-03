@@ -50,10 +50,9 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChytSettings
+struct TChytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::optional<TString> Clique;
@@ -83,7 +82,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChytSettings)
-DECLARE_REFCOUNTED_CLASS(TChytSettings)
+DECLARE_REFCOUNTED_STRUCT(TChytSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
