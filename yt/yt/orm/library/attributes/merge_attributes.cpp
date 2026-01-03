@@ -193,10 +193,10 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
 void RemoveEntitiesOnPath(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     NYTree::WalkNodeByYPath(node, path, {
-        .MissingAttributeHandler = [] (const TString& /*key*/) {
+        .MissingAttributeHandler = [] (const std::string& /*key*/) {
             return nullptr;
         },
-        .MissingChildKeyHandler = [] (const NYTree::IMapNodePtr& /*node*/, const TString& /*key*/) {
+        .MissingChildKeyHandler = [] (const NYTree::IMapNodePtr& /*node*/, const std::string& /*key*/) {
             return nullptr;
         },
         .MissingChildIndexHandler = [] (const NYTree::IListNodePtr& /*node*/, int /*index*/) {
