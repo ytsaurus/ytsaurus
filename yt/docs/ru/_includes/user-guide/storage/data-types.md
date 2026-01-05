@@ -614,7 +614,7 @@ type_v3={
 - имя альтернативы;
 - кодированное значение соответствующей альтернативы.
 
-Примеры значений, тип `variant<Foo:int64;Bar:optional<utf8>>:
+Примеры значений, тип `variant<Foo:int64;Bar:optional<utf8>>`:
 
 ```
 [Foo; 42]
@@ -640,15 +640,15 @@ type_v3={
 Примеры значений, тип `variant<Foo:int64;Bar:optional<utf8>>`:
 
 ```
-[Foo; 42]
+[0; 42]
 ```
 
 ```
-[Bar; #]
+[1; #]
 ```
 
 ```
-[Bar; "foo bar";]
+[1; "foo bar";]
 ```
 
 #### Dict { #yson_dict }
