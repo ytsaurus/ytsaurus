@@ -21,6 +21,7 @@ target_compile_options(stateful_map_tnode PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(stateful_map_tnode PUBLIC

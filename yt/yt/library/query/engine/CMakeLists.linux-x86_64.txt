@@ -34,6 +34,7 @@ target_compile_options(library-query-engine PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-query-engine PUBLIC
@@ -97,6 +98,7 @@ target_compile_options(library-query-engine.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-query-engine.global PUBLIC

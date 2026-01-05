@@ -25,6 +25,7 @@ target_compile_options(yt-library-ytprof PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
   [=[-DYTPROF_BUILD_TYPE="RELEASE"]=]
 )
 

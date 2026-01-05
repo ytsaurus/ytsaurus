@@ -26,6 +26,7 @@ target_compile_options(mapreduce-library-parallel_io PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(mapreduce-library-parallel_io PUBLIC

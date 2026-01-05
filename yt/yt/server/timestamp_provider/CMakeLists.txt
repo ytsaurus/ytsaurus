@@ -23,6 +23,7 @@ target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-server-timestamp_provider PUBLIC

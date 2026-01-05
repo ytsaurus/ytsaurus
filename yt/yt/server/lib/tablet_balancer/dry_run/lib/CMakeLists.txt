@@ -23,6 +23,7 @@ target_compile_options(tablet_balancer-dry_run-lib PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(tablet_balancer-dry_run-lib PUBLIC

@@ -25,6 +25,7 @@ target_compile_options(unittester-client-table-client PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(unittester-client-table-client PUBLIC

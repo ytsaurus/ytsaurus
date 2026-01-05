@@ -35,6 +35,7 @@ target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(server-lib-transaction_supervisor PUBLIC

@@ -23,6 +23,7 @@ target_compile_options(yt-server-chaos_cache PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-server-chaos_cache PUBLIC

@@ -21,6 +21,7 @@ target_compile_options(pass_table_as_file PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(pass_table_as_file PUBLIC

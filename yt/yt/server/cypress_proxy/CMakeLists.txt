@@ -23,6 +23,7 @@ target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-server-cypress_proxy PUBLIC

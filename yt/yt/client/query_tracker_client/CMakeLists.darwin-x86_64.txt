@@ -21,6 +21,7 @@ target_compile_options(yt-client-query_tracker_client PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-client-query_tracker_client PUBLIC

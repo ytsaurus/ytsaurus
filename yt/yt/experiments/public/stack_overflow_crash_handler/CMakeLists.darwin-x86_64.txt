@@ -21,6 +21,7 @@ target_compile_options(stack_overflow_crash_handler PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(stack_overflow_crash_handler PUBLIC

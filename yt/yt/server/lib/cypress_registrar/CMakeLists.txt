@@ -23,6 +23,7 @@ target_compile_options(server-lib-cypress_registrar PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(server-lib-cypress_registrar PUBLIC
