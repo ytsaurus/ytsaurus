@@ -493,7 +493,8 @@ private:
 
             if (auto newProgress = MaybeAdvanceReplicationProgress(selfReplica, replicationProgress)) {
                 if (!IsReplicationProgressGreaterOrEqual(*newProgress, LastReplicationProgressAdvance_)) {
-                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt (LastReplicationProgress: %v, NewReplicationProgress: %v)",
+                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt "
+                        "(LastReplicationProgress: %v, NewReplicationProgress: %v)",
                         LastReplicationProgressAdvance_,
                         newProgress);
                 }
@@ -881,7 +882,8 @@ private:
                         : row.DeleteTimestamps()[0];
                     auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                     if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
+                        YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response "
+                            "(RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
                             progressTimestamp,
                             row,
@@ -909,8 +911,8 @@ private:
 
                 for (auto row : unversionedRows) {
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
-                        YT_LOG_ALERT("Could not identify timestamp column in pulled row. "
-                            "Timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
+                        YT_LOG_ALERT("Could not identify timestamp column in pulled row, "
+                            "timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                             row,
                             *timestampColumnIndex);
                     }
@@ -1062,12 +1064,14 @@ private:
                 PivotKey_.Get(),
                 NextPivotKey_.Get());
 
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode "
+                "(ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
                 progressTimestamp,
                 historyTimestamp);
 
             if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
+                YT_LOG_DEBUG("Advance replication progress to first history item "
+                    "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                     static_cast<TReplicationProgress>(*progress),
                     selfReplica,
                     historyTimestamp);
@@ -1077,7 +1081,8 @@ private:
                     historyTimestamp);
             }
 
-            YT_LOG_DEBUG("Checking that replication card contains further progress (ReplicationProgress: %v, Replica: %v)",
+            YT_LOG_DEBUG("Checking that replication card contains further progress "
+                "(ReplicationProgress: %v, Replica: %v)",
                 static_cast<TReplicationProgress>(*progress),
                 selfReplica);
 
@@ -1093,13 +1098,15 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
+        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping "
+            "(ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
             ETabletWriteMode::Pull,
             oldestTimestamp,
             historyItemIndex);
 
         if (historyItemIndex == -1) {
-            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
+            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress "
+                "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                 static_cast<TReplicationProgress>(*progress),
                 *selfReplica,
                 oldestTimestamp);
@@ -1107,7 +1114,8 @@ private:
             if (selfReplica->History[historyItemIndex].IsSync()) {
                 ++historyItemIndex;
                 if (historyItemIndex >= std::ssize(selfReplica->History)) {
-                    YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
+                    YT_LOG_DEBUG("Will not advance replication progress to the next era "
+                        "because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
                         historyItemIndex,
                         *selfReplica);
                     return {};
