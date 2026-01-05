@@ -339,6 +339,9 @@ struct TProxyBootstrapConfig
 
     bool AbortOnUnrecognizedOptions;
 
+    //! Sets default value for option `cancel_fiber_on_connection_close` in all http-servers (http/https/tvm/chyt/etc)
+    bool CancelFiberOnConnectionClose;
+
     TString DefaultNetwork;
     THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
 

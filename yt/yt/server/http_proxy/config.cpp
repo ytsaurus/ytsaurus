@@ -316,6 +316,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
+    registrar.Parameter("cancel_fiber_on_connection_close", &TThis::CancelFiberOnConnectionClose)
+        .Default(false);
+
     registrar.Parameter("default_network", &TThis::DefaultNetwork)
         .Default(NBus::DefaultNetworkName);
     registrar.Parameter("networks", &TThis::Networks)
@@ -360,6 +363,19 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         if ((config->TvmOnlyHttpServer || config->TvmOnlyHttpsServer) && !config->TvmOnlyAuth) {
             THROW_ERROR_EXCEPTION("\"tvm_only_auth\" must be configured when using \"tvm_only_http_server\" or \"tvm_only_https_server\"");
         }
+    });
+    registrar.Postprocessor([] (TThis* config) {
+        auto setCancelFiberOnConnectionClose = [&] (NHttp::TServerConfig* serverConfig) {
+            if (serverConfig != nullptr && !serverConfig->CancelFiberOnConnectionClose) {
+                serverConfig->CancelFiberOnConnectionClose = config->CancelFiberOnConnectionClose;
+            }
+        };
+        setCancelFiberOnConnectionClose(config->HttpServer.Get());
+        setCancelFiberOnConnectionClose(config->HttpsServer.Get());
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer.Get());
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer.Get());
+        setCancelFiberOnConnectionClose(config->ChytHttpServer.Get());
+        setCancelFiberOnConnectionClose(config->ChytHttpsServer.Get());
     });
 }
 
