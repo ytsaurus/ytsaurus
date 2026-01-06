@@ -47,7 +47,7 @@ struct IVolume
     //! Get unique volume id.
     virtual const TVolumeId& GetId() const = 0;
     //! Get absolute path to volume mount point.
-    virtual const TString& GetPath() const = 0;
+    virtual const std::string& GetPath() const = 0;
     //! Overlayfs stores its upper/work directories in root volume.
     virtual bool IsRootVolume() const = 0;
     //! Link volume mount point to target.

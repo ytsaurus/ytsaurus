@@ -116,7 +116,7 @@ public:
         };
     }
 
-    TYPath GetPath() const override
+    const std::string& GetPath() const override
     {
         return Path_;
     }
@@ -141,7 +141,7 @@ private:
     };
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
-    const TYPath Path_;
+    const std::string Path_;
     const IThroughputThrottlerPtr InThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
     const TChunkReaderHostPtr ChunkReaderHost_;
@@ -454,7 +454,7 @@ private:
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TYPath path,
+    std::string path,
     TChunkReaderHostPtr readerHost,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,

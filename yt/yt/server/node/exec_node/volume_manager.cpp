@@ -336,7 +336,7 @@ struct TLayerMetaHeader
 struct TLayerMeta
     : public NProto::TLayerMeta
 {
-    TString Path;
+    std::string Path;
     TLayerId Id;
 };
 
@@ -346,7 +346,7 @@ struct TVolumeMeta
     : public NProto::TVolumeMeta
 {
     TVolumeId Id;
-    TString MountPath;
+    std::string MountPath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -405,7 +405,7 @@ public:
         : Variant_(std::move(volume))
     { }
 
-    const TString& GetPath() const;
+    const std::string& GetPath() const;
 
     bool IsLayer() const
     {
@@ -591,7 +591,8 @@ public:
         };
 
         return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
-            auto path = NFS::CombinePaths(volume->GetPath(), "slot");
+            // TODO(dgolear): Switch to std::string.
+            TString path = NFS::CombinePaths(volume->GetPath(), "slot");
 
             if (!NFS::Exists(path)) {
                 YT_LOG_DEBUG("Creating rbind directory (Path: %v)",
@@ -872,22 +873,22 @@ private:
     i64 UsedSpace_ = 0;
     TError Alert_;
 
-    TString GetLayerPath(const TLayerId& id) const
+    std::string GetLayerPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersPath_, ToString(id));
     }
 
-    TString GetLayerMetaPath(const TLayerId& id) const
+    std::string GetLayerMetaPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
     }
 
-    TString GetVolumePath(const TVolumeId& id) const
+    std::string GetVolumePath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesPath_, ToString(id));
     }
 
-    TString GetVolumeMetaPath(const TVolumeId& id) const
+    std::string GetVolumeMetaPath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
     }
@@ -908,7 +909,7 @@ private:
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
-            if (fileName.EndsWith(NFS::TempFileSuffix)) {
+            if (fileName.ends_with(NFS::TempFileSuffix)) {
                 YT_LOG_DEBUG(
                     "Remove temporary file (Path: %v)",
                     filePath);
@@ -1102,7 +1103,7 @@ private:
         header.MetaChecksum = GetChecksum(metaBlob);
 
         auto layerMetaFileName = GetLayerMetaPath(layerMeta.Id);
-        auto temporaryLayerMetaFileName = layerMetaFileName + NFS::TempFileSuffix;
+        auto temporaryLayerMetaFileName = layerMetaFileName + std::string(NFS::TempFileSuffix);
 
         TFile metaFile(
             temporaryLayerMetaFileName,
@@ -1303,7 +1304,8 @@ private:
         auto volumeId = TVolumeId::Create();
         auto volumePath = GetVolumePath(volumeId);
         auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG(
@@ -1356,7 +1358,7 @@ private:
             header.MetaChecksum = GetChecksum(metaBlob);
 
             auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
-            auto tempVolumeMetaFileName = volumeMetaFileName + NFS::TempFileSuffix;
+            auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
             {
                 auto metaFile = std::make_unique<TFile>(
@@ -1641,7 +1643,8 @@ private:
     void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
@@ -1924,7 +1927,7 @@ public:
         return GetKey().data_source().path();
     }
 
-    const TString& GetPath() const
+    const std::string& GetPath() const
     {
         return LayerMeta_.Path;
     }
@@ -2088,7 +2091,7 @@ public:
 
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-            auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
+            auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
             }
@@ -2105,7 +2108,7 @@ public:
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-            WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
+            WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
                 .ThrowOnError();
 
             MemoryUsageTracker_->Acquire(Config_->Capacity);
@@ -2881,7 +2884,7 @@ public:
         return VolumeMeta_.Id;
     }
 
-    const TString& GetPath() const override final
+    const std::string& GetPath() const override final
     {
         return VolumeMeta_.MountPath;
     }
@@ -2898,7 +2901,7 @@ public:
                 Targets_.push_back(target);
 
                 const auto& source = GetPath();
-                return Location_->LinkVolume(tag, source, target);
+                return Location_->LinkVolume(tag, TString(source), target);
             }));
     }
 
@@ -2926,7 +2929,7 @@ protected:
                 volumePath = VolumeMeta_.MountPath,
                 callback = std::move(callback)
             ] (const std::vector<TString>& targets) {
-                return UnlinkTargets(location, volumePath, targets)
+                return UnlinkTargets(location, TString(volumePath), targets)
                     .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
                         if (!error.IsOK()) {
                             YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
@@ -3300,7 +3303,7 @@ class TSimpleTmpfsVolume
 public:
     TSimpleTmpfsVolume(
         NProfiling::TTagSet tagSet,
-        const TString& path,
+        const std::string& path,
         IInvokerPtr invoker,
         bool detachUnmount)
         : TagSet_(std::move(tagSet))
@@ -3369,7 +3372,7 @@ public:
         return VolumeId_;
     }
 
-    const TString& GetPath() const override final
+    const std::string& GetPath() const override final
     {
         return Path_;
     }
@@ -3381,7 +3384,7 @@ public:
 
 private:
     const NProfiling::TTagSet TagSet_;
-    const TString Path_;
+    const std::string Path_;
     const TVolumeId VolumeId_;
     const IInvokerPtr Invoker_;
     const bool DetachUnmount_;
@@ -3392,7 +3395,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& TOverlayData::GetPath() const
+const std::string& TOverlayData::GetPath() const
 {
     if (std::holds_alternative<TLayerPtr>(Variant_)) {
         return std::get<TLayerPtr>(Variant_)->GetPath();
@@ -3469,14 +3472,14 @@ public:
         // To avoid problems with undeleting tmpfs ordered by user in sandbox
         // we always try to remove it several times.
         for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-            std::vector<TString> mountPaths;
+            std::vector<std::string> mountPaths;
             for (const auto& location : locations) {
                 FindTmpfsMountPathsInLocation(location->Path, mountPaths);
             }
 
             // Sort from longest paths, to shortest.
-            std::sort(mountPaths.begin(), mountPaths.end(), [] (const TString& lhs, const TString& rhs) {
-                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+            std::sort(mountPaths.begin(), mountPaths.end(), [] (const std::string& lhs, const std::string& rhs) {
+                return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
             });
 
             auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
@@ -3539,7 +3542,8 @@ private:
         YT_VERIFY(sandboxPath);
 
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        // TODO(dgolear): Switch to std::string.
+        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -3566,17 +3570,17 @@ private:
         .ToUncancelable();
     }
 
-    void FindTmpfsMountPathsInLocation(const TString& locationPath, std::vector<TString>& mountPaths)
+    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths)
     {
         auto mountPoints = NFS::GetMountPoints("/proc/mounts");
         for (const auto& mountPoint : mountPoints) {
-            if (mountPoint.Path.StartsWith(locationPath + "/")) {
+            if (mountPoint.Path.starts_with(locationPath + "/")) {
                 mountPaths.push_back(mountPoint.Path);
             }
         }
     }
 
-    TFuture<void> CleanupTmpfsMountPaths(std::vector<TString>&& mountPaths) const
+    TFuture<void> CleanupTmpfsMountPaths(std::vector<std::string>&& mountPaths) const
     {
         return BIND([mountPaths = std::move(mountPaths), detachUnmount = DetachUnmount_] {
             for (const auto& path : mountPaths) {
@@ -3864,7 +3868,7 @@ public:
         std::vector<TFuture<void>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            const auto& target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
+            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
             futures.push_back(volume.Volume->Link(tag, target));
         }
 

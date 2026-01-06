@@ -1929,18 +1929,18 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
     }
 }
 
-bool TStoreLocation::ShouldSkipFileName(const TString& fileName) const
+bool TStoreLocation::ShouldSkipFileName(const std::string& fileName) const
 {
     if (TChunkLocation::ShouldSkipFileName(fileName)) {
         return true;
     }
 
     // Skip trash directory.
-    if (fileName.StartsWith(TrashDirectory + LOCSLASH_S))
+    if (fileName.starts_with(TrashDirectory + LOCSLASH_S))
         return true;
 
     // Skip multiplexed directory.
-    if (fileName.StartsWith(MultiplexedDirectory + LOCSLASH_S))
+    if (fileName.starts_with(MultiplexedDirectory + LOCSLASH_S))
         return true;
 
     return false;
