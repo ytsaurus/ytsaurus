@@ -63,12 +63,14 @@ public:
         return TReadersStatistics();
     }
 
-    TString GetPath() const override
+    const std::string& GetPath() const override
     {
-        return "MockRandomAccessFileReader";
+        return Path_;
     }
 
 private:
+    const std::string Path_ = "MockRandomAccessFileReader";
+
     i64 Size_ = 0;
 };
 

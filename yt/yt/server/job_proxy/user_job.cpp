@@ -170,9 +170,9 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString CreateNamedPipePath()
+static std::string CreateNamedPipePath()
 {
-    const TString& name = CreateGuidAsString();
+    std::string name = CreateGuidAsString();
     return GetRealPath(CombinePaths("./pipes", name));
 }
 
@@ -527,7 +527,8 @@ public:
             artifactPath);
 
         auto onError = [&] (const TError& error) {
-            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+            // TODO(dgolear): Switch to std::string.
+            Host_->OnArtifactPreparationFailed(artifactName, TString(artifactPath), error);
         };
 
         try {
@@ -542,7 +543,8 @@ public:
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
 
-            Host_->PrepareArtifact(artifactName, pipePath);
+            // TODO(dgolear): Switch to std::string.
+            Host_->PrepareArtifact(artifactName, TString(pipePath));
 
             // Now pipe is opened and O_NONBLOCK is not required anymore.
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
@@ -619,7 +621,7 @@ private:
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
-    TString InputPipePath_;
+    std::string InputPipePath_;
 
     std::optional<int> UserId_;
 

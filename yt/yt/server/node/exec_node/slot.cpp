@@ -673,7 +673,7 @@ public:
         switch (sandboxKind) {
         case ESandboxKind::User:
             if (rootVolume && !testRootFs) {
-                YT_VERIFY(rootVolume->GetPath());
+                YT_VERIFY(!rootVolume->GetPath().empty());
 
                 // Use user sandbox within root volume.
                 return NFS::CombinePaths(

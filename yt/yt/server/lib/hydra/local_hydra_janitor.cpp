@@ -89,7 +89,7 @@ private:
         // TODO(babenko): migrate to std::string
         auto fileNames = NFS::EnumerateFiles(TString(path));
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 
@@ -116,7 +116,7 @@ private:
         // TODO(babenko): migrate to std::string
         auto fileNames = NFS::EnumerateFiles(TString(path));
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 

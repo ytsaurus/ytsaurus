@@ -122,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 struct TTmpfsManagerConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> TmpfsPaths;
+    std::vector<std::string> TmpfsPaths;
 
     REGISTER_YSON_STRUCT(TTmpfsManagerConfig);
 

@@ -1472,13 +1472,13 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/tmp",
             .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/var/tmp",
             .ReadOnly = false,
         });
@@ -1527,8 +1527,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 target);
 
             rootFS.Binds.push_back(TBind{
-                .SourcePath = source,
-                .TargetPath = target,
+                .SourcePath = TString(source),
+                .TargetPath = TString(target),
                 .ReadOnly = false,
             });
         }

@@ -111,7 +111,7 @@ std::optional<TString> TSlotLocation::TSandboxTmpfsData::TryGetPathRelativeToSan
     auto fullPath = NFS::JoinPaths(path, "/");
     for (const auto& sandboxPath : SandboxPaths_) {
         auto fullSandboxPath = NFS::JoinPaths(sandboxPath, "/");
-        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.StartsWith(fullSandboxPath)) {
+        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.starts_with(fullSandboxPath)) {
             continue;
         }
 
@@ -265,7 +265,7 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
         for (const auto& p : ldLinuxPaths) {
-            auto path = NFS::CombinePaths(rootVolumeMountPath, p);
+            auto path = NFS::CombinePaths(rootVolumeMountPath, std::string(p));
             if (NFS::Exists(path)) {
                 YT_LOG_DEBUG("Found dynamic linker ld-linux in root fs (Path: %v)",
                     path);
@@ -1111,7 +1111,7 @@ bool TSlotLocation::IsInsideTmpfs(int slotIndex, const TString& path) const
 void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const
 {
     auto dirPath = GetDirectoryName(filePath);
-    if (!dirPath.StartsWith(sandboxPath)) {
+    if (!dirPath.starts_with(sandboxPath)) {
         THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
             << TErrorAttribute("sandbox_path", sandboxPath)
             << TErrorAttribute("file_path", filePath);

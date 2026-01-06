@@ -170,7 +170,7 @@ struct TChownChmodTool
 struct TGetDirectorySizesAsRootConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> Paths;
+    std::vector<std::string> Paths;
     bool IgnoreUnavailableFiles;
     bool DeduplicateByINodes;
     bool CheckDeviceId;
