@@ -619,7 +619,7 @@ public:
         return RootClient_;
     }
 
-    NApi::NNative::IClientPtr CreateClient(const TString& user) const
+    NApi::NNative::IClientPtr CreateClient(const std::string& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
@@ -856,7 +856,7 @@ private:
 
         ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-        auto getClientForUser = [&] (const TString& user) {
+        auto getClientForUser = [&] (const std::string& user) {
             auto identity = NRpc::TAuthenticationIdentity(user);
             auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
             return ClientCache_->Get(identity, options);
@@ -1242,7 +1242,7 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
     return Impl_->GetRootClient();
 }
 
-NApi::NNative::IClientPtr THost::CreateClient(const TString& user) const
+NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
 }

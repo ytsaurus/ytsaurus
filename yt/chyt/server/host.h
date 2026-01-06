@@ -97,7 +97,7 @@ public:
     const IInvokerPtr& GetClickHouseFetcherInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
-    NApi::NNative::IClientPtr CreateClient(const TString& user) const;
+    NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
 
     //! Return nodes available through discovery service.
     //! In some cases local node can be out of discovery protocol

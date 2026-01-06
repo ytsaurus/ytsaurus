@@ -45,9 +45,9 @@ constexpr int YqlOperationIdLength = 24;
 
 constexpr int MaxSupportedCHDecimalPrecision = 76;
 
-extern const TString CacheUserName;
-extern const TString ChytSqlObjectsUserName;
-extern const TString InternalRemoteUserName;
+extern const std::string CacheUserName;
+extern const std::string ChytSqlObjectsUserName;
+extern const std::string InternalRemoteUserName;
 
 //! Contains the main attributes of the table that are used in CHYT, with the exception of schema and schema_id.
 extern const std::vector<std::string> TableAttributesToFetch;
