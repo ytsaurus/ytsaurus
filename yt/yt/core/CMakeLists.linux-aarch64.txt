@@ -271,6 +271,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controlling_service_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_discovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_priority_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/per_key_request_queue_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/public.cpp
