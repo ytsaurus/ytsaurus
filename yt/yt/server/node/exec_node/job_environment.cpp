@@ -1349,7 +1349,7 @@ private:
         spec->Credentials.Gid = ::getgid();
 
         if (!spec->Environment.contains("USER")) {
-            TString username;
+            std::string username;
             if (config->DoNotSetUserId) {
                 username = ::GetUsername();
             } else {

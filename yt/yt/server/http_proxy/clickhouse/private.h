@@ -6,7 +6,7 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString ClickHouseUserName("yt-clickhouse");
+inline const std::string ClickHouseUserName("yt-clickhouse");
 
 DECLARE_REFCOUNTED_CLASS(TCachedDiscovery)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryCache)

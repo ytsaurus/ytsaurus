@@ -584,7 +584,7 @@ struct TJobCommonConfig
     bool TreatJobProxyFailureAsAbort;
 
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
-    TString SetupCommandUser;
+    std::string SetupCommandUser;
 
     std::optional<int> StatisticsOutputTableCountLimit;
 
