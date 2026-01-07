@@ -146,11 +146,8 @@ jobs:
           BUILD_TYPES='${{ inputs.build_types }}'
 
           has() {
-            python3 - <<'PY' "$BUILD_TYPES" "$1"
-import json, sys
-arr = json.loads(sys.argv[1])
-print("true" if sys.argv[2] in arr else "false")
-PY
+            python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
+              "$BUILD_TYPES" "$1"
           }
 
           echo "release=$(has release)" >> "$GITHUB_OUTPUT"
