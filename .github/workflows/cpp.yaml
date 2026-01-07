@@ -121,6 +121,7 @@ jobs:
       - start-vm
       - checkout
       - build-strawberry
+      - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
@@ -159,6 +160,7 @@ jobs:
       - start-vm
       - checkout
       - build-strawberry
+      - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
