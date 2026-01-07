@@ -46,6 +46,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-types:
+        description: 'JSON array of build types: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: true
+        type: string
 
     secrets:
       BUILD_CACHE_BAZEL_USERNAME:
@@ -74,18 +78,28 @@ jobs:
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build
 
+  gpuagent:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    if: ${{ inputs.build-ytsaurus }}
+    timeout-minutes: 480
+    steps:
+      - name: Build GPU Agent
+        run: |
+          cd ../ytsaurus/ytsaurus/yt/yt/gpuagent
+          export HOME=${RUNNER_WORKSPACE}
+          /opt/go/bin/go build -o gpuagent ./cmd/agent
+
   cmake_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
     if: ${{ inputs.cpp-build-system == 'cmake' }}
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - build-type: "release"
-            cmake-build-type: "Release"
-          - build-type: "relwithdebinfo"
-            cmake-build-type: "RelWithDebInfo"
+        build-type: ${{ fromJson(inputs.build-types) }}
+
     steps:
       - name: Create build directories
         run: |
@@ -101,10 +115,21 @@ jobs:
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
+          mkdir -p ~/.conan2/
+          cat > ~/.conan2/global.conf <<EOF
+          core.net.http:timeout=5
+          core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
+          EOF
+
+          CMAKE_BUILD_TYPE="RelWithDebInfo"
+          if [ "${{ matrix.build-type }}" = "release" ]; then
+            CMAKE_BUILD_TYPE="Release"
+          fi
+
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
           cmake \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.cmake-build-type }} \
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -187,8 +212,9 @@ jobs:
     timeout-minutes: 480
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
+      fail-fast: false
       matrix:
-        build-type: [release, relwithdebinfo]
+        build-type: ${{ fromJson(inputs.build-types) }}
     steps:
       - name: Calculate variables
         id: vars
@@ -249,7 +275,7 @@ jobs:
           fi
 
       - name: Build ytsaurus (ya-make, ${{ matrix.build-type }})
-        if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker || inputs.build-chyt }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 

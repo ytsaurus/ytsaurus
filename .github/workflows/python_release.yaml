@@ -127,6 +127,8 @@ jobs:
       - start-vm
     if: ${{ needs.build.outputs.release_type == 'test' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
+    permissions:
+      id-token: write
     steps:
       - name: Publish pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
@@ -159,7 +161,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
             repository-url: https://test.pypi.org/legacy/
-            password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
   prod_release:
     name: Run release PyPi
@@ -169,6 +170,8 @@ jobs:
       - start-vm
     if: ${{ needs.build.outputs.release_type == 'prod' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
+    permissions:
+      id-token: write
     steps:
       - name: Publish pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
@@ -199,8 +202,6 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-            password: ${{ secrets.PYPI_API_TOKEN }}
 
   stop-vm:
     name: Stop VM
