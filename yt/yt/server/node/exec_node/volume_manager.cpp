@@ -120,7 +120,7 @@ using NControllerAgent::ELayerFilesystem;
 constinit const auto Logger = ExecNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
-static const TString MountSuffix = "mount";
+static const std::string MountSuffix = "mount";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +164,7 @@ public:
         : VolumeProfiler_("/volumes")
     { }
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = CreateKey(tagSet, name);
 
@@ -177,7 +177,7 @@ public:
         return it->second;
     }
 
-    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name)
+    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = CreateKey(tagSet, name);
 
@@ -190,7 +190,7 @@ public:
         return it->second;
     }
 
-    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name)
+    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = CreateKey(tagSet, name);
 
@@ -211,7 +211,7 @@ public:
         return it->second;
     }
 
-    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const TString& name)
+    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = CreateKey(tagSet, name);
 
@@ -224,7 +224,7 @@ public:
         return it->second;
     }
 
-    static NProfiling::TTagSet MakeTagSet(const TString& volumeType, const TString& volumeFilePath)
+    static NProfiling::TTagSet MakeTagSet(const std::string& volumeType, const std::string& volumeFilePath)
     {
         return NProfiling::TTagSet({{"type", volumeType}, {"file_path", volumeFilePath}});
     }
@@ -237,7 +237,7 @@ public:
 private:
     using TKey = NProfiling::TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = tagSet.Tags();
         key.push_back({"name", name});
@@ -353,8 +353,8 @@ struct TVolumeMeta
 
 struct TCreateNbdVolumeOptions
 {
-    TString ExportId;
-    TString Filesystem;
+    std::string ExportId;
+    std::string Filesystem;
     bool IsReadOnly;
     bool IsRoot;
 };
@@ -378,7 +378,7 @@ struct TPrepareNbdRootVolumeOptions
     i64 Size;
     int MediumIndex;
     EFilesystemType Filesystem;
-    TString ExportId;
+    std::string ExportId;
     IChannelPtr DataNodeChannel;
     TSessionId SessionId;
 
@@ -465,10 +465,10 @@ struct TLayerLocationPerformanceCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString VolumesName = "volumes";
-static const TString LayersName = "porto_layers";
-static const TString LayersMetaName = "layers_meta";
-static const TString VolumesMetaName = "volumes_meta";
+static const std::string VolumesName = "volumes";
+static const std::string LayersName = "porto_layers";
+static const std::string LayersMetaName = "layers_meta";
+static const std::string VolumesMetaName = "volumes_meta";
 
 class TLayerLocation
     : public NNode::TDiskLocation
@@ -480,7 +480,7 @@ public:
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
-        const TString& id)
+        const std::string& id)
         : TDiskLocation(locationConfig, id, ExecNodeLogger())
         , Config_(locationConfig)
         , DynamicConfigManager_(dynamicConfigManager)
@@ -522,7 +522,7 @@ public:
             .Run();
     }
 
-    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TLayerId layerId, TGuid tag)
+    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const std::string& archivePath, const std::string& container, TLayerId layerId, TGuid tag)
     {
         return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, layerId, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
@@ -581,18 +581,17 @@ public:
     //! TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath)
+        const std::string& slotPath)
     {
         ValidateEnabled();
 
-        THashMap<TString, TString> volumeProperties {
+        THashMap<std::string, std::string> volumeProperties {
             {"backend", "rbind"},
             {"storage", slotPath},
         };
 
         return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
-            // TODO(dgolear): Switch to std::string.
-            TString path = NFS::CombinePaths(volume->GetPath(), "slot");
+            auto path = NFS::CombinePaths(volume->GetPath(), "slot");
 
             if (!NFS::Exists(path)) {
                 YT_LOG_DEBUG("Creating rbind directory (Path: %v)",
@@ -610,7 +609,7 @@ public:
         })
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run()
-            .Apply(BIND([volume](const TString&) {
+            .Apply(BIND([volume](const std::string&) {
                 // Just return the passed in volume.
                 return volume;
             }));
@@ -664,8 +663,8 @@ public:
 
     TFuture<void> LinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target)
+        const std::string& source,
+        const std::string& target)
     {
         return BIND(
             &TLayerLocation::DoLinkVolume,
@@ -678,8 +677,8 @@ public:
     }
 
     TFuture<void> UnlinkVolume(
-        const TString& source,
-        const TString& target)
+        const std::string& source,
+        const std::string& target)
     {
         return BIND(
             &TLayerLocation::DoUnlinkVolume,
@@ -850,11 +849,11 @@ private:
     const IPortoExecutorPtr LayerExecutor_;
 
     const TActionQueuePtr LocationQueue_ ;
-    const TString VolumesPath_;
-    const TString VolumesMetaPath_;
-    const TString LayersPath_;
-    const TString LayersMetaPath_;
-    const TString PlacePath_;
+    const std::string VolumesPath_;
+    const std::string VolumesMetaPath_;
+    const std::string LayersPath_;
+    const std::string LayersMetaPath_;
+    const std::string PlacePath_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
@@ -1139,7 +1138,12 @@ private:
             tag);
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TLayerId layerId, TGuid tag)
+    TLayerMeta DoImportLayer(
+        const TArtifactKey& artifactKey,
+        const std::string& archivePath,
+        const std::string& container,
+        TLayerId layerId,
+        TGuid tag)
     {
         ValidateEnabled();
 
@@ -1295,7 +1299,7 @@ private:
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         TVolumeMeta&& volumeMeta,
-        THashMap<TString, TString>&& volumeProperties)
+        THashMap<std::string, std::string>&& volumeProperties)
     {
         ValidateEnabled();
 
@@ -1304,8 +1308,7 @@ private:
         auto volumeId = TVolumeId::Create();
         auto volumePath = GetVolumePath(volumeId);
         auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
-        // TODO(dgolear): Switch to std::string.
-        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG(
@@ -1463,7 +1466,7 @@ private:
 
         YT_VERIFY(nbdConfig);
 
-        THashMap<TString, TString> volumeProperties = {
+        THashMap<std::string, std::string> volumeProperties = {
             {"backend", "nbd"},
             {"place", PlacePath_}
         };
@@ -1513,7 +1516,7 @@ private:
         ValidateEnabled();
 
         // Place overlayfs (upper and work directories) in root volume, if it is present.
-        std::optional<TString> placePath;
+        std::optional<std::string> placePath;
         for (const auto& overlayData : overlayDataArray) {
             if (overlayData.IsVolume() && overlayData.GetVolume()->IsRootVolume()) {
                 if (placePath) {
@@ -1535,7 +1538,7 @@ private:
             }
         }
 
-        THashMap<TString, TString> volumeProperties = {
+        THashMap<std::string, std::string> volumeProperties = {
             {"backend", "overlay"},
             {"user", ToString(options.UserId)},
             {"permissions", "0777"},
@@ -1595,10 +1598,10 @@ private:
     {
         ValidateEnabled();
 
-        THashMap<TString, TString> volumeProperties {
+        THashMap<std::string, std::string> volumeProperties {
             {"backend", "squash"},
             {"read_only", "true"},
-            {"layers", TString(squashFSFilePath)}
+            {"layers", std::string(squashFSFilePath)}
         };
 
         TVolumeMeta volumeMeta;
@@ -1622,7 +1625,7 @@ private:
     {
         ValidateEnabled();
 
-        THashMap<TString, TString> volumeProperties {
+        THashMap<std::string, std::string> volumeProperties {
             {"backend", "tmpfs"},
             {"user", ToString(volumeParams.UserId)},
             {"permissions", "0777"},
@@ -1643,8 +1646,7 @@ private:
     void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
-        // TODO(dgolear): Switch to std::string.
-        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
@@ -1735,8 +1737,8 @@ private:
 
     void DoLinkVolume(
         TGuid tag,
-        const TString& source,
-        const TString& target)
+        const std::string& source,
+        const std::string& target)
     {
         YT_LOG_DEBUG("Linking volume (Tag: %v, Source: %v, Target: %v)",
             tag,
@@ -1749,8 +1751,8 @@ private:
     }
 
     void DoUnlinkVolume(
-        const TString& source,
-        const TString& target)
+        const std::string& source,
+        const std::string& target)
     {
         YT_VERIFY(!source.empty());
         YT_VERIFY(!target.empty());
@@ -1792,12 +1794,12 @@ private:
             auto waitForVolumesToBecomeReady = false;
             std::vector<TFuture<void>> unlinkFutures;
             for (const auto& volume : volumes) {
-                if (!volume.Path.StartsWith(VolumesPath_)) {
+                if (!volume.Path.starts_with(VolumesPath_)) {
                     // This volume is not from my location.
                     continue;
                 }
 
-                static const TString ReadyState = "ready";
+                static const std::string ReadyState = "ready";
                 if (volume.State != ReadyState) {
                     waitForVolumesToBecomeReady = true;
                     YT_LOG_DEBUG("Volume is not ready (Path: %v, State: %v)",
@@ -1922,7 +1924,7 @@ public:
         }
     }
 
-    const TString& GetCypressPath() const
+    const std::string& GetCypressPath() const
     {
         return GetKey().data_source().path();
     }
@@ -1982,7 +1984,7 @@ public:
         : Profiler_(std::move(profiler))
     { }
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = CreateKey(tagSet, name);
 
@@ -1998,7 +2000,7 @@ public:
 private:
     using TKey = NProfiling::TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name)
     {
         auto key = tagSet.Tags();
         key.push_back({"name", name});
@@ -2029,7 +2031,7 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        const TString& cacheName,
+        const std::string& cacheName,
         IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer)
         : Config_(std::move(config))
@@ -2103,7 +2105,7 @@ public:
 
             NFS::MakeDirRecursive(path, 0777);
 
-            THashMap<TString, TString> volumeProperties;
+            THashMap<std::string, std::string> volumeProperties;
             volumeProperties["backend"] = "tmpfs";
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->Capacity);
@@ -2201,7 +2203,7 @@ private:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TString CacheName_;
+    const std::string CacheName_;
     IBootstrap* const Bootstrap_;
     IPortoExecutorPtr PortoExecutor_;
     TAbsorbLayerCallback AbsorbLayer_;
@@ -2280,7 +2282,7 @@ private:
         try {
             auto listNode = ConvertToNode(listNodeRsp)->AsList();
             for (const auto& node : listNode->GetChildren()) {
-                auto idString = node->Attributes().Get<TString>("id");
+                auto idString = node->Attributes().Get<std::string>("id");
                 auto id = TObjectId::FromString(idString);
                 paths.insert(FromObjectId(id));
             }
@@ -2759,7 +2761,7 @@ private:
     }
 
     TLayerPtr FindLayerInTmpfs(const TArtifactKey& artifactKey, const TGuid& tag = TGuid()) {
-        auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const TString& cacheName) -> TLayerPtr {
+        auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const std::string& cacheName) -> TLayerPtr {
             auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
             if (tmpfsLayer) {
                 YT_LOG_DEBUG_IF(
@@ -2817,12 +2819,12 @@ private:
 
                 // Import layer in context of container, i.e. account memory allocations to container, e.g.
                 // "self" container. If container is empty, memory allocations are accounted to Porto daemon.
-                TString container;
+                std::string container;
                 if (location->ResidesOnTmpfs()) {
                     container = "self";
                 }
 
-                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, TString(artifactChunk->GetFileName()), container, layerId, tag))
+                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, std::string(artifactChunk->GetFileName()), container, layerId, tag))
                     .ValueOrThrow();
                 return New<TLayer>(layerMeta, artifactKey, location);
             })
@@ -2891,7 +2893,7 @@ public:
 
     TFuture<void> Link(
         TGuid tag,
-        const TString& target) override final
+        const std::string& target) override final
     {
         return TAsyncLockWriterGuard::Acquire(&Lock_)
             .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
@@ -2928,8 +2930,8 @@ protected:
                 location = Location_,
                 volumePath = VolumeMeta_.MountPath,
                 callback = std::move(callback)
-            ] (const std::vector<TString>& targets) {
-                return UnlinkTargets(location, TString(volumePath), targets)
+            ] (const std::vector<std::string>& targets) {
+                return UnlinkTargets(location, volumePath, targets)
                     .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
                         if (!error.IsOK()) {
                             YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
@@ -2961,11 +2963,11 @@ protected:
 
 private:
     TAsyncReaderWriterLock Lock_;
-    std::vector<TString> Targets_;
+    std::vector<std::string> Targets_;
     TFuture<void> RemoveFuture_;
-    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+    TCallback<TFuture<void>(const std::vector<std::string>&)> RemoveCallback_;
 
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, std::string source, std::vector<std::string> targets)
     {
         YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
             source,
@@ -2996,7 +2998,7 @@ public:
         bool isRootVolume,
         TVolumeMeta&& volumeMeta,
         TLayerLocationPtr location,
-        TString nbdExportId,
+        std::string nbdExportId,
         INbdServerPtr nbdServer,
         NProfiling::TTagSet tagSet)
         : TPortoVolumeBase(
@@ -3030,10 +3032,15 @@ public:
 private:
     //! Overlayfs stores its upper/work directories in root volume.
     const bool IsRootVolume_;
-    const TString NbdExportId_;
+    const std::string NbdExportId_;
     const INbdServerPtr NbdServer_;
 
-    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta, TString nbdExportId, INbdServerPtr nbdServer)
+    static TFuture<void> DoRemove(
+        TTagSet tagSet,
+        TLayerLocationPtr location,
+        TVolumeMeta volumeMeta,
+        std::string nbdExportId,
+        INbdServerPtr nbdServer)
     {
         TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
             .Update(VolumeCounters().Decrement(tagSet));
@@ -3324,7 +3331,7 @@ public:
 
     TFuture<void> Link(
         TGuid,
-        const TString&) override final
+        const std::string&) override final
     {
         // Simple volume is created inside sandbox, so we don't need to link it.
         YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
@@ -3436,7 +3443,7 @@ public:
 
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
-        const std::optional<TString>& sandboxPath,
+        const std::optional<std::string>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) override
     {
         YT_VERIFY(sandboxPath);
@@ -3453,13 +3460,13 @@ public:
 
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr&,
-        const TString&) override
+        const std::string&) override
     {
         YT_UNIMPLEMENTED("RbindRootVolume is not implemented for SimpleVolumeManager");
     }
 
     TFuture<void> LinkTmpfsVolumes(
-        const TString&,
+        const std::string&,
         const std::vector<TTmpfsVolumeResult>&) override
     {
         YT_UNIMPLEMENTED("LinkTmpfsVolumes is not implemented for SimpleVolumeManager");
@@ -3536,14 +3543,13 @@ private:
 
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
         TGuid tag,
-        const TString& sandboxPath,
+        const std::string& sandboxPath,
         const TTmpfsVolumeParams& volume)
     {
-        YT_VERIFY(sandboxPath);
+        YT_VERIFY(!sandboxPath.empty());
 
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
-        // TODO(dgolear): Switch to std::string.
-        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        std::string path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -3844,7 +3850,7 @@ public:
 
     //! Prepare tmpfs volumes.
     TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
-        const std::optional<TString>&,
+        const std::optional<std::string>&,
         const std::vector<TTmpfsVolumeParams>& volumes) override
     {
         // Create debug tag.
@@ -3859,7 +3865,7 @@ public:
     }
 
     TFuture<void> LinkTmpfsVolumes(
-        const TString& destinationDirectory,
+        const std::string& destinationDirectory,
         const std::vector<TTmpfsVolumeResult>& volumes) override
     {
          // Create debug tag.
@@ -3911,7 +3917,7 @@ public:
     //! TODO(yuryalekseev): Remove me when slot rbind is removed.
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath) override
+        const std::string& slotPath) override
     {
         auto location = LayerCache_->PickLocation();
         return location->RbindRootVolume(volume, slotPath);

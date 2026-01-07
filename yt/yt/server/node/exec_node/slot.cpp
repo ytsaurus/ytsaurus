@@ -66,7 +66,7 @@ public:
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
         NExecNode::IBootstrap* bootstrap,
-        const TString& nodeTag,
+        const std::string& nodeTag,
         ESlotType slotType,
         NClusterNode::TCpu requestedCpu,
         NScheduler::NProto::TOldDiskRequest diskRequest,
@@ -205,10 +205,10 @@ public:
 
     TFuture<void> MakeLink(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& linkName,
+        const std::string& targetPath,
+        const std::string& linkName,
         bool executable) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -232,10 +232,10 @@ public:
 
     TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& targetPath,
-        const TString& bindPath,
+        const std::string& targetPath,
+        const std::string& bindPath,
         bool executable) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -259,9 +259,9 @@ public:
 
     TFuture<void> MakeCopy(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& sourcePath,
+        const std::string& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation) override
     {
@@ -286,7 +286,7 @@ public:
 
     TFuture<void> MakeFile(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
@@ -339,7 +339,7 @@ public:
     // COMPAT(krasovav): Remove when LinkRootFS is ready
     TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath) override
+        const std::string& slotPath) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -485,7 +485,7 @@ public:
         return Location_->GetDiskStatistics(SlotIndex_);
     }
 
-    TString GetSlotPath() const override
+    std::string GetSlotPath() const override
     {
         VerifyEnabled();
 
@@ -556,7 +556,7 @@ public:
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
-        const std::optional<TString>& hostName,
+        const std::optional<std::string>& hostName,
         const std::vector<TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) override
@@ -586,9 +586,9 @@ public:
 
     void OnArtifactPreparationFailed(
         TJobId jobId,
-        const TString& artifactName,
+        const std::string& artifactName,
         ESandboxKind sandboxKind,
-        const TString& artifactPath,
+        const std::string& artifactPath,
         const TError& error) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -632,7 +632,7 @@ public:
         Logger.AddTag("AllocationId: %v", allocationId);
     }
 
-    TString GetJobProxyUnixDomainSocketPath() const override
+    std::string GetJobProxyUnixDomainSocketPath() const override
     {
         VerifyEnabled();
 
@@ -666,7 +666,7 @@ public:
         return Location_->ValidateRootFS(rootVolume);
     }
 
-    TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
+    std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const override
     {
         VerifyEnabled();
 
@@ -712,11 +712,11 @@ private:
 
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
-    const TString NodeTag_;
+    const std::string NodeTag_;
 
     bool PreparationCanceled_ = false;
 
-    const TString JobProxyUnixDomainSocketPath_;
+    const std::string JobProxyUnixDomainSocketPath_;
 
     const std::optional<TNumaNodeInfo> NumaNodeAffinity_;
 
@@ -757,7 +757,7 @@ private:
         }
     }
 
-    TString GetJobProxyGrpcUnixDomainSocketPath() const
+    std::string GetJobProxyGrpcUnixDomainSocketPath() const
     {
         VerifyEnabled();
 
@@ -776,7 +776,7 @@ IUserSlotPtr CreateSlot(
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     NExecNode::IBootstrap* bootstrap,
-    const TString& nodeTag,
+    const std::string& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TOldDiskRequest diskRequest,

@@ -9,7 +9,7 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::TCounter TNbdProfilerCounters::GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+NProfiling::TCounter TNbdProfilerCounters::GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -22,7 +22,7 @@ NProfiling::TCounter TNbdProfilerCounters::GetCounter(const NProfiling::TTagSet&
     return it->second;
 }
 
-NProfiling::TGauge TNbdProfilerCounters::GetGauge(const NProfiling::TTagSet& tagSet, const TString& name)
+NProfiling::TGauge TNbdProfilerCounters::GetGauge(const NProfiling::TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -35,7 +35,7 @@ NProfiling::TGauge TNbdProfilerCounters::GetGauge(const NProfiling::TTagSet& tag
     return it->second;
 }
 
-NProfiling::TEventTimer TNbdProfilerCounters::GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name)
+NProfiling::TEventTimer TNbdProfilerCounters::GetTimeHistogram(const NProfiling::TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -55,7 +55,7 @@ NProfiling::TEventTimer TNbdProfilerCounters::GetTimeHistogram(const NProfiling:
     return it->second;
 }
 
-NProfiling::TEventTimer TNbdProfilerCounters::GetTimer(const NProfiling::TTagSet& tagSet, const TString& name)
+NProfiling::TEventTimer TNbdProfilerCounters::GetTimer(const NProfiling::TTagSet& tagSet, const std::string& name)
 {
     auto key = CreateKey(tagSet, name);
 
@@ -68,7 +68,7 @@ NProfiling::TEventTimer TNbdProfilerCounters::GetTimer(const NProfiling::TTagSet
     return it->second;
 }
 
-NProfiling::TTagSet TNbdProfilerCounters::MakeTagSet(const TString& filePath)
+NProfiling::TTagSet TNbdProfilerCounters::MakeTagSet(const std::string& filePath)
 {
     return NProfiling::TTagSet({{"file_path", filePath}});
 }
@@ -78,7 +78,7 @@ TNbdProfilerCounters* TNbdProfilerCounters::Get()
     return Singleton<TNbdProfilerCounters>();
 }
 
-TNbdProfilerCounters::TKey TNbdProfilerCounters::CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+TNbdProfilerCounters::TKey TNbdProfilerCounters::CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name)
 {
     auto tagList = tagSet.Tags();
     tagList.push_back({"name", name});

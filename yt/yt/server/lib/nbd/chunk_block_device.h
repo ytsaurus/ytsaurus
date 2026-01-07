@@ -9,7 +9,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateChunkBlockDevice(
-    TString exportId,
+    std::string exportId,
     TChunkBlockDeviceConfigPtr config,
     NConcurrency::IThroughputThrottlerPtr readThrottler,
     NConcurrency::IThroughputThrottlerPtr writeThrottler,
