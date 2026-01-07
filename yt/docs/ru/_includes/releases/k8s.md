@@ -8,12 +8,95 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.29.0**" %}
+
+**Release date:** 2025-12-19
+
+
+## New Features
+* Add tablet balancer to operator by @ifsmirnov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/634
+* Add CA Root Bundle by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/617
+* Support for HTTPS-only API by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/596
+* Handle errors in config generation and overrides by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/633
+
+## Minor / Fixes
+* Rename binary name of OffshoreDataGateway by @pavel-bash in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/622
+* components/yql_agent: fix CA Root Bundle environment by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/623
+* Add forgotten prometheus_cluster_role.yaml for prometheus integration by @Kontakter in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/626
+* test/e2e: move chyt object into yt builder by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/627
+* Add workaround for bug in CRI-O seccomp profile in privileged pods by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/631
+* test/e2e: relabel and regroup testcases by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/636
+
+## Update strategies (work in progress)
+* Added bulkUpdate mode of the updatePlan. Created preChecks interface,… by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/604
+* Added onDelete rollingUpdate mode for Scheduler by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/625
+* test/e2e: use better method to wait sts switch to onDelete by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/632
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.28.0...release/0.29.0
+
+{% endcut %}
+
+
+{% cut "**0.28.0**" %}
+
+**Release date:** 2025-12-09
+
+
+## What's Changed
+* Use reduced version of core/v1 Volume spec by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/571
+* Set user job memory limit in exec node config by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/584
+* Zero out job container resource requests without dedicated job resources by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/616
+
+## New Features
+* Add OffshoreDataGateway component by @pavel-bash in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/567
+* Adding customization of the solomon_exporter key by @kmalov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/576
+* Track operator version by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/579
+* Make CRDs install optional by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/589
+* Add resource selection by operator instance label by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/590
+* Add NVIDIA container runtime for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/586
+
+## Minor and test fixes
+* Revert "test: skip case broken for macos" by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/532
+* Add YTOP_ENABLE_E2E for enabling e2e in test runs by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/565
+* test/e2e: check TLS CHYT/YQL/QueryTracker for various versions by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/563
+* Fix: Sidecar crashes during initialization lead to pods not being able to initialize [other implementation] by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/570
+* controllers: cleanup component manager by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/545
+* Update generated files for OffshoreDataGateway by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/583
+* Update README.md by @AMRivkin in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/585
+* Update images to latest versions in cluster_v1_local.yaml by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/592
+* Update container images in cluster_v1_demo.yaml by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/591
+* [timbertruck] Initialization improvements by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/594
+* test/e2e: update ytsaurus images by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/595
+* Validating `structuredLoggers` settings when `timbertruck` is enabled by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/597
+* Cleaup and fix operator compat test by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/593
+* Added handleUpdatingClusterState helper for qa,qt,yqla components by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/601
+* Fix CRI-O sidecar configmap mount by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/600
+* test/e2e: fix http api tests by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/605
+* Fix make install by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/602
+* test/e2e: increase yt client log level to info by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/608
+* test/e2e: incrase http api request timeouts by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/611
+* Split fillJobEnvironmentCRI out of fillJobEnvironment by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/614
+* test/r8r: add mtls https cri by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/612
+* test/webhooks: cleanup by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/613
+* Cleanup CA bundle components by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/615
+* test/e2e: fix usage of spec-wide context by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/618
+* Revert "Added handleUpdatingClusterState helper for qa,qt,yqla compon… by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/609
+* test/e2e: check query tracker update by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/620
+
+## New Contributors
+* @pavel-bash made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/567
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.27.0...release/0.28.0
+
+{% endcut %}
+
+
 {% cut "**0.27.0**" %}
 
 **Release date:** 2025-09-22
 
 
-#### Major changes
+## Major changes
 * Add support for CRI-O by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/525
 * Introduce cypress patches by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/531
 * Nvidia GPU support: nvidia-container-runtime & entrypoint for jobs container with GpuAgent by @futujaos in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/547
@@ -24,7 +107,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Add options for reconciler concurrency by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/560
 * Add bundle controller to operator by @ifsmirnov in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562
 
-#### Minor changes
+## Minor changes
 * Use golang 1.24 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/538
 * Fix go tool execution from other directories by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/539
 * Upgrade tools by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/540
@@ -41,7 +124,7 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 * Drop legacy operation spec option by @Kontakter in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
 * By default run upto 1 reconciles concurrently by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/561
 
-#### New Contributors
+## New Contributors
 * @epsilond1 made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/553
 * @Kontakter made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/559
 * @ifsmirnov made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/562

@@ -8,19 +8,64 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.45**" %}
+
+**Release date:** 2025-12-29
+
+
+### Features
+* Pass compression_level to parquet writer
+* Add queue_tag and consumer_tag for queue and consumer metrics
+
+
+{% endcut %}
+
+
+{% cut "**0.13.44**" %}
+
+**Release date:** 2025-12-12
+
+
+### Features
+* Introduced `list-job-traces`
+* Introduced `check-operation-permission`
+
+### Fixes
+* Make `trace_id` for `get-job-trace` optional
+* Fixed `transform` errors when specifying `data size_per_job` or `data_size` in the user spec
+
+
+{% endcut %}
+
+
+{% cut "**0.13.43**" %}
+
+**Release date:** 2025-11-22
+
+
+### Features
+  * Add annotations option in `start_query` command in CLI.
+
+### Fixes
+  * Fix `push_queue_producer` retries.
+  * Fix layer detection on unknown OS.
+
+{% endcut %}
+
+
 {% cut "**0.13.42**" %}
 
 **Release date:** 2025-11-14
 
 
-#### Features
+### Features
 * Enable retries for RPC calls
 * More type-hints
 * Introduced `get-job-trace` to CLI
 * Added `--stderr-type` to `get-job-stderr`
 * Added warnings about using `multithreading`
 
-#### Fixes
+### Fixes
 * `transform` command preserves attributes (`compression_codec`, `erasure_codec`, `optimize_for`) from the destination table if they are not explicitly overridden
 * Fixed `--config` for `yt-fuse`
 
@@ -32,10 +77,10 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-10-24
 
 
-#### Features
+### Features
   * Added `--with-env-patch` option to `show-default-config` CLI command to dump default config with environment variables applied
 
-#### Fixes
+### Fixes
   * Fixed parsing of `YPath` when specifying a cluster and ranges
   * Fixed `spec_builder` when passing `client=None`
 
@@ -47,7 +92,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-10-13
 
 
-#### Features
+### Features
   * YT-26355: Infer Null type from Arrow schema
   * YT-26389: Support omit_inaccessible_rows
   * Added `log_once` function
@@ -60,13 +105,13 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-10-10
 
 
-#### Features
+### Features
 * Process YQL quieries in separated processes (Commit: 3c09bed1d8d4ed07c1b4fe9393c39bb420c7dbc0)
 * Added `clip_timestamp` option (Commit: 4e6889f0cd0615cee3d5d5ae0d85602233e2412f)
 * Added task count in parallel read (Commit: 506e97dd397e29eeaa4e7b88f48467aa4419c48c)
 
 
-#### Fixes
+### Fixes
 * Fix passing abort messages (Commit: b2b49815a043b78e8a3160f05400864a0fef678c)
 * Fix Handle some environment variables with types (`YT_CHUNK_SIZE`) (Commit: d2109522d473a3126eb5f9258089d41689549621)
 * Fix dirtable reader (Commit: 9ea085c12bdff6c8a67b5ad1ea6236db4da32771)

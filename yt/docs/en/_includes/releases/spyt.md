@@ -12,6 +12,7 @@ Is released as a docker image.
 
 **Release date:** 2025-12-23
 
+
 Maintenance release with minor enhancements
 
 - Improving stability of distributed write and read API support
@@ -19,9 +20,11 @@ Maintenance release with minor enhancements
 
 {% endcut %}
 
+
 {% cut "**2.8.0**" %}
 
 **Release date:** 2025-11-27
+
 
 - Dynamic allocation support in direct submit scenarios
 - YTsaurus distributed read and write API support
@@ -29,6 +32,7 @@ Maintenance release with minor enhancements
 - Spark connect integration improvements
 
 {% endcut %}
+
 
 {% cut "**2.7.5**" %}
 
