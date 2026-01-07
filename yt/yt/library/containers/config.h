@@ -25,9 +25,9 @@ DEFINE_REFCOUNTED_TYPE(TPodSpecConfig)
 struct TCGroupConfig
     : public virtual NYTree::TYsonStruct
 {
-    std::vector<TString> SupportedCGroups;
+    std::vector<std::string> SupportedCGroups;
 
-    bool IsCGroupSupported(const TString& cgroupType) const;
+    bool IsCGroupSupported(const std::string& cgroupType) const;
 
     REGISTER_YSON_STRUCT(TCGroupConfig);
 

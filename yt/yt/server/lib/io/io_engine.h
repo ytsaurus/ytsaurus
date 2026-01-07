@@ -26,7 +26,7 @@ class TIOEngineHandle final
 {
 public:
     TIOEngineHandle() = default;
-    TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept;
+    TIOEngineHandle(const std::string& fName, EOpenMode oMode) noexcept;
 
     bool IsOpenForDirectIO() const;
     static void MarkOpenForDirectIO(EOpenMode* oMode);
@@ -84,7 +84,7 @@ struct TWriteResponse
 
 struct TOpenRequest
 {
-    TString Path;
+    std::string Path;
     EOpenMode Mode = OpenExisting;
 };
 
@@ -134,7 +134,7 @@ struct TFlushFileRangeResponse
 
 struct TFlushDirectoryRequest
 {
-    TString Path;
+    std::string Path;
 };
 
 struct TFlushDirectoryResponse
@@ -229,7 +229,7 @@ struct IIOEngine
 
     // Extension methods.
     TFuture<TReadResponse> ReadAll(
-        const TString& path,
+        const std::string& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TIOSessionId sessionId = {},
         TFairShareSlotId fairShareSlot = {});
@@ -242,7 +242,7 @@ DEFINE_REFCOUNTED_TYPE(IIOEngine)
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    TString locationId = "default",
+    std::string locationId = "default",
     NProfiling::TProfiler profiler = {},
     NLogging::TLogger logger = {},
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue = nullptr,

@@ -20,9 +20,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& serializedArgument, bool shutdownLogging);
+static TYsonString DoExecuteTool(const std::string& toolName, const TYsonString& serializedArgument, bool shutdownLogging);
 
-TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgument)
+TYsonString SpawnTool(const std::string& toolName, const TYsonString& serializedArgument)
 {
     auto process = TSubprocess(TString(ToolsProgramName));
     process.AddArguments({
@@ -37,10 +37,10 @@ TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgu
         THROW_ERROR_EXCEPTION("Failed to run %v", toolName)
             << result.Status
             << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
+            << TErrorAttribute("error", std::string(result.Error.Begin(), result.Error.End()));
     }
 
-    auto serializedResultOrError = TString(result.Output.Begin(), result.Output.End());
+    auto serializedResultOrError = std::string(result.Output.Begin(), result.Output.End());
 
     // Treat empty string as OK
     if (serializedResultOrError.empty()) {
@@ -50,12 +50,12 @@ TYsonString SpawnTool(const TString& toolName, const TYsonString& serializedArgu
     return TYsonString(serializedResultOrError);
 }
 
-TYsonString DoRunTool(const TString& toolName, const TYsonString& serializedArgument)
+TYsonString DoRunTool(const std::string& toolName, const TYsonString& serializedArgument)
 {
     return SpawnTool(toolName, serializedArgument);
 }
 
-TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& serializedArgument)
+TYsonString DoRunToolInProcess(const std::string& toolName, const TYsonString& serializedArgument)
 {
     auto serializedResultOrError = DoExecuteTool(toolName, serializedArgument, false);
 
@@ -67,7 +67,7 @@ TYsonString DoRunToolInProcess(const TString& toolName, const TYsonString& seria
     return serializedResultOrError;
 }
 
-static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& serializedArgument, bool shutdownLogging)
+static TYsonString DoExecuteTool(const std::string& toolName, const TYsonString& serializedArgument, bool shutdownLogging)
 {
     try {
         if (shutdownLogging) {
@@ -93,7 +93,7 @@ static TYsonString DoExecuteTool(const TString& toolName, const TYsonString& ser
     }
 }
 
-TYsonString ExecuteTool(const TString& toolName, const TYsonString& serializedArgument)
+TYsonString ExecuteTool(const std::string& toolName, const TYsonString& serializedArgument)
 {
     return DoExecuteTool(toolName, serializedArgument, true);
 }
