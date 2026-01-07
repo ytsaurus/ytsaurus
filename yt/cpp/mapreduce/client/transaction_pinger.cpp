@@ -179,6 +179,7 @@ private:
         try {
             PingTx(HttpClient_, pingableTx);
         } catch (const std::exception& e) {
+            YT_LOG_DEBUG("DoPingTransaction has failed: %v", e.what());
             if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
                 if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
                     YT_UNUSED_FUTURE(periodic->Stop());
