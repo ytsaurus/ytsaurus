@@ -1,6 +1,12 @@
 name: Release ytsaurus
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag like 25.2.dev"
+        required: true
+        type: string
   push:
     tags:
       - 'docker/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+'
@@ -52,14 +58,23 @@ jobs:
       - name: Parse tag
         id: tag
         run: |
-          tmp=${GITHUB_REF#refs/*/}; if [[ "${tmp%%/*}" == "docker-test" ]]
-          then
-              echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
-          elif [[ "${tmp%%/*}" == "docker" ]]
-          then
-              echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            PROD_IMAGE_TAG="${{ github.event.inputs.tag }}"
+          else
+            tmp="${GITHUB_REF#refs/*/}"; if [[ "${tmp%%/*}" == "docker-test" ]]
+            then
+                echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            elif [[ "${tmp%%/*}" == "docker" ]]
+            then
+                echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+            fi
+
+            PROD_IMAGE_TAG="${tmp#docker/ytsaurus/}"
+            PROD_IMAGE_TAG="${PROD_IMAGE_TAG#docker-test/ytsaurus/}"
           fi
-          echo "PROD_IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
+
+          echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
 
   checkout:
@@ -118,9 +133,9 @@ jobs:
     steps:
       - name: Docker Pull And Push
         run: |
-          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
-          docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
-          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
+          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
+          docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
 
   stop-vm:
     name: Stop VM
