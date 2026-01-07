@@ -119,7 +119,7 @@ jobs:
     uses: ./.github/workflows/build-jobs.yaml
 
   release:
-    name: Release
+    name: Release Test
     needs:
       - start-vm
       - build
@@ -137,7 +137,7 @@ jobs:
     uses: ./.github/workflows/docker-jobs.yaml
 
   push-test-to-prod:
-    name: Release
+    name: Release Prod
     if: ${{ needs.tag.outputs.release-type == 'prod' }}
     needs:
       - start-vm
