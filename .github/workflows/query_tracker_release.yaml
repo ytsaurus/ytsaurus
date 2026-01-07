@@ -7,6 +7,11 @@ on:
         description: "Image tag like 0.1.dev"
         required: true
         type: string
+      build_types:
+        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
   push:
     tags:
       - 'docker/query-tracker/[0-9]+\.[0-9]+\.[0-9]+'
@@ -98,6 +103,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
+      build-types: ${{ inputs.build_types }}
       build-python: true
       build-query-tracker: true
     secrets:
@@ -114,6 +120,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
+      build-types: ${{ inputs.build_types }}
       publish-query-tracker: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
@@ -130,11 +137,40 @@ jobs:
       - tag
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Docker Pull And Push
+      - name: Decide which images to push
+        id: types
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_TYPES='${{ inputs.build_types }}'
+
+          has() {
+            python3 - <<'PY' "$BUILD_TYPES" "$1"
+import json, sys
+arr = json.loads(sys.argv[1])
+print("true" if sys.argv[2] in arr else "false")
+PY
+          }
+
+          echo "release=$(has release)" >> "$GITHUB_OUTPUT"
+          echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker Pull And Push (release)
+        if: ${{ steps.types.outputs.release == 'true' }}
         run: |
           docker pull ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.test-image-tag }}
-          docker tag ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.test-image-tag }} ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}
+          docker tag  ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.test-image-tag }} \
+                      ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}
           docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}
+
+      - name: Docker Pull And Push (relwithdebinfo)
+        if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
+          docker tag  ghcr.io/ytsaurus/query-tracker-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
+                      ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+          docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
 
   stop-vm:
     name: Stop VM
