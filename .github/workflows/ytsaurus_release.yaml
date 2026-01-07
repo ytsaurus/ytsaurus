@@ -154,21 +154,21 @@ jobs:
           echo "release=$(has release)" >> "$GITHUB_OUTPUT"
           echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
 
-    - name: Docker Pull And Push (release)
-      if: ${{ steps.types.outputs.release == 'true' }}
-      run: |
-        docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
-        docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} \
-                    ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
-        docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
+      - name: Docker Pull And Push (release)
+        if: ${{ steps.types.outputs.release == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
+          docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} \
+                      ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
 
-    - name: Docker Pull And Push (relwithdebinfo)
-      if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
-      run: |
-        docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
-        docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
-                    ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
-        docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+      - name: Docker Pull And Push (relwithdebinfo)
+        if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
+          docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
+                      ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
 
   stop-vm:
     name: Stop VM
