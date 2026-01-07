@@ -138,20 +138,6 @@ jobs:
       - tag
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Docker Pull And Push
-        run: |
-          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
-          docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
-          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
-
-  push-test-to-prod:
-    name: Release
-    if: ${{ needs.tag.outputs.release-type == 'prod' }}
-    needs:
-      - start-vm
-      - tag
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
       - name: Decide which images to push
         id: types
         shell: bash
@@ -161,7 +147,7 @@ jobs:
           BUILD_TYPES='${{ inputs.build_types }}'
 
           has() {
-            python3 - <<'PY' "$BUILD_TYPES" "$1"
+            python3 - "$BUILD_TYPES" "$1" <<'PY'
 import json, sys
 arr = json.loads(sys.argv[1])
 print("true" if sys.argv[2] in arr else "false")
