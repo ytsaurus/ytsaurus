@@ -167,6 +167,7 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: true
       build-python: true
+      build-chyt: true
       update-remote-cache: true
       build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
@@ -186,7 +187,7 @@ jobs:
       publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
       publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
       publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-chyt: ${{ github.ref_name == 'main' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
       build-types: ${{ needs.tag.outputs.build-types }}
