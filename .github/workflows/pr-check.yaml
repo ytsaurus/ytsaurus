@@ -104,6 +104,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
+      build-types: '["release"]'
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -121,6 +122,7 @@ jobs:
       build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
+      build-types: '["release"]'
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -138,6 +140,7 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
+      build-types: '["release"]'
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
