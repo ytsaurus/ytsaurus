@@ -8,6 +8,51 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.45**" %}
+
+**Release date:** 2025-12-29
+
+
+#### Features
+* Pass compression_level to parquet writer
+* Add queue_tag and consumer_tag for queue and consumer metrics
+
+
+{% endcut %}
+
+
+{% cut "**0.13.44**" %}
+
+**Release date:** 2025-12-12
+
+
+#### Features
+* Introduced `list-job-traces`
+* Introduced `check-operation-permission`
+
+#### Fixes
+* Make `trace_id` for `get-job-trace` optional
+* Fixed `transform` errors when specifying `data size_per_job` or `data_size` in the user spec
+
+
+{% endcut %}
+
+
+{% cut "**0.13.43**" %}
+
+**Release date:** 2025-11-22
+
+
+#### Features
+  * Add annotations option in `start_query` command in CLI.
+
+#### Fixes
+  * Fix `push_queue_producer` retries.
+  * Fix layer detection on unknown OS.
+
+{% endcut %}
+
+
 {% cut "**0.13.42**" %}
 
 **Release date:** 2025-11-14
@@ -81,11 +126,11 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-08-29
 
 
-### Features
+#### Features
 
   * Supported [blob](https://ytsaurus.tech/docs/en/user-guide/storage/formats#BLOB) table format
 
-### Fixes
+#### Fixes
 
   * Fixed heavy proxy selection logic for heavy requests
   * Fixed `get_table_schema` for replicated tables
@@ -99,12 +144,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-08-12
 
 
-### Features
+#### Features
   * Add compression codec option for parquet.
   * Add methods for distributed write API.
   * Add typing for config and for spec builders.
 
-### Fixes
+#### Fixes
   * Add details to import error of pickling encryption.
   * Fix wording of write_table description.
   * Fix YSON convert for bytes object.
@@ -118,7 +163,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-07-27
 
 
-### Features
+#### Features
   * Added support for `YT_LOG_PATH` for RPC requests
   * Added `--attribute` argument for `list_operations` CLI command
   * Rework local RPC connection configuration
@@ -131,12 +176,12 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-07-14
 
 
-### Features
+#### Features
   * Support tz types in python
   * Add type hints for YtClient config
   * Support custom auth class in Python SDK config
 
-### Fixes
+#### Fixes
   * Fix hiding tokens in case of YtProxyUnavailable exception
 
 {% endcut %}
@@ -147,7 +192,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-20
 
 
-## Features
+#### Features
  * Minor improvements
  * Bump py-dependencies 2f5dc26abd27401d7c775b4e7406b4c85c1c4105
 
@@ -159,7 +204,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-16
 
 
-## Features
+#### Features
   * Introduce `list_operation_events` command
 
 
@@ -171,11 +216,11 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 **Release date:** 2025-06-02
 
 
-## Features
+#### Features
   * Add `annotate_with_types` to `yson_to_json` function
   * Improve proxy banned warning message
 
-## Fixes
+#### Fixes
   * Remove `YtSequoiaRetriableError`
   * Fix handling errors in `write_table` with enabled framing
 
