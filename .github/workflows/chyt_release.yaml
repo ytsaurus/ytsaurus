@@ -113,6 +113,7 @@ jobs:
       cpp-build-system: ya-make
       build-python: true
       build-chyt: true
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -131,6 +132,7 @@ jobs:
       publish-chyt: true
       image-tag: ${{ needs.tag.outputs.test-image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      build-types: ${{ needs.tag.outputs.build-types }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
