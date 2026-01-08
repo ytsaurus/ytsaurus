@@ -1609,18 +1609,19 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
-            if (!IsPingableState()) {
-                YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
-                    Id_,
-                    GetState());
-                return;
-            }
+        SendPing()
+            .Subscribe(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
+                if (!IsPingableState()) {
+                    YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
+                        Id_,
+                        GetState());
+                    return;
+                }
 
-            auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
-            auto pingDeadline = startTime + pingPeriod;
-            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
-        }));
+                auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_.Acquire()->DefaultPingPeriod), GetTimeout() / 2);
+                auto pingDeadline = startTime + pingPeriod;
+                TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
+            }));
     }
 
     bool IsPingableState()
