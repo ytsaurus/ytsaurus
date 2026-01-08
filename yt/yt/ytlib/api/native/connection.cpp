@@ -73,6 +73,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
+#include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
@@ -302,6 +304,11 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        OffshoreDataGatewayChannel_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannel(
+            config->OffshoreDataGateway,
+            ChannelFactory_,
+            this);
 
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
@@ -661,6 +668,11 @@ public:
     const IChannelPtr& GetBundleControllerChannel() override
     {
         return BundleControllerChannel_;
+    }
+
+    const IChannelPtr& GetOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannel_;
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -1062,6 +1074,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
+    IChannelPtr OffshoreDataGatewayChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;

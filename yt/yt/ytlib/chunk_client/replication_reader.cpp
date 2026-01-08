@@ -102,7 +102,7 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TChunkReplica Replica;
+    TChunkReplicaWithMedium Replica;
     std::string Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
@@ -119,8 +119,51 @@ using TPeerList = TCompactVector<TPeer, 3>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPeerId
+{
+    TPeerId(const std::string& address)
+        : Address(address)
+        , MediumIndex(GenericMediumIndex)
+    {
+        // Offshore peer requires correct medium index.
+        YT_VERIFY(!IsOffshore());
+    }
+
+    TPeerId(const std::string& address, int mediumIndex)
+        : Address(address)
+        , MediumIndex(mediumIndex)
+    {
+        YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
+    }
+
+    TPeerId(const TPeer& peer)
+        : Address(peer.Address)
+        , MediumIndex(peer.Replica.GetMediumIndex())
+    {
+        YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
+    }
+
+    bool IsOffshore() const
+    {
+        return IsAddressOffshore(Address);
+    }
+
+    std::string Address;
+    int MediumIndex;
+};
+
+bool operator == (const TPeerId& lhs, const TPeerId& rhs) noexcept
+{
+    return
+        lhs.Address == rhs.Address &&
+        lhs.MediumIndex == rhs.MediumIndex;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPeerQueueEntry
 {
+    TPeerId PeerId;
     TPeer Peer;
     int BanCount = 0;
     ui32 Random = RandomNumber<ui32>();
@@ -175,6 +218,31 @@ DEFINE_REFCOUNTED_TYPE(IRequestBatcher)
 ////////////////////////////////////////////////////////////////////////////////
 
 IRequestBatcherPtr CreateRequestBatcher(TWeakPtr<TReplicationReader> reader);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NChunkClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A hasher for TPeerId.
+template <>
+struct THash<NYT::NChunkClient::TPeerId>
+{
+    size_t operator()(const NYT::NChunkClient::TPeerId& peerId) const
+    {
+        return CombineHashes(
+            THash<std::string>()(peerId.Address),
+            THash<int>()(peerId.MediumIndex)
+        );
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NChunkClient {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -316,9 +384,9 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
     NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
     //! Peers returning NoSuchChunk error are banned forever.
-    THashSet<std::string> BannedForeverPeers_;
+    THashSet<TPeerId> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
-    THashMap<std::string, int> PeerBanCountMap_;
+    THashMap<TPeerId, int> PeerBanCountMap_;
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
@@ -385,52 +453,55 @@ private:
         FreshSeedsRevision_ = seedReplicas.Revision;
 
         for (auto replica : seedReplicas.Replicas) {
-            const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            const auto* nodeDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
             if (!nodeDescriptor) {
                 YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
                 continue;
             }
             if (auto address = nodeDescriptor->FindAddress(Networks_)) {
-                BannedForeverPeers_.erase(*address);
+                BannedForeverPeers_.erase(TPeerId{
+                    *address,
+                    replica.GetMediumIndex()
+                });
             }
         }
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
-    void OnPeerBanned(const std::string& peerAddress)
+    void OnPeerBanned(const TPeerId& peerId)
     {
         auto guard = Guard(PeersSpinLock_);
-        auto [it, inserted] = PeerBanCountMap_.emplace(peerAddress, 1);
+        auto [it, inserted] = PeerBanCountMap_.emplace(peerId, 1);
         if (!inserted) {
             ++it->second;
         }
 
         if (it->second > Config_->MaxBanCount) {
-            BannedForeverPeers_.insert(peerAddress);
+            BannedForeverPeers_.insert(peerId);
         }
     }
 
-    void BanPeerForever(const std::string& peerAddress)
+    void BanPeerForever(const TPeerId& peerId)
     {
         auto guard = Guard(PeersSpinLock_);
-        BannedForeverPeers_.insert(peerAddress);
+        BannedForeverPeers_.insert(peerId);
     }
 
-    int GetBanCount(const std::string& peerAddress) const
+    int GetBanCount(const TPeerId& peerId) const
     {
         auto guard = Guard(PeersSpinLock_);
-        auto it = PeerBanCountMap_.find(peerAddress);
+        auto it = PeerBanCountMap_.find(peerId);
         return it == PeerBanCountMap_.end() ? 0 : it->second;
     }
 
-    bool IsPeerBannedForever(const std::string& peerAddress) const
+    bool IsPeerBannedForever(const TPeerId& peerId) const
     {
         if (!Config_->BanPeersPermanently) {
             return false;
         }
 
         auto guard = Guard(PeersSpinLock_);
-        return BannedForeverPeers_.contains(peerAddress);
+        return BannedForeverPeers_.contains(peerId);
     }
 
     void AccountTraffic(i64 transferredByteCount, const TNodeDescriptor& srcDescriptor)
@@ -556,8 +627,8 @@ protected:
     //! Seed replicas for the current retry.
     TAllyReplicasInfo SeedReplicas_;
 
-    //! Set of peer addresses banned for the current retry.
-    THashSet<std::string> BannedPeers_;
+    //! Set of peers banned for the current retry.
+    THashSet<TPeerId> BannedPeers_;
 
     //! List of candidates addresses to try during current pass, prioritized by:
     //! locality, ban counter, random number.
@@ -569,7 +640,7 @@ protected:
     TPeerQueue PeerQueue_;
 
     //! Catalogue of peers, seen on current pass.
-    THashMap<std::string, TPeer> Peers_;
+    THashMap<TPeerId, TPeer> Peers_;
 
     //! The instant this session was started.
     TInstant StartTime_ = TInstant::Now();
@@ -719,23 +790,23 @@ protected:
         MediumThrottler_->Acquire(extraBytesToThrottle);
     }
 
-    void BanPeer(const std::string& address, bool forever)
+    void BanPeer(const TPeerId& peerId, bool forever)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
             return;
         }
 
-        if (forever && !reader->IsPeerBannedForever(address)) {
-            YT_LOG_DEBUG("Node is banned until seeds are re-fetched from master (Address: %v)", address);
-            reader->BanPeerForever(address);
+        if (forever && !reader->IsPeerBannedForever(peerId)) {
+            YT_LOG_DEBUG("Node is banned until seeds are re-fetched from master (Address: %v)", peerId.Address);
+            reader->BanPeerForever(peerId);
         }
 
-        if (BannedPeers_.insert(address).second) {
-            reader->OnPeerBanned(address);
+        if (BannedPeers_.insert(peerId).second) {
+            reader->OnPeerBanned(peerId);
             YT_LOG_DEBUG("Node is banned for the current retry (Address: %v, BanCount: %v)",
-                address,
-                reader->GetBanCount(address));
+                peerId.Address,
+                reader->GetBanCount(peerId));
         }
     }
 
@@ -746,7 +817,7 @@ protected:
 
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
-        TChunkReplica replica,
+        TChunkReplicaWithMedium replica,
         const std::string& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -757,12 +828,22 @@ protected:
             return false;
         }
 
-        auto optionalAddress = descriptor.FindAddress(Networks_);
-        if (!optionalAddress) {
-            YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
-                descriptor,
-                Networks_);
-            return false;
+        TPeerId peerId{
+            address,
+            replica.GetMediumIndex()
+        };
+
+        std::optional<std::string> optionalAddress;
+        if (!peerId.IsOffshore()) {
+            auto optionalAddress = descriptor.FindAddress(Networks_);
+            if (!optionalAddress) {
+                YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
+                    descriptor,
+                    Networks_);
+                return false;
+            }
+        } else {
+            optionalAddress = address;
         }
 
         TPeer peer{
@@ -773,37 +854,39 @@ protected:
             .Locality = GetNodeLocality(descriptor),
             .NodeSuspicionMarkTime = nodeSuspicionMarkTime
         };
-        if (!Peers_.emplace(address, peer).second) {
+        if (!Peers_.emplace(peerId, peer).second) {
             // Peer was already handled on the current pass.
             return false;
         }
 
-        if (IsPeerBanned(address)) {
+        if (IsPeerBanned(peerId)) {
             // Peer is banned.
             return false;
         }
 
         PeerQueue_.push(TPeerQueueEntry{
+            .PeerId = peerId,
             .Peer = std::move(peer),
-            .BanCount = reader->GetBanCount(address)
+            .BanCount = reader->GetBanCount(peerId)
         });
         return true;
     }
 
     //! Reinstall peer in the peer queue.
-    void ReinstallPeer(const std::string& address)
+    void ReinstallPeer(const TPeerId& peerId)
     {
         auto reader = Reader_.Lock();
-        if (!reader || IsPeerBanned(address)) {
+        if (!reader || IsPeerBanned(peerId)) {
             return;
         }
 
-        YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
+        YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", peerId.Address);
 
-        const auto& peer = GetOrCrash(Peers_, address);
+        const auto& peer = GetOrCrash(Peers_, peerId);
         PeerQueue_.push(TPeerQueueEntry{
+            .PeerId = peerId,
             .Peer = peer,
-            .BanCount = reader->GetBanCount(address)
+            .BanCount = reader->GetBanCount(peerId)
         });
     }
 
@@ -812,21 +895,25 @@ protected:
         return GetOrCrash(Peers_, address).Type == EPeerType::Seed;
     }
 
-    bool IsPeerBanned(const std::string& address)
+    bool IsPeerBanned(const TPeerId& peerId)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
             return false;
         }
 
-        return BannedPeers_.find(address) != BannedPeers_.end() || reader->IsPeerBannedForever(address);
+        return BannedPeers_.find(peerId) != BannedPeers_.end() || reader->IsPeerBannedForever(peerId);
     }
 
-    IChannelPtr GetChannel(const std::string& address)
+    IChannelPtr GetChannel(const TPeerId& peerId)
     {
         auto reader = Reader_.Lock();
         if (!reader) {
             return nullptr;
+        }
+
+        if (peerId.IsOffshore()) {
+            return reader->Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
         }
 
         try {
@@ -839,10 +926,10 @@ protected:
             }
 
             // TODO(akozhikhov): Don't catch here.
-            return channelFactory->CreateChannel(address);
+            return channelFactory->CreateChannel(peerId.Address);
         } catch (const std::exception& ex) {
             RegisterError(ex);
-            BanPeer(address, false);
+            BanPeer(peerId, false);
             return nullptr;
         }
     }
@@ -885,7 +972,10 @@ protected:
         RegisterError(error);
     }
 
-    TPeerList PickPeerCandidates(
+    //! Picks the #count peers from the peer queue; returns a pair of the selected
+    //! peers and a boolean showing if more calls to this function may happen during
+    //! the current pass.
+    std::pair<TPeerList, bool> PickPeerCandidates(
         const TReplicationReaderPtr& reader,
         int count,
         bool enableEarlyExit,
@@ -894,7 +984,7 @@ protected:
         TPeerList candidates;
         while (!PeerQueue_.empty() && std::ssize(candidates) < count) {
             const auto& top = PeerQueue_.top();
-            if (top.BanCount != reader->GetBanCount(top.Peer.Address)) {
+            if (top.BanCount != reader->GetBanCount(top.PeerId)) {
                 auto queueEntry = top;
                 PeerQueue_.pop();
                 queueEntry.BanCount = reader->GetBanCount(queueEntry.Peer.Address);
@@ -915,13 +1005,23 @@ protected:
                 }
             }
 
-            if ((!filter || filter(top.Peer.Address)) && !IsPeerBanned(top.Peer.Address)) {
-                candidates.push_back(top.Peer);
+            if ((!filter || filter(top.Peer.Address)) && !IsPeerBanned(top.PeerId)) {
+                // Do not mix domestic and offshore peers in the result of this function.
+                if (!top.PeerId.IsOffshore()) {
+                    // If the peer isn't offshore, we can just add it.
+                    candidates.push_back(top.Peer);
+                } else if (candidates.empty()) {
+                    // If the peer is offshore and it's the first peer we encounter, just return it.
+                    candidates.push_back(top.Peer);
+                    PeerQueue_.pop();
+                    return {candidates, false};
+                }
             }
 
             PeerQueue_.pop();
         }
-        return candidates;
+
+        return {candidates, true};
     }
 
     IChannelPtr MakePeersChannel(
@@ -931,12 +1031,12 @@ protected:
     {
         if (backupPeer && hedgingOptions) {
             return CreateHedgingChannel(
-                GetChannel(primaryPeer.Address),
-                GetChannel(backupPeer->Address),
+                GetChannel(TPeerId(primaryPeer)),
+                GetChannel(TPeerId(*backupPeer)),
                 *hedgingOptions);
         }
 
-        return GetChannel(primaryPeer.Address);
+        return GetChannel(TPeerId(primaryPeer));
     }
 
     void NextRetry()
@@ -1051,7 +1151,7 @@ protected:
         const auto& seedReplicas = SeedReplicas_.Replicas;
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
-        std::vector<TChunkReplica> replicas;
+        std::vector<TChunkReplicaWithMedium> replicas;
         std::vector<TNodeId> nodeIds;
         std::vector<std::string> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
@@ -1060,7 +1160,7 @@ protected:
         peerAddresses.reserve(seedReplicas.size());
 
         for (auto replica : seedReplicas) {
-            const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+            const auto* descriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
             if (!descriptor) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNode,
@@ -1706,6 +1806,22 @@ private:
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
+        if (TPeerId(peer).IsOffshore()) {
+            // Method for probing offshore peers is not supported (yet), so we can
+            // consider them always available.
+            return MakeFuture(TPeerProbingResult{
+                peer,
+                TPeerProbingInfo{
+                    .NetThrottling = false,
+                    .DiskThrottling = false,
+                    .NetQueueSize = 0,
+                    .DiskQueueSize = 0,
+                    .PeerDescriptors = {},
+                    .AllyReplicas = {},
+                    .HasCompleteChunk = true
+                }
+            });
+        }
         auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
             IRequestBatcher::TRequest{
                 .Address = peer.Address,
@@ -1745,7 +1861,7 @@ private:
         asyncResults.reserve(candidates.size());
 
         for (const auto& peer : candidates) {
-            auto channel = GetChannel(peer.Address);
+            auto channel = GetChannel(TPeerId(peer));
             if (!channel) {
                 continue;
             }
@@ -2103,8 +2219,8 @@ private:
     //! Blocks that are fetched so far.
     THashMap<int, TBlock> Blocks_;
 
-    //! Maps peer addresses to block indexes.
-    THashMap<std::string, THashSet<int>> PeerBlocksMap_;
+    //! Maps peers to block indexes.
+    THashMap<TPeerId, THashSet<int>> PeerBlocksMap_;
 
     //! address -> block_index -> (session_id, iteration).
     THashMap<TNodeId, THashMap<int, NChunkClient::NProto::TP2PBarrier>> P2PDeliveryBarrier_;
@@ -2171,7 +2287,7 @@ private:
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
                 auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
-                auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
+                auto maybeSuggestedDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, peerNodeId);
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorAddress: %v)",
                         peerNodeId,
@@ -2181,7 +2297,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
-                        TChunkReplica(peerNodeId, GenericChunkReplicaIndex),
+                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
@@ -2306,7 +2422,7 @@ private:
                 return false;
             };
 
-            auto moreCandidates = PickPeerCandidates(
+            auto [moreCandidates, mayCallAgain] = PickPeerCandidates(
                 reader,
                 ReaderConfig_->ProbePeerCount,
                 /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->BlockRpcHedgingDelay,
@@ -2316,6 +2432,10 @@ private:
                 break;
             }
             candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
+
+            if (!mayCallAgain) {
+                break;
+            }
         }
 
         return candidates;
@@ -2910,7 +3030,8 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             /*count*/ 1,
-            /*enableEarlyExit*/ true);
+            /*enableEarlyExit*/ true)
+            .first;
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -2918,7 +3039,7 @@ private:
 
         const auto& peer = candidates.front();
         const auto& peerAddress = peer.Address;
-        auto channel = GetChannel(peerAddress);
+        auto channel = GetChannel(TPeerId(peer));
         if (!channel) {
             RequestBlocks();
             return;
@@ -3206,7 +3327,8 @@ private:
         auto peers = PickPeerCandidates(
             reader,
             ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
-            /*enableEarlyExit*/ false);
+            /*enableEarlyExit*/ false)
+            .first;
         if (peers.empty()) {
             OnPassCompleted();
             return;
@@ -3263,6 +3385,7 @@ private:
         }
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+        ToProto(req->mutable_replica_spec(), peers[0].Replica);
 
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
@@ -3533,7 +3656,8 @@ private:
         auto candidates = PickPeerCandidates(
             reader,
             ReaderConfig_->ProbePeerCount,
-            /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay);
+            /*enableEarlyExit*/ !SessionOptions_.NewHedgingManager && !ReaderConfig_->LookupRpcHedgingDelay)
+            .first;
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -3717,7 +3841,7 @@ private:
 
             if (backup) {
                 SendLookupRowsRequest(
-                    GetChannel(respondedPeer.Address),
+                    GetChannel(TPeerId(respondedPeer)),
                     {respondedPeer},
                     reader,
                     /*schemaRequested*/ true);
@@ -4172,6 +4296,8 @@ private:
             auto* waitBarrier = req->add_wait_barriers();
             waitBarrier->CopyFrom(barrier);
         }
+
+        ToProto(req->mutable_replica_spec(), queuedBatch.PrimaryPeer.Replica);
 
         return req->Invoke()
             .AsUnique().Apply(BIND(

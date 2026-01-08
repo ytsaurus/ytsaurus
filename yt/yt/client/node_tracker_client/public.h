@@ -48,6 +48,10 @@ constexpr TNodeId MaxNodeId = TNodeId((1 << 24) - 1); // TNodeId must fit into 2
 // Sentinels.
 constexpr TNodeId InvalidNodeId = TNodeId(0);
 constexpr TNodeId OffshoreNodeId = TNodeId((1 << 24) - 1);
+inline constexpr std::string_view OffshoreNodeAddress = "offshore-data-gateway-sentinel-address";
+
+//! Checks if the provided #address belongs to the offshore data gateway.
+bool IsAddressOffshore(std::string_view address);
 
 YT_DEFINE_STRONG_TYPEDEF(TChunkLocationIndex, ui32);
 constexpr TChunkLocationIndex InvalidChunkLocationIndex = TChunkLocationIndex(0);

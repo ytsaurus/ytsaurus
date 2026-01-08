@@ -51,6 +51,12 @@ const TNodeDescriptor& NullNodeDescriptor()
     return Result;
 }
 
+const TNodeDescriptor& OffshoreNodeDescriptor()
+{
+    static const TNodeDescriptor Result{std::string(OffshoreNodeAddress)};
+    return Result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -580,6 +586,8 @@ void TNodeDirectory::OnDescriptorAdded(TNodeId id, const TNodeDescriptor* descri
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
 {
+    YT_VERIFY(id != OffshoreNodeId);
+
     auto guard = ReaderGuard(SpinLock_);
     auto it = IdToDescriptor_.find(id);
     return it == IdToDescriptor_.end() ? nullptr : it->second;
@@ -640,6 +648,8 @@ std::vector<std::pair<TNodeId, TNodeDescriptor>> TNodeDirectory::GetAllDescripto
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const std::string& address)
 {
+    YT_VERIFY(!IsAddressOffshore(address));
+
     auto guard = ReaderGuard(SpinLock_);
     auto it = AddressToDescriptor_.find(address);
     return it == AddressToDescriptor_.end() ? nullptr : it->second;
@@ -722,6 +732,49 @@ const TAddressMap& GetAddressesOrThrow(const TNodeAddressMap& nodeAddresses, EAd
 
     THROW_ERROR_EXCEPTION("No addresses known for address type %Qlv", type)
         << TErrorAttribute("known_types", GetKeys(nodeAddresses));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id)
+{
+    if (id == OffshoreNodeId) {
+        return &OffshoreNodeDescriptor();
+    }
+    return nodeDirectory->FindDescriptor(id);
+}
+
+const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id)
+{
+    if (id == OffshoreNodeId) {
+        return OffshoreNodeDescriptor();
+    }
+    return nodeDirectory->GetDescriptor(id);
+}
+
+const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, const std::string& address)
+{
+    if (IsAddressOffshore(address)) {
+        // The IsAddressOffshore function only checks the prefix of the address, which goes along with the code
+        // logic, but it may lead to a strange situation when the returned descriptor does not have the same
+        // address as the one requested. So, let's perform this check just in case.
+        const auto& descriptor = OffshoreNodeDescriptor();
+        YT_VERIFY(address == descriptor.GetDefaultAddress());
+
+        return &descriptor;
+    }
+    return nodeDirectory->FindDescriptor(address);
+}
+
+const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, const std::string& address)
+{
+    if (IsAddressOffshore(address)) {
+        const auto& descriptor = OffshoreNodeDescriptor();
+        YT_VERIFY(address == descriptor.GetDefaultAddress());
+
+        return descriptor;
+    }
+    return nodeDirectory->GetDescriptor(address);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

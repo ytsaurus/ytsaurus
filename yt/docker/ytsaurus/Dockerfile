@@ -279,6 +279,7 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-node && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-offshore-data-gateway && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-job-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \

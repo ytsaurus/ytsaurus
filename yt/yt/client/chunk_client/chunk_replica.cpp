@@ -143,7 +143,7 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 
 void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplicaWithMedium replica) const
 {
-    if (const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId())) {
+    if (const auto* descriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId())) {
         builder->AppendFormat("%v", *descriptor);
     } else {
         builder->AppendFormat("<unresolved-%v>", replica.GetNodeId());
@@ -160,7 +160,7 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChu
 
 void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChunkReplica replica) const
 {
-    const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
+    const auto* descriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
     if (descriptor) {
         builder->AppendFormat("%v", descriptor->GetDefaultAddress());
     } else {

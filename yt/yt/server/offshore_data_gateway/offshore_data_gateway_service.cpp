@@ -75,9 +75,7 @@ private:
         TS3ReaderConfigPtr s3ReaderConfig,
         TChunkId chunkId)
     {
-        // TChunkReplicaWithMedium replicaWithMedium;
-        // FromProto(&replicaWithMedium, request.replica_spec());
-        auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec().value());
+        auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
         TS3MediumDescriptorPtr mediumDescriptor = MediumDirectory_
             ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
             ->template As<TS3MediumDescriptor>();

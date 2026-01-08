@@ -25,6 +25,7 @@ PEERDIR(
     yt/yt/server/lib/admin
     yt/yt/server/lib/misc
     yt/yt/server/lib/cypress_registrar
+    yt/yt/server/lib/s3
 )
 
 END()

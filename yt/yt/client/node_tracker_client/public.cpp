@@ -9,5 +9,12 @@ const TNetworkPreferenceList DefaultNetworkPreferences{DefaultNetworkName};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsAddressOffshore(std::string_view address)
+{
+    return address == OffshoreNodeAddress;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNodeTrackerClient
 
