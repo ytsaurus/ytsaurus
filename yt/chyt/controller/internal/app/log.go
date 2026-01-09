@@ -25,10 +25,6 @@ func stderrLogger() *logzap.Logger {
 	return logger
 }
 
-func withName(l *logzap.Logger, name string) *logzap.Logger {
-	return &logzap.Logger{L: l.L.Named(name)}
-}
-
 func newLogger(name string, stderr bool) (l *logzap.Logger) {
 	if stderr {
 		l = stderrLogger()
@@ -40,5 +36,5 @@ func newLogger(name string, stderr bool) (l *logzap.Logger) {
 		l = foo
 	}
 
-	return withName(l, name)
+	return l.WithName(name).(*logzap.Logger)
 }
