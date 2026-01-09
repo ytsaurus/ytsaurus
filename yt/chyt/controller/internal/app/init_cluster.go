@@ -39,7 +39,7 @@ func NewClusterInitializer(config *ClusterInitializerConfig, familyToInitializer
 	initializer.ytc, err = ythttp.NewClient(&yt.Config{
 		Token:  config.Token,
 		Proxy:  initializer.config.Proxy,
-		Logger: withName(l, "yt"),
+		Logger: l.WithName("yt").(log.Structured),
 	})
 	if err != nil {
 		panic(err)

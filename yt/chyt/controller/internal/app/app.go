@@ -81,7 +81,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		app.ytc, err = ythttp.NewClient(&yt.Config{
 			Token:  config.Token,
 			Proxy:  *config.CoordinationProxy,
-			Logger: withName(l, "yt"),
+			Logger: l.WithName("yt").(log.Structured),
 		})
 		app.coordPath = config.CoordinationPath
 		if err != nil {
@@ -109,7 +109,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 		loc := &Location{}
 		loc.l = newLogger("l."+clusterURL.Address, options.LogToStderr)
-		ytConfig.Logger = withName(loc.l, "yt")
+		ytConfig.Logger = loc.l.WithName("yt").(log.Structured)
 
 		loc.ytc, err = ythttp.NewClient(&ytConfig)
 		if err != nil {
@@ -122,7 +122,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 		loc.as = map[string]*agent.Agent{}
 		for family, cf := range cfs {
-			l := withName(loc.l, family)
+			l := loc.l.WithName(family)
 			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
 
 			cCfg := cf.Config
@@ -134,8 +134,8 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				cCfg = newCfg
 			}
 
-			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cCfg)
-			a := agent.NewAgent(proxy, config.Token, loc.ytc, withName(l, "a"), c, &locCfg)
+			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cCfg)
+			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &locCfg)
 			loc.as[family] = a
 		}
 
