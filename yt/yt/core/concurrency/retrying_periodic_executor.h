@@ -27,7 +27,7 @@ public:
 
     using TDefaultInvocationTimePolicy::GenerateKickstartDeadline;
 
-    using TDefaultInvocationTimePolicy::IsEnabled;
+    bool IsEnabled();
 
     bool ShouldKickstart(const TOptions& newOptions);
 
