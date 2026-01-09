@@ -13,6 +13,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yttest"
 )
@@ -84,10 +85,12 @@ func runController(t *testing.T, c *Config, stopCh <-chan struct{}) (apiEndpoint
 	revisionCollectPeriod := yson.Duration(100 * time.Millisecond)
 	apiEndpoint = ":0"
 
+	strawberryRoot := ypath.Path("//sys/strawberry")
+
 	config := app.Config{
 		LocationProxies: []string{os.Getenv("YT_PROXY")},
 		Strawberry: agent.Config{
-			Root:                    "//sys/strawberry",
+			Root:                    &strawberryRoot,
 			PassPeriod:              &passPeriod,
 			CollectOperationsPeriod: &collectOperationsPeriod,
 			RevisionCollectPeriod:   &revisionCollectPeriod,

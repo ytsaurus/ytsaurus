@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	DefaultStrawberryRoot = ypath.Path("//sys/clickhouse/strawberry")
+	DefaultStrawberryRoot = ypath.Path("//sys/strawberry")
 )
 
 func readConfig(configPath string) yson.RawValue {
