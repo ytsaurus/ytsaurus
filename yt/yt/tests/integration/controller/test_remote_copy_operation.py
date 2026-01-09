@@ -2485,8 +2485,8 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         },
     }
 
-    CHUNK_COUNT = 3
-    BANDWIDTH_LIMIT = 10 ** 6
+    CHUNK_COUNT = 32
+    BANDWIDTH_LIMIT = 10 ** 7
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
@@ -2516,22 +2516,36 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             },
         }
 
-    # Setup //sys/cluster_throttlers on local cluster.
-    def _setup_default_cluster_throttlers_config(self):
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        config = self._create_default_cluster_throttlers_config()
+    def _create_empty_cluster_throttlers_config(self):
+        return {}
+
+    def _create_malformed_cluster_throttlers_config(self):
+        return '{ malformed_config '
+
+    # Setup cluster throttlers config on local cluster.
+    def _setup_cluster_throttlers_config(self, config=None):
+        create('document', '//sys/cluster_throttlers', force=True)
+        if config is None:
+            config = self._create_default_cluster_throttlers_config()
         set('//sys/cluster_throttlers', config)
 
-    # Setup empty //sys/cluster_throttlers on local cluster.
-    def _setup_empty_cluster_throttlers(self):
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
+    # Restart exe nodes to initialize cluster throttlers after config setup.
+    def _restart_nodes(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
 
-    # Setup malformed //sys/cluster_throttlers on local cluster.
-    def _setup_malformed_cluster_throttlers(self):
-        remove('//sys/cluster_throttlers', force=True)
-        set('//sys/cluster_throttlers', '{ malformed_config ')
+        wait_for_nodes()
+
+    # Create and initialize cluster throttlers config on all exe nodes.
+    def _init_cluster_throttlers_config(self, config=None):
+        # Create and set cluster throttlers config on local cluster.
+        self._setup_cluster_throttlers_config(config=config)
+
+        # Restart exe nodes to pick up new cluster throttlers config.
+        self._restart_nodes()
+
+        # Wait for exe nodes to apply new cluster throttlers config.
+        self._wait_for_all_remote_cluster_throttlers_group_members()
 
     # Wait for all exe nodes to register in remote_cluster_throttlers_group.
     def _wait_for_all_remote_cluster_throttlers_group_members(self):
@@ -2555,7 +2569,31 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                 return False
 
         # Wait for all exe nodes to register in discovery service.
-        wait(lambda: has_all_remote_cluster_throttlers_group_members())
+        wait(lambda: has_all_remote_cluster_throttlers_group_members(), timeout=60)
+
+    # Wait for all exe nodes to unregister from remote_cluster_throttlers_group.
+    def _wait_for_no_remote_cluster_throttlers_group_members(self):
+        def has_no_remote_cluster_throttlers_group_members():
+            try:
+                sys = ls("//sys")
+                if len(sys) == 0:
+                    return False
+                if 'discovery_servers' not in sys:
+                    return False
+                servers = ls("//sys/discovery_servers")
+                if len(servers) == 0:
+                    return False
+                discovery_server = servers[0]
+                groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+                if 'remote_cluster_throttlers_group' not in groups:
+                    return True
+                group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+                return len(group_members) == 0
+            except YtResponseError:
+                return False
+
+        # Wait for all exe nodes to unregister from discovery service.
+        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=60)
 
     # Wait for bandwidth to become unavailable in CA.
     def _wait_for_bandwidth_to_become_unavailable(self, op):
@@ -2569,10 +2607,8 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     @authors("yuryalekseev")
     def test_cluster_throttlers(self):
-        self._setup_default_cluster_throttlers_config()
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_all_remote_cluster_throttlers_group_members()
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
         # Create table on remote cluster.
         create(
@@ -2625,18 +2661,18 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
-    @pytest.mark.parametrize("config", ["empty", "malformed"])
-    def test_absent_cluster_throttlers(self, config):
-        if config == "empty":
-            self._setup_empty_cluster_throttlers()
-        if config == "malformed":
-            self._setup_malformed_cluster_throttlers()
+    @pytest.mark.parametrize("config_type", ["empty", "malformed"])
+    def test_absent_cluster_throttlers(self, config_type):
+        if config_type == "empty":
+            config = self._create_empty_cluster_throttlers_config()
+        if config_type == "malformed":
+            config = self._create_malformed_cluster_throttlers_config()
 
-        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
-        with Restarter(self.Env, NODES_SERVICE):
-            time.sleep(1)
+        # Create default cluster throttlers config.
+        self._setup_cluster_throttlers_config(config)
 
-        wait_for_nodes()
+        # Restart exe nodes to pick up new cluster throttlers config.
+        self._restart_nodes()
 
         # Create table on remote cluster.
         create(
@@ -2681,24 +2717,27 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
-    def test_rate_limit_ratio_hard_threshold(self):
-        bandwidth_limit = self.BANDWIDTH_LIMIT * 8
+    def test_cluster_throttlers_all_nodes_banned(self):
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
-        # Create cluster throttlers config.
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        cluster_throttlers_config = self._create_default_cluster_throttlers_config()
-        # Negative rate_limit_ratio_hard_threshold effectively disables scheduling of operations.
-        cluster_throttlers_config["rate_limit_ratio_hard_threshold"] = -1
-        cluster_throttlers_config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
+        # Ban all nodes on local cluster.
+        set_all_nodes_banned(True)
+
+        # Wait for all nodes to disappear from group.
+        self._wait_for_no_remote_cluster_throttlers_group_members()
+
+    @authors("yuryalekseev")
+    def test_rate_limit_ratio_hard_threshold(self):
+        config = self._create_default_cluster_throttlers_config()
+        # Set parameters to disable scheduling of operations.
+        config["rate_limit_ratio_hard_threshold"] = -1
+        config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
             "bandwidth": {
-                "limit": bandwidth_limit,
+                "limit": 0,
             },
         }
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_all_remote_cluster_throttlers_group_members()
+        self._init_cluster_throttlers_config(config)
 
         # Create table on remote cluster.
         create(
