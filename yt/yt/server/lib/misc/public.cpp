@@ -17,7 +17,7 @@ const TString ConfigAttributeName("config");
 ////////////////////////////////////////////////////////////////////////////////
 
 #define XX(camelCaseName, snakeCaseName) \
-    REGISTER_INTERNED_ATTRIBUTE(snakeCaseName, EInternedAttributeKey::camelCaseName)
+    REGISTER_INTERNED_ATTRIBUTE(snakeCaseName, EInternedAttributeKey::camelCaseName);
 
 FOR_EACH_INTERNED_ATTRIBUTE(XX)
 
