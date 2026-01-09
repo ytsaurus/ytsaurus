@@ -3679,7 +3679,7 @@ private:
             GetObjectId(transaction->GetParent()),
             transaction->GetTimeout(),
             transaction->GetDeadline(),
-            BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
+            BIND_NO_PROPAGATE(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
     }
 
