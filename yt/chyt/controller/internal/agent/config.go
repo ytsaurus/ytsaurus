@@ -10,7 +10,7 @@ import (
 // Config contains strawberry-specific configuration.
 type Config struct {
 	// Root points to root directory with operation states.
-	Root ypath.Path `yson:"root"`
+	Root *ypath.Path `yson:"root"`
 
 	// PassPeriod defines how often agent performs its passes.
 	PassPeriod *yson.Duration `yson:"pass_period"`
@@ -63,6 +63,8 @@ type Config struct {
 }
 
 const (
+	DefaultStrawberryRoot = ypath.Path("//sys/strawberry")
+
 	DefaultPassPeriod                   = yson.Duration(5 * time.Second)
 	DefaultCollectOperationsPeriod      = yson.Duration(10 * time.Second)
 	DefaultRevisionCollectPeriod        = yson.Duration(5 * time.Second)
@@ -74,6 +76,13 @@ const (
 	DefaultScaleWorkerNumber            = 1
 	DefaultScalePeriod                  = yson.Duration(60 * time.Second)
 )
+
+func (c *Config) RootOrDefault() ypath.Path {
+	if c.Root != nil {
+		return *c.Root
+	}
+	return DefaultStrawberryRoot
+}
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
 	if c.PassPeriod != nil {

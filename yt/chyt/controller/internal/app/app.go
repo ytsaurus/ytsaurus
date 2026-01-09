@@ -134,7 +134,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				cCfg = newCfg
 			}
 
-			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cCfg)
+			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.RootOrDefault().Child(family), proxy, cCfg)
 			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &locCfg)
 			loc.as[family] = a
 		}
