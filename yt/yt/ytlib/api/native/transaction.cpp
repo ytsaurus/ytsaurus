@@ -2249,7 +2249,7 @@ private:
                 }
 
                 if (options.CoordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy) {
-                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qv is incompatible with chaos tables",
+                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qlv is incompatible with chaos tables",
                         options.CoordinatorCommitMode);
                 }
 
