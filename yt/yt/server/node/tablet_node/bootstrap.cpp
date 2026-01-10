@@ -259,7 +259,7 @@ public:
                 ETabletNodeThrottlerKind::StaticStorePreloadIn,
                 ETabletNodeThrottlerKind::UserBackendIn,
             }) {
-                Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateInThrottler(FormatEnum(kind));
             }
 
             for (auto kind : {
@@ -269,7 +269,7 @@ public:
                 ETabletNodeThrottlerKind::DynamicStoreReadOut,
                 ETabletNodeThrottlerKind::UserBackendOut,
             }) {
-                Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(kind));
             }
         } else {
             for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {

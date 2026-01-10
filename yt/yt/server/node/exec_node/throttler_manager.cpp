@@ -556,9 +556,9 @@ TThrottlerManager::TThrottlerManager(
     YT_LOG_INFO("Constructing throttler manager");
 
     if (ClusterNodeConfig_->EnableFairThrottler) {
-        Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
-        Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = Bootstrap_->GetInThrottler("artifact_cache_in");
-        Throttlers_[EExecNodeThrottlerKind::JobOut] = Bootstrap_->GetOutThrottler("job_out");
+        Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->CreateInThrottler("job_in");
+        Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = Bootstrap_->CreateInThrottler("artifact_cache_in");
+        Throttlers_[EExecNodeThrottlerKind::JobOut] = Bootstrap_->CreateOutThrottler("job_out");
     } else {
         for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
             auto config = ClusterNodeConfig_->DataNode->Throttlers[GetDataNodeThrottlerKind(kind)];
