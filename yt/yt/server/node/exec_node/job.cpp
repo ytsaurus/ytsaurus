@@ -1844,6 +1844,7 @@ void TJob::DoInterrupt(
                     &TJob::OnJobInterruptionTimeout,
                     MakeWeak(this),
                     InterruptionReason_,
+                    timeout,
                     preemptionReason),
                 timeout,
                 Bootstrap_->GetJobInvoker());
@@ -2014,12 +2015,14 @@ bool TJob::IsInterruptible() const noexcept
 
 void TJob::OnJobInterruptionTimeout(
     EInterruptionReason interruptionReason,
+    TDuration interruptionTimeout,
     const std::optional<TString>& preemptionReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
         << TErrorAttribute("interruption_reason", InterruptionReason_)
+        << TErrorAttribute("interruption_timeout", interruptionTimeout)
         << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
 
     if (interruptionReason == EInterruptionReason::Preemption) {
