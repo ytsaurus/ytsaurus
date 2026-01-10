@@ -112,7 +112,7 @@ private:
             }
         }
 
-        return FetchTables(
+        return FetchTablesSoft(
             queryContext,
             std::move(itemPaths),
             /*skipUnsuitableNodes*/ true,
