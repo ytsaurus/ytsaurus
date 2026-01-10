@@ -2218,7 +2218,7 @@ private:
             }
 
             const auto& replicationCard = session->GetReplicationCard();
-            const auto& replicationCardId = session->GetInfo()->ReplicationCardId;
+            auto replicationCardId = session->GetInfo()->ReplicationCardId;
             if (replicationCardId &&
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
