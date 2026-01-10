@@ -121,7 +121,7 @@ TBootstrap::TBootstrap(
     , ServiceLocator_(std::move(serviceLocator))
     , ControlQueue_(New<TActionQueue>("Control"))
     , WorkerPool_(CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
-    , LowLatencyActionQueue_(New<TActionQueue>("LowLatencyActions"))
+    , LowLatencyActionQueue_(New<TActionQueue>("LowLatencyPool"))
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
