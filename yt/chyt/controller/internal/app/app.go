@@ -36,7 +36,8 @@ type Options struct {
 type App struct {
 	l *logzap.Logger
 	// ytc is a client for coordination cluster.
-	ytc       yt.Client
+	ytc yt.Client
+
 	coordPath ypath.Path
 
 	locations []*Location
@@ -116,7 +117,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 			l.Fatal("error creating YT client", log.Error(err), log.String("proxy", proxy))
 		}
 
-		locCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
+		aCfg := config.Strawberry.ApplyOverrides(config.LocationStrawberryOverrides[proxy])
 
 		ctlDefaultSpeclet := config.LocationControllerDefaultSpeclet[proxy]
 
@@ -135,7 +136,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 			}
 
 			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.RootOrDefault().Child(family), proxy, cCfg)
-			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &locCfg)
+			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg)
 			loc.as[family] = a
 		}
 
