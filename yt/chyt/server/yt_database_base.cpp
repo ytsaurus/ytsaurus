@@ -261,7 +261,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     }
 
     try {
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             {std::move(richPath)},
             /*skipUnsuitableNodes*/ false,
