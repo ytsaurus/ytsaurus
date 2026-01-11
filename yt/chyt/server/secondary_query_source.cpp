@@ -120,8 +120,8 @@ public:
 
     struct TReadingStatistics
     {
-        i64 TotalRowCount;
-        i64 TotalDataWeight;
+        i64 TotalRowCount = 0;
+        i64 TotalDataWeight = 0;
     };
 
     TReadingStatistics GetAndResetStatistics()
@@ -266,7 +266,7 @@ public:
 
     void setStorageLimits(const std::shared_ptr<const DB::StorageLimitsList>& storageLimits) override
     {
-        if (!Settings_->Execution->DisableReadingTimeEstimation || !storageLimits) {
+        if (!Settings_->Execution->DisableReadTimeEstimation || !storageLimits) {
             DB::ISource::setStorageLimits(storageLimits);
             return;
         }

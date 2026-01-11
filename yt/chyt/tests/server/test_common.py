@@ -2523,7 +2523,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             with breakpoint(bp_name):
                 assert_items_equal(clique.make_query(query, settings=settings), expected_result)
 
-            settings["chyt.execution.disable_reading_time_estimation"] = 0
+            settings["chyt.execution.disable_read_time_estimation"] = 0
             with breakpoint(bp_name):
                 with raises_yt_error("TOO_SLOW"):
                     clique.make_query(query, settings=settings)
