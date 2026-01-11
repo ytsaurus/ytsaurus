@@ -236,8 +236,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
         /*maxDataWeight*/ 1_GB,
         16_GB,
         TInstant::Max(),
-        TInstant::Max()
-    );
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_TRUE(reader.GetProcessedRows().empty());
@@ -328,8 +327,7 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
         /*maxDataWeight*/ 1_GB,
         16_GB,
         TInstant::Max(),
-        TInstant::Max()
-    );
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 10ll);
@@ -663,7 +661,7 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
 
 TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
 {
-    TTableMountConfigPtr mountConfig = New<TTableMountConfig>();
+    auto mountConfig = New<TTableMountConfig>();
     mountConfig->MaxRowsPerReplicationCommit = 1000;
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
@@ -671,7 +669,6 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
     auto nodeMemoryTracker = CreateNodeMemoryTracker(
         std::numeric_limits<i64>::max(),
         New<TNodeMemoryTrackerConfig>());
-    TLogger logger;
 
     std::vector<TFakeRow> transactions;
     auto borderTimestamp = CreateTransactionTimestamp(TInstant::Seconds(2), 0);
@@ -684,7 +681,12 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
     AppendReplicationLogRows(CreateTransactionTimestamp(TInstant::Seconds(4), 0), 10, 10, &transactions);
     AppendReplicationNotFittingLogRows(maxRowTimestamp, 10, 10, &transactions);
 
-    TFakeReplicationLogBatchReader reader(mountConfig, TTabletId::Create(), logger, nodeMemoryTracker, transactions);
+    TFakeReplicationLogBatchReader reader(
+        mountConfig,
+        TTabletId::Create(),
+        TLogger(),
+        nodeMemoryTracker,
+        transactions);
 
     auto result = reader.ReadReplicationBatch(
         0,
@@ -721,17 +723,19 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithMaxInstant)
     EXPECT_EQ(result.EndReplicationRowIndex, 50);
 
     const auto& rowIds = reader.GetProcessedRows();
-    EXPECT_EQ(int(rowIds.size()), 20);
+    EXPECT_EQ(std::ssize(rowIds), 20);
     for (int index = 0; index < 10; ++index) {
         EXPECT_EQ(rowIds[index], index);
     }
 
-    for (int index = 10; index < int(rowIds.size()); ++index) {
+    for (int index = 10; index < std::ssize(rowIds); ++index) {
         EXPECT_EQ(rowIds[index], index + 20);
     }
 
     nodeMemoryTracker->ClearTrackers();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NTabletNode
