@@ -1464,7 +1464,7 @@ private:
         MutationDraftQueue_->Enqueue({
             .Request = request,
             .Promise = std::move(promise),
-            .RandomSeed = randomSeed
+            .RandomSeed = randomSeed,
         });
 
         if (Config_->Get()->MinimizeCommitLatency) {

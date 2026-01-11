@@ -264,7 +264,7 @@ TServiceDescriptor GetServiceDescriptor()
     return TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
         .SetProtocolVersion({
             YTRpcProxyProtocolVersionMajor,
-            YTRpcProxyServerProtocolVersionMinor
+            YTRpcProxyServerProtocolVersionMinor,
         });
 }
 
@@ -1322,7 +1322,7 @@ void TApiService::BuildOrchid(IYsonConsumer* consumer)
                 fluent.GetConsumer(),
                 {
                     RpcProxyUserAllocationTagKey,
-                    RpcProxyMethodAllocationTagKey
+                    RpcProxyMethodAllocationTagKey,
                 });
         });
 }

@@ -159,7 +159,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
         .Default({
-            EJobState::Completed
+            EJobState::Completed,
         });
 
     registrar.Parameter("high_cpu_wait_alert_min_average_job_time", &TThis::HighCpuWaitAlertMinAverageJobTime)
@@ -177,7 +177,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("high_cpu_wait_alert_job_states", &TThis::HighCpuWaitAlertJobStates)
         .Default({
             EJobState::Completed,
-            EJobState::Running
+            EJobState::Running,
         });
 
 

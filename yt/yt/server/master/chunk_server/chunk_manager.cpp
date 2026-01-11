@@ -5743,7 +5743,7 @@ private:
                     cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
                         childStatistics.LogicalRowCount,
                         childStatistics.ChunkCount,
-                        childStatistics.UncompressedDataSize
+                        childStatistics.UncompressedDataSize,
                     });
                 }
 

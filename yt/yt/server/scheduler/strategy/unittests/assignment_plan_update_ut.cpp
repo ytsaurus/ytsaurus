@@ -235,7 +235,7 @@ protected:
                 TestAllocationGroupName,
                 TAllocationGroupResources{
                     .MinNeededResources = std::move(jobResourcesWithQuota),
-                    .AllocationCount = allocationCount
+                    .AllocationCount = allocationCount,
                 },
             },
         };

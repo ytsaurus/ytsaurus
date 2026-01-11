@@ -466,7 +466,7 @@ public:
                 // NB: Currently we never request to unregister chaos cells; cf. YT-16393.
                 if (TypeFromId(cellId) != EObjectType::ChaosCell) {
                     result.UnregisterRequests.push_back({
-                        .CellId = cellId
+                        .CellId = cellId,
                     });
                 }
             }
@@ -486,7 +486,7 @@ public:
         for (auto [cellId, entry] : missingMap) {
             result.ReconfigureRequests.push_back({
                 .NewDescriptor = entry->Descriptor,
-                .OldConfigVersion = -1
+                .OldConfigVersion = -1,
             });
         }
 

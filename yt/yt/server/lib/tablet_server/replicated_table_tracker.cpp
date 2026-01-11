@@ -1623,7 +1623,7 @@ private:
                 if (currentMode != targetMode) {
                     commands.push_back(TChangeReplicaModeCommand{
                         .ReplicaId = replica->GetId(),
-                        .TargetMode = targetMode
+                        .TargetMode = targetMode,
                     });
                     replica->GetReplicaModeSwitchCounter().Increment();
                 }

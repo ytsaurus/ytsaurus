@@ -997,7 +997,7 @@ public:
         RowIndex_ = 0;
 
         auto rowBatch = Reader_->Read(TRowBatchReadOptions{
-            .MaxRowsPerRead = RowBufferCapacity
+            .MaxRowsPerRead = RowBufferCapacity,
         });
 
         YT_VERIFY(rowBatch);

@@ -245,7 +245,7 @@ public:
             account,
             mediumName,
             tabletCellBundle,
-            inMemoryMode
+            inMemoryMode,
         });
     }
 

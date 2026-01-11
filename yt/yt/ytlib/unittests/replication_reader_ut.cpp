@@ -1026,11 +1026,11 @@ INSTANTIATE_TEST_SUITE_P(
             .ProbeResults = {{
                 TProbeStatistics{
                     .DiskQueueSize = 10,
-                    .NetQueueSize = 1000
+                    .NetQueueSize = 1000,
                 },
                 TProbeStatistics{
                     .DiskQueueSize = 100,
-                    .NetQueueSize = 100
+                    .NetQueueSize = 100,
                 },
                 TProbeStatistics{
                     .DiskQueueSize = 1000,

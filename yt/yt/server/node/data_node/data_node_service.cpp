@@ -1514,7 +1514,7 @@ private:
                     }
                     chunkRequestInfos.push_back({
                         .Guard = std::move(guard),
-                        .LocationIndex = it->second
+                        .LocationIndex = it->second,
                     });
 
                     chunkAvailable = true;
@@ -1646,7 +1646,7 @@ private:
                                     ioTracker->Enqueue(
                                         TIOCounters{
                                             .Bytes = result.PaddedBytes,
-                                            .IORequests = result.IORequests
+                                            .IORequests = result.IORequests,
                                         },
                                         // NB: Now we do not track chunk id for this method.
                                         MakeReadIOTags(

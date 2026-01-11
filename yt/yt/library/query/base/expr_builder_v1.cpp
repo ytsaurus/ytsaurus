@@ -20,35 +20,35 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Double,
                 EValueType::Boolean,
                 EValueType::String,
-                EValueType::Any
+                EValueType::Any,
             });
         },
         [] (i64) {
             return TTypeSet({
                 EValueType::Int64,
                 EValueType::Uint64,
-                EValueType::Double
+                EValueType::Double,
             });
         },
         [] (ui64) {
             return TTypeSet({
                 EValueType::Uint64,
-                EValueType::Double
+                EValueType::Double,
             });
         },
         [] (double) {
             return TTypeSet({
-                EValueType::Double
+                EValueType::Double,
             });
         },
         [] (bool) {
             return TTypeSet({
-                EValueType::Boolean
+                EValueType::Boolean,
             });
         },
         [] (const std::string&) {
             return TTypeSet({
-                EValueType::String
+                EValueType::String,
             });
         });
 }

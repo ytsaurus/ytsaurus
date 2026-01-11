@@ -3061,7 +3061,7 @@ std::vector<TBind> TJob::GetRootFSBinds()
         binds.push_back(TBind{
             .SourcePath = bindConfig->ExternalPath,
             .TargetPath = bindConfig->InternalPath,
-            .ReadOnly = bindConfig->ReadOnly
+            .ReadOnly = bindConfig->ReadOnly,
         });
     }
 
@@ -3562,7 +3562,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
             ++nbdExportCount;
 
             VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = nbdExportId
+                .NbdExportId = nbdExportId,
             });
         }
     }
@@ -3593,7 +3593,7 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = descriptor.bypass_artifact_cache(),
                 .CopyFile = descriptor.copy_file(),
                 .Key = TArtifactKey(descriptor),
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
@@ -3647,7 +3647,7 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = false,
                 .CopyFile = false,
                 .Key = key,
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
         }
     }

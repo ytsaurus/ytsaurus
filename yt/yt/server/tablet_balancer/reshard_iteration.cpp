@@ -486,7 +486,7 @@ private:
         replicas.emplace_back(TTableKey{
             .Mode = *table->ReplicaMode,
             .Cluster = SelfClusterName_,
-            .Id = table->Id
+            .Id = table->Id,
         });
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
@@ -510,7 +510,7 @@ private:
                 replicas.emplace_back(TTableKey{
                     .Mode = *minorTable->ReplicaMode,
                     .Cluster = cluster,
-                    .Id = minorTable->Id
+                    .Id = minorTable->Id,
                 });
             }
         }

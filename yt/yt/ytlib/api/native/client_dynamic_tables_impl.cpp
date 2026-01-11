@@ -3660,7 +3660,7 @@ TPullRowsResult TClient::DoPullRows(
         requests.push_back({
             .TabletIndex = index,
             .StartReplicationRowIndex = getStartReplicationRowIndex(index),
-            .Progress = options.ReplicationProgress
+            .Progress = options.ReplicationProgress,
         });
     }
 

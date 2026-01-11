@@ -1276,7 +1276,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
             if (const auto& promise = result.LocalCommitPromise) {
                 promise.TrySet(TMutationResponse{
                     EMutationResponseOrigin::Commit,
-                    result.ResponseData
+                    result.ResponseData,
                 });
             }
         } catch (const std::exception& ex) { // COMPAT(shakurov): Just being paranoid.

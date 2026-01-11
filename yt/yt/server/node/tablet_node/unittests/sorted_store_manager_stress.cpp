@@ -244,7 +244,7 @@ public:
             if (!row) {
                 Result_.Set(TLookupResult{
                     .Row = std::nullopt,
-                    .Locked = false
+                    .Locked = false,
                 });
                 return;
             }

@@ -7552,7 +7552,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .PopulateSecurityTags = true
+                .PopulateSecurityTags = true,
             });
     }
 

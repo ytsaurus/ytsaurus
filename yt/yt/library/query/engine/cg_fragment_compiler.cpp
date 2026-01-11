@@ -1772,7 +1772,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1782,7 +1782,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1792,7 +1792,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                             {
                                 lhsData,
                                 lhsLength,
-                                rhsData
+                                rhsData,
                             });
                         break;
                     }
@@ -1903,7 +1903,7 @@ TCGValue CodegenRelationalBinaryOpExpr(
                         lhsData,
                         lhsLength,
                         rhsData,
-                        rhsLength
+                        rhsLength,
                     });
 
                 evalData = cmpResultToResult(builder, cmpResult, opcode);
@@ -2722,7 +2722,7 @@ size_t MakeCodegenNestedGroupOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(rowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             Type* closureType = TClosureTypeBuilder::Get(
@@ -2778,7 +2778,7 @@ size_t MakeCodegenNestedGroupOp(
                             builder.GetExecutionContext(),
                             bufferRef,
                             builder->getInt32(rowSize),
-                            newValuesPtrRef
+                            newValuesPtrRef,
                         });
                 });
 
@@ -2856,7 +2856,7 @@ void MakeCodegenSubqueryWriteOp(
                 builder.GetExecutionContext(),
                 builder->getInt32(rowSize),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 }
@@ -3066,7 +3066,7 @@ size_t MakeCodegenMultiJoinOp(
                         builder.GetExecutionContext(),
                         joinClosureRef,
                         primaryValuesPtrRef,
-                        keyPtrsRef
+                        keyPtrsRef,
                     });
 
                 return builder->CreateIsNotNull(finished);
@@ -3134,7 +3134,7 @@ size_t MakeCodegenMultiJoinOp(
                 collectRows.Function,
 
                 consumeJoinedRows.ClosurePtr,
-                consumeJoinedRows.Function
+                consumeJoinedRows.Function,
             });
     };
 
@@ -3550,7 +3550,7 @@ size_t MakeCodegenOnceOp(
                 {
                     builder->ViaClosure(onceWrapper.ClosurePtr),
                     builder.Buffer,
-                    values
+                    values,
                 });
         };
 
@@ -3613,7 +3613,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(rowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             if (combineGroupOpWithOrderOp) {
@@ -3766,7 +3766,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                                 builder.GetExecutionContext(),
                                 bufferRef,
                                 builder->getInt32(rowSize),
-                                newValuesPtrRef
+                                newValuesPtrRef,
                             });
                     });
                 }
@@ -3916,7 +3916,7 @@ size_t MakeCodegenGroupTotalsOp(
                     builder.GetExecutionContext(),
                     buffer,
                     builder->getInt32(groupRowSize),
-                    newValuesPtr
+                    newValuesPtr,
                 });
 
             Value* groupValues = builder->CreateLoad(TTypeBuilder<TValue*>::Get(builder->getContext()), newValuesPtr);
@@ -3980,7 +3980,7 @@ size_t MakeCodegenGroupTotalsOp(
             {
                 builder.GetExecutionContext(),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 
@@ -4096,7 +4096,7 @@ size_t MakeCodegenOrderOp(
                     builder.Module->GetRoutine("AddRowToCollector"),
                     {
                         topCollectorRef,
-                        newValuesRef
+                        newValuesRef,
                     });
 
                 return builder->getFalse();
@@ -4235,7 +4235,7 @@ void MakeCodegenWriteOp(
                 builder.GetExecutionContext(),
                 builder->getInt64(rowSize),
                 collect.ClosurePtr,
-                collect.Function
+                collect.Function,
             });
     };
 }

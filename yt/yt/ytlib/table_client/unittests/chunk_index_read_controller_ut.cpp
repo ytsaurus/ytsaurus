@@ -288,7 +288,7 @@ public:
             SystemBlockCache_,
             TChunkIndexReadControllerTestingOptions{
                 .KeySlotIndexes = keySlots,
-                .FingerprintDomainSize = options.FingerprintDomainSize
+                .FingerprintDomainSize = options.FingerprintDomainSize,
             });
     }
 

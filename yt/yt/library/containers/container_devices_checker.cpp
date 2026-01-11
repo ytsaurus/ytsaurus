@@ -184,7 +184,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
         launcher->SetUser(*portoUserOrError.Value());
         launcher->SetRoot(TRootFS{
             .RootPath = mountPath,
-            .IsRootReadOnly = false
+            .IsRootReadOnly = false,
         });
         launcher->SetDevices({});
         launcher->DisableNetwork();

@@ -68,7 +68,7 @@ std::vector<TSharedRef> TClient::DoReadHunks(
             .Length = request.Length,
             .BlockIndex = request.BlockIndex,
             .BlockOffset = request.BlockOffset,
-            .BlockSize = request.BlockSize
+            .BlockSize = request.BlockSize,
         });
     }
 

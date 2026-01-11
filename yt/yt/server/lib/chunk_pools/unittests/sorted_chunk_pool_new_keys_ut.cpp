@@ -2921,7 +2921,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
         return std::vector({
             unreadSecond,  // s0
             dataSlices[2], // s1
-            dataSlices[3], // s2
+            dataSlices[3], // s2,
         });
     };
 

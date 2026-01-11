@@ -230,7 +230,7 @@ private:
             descriptors.push_back({
                 .Addresses = grpcProxyAddressMap,
                 .CypressPath = *GrpcProxyPath_,
-                .IsGrpc = true
+                .IsGrpc = true,
             });
         }
 

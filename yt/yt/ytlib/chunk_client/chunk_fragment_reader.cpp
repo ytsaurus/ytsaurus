@@ -644,7 +644,7 @@ private:
                 if (emplaced) {
                     it->second = probingInfos.size();
                     probingInfos.push_back({
-                        .NodeId = nodeId
+                        .NodeId = nodeId,
                     });
                     nodeIds.push_back(nodeId);
                 }
@@ -1413,7 +1413,7 @@ private:
                     perPeerPlan->Items.push_back({
                         .ChunkState = &chunkState,
                         .Plan = plan,
-                        .PeerIndex = peerIndex
+                        .PeerIndex = peerIndex,
                     });
                 }
             }
