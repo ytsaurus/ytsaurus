@@ -758,8 +758,8 @@ private:
         TDuration relativeThrottleTime;
         {
             auto throttleFuture = RelativeThrottler_->Throttle();
-            if (throttleFuture.IsSet()) {
-                throttleFuture.Get().ThrowOnError();
+            if (auto optionalError = throttleFuture.TryGet()) {
+                optionalError->ThrowOnError();
             } else {
                 // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
                 TEventTimerGuard timerGuard(counters->RelativeThrottlerThrottleTime);
@@ -866,8 +866,7 @@ private:
                 *replicationProgress,
                 PivotKey_.Get(),
                 NextPivotKey_.Get());
-            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(
-                progress);
+            auto newReplicationTimestamp = GetReplicationProgressMaxTimestamp(progress);
             RelativeThrottler_->OnReplicationBatchProcessed(
                 currentBatchFirstTimestamp,
                 newReplicationTimestamp);
