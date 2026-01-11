@@ -253,7 +253,7 @@ public:
 
     //! CH estimates total execution time by linearly extrapolating the current read rate.
     //! Since read throughput can vary, this estimate may be inaccurate and lead to false positive errors.
-    bool DisableReadingTimeEstimation;
+    bool DisableReadTimeEstimation;
 
     REGISTER_YSON_STRUCT(TExecutionSettings);
 

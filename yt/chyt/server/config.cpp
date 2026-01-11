@@ -174,7 +174,7 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
 
-    registrar.Parameter("disable_reading_time_estimation", &TThis::DisableReadingTimeEstimation)
+    registrar.Parameter("disable_read_time_estimation", &TThis::DisableReadTimeEstimation)
         .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////

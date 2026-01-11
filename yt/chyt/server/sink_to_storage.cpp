@@ -166,33 +166,24 @@ public:
             .ValueOrThrow();
     }
 
-    ~TSinkToStaticTable()
-    {
-        if (Finished_) {
-            return;
-        }
-        onFinish();
-    }
-
     DB::String getName() const override
     {
         return "SinkToStaticTable";
     }
 
+    void onException(std::exception_ptr /*exception*/) override
+    {
+        CloseWriter();
+    }
+
     void onFinish() override
     {
-        Finished_ = true;
-        YT_LOG_INFO("Closing writer");
-        WaitFor(Writer_->Close())
-            .ThrowOnError();
-        YT_LOG_INFO("Writer closed");
-
+        CloseWriter();
         TSinkToStorageBase::onFinish();
     }
 
 private:
     IUnversionedWriterPtr Writer_;
-    bool Finished_ = false;
 
     void DoWriteRows(TSharedRange<TUnversionedRow> rows) override
     {
@@ -200,6 +191,14 @@ private:
             WaitFor(Writer_->GetReadyEvent())
                 .ThrowOnError();
         }
+    }
+
+    void CloseWriter()
+    {
+        YT_LOG_INFO("Closing writer");
+        WaitFor(Writer_->Close())
+            .ThrowOnError();
+        YT_LOG_INFO("Writer closed");
     }
 };
 
