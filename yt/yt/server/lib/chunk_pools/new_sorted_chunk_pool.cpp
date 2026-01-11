@@ -473,7 +473,7 @@ private:
                         .DataSlice = dataSlice,
                         .LowerBound = lowerBound,
                         .UpperBound = upperBound,
-                        .InputCookie = inputCookie
+                        .InputCookie = inputCookie,
                     });
                 }
 

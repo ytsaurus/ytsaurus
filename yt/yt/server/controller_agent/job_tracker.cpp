@@ -2319,7 +2319,7 @@ bool TJobTracker::HandleRunningJobInfo(
     ToProto(
         response->add_jobs_to_store(),
         TJobToStore{
-            .JobId = jobId
+            .JobId = jobId,
         });
 
     allocation.FinishRunningJob();

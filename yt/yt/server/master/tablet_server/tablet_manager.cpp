@@ -3009,7 +3009,7 @@ private:
                 entries.push_back({
                     GetMinKeyOrThrow(chunkOrView),
                     GetUpperBoundKeyOrThrow(chunkOrView),
-                    size
+                    size,
                 });
                 totalSize += size;
             }

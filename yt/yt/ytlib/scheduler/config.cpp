@@ -2403,7 +2403,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             for (const auto& reduceColumn : spec->ReduceBy) {
                 columns.push_back(TColumnSortSchema{
                     .Name = reduceColumn,
-                    .SortOrder = ESortOrder::Ascending
+                    .SortOrder = ESortOrder::Ascending,
                 });
             }
             return columns;

@@ -884,7 +884,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     if (const auto& distributedThrottler = tabletSnapshot->DistributedThrottlers[tabletThrottlerKind]) {
         throttler = NConcurrency::CreateCombinedThrottler({
             perTabletThrottler,
-            distributedThrottler
+            distributedThrottler,
         });
     }
 

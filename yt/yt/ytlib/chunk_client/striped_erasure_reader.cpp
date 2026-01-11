@@ -471,7 +471,7 @@ private:
                 for (auto partIndex : ErasedIndices_) {
                     fetchPlan.push_back({
                         .SegmentIndex = segmentIndex,
-                        .PartIndex = partIndex
+                        .PartIndex = partIndex,
                     });
                 }
             }

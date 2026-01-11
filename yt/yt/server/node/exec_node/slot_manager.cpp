@@ -1260,7 +1260,7 @@ void TSlotManager::AsyncInitialize()
         NumaNodeStates_.push_back(TNumaNodeState{
             .NumaNodeInfo = TNumaNodeInfo{
                 .NumaNodeId = numaNode->NumaNodeId,
-                .CpuSet = numaNode->CpuSet
+                .CpuSet = numaNode->CpuSet,
             },
             .FreeCpuCount = static_cast<NClusterNode::TCpu>(numaNode->CpuCount),
         });

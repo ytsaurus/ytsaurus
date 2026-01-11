@@ -597,7 +597,7 @@ private:
             Config_->MaxSubqueries,
             TReadTimestampRange{
                 .Timestamp = timestamp,
-                .RetentionTimestamp = retentionTimestamp
+                .RetentionTimestamp = retentionTimestamp,
             },
             useLookupCache,
             std::move(chunkReadOptions),

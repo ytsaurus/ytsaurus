@@ -519,7 +519,7 @@ public:
                     {
                         builder.Buffer,
                         resultPtr,
-                        valuePtr
+                        valuePtr,
                     });
 
                 return TCGValue::LoadFromRowValue(

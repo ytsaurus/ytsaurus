@@ -106,7 +106,7 @@ TEST(TErasureChunkFragmentReadControllerTest, StressTest)
         replicas.Revision = NHydra::NullRevision;
         for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
             replicas.Replicas.push_back(TChunkReplicaInfo{
-                .ReplicaIndex = index
+                .ReplicaIndex = index,
             });
         }
         controller->SetReplicas(replicas);

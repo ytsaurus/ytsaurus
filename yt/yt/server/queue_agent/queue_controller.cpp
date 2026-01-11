@@ -1379,7 +1379,7 @@ private:
                     TGetOrderedTabletSafeTrimRowCountRequest{
                         Context.ObjectPath,
                         partitionContext.PartitionIndex,
-                        maxTimestampToTrim
+                        maxTimestampToTrim,
                     });
             }
 

@@ -694,7 +694,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
         result[partIndex].IndexesInPart.push_back(indexInPart);
         result[partIndex].Ranges.push_back({
             .Begin = offset,
-            .End = offset + size
+            .End = offset + size,
         });
     }
 

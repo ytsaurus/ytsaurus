@@ -674,7 +674,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -724,7 +724,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
@@ -1267,7 +1267,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize
+                .MaxInitialReaderReservedMemory = config->WindowSize,
             },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }

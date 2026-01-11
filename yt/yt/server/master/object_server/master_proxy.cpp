@@ -635,7 +635,7 @@ private:
                 .PreserveExpirationTimeout = preserveExpirationTimeout,
                 .PreserveOwner = preserveOwner,
                 .PreserveAcl = true, // Same as modification time.
-                .PessimisticQuotaCheck = pessimisticQuotaCheck
+                .PessimisticQuotaCheck = pessimisticQuotaCheck,
             },
             /*serviceTrunkNode*/ nullptr,
             /*unresolvedSuffix*/ {}); // Unused during copy, relevant only for "create".

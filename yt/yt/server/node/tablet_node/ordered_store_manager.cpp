@@ -301,7 +301,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             throttler,
-            tabletSnapshot->FlushThrottler
+            tabletSnapshot->FlushThrottler,
         });
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);

@@ -1838,7 +1838,7 @@ private:
                 uringRequest->ReadSubrequests.push_back({
                     .Handle = std::move(slice.Request.Handle),
                     .Offset = slice.Request.Offset,
-                    .Size = slice.Request.Size
+                    .Size = slice.Request.Size,
                 });
                 uringRequest->ReadSubrequestStates.push_back({
                     .Buffer = slice.OutputBuffer,

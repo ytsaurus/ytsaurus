@@ -31,7 +31,7 @@ public:
             TDynamicConfigManagerOptions{
                 .ConfigPath = config->DynamicConfigPath,
                 .Name = "RpcProxy",
-                .ConfigIsTagged = config->UseTaggedDynamicConfig
+                .ConfigIsTagged = config->UseTaggedDynamicConfig,
             },
             config->DynamicConfigManager,
             connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NRpc::RootUserName)),

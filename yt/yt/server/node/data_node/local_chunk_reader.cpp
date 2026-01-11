@@ -268,7 +268,7 @@ public:
                 TChunkFragmentDescriptor{
                     .Length = static_cast<int>(request.Length),
                     .BlockIndex = request.BlockIndex,
-                    .BlockOffset = request.BlockOffset
+                    .BlockOffset = request.BlockOffset,
                 },
                 UseDirectIO_));
         }

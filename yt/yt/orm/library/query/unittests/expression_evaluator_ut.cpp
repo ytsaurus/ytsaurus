@@ -188,7 +188,7 @@ TEST(TExpressionEvaluatorTest, Simple)
             "meta.x", EValueType::Int64
         },
         {
-            "lambda.y.z", EValueType::Double
+            "lambda.y.z", EValueType::Double,
         },
         {
             "theta", EValueType::Uint64
@@ -216,10 +216,10 @@ TEST(TExpressionEvaluatorTest, TableName)
 {
     NQueryClient::TSchemaColumns columns = {
         {
-            "meta.str_id", EValueType::String
+            "meta.str_id", EValueType::String,
         },
         {
-            "meta.i64_id", EValueType::Int64
+            "meta.i64_id", EValueType::Int64,
         },
         {
             "meta.ui64_id", EValueType::Uint64
@@ -251,7 +251,7 @@ TEST(TExpressionEvaluatorTest, NullValue)
 {
     NQueryClient::TSchemaColumns columns = {
         {
-            "value.x", EValueType::Int64
+            "value.x", EValueType::Int64,
         },
         {
             "value.y", EValueType::Int64

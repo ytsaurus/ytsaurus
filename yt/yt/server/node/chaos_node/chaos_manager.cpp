@@ -1253,7 +1253,7 @@ private:
                 .Mode = mode,
                 .State = enabled && replicationCard->GetEra() == InitialReplicationEra
                     ? ETableReplicaState::Enabled
-                    : ETableReplicaState::Disabled
+                    : ETableReplicaState::Disabled,
             });
         }
 
@@ -1274,7 +1274,7 @@ private:
             .ClusterName = clusterName,
             .TablePath = replicaPath,
             .TrackingEnabled = enableReplicatedTableTracker,
-            .ContentType = contentType
+            .ContentType = contentType,
         });
 
         ToProto(response->mutable_replica_id(), newReplicaId);

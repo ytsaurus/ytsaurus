@@ -156,7 +156,7 @@ public:
             const auto& stderrPath = config->StderrPath;
             if (stderrPath) {
                 process->AddArguments({
-                    "--stderr-path", *stderrPath
+                    "--stderr-path", *stderrPath,
                 });
             }
 

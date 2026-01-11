@@ -183,7 +183,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto getReq = TYPathProxy::Get(path);
         ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<std::string>{
             FunctionDescriptorAttribute,
-            AggregateDescriptorAttribute
+            AggregateDescriptorAttribute,
         });
         batchReq->AddRequest(getReq, "get_attributes");
 

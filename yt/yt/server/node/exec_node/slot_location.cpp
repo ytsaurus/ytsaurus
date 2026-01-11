@@ -197,15 +197,15 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         static const TDirectory Directories[] = {
             {
                 .Path = "slot",
-                .RemoveIfExists = false
+                .RemoveIfExists = false,
             },
             {
                 .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)),
-                .RemoveIfExists = false
+                .RemoveIfExists = false,
             },
             {
                 .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::Tmp)),
-                .RemoveIfExists = true
+                .RemoveIfExists = true,
             },
         };
 

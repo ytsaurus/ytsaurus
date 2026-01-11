@@ -1238,7 +1238,7 @@ void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, T
 
     SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
-        .Result = EMergeSessionResult::PermanentFailure
+        .Result = EMergeSessionResult::PermanentFailure,
     });
 
     YT_LOG_DEBUG("Starting new permanently failed merge job session (NodeId: %v, AccountId: %v)",

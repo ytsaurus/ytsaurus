@@ -1106,7 +1106,7 @@ void ImportFilesFromHuggingface(
         networkProject,
         TSourceConfig{
             .HuggingfaceConfig = THuggingfaceConfig{
-                .UrlOverride = urlOverride
+                .UrlOverride = urlOverride,
             },
             .Format = format,
         },

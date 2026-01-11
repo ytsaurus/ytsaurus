@@ -554,7 +554,7 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
 {
     WriteManyRows({
         .OptimizeFor = EOptimizeFor::Lookup,
-        .ChunkFormat = EChunkFormat::TableVersionedIndexed
+        .ChunkFormat = EChunkFormat::TableVersionedIndexed,
     });
 
     auto chunkMeta = MemoryReader->GetMeta(/*options*/ {})
