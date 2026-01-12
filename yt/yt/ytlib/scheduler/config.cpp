@@ -2568,7 +2568,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("erasure_chunk_repair_delay", &TThis::ErasureChunkRepairDelay)
         .Default(TDuration::Minutes(15));
     registrar.Parameter("repair_erasure_chunks", &TThis::RepairErasureChunks)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("use_remote_master_caches", &TThis::UseRemoteMasterCaches)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
