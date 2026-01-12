@@ -160,7 +160,7 @@ void TPartition::AsyncLoad(TLoadContext& context)
     SampleKeys_->Load(
         context,
         nodeMemoryTracker
-            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
             : nullptr);
 }
 
