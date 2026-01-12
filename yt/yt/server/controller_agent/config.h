@@ -1326,6 +1326,13 @@ struct TControllerAgentConfig
     // and all masters will be 25.2.
     bool AllowBulkInsertUnderUserTransaction;
 
+    // Only for sorted dynamic tables.
+    i64 MaxUnversionedDynamicTableOutputChunkSize;
+    i64 MaxUnversionedDynamicTableOutputBlockSize;
+
+    //! If set, the sizes of unversioned blocks and chunks will be checked for sorted dynamic tables.
+    bool EnableDynamicTableOutputChunkConstraintValidation;
+
     NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
