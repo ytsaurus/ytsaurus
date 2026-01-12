@@ -382,7 +382,7 @@ void FormatValue(TStringBuilderBase* builder, const TRlsReadSpec& rlsReadSpec, T
     } else {
         Format(
             builder,
-            "{Predicate: %Qv}",
+            "{Predicate: %v}",
             rlsReadSpec.GetPredicate());
     }
 }
