@@ -221,6 +221,8 @@ private:
 
     TBackoffStrategy DisableJobsBackoffStrategy_;
 
+    TBackoffStrategy ResurrectionBackoffStrategy_;
+
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic<bool> JobProxyReady_ = false;
@@ -322,6 +324,7 @@ private:
 
     struct TSlotManagerInfo
     {
+        ESlotManagerState State;
         int SlotCount;
         int FreeSlotCount;
         int UsedIdleSlotCount;
@@ -353,6 +356,7 @@ private:
     bool GuardedHasArmedTransientAlerts() const;
 
     bool CanResurrect() const;
+    void EnqueueResurrectionBackoff();
 
     void SetDisabledState();
 

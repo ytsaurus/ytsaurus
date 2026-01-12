@@ -155,6 +155,17 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
             .BackoffJitter = 1.0,
         });
 
+    registrar.Parameter("resurrection_backoff_strategy", &TThis::ResurrectionBackoffStrategy)
+        .Default({
+            .InvocationCount = 0,  // No automatic resurrection by default.
+            .MinBackoff = TDuration::Seconds(10),
+            .MaxBackoff = TDuration::Minutes(10),
+            .BackoffMultiplier = 1.5,
+        });
+
+    registrar.Parameter("force_disable_job_environment", &TThis::ForceDisableJobEnvironment)
+        .Default(false);
+
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 
