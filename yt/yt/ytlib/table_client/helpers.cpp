@@ -410,7 +410,7 @@ TInputTableInfo CollectInputTableInfo(
         .Chunks = std::move(inputChunks),
         .Schema = std::move(schema),
         .Dynamic = dynamic,
-        .RlsReadSpec = std::move(rlsReadSpec)
+        .RlsReadSpec = std::move(rlsReadSpec),
     };
 }
 
