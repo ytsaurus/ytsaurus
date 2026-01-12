@@ -1657,7 +1657,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     // Delete such entry in order to avoid mistakenly treating newly created table as missing in subsequent queries.
     queryContext->DeleteObjectAttributesFromSnapshot({path.GetPath()});
 
-    auto tables = FetchTables(
+    auto tables = FetchTablesSoft(
         queryContext,
         {std::move(path)},
         /*skipUnsuitableNodes*/ false,

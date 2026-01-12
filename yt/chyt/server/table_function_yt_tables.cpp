@@ -199,7 +199,7 @@ private:
         auto* queryContext = GetQueryContext(context);
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/yt_tables/execute"_SP);
 
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             std::move(TablePaths_),
             /*skipUnsuitableNodes*/ false,

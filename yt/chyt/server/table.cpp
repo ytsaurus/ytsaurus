@@ -119,6 +119,7 @@ std::vector<TTablePtr> FetchTables(
     TQueryContext* queryContext,
     const std::vector<TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
+    bool ignoreFetchErrors,
     bool enableDynamicStoreRead,
     TLogger logger)
 {
@@ -138,43 +139,62 @@ std::vector<TTablePtr> FetchTables(
 
     std::vector<TTablePtr> tables;
     std::vector<TError> errors;
+    std::vector<TError> unsuitableErrors;
     for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
         const auto& path = richPaths[index];
         const auto& attributesOrError = attributesOrErrors[index];
 
-        try {
-            const auto& attributes = attributesOrError.ValueOrThrow();
-            auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
-            static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
-            if (!allowedTypes.contains(type)) {
-                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
-                    path,
-                    allowedTypes,
-                    type);
-            }
-            if (attributes->Get<bool>("dynamic", false) &&
-                enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
-            {
-                THROW_ERROR_EXCEPTION(
-                    "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
-                    "set attribute \"enable_dynamic_store_read\" to true and remount table; "
-                    "if you indeed want to read only static part of dynamic table, "
-                    "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
-                    path.GetPath());
-            }
-
-            auto& table = tables.emplace_back(New<TTable>(path, attributes));
-
-            if (table->Dynamic) {
-                ++dynamicTableCount;
-            }
-        } catch (const std::exception& ex) {
-            if (!skipUnsuitableNodes) {
-                errors.emplace_back(TError("Error fetching table %v", path)
-                    << ex
-                    << TErrorAttribute("path", path));
-            }
+        if (attributesOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            unsuitableErrors.emplace_back(std::move(attributesOrError).Wrap());
+            YT_LOG_DEBUG("Skip %Qv because it wasn't resolved", path);
+            continue;
         }
+
+        if (!attributesOrError.IsOK()) {
+            errors.emplace_back(TError("Error fetching table %v", path)
+                << std::move(attributesOrError).Wrap()
+                << TErrorAttribute("path", path));
+            continue;
+        }
+
+        const auto& attributes = attributesOrError.Value();
+        auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
+        static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
+        if (!allowedTypes.contains(type)) {
+            unsuitableErrors.emplace_back(TError("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
+                path,
+                allowedTypes,
+                type));
+            YT_LOG_DEBUG("Skip %Qv because it's not a table", path);
+            continue;
+        }
+
+        if (attributes->Get<bool>("dynamic", false) &&
+            enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
+        {
+            unsuitableErrors.emplace_back(TError(
+                "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
+                "set attribute \"enable_dynamic_store_read\" to true and remount table; "
+                "if you indeed want to read only static part of dynamic table, "
+                "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
+                path.GetPath()));
+            YT_LOG_DEBUG("Skip %Qv because it has disabled dynamic store read when required", path);
+            continue;
+        }
+
+        auto& table = tables.emplace_back(New<TTable>(path, attributes));
+        if (table->Dynamic) {
+            ++dynamicTableCount;
+        }
+    }
+
+    if (ignoreFetchErrors) {
+        errors.clear();
+    }
+
+    if (!skipUnsuitableNodes) {
+        std::move(unsuitableErrors.begin(), unsuitableErrors.end(), std::back_inserter(errors));
+        unsuitableErrors.clear();
     }
 
     auto throwOnErrors = [&] {
@@ -227,6 +247,22 @@ std::vector<TTablePtr> FetchTables(
     }
 
     return tables;
+}
+
+std::vector<TTablePtr> FetchTablesSoft(
+    TQueryContext* queryContext,
+    const std::vector<TRichYPath>& richPaths,
+    bool skipUnsuitableNodes,
+    bool enableDynamicStoreRead,
+    TLogger logger)
+{
+    return FetchTables(
+        queryContext,
+        richPaths,
+        skipUnsuitableNodes,
+        /*ignoreFetchErrors*/ false,
+        enableDynamicStoreRead,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

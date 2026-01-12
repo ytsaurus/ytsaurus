@@ -230,7 +230,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
             Format("/%v_database/do_get_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
     try {
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             {TRichYPath::Parse(path)},
             /*skipUnsuitableNodes*/ false,

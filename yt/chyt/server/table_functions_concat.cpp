@@ -165,7 +165,7 @@ private:
         auto* queryContext = GetQueryContext(context);
         auto timerGuard = queryContext->CreateStatisticsTimerGuard("/concat_yt_tables/execute"_SP);
 
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             std::move(tablePaths),
             /*skipUnsuitableNodes*/ false,
@@ -289,6 +289,7 @@ private:
             queryContext,
             std::move(itemPaths),
             /*skipUnsuitableItems*/ true,
+            queryContext->Settings->ConcatTables->IgnoreFetchErrors,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             Logger);
 

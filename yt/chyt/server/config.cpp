@@ -200,6 +200,8 @@ void TConcatTablesSettings::Register(TRegistrar registrar)
     registrar.Parameter("max_tables", &TThis::MaxTables)
         .LessThanOrEqual(2500)
         .Default(250);
+    registrar.Parameter("ignore_fetch_errors", &TThis::IgnoreFetchErrors)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
