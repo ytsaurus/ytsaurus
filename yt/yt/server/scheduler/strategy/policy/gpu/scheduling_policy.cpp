@@ -220,7 +220,7 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Revived node's state "
+            "Node state revived "
             "(NodeId: %v, NodeAddress: %v, SchedulingModule: %v)",
             nodeId,
             node->Address(),
@@ -278,7 +278,7 @@ public:
             }
 
             YT_LOG_DEBUG(
-                "Revived operation's state"
+                "Operation state revived "
                 "(OperationId: %v, SchedulingModule: %v)",
                 operation->GetId(),
                 operation->SchedulingModule());
@@ -485,7 +485,7 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Revived operation's state "
+            "Operation state revived "
             "(OperationId: %v,SchedulingModule: %v)",
             operation->GetId(),
             operation->SchedulingModule());
@@ -576,7 +576,7 @@ public:
 
                 // TODO(eshcherbin): Should we set scheduler alert instead? It'll be more visible this way,
                 // but it'll have to be removed manually
-                YT_LOG_WARNING(ex, "Failed to deserialize gpu scheduling policy persistent state; will ignore it");
+                YT_LOG_WARNING(ex, "Failed to deserialize GPU scheduling policy persistent state; will ignore it");
             }
         } else {
             InitialPersistentState_ = New<TPersistentState>();
@@ -947,16 +947,16 @@ private:
                 nodePersistentState.AssignmentStates.push_back(std::move(assignmentPersistentState));
             }
 
-            YT_LOG_DEBUG("Updated persistent state for node (NodeId: %v)", nodeId);
+            YT_LOG_DEBUG("Updated node persistent state (NodeId: %v)", nodeId);
         }
 
-        auto updateOperationPersistentState = [&] (const auto& it) {
+        auto updateOperationPersistentState = [&] (auto it) {
             const auto& [operationId, operation] = it;
             auto& operationPersistentState = PersistentState_->OperationStates[operationId];
             operationPersistentState.SchedulingModule = operation->SchedulingModule();
 
             YT_LOG_DEBUG(
-                "Updated persistent state for operation (OperationId: %v, SchedulingModule %v,  Enabled %v)",
+                "Updated operation persistent state (OperationId: %v, SchedulingModule %v,  Enabled %v)",
                 operationId,
                 operation->SchedulingModule(),
                 operation->IsEnabled());
