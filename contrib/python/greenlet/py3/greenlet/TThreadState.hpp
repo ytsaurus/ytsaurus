@@ -3,6 +3,7 @@
 
 #include <ctime>
 #include <stdexcept>
+#include <atomic>
 
 #include "greenlet_internal.hpp"
 #include "greenlet_refs.hpp"
@@ -65,18 +66,13 @@ namespace greenlet {
  * invoke destructors; the C++11 version is the most portable solution
  * I found). When the thread exits, we can drop references and
  * otherwise manipulate greenlets and frames that we know can no
- * longer be switched to. For compilers that don't support C++11
- * thread locals, we have a solution that uses the python thread
- * dictionary, though it may not collect everything as promptly as
- * other compilers do, if some other library is using the thread
- * dictionary and has a cycle or extra reference.
+ * longer be switched to.
  *
  * There are two small wrinkles. The first is that when the thread
  * exits, it is too late to actually invoke Python APIs: the Python
  * thread state is gone, and the GIL is released. To solve *this*
  * problem, our destructor uses ``Py_AddPendingCall`` to transfer the
- * destruction work to the main thread. (This is not an issue for the
- * dictionary solution.)
+ * destruction work to the main thread.
  *
  * The second is that once the thread exits, the thread local object
  * is invalid and we can't even access a pointer to it, so we can't
@@ -118,7 +114,11 @@ private:
     void* exception_state;
 #endif
 
+#ifdef Py_GIL_DISABLED
+    static std::atomic<std::clock_t> _clocks_used_doing_gc;
+#else
     static std::clock_t _clocks_used_doing_gc;
+#endif
     static ImmortalString get_referrers_name;
     static PythonAllocator<ThreadState> allocator;
 
@@ -160,7 +160,7 @@ public:
     static void init()
     {
         ThreadState::get_referrers_name = "get_referrers";
-        ThreadState::_clocks_used_doing_gc = 0;
+        ThreadState::set_clocks_used_doing_gc(0);
     }
 
     ThreadState()
@@ -349,9 +349,31 @@ public:
     /**
      * Set to std::clock_t(-1) to disable.
      */
-    inline static std::clock_t& clocks_used_doing_gc()
+    inline static std::clock_t clocks_used_doing_gc()
     {
+#ifdef Py_GIL_DISABLED
+        return ThreadState::_clocks_used_doing_gc.load(std::memory_order_relaxed);
+#else
         return ThreadState::_clocks_used_doing_gc;
+#endif
+    }
+
+    inline static void set_clocks_used_doing_gc(std::clock_t value)
+    {
+#ifdef Py_GIL_DISABLED
+        ThreadState::_clocks_used_doing_gc.store(value, std::memory_order_relaxed);
+#else
+        ThreadState::_clocks_used_doing_gc = value;
+#endif
+    }
+
+    inline static void add_clocks_used_doing_gc(std::clock_t value)
+    {
+#ifdef Py_GIL_DISABLED
+        ThreadState::_clocks_used_doing_gc.fetch_add(value, std::memory_order_relaxed);
+#else
+        ThreadState::_clocks_used_doing_gc += value;
+#endif
     }
 
     ~ThreadState()
@@ -390,7 +412,7 @@ public:
             PyGreenlet* old_main_greenlet = this->main_greenlet.borrow();
             Py_ssize_t cnt = this->main_greenlet.REFCNT();
             this->main_greenlet.CLEAR();
-            if (ThreadState::_clocks_used_doing_gc != std::clock_t(-1)
+            if (ThreadState::clocks_used_doing_gc() != std::clock_t(-1)
                 && cnt == 2 && Py_REFCNT(old_main_greenlet) == 1) {
                 // Highly likely that the reference is somewhere on
                 // the stack, not reachable by GC. Verify.
@@ -444,7 +466,7 @@ public:
                         }
                     }
                     std::clock_t end = std::clock();
-                    ThreadState::_clocks_used_doing_gc += (end - begin);
+                    ThreadState::add_clocks_used_doing_gc(end - begin);
                 }
             }
         }
@@ -486,7 +508,11 @@ public:
 
 ImmortalString ThreadState::get_referrers_name(nullptr);
 PythonAllocator<ThreadState> ThreadState::allocator;
+#ifdef Py_GIL_DISABLED
+std::atomic<std::clock_t> ThreadState::_clocks_used_doing_gc(0);
+#else
 std::clock_t ThreadState::_clocks_used_doing_gc(0);
+#endif
 
 
 
