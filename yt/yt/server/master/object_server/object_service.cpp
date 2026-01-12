@@ -486,7 +486,7 @@ public:
 
     const std::string& GetUserName() const
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         return Identity_.User;
     }
@@ -551,7 +551,7 @@ public:
 
     void RunRead()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         auto codicilGuard = MakeCodicilGuard();
         try {
@@ -1757,7 +1757,7 @@ private:
     template <EUserWorkloadType WorkloadType>
     bool WaitForAndContinue(const TFuture<void>& result)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         if (auto optionalError = result.TryGet()) {
             optionalError->ThrowOnError();
@@ -1919,13 +1919,15 @@ private:
 
     void GuardedRunRead()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         GuardedProcessSubrequests(EUserWorkloadType::Read);
     }
 
     void GuardedProcessSubrequests(EUserWorkloadType workloadType)
     {
+        VerifyPersistentStateRead();
+
         auto batchStartTime = GetCpuInstant();
         auto batchDeadlineTime = batchStartTime + DurationToCpuDuration(Owner_->Config_->YieldTimeout);
 
@@ -1995,7 +1997,7 @@ private:
 
     void ExecuteSubrequest(TSubrequest* subrequest)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         subrequest->Revision = hydraManager->GetAutomatonVersion().GetLogicalRevision();
@@ -2069,7 +2071,7 @@ private:
                 YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
                 break;
             case EExecutionSessionSubrequestType::LocalRead:
-                YT_ASSERT_THREAD_AFFINITY_ANY();
+                VerifyPersistentStateRead();
                 break;
             default:
                 YT_ABORT();
@@ -2143,7 +2145,7 @@ private:
 
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VerifyPersistentStateRead();
 
         TWallTimer timer;
 
@@ -2681,7 +2683,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 
 void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     StickyUserErrorCache_.Put(userName, error);
 }
