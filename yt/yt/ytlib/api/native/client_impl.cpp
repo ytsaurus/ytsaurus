@@ -288,15 +288,6 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    if (TypeFromId(cellId) == EObjectType::MasterCell) {
-        auto masterChannel = cellDirectory->FindChannelByCellId(cellId);
-        if (masterChannel) {
-            return WrapChannel(masterChannel);
-        }
-        // Master cell directory synchronizer could have received new master, so it is worth trying to get chanel to master cell via master cell directory.
-        const auto& masterCellDirectory = Connection_->GetMasterCellDirectory();
-        return WrapChannel(masterCellDirectory->GetNakedMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(cellId)));
-    }
     return WrapChannel(cellDirectory->GetChannelByCellIdOrThrow(cellId));
 }
 
