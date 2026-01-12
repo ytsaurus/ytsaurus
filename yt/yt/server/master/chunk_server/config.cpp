@@ -829,10 +829,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_recalculation_max_replicas_per_failure_domain", &TThis::EnableRecalculationMaxReplicasPerFailureDomain)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
