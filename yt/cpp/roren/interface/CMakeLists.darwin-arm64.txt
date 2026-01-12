@@ -56,6 +56,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/tags.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/misc.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/save_loadable_logicaltype_wrapper.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/interface/private/save_loadable_tableschema_wrapper.cpp
