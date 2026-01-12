@@ -231,7 +231,7 @@ std::vector<TTablePtr> FetchTables(
     std::vector<TError> unsuitableErrors;
     for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
         const auto& path = richPaths[index];
-        auto& attributesOrError = attributesOrErrors[index];
+        const auto& attributesOrError = attributesOrErrors[index];
 
         if (attributesOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             unsuitableErrors.emplace_back(std::move(attributesOrError).Wrap());
