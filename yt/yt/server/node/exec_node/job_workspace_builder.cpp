@@ -568,25 +568,29 @@ private:
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
                 options)
-                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+                    .Apply(
+                        BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                            if (!volumeOrError.IsOK()) {
+                                YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
+                                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                    << volumeOrError;
+                            }
 
-                    auto rootVolume = std::move(volumeOrError.Value());
-                    return slot->CreateSlotDirectories(
-                        rootVolume,
-                        Context_.UserSandboxOptions.UserId)
-                        .Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] () {
-                            Context_.RootVolume = rootVolume;
-                            YT_LOG_DEBUG("Root volume prepared");
-                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-                        }).AsyncVia(Invoker_));
+                            auto rootVolume = std::move(volumeOrError.Value());
+                            return slot->CreateSlotDirectories(
+                                rootVolume,
+                                Context_.UserSandboxOptions.UserId)
+                                    .Apply(
+                                        BIND([rootVolume, this, this_ = MakeStrong(this)] {
+                                            Context_.RootVolume = rootVolume;
+                                            YT_LOG_DEBUG("Root volume prepared");
+                                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                                        })
+                                        .AsyncVia(Invoker_));
 
-                }).AsyncVia(Invoker_));
+                        })
+                        .AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
             return OKFuture;
@@ -610,23 +614,26 @@ private:
 
         const auto& slot = Context_.Slot;
         return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
-            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
-                if (!volumeResultsOrError.IsOK()) {
-                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
-                        << volumeResultsOrError;
-                }
+            .AsUnique()
+            .Apply(
+                BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    if (!volumeResultsOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
+                            << volumeResultsOrError;
+                    }
 
-                Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
+                    Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
 
-                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                    YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(Context_.PreparedTmpfsVolumes,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
                                 result.Path,
                                 result.Volume->GetPath());
                         }));
-                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            }).AsyncVia(Invoker_))
+                    SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+                })
+                .AsyncVia(Invoker_))
             .ToUncancelable();
     }
 
