@@ -5094,6 +5094,7 @@ for line in sys.stdin:
         for job in jobs:
             if job["type"] in ("sorted_merge", "sorted_reduce", "partition"):
                 continue
+            wait(lambda: op.get_job_statistics(job["id"]).get("data"))
             statistics = op.get_job_statistics(job["id"])
             assert statistics["data"]["input"]["chunk_count"]["sum"] == 1 or \
                 statistics["data"]["input"]["data_weight"]["sum"] <= data_weight_per_sort_job
