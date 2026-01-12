@@ -777,6 +777,11 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
             chunk_id = get_singular_chunk_id("//tmp/t1", driver=self.remote_driver)
 
+            # COMPAT(coteeq)
+            compat_repair_erasure_chunks = {}
+            if self.Env.get_component_version("ytserver-controller-agent").abi < (26, 1):
+                compat_repair_erasure_chunks["repair_erasure_chunks"] = True
+
             def run_operation():
                 op = remote_copy(
                     track=False,
@@ -788,6 +793,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                         "delay_in_copy_chunk": 5000,
                         "erasure_chunk_repair_delay": 2000,
                         "chunk_availability_policy": "repairable",
+                        **compat_repair_erasure_chunks,
                     },
                 )
                 wait(lambda: len(op.get_running_jobs()) == 1)
