@@ -573,7 +573,7 @@ public:
         QueryRegistry_->WriteStateToStderr();
         WriteToStderr("*** Current query id (possible reason of failure): ");
         const auto& queryId = DB::CurrentThread::getQueryId();
-        WriteToStderr(queryId.data(), queryId.size());
+        WriteToStderr(queryId);
         WriteToStderr(" ***\n");
 
         if (DB::CurrentThread::isInitialized()) {
@@ -582,12 +582,12 @@ public:
             if (context) {
                 const auto* queryContext = GetQueryContext(context);
                 WriteToStderr("*** Current user: ");
-                WriteToStderr(queryContext->User.data(), queryContext->User.size());
+                WriteToStderr(queryContext->User);
                 WriteToStderr(" ***\n");
 
                 if (queryContext->InitialQuery) {
                     WriteToStderr("*** Begin of the initial query ***\n");
-                    WriteToStderr(queryContext->InitialQuery->data(), queryContext->InitialQuery->size());
+                    WriteToStderr(*queryContext->InitialQuery);
                     WriteToStderr("\n*** End of the initial query ***\n");
                 } else {
                     WriteToStderr("*** Initial query is missing ***\n");
@@ -596,7 +596,7 @@ public:
                 if (auto status = context->getProcessListElement()) {
                     const auto& info = status->getInfo();
                     WriteToStderr("*** Begin of the context query ***\n");
-                    WriteToStderr(info.query.data(), info.query.size());
+                    WriteToStderr(info.query);
                     WriteToStderr("\n*** End of the context query ***\n");
                 } else {
                     WriteToStderr("*** Query is not in the process list ***\n");
