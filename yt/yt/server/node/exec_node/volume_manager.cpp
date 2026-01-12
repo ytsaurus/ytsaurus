@@ -2904,18 +2904,41 @@ public:
 
     TFuture<void> Remove() override final
     {
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                Y_UNUSED(guard);
-                // guard protects RemoveLocked call.
-                return RemoveLocked();
-            }));
+        if (!RemovalRequested_.exchange(true)) {
+            TAsyncLockWriterGuard::Acquire(&Lock_).AsUnique().Subscribe(BIND(
+                [
+                    removalCallback = RemoveCallback_,
+                    removePromise = RemovePromise_,
+                    targets = Targets_,
+                    volumePath = VolumeMeta_.MountPath
+                ] (TErrorOr<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>&& guardOrError) mutable {
+                    YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock (VolumePath: %v)", volumePath);
+
+                    auto guard = std::move(guardOrError.Value());
+                    auto removeFuture = removalCallback(targets).Apply(BIND(
+                        [guard = std::move(guard), volumePath = std::move(volumePath)] (const TError& error) {
+                            if (!error.IsOK()) {
+                                YT_LOG_ERROR(
+                                    error,
+                                    "Failed to remove volume (VolumePath: %v)",
+                                    volumePath);
+                            }
+                            return error;
+                        }));
+                    removePromise.SetFrom(removeFuture);
+                }));
+        }
+
+        return RemovePromise_;
     }
 
 protected:
     const NProfiling::TTagSet TagSet_;
     const TVolumeMeta VolumeMeta_;
     const TLayerLocationPtr Location_;
+
+    TPromise<void> RemovePromise_ = NewPromise<void>();
+    std::atomic<bool> RemovalRequested_{false};
 
     void SetRemoveCallback(TCallback<TFuture<void>()> callback)
     {
@@ -2941,25 +2964,9 @@ protected:
             });
     }
 
-    //! No need to take lock when called from destructor, otherwise take lock.
-    TFuture<void> RemoveLocked()
-    {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
-
-        if (!RemoveCallback_) {
-            return OKFuture;
-        }
-
-        RemoveFuture_ = RemoveCallback_(Targets_);
-        return RemoveFuture_;
-    }
-
 private:
     TAsyncReaderWriterLock Lock_;
     std::vector<TString> Targets_;
-    TFuture<void> RemoveFuture_;
     TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
 
     static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
@@ -3016,7 +3023,7 @@ public:
 
     ~TNbdVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3103,7 +3110,7 @@ public:
 
     ~TOverlayVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3186,7 +3193,7 @@ public:
 
     ~TSquashFSVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3254,7 +3261,7 @@ public:
 
     ~TTmpfsVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
