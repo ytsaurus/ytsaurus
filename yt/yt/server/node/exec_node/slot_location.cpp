@@ -215,7 +215,7 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
 
         int nodeUid = getuid();
 
-        auto createRootDirectoryConfig = [&]() {
+        auto createRootDirectoryConfig = [&] {
             auto rootConfig = New<NTools::TRootDirectoryConfig>();
             rootConfig->SlotPath = rootVolumeMountPath;
             rootConfig->UserId = nodeUid;
@@ -245,8 +245,8 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         YT_LOG_DEBUG("Created slot directories in root volume (RootPath: %v)",
             rootVolumeMountPath);
     })
-    .AsyncVia(ToolInvoker_)
-    .Run();
+        .AsyncVia(ToolInvoker_)
+        .Run();
 }
 
 TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
@@ -273,11 +273,11 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
             }
         }
 
-        THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root fs")
+        THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root filesystem")
             << TErrorAttribute("root_volume_path", rootVolumeMountPath);
     })
-    .AsyncVia(HeavyInvoker_)
-    .Run();
+        .AsyncVia(HeavyInvoker_)
+        .Run();
 }
 
 TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const std::string& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
