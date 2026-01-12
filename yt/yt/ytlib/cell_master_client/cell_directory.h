@@ -77,6 +77,7 @@ ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     NApi::NNative::TConnectionOptions options,
     NRpc::IChannelFactoryPtr channelFactory,
+    TWeakPtr<NApi::NNative::IConnection> connection,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

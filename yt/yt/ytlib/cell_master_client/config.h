@@ -21,6 +21,11 @@ struct TCellDirectoryConfig
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
+    // COMPAT(cherepashka)
+    bool EnableHiveCellDirectoryReconfigurationOnNewMasterCells;
+    // COMPAT(cherepashka)
+    bool EnableHiveCellDirectoryReconfigurationOnChangedMasterCells;
+
     REGISTER_YSON_STRUCT(TCellDirectoryConfig);
 
     static void Register(TRegistrar registrar);
