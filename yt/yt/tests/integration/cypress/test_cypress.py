@@ -2845,7 +2845,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/table/@expiration_timeout", 20000, tx=tx)
 
         child_tx = start_transaction(tx=tx)
-        get("//tmp/table/@effective_expiration", tx=child_tx)["timeout"] == {"value": 20000, "path": "//tmp/table"}
+        assert get("//tmp/table/@effective_expiration", tx=child_tx)["timeout"] == {"value": 20000, "path": "//tmp/table"}
 
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
