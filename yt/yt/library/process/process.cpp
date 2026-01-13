@@ -22,6 +22,7 @@
 #include <util/generic/guid.h>
 
 #include <util/string/ascii.h>
+#include <util/string/join.h>
 #include <util/string/util.h>
 
 #include <util/system/env.h>
@@ -90,7 +91,7 @@ public:
                 << TError::FromSystem());
     }
 
-    void AddChdirFileAction(TString path)
+    void AddChdirFileAction(std::string path)
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_addchdir_np(&Actions_, path.c_str()) != 0,
@@ -195,7 +196,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorOr<TString> ResolveBinaryPath(const TString& binary)
+TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
 {
     auto Logger = NYT::Logger()
         .WithTag("Binary: %v", binary);
@@ -225,7 +226,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
         return error;
     };
 
-    auto success = [&] (const TString& path) {
+    auto success = [&] (const std::string& path) {
         YT_LOG_DEBUG("Binary resolved (Path: %v)", path);
         return path;
     };
@@ -244,7 +245,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     {
         auto execPathDirName = GetDirName(GetExecPath());
         YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %v)", execPathDirName);
-        auto probe = TString::Join(execPathDirName, "/", binary);
+        auto probe = JoinSeq("/", {execPathDirName, binary});
         if (test(probe.c_str())) {
             return success(probe);
         }
@@ -273,7 +274,7 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
         buffer[index] = 0;
 
         if (test(buffer.data())) {
-            return success(TString(buffer.data(), index));
+            return success(std::string(buffer.data(), index));
         }
     }
 
@@ -373,7 +374,7 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcessBase::TProcessBase(const TString& path)
+TProcessBase::TProcessBase(const std::string& path)
     : Path_(path)
     , ProcessId_(InvalidProcessId)
 { }
@@ -399,14 +400,14 @@ void TProcessBase::AddArguments(std::initializer_list<TStringBuf> args)
     }
 }
 
-void TProcessBase::AddArguments(const std::vector<TString>& args)
+void TProcessBase::AddArguments(const std::vector<std::string>& args)
 {
     for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
 
-void TProcessBase::SetWorkingDirectory(const TString& path)
+void TProcessBase::SetWorkingDirectory(const std::string& path)
 {
     WorkingDirectory_ = path;
 }
@@ -489,14 +490,14 @@ public:
     #endif
     }
 
-    void AddChdirSpawnAction(const TString& workingDirectory)
+    void AddChdirSpawnAction(const std::string& workingDirectory)
     {
     #if defined(YT_USE_POSIX_SPAWN_API)
         SpawnFileActions_.AddChdirFileAction(workingDirectory);
     #else
         SpawnActions_.push_back(TSpawnAction{
             [&] {
-                NFs::SetCurrentWorkingDirectory(workingDirectory);
+                NFs::SetCurrentWorkingDirectory(TString(workingDirectory));
                 return true;
             },
             "Error changing working directory"
@@ -563,7 +564,7 @@ private:
     struct TSpawnAction
     {
         std::function<bool()> Callback;
-        TString ErrorMessage;
+        std::string ErrorMessage;
     };
 
     std::vector<TSpawnAction> SpawnActions_;
@@ -648,7 +649,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleProcess::TSimpleProcess(const TString& path, bool copyEnv, TDuration pollPeriod)
+TSimpleProcess::TSimpleProcess(const std::string& path, bool copyEnv, TDuration pollPeriod)
     // TString is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/TStringAndTStringBuf#sobstvennosimvoly
     : TProcessBase(path)
@@ -948,7 +949,7 @@ void TSimpleProcess::Kill(int signal)
 #endif
 }
 
-TString TProcessBase::GetPath() const
+std::string TProcessBase::GetPath() const
 {
     return Path_;
 }
@@ -968,7 +969,7 @@ bool TProcessBase::IsFinished() const
     return Finished_;
 }
 
-TString TProcessBase::GetCommandLine() const
+std::string TProcessBase::GetCommandLine() const
 {
     TStringBuilder builder;
     builder.AppendString(Path_);
@@ -1012,7 +1013,7 @@ TString TProcessBase::GetCommandLine() const
 
 const char* TProcessBase::Capture(TStringBuf arg)
 {
-    StringHolders_.push_back(TString(arg));
+    StringHolders_.push_back(std::string(arg));
     return StringHolders_.back().c_str();
 }
 

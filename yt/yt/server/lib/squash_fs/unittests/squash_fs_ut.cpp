@@ -63,12 +63,14 @@ public:
         return TReadersStatistics();
     }
 
-    TString GetPath() const override
+    const std::string& GetPath() const override
     {
-        return "MockRandomAccessFileReader";
+        return Path_;
     }
 
 private:
+    const std::string Path_ = "MockRandomAccessFileReader";
+
     i64 Size_ = 0;
 };
 
@@ -182,13 +184,13 @@ bool Unsquash(const TString& folderName)
 
 bool VerifyDirectory(
     const TYPath& path,
-    const std::set<TString>& expectedEntries)
+    const std::set<std::string>& expectedEntries)
 {
     if (!NFS::Exists(path)) {
         return false;
     }
 
-    std::set<TString> realEntries;
+    std::set<std::string> realEntries;
     for (auto entry : NFS::EnumerateDirectories(path)) {
         realEntries.insert(entry);
     }
@@ -306,7 +308,7 @@ TEST(TSquashFSUnsquashfsTest, BigFileSquashFS)
 
 TEST(TSquashFSUnsquashfsTest, ManyFilesSquashFS)
 {
-    std::set<TString> entries;
+    std::set<std::string> entries;
     {
         // Prepare.
         TSquashFSLayoutBuilderOptions options = {

@@ -22,7 +22,7 @@ using namespace NServer;
 
 TDiskLocation::TDiskLocation(
     TDiskLocationConfigPtr config,
-    TString id,
+    std::string id,
     const NLogging::TLogger& logger)
     : Id_(std::move(id))
     , Logger(logger.WithTag("LocationId: %v", Id_))
@@ -30,7 +30,7 @@ TDiskLocation::TDiskLocation(
     , RuntimeConfig_(StaticConfig_)
 { }
 
-const TString& TDiskLocation::GetId() const
+const std::string& TDiskLocation::GetId() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

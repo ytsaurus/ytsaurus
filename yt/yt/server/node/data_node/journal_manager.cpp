@@ -86,14 +86,14 @@ namespace NYT::NDataNode {
 
 namespace {
 
-TString ChopExtension(TString* fileName)
+std::string ChopExtension(std::string* fileName)
 {
     auto extension = NFS::GetFileExtension(*fileName);
     *fileName = NFS::GetFileNameWithoutExtension(*fileName);
     return extension;
 }
 
-int ParseChangelogId(const TString& str, const TString& fileName)
+int ParseChangelogId(const std::string& str, const std::string& fileName)
 {
     try {
         return FromString<int>(str);
@@ -640,7 +640,8 @@ public:
     {
         // NB: May be called multiple times for the same #changelogId.
         MultiplexedChangelogIdToCleanResult_.emplace(changelogId, NewPromise<void>());
-        auto path = GetMultiplexedChangelogPath(changelogId);
+        // TODO(dgolear): Switch to std::string
+        TString path = GetMultiplexedChangelogPath(changelogId);
         auto config = Config_.Acquire();
         return WaitFor(MultiplexedChangelogDispatcher_->OpenChangelog(changelogId, path, config))
             .ValueOrThrow();
@@ -889,7 +890,7 @@ private:
         }
     }
 
-    TString GetMultiplexedChangelogPath(int changelogId)
+    std::string GetMultiplexedChangelogPath(int changelogId)
     {
         return NFS::CombinePaths(
             Path_,

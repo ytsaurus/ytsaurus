@@ -202,7 +202,7 @@ protected:
     TError InactivityError_;
     TPromise<void> TerminatedPromise_ = NewPromise<void>();
 
-    std::optional<TString> Command_;
+    std::optional<std::string> Command_;
 
     NLogging::TLogger Logger = ShellLogger();
 
@@ -252,7 +252,7 @@ public:
             Command_);
 
         Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
-        const TString tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
+        const std::string tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
 
         launcher->SetStdIn(tty);
         launcher->SetStdOut(tty);
@@ -278,7 +278,7 @@ public:
         launcher->SetCwd(workingDir);
 
         // Init environment variables.
-        THashMap<TString, TString> env;
+        THashMap<std::string, std::string> env;
         env["HOME"] = workingDir;
         env["G_HOME"] = workingDir;
         env["TMPDIR"] = NFS::CombinePaths(workingDir, "tmp");
@@ -291,7 +291,7 @@ public:
         for (const auto& var : Options_->Environment) {
             TStringBuf name, value;
             TStringBuf(var).TrySplit('=', name, value);
-            env[name] = value;
+            env.emplace(name, value);
         }
 
         if (Options_->MessageOfTheDay) {
@@ -334,8 +334,8 @@ public:
                 .ValueOrThrow();
         } else {
             // COMPAT(pushin): remove me after 21.3.
-            TString path("/bin/bash");
-            std::vector<TString> args;
+            std::string path("/bin/bash");
+            std::vector<std::string> args;
             if (Options_->Command) {
                 args = {"-c", *Options_->Command};
             }

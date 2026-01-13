@@ -24,7 +24,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ContainersLogger;
-static const TString CGroupRootPath("/sys/fs/cgroup");
+static const std::string CGroupRootPath("/sys/fs/cgroup");
 #ifdef _linux_
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
 static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
@@ -34,7 +34,7 @@ static const int ReadExecuteByAll = ReadByAll | S_IXUSR | S_IXGRP | S_IXOTH;
 
 namespace {
 
-TString GetParentFor(const TString& type)
+std::string GetParentFor(const std::string& type)
 {
 #ifdef _linux_
     auto rawData = TUnbufferedFileInput("/proc/self/cgroup")
@@ -49,7 +49,7 @@ TString GetParentFor(const TString& type)
 
 #ifdef _linux_
 
-std::vector<TString> ReadAllValues(const TString& fileName)
+std::vector<std::string> ReadAllValues(const std::string& fileName)
 {
     auto raw = TUnbufferedFileInput(fileName)
         .ReadAll();
@@ -58,7 +58,7 @@ std::vector<TString> ReadAllValues(const TString& fileName)
         fileName,
         raw);
 
-    TVector<TString> values;
+    TVector<std::string> values;
     StringSplitter(raw.data())
         .SplitBySet(" \n")
         .SkipEmpty()
@@ -78,7 +78,7 @@ TDuration FromJiffies(ui64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TKillProcessGroupTool::operator()(const TString& processGroupPath) const
+void TKillProcessGroupTool::operator()(const std::string& processGroupPath) const
 {
     SafeSetUid(0);
     TNonOwningCGroup group(processGroupPath);
@@ -87,11 +87,11 @@ void TKillProcessGroupTool::operator()(const TString& processGroupPath) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonOwningCGroup::TNonOwningCGroup(const TString& fullPath)
+TNonOwningCGroup::TNonOwningCGroup(const std::string& fullPath)
     : FullPath_(fullPath)
 { }
 
-TNonOwningCGroup::TNonOwningCGroup(const TString& type, const TString& name)
+TNonOwningCGroup::TNonOwningCGroup(const std::string& type, const std::string& name)
     : FullPath_(NFS::CombinePaths({
         CGroupRootPath,
         type,
@@ -122,10 +122,10 @@ void TNonOwningCGroup::AddCurrentTask() const
 #endif
 }
 
-TString TNonOwningCGroup::Get(const TString& name) const
+std::string TNonOwningCGroup::Get(const std::string& name) const
 {
     YT_VERIFY(!IsNull());
-    TString result;
+    std::string result;
 #ifdef _linux_
     const auto path = GetPath(name);
     result = TFileInput(path).ReadLine();
@@ -135,7 +135,7 @@ TString TNonOwningCGroup::Get(const TString& name) const
     return result;
 }
 
-void TNonOwningCGroup::Set(const TString& name, const TString& value) const
+void TNonOwningCGroup::Set(const std::string& name, const std::string& value) const
 {
     YT_VERIFY(!IsNull());
 #ifdef _linux_
@@ -148,7 +148,7 @@ void TNonOwningCGroup::Set(const TString& name, const TString& value) const
 #endif
 }
 
-void TNonOwningCGroup::Append(const TString& name, const TString& value) const
+void TNonOwningCGroup::Append(const std::string& name, const std::string& value) const
 {
     YT_VERIFY(!IsNull());
 #ifdef _linux_
@@ -206,7 +206,7 @@ std::vector<int> TNonOwningCGroup::GetTasks() const
     return results;
 }
 
-const TString& TNonOwningCGroup::GetFullPath() const
+const std::string& TNonOwningCGroup::GetFullPath() const
 {
     return FullPath_;
 }
@@ -380,14 +380,14 @@ void TNonOwningCGroup::Traverse(
     postorderAction(*this);
 }
 
-TString TNonOwningCGroup::GetPath(const TString& filename) const
+std::string TNonOwningCGroup::GetPath(const std::string& filename) const
 {
     return NFS::CombinePaths(FullPath_, filename);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const TString& type, const TString& name)
+TCGroup::TCGroup(const std::string& type, const std::string& name)
     : TNonOwningCGroup(type, name)
 { }
 
@@ -438,7 +438,7 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TCpuAccounting::Name = "cpuacct";
+const std::string TCpuAccounting::Name = "cpuacct";
 
 TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
 {
@@ -455,7 +455,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     return lhs;
 }
 
-TCpuAccounting::TCpuAccounting(const TString& name)
+TCpuAccounting::TCpuAccounting(const std::string& name)
     : TCGroup(Name, name)
 { }
 
@@ -472,7 +472,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
         auto values = ReadAllValues(path);
         YT_VERIFY(values.size() == 4);
 
-        TString type[2];
+        std::string type[2];
         ui64 jiffies[2];
 
         for (int i = 0; i < 2; ++i) {
@@ -510,11 +510,11 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TCpu::Name = "cpu";
+const std::string TCpu::Name = "cpu";
 
 static const int DefaultCpuShare = 1024;
 
-TCpu::TCpu(const TString& name)
+TCpu::TCpu(const std::string& name)
     : TCGroup(Name, name)
 { }
 
@@ -526,9 +526,9 @@ void TCpu::SetShare(double share)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TBlockIO::Name = "blkio";
+const std::string TBlockIO::Name = "blkio";
 
-TBlockIO::TBlockIO(const TString& name)
+TBlockIO::TBlockIO(const std::string& name)
     : TCGroup(Name, name)
 { }
 
@@ -627,9 +627,9 @@ void TBlockIO::ThrottleOperations(i64 operations) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TMemory::Name = "memory";
+const std::string TMemory::Name = "memory";
 
-TMemory::TMemory(const TString& name)
+TMemory::TMemory(const std::string& name)
     : TCGroup(Name, name)
 { }
 
@@ -681,13 +681,13 @@ void TMemory::ForceEmpty() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString TFreezer::Name = "freezer";
+const std::string TFreezer::Name = "freezer";
 
-TFreezer::TFreezer(const TString& name)
+TFreezer::TFreezer(const std::string& name)
     : TCGroup(Name, name)
 { }
 
-TString TFreezer::GetState() const
+std::string TFreezer::GetState() const
 {
     return Get("freezer.state");
 }
@@ -704,11 +704,11 @@ void TFreezer::Unfreeze() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TString> ParseProcessCGroups(const TString& str)
+THashMap<std::string, std::string> ParseProcessCGroups(const std::string& str)
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
 
-    TVector<TString> values;
+    TVector<std::string> values;
     StringSplitter(str.data()).SplitBySet(":\n").SkipEmpty().Collect(&values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         // Check format.
@@ -717,12 +717,12 @@ THashMap<TString, TString> ParseProcessCGroups(const TString& str)
         const auto& subsystemsSet = values[i + 1];
         const auto& name = values[i + 2];
 
-        TVector<TString> subsystems;
+        TVector<std::string> subsystems;
         StringSplitter(subsystemsSet.data()).Split(',').SkipEmpty().Collect(&subsystems);
         for (const auto& subsystem : subsystems) {
-            if (!subsystem.StartsWith("name=")) {
+            if (!subsystem.starts_with("name=")) {
                 int start = 0;
-                if (name.StartsWith("/")) {
+                if (name.starts_with("/")) {
                     start = 1;
                 }
                 result[subsystem] = name.substr(start);
@@ -733,20 +733,20 @@ THashMap<TString, TString> ParseProcessCGroups(const TString& str)
     return result;
 }
 
-THashMap<TString, TString> GetProcessCGroups(pid_t pid)
+THashMap<std::string, std::string> GetProcessCGroups(pid_t pid)
 {
-    auto cgroupsPath = Format("/proc/%v/cgroup", pid);
-    auto rawCgroups = TFileInput{cgroupsPath}.ReadAll();
+    std::string cgroupsPath = Format("/proc/%v/cgroup", pid);
+    std::string rawCgroups = TFileInput{cgroupsPath}.ReadAll();
     return ParseProcessCGroups(rawCgroups);
 }
 
-THashMap<TString, TString> GetSelfProcessCGroups()
+THashMap<std::string, std::string> GetSelfProcessCGroups()
 {
-    auto rawCgroups = TFileInput{"/proc/self/cgroup"}.ReadAll();
+    std::string rawCgroups = TFileInput{"/proc/self/cgroup"}.ReadAll();
     return ParseProcessCGroups(rawCgroups);
 }
 
-bool IsValidCGroupType(const TString& type)
+bool IsValidCGroupType(const std::string& type)
 {
     return
         type == TCpuAccounting::Name ||

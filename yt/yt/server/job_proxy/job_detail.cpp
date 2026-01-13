@@ -105,7 +105,7 @@ NApi::TGetJobStderrResponse TJob::GetStderr(const NApi::TGetJobStderrOptions& /*
         "Getting stderr is not supported for built-in jobs");
 }
 
-std::optional<TString> TJob::GetFailContext()
+std::optional<std::string> TJob::GetFailContext()
 {
     THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UnsupportedJobType,
         "Getting stderr is not supported for built-in jobs");

@@ -102,7 +102,7 @@ DEFINE_REFCOUNTED_TYPE(TIdsConfig)
 struct TUdsConfig
     : public NYTree::TYsonStruct
 {
-    TString Path;
+    std::string Path;
     int MaxBacklogSize;
 
     REGISTER_YSON_STRUCT(TUdsConfig);

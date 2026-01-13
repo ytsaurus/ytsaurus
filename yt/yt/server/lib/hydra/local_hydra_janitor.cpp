@@ -78,7 +78,7 @@ private:
 
     TAtomicIntrusivePtr<TLocalHydraJanitorConfig> Config_;
 
-    static int ParseFileId(const TString& fileName, const TString& suffix)
+    static int ParseFileId(const std::string& fileName, const TString& suffix)
     {
         return FromString<int>(fileName.substr(0, fileName.length() - suffix.length()));
     }
@@ -88,7 +88,7 @@ private:
         std::vector<THydraFileInfo> result;
         auto fileNames = NFS::EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 
@@ -114,7 +114,7 @@ private:
         std::vector<THydraFileInfo> result;
         auto fileNames = NFS::EnumerateFiles(path);
         for (const auto& fileName : fileNames) {
-            if (!fileName.EndsWith(suffix)) {
+            if (!fileName.ends_with(suffix)) {
                 continue;
             }
 

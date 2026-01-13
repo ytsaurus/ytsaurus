@@ -66,7 +66,7 @@ public:
         return Reader_->GetStatistics();
     }
 
-    TString GetPath() const override
+    std::string GetPath() const override
     {
         return Reader_->GetPath();
     }
@@ -251,7 +251,7 @@ public:
         return cumulativeStatistics;
     }
 
-    TString GetPath() const override
+    std::string GetPath() const override
     {
         return "virtual";
     }

@@ -47,13 +47,13 @@ struct IVolume
     //! Get unique volume id.
     virtual const TVolumeId& GetId() const = 0;
     //! Get absolute path to volume mount point.
-    virtual const TString& GetPath() const = 0;
+    virtual const std::string& GetPath() const = 0;
     //! Overlayfs stores its upper/work directories in root volume.
     virtual bool IsRootVolume() const = 0;
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
-        const TString& target) = 0;
+        const std::string& target) = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
 };
@@ -74,16 +74,16 @@ struct IVolumeManager
 
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
-        const std::optional<TString>& sandboxPath,
+        const std::optional<std::string>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const TString& slotPath) = 0;
+        const std::string& slotPath) = 0;
 
     //! Link tmpfs volumes into destination directory.
     virtual TFuture<void> LinkTmpfsVolumes(
-        const TString& destinationDirectory,
+        const std::string& destinationDirectory,
         const std::vector<TTmpfsVolumeResult>& volumes) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;

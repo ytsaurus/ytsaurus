@@ -12,7 +12,7 @@ namespace NYT::NNbd {
 
 struct TArtifactMountOptions
 {
-    TString Path;
+    std::string Path;
     ui16 Permissions;
     IRandomAccessFileReaderPtr Reader;
 };
@@ -33,7 +33,7 @@ struct IImageReader
 
     virtual TReadersStatistics GetStatistics() const = 0;
 
-    virtual TString GetPath() const = 0;
+    virtual std::string GetPath() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IImageReader)

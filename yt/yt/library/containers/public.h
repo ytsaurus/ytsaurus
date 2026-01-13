@@ -146,23 +146,23 @@ DEFINE_ENUM(EEnablePorto,
 
 struct TBind
 {
-    TString SourcePath;
-    TString TargetPath;
+    std::string SourcePath;
+    std::string TargetPath;
     bool ReadOnly;
 };
 
 struct TRootFS
 {
-    TString RootPath;
+    std::string RootPath;
     bool IsRootReadOnly;
     std::vector<TBind> Binds;
 };
 
 struct TDevice
 {
-    TString DeviceName;
-    TString Access;
-    std::optional<TString> Path;
+    std::string DeviceName;
+    std::string Access;
+    std::optional<std::string> Path;
 };
 
 struct TInstanceLimits
@@ -190,7 +190,7 @@ DECLARE_REFCOUNTED_STRUCT(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsValidCGroupType(const TString& type);
+bool IsValidCGroupType(const std::string& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 
