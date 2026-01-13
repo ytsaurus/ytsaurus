@@ -13,7 +13,8 @@ NRpc::IServicePtr CreateOffshoreDataGatewayService(
     IInvokerPtr storageInvoker,
     NConcurrency::IPollerPtr s3Poller,
     NRpc::IAuthenticatorPtr authenticator,
-    NChunkClient::TMediumDirectoryPtr mediumDirectory);
+    NChunkClient::TMediumDirectoryPtr mediumDirectory,
+    NChunkClient::TMediumDirectorySynchronizerPtr mediumDirectorySynchronizer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

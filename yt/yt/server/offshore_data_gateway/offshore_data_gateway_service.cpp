@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
@@ -46,7 +47,8 @@ public:
         IInvokerPtr storageInvoker,
         IPollerPtr s3Poller,
         IAuthenticatorPtr authenticator,
-        TMediumDirectoryPtr mediumDirectory)
+        TMediumDirectoryPtr mediumDirectory,
+        TMediumDirectorySynchronizerPtr mediumDirectorySynchronizer)
         : TServiceBase(
             std::move(invoker),
             // TOffshoreDataGatewayService implements a subset of TDataNodeServiceProxy's
@@ -59,6 +61,7 @@ public:
         , StorageInvoker_(std::move(storageInvoker))
         , S3Poller_(std::move(s3Poller))
         , MediumDirectory_(std::move(mediumDirectory))
+        , MediumDirectorySynchronizer_(std::move(mediumDirectorySynchronizer))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
@@ -68,6 +71,7 @@ private:
     IInvokerPtr StorageInvoker_;
     IPollerPtr S3Poller_;
     TMediumDirectoryPtr MediumDirectory_;
+    TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
     template <typename RequestType>
     IChunkReaderPtr CreateS3ReaderForRequest(
@@ -75,6 +79,15 @@ private:
         TS3ReaderConfigPtr s3ReaderConfig,
         TChunkId chunkId)
     {
+        // TODO(discuss in PR): this is an extremely questionable approach, which we'll need to
+        // discuss and fix. The problem appeared in tests, but I see it may appear in a real
+        // environment as well: if this code is reached a short time after medium creation, this
+        // new medium will not appear in the directory until it's synced, leading to an error.
+        // As a better approach we can invoke the NextSync after an unsuccessful attempt to get
+        // a medium by index, for instance.
+        WaitFor(MediumDirectorySynchronizer_->NextSync(true))
+            .ThrowOnError();
+
         auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
         TS3MediumDescriptorPtr mediumDescriptor = MediumDirectory_
             ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
@@ -215,14 +228,16 @@ NRpc::IServicePtr CreateOffshoreDataGatewayService(
     IInvokerPtr storageInvoker,
     IPollerPtr s3Poller,
     IAuthenticatorPtr authenticator,
-    TMediumDirectoryPtr mediumDirectory)
+    TMediumDirectoryPtr mediumDirectory,
+    TMediumDirectorySynchronizerPtr mediumDirectorySynchronizer)
 {
     return New<TOffshoreDataGatewayService>(
         std::move(invoker),
         std::move(storageInvoker),
         std::move(s3Poller),
         std::move(authenticator),
-        std::move(mediumDirectory));
+        std::move(mediumDirectory),
+        std::move(mediumDirectorySynchronizer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

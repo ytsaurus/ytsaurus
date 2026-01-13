@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/client/api/rpc_proxy/address_helpers.h>
@@ -156,6 +158,7 @@ private:
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
+        NativeConnection_->GetMediumDirectorySynchronizer()->Start();
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
@@ -233,7 +236,8 @@ private:
             StorageThreadPool_->GetInvoker(),
             NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
             NativeAuthenticator_,
-            NativeConnection_->GetMediumDirectory()));
+            NativeConnection_->GetMediumDirectory(),
+            NativeConnection_->GetMediumDirectorySynchronizer()));
     }
 
     void DoStart()

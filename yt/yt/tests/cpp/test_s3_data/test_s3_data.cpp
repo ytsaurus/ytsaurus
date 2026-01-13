@@ -6,11 +6,13 @@
 #include <yt/yt/server/lib/s3/chunk_writer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -108,7 +110,7 @@ protected:
     NNative::IClientPtr NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
     IChunkReaderAllowingRepairPtr ReplicationReader_;
 
-    void SetUpS3Client()
+    void SetUpS3ClientAndMedium()
     {
         // The following environment variables are expected for the test to work.
         auto endpointUrl = GetEnv("AWS_ENDPOINT_URL");
@@ -134,6 +136,33 @@ protected:
 
         WaitFor(S3Client_->Start())
             .ThrowOnError();
+
+        auto mediumConfig = New<TS3MediumConfig>();
+        mediumConfig->Bucket = RootBucket_;
+        mediumConfig->Region = region;
+        mediumConfig->Url = endpointUrl;
+        MediumDescriptor_ = New<TS3MediumDescriptor>(
+            /*name*/ "test_s3_medium",
+            /*index*/ 15,
+            /*priority*/ 0,
+            mediumConfig);
+
+        TCreateObjectOptions options;
+        auto attrs = CreateEphemeralAttributes();
+        attrs->Set("name", "test_s3_medium");
+        attrs->Set("index", 15);
+        attrs->Set("priority", 0);
+        attrs->Set("config", mediumConfig);
+        options.Attributes = attrs;
+
+        WaitFor(Client_->CreateObject(EObjectType::S3Medium, options))
+            .ThrowOnError();
+        WaitUntil(
+            [&] {
+                return WaitFor(Client_->NodeExists("//sys/media/test_s3_medium"))
+                    .ValueOrThrow();
+            },
+            "The S3 medium was not created");
     }
 
     void SetUpS3Writer()
@@ -170,15 +199,8 @@ protected:
         EXPECT_EQ(std::ssize(GeneratedBlocks_), 1024);
 
         ChunkId_ = MakeRandomId(EObjectType::Chunk, TCellTag(0xf003));
-        auto mediumConfig = New<TS3MediumConfig>();
-        mediumConfig->Bucket = RootBucket_;
-        MediumDescriptor_ = New<TS3MediumDescriptor>(
-            /*name*/ "test_s3_medium",
-            /*index*/ 15,
-            /*priority*/ 0,
-            std::move(mediumConfig));
 
-        SetUpS3Client();
+        SetUpS3ClientAndMedium();
         CleanBuckets();
         SetUpS3Writer();
         SetUpReplicationReader();
@@ -255,6 +277,8 @@ TEST_F(TS3DataTest, TestReplicationReader)
         })))
         .ThrowOnError();
 
+    // TODO: when it's decided how to proceed with offshore mediums and the credentials stored
+    // in them, continue with this test. Now it arrives to a stage: "Medium 15 is not an S3 medium".
     IChunkReader::TReadBlocksOptions readOptions;
     auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, {1}))
         .ValueOrThrow();
