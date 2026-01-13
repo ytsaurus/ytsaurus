@@ -8,6 +8,7 @@
 // This work is based on an earlier work:
 // "Algorithm 910: A Portable C++ Multiple-Precision System for Special-Function Calculations",
 // in ACM TOMS, {VOL 37, ISSUE 4, (February 2011)} (C) ACM, 2011. http://doi.acm.org/10.1145/1916461.1916469
+
 //
 // This file has no include guards or namespaces - it's expanded inline inside default_ops.hpp
 //
@@ -99,7 +100,7 @@ inline void pow_imp(T& result, const T& t, const U& p, const std::integral_const
 {
    // Signed integer power, just take care of the sign then call the unsigned version:
    using int_type = typename boost::multiprecision::detail::canonical<U, T>::type;
-   using ui_type = typename boost::multiprecision::detail::make_unsigned<U>::type                         ;
+   using ui_type = typename boost::multiprecision::detail::make_unsigned<U>::type;
 
    if (p < 0)
    {
@@ -163,7 +164,7 @@ void hyp0F0(T& H0F0, const T& x)
          x_pow_n_div_n_fact.negate();
    }
    if (n >= series_limit)
-      BOOST_MP_THROW_EXCEPTION(std::runtime_error("H0F0 failed to converge"));
+      BOOST_MP_THROW_EXCEPTION(std::runtime_error("H0F0 failed to converge")); // LCOV_EXCL_LINE
 }
 
 template <class T>
@@ -212,7 +213,7 @@ void hyp1F0(T& H1F0, const T& a, const T& x)
          break;
    }
    if (n >= series_limit)
-      BOOST_MP_THROW_EXCEPTION(std::runtime_error("H1F0 failed to converge"));
+      BOOST_MP_THROW_EXCEPTION(std::runtime_error("H1F0 failed to converge")); // LCOV_EXCL_LINE
 }
 
 template <class T>
@@ -227,8 +228,8 @@ void eval_exp(T& result, const T& x)
       return;
    }
    using ui_type = typename boost::multiprecision::detail::canonical<unsigned, T>::type;
-   using si_type = typename boost::multiprecision::detail::canonical<int, T>::type     ;
-   using exp_type = typename T::exponent_type                                           ;
+   using si_type = typename boost::multiprecision::detail::canonical<int, T>::type;
+   using exp_type = typename T::exponent_type;
    using canonical_exp_type = typename boost::multiprecision::detail::canonical<exp_type, T>::type;
 
    // Handle special arguments.
@@ -373,10 +374,12 @@ void eval_log(T& result, const T& arg)
    // log(x) = log(2) * n + log1p(1 + y)
    //
    using ui_type = typename boost::multiprecision::detail::canonical<unsigned, T>::type;
-   using exp_type = typename T::exponent_type                                           ;
+   using exp_type = typename T::exponent_type;
    using canonical_exp_type = typename boost::multiprecision::detail::canonical<exp_type, T>::type;
-   using fp_type = typename std::tuple_element<0, typename T::float_types>::type                  ;
-   int                                                                          s = eval_signbit(arg);
+   using fp_type = typename std::tuple_element<0, typename T::float_types>::type;
+
+   const int s = eval_signbit(arg);
+
    switch (eval_fpclassify(arg))
    {
    case FP_NAN:
@@ -488,8 +491,6 @@ template <typename T>
 inline void eval_pow(T& result, const T& x, const T& a)
 {
    static_assert(number_category<T>::value == number_kind_floating_point, "The pow function is only valid for floating point types.");
-   using si_type = typename boost::multiprecision::detail::canonical<int, T>::type;
-   using fp_type = typename std::tuple_element<0, typename T::float_types>::type             ;
 
    if ((&result == &x) || (&result == &a))
    {
@@ -499,27 +500,29 @@ inline void eval_pow(T& result, const T& x, const T& a)
       return;
    }
 
+   using si_type = typename boost::multiprecision::detail::canonical<int, T>::type;
+   using fp_type = typename std::tuple_element<0, typename T::float_types>::type;
+
    if ((a.compare(si_type(1)) == 0) || (x.compare(si_type(1)) == 0))
    {
       result = x;
       return;
    }
-   if (a.compare(si_type(0)) == 0)
+
+   if (eval_is_zero(a))
    {
       result = si_type(1);
       return;
    }
 
-   int type = eval_fpclassify(x);
+   const int fpc_x { eval_fpclassify(x) };
+   const int fpc_a { eval_fpclassify(a) };
 
-   switch (type)
+   switch (fpc_x)
    {
    case FP_ZERO:
-      switch (eval_fpclassify(a))
+      switch (fpc_a)
       {
-      case FP_ZERO:
-         result = si_type(1);
-         break;
       case FP_NAN:
          result = a;
          break;
@@ -555,7 +558,7 @@ inline void eval_pow(T& result, const T& x, const T& a)
                return;
             }
          }
-         BOOST_MP_CATCH(const std::exception&)
+         BOOST_MP_CATCH(const std::exception&) // LCOV_EXCL_LINE
          {
             // fallthrough..
          }
@@ -580,12 +583,7 @@ inline void eval_pow(T& result, const T& x, const T& a)
    default:;
    }
 
-   int s = eval_get_sign(a);
-   if (s == 0)
-   {
-      result = si_type(1);
-      return;
-   }
+   const int s = eval_get_sign(a);
 
    if (s < 0)
    {
@@ -643,7 +641,7 @@ inline void eval_pow(T& result, const T& x, const T& a)
 
       eval_floor(result, a);
       // -1^INF is a special case in C99:
-      if ((x.compare(si_type(-1)) == 0) && (eval_fpclassify(a) == FP_INFINITE))
+      if ((x.compare(si_type(-1)) == 0) && (fpc_a == FP_INFINITE))
       {
          result = si_type(1);
       }
@@ -659,9 +657,23 @@ inline void eval_pow(T& result, const T& x, const T& a)
             result = si_type(0);
          }
       }
-      else if (type == FP_INFINITE)
+      else if (fpc_x == FP_INFINITE)
       {
-         result = std::numeric_limits<number<T, et_on> >::infinity().backend();
+         BOOST_IF_CONSTEXPR (std::numeric_limits<number<T, et_on> >::has_quiet_NaN)
+         {
+            if (fpc_a == FP_NAN)
+            {
+               result = std::numeric_limits<number<T, et_on> >::quiet_NaN().backend();
+            }
+            else
+            {
+               result = std::numeric_limits<number<T, et_on> >::infinity().backend();
+            }
+         }
+         else
+         {
+            result = std::numeric_limits<number<T, et_on> >::infinity().backend(); // LCOV_EXCL_LINE There is no NaN for this number type.
+         }
       }
       else BOOST_IF_CONSTEXPR (std::numeric_limits<number<T, et_on> >::has_quiet_NaN)
       {
@@ -670,7 +682,7 @@ inline void eval_pow(T& result, const T& x, const T& a)
       }
       else
       {
-         BOOST_MP_THROW_EXCEPTION(std::domain_error("Result of pow is undefined or non-real and there is no NaN for this number type."));
+         BOOST_MP_THROW_EXCEPTION(std::domain_error("Result of pow is undefined or non-real and there is no NaN for this number type.")); // LCOV_EXCL_LINE
       }
       return;
    }
@@ -737,7 +749,7 @@ template <class T, class A>
 #if BOOST_WORKAROUND(BOOST_MSVC, < 1800)
 inline typename std::enable_if<!boost::multiprecision::detail::is_integral<A>::value, void>::type
 #else
-inline typename std::enable_if<is_compatible_arithmetic_type<A, number<T> >::value && !boost::multiprecision::detail::is_integral<A>::value, void>::type
+inline typename std::enable_if<boost::multiprecision::is_compatible_arithmetic_type<A, boost::multiprecision::number<T> >::value && !boost::multiprecision::detail::is_integral<A>::value, void>::type
 #endif
 eval_pow(T& result, const T& x, const A& a)
 {
@@ -754,7 +766,7 @@ template <class T, class A>
 #if BOOST_WORKAROUND(BOOST_MSVC, < 1800)
 inline void
 #else
-inline typename std::enable_if<is_compatible_arithmetic_type<A, number<T> >::value, void>::type
+inline typename std::enable_if<boost::multiprecision::is_compatible_arithmetic_type<A, boost::multiprecision::number<T> >::value, void>::type
 #endif
 eval_pow(T& result, const A& x, const T& a)
 {
