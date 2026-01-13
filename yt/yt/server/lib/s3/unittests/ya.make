@@ -16,10 +16,6 @@ PEERDIR(
     yt/yt/server/lib/s3
 
     yt/yt/ytlib
-    yt/yt/ytlib/test_framework
-
-    yt/yt/core
-    yt/yt/core/test_framework
 
     library/cpp/digest/md5
 )

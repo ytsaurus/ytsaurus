@@ -2,36 +2,19 @@
 #include <yt/yt/server/lib/s3/chunk_reader.h>
 #include <yt/yt/server/lib/s3/chunk_writer.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-#include <yt/yt/ytlib/api/native/options.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
-
-#include <yt/yt/ytlib/test_framework/test_connection.h>
-
-#include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
-#include <yt/yt/ytlib/offshore_data_gateway/config.h>
-
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
-#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/test_framework/framework.h>
-#include <yt/yt/core/test_framework/test_proxy_service.h>
 
 #include <yt/yt/library/s3/client.h>
 
@@ -42,9 +25,6 @@ namespace NYT::NS3 {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NObjectClient;
-using namespace NNodeTrackerClient;
-using namespace NRpc;
-using namespace NOffshoreDataGateway;
 
 namespace {
 
@@ -57,52 +37,6 @@ struct TS3TestCase
     int RequestCountInReadBatch = 10;
     int BlockInRequest = 2;
     bool ReadSequentially = true;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTestNodeStatusDirectory
-    : public INodeStatusDirectory
-{
-public:
-    void UpdateSuspicionMarkTime(
-        TNodeId /*nodeId*/,
-        TStringBuf /*address*/,
-        bool /*suspicious*/,
-        std::optional<TInstant> /*previousMarkTime*/) override
-    { }
-
-    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
-        const std::vector<TNodeId>& nodeIds) const override
-    {
-        auto suspiciousNodeCount = SuspiciousNodeCount_.exchange(0);
-
-        std::vector<std::optional<TInstant>> result(nodeIds.size());
-        for (int index = 0; index < std::min<int>(suspiciousNodeCount, std::ssize(nodeIds)); ++index) {
-            result[index] = TInstant::Now();
-        }
-
-        return result;
-    }
-
-    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
-        const std::vector<TNodeId>& /*nodeIds*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override
-    {
-        YT_ABORT();
-    }
-
-    void SetSuspicousNodeCount(int suspiciousNodeCount)
-    {
-        SuspiciousNodeCount_ = suspiciousNodeCount;
-    }
-
-private:
-    mutable std::atomic<int> SuspiciousNodeCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,28 +66,6 @@ std::vector<TBlock> CreateBlocks(int count, TRandomGenerator* generator)
     return blocks;
 }
 
-TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr connection)
-{
-    auto localDescriptor = NNodeTrackerClient::TNodeDescriptor(
-        {std::pair("default", "localhost")},
-        "localhost",
-        /*rack*/ {},
-        /*dc*/ {});
-    return New<TChunkReaderHost>(
-        connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser("user")),
-        std::move(localDescriptor),
-        CreateClientBlockCache(
-            New<TBlockCacheConfig>(),
-            EBlockType::CompressedData,
-            GetNullMemoryUsageTracker()),
-        /*chunkMetaCache*/ nullptr,
-        New<TTestNodeStatusDirectory>(),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
-        NConcurrency::GetUnlimitedThrottler(),
-        /*trafficMeter*/ nullptr);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -174,10 +86,6 @@ protected:
 
     TRandomGenerator Generator_ = TRandomGenerator(42);
     std::vector<TBlock> GeneratedBlocks_;
-
-    std::optional<std::string> ClusterName_ = "test-cluster";
-    IChannelPtr OffshoreDataGatewayChannel_;
-    IChunkReaderAllowingRepairPtr ReplicatonReader_;
 
 protected:
     void SetUpS3Client()
@@ -230,48 +138,6 @@ protected:
             TSessionId{ChunkId_, /*mediumIndex*/ 0});
     }
 
-    void SetUpReplicationReader()
-    {
-        auto pool = NConcurrency::CreateThreadPool(16, "Worker");
-        auto invoker = pool->GetInvoker();
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        auto memoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
-
-        auto channelFactory = CreateTestChannelFactory(THashMap<std::string, IServicePtr>(), THashMap<std::string, IServicePtr>());
-        auto connection = CreateConnection(
-            std::move(channelFactory),
-            {"default"},
-            std::move(nodeDirectory),
-            invoker,
-            memoryTracker);
-        EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
-            {
-                return New<NApi::NNative::TClient>(connection, options, memoryTracker);
-            });
-        EXPECT_CALL(*connection, GetClusterName).WillRepeatedly(testing::ReturnRef(ClusterName_));
-
-        OffshoreDataGatewayChannel_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannel(
-            New<TOffshoreDataGatewayChannelConfig>(),
-            channelFactory,
-            connection);
-        EXPECT_CALL(*connection, GetOffshoreDataGatewayChannel).WillRepeatedly([this]
-            {
-                return OffshoreDataGatewayChannel_;
-            });
-        auto readerHost = GetChunkReaderHost(connection);
-
-        auto replicationReader = CreateReplicationReader(
-            New<TReplicationReaderConfig>(),
-            New<TRemoteReaderOptions>(),
-            std::move(readerHost),
-            ChunkId_,
-            TChunkReplicaList{TChunkReplica(
-                OffshoreNodeId,
-                1
-            )}
-        );
-    }
-
     void SetUp() override
     {
         auto testCase = GetParam();
@@ -292,7 +158,6 @@ protected:
         CleanBuckets();
         SetUpS3Reader();
         SetUpS3Writer();
-        SetUpReplicationReader();
 
         WaitFor(S3Client_->PutBucket({
             .Bucket = RootBucket_,
@@ -372,38 +237,6 @@ TEST_P(TS3ReaderWriterTest, BlobsLayoutOnWrite)
         EXPECT_EQ(std::ssize(response.Objects), 2);
         EXPECT_EQ(response.Objects.front().Key, Format("chunk-data/%v", ChunkId_));
         EXPECT_EQ(response.Objects.back().Key, Format("chunk-data/%v.meta", ChunkId_));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_P(TS3ReaderWriterTest, ReplicationReader)
-{
-    // TODO(PR): the test is not ready yet, but this is the only way I could think of how
-    // to test the new functionality - the writes aren't available for offshore data yet,
-    // so we cannot perform the full integration test. I think it's better to have this
-    // test in replication_reader_ut, but with current directory structure it's not possible.
-    IChunkWriter::TWriteBlocksOptions writeOptions;
-    TWorkloadDescriptor workloadDescriptor;
-
-    NTracing::TTraceContextGuard g(NTracing::TTraceContext::NewRoot("a"));
-    S3ChunkWriter_->Open()
-        .Apply(BIND([&] {
-            EXPECT_TRUE(S3ChunkWriter_->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks_));
-            return S3ChunkWriter_->GetReadyEvent();
-        }))
-        .Apply(BIND([&] {
-            auto deferredMeta = New<TDeferredChunkMeta>();
-            deferredMeta->set_type(0);
-            deferredMeta->set_format(0);
-            *deferredMeta->mutable_extensions() = {};
-            return S3ChunkWriter_->Close({}, {}, deferredMeta);
-        }))
-        .Wait(TDuration::Seconds(120));
-
-    auto blocks = WaitFor(ReplicatonReader_->ReadBlocks({}, 1, 1)).ValueOrThrow();
-    for (const auto& block: blocks) {
-        std::cerr << "Read block " << block.Checksum << std::endl;
     }
 }
 

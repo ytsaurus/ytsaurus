@@ -398,6 +398,7 @@ QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
 HTTP_PROXIES_SERVICE = "http_proxies"
 KAFKA_PROXIES_SERVICE = "kafka_proxies"
+OFFSHORE_DATA_GATEWAYS_SERVICE = "offshore_data_gateways"
 CYPRESS_PROXIES_SERVICE = "cypress_proxies"
 
 
@@ -424,6 +425,7 @@ class Restarter(object):
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
             HTTP_PROXIES_SERVICE: self.yt_instance.start_http_proxy,
             KAFKA_PROXIES_SERVICE: self.yt_instance.start_kafka_proxy,
+            OFFSHORE_DATA_GATEWAYS_SERVICE: self.yt_instance.start_offshore_data_gateways,
             CYPRESS_PROXIES_SERVICE: self.yt_instance.start_cypress_proxies,
         }
         self.kill_dict = {
@@ -437,6 +439,7 @@ class Restarter(object):
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
             HTTP_PROXIES_SERVICE: lambda: self.yt_instance.kill_http_proxies(*self.kill_args, **self.kill_kwargs),
             KAFKA_PROXIES_SERVICE: lambda: self.yt_instance.kill_kafka_proxies(*self.kill_args, **self.kill_kwargs),
+            OFFSHORE_DATA_GATEWAYS_SERVICE: lambda: self.yt_instance.kill_offshore_data_gateways(*self.kill_args, **self.kill_kwargs),
             CYPRESS_PROXIES_SERVICE: lambda: self.yt_instance.kill_cypress_proxies(*self.kill_args, **self.kill_kwargs),
         }
 

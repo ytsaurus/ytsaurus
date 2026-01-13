@@ -93,35 +93,11 @@ static const double MaxBackoffMultiplier = 1000.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPeerType,
-    (Peer)
-    (Seed)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPeer
-{
-    TChunkReplicaWithMedium Replica;
-    std::string Address;
-    const TNodeDescriptor* NodeDescriptor;
-    EPeerType Type;
-    EAddressLocality Locality;
-    std::optional<TInstant> NodeSuspicionMarkTime;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
-{
-    FormatValue(builder, peer.Address, format);
-}
-
-using TPeerList = TCompactVector<TPeer, 3>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPeerId
 {
-    TPeerId(const std::string& address)
+    TPeerId() = default;
+
+    explicit TPeerId(const std::string& address)
         : Address(address)
         , MediumIndex(GenericMediumIndex)
     {
@@ -136,28 +112,77 @@ struct TPeerId
         YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
     }
 
-    TPeerId(const TPeer& peer)
-        : Address(peer.Address)
-        , MediumIndex(peer.Replica.GetMediumIndex())
-    {
-        YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
-    }
-
     bool IsOffshore() const
     {
         return IsAddressOffshore(Address);
+    }
+
+    bool operator == (const TPeerId& other) const noexcept
+    {
+        return
+            Address == other.Address &&
+            MediumIndex == other.MediumIndex;
     }
 
     std::string Address;
     int MediumIndex;
 };
 
-bool operator == (const TPeerId& lhs, const TPeerId& rhs) noexcept
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NChunkClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A hasher for TPeerId.
+template <>
+struct THash<NYT::NChunkClient::TPeerId>
 {
-    return
-        lhs.Address == rhs.Address &&
-        lhs.MediumIndex == rhs.MediumIndex;
+    size_t operator()(const NYT::NChunkClient::TPeerId& peerId) const
+    {
+        return CombineHashes(
+            THash<std::string>()(peerId.Address),
+            THash<int>()(peerId.MediumIndex)
+        );
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NChunkClient {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPeerType,
+    (Peer)
+    (Seed)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPeer
+{
+    TPeerId Id;
+    TChunkReplicaWithMedium Replica;
+    const TNodeDescriptor* NodeDescriptor;
+    EPeerType Type;
+    EAddressLocality Locality;
+    std::optional<TInstant> NodeSuspicionMarkTime;
+
+    bool IsOffshore() const
+    {
+        return Id.IsOffshore();
+    }
+};
+
+void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
+{
+    FormatValue(builder, peer.Id.Address, format);
 }
+
+using TPeerList = TCompactVector<TPeer, 3>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,31 +246,6 @@ IRequestBatcherPtr CreateRequestBatcher(TWeakPtr<TReplicationReader> reader);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
-} // namespace NYT::NChunkClient
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A hasher for TPeerId.
-template <>
-struct THash<NYT::NChunkClient::TPeerId>
-{
-    size_t operator()(const NYT::NChunkClient::TPeerId& peerId) const
-    {
-        return CombineHashes(
-            THash<std::string>()(peerId.Address),
-            THash<int>()(peerId.MediumIndex)
-        );
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NYT::NChunkClient {
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicationReader
     : public IChunkReaderAllowingRepair
     , public IOffloadingReader
@@ -256,7 +256,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        TChunkReplicaList seedReplicas)
+        TChunkReplicaWithMediumList seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -390,7 +390,7 @@ private:
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
-    TChunkReplicaList InitialSeeds_;
+    TChunkReplicaWithMediumList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
@@ -810,9 +810,9 @@ protected:
         }
     }
 
-    const TNodeDescriptor& GetPeerDescriptor(const std::string& address)
+    const TNodeDescriptor& GetPeerDescriptor(const TPeerId& peerId)
     {
-        return *GetOrCrash(Peers_, address).NodeDescriptor;
+        return *GetOrCrash(Peers_, peerId).NodeDescriptor;
     }
 
     //! Register peer and install it into the peer queue if necessary.
@@ -847,8 +847,8 @@ protected:
         }
 
         TPeer peer{
+            .Id = peerId,
             .Replica = replica,
-            .Address = std::move(*optionalAddress),
             .NodeDescriptor = &descriptor,
             .Type = type,
             .Locality = GetNodeLocality(descriptor),
@@ -890,9 +890,9 @@ protected:
         });
     }
 
-    bool IsSeed(const std::string& address)
+    bool IsSeed(const TPeerId& peerId)
     {
-        return GetOrCrash(Peers_, address).Type == EPeerType::Seed;
+        return GetOrCrash(Peers_, peerId).Type == EPeerType::Seed;
     }
 
     bool IsPeerBanned(const TPeerId& peerId)
@@ -950,11 +950,11 @@ protected:
         {
             YT_LOG_WARNING("Node is marked as suspicious (Replica: %v, Address: %v, Error: %v)",
                 peer.Replica,
-                peer.Address,
+                peer.Id.Address,
                 rspOrError);
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
-                peer.Address,
+                peer.Id.Address,
                 /*suspicious*/ true,
                 std::nullopt);
         }
@@ -968,7 +968,7 @@ protected:
             return;
         }
 
-        BanPeer(peer.Address, code == NChunkClient::EErrorCode::NoSuchChunk);
+        BanPeer(peer.Id, code == NChunkClient::EErrorCode::NoSuchChunk);
         RegisterError(error);
     }
 
@@ -979,7 +979,7 @@ protected:
         const TReplicationReaderPtr& reader,
         int count,
         bool enableEarlyExit,
-        std::function<bool(const std::string&)> filter = {})
+        std::function<bool(const TPeerId&)> filter = {})
     {
         TPeerList candidates;
         while (!PeerQueue_.empty() && std::ssize(candidates) < count) {
@@ -987,7 +987,7 @@ protected:
             if (top.BanCount != reader->GetBanCount(top.PeerId)) {
                 auto queueEntry = top;
                 PeerQueue_.pop();
-                queueEntry.BanCount = reader->GetBanCount(queueEntry.Peer.Address);
+                queueEntry.BanCount = reader->GetBanCount(queueEntry.PeerId);
                 PeerQueue_.push(queueEntry);
                 continue;
             }
@@ -1005,7 +1005,7 @@ protected:
                 }
             }
 
-            if ((!filter || filter(top.Peer.Address)) && !IsPeerBanned(top.PeerId)) {
+            if ((!filter || filter(top.PeerId)) && !IsPeerBanned(top.PeerId)) {
                 // Do not mix domestic and offshore peers in the result of this function.
                 if (!top.PeerId.IsOffshore()) {
                     // If the peer isn't offshore, we can just add it.
@@ -1031,12 +1031,12 @@ protected:
     {
         if (backupPeer && hedgingOptions) {
             return CreateHedgingChannel(
-                GetChannel(TPeerId(primaryPeer)),
-                GetChannel(TPeerId(*backupPeer)),
+                GetChannel(primaryPeer.Id),
+                GetChannel(backupPeer->Id),
                 *hedgingOptions);
         }
 
-        return GetChannel(TPeerId(primaryPeer));
+        return GetChannel(primaryPeer.Id);
     }
 
     void NextRetry()
@@ -1254,11 +1254,11 @@ protected:
     }
 
     template <class TResponsePtr>
-    void BanSeedIfIncomplete(const TResponsePtr& rsp, const std::string& address)
+    void BanSeedIfIncomplete(const TResponsePtr& rsp, const TPeerId& peerId)
     {
-        if (IsSeed(address) && !rsp->has_complete_chunk()) {
-            YT_LOG_DEBUG("Seed does not contain the chunk (Address: %v)", address);
-            BanPeer(address, false);
+        if (IsSeed(peerId) && !rsp->has_complete_chunk()) {
+            YT_LOG_DEBUG("Seed does not contain the chunk (Address: %v)", peerId.Address);
+            BanPeer(peerId, false);
         }
     }
 
@@ -1294,6 +1294,11 @@ protected:
             return {candidates.begin(), candidates.end()};
         }
 
+        // Offshore node does not participate in probing and selecting process with others.
+        YT_VERIFY(std::all_of(candidates.begin(), candidates.end(), [] (const auto& peer) {
+            return !peer.IsOffshore();
+        }));
+
         auto probingResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(probingResultsOrError.IsOK());
 
@@ -1311,9 +1316,15 @@ protected:
         if (count <= 0) {
             return {};
         }
+
         if (candidates.size() <= 1) {
             return MakeFuture<TPeerList>({candidates.begin(), candidates.end()});
         }
+
+        // Offshore node does not participate in probing and selecting process with others.
+        YT_VERIFY(std::all_of(candidates.begin(), candidates.end(), [] (const auto& peer) {
+            return !peer.IsOffshore();
+        }));
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .AsUnique().Apply(BIND(
@@ -1771,7 +1782,7 @@ private:
         if (rspOrError.IsOK()) {
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
-                peer.Address,
+                peer.Id.Address,
                 /*suspicious*/ false,
                 peer.NodeSuspicionMarkTime);
             peer.NodeSuspicionMarkTime.reset();
@@ -1788,7 +1799,7 @@ private:
                 if (auto reader = Reader_.Lock()) {
                     // NB(akozhikhov): In order not to call DiscardSeeds too often, we implement additional delay.
                     YT_LOG_WARNING("Discarding seeds due to node being suspicious (NodeAddress: %v, SuspicionTime: %v)",
-                        peer.Address,
+                        peer.Id.Address,
                         now - *peer.NodeSuspicionMarkTime);
                     reader->DiscardSeeds(allyReplicasFuture);
                 }
@@ -1806,7 +1817,7 @@ private:
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
-        if (TPeerId(peer).IsOffshore()) {
+        if (peer.IsOffshore()) {
             // Method for probing offshore peers is not supported (yet), so we can
             // consider them always available.
             return MakeFuture(TPeerProbingResult{
@@ -1824,7 +1835,7 @@ private:
         }
         auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
             IRequestBatcher::TRequest{
-                .Address = peer.Address,
+                .Address = peer.Id.Address,
                 .Channel = std::move(channel),
                 .BlockIndexes = blockIndexes,
                 .Session = MakeStrong(this),
@@ -1861,7 +1872,7 @@ private:
         asyncResults.reserve(candidates.size());
 
         for (const auto& peer : candidates) {
-            auto channel = GetChannel(TPeerId(peer));
+            auto channel = GetChannel(peer.Id);
             if (!channel) {
                 continue;
             }
@@ -1933,7 +1944,7 @@ private:
                     TError(
                         NChunkClient::EErrorCode::NodeProbeFailed,
                         "Error probing suspicious node %v",
-                        suspiciousResultValue.first.Address));
+                        suspiciousResultValue.first.Id.Address));
             }
         }
 
@@ -1988,7 +1999,7 @@ private:
                     TError(
                         NChunkClient::EErrorCode::NodeProbeFailed,
                         "Error probing node %v queue length",
-                        peer.Address));
+                        peer.Id.Address));
                 continue;
             }
 
@@ -2001,7 +2012,7 @@ private:
             // Exclude throttling peers from current pass.
             if (probingInfo.NetThrottling || probingInfo.DiskThrottling) {
                 YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
-                    peer.Address,
+                    peer.Id.Address,
                     probingInfo.NetThrottling,
                     probingInfo.DiskThrottling);
                 continue;
@@ -2009,8 +2020,8 @@ private:
 
             if (!probingInfo.HasCompleteChunk && peer.Type == EPeerType::Seed) {
                 YT_LOG_DEBUG("Peer has no complete chunk (Address: %v)",
-                    peer.Address);
-                BanPeer(peer.Address, /*forever*/ false);
+                    peer.Id.Address);
+                BanPeer(peer.Id, /*forever*/ false);
                 continue;
             }
 
@@ -2029,7 +2040,7 @@ private:
         if (receivedNewPeers) {
             YT_LOG_DEBUG("P2P was activated");
             for (const auto& [peer, probingInfo] : successfulPeerAndProbingInfoList) {
-                ReinstallPeer(peer.Address);
+                ReinstallPeer(peer.Id);
             }
             return {};
         }
@@ -2126,7 +2137,7 @@ private:
             if (index < count) {
                 bestPeers.push_back(peer);
             } else {
-                ReinstallPeer(peer.Address);
+                ReinstallPeer(peer.Id);
             }
         }
 
@@ -2137,7 +2148,7 @@ private:
                     const auto& [peer, probingInfo] = peerAndProbingInfo;
                     builder->AppendFormat(
                         "{Address: %v, DiskQueueSize: %v, NetQueueSize: %v, CachedBlockCount: %v, CachedBlockSize: %v}",
-                        peer.Address,
+                        peer.Id.Address,
                         probingInfo.DiskQueueSize,
                         probingInfo.NetQueueSize,
                         probingInfo.CachedBlockCount,
@@ -2246,8 +2257,8 @@ private:
         PeerBlocksMap_.clear();
         P2PDeliveryBarrier_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
-        for (const auto& [address, peer] : Peers_) {
-            PeerBlocksMap_[address] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
+        for (const auto& [peerId, peer] : Peers_) {
+            PeerBlocksMap_[peerId] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();
@@ -2278,7 +2289,7 @@ private:
     {
         if (!ReaderConfig_->FetchFromPeers && !peerDescriptors.empty()) {
             YT_LOG_DEBUG("Peer suggestions received but ignored (SuggestorAddress: %v)",
-                suggestorPeer.Address);
+                suggestorPeer.Id.Address);
             return false;
         }
 
@@ -2291,7 +2302,7 @@ private:
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorAddress: %v)",
                         peerNodeId,
-                        suggestorPeer.Address);
+                        suggestorPeer.Id.Address);
                     continue;
                 }
 
@@ -2306,11 +2317,12 @@ private:
                         addedNewPeers = true;
                     }
 
-                    PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
+                    TPeerId peerId(*suggestedAddress, suggestorPeer.Replica.GetMediumIndex());
+                    PeerBlocksMap_[peerId].insert(blockIndex);
                     YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedAddress: %v, SuggestorAddress: %v)",
                         blockIndex,
                         *suggestedAddress,
-                        suggestorPeer.Address);
+                        suggestorPeer.Id.Address);
 
                     if (peerDescriptor.has_delivery_barrier()) {
                         P2PDeliveryBarrier_[peerNodeId].emplace(
@@ -2322,7 +2334,7 @@ private:
                         "(SuggestedAddress: %v, Networks: %v, SuggestorAddress: %v)",
                         maybeSuggestedDescriptor->GetDefaultAddress(),
                         Networks_,
-                        suggestorPeer.Address);
+                        suggestorPeer.Id.Address);
                 }
             }
         }
@@ -2409,8 +2421,8 @@ private:
 
         int desiredPeerCount = GetDesiredPeerCount();
         while (std::ssize(candidates) < desiredPeerCount) {
-            auto hasUnfetchedBlocks = [&] (const std::string& address) {
-                const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, address);
+            auto hasUnfetchedBlocks = [&] (const TPeerId& peerId) {
+                const auto& peerBlockIndexes = GetOrCrash(PeerBlocksMap_, peerId);
 
                 for (const auto& block : blocksToFetch) {
                     int blockIndex = block.BlockIndex;
@@ -2593,7 +2605,7 @@ private:
         if (!rspOrError.IsOK()) {
             auto wrappingError = TError(
                 "Error fetching blocks from node %v",
-                respondedPeer.Address);
+                respondedPeer.Id.Address);
             ProcessError(
                 rspOrError,
                 respondedPeer,
@@ -2607,7 +2619,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (backup) {
-            BanPeer(primaryPeer.Address, false);
+            BanPeer(primaryPeer.Id, false);
         }
 
         auto netThrottling = rsp->net_throttling();
@@ -2620,7 +2632,7 @@ private:
 
         if (netThrottling || diskThrottling) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
-                respondedPeer.Address,
+                respondedPeer.Id.Address,
                 netThrottling,
                 diskThrottling);
         }
@@ -2668,7 +2680,7 @@ private:
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
                         "Failed to validate received block checksum")
                         << TErrorAttribute("block_id", ToString(blockId))
-                        << TErrorAttribute("peer", respondedPeer.Address)
+                        << TErrorAttribute("peer", respondedPeer.Id.Address)
                         << error,
                     /*raiseAlert*/ true);
 
@@ -2689,26 +2701,26 @@ private:
         }
 
         if (invalidBlockCount > 0) {
-            BanPeer(respondedPeer.Address, false);
+            BanPeer(respondedPeer.Id, false);
         }
 
-        BanSeedIfIncomplete(rsp, respondedPeer.Address);
+        BanSeedIfIncomplete(rsp, respondedPeer.Id);
 
         if (bytesReceived > 0) {
             // Reinstall peer into peer queue, if some data was received.
-            ReinstallPeer(respondedPeer.Address);
+            ReinstallPeer(respondedPeer.Id);
         }
 
         YT_LOG_DEBUG("Finished processing block response "
             "(Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, InvalidBlockCount: %v)",
-            respondedPeer.Address,
+            respondedPeer.Id.Address,
             respondedPeer.Type,
             MakeCompactIntervalView(receivedBlockIndexes),
             bytesReceived,
             rsp->peer_descriptors_size(),
             invalidBlockCount);
 
-        if (ShouldThrottle(respondedPeer.Address, TotalBytesReceived_ > BytesThrottled_)) {
+        if (ShouldThrottle(respondedPeer.Id.Address, TotalBytesReceived_ > BytesThrottled_)) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
 
@@ -2744,7 +2756,7 @@ private:
         auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
         YT_VERIFY(channel);
 
-        const auto& primaryAddress = primaryPeer.Address;
+        const auto& primaryAddress = primaryPeer.Id.Address;
         if (ShouldThrottle(primaryAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
@@ -3038,8 +3050,8 @@ private:
         }
 
         const auto& peer = candidates.front();
-        const auto& peerAddress = peer.Address;
-        auto channel = GetChannel(TPeerId(peer));
+        const auto& peerAddress = peer.Id.Address;
+        auto channel = GetChannel(peer.Id);
         if (!channel) {
             RequestBlocks();
             return;
@@ -3122,7 +3134,7 @@ private:
                         << error,
                     /*raiseAlert*/ true);
 
-                BanPeer(peerAddress, false);
+                BanPeer(peer.Id, false);
                 FetchedBlocks_.clear();
                 RequestBlocks();
                 return;
@@ -3135,16 +3147,16 @@ private:
             FetchedBlocks_.push_back(std::move(block));
         }
 
-        BanSeedIfIncomplete(rsp, peerAddress);
+        BanSeedIfIncomplete(rsp, peer.Id);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddress);
         } else {
             if (blocksReceived == 0) {
                 YT_LOG_DEBUG("Peer has no relevant blocks (Address: %v)", peerAddress);
-                BanPeer(peerAddress, false);
+                BanPeer(peer.Id, false);
             } else {
-                ReinstallPeer(peerAddress);
+                ReinstallPeer(peer.Id);
             }
         }
 
@@ -3348,7 +3360,7 @@ private:
 
         YT_VERIFY(channel);
 
-        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
+        if (ShouldThrottle(primaryPeer.Id.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
             BytesThrottled_ = *MetaSize_;
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
                 CombinedDataByteThrottler_->Acquire(BytesThrottled_);
@@ -3400,7 +3412,7 @@ private:
                 respondedPeer,
                 TError(
                     "Error fetching meta from node %v",
-                    respondedPeer.Address));
+                    respondedPeer.Id.Address));
             RequestMeta();
             return;
         }
@@ -3408,7 +3420,7 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (backup) {
-            BanPeer(primaryPeer.Address, false);
+            BanPeer(primaryPeer.Id, false);
         }
 
         SessionOptions_.ChunkReaderStatistics->MetaBytesTransmitted.fetch_add(
@@ -3416,7 +3428,7 @@ private:
             std::memory_order::relaxed);
 
         if (rsp->net_throttling()) {
-            YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.Address);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.Id.Address);
             RequestMeta();
             return;
         }
@@ -3708,7 +3720,7 @@ private:
 
         YT_VERIFY(channel);
 
-        if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
+        if (ShouldThrottle(primaryPeer.Id.Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
@@ -3817,7 +3829,7 @@ private:
                 rspOrError,
                 respondedPeer,
                 TError("Error fetching rows from node %v",
-                    respondedPeer.Address));
+                    respondedPeer.Id.Address));
 
             RequestRows();
             return;
@@ -3841,7 +3853,7 @@ private:
 
             if (backup) {
                 SendLookupRowsRequest(
-                    GetChannel(TPeerId(respondedPeer)),
+                    GetChannel(respondedPeer.Id),
                     {respondedPeer},
                     reader,
                     /*schemaRequested*/ true);
@@ -3860,7 +3872,7 @@ private:
             YT_LOG_DEBUG("Peer is throttling on lookup "
                 "(Address: %v, Backup: %v, "
                 "NetThrottling: %v, NetQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v)",
-                respondedPeer.Address,
+                respondedPeer.Id.Address,
                 backup,
                 response->net_throttling(),
                 response->net_queue_size(),
@@ -3876,7 +3888,7 @@ private:
         TotalBytesReceived_ += result.Size();
         BytesToThrottle_ += result.Size();
 
-        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > BytesThrottled_)) {
+        if (ShouldThrottle(respondedPeer.Id.Address, BytesToThrottle_ > BytesThrottled_)) {
             auto delta = BytesToThrottle_ - BytesThrottled_;
             BytesThrottled_ += delta;
             CombinedDataByteThrottler_->Acquire(delta);
@@ -4454,6 +4466,27 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     TChunkReplicaList seedReplicas)
+{
+    TChunkReplicaWithMediumList replicaList;
+    replicaList.reserve(seedReplicas.size());
+    for (auto& seedReplica: seedReplicas) {
+        replicaList.push_back(TChunkReplicaWithMedium(std::move(seedReplica)));
+    }
+
+    return New<TReplicationReader>(
+        std::move(config),
+        std::move(options),
+        std::move(chunkReaderHost),
+        chunkId,
+        std::move(replicaList));
+}
+
+IChunkReaderAllowingRepairPtr CreateReplicationReader(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    TChunkReaderHostPtr chunkReaderHost,
+    TChunkId chunkId,
+    TChunkReplicaWithMediumList seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),
