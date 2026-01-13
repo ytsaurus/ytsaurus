@@ -1,7 +1,7 @@
 #include "bundle_scheduler.h"
 #include "config.h"
-
-#include <span>
+#include "input_state.h"
+#include "mutations.h"
 
 namespace NYT::NCellBalancer {
 

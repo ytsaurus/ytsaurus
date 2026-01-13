@@ -51,18 +51,26 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
 target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_scheduler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_downtime_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/chaos_scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cluster_state_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/input_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/instance_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/mutations.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/node_tag_filters_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/orchid_bindings.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/pod_id_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_downtime_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/rpc_proxy_allocator_adapter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/system_accounts.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/tablet_node_allocator_adapter.cpp
 )
 
