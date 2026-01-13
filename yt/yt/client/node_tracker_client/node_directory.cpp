@@ -755,13 +755,7 @@ const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectory
 const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, const std::string& address)
 {
     if (IsAddressOffshore(address)) {
-        // The IsAddressOffshore function only checks the prefix of the address, which goes along with the code
-        // logic, but it may lead to a strange situation when the returned descriptor does not have the same
-        // address as the one requested. So, let's perform this check just in case.
-        const auto& descriptor = OffshoreNodeDescriptor();
-        YT_VERIFY(address == descriptor.GetDefaultAddress());
-
-        return &descriptor;
+        return &OffshoreNodeDescriptor();
     }
     return nodeDirectory->FindDescriptor(address);
 }
@@ -769,10 +763,7 @@ const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirector
 const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, const std::string& address)
 {
     if (IsAddressOffshore(address)) {
-        const auto& descriptor = OffshoreNodeDescriptor();
-        YT_VERIFY(address == descriptor.GetDefaultAddress());
-
-        return descriptor;
+        return OffshoreNodeDescriptor();
     }
     return nodeDirectory->GetDescriptor(address);
 }

@@ -428,7 +428,7 @@ private:
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
-                TChunkReplicaWithMediumList{});
+                /*seedReplicas*/ TChunkReplicaWithMediumList{});
 
             chunk.Reader = CreateReplicationReaderThrottlingAdapter(
                 std::move(reader),
