@@ -432,7 +432,7 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSessionId: %v, MemoryLimitPerNode: %v, "
             "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qlv)",
+            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
