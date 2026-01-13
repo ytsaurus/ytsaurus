@@ -95,6 +95,7 @@ private:
         options.ReadFrom = EMasterChannelKind::Cache;
         options.SuppressUpstreamSync = true;
         options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
         auto clusterName = client->GetNativeConnection()->GetStaticConfig()->ClusterName;
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {

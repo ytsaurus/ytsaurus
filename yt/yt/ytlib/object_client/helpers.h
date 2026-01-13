@@ -15,9 +15,11 @@ void AddCellTagToSyncWith(const NRpc::IClientRequestPtr& request, TObjectId obje
 
 bool GetSuppressUpstreamSync(const NRpc::NProto::TRequestHeader& requestHeader);
 bool GetSuppressTransactionCoordinatorSync(const NRpc::NProto::TRequestHeader& requestHeader);
+bool GetSuppressStronglyOrderedTransactionBarrier(const NRpc::NProto::TRequestHeader& requestHeader);
 
 void SetSuppressUpstreamSync(NRpc::NProto::TRequestHeader* requestHeader, bool value);
 void SetSuppressTransactionCoordinatorSync(NRpc::NProto::TRequestHeader* requestHeader, bool value);
+void SetSuppressStronglyOrderedTransactionBarrier(NRpc::NProto::TRequestHeader* requestHeader, bool value);
 
 bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error);
 

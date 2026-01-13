@@ -642,6 +642,7 @@ void TClient::ValidateSuperuserPermissions()
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
     options.SuppressUpstreamSync = true;
+    options.SuppressStronglyOrderedTransactionBarrier = true;
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
