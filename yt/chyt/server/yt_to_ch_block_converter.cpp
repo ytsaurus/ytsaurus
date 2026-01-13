@@ -91,8 +91,9 @@ public:
                     }
                     if (ytColumn->Dictionary) {
                         if (ytColumn->Dictionary->ZeroMeansNull) {
-                            for (const auto& index : ytColumn->GetTypedValues<ui32>()) {
-                                if (index == 0) {
+                            auto dictionaryIndexes = ytColumn->GetTypedValues<ui32>();
+                            for (i64 index = ytColumn->StartIndex; index < ytColumn->StartIndex + ytColumn->ValueCount; ++index) {
+                                if (dictionaryIndexes[index] == 0) {
                                     needConsumeNull = true;
                                     break;
                                 }
