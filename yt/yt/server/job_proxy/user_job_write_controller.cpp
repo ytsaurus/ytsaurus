@@ -385,7 +385,7 @@ void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
             writtenChunkSpecs.push_back(chunkSpec);
             FilterProtoExtensions(writtenChunkSpecs.back().mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
-        auto protoDigest = jobResultExt->add_output_digests();
+        auto* protoDigest = jobResultExt->add_output_digests();
         if (auto digest = writer->GetDigest()) {
             protoDigest->set_value(digest->Underlying());
         }

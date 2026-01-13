@@ -9,16 +9,17 @@ namespace NYT::NTableClient {
 // XXH3 is much faster than MD5. Based on benchmarks:
 // - ~2x faster for typical workloads.
 // - ~16x faster for string-heavy data.
-class TRowsDigestComputer final
+class TRowsDigestBuilder final
+    : public TNonCopyable
 {
 public:
-    explicit TRowsDigestComputer(TNameTablePtr nameTable);
+    explicit TRowsDigestBuilder(TNameTablePtr nameTable);
 
     void ProcessRow(TUnversionedRow row) noexcept;
 
     TRowsDigest GetDigest() const noexcept;
 
-    ~TRowsDigestComputer();
+    ~TRowsDigestBuilder();
 
 private:
     struct TColumnInfo
@@ -33,8 +34,8 @@ private:
         Y_FORCE_INLINE bool operator<(const TColumnInfo& other) const noexcept;
     };
 
-    TNameTablePtr NameTable_;
-    void* HasherState_ = nullptr;
+    const TNameTablePtr NameTable_;
+    void* const HasherState_;
 
     std::vector<TColumnInfo> SortedColumns_;
     std::vector<bool> IsColumnNameIdAdded_;

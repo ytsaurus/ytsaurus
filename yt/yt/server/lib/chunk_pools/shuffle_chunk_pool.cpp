@@ -111,7 +111,7 @@ public:
 
             // Actually, this is not data weight.
             // Partition writer reports uncompressed data size as data weight.
-            // Should be fixed in YT-26839.
+            // TODO(apollo1321): Should be fixed in YT-26839.
             TotalDataWeight_ += chunkSpec->GetDataWeight();
         }
 
@@ -412,7 +412,7 @@ private:
 
         bool IsSplittable(TCookie /*cookie*/) const override
         {
-            // TODO: Support intermediate partition jobs split.
+            // TODO(apollo1321): Support intermediate partition jobs split.
             return false;
         }
 
