@@ -24,7 +24,7 @@ std::string THost::GetCapitalizedObjectName() const
 
 TYPath THost::GetObjectPath() const
 {
-    return Format("//sys/hosts/%v", GetName());
+    return Format("//sys/hosts/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void THost::Save(TSaveContext& context) const

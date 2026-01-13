@@ -246,7 +246,7 @@ std::string TAccount::GetCapitalizedObjectName() const
 
 TYPath TAccount::GetObjectPath() const
 {
-    return Format("//sys/accounts/%v", GetName());
+    return Format("//sys/accounts/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 std::string TAccount::GetRootName() const

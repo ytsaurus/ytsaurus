@@ -197,7 +197,7 @@ private:
     {
         YT_LOG_DEBUG("Checking permission");
 
-        auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", Clique_);
+        auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Clique_));
         TCheckPermissionOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
         auto result = WaitFor(QueryClient_->CheckPermission(User_, principalAclPath, EPermission::Use, options))

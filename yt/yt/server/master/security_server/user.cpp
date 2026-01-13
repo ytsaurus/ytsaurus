@@ -322,7 +322,7 @@ std::string TUser::GetCapitalizedObjectName() const
 
 TYPath TUser::GetObjectPath() const
 {
-    return Format("//sys/users/%v", GetName());
+    return Format("//sys/users/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TUser::Save(TSaveContext& context) const

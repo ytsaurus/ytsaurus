@@ -146,7 +146,9 @@ private:
 
     TCellId GetChaosCellId(TYPath path)
     {
-        auto yson = WaitFor(Client_->GetNode(Format("//sys/chaos_cell_bundles/%v/@metadata_cell_id", GetChaosCellBundle(path)), TGetNodeOptions{}))
+        auto attributePath = Format("//sys/chaos_cell_bundles/%v/@metadata_cell_id",
+            ToYPathLiteral(GetChaosCellBundle(path)));
+        auto yson = WaitFor(Client_->GetNode(attributePath, TGetNodeOptions{}))
             .ValueOrThrow();
         return ConvertTo<TCellId>(yson);
     }
