@@ -280,6 +280,7 @@ public:
             StaticConfig_,
             Options_,
             ChannelFactory_,
+            MakeWeak(this),
             Logger);
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
