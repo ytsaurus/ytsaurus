@@ -109,7 +109,7 @@ public:
         NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             /*logger*/ {},
             std::move(profiler))
         , CypressUserManager_(std::move(cypressUserManager))
