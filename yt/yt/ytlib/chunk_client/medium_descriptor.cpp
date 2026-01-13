@@ -25,46 +25,6 @@ TMediumDescriptor::TMediumDescriptor(std::string name, int index, int priority)
     , Priority_(priority)
 { }
 
-bool TMediumDescriptor::Equals(const TMediumDescriptor& other) const
-{
-    return Name_ == other.Name_ && Index_ == other.Index_ && Priority_ == other.Priority_;
-}
-
-void TMediumDescriptor::LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor)
-{
-    Name_ = protoMediumDescriptor.name();
-    Index_ = protoMediumDescriptor.index();
-    Priority_ = protoMediumDescriptor.priority();
-}
-
-TMediumDescriptorPtr TMediumDescriptor::CreateFromProto(const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor)
-{
-    TMediumDescriptorPtr descriptor;
-
-    switch (protoMediumDescriptor.type_specific_descriptor_case()) {
-        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::kDomesticMediumDescriptor: {
-            descriptor = New<TDomesticMediumDescriptor>();
-            break;
-        }
-        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::kS3MediumDescriptor: {
-            descriptor = New<TS3MediumDescriptor>();
-            break;
-        }
-        // COMPAT(cherepashka, achulkov2): Remove this case and fallthrough to throwing an exception once all masters start filling this field.
-        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::TYPE_SPECIFIC_DESCRIPTOR_NOT_SET: {
-            descriptor = New<TDomesticMediumDescriptor>();
-            break;
-        }
-        default:
-            THROW_ERROR_EXCEPTION(
-                "Medium descriptor proto contains unknown medium type %v",
-                static_cast<i64>(protoMediumDescriptor.type_specific_descriptor_case()));
-    }
-
-    descriptor->LoadFrom(protoMediumDescriptor);
-    return descriptor;
-}
-
 bool TMediumDescriptor::IsOffshore() const
 {
     return !IsDomestic();
@@ -72,7 +32,7 @@ bool TMediumDescriptor::IsOffshore() const
 
 bool TMediumDescriptor::operator==(const TMediumDescriptor& other) const
 {
-    return typeid(this) == typeid(other) && Equals(other);
+    return IsDomestic() == other.IsDomestic() && Name_ == other.Name_ && Index_ == other.Index_ && Priority_ == other.Priority_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,22 +44,6 @@ TDomesticMediumDescriptor::TDomesticMediumDescriptor(std::string name, int index
 TDomesticMediumDescriptor::TDomesticMediumDescriptor(std::string name)
     : TMediumDescriptor(std::move(name), GenericMediumIndex, -1)
 { }
-
-bool TDomesticMediumDescriptor::Equals(const TMediumDescriptor& other) const
-{
-    if (!TMediumDescriptor::Equals(other)) {
-        return false;
-    }
-
-    return other.As<TDomesticMediumDescriptor>() != nullptr;
-}
-
-void TDomesticMediumDescriptor::LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor)
-{
-    TMediumDescriptor::LoadFrom(protoMediumDescriptor);
-
-    // Nothing to be loaded.
-}
 
 bool TDomesticMediumDescriptor::IsDomestic() const
 {
@@ -128,26 +72,6 @@ TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkMetaPlaceme
     return metaPlacement;
 };
 
-bool TS3MediumDescriptor::Equals(const TMediumDescriptor& other) const
-{
-    if (!TMediumDescriptor::Equals(other)) {
-        return false;
-    }
-
-    if (const auto otherS3Descriptor = other.As<TS3MediumDescriptor>()) {
-        return *Config_ == *otherS3Descriptor->Config_;
-    }
-
-    return false;
-}
-
-void TS3MediumDescriptor::LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor)
-{
-    TMediumDescriptor::LoadFrom(protoMediumDescriptor);
-
-    Config_ = ConvertTo<TS3MediumConfigPtr>(TYsonString(protoMediumDescriptor.s3_medium_descriptor().config()));
-}
-
 bool TS3MediumDescriptor::IsDomestic() const
 {
     return false;
@@ -158,11 +82,9 @@ bool TS3MediumDescriptor::IsDomestic() const
 void Serialize(const TMediumDescriptorPtr& mediumDescriptor, NYson::IYsonConsumer* consumer)
 {
     if (!mediumDescriptor) {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-            .EndMap();
         return;
     }
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("name").Value(mediumDescriptor->Name())
@@ -170,6 +92,51 @@ void Serialize(const TMediumDescriptorPtr& mediumDescriptor, NYson::IYsonConsume
             .Item("priority").Value(mediumDescriptor->GetPriority())
             .Item("offshore").Value(mediumDescriptor->IsOffshore())
         .EndMap();
+}
+
+void ToProto(NProto::TMediumDirectory::TMediumDescriptor* protoMediumDescriptor, const TMediumDescriptorPtr& mediumDescriptor)
+{
+    protoMediumDescriptor->Clear();
+
+    protoMediumDescriptor->set_index(mediumDescriptor->GetIndex());
+    protoMediumDescriptor->set_name(mediumDescriptor->Name());
+    protoMediumDescriptor->set_priority(mediumDescriptor->GetPriority());
+
+    if (mediumDescriptor->IsOffshore()) {
+        auto* s3MediumDescriptor = protoMediumDescriptor->mutable_s3_medium_descriptor();
+        s3MediumDescriptor->set_config(ConvertToYsonString(mediumDescriptor->As<TS3MediumDescriptor>()->GetConfig()).AsStringBuf());
+    } else {
+        // NB: Domestic medium descriptor is empty.
+        protoMediumDescriptor->mutable_domestic_medium_descriptor();
+    }
+}
+
+void FromProto(TMediumDescriptorPtr* mediumDescriptor, const NProto::TMediumDirectory::TMediumDescriptor& protoMediumDescriptor)
+{
+    auto name = FromProto<std::string>(protoMediumDescriptor.name());
+    auto index = FromProto<int>(protoMediumDescriptor.index());
+    auto priority = FromProto<int>(protoMediumDescriptor.priority());
+
+    switch (protoMediumDescriptor.type_specific_descriptor_case()) {
+        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::kDomesticMediumDescriptor: {
+            *mediumDescriptor = New<TDomesticMediumDescriptor>(std::move(name), index, priority);
+            break;
+        }
+        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::kS3MediumDescriptor: {
+            auto config = ConvertTo<TS3MediumConfigPtr>(TYsonString(protoMediumDescriptor.s3_medium_descriptor().config()));
+            *mediumDescriptor = New<TS3MediumDescriptor>(std::move(name), index, priority, std::move(config));
+            break;
+        }
+        // COMPAT(cherepashka, achulkov2): Remove this case and fallthrough to throwing an exception once all masters start filling this field.
+        case NProto::TMediumDirectory::TMediumDescriptor::TypeSpecificDescriptorCase::TYPE_SPECIFIC_DESCRIPTOR_NOT_SET: {
+            *mediumDescriptor = New<TDomesticMediumDescriptor>(std::move(name), index, priority);
+            break;
+        }
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Medium descriptor proto contains unknown medium type %v",
+                static_cast<i64>(protoMediumDescriptor.type_specific_descriptor_case()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
