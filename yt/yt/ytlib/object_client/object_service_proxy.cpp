@@ -119,6 +119,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
     , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
+    , SuppressStronglyOrderedTransactionBarrier_(other.SuppressStronglyOrderedTransactionBarrier_)
 {
     // Undo some work done by the base class's copy ctor and make some tweaks.
     // XXX(babenko): refactor this, maybe avoid TClientRequest copying.
@@ -203,6 +204,7 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::ComputeHash() const
     size_t hash = 0;
     HashCombine(hash, SuppressUpstreamSync_);
     HashCombine(hash, SuppressTransactionCoordinatorSync_);
+    HashCombine(hash, SuppressStronglyOrderedTransactionBarrier_);
     for (const auto& descriptor : InnerRequestDescriptors_) {
         if (descriptor.Hash) {
             HashCombine(hash, descriptor.Hash);
@@ -252,6 +254,11 @@ void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressUpstreamSync(bool val
 void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressTransactionCoordinatorSync(bool value)
 {
     SuppressTransactionCoordinatorSync_ = value;
+}
+
+void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressStronglyOrderedTransactionBarrier(bool value)
+{
+    SuppressStronglyOrderedTransactionBarrier_ = value;
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(
@@ -543,6 +550,7 @@ void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetMulticellSyncHead
 {
     NObjectClient::SetSuppressUpstreamSync(&Header(), SuppressUpstreamSync_);
     NObjectClient::SetSuppressTransactionCoordinatorSync(&Header(), SuppressTransactionCoordinatorSync_);
+    NObjectClient::SetSuppressStronglyOrderedTransactionBarrier(&Header(), SuppressStronglyOrderedTransactionBarrier_);
 }
 
 std::optional<int> TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetAdvisedStickyGroupSize() const
