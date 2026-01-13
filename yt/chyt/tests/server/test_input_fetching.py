@@ -164,6 +164,9 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(
                 "select * from (select * from `//tmp/t` where key == 'k4')", exact=1
             )
+            assert clique.make_query("select * from (select key, value from `//tmp/t` where key in (select key from `//tmp/t` where key = 'k1')) t") == [
+                {"key": "k1", "value": "v1"}
+            ]
 
     @authors("max42")
     def test_dynamic_table_farm_hash_two_components(self):
