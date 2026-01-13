@@ -123,6 +123,7 @@ private:
     {
         options.SuppressUpstreamSync = Options_.SuppressUpstreamSync;
         options.SuppressTransactionCoordinatorSync = Options_.SuppressTransactionCoordinatorSync;
+        options.SuppressStronglyOrderedTransactionBarrier = Options_.SuppressStronglyOrderedTransactionBarrier;
     }
 
     IAttributeDictionaryPtr WithExpirationTime(IAttributeDictionaryPtr attributes) const

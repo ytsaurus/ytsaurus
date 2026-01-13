@@ -40,6 +40,7 @@ struct TCypressRegistrarOptions
     //! Additional options for all Cypress requests.
     bool SuppressUpstreamSync = true;
     bool SuppressTransactionCoordinatorSync = true;
+    bool SuppressStronglyOrderedTransactionBarrier = true;
 
     //! Some components (e.g. RPC- and HTTP-proxies) have special Cypress node type.
     NObjectClient::EObjectType NodeType = NObjectClient::EObjectType::MapNode;

@@ -681,6 +681,7 @@ private:
     std::optional<TReadRequestComplexityLimits> ReadRequestComplexityLimits_;
 
     bool SuppressTransactionCoordinatorSync_ = false;
+    bool SuppressStronglyOrderedTransactionBarrier_ = false;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncremented_ = false;
 
@@ -712,10 +713,12 @@ private:
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
         RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
+            "SuppressTransactionCoordinatorSync: %v, SuppressStronglyOrderedTransactionBarrier: %v, "
+            "OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
             TotalSubrequestCount_,
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
+            GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->GetRequestHeader()),
             originalRequestId,
             GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
@@ -750,6 +753,7 @@ private:
 
         auto suppressUpstreamSync = GetSuppressUpstreamSync(RpcContext_);
         auto suppressTransactionCoordinatorSync = GetSuppressTransactionCoordinatorSync(RpcContext_);
+        auto suppressStronglyOrderedTransactionBarrier = GetSuppressStronglyOrderedTransactionBarrier(RpcContext_->RequestHeader());
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -807,6 +811,8 @@ private:
                 subrequest.MulticellSyncExt->suppress_upstream_sync();
             suppressTransactionCoordinatorSync = suppressTransactionCoordinatorSync ||
                 subrequest.MulticellSyncExt->suppress_transaction_coordinator_sync();
+            suppressStronglyOrderedTransactionBarrier = suppressStronglyOrderedTransactionBarrier ||
+                subrequest.MulticellSyncExt->suppress_strongly_ordered_transaction_barrier();
 
             // Store original path.
             if (!ypathExt->has_original_target_path()) {
@@ -838,6 +844,7 @@ private:
 
         CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
         SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
+        SuppressStronglyOrderedTransactionBarrier_ = suppressStronglyOrderedTransactionBarrier;
     }
 
     void LookupCachedSubrequests()
@@ -1043,12 +1050,15 @@ private:
                 "Cannot synchronize with cells when read-only mode is active");
         }
 
-        // NB: We always have to wait all current prepared transactions to
-        // observe side effects of Sequoia transactions.
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        std::vector<TFuture<void>> additionalFutures = {
-            transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
-        };
+        std::vector<TFuture<void>> additionalFutures;
+        if (!SuppressStronglyOrderedTransactionBarrier_) {
+            // NB: We have to wait all current prepared transactions to
+            // observe side effects of Sequoia transactions.
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            additionalFutures.push_back(
+                transactionSupervisor->WaitUntilPreparedTransactionsFinished());
+        }
+
         if (additionalFuture) {
             additionalFutures.push_back(std::move(additionalFuture));
         }
