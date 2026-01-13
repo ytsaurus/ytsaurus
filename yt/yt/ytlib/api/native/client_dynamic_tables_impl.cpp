@@ -2568,7 +2568,8 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     if (movableTables.empty()) {
         auto cellTags = Connection_->GetSecondaryMasterCellTags();
         cellTags.push_back(Connection_->GetPrimaryMasterCellTag());
-        auto req = TTabletCellBundleYPathProxy::BalanceTabletCells("//sys/tablet_cell_bundles/" + tabletCellBundle);
+        auto path = Format("//sys/tablet_cell_bundles/%v", ToYPathLiteral(tabletCellBundle));
+        auto req = TTabletCellBundleYPathProxy::BalanceTabletCells(path);
         SetMutationId(req, options);
         req->set_keep_actions(options.KeepActions);
         for (const auto& cellTag : cellTags) {

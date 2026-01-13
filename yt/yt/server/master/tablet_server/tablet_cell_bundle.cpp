@@ -178,7 +178,7 @@ std::string TTabletCellBundle::GetCapitalizedObjectName() const
 
 TYPath TTabletCellBundle::GetObjectPath() const
 {
-    return Format("//sys/tablet_cell_bundles/%v", GetName());
+    return Format("//sys/tablet_cell_bundles/%v", NYPath::ToYPathLiteral(GetName()));
 }
 
 void TTabletCellBundle::Save(NCellMaster::TSaveContext& context) const
