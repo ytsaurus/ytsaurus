@@ -159,7 +159,6 @@ class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAddi
     DOWNTIME_ALL_COMPONENTS = False
 
 
-@pytest.mark.skip("TODO(cherepashka): enable after YT-26459")
 class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeRpcProxy(TestMasterCellAdditionWithRemoteClustersWithoutDowntime):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
