@@ -915,9 +915,9 @@ class TestConcatenateSequoia(TestConcatenateMulticell):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
-        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["chunk_host"]},
+        "13": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "14": {"roles": ["transaction_coordinator"]},
     }
 
