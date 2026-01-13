@@ -231,11 +231,8 @@ private:
     void ScheduleDeleteExpiredRegistries()
     {
         TDelayedExecutor::Submit(
-            BIND([weakRegistry = MakeWeak(this)] {
-                if (auto registry = weakRegistry.Lock()) {
-                    registry->DeleteExpiredRegistries();
-                }
-            })
+            BIND(&THedgingManagerRegistry::DeleteExpiredRegistries,
+                MakeWeak(this))
             .Via(Invoker_),
             ExpiredRegistryEvictionPeriod);
     }
@@ -243,11 +240,8 @@ private:
     void ScheduleStatisticsCollection()
     {
         TDelayedExecutor::Submit(
-            BIND([weakRegistry = MakeWeak(this)] {
-                if (auto registry = weakRegistry.Lock()) {
-                    registry->CollectStatistics();
-                }
-            })
+            BIND(&THedgingManagerRegistry::CollectStatistics,
+                MakeWeak(this))
             .Via(Invoker_),
             StatisticsCollectionPeriod);
     }

@@ -2186,7 +2186,8 @@ private:
             if (Session_->ShouldThrottle(GetPeer(isPrimaryRequest).Address, ThrottlingCondition_)) {
                 YT_VERIFY(BlockIndexes_.size() <= Session_->BlockIndexes_.size());
                 // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
-                auto requestedBlocksEstimatedSize = *Session_->EstimatedSize_ * std::ssize(BlockIndexes_) / std::ssize(Session_->BlockIndexes_);
+                auto requestedBlocksEstimatedSize = *Session_->EstimatedSize_ * std::ssize(BlockIndexes_) /
+                    std::ssize(Session_->BlockIndexes_);
                 Session_->BytesThrottled_ = requestedBlocksEstimatedSize;
 
                 auto future = Session_->CombinedDataByteThrottler_->Throttle(requestedBlocksEstimatedSize);
@@ -2831,7 +2832,8 @@ private:
                 primaryPeer,
                 *backupPeer,
                 blockIndexes,
-                peers)->Run();
+                peers)
+                ->Run();
         } else {
             std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
                 ? std::make_optional(THedgingChannelOptions{
