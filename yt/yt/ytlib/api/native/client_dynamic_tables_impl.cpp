@@ -444,7 +444,7 @@ public:
             .Run(path);
     }
 
-    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend executionBackend) override
     {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
@@ -456,10 +456,10 @@ public:
             }
         }
 
-        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(UdfRegistryPath_, externalNames))
+        auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(UdfRegistryPath_, externalNames, executionBackend))
             .ValueOrThrow();
 
-        AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors);
+        AppendUdfDescriptors(typeInferrers, ExternalCGInfo_, externalNames, descriptors, executionBackend);
     }
 
     TExternalCGInfoPtr GetExternalCGInfo() const
@@ -1811,6 +1811,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
+        queryOptions.ExecutionBackend,
         options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion,
@@ -1967,6 +1968,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         *astQuery,
         parsedQuery->AstHead,
+        EExecutionBackend::Native, // TODO(dtorilov): Support WebAssembly in ExplainQuery.
         options.ExpressionBuilderVersion.value_or(queryEngineConfig ? queryEngineConfig->ExpressionBuilderVersion.value_or(1) : 1),
         HeavyRequestMemoryUsageTracker_,
         options.SyntaxVersion,

@@ -18,6 +18,7 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NYson;
@@ -598,7 +599,10 @@ TTableSchemaPtr MakeColumnTypesOptional(const TTableSchemaPtr& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(TRange<std::string> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(
+    TRange<std::string> /*names*/,
+    const TTypeInferrerMapPtr& typeInferrers,
+    EExecutionBackend /*executionBackend*/)
 {
     MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }
@@ -1238,6 +1242,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
+    EExecutionBackend executionBackend,
     int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int depth)
@@ -1255,6 +1260,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
                 source,
                 subquery->Ast,
                 subquery->AliasMap,
+                executionBackend,
                 builderVersion,
                 memoryTracker,
                 depth + 1);
@@ -1265,7 +1271,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
         });
 
     auto functions = New<TTypeInferrerMap>();
-    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
+    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions, executionBackend);
 
     const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
@@ -1431,6 +1437,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
+    EExecutionBackend executionBackend,
     NYson::TYsonStringBuf placeholderValues,
     int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
@@ -1442,6 +1449,7 @@ TPlanFragmentPtr PreparePlanFragment(
         source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
+        executionBackend,
         /*builderVersion*/ 1,
         std::move(memoryTracker),
         syntaxVersion);
@@ -1452,6 +1460,7 @@ TPlanFragmentPtr PreparePlanFragment(
     TStringBuf source,
     NAst::TQuery& queryAst,
     NAst::TAstHead& astHead,
+    EExecutionBackend executionBackend,
     int builderVersion,
     IMemoryUsageTrackerPtr memoryTracker,
     int syntaxVersion,
@@ -1474,6 +1483,7 @@ TPlanFragmentPtr PreparePlanFragment(
         source,
         queryAst,
         aliasMap,
+        executionBackend,
         builderVersion,
         std::move(memoryTracker),
         depth);
@@ -1506,7 +1516,7 @@ TQueryPtr PrepareJobQuery(
     auto functionNames = ExtractFunctionNames(ast, aliasMap);
 
     auto functions = New<TTypeInferrerMap>();
-    functionsFetcher(functionNames, functions);
+    functionsFetcher(functionNames, functions, EExecutionBackend::Native);
 
     auto builder = CreateExpressionBuilder(source, functions, aliasMap, 1);
 

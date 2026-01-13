@@ -28,7 +28,7 @@ struct IFunctionCodegen
         return true;
     }
 
-    virtual TSharedRef GetWebAssemblyBytecodeFile() const = 0;
+    virtual NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
@@ -46,7 +46,7 @@ struct IAggregateCodegen
 
     virtual bool IsFirst() const = 0;
 
-    virtual TSharedRef GetWebAssemblyBytecodeFile() const = 0;
+    virtual NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
@@ -172,7 +172,7 @@ public:
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override;
+    NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const override;
 
 private:
     const std::string FunctionName_;
@@ -210,7 +210,7 @@ public:
 
     bool IsFirst() const override;
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override;
+    NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const override;
 
 private:
     const std::string AggregateName_;

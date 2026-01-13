@@ -159,7 +159,7 @@ TClient::TClient(
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
-    , FunctionRegistry_ (BIND(CreateFunctionRegistryCache,
+    , FunctionRegistry_(BIND(CreateFunctionRegistryCache,
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))

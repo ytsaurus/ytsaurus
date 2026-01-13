@@ -407,6 +407,7 @@ private:
         auto externalCGInfo = New<TExternalCGInfo>();
         FromProto(&externalCGInfo->Functions, request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
+        FromProto(&externalCGInfo->Sdk, request->sdk());
 
         auto queryOptions = FromProto<TQueryOptions>(request->options());
         queryOptions.InputRowLimit = request->query().input_row_limit();

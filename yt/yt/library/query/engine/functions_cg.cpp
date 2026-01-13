@@ -24,6 +24,8 @@ using namespace llvm;
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 using NCodegen::EExecutionBackend;
 using NCodegen::MangleSymbol;
 using NCodegen::DemangleSymbol;
@@ -751,9 +753,14 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     };
 }
 
-TSharedRef TExternalFunctionCodegen::GetWebAssemblyBytecodeFile() const
+TModuleBytecode TExternalFunctionCodegen::GetWebAssemblyBytecodeFile() const
 {
-    return ImplementationFiles_[EExecutionBackend::WebAssembly];
+    // TODO(dtorilov): Use cache here.
+    return TModuleBytecode{
+        .Format = EBytecodeFormat::Binary,
+        .Data = ImplementationFiles_[EExecutionBackend::WebAssembly],
+        .ObjectCode = TSharedRef(),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -966,9 +973,14 @@ bool TExternalAggregateCodegen::IsFirst() const
     return IsFirst_;
 }
 
-TSharedRef TExternalAggregateCodegen::GetWebAssemblyBytecodeFile() const
+TModuleBytecode TExternalAggregateCodegen::GetWebAssemblyBytecodeFile() const
 {
-    return ImplementationFiles_[EExecutionBackend::WebAssembly];
+    // TODO(dtorilov): Use cache here.
+    return TModuleBytecode{
+        .Format = EBytecodeFormat::Binary,
+        .Data = ImplementationFiles_[EExecutionBackend::WebAssembly],
+        .ObjectCode = TSharedRef(),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

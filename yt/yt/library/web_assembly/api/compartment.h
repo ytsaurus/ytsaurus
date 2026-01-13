@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bytecode.h"
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NWebAssembly {
@@ -15,6 +17,9 @@ struct IWebAssemblyCompartment
     virtual void AddModule(TRef bytecode, TStringBuf name = "") = 0;
     //! Adds new module in WebAssembly WAST format.
     virtual void AddModule(TStringBuf wast, TStringBuf name = "") = 0;
+
+    //! Adds sdk.
+    virtual void AddSdk(const TModuleBytecode& bytecode) = 0;
 
     //! Strips compartment internal data structures.
     //! Stripped compartments can not be used for linking, but are faster to clone.
@@ -42,7 +47,10 @@ struct IWebAssemblyCompartment
     virtual void FreeBytes(uintptr_t offset) = 0;
 };
 
+std::unique_ptr<IWebAssemblyCompartment> CreateImageFromSdk(const TModuleBytecode& bytecode);
+
 std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage();
+std::unique_ptr<IWebAssemblyCompartment> CreateMinimalRuntimeImage();
 std::unique_ptr<IWebAssemblyCompartment> CreateStandardRuntimeImage();
 std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage();
 

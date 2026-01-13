@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>
 
@@ -29,7 +31,8 @@ TCGExpressionGenerator Profile(
     TCGVariables* variables,
     bool useCanonicalNullRelations = false,
     NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
-    const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get());
+    const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
+    const NWebAssembly::TModuleBytecode& sdk = NWebAssembly::GetBuiltinSdk());
 
 TCGQueryGenerator Profile(
     const TConstBaseQueryPtr& query,
@@ -41,6 +44,7 @@ TCGQueryGenerator Profile(
     NCodegen::EOptimizationLevel optimizationLevel = NCodegen::EOptimizationLevel::Default,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get(),
+    const NWebAssembly::TModuleBytecode& sdk = NWebAssembly::GetBuiltinSdk(),
     bool allowUnorderedGroupByWithLimit = true,
     i64 maxJoinBatchSize = DefaultMaxJoinBatchSize);
 
