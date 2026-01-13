@@ -918,6 +918,16 @@ public:
                     continue;
                 }
 
+                if (auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                    miscExt &&
+                        miscExt->has_is_compatible_with_dynamic_table_constraints() &&
+                        !miscExt->is_compatible_with_dynamic_table_constraints())
+                {
+                    error = TError("Cannot mount tablet %v since chunk %v has too large row or value size",
+                        tablet->GetId(),
+                        chunk->GetId());
+                }
+
                 if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize();
                     maxBlockSize.has_value() && chunkMaxBlockSize > *maxBlockSize)
                 {
