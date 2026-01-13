@@ -729,6 +729,7 @@ type TotalJobCounter struct {
 	Total     int64 `yson:"total"`
 	Completed int64 `yson:"completed"`
 	Running   int64 `yson:"running"`
+	Failed    int64 `yson:"failed"`
 }
 
 type OperationStartClient interface {

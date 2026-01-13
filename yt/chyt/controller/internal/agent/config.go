@@ -30,6 +30,11 @@ type Config struct {
 	// the health checker will consider the state valid for 10s.
 	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
 
+	// CrashedJobEventExpirationTimeout is the timeout for expiration of event
+	// associated with a found crashed job.
+	// Before this timeout expires, event will be returned by the corresponding monitoring handler.
+	CrashedJobEventExpirationTimeout *yson.Duration `yson:"crashed_job_event_expiration_timeout"`
+
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
 
@@ -60,21 +65,24 @@ type Config struct {
 	ScalePeriod *yson.Duration `yson:"scale_period"`
 
 	UseFamilyPrefixInOpAlias bool `yson:"use_family_prefix_in_op_alias"`
+
+	JobCheckerConfig *JobCheckerConfig `yson:"job_checker_config"`
 }
 
 const (
 	DefaultStrawberryRoot = ypath.Path("//sys/strawberry")
 
-	DefaultPassPeriod                   = yson.Duration(5 * time.Second)
-	DefaultCollectOperationsPeriod      = yson.Duration(10 * time.Second)
-	DefaultRevisionCollectPeriod        = yson.Duration(5 * time.Second)
-	DefaultMinOpletPassTimeout          = yson.Duration(10 * time.Second)
-	DefaultOpletPassTimeoutFactor       = 1.0
-	DefaultHealthCheckerToleranceFactor = 2.0
-	DefaultPassWorkerNumber             = 1
-	DefaultAssignAdministerToCreator    = true
-	DefaultScaleWorkerNumber            = 1
-	DefaultScalePeriod                  = yson.Duration(60 * time.Second)
+	DefaultPassPeriod                       = yson.Duration(5 * time.Second)
+	DefaultCollectOperationsPeriod          = yson.Duration(10 * time.Second)
+	DefaultRevisionCollectPeriod            = yson.Duration(5 * time.Second)
+	DefaultMinOpletPassTimeout              = yson.Duration(10 * time.Second)
+	DefaultCrashedJobEventExpirationTimeout = yson.Duration(5 * time.Minute)
+	DefaultOpletPassTimeoutFactor           = 1.0
+	DefaultHealthCheckerToleranceFactor     = 2.0
+	DefaultPassWorkerNumber                 = 1
+	DefaultAssignAdministerToCreator        = true
+	DefaultScaleWorkerNumber                = 1
+	DefaultScalePeriod                      = yson.Duration(60 * time.Second)
 )
 
 func (c *Config) RootOrDefault() ypath.Path {
@@ -126,6 +134,13 @@ func (c *Config) HealthCheckerToleranceFactorOrDefault() float64 {
 	return DefaultHealthCheckerToleranceFactor
 }
 
+func (c *Config) CrashedJobEventExpirationTimeoutOrDefault() yson.Duration {
+	if c.CrashedJobEventExpirationTimeout != nil {
+		return *c.CrashedJobEventExpirationTimeout
+	}
+	return DefaultCrashedJobEventExpirationTimeout
+}
+
 func (c *Config) PassWorkerNumberOrDefault() int {
 	if c.PassWorkerNumber != nil {
 		return *c.PassWorkerNumber
@@ -154,6 +169,13 @@ func (c *Config) ScalePeriodOrDefault() yson.Duration {
 	return DefaultScalePeriod
 }
 
+func (c *Config) JobCheckerConfigOrDefault() *JobCheckerConfig {
+	if c.JobCheckerConfig != nil {
+		return c.JobCheckerConfig
+	}
+	return nil
+}
+
 func applyOverride[T any](base **T, override *T) {
 	if override != nil {
 		*base = override
@@ -172,6 +194,7 @@ func (c *Config) ApplyOverrides(o ConfigOverrides) Config {
 	applyOverride(&overridedCfg.MinOpletPassTimeout, o.MinOpletPassTimeout)
 	applyOverride(&overridedCfg.OpletPassTimeoutFactor, o.OpletPassTimeoutFactor)
 	applyOverride(&overridedCfg.HealthCheckerToleranceFactor, o.HealthCheckerToleranceFactor)
+	applyOverride(&overridedCfg.JobCheckerConfig, o.JobCheckerConfig)
 
 	return overridedCfg
 }
@@ -190,4 +213,6 @@ type ConfigOverrides struct {
 	OpletPassTimeoutFactor *float64 `yson:"oplet_pass_timeout_factor"`
 
 	HealthCheckerToleranceFactor *float64 `yson:"health_checker_tolerance_factor"`
+
+	JobCheckerConfig *JobCheckerConfig `yson:"job_checker_config"`
 }
