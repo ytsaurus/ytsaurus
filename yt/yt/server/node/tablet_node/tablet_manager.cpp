@@ -3283,7 +3283,7 @@ private:
                 TChunkedMemoryPool::DefaultStartChunkSize,
                 Bootstrap_
                     ->GetNodeMemoryUsageTracker()
-                    ->WithCategory(EMemoryCategory::TabletInternal)));
+                    ->WithCategory(EMemoryCategory::TabletFootprint)));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
