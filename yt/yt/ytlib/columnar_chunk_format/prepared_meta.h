@@ -211,6 +211,9 @@ struct TPreparedChunkMeta final
     std::vector<TGroupInfo> GroupInfos;
     std::vector<TColumnInfo> ColumnInfos;
 
+    std::vector<ui32> BlockChunkRowCounts;
+    std::vector<ui32> BlockUncompressedSizes;
+
     size_t Size = 0;
     bool FullNewMeta = false;
 

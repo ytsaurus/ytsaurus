@@ -32,6 +32,7 @@ public:
     std::optional<ui32> SkipToBlock(ui32 rowIndex);
 
     TRange<ui32> GetBlockIds() const;
+    TRange<ui32> GetBlockChunkRowCounts() const;
 
     DEFINE_BYVAL_RW_PROPERTY(bool, ContainsKeyColumn, false);
 
