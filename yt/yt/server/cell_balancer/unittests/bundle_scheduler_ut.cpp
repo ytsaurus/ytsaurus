@@ -1,6 +1,8 @@
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
 #include <yt/yt/server/cell_balancer/config.h>
+#include <yt/yt/server/cell_balancer/mutations.h>
 #include <yt/yt/server/cell_balancer/orchid_bindings.h>
+#include <yt/yt/server/cell_balancer/input_state.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -1753,30 +1755,6 @@ TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
     // Dynamic config is changed.
     EXPECT_TRUE(mutations.DynamicConfig);
     CheckEmptyAlerts(mutations);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TFooBarStruct
-    : public TYsonStructAttributes<TFooBarStruct>
-{
-    std::string Foo;
-    int Bar;
-
-    REGISTER_YSON_STRUCT(TFooBarStruct);
-
-    static void Register(TRegistrar registrar)
-    {
-        RegisterAttribute(registrar, "foo", &TThis::Foo)
-            .Default();
-        RegisterAttribute(registrar, "bar", &TThis::Bar)
-            .Default(0);
-    }
-};
-
-TEST(TBundleSchedulerTest, CheckCypressBindings)
-{
-    EXPECT_EQ(TFooBarStruct::GetAttributes().size(), 2u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

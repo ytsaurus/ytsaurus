@@ -1,12 +1,18 @@
-#ifndef BUNDLE_SCHEDULER_INL_H_
-#error "Direct inclusion of this file is not allowed, include bundle_scheduler.h"
+#ifndef SPARE_INSTANCES_INL_H_
+#error "Direct inclusion of this file is not allowed, include spare_instances.h"
 // For the sake of sane code completion.
-#include "bundle_scheduler.h"
+#include "spare_instances.h"
 #endif
 
 namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TSpareInstance>
+TSpareInstanceAllocator<TSpareInstance>::TSpareInstanceAllocator(
+    TZoneToDataCenterToInfo& spareInstances)
+    : SpareInstances(spareInstances)
+{ }
 
 template <class TSpareInstances>
 bool TSpareInstanceAllocator<TSpareInstances>::HasInstances(const std::string& zoneName, const std::string& dataCenterName) const
@@ -22,7 +28,7 @@ bool TSpareInstanceAllocator<TSpareInstances>::HasInstances(const std::string& z
     return !info.FreeInstances().empty();
 }
 
-template <typename TSpareInstances>
+template <class TSpareInstances>
 std::string TSpareInstanceAllocator<TSpareInstances>::Allocate(const std::string& zoneName, const std::string& dataCenterName, const std::string& bundleName)
 {
     YT_VERIFY(HasInstances(zoneName, dataCenterName));
@@ -33,25 +39,6 @@ std::string TSpareInstanceAllocator<TSpareInstances>::Allocate(const std::string
     info.UsedByBundle[bundleName].push_back(spareInstanceName);
 
     return spareInstanceName;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TBundleMutation<T> TSchedulerMutations::WrapMutation(T mutation)
-{
-    YT_VERIFY(!BundleNameContext_.empty());
-    return TBundleMutation<T>{BundleNameContext_, std::move(mutation)};
-}
-
-template <class T, class... Args>
-    requires std::derived_from<T, TBundleNameMixin>
-TIntrusivePtr<T> TSchedulerMutations::NewMutation(Args&&... args)
-{
-    auto value = New<T>(std::forward<Args>(args)...);
-    YT_VERIFY(!BundleNameContext_.empty());
-    value->BundleName = BundleNameContext_;
-    return value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
