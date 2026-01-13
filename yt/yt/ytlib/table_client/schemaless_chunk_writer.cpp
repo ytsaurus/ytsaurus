@@ -1050,7 +1050,7 @@ public:
             TChunkedMemoryPool::DefaultStartChunkSize,
             Options_->MemoryUsageTracker,
             /*allowMemoryOvercommit*/ true))
-        , RowsDigestComputer_(NameTable_)
+        , RowsDigestBuilder_(NameTable_)
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1212,7 +1212,7 @@ protected:
             EvaluateSkynetColumns(mutableRow, rowIndex + 1 == rows.Size());
 
             if (Options_->ComputeDigest) {
-                RowsDigestComputer_.ProcessRow(row);
+                RowsDigestBuilder_.ProcessRow(row);
             }
 
             result.push_back(mutableRow);
@@ -1242,14 +1242,14 @@ private:
     TCompactVector<i64, TypicalColumnCount> IdValidationMarks_;
     i64 CurrentIdValidationMark_ = 1;
 
-    TRowsDigestComputer RowsDigestComputer_;
+    TRowsDigestBuilder RowsDigestBuilder_;
 
     std::optional<TRowsDigest> GetDigest() const override
     {
         if (!Options_->ComputeDigest) {
             return std::nullopt;
         }
-        return RowsDigestComputer_.GetDigest();
+        return RowsDigestBuilder_.GetDigest();
     }
 
     void EvaluateComputedColumns(TMutableUnversionedRow row)
