@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/adaptive_hedging_manager.h>
-
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
