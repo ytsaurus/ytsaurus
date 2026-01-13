@@ -147,12 +147,6 @@ class TestMasterCellAdditionWithRemoteClusters(MasterCellAdditionWithRemoteClust
     @authors("ponasenko-rs")
     @pytest.mark.timeout(350)
     def test_add_new_cell(self):
-        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
-            "enable": True,
-            "sync_period": 100,
-            "full_sync_period": 200,
-        })
-
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
@@ -163,6 +157,18 @@ class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAddi
     CELL_IDS = builtins.set()
 
     DOWNTIME_ALL_COMPONENTS = False
+
+
+@pytest.mark.skip("TODO(cherepashka): enable after YT-26459")
+class TestMasterCellAdditionWithRemoteClustersWithoutDowntimeRpcProxy(TestMasterCellAdditionWithRemoteClustersWithoutDowntime):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
 
 
 class TestMasterCellsListChangeWithRemoteClustersWithoutDowntime(TestMasterCellAdditionWithRemoteClusters):
