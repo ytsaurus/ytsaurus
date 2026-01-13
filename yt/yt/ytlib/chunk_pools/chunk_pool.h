@@ -108,6 +108,16 @@ DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IChunkPoolOutputWithOrderedCookies
+    : public virtual IChunkPoolOutput
+{
+    virtual std::vector<TOutputCookie> GetOutputCookiesInOrder() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkPoolOutputWithOrderedCookies)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChunkPool
     : public virtual IChunkPoolInput
     , public virtual IChunkPoolOutput

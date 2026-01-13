@@ -206,12 +206,18 @@ void TMultiTablePartitioner::BuildPartitions()
     YT_VERIFY(ChunkPool_);
     YT_VERIFY(IsDataSourcesReady());
 
-    while (true) {
-        auto cookie = ChunkPool_->Extract();
-        if (cookie == IChunkPoolOutput::NullCookie) {
-            break;
+    std::vector<TOutputCookie> cookies;
+    if (Options_.PartitionMode == ETablePartitionMode::Ordered) {
+        auto orderedOutput = DynamicPointerCast<IChunkPoolOutputWithOrderedCookies>(ChunkPool_);
+        YT_VERIFY(orderedOutput);
+        cookies = orderedOutput->GetOutputCookiesInOrder();
+    } else {
+        for (auto cookie = ChunkPool_->Extract(); cookie != IChunkPoolOutput::NullCookie; cookie = ChunkPool_->Extract()) {
+            cookies.push_back(cookie);
         }
+    }
 
+    for (const auto& cookie : cookies) {
         if (Options_.MaxPartitionCount && std::ssize(Partitions_.Partitions) >= *Options_.MaxPartitionCount) {
             // Note: YQL tests check this error message, but they are not run automatically on commits.
             // If you change the message, please change the tests after deployment.
