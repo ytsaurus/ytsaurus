@@ -35,7 +35,7 @@ public:
     explicit TPullerReplicaCache(TTablet* tablet, TReplicationCardId replicationCardId)
         : TAsyncExpiringCache<TTabletId, void>(
             GetCacheConfig(tablet->GetSettings().MountConfig),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletNodeLogger().WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
                 replicationCardId))

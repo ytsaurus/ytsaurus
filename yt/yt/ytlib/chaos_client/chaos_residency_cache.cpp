@@ -172,7 +172,7 @@ TChaosResidencyCacheBase::TChaosResidencyCacheBase(
     TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker())
+    : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker())
     , Connection_(connection)
     , Logger(logger)
 { }

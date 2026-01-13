@@ -36,7 +36,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NNative::IConnectionPtr connection,
         TLogger logger)
-        : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
+        : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
         , Client_(Connection_->CreateNativeClient(NNative::TClientOptions::Root()))

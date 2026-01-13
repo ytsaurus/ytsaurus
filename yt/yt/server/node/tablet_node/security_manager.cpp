@@ -82,7 +82,7 @@ public:
         NCellarNode::IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
-            NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TabletNodeLogger().WithTag("Cache: ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
