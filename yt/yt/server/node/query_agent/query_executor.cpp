@@ -556,13 +556,16 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
         MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+        auto sdk = NWebAssembly::TModuleBytecode{NWebAssembly::EBytecodeFormat::Binary};
 
         FetchFunctionImplementationsFromCypress(
             functionGenerators,
             aggregateGenerators,
             ExternalCGInfo_,
             FunctionImplCache_,
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            &sdk,
+            QueryOptions_.ExecutionBackend);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 
@@ -668,6 +671,7 @@ private:
                         joinProfilers,
                         functionGenerators,
                         aggregateGenerators,
+                        sdk,
                         MemoryChunkProvider_,
                         QueryOptions_,
                         RequestFeatureFlags_,
@@ -715,6 +719,7 @@ private:
                     /*joinProfilers*/ {},
                     functionGenerators,
                     aggregateGenerators,
+                    sdk,
                     MemoryChunkProvider_,
                     QueryOptions_,
                     RequestFeatureFlags_,

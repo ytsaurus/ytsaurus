@@ -1085,7 +1085,8 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        parsedSource->AstHead);
+        parsedSource->AstHead,
+        EExecutionBackend::Native);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);
@@ -1211,6 +1212,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
             DefaultExpressionBuilderVersion,
             /*memoryTracker*/ nullptr,
             /*syntaxVersion*/ 2,
@@ -1252,6 +1254,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
             DefaultExpressionBuilderVersion,
             /*memoryTracker*/ nullptr,
             /*syntaxVersion*/ 2,

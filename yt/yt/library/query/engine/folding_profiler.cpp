@@ -12,6 +12,8 @@
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
+#include <yt/yt/core/crypto/crypto.h>
+
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NQueryClient {
@@ -541,7 +543,8 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
+        NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
+        const NWebAssembly::TModuleBytecode* const sdk)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
@@ -550,6 +553,7 @@ public:
         , UseCanonicalNullRelations_(useCanonicalNullRelations)
         , ExecutionBackend_(executionBackend)
         , UsedWebAssemblyFiles_(usedWebAssemblyFiles)
+        , Sdk_(sdk)
     {
         YT_VERIFY(Variables_);
     }
@@ -674,7 +678,8 @@ protected:
     const TComparerManagerPtr ComparerManager_;
     const bool UseCanonicalNullRelations_;
     const EExecutionBackend ExecutionBackend_;
-    TUsedWebAssemblyFiles* const UsedWebAssemblyFiles_;
+    NWebAssembly::TModuleBytecodeHashSet* const UsedWebAssemblyFiles_;
+    const NWebAssembly::TModuleBytecode* const Sdk_;
 };
 
 size_t* TryGetSubexpressionRef(
@@ -812,7 +817,7 @@ size_t TExpressionProfiler::Profile(
         function->IsNullable(nullableArgs));
 
     if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-        if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+        if (auto bytecode = function->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
             UsedWebAssemblyFiles_->emplace(bytecode);
         }
     }
@@ -1428,7 +1433,7 @@ size_t TExpressionProfiler::Profile(
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
                     UsedWebAssemblyFiles_->emplace(bytecode);
                 }
             }
@@ -1573,8 +1578,9 @@ public:
         EOptimizationLevel optimizationLevel,
         bool allowUnorderedGroupByWithLimit,
         i64 maxJoinBatchSize,
-        TUsedWebAssemblyFiles* const usedWebAssemblyFiles)
-        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles)
+        NWebAssembly::TModuleBytecodeHashSet* const usedWebAssemblyFiles,
+        const NWebAssembly::TModuleBytecode* const sdk)
+        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend, usedWebAssemblyFiles, sdk)
         , MaxJoinBatchSize_(maxJoinBatchSize)
         , OptimizationLevel_(optimizationLevel)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
@@ -1969,7 +1975,7 @@ void TQueryProfiler::Profile(
                 Id_));
 
             if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
-                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Empty()) {
+                if (auto bytecode = aggregate->GetWebAssemblyBytecodeFile(); !bytecode.Data.Empty()) {
                     UsedWebAssemblyFiles_->emplace(bytecode);
                 }
             }
@@ -2612,11 +2618,12 @@ TCGExpressionGenerator Profile(
     TCGVariables* variables,
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
-    const TConstFunctionProfilerMapPtr& functionProfilers)
+    const TConstFunctionProfilerMapPtr& functionProfilers,
+    const NWebAssembly::TModuleBytecode& sdk)
 {
     TConstAggregateProfilerMapPtr aggregateProfilers;
 
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
     auto profiler = TExpressionProfiler(
         id,
@@ -2625,7 +2632,8 @@ TCGExpressionGenerator Profile(
         aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend,
-        usedWebAssemblyFiles.get());
+        usedWebAssemblyFiles.get(),
+        &sdk);
 
     auto fragments = TExpressionFragments();
     auto exprId = profiler.Profile(expr, schema, &fragments);
@@ -2635,7 +2643,7 @@ TCGExpressionGenerator Profile(
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
         ] {
-            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend, *usedWebAssemblyFiles);
+            return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend, sdk, *usedWebAssemblyFiles);
         };
 }
 
@@ -2649,10 +2657,11 @@ TCGQueryGenerator Profile(
     EOptimizationLevel optimizationLevel,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
+    const NWebAssembly::TModuleBytecode& sdk,
     bool allowUnorderedGroupByWithLimit,
     i64 maxJoinBatchSize)
 {
-    auto usedWebAssemblyFiles = New<TUsedWebAssemblyFiles>();
+    auto usedWebAssemblyFiles = New<NWebAssembly::TModuleBytecodeHashSet>();
 
     auto profiler = TQueryProfiler(
         id,
@@ -2664,7 +2673,8 @@ TCGQueryGenerator Profile(
         optimizationLevel,
         allowUnorderedGroupByWithLimit,
         maxJoinBatchSize,
-        usedWebAssemblyFiles.get());
+        usedWebAssemblyFiles.get(),
+        &sdk);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
@@ -2681,7 +2691,7 @@ TCGQueryGenerator Profile(
             =,
             codegenSource = std::move(codegenSource)
         ] {
-            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, *usedWebAssemblyFiles);
+            return CodegenQuery(&codegenSource, slotCount, executionBackend, optimizationLevel, sdk, *usedWebAssemblyFiles);
         };
 }
 

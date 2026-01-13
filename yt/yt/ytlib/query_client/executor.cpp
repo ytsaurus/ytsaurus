@@ -588,6 +588,7 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
         MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+        auto sdk = NWebAssembly::TModuleBytecode{NWebAssembly::EBytecodeFormat::Binary};
 
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = options.WorkloadDescriptor,
@@ -599,7 +600,9 @@ private:
             aggregateGenerators,
             externalCGInfo,
             FunctionImplCache_,
-            chunkReadOptions);
+            chunkReadOptions,
+            &sdk,
+            options.ExecutionBackend);
 
         auto executePlanCallback = GetExecutePlanCallback(
             externalCGInfo,
@@ -629,6 +632,7 @@ private:
             std::move(joinProfilers),
             functionGenerators,
             aggregateGenerators,
+            sdk,
             MemoryChunkProvider_,
             options,
             requestFeatureFlags,
@@ -656,10 +660,11 @@ private:
         auto aggregateGenerators = New<TAggregateProfilerMap>();
         MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
         MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+        auto sdk = NWebAssembly::TModuleBytecode{NWebAssembly::EBytecodeFormat::Binary};
 
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = options.WorkloadDescriptor,
-            .ReadSessionId = options.ReadSessionId
+            .ReadSessionId = options.ReadSessionId,
         };
 
         FetchFunctionImplementationsFromCypress(
@@ -667,7 +672,9 @@ private:
             aggregateGenerators,
             externalCGInfo,
             FunctionImplCache_,
-            chunkReadOptions);
+            chunkReadOptions,
+            &sdk,
+            options.ExecutionBackend);
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 
@@ -721,6 +728,7 @@ private:
                     /*joinProfilers*/ {},
                     functionGenerators,
                     aggregateGenerators,
+                    sdk,
                     MemoryChunkProvider_,
                     options,
                     requestFeatureFlags,
@@ -774,6 +782,7 @@ private:
             req->mutable_query()->set_output_row_limit(options.OutputRowLimit);
             ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
             externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
+            ToProto(req->mutable_sdk(), externalCGInfo->Sdk);
             ToProto(req->mutable_options(), options);
 
             std::vector<NTableClient::TLogicalTypePtr> schema;

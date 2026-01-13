@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
+#include <yt/yt/library/web_assembly/engine/builtins.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
@@ -155,6 +157,7 @@ TQueryStatistics DoExecuteQuery(
         joinProfilers,
         functionProfilers,
         aggregateProfilers,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         options,
         MostFreshFeatureFlags(),
@@ -780,6 +783,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
             /*joinProfilers*/ {},
             FunctionProfilers_,
             AggregateProfilers_,
+            NWebAssembly::GetBuiltinSdk(),
             GetDefaultMemoryChunkProvider(),
             TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
             MostFreshFeatureFlags(),
@@ -803,6 +807,7 @@ TQueryStatistics TQueryEvaluateTest::EvaluateCoordinatedGroupByImpl(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -873,6 +878,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -920,6 +926,7 @@ TSchemafulPipePtr TQueryEvaluateTest::RunOnNode(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),
@@ -964,6 +971,7 @@ TSharedRange<TUnversionedRow> TQueryEvaluateTest::RunOnCoordinator(
         /*joinProfilers*/ {},
         FunctionProfilers_,
         AggregateProfilers_,
+        NWebAssembly::GetBuiltinSdk(),
         GetDefaultMemoryChunkProvider(),
         TQueryOptions{{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true}},
         MostFreshFeatureFlags(),

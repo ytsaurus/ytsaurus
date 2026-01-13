@@ -54,6 +54,7 @@ public:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
@@ -86,6 +87,8 @@ public:
             YT_LOG_DEBUG("Finalizing evaluation");
         });
 
+        // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
+
         try {
             TCGVariables fragmentParams;
             auto queryInstance = Codegen(
@@ -94,6 +97,7 @@ public:
                 joinProfilers,
                 functionProfilers,
                 aggregateProfilers,
+                sdk,
                 statistics,
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
@@ -160,6 +164,7 @@ private:
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
         TExecutionStatistics& statistics,
         bool enableCodeCache,
         bool useCanonicalNullRelations,
@@ -180,6 +185,7 @@ private:
             optimizationLevel,
             functionProfilers,
             aggregateProfilers,
+            sdk,
             allowUnorderedGroupByWithLimit,
             maxJoinBatchSize);
 

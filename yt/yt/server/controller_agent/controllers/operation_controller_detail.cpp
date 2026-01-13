@@ -181,6 +181,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NEventLog;
@@ -7849,7 +7850,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
     // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<std::string> externalNames;
@@ -7867,18 +7868,18 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
                 << TErrorAttribute("external_names", externalNames);
         }
 
-        std::vector<std::pair<TYPath, std::string>> keys;
+        auto keys = std::vector<TExternalFunction>();
         keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
-            keys.emplace_back(*Config_->UdfRegistryPath, name);
+            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk=*/ false, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host_->GetClient());
 
-        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors, EExecutionBackend::Native);
     };
 
-    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
         for (const auto& name : names) {
             if (!typeInferrers->contains(name)) {

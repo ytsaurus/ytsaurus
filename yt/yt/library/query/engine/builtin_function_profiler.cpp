@@ -20,6 +20,8 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> GetUdfBytecode(TStringBuf name)
@@ -116,7 +118,7 @@ public:
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -281,7 +283,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -344,7 +346,7 @@ public:
         return nullableArgs[1];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -398,7 +400,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -460,7 +462,7 @@ private:
             });
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -739,10 +741,10 @@ public:
         return nullableArgs[0];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
-        // We rely on the fact that all the necessary casting routines are builtins.
-        return GetUdfBytecode("to_any")[NCodegen::EExecutionBackend::WebAssembly];
+        // We rely on the fact that all the necessary casting routines (in this case, "to_any") are builtins.
+        return GetBuiltinYtQlUdfs();
     }
 
 private:
@@ -1066,7 +1068,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -1319,7 +1321,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }

@@ -4,6 +4,11 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateImageFromSdk(const TModuleBytecode& /*bytecode*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage()
 {
     YT_UNIMPLEMENTED();
