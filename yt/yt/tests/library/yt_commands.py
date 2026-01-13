@@ -1950,12 +1950,13 @@ def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
 
 
-def build_snapshot(*args, **kwargs):
-    return get_driver().build_snapshot(*args, **kwargs)
+def build_snapshot(cell_id, **kwargs):
+    kwargs["cell_id"] = cell_id
+    return execute_command("build_snapshot", kwargs, parse_yson=True)
 
 
 def build_master_snapshots(*args, **kwargs):
-    return get_driver().build_master_snapshots(*args, **kwargs)
+    return execute_command("build_master_snapshots", kwargs)
 
 
 def exit_read_only(cell_id, **kwargs):

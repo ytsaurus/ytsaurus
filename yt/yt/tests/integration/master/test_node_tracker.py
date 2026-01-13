@@ -412,7 +412,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
                     remove("//sys/cluster_nodes/" + node)
                     wait(lambda: not exists("#" + id))
 
-            build_snapshot(cell_id=None)
+            build_snapshot(cell_id=get("//sys/@cell_id"))
 
             with Restarter(self.Env, MASTERS_SERVICE):
                 pass

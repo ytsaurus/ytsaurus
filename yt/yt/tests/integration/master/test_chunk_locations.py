@@ -287,7 +287,7 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
 
             wait(lambda: self._get_locations_being_disposed_count() == node_count)
 
-            build_snapshot(cell_id=None)
+            build_snapshot(cell_id=get("//sys/@cell_id"))
 
             with Restarter(self.Env, MASTERS_SERVICE):
                 pass

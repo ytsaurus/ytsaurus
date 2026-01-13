@@ -1648,7 +1648,7 @@ class TestCypressAcls(CheckPermissionBase):
         gc_collect()
 
         # Must not crash.
-        build_snapshot(cell_id=None, set_read_only=False)
+        build_snapshot(cell_id=get("//sys/@cell_id"), set_read_only=False)
         get("//sys/users/u1/@")
 
     @authors("shakurov", "danilalexeev")
@@ -2721,7 +2721,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         wait(lambda: not exists("#" + portal_exit_id))
 
         # Must not crash.
-        build_snapshot(cell_id=None, set_read_only=False)
+        build_snapshot(cell_id=get("//sys/@cell_id"), set_read_only=False)
         get("//sys/users/u1/@")
 
 
