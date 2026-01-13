@@ -36,9 +36,6 @@ public:
 
     virtual i64 GetMemoryUsage() const;
 
-    // Free space if there is prepared meta.
-    void ClearColumnMeta();
-
 private:
     i64 BlockLastKeysSize_;
 };
