@@ -30,11 +30,10 @@ public:
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    THashMap<std::string, TMediumDescriptorPtr> NameToDescriptor_;
     // TODO(cherepashka, achulkov2): Once masters start providing medium ids, we should switch to using medium ids as keys.
-    // This will be implemented in hand with supporting offshore media without medium indexes.
-    using TDescriptorStorage = THashMap<int, TMediumDescriptorPtr>;
-    TDescriptorStorage IndexToDescriptor_;
-    THashMap<TString, TDescriptorStorage::const_iterator> NameToDescriptor_;
+    // This will be implemented in hand with supporting offshore media without medium indices.
+    THashMap<int, TMediumDescriptorPtr> IndexToDescriptor_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectory)
