@@ -2277,7 +2277,7 @@ private:
                     auto prerequisiteType = TypeFromId(prerequisiteId);
                     if (!IsChaosLeaseType(prerequisiteType)) {
                         THROW_ERROR_EXCEPTION(
-                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids.")
+                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids")
                             << TErrorAttribute("prerequisite_id", prerequisiteId)
                             << TErrorAttribute("prerequisite_type", prerequisiteType)
                             << TErrorAttribute("table_path", path);
@@ -2291,7 +2291,7 @@ private:
                 CommitOptions_.Force2PC = true;
                 if (!CommitOptions_.CoordinatorCellId) {
                     CommitOptions_.CoordinatorCellId = coordinatorCellId;
-                    YT_LOG_DEBUG("2PC Coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
+                    YT_LOG_DEBUG("2PC coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
                 }
 
                 YT_LOG_DEBUG("Coordinator selected (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",
