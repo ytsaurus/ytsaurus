@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/client/api/rpc_proxy/address_helpers.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -46,6 +48,8 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NOffshoreDataGateway {
 
 using namespace NAdmin;
@@ -58,6 +62,8 @@ using namespace NYson;
 using namespace NFusion;
 using namespace NNodeTrackerClient;
 using namespace NOrchid;
+using namespace NProfiling;
+using namespace NAlertManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +154,7 @@ private:
             ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
             Logger());
 
+        NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
@@ -165,6 +172,8 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+
+        AlertManager_ = CreateAlertManager(OffshoreDataGatewayLogger(), TProfiler{}, ControlInvoker_);
 
         DynamicConfigManager_->Start();
 

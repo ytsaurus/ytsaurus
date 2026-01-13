@@ -186,6 +186,14 @@ protected:
         WaitFor(S3Client_->PutBucket({
             .Bucket = RootBucket_,
         })).ThrowOnError();
+
+        WaitUntil(
+            [&] {
+                auto value = WaitFor(Client_->GetNode("//sys/offshore_data_gateways/instances/@count"))
+                    .ValueOrDefault(ConvertToYsonString(0));
+                return ConvertTo<i64>(value) >= 1;
+            },
+            "Offshore data gateway(s) have not launched");
     }
 
     void TearDown() override
@@ -233,7 +241,7 @@ TEST_F(TS3DataTest, TestReplicationReader)
 {
     IChunkWriter::TWriteBlocksOptions writeOptions;
     TWorkloadDescriptor workloadDescriptor;
-    S3ChunkWriter_->Open()
+    WaitFor(S3ChunkWriter_->Open()
         .Apply(BIND([&] {
             EXPECT_TRUE(S3ChunkWriter_->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks_));
             return S3ChunkWriter_->GetReadyEvent();
@@ -244,128 +252,13 @@ TEST_F(TS3DataTest, TestReplicationReader)
             deferredMeta->set_format(0);
             *deferredMeta->mutable_extensions() = {};
             return S3ChunkWriter_->Close({}, {}, deferredMeta);
-        }))
-        .Wait(TDuration::Seconds(120));
+        })))
+        .ThrowOnError();
 
     IChunkReader::TReadBlocksOptions readOptions;
     auto readBlocks = WaitFor(ReplicationReader_->ReadBlocks(readOptions, {1}))
         .ValueOrThrow();
 }
-
-// TEST_F(TAlterTableTest, TestUnknownType)
-// {
-//     auto createRes = Client_->CreateNode("//tmp/t1", EObjectType::Table);
-//     WaitFor(createRes)
-//         .ThrowOnError();
-
-//     {
-//         // Type not set.
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "required fileds are not set");
-//     }
-
-//     {
-//         // Type is bad.
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Min));
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "has no corresponding logical type");
-//     }
-
-//     {
-//         // Type is unknown.
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(-1);
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "Error casting");
-//     }
-
-//     {
-//         // Simple type is unknown.
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Any));
-//         column->set_simple_logical_type(-1);
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "Error casting");
-//     }
-
-//     {
-//         // Mismatch of type and simple logical type.
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Any));
-//         column->set_simple_logical_type(ToProto(ESimpleLogicalValueType::Int64));
-
-//         EXPECT_NO_THROW(AlterTable("//tmp/t1", schema));
-//     }
-
-//     {
-//         // Unknown simple type in type_v3
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Int64));
-//         column->mutable_logical_type()->set_simple(-1);
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "Error casting");
-//     }
-
-//     {
-//         // Unset type in type_v3
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Int64));
-//         column->mutable_logical_type();
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "Cannot parse unknown logical type from proto");
-//     }
-
-//     {
-//         // Unknown type in type_v3
-//         NTableClient::NProto::TTableSchemaExt schema;
-//         auto* column = schema.add_columns();
-//         column->set_name("foo");
-//         column->set_stable_name("foo");
-//         column->set_type(ToProto(EValueType::Int64));
-//         column->mutable_logical_type();
-//         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
-//         unknownFields->AddVarint(100500, 0);
-
-//         EXPECT_THROW_WITH_SUBSTRING(
-//             AlterTable("//tmp/t1", schema),
-//             "Cannot parse unknown logical type from proto");
-//     }
-// }
 
 ////////////////////////////////////////////////////////////////////////////////
 
