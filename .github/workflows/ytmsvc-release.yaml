@@ -72,6 +72,7 @@ jobs:
   stop-vm:
     name: Stop VM
     needs:
+      - start-vm
       - release
     runs-on: ubuntu-latest
     if: ${{ always() }}
