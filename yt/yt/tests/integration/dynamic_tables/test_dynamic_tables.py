@@ -3551,6 +3551,31 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_mount_table("//tmp/t")
 
+    @authors("atalmenev")
+    def test_table_values_size_validation(self):
+        sync_create_cells(1)
+        MB = 1024 * 1024
+
+        self._create_sorted_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": 1, "value": "A" * (17 * MB)}]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"max_row_weight": 20 * MB}
+        )
+
+        alter_table("//tmp/t", dynamic=True)
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        with raises_yt_error("too large row or value size"):
+            sync_mount_table("//tmp/t")
+
     @authors("dave11ar")
     def test_errors_expiration(self):
         sync_create_cells(1)
