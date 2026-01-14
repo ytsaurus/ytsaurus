@@ -96,6 +96,7 @@ private:
     const IThrottlingChannelPtr ThrottlingUpstreamChannel_;
     const NLogging::TLogger Logger;
 
+    // TODO(h0pless): this seems to be doing nothing. Fix it.
     const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     std::atomic<double> CacheTtlRatio_;
