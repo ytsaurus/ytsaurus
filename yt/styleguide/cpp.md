@@ -90,7 +90,7 @@ private:
 
 ### Variables and Enums
 
-Global variables, consts and enum values are always in PascalCase.
+Global variables, consts and enum values as well as static consts and variables are always in PascalCase.
 
 ```cpp
 constexpr i64 MaxValueSize = 128_KB;
@@ -102,6 +102,11 @@ DEFINE_ENUM(ENodeFactoryState,
     (Committed)
     (RolledBack)
 );
+
+void DoSomething()
+{
+    static const auto VariableName = DoSomethingElse();
+}
 ```
 
 Local variables and parameters are always in camelCase.
