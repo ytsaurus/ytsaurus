@@ -32,6 +32,7 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::AllOf;
 
+using namespace NCodegen;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NYPath;
@@ -75,7 +76,10 @@ public:
 
     MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (const TYPath&), (override));
 
-    void FetchFunctions(TRange<std::string>, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(
+        TRange<std::string>,
+        const TTypeInferrerMapPtr& typeInferrers,
+        EExecutionBackend /*executionBackend*/) override
     {
         MergeFrom(typeInferrers.Get(), *TypeInferrers_);
     }

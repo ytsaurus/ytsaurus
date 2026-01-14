@@ -17,5 +17,10 @@ message TExternalFunctionImpl
     optional bool use_function_context = 9 [default = false];
 };
 
+message TExternalSdkImpl
+{
+    repeated NChunkClient.NProto.TChunkSpec chunk_specs = 1;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 

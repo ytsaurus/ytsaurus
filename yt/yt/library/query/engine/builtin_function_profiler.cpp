@@ -20,10 +20,11 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NWebAssembly;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(dtorilov): Rename.
-TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> UDF_BC(TStringBuf name)
+TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> GetUdfBytecode(TStringBuf name)
 {
     static auto WebAssemblyBytecode =
         ::NResource::Has("libwasm-udfs-builtin-ytql-udfs.so")
@@ -117,7 +118,7 @@ public:
         return nullableArgs[0] || nullableArgs[1] || nullableArgs[2];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -282,7 +283,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -345,7 +346,7 @@ public:
         return nullableArgs[1];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -399,7 +400,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -461,7 +462,7 @@ private:
             });
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -740,10 +741,10 @@ public:
         return nullableArgs[0];
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
-        // We rely on the fact that all the necessary casting routines are builtins.
-        return UDF_BC("to_any")[NCodegen::EExecutionBackend::WebAssembly];
+        // We rely on the fact that all the necessary casting routines (in this case, "to_any") are builtins.
+        return GetBuiltinYtQlUdfs();
     }
 
 private:
@@ -1067,7 +1068,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -1320,7 +1321,7 @@ public:
         return false;
     }
 
-    TSharedRef GetWebAssemblyBytecodeFile() const override
+    TModuleBytecode GetWebAssemblyBytecodeFile() const override
     {
         return {};
     }
@@ -1579,7 +1580,7 @@ public:
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 symbolName,
-                UDF_BC(implementationFile),
+                GetUdfBytecode(implementationFile),
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 useFunctionContext));
@@ -1597,7 +1598,7 @@ public:
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                UDF_BC(implementationFile),
+                GetUdfBytecode(implementationFile),
                 GetCallingConvention(callingConvention),
                 TSharedRef(),
                 false));
@@ -1616,7 +1617,7 @@ public:
             FunctionProfilers_->emplace(functionName, New<TExternalFunctionCodegen>(
                 functionName,
                 functionName,
-                UDF_BC(implementationFile),
+                GetUdfBytecode(implementationFile),
                 GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType),
                 TSharedRef(),
                 false));
@@ -1635,7 +1636,7 @@ public:
     {
         if (AggregateProfilers_) {
             AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
-                aggregateName, UDF_BC(implementationFile), callingConvention, isFirst, TSharedRef()));
+                aggregateName, GetUdfBytecode(implementationFile), callingConvention, isFirst, TSharedRef()));
         }
     }
 
@@ -1689,7 +1690,7 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     result->emplace("is_prefix", New<TExternalFunctionCodegen>(
         "is_prefix",
         "is_prefix",
-        UDF_BC("is_prefix"),
+        GetUdfBytecode("is_prefix"),
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 
@@ -1734,7 +1735,7 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
 
     result->emplace("array_agg", New<TExternalAggregateCodegen>(
         "array_agg",
-        UDF_BC("array_agg"),
+        GetUdfBytecode("array_agg"),
         ECallingConvention::UnversionedValue,
         false,
         TSharedRef()));

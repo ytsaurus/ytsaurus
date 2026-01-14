@@ -80,6 +80,7 @@ void RunQuery(
         /*joinProfilers*/ {},
         functionGenerators,
         aggregateGenerators,
+        /*sdk*/ {},
         GetDefaultMemoryChunkProvider(),
         TQueryOptions(),
         MostFreshFeatureFlags(),
