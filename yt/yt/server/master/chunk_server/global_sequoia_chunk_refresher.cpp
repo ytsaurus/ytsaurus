@@ -278,7 +278,9 @@ private:
 
         if (lastProcessedChunkId != NullObjectId) {
             query.WhereConjuncts = {
-                Format("(chunk_id_hash, chunk_id) > (farm_hash(%Qv), %Qv)", lastProcessedChunkId, lastProcessedChunkId)
+                Format("(chunk_id_hash, chunk_id) > (%v, %Qv)",
+                    GetObjectIdFingerprint(lastProcessedChunkId),
+                    lastProcessedChunkId)
             };
         }
 
