@@ -32,5 +32,6 @@ IF (NOT OPENSOURCE)
         yt_logs
         ytcfgen
         ytdyncfgen
+        experiments
     )
 ENDIF()
