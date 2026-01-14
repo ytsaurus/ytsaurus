@@ -320,20 +320,14 @@ public:
 
     void OnEntity() override;
 
-    void OnBeginList() override
-    {
-        Forward_->OnBeginList();
-    }
+    void OnBeginList() override;
 
     void OnListItem() override
     {
         Forward_->OnListItem();
     }
 
-    void OnEndList() override
-    {
-        Forward_->OnEndList();
-    }
+    void OnEndList() override;
 
     void OnBeginMap() override;
 
@@ -520,6 +514,18 @@ private:
         LastKey_ = key;
     }
 
+    void OnBeginList()
+    {
+        UsedKeysForDepth_.emplace_back();
+        CurrentPathSegments_.emplace_back(LastKey_);
+    }
+
+    void OnEndList()
+    {
+        UsedKeysForDepth_.pop_back();
+        CurrentPathSegments_.pop_back();
+    }
+
     void OnBeginMap()
     {
         UsedKeysForDepth_.emplace_back();
@@ -590,6 +596,17 @@ void TRecursiveAttributeMergeConsumer::OnEndMap()
     Forward_->OnEndMap();
 }
 
+void TRecursiveAttributeMergeConsumer::OnBeginList()
+{
+    Forward_->OnBeginList();
+    Merger_.OnBeginList();
+}
+
+void TRecursiveAttributeMergeConsumer::OnEndList()
+{
+    Forward_->OnEndList();
+    Merger_.OnEndList();
+}
 
 TYsonString MergeAttributeValuesWithPrefixes(
     std::vector<TAttributeValue> attributeValues,
