@@ -731,7 +731,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("fomasha")
     @pytest.mark.parametrize("mode", ["async", "sync"])
-    def test_per_cluster_tablet_replication_sync_replicas_count_orchid(self, mode):
+    def test_per_cluster_tablet_replication_sync_replica_count_orchid(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": True})
 
@@ -752,13 +752,16 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", driver=self.replica_driver)
+
         timestamp = generate_timestamp()
         wait(lambda: are_items_equal(
             get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
             [replica_id1, replica_id2]))
 
         if mode == "sync":
-            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME), sleep_backoff=0.5)
 
         set(
             "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",
