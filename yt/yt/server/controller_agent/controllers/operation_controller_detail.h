@@ -361,7 +361,7 @@ public:
     NChunkClient::TChunkListId ExtractOutputChunkList(NObjectClient::TCellTag cellTag) override;
     NChunkClient::TChunkListId ExtractDebugChunkList(NObjectClient::TCellTag cellTag) override;
     void ReleaseChunkTrees(
-        const std::vector<NChunkClient::TChunkListId>& chunkListIds,
+        const std::vector<NChunkClient::TChunkListId>& chunkTreeIds,
         bool unstageRecursively,
         bool waitForSnapshot) override;
     void ReleaseIntermediateStripeList(const NChunkPools::TChunkStripeListPtr& stripeList) override;

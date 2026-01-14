@@ -19,7 +19,6 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -402,7 +401,7 @@ void TTask::AdjustOutputKeyBounds(const TLegacyDataSlicePtr& dataSlice) const
 
 void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
-    for (auto stripe : stripes) {
+    for (const auto& stripe : stripes) {
         if (stripe) {
             AddInput(stripe);
         }
@@ -447,7 +446,7 @@ void TTask::DoRegisterInGraph()
 
 void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
 {
-    SetInputVertex(inputVertex);
+    SetInputVertex(std::move(inputVertex));
 
     RegisterInGraph();
 }
@@ -664,7 +663,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
 {
     auto Logger = this->Logger.WithTag("AllocationId: %v", context.GetAllocationId());
     if (auto failReason = GetScheduleFailReason(context)) {
-        return *failReason;
+        return failReason;
     }
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
@@ -782,13 +781,13 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
             if (state.UserJobStatus != EResourceOverdraftStatus::None) {
                 joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
             } else {
-                joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+                joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
             }
         }
     } else {
         joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
         if (HasUserJob()) {
-            joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+            joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
         }
     }
 
@@ -1016,15 +1015,15 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment", "distributed"};
-    YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
+    static const std::vector<TString> JobManagerNames = {"speculative", "probing", "experiment", "distributed"};
+    YT_VERIFY(JobManagerNames.size() == JobManagers_.size());
 
     fluent
         .Item("task_name").Value(GetVertexDescriptor())
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
-        .DoFor(Zip(JobManagers_, jobManagerNames), [] (auto fluent, auto jobManager) {
+        .DoFor(Zip(JobManagers_, JobManagerNames), [] (auto fluent, auto jobManager) {
             fluent.Item(std::get<1>(jobManager) + "_job_counter").Value(std::get<0>(jobManager)->GetProgressCounter());
         })
         .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
@@ -1426,7 +1425,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 }
 
 void TTask::OnOperationRevived() {
-    for (auto jobManager : JobManagers_) {
+    for (auto* jobManager : JobManagers_) {
         jobManager->OnOperationRevived();
     }
 }
@@ -1911,7 +1910,7 @@ std::optional<TDuration> TTask::InferWaitingForResourcesTimeout(
         return std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout()));
     }
     if (TaskHost_->GetSpec()->WaitingJobTimeout) {
-        return *TaskHost_->GetSpec()->WaitingJobTimeout;
+        return TaskHost_->GetSpec()->WaitingJobTimeout;
     }
     if (allocationSpec.waiting_for_resources_on_node_timeout()) {
         return FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout());
@@ -2044,14 +2043,14 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
 
         auto maxUsedTmpfsSize = FindNumericValue(
             statistics,
-            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); //COMPAT
+            SlashedStatisticPath(Format("/user_job/tmpfs_volumes/%v/max_size", tmpfsDiskRequest->TmpfsIndex)).ValueOrThrow()); // COMPAT
         if (!maxUsedTmpfsSize) {
             continue;
         }
 
         auto& maxTmpfsSize = MaximumUsedTmpfsSizes_[name];
         if (!maxTmpfsSize || *maxTmpfsSize < *maxUsedTmpfsSize) {
-            maxTmpfsSize = *maxUsedTmpfsSize;
+            maxTmpfsSize = maxUsedTmpfsSize;
         }
     }
 }
@@ -2475,7 +2474,7 @@ std::vector<std::string> TTask::FindAndBanSlowTentativeTrees()
 
 void TTask::LogTentativeTreeStatistics() const
 {
-    return TentativeTreeEligibility_.LogTentativeTreeStatistics();
+    TentativeTreeEligibility_.LogTentativeTreeStatistics();
 }
 
 void TTask::AsyncAbortJob(TJobId jobId, EAbortReason reason)
