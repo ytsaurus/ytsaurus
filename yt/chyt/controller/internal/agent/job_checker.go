@@ -118,7 +118,6 @@ func (c *jobChecker) start(ctx context.Context, cfg *JobCheckerConfig) (chan<- [
 				return
 
 			case inputTasks := <-inputCh:
-				c.l.Debug("jobs checker has recieved operations update")
 				c.processRunningOperations(inputTasks)
 
 			case <-ticker.C:
@@ -231,13 +230,7 @@ func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch
 
 			opID := result.opID
 			info := c.opInfos[opID]
-			prevCnt := info.lastFailedJobCounter
 			info.lastFailedJobCounter += result.processedFailedJobCnt
-
-			c.l.Debug("update operation offset for jobs checking",
-				log.Any("op_id", opID),
-				log.Int("prev_offset", prevCnt),
-				log.Int("new_offset", info.lastFailedJobCounter))
 
 			if info.targetFailedJobCounter == nil && result.processedFailedJobCnt == 0 {
 				c.expireCandidates = append(c.expireCandidates, opID)
