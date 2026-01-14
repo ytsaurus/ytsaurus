@@ -31,7 +31,7 @@ struct IReshardIteration
     virtual bool IsPickPivotKeysEnabled() const = 0;
 
     virtual const std::string& GetBundleName() const = 0;
-    virtual const TString& GetGroupName() const = 0;
+    virtual const TGroupName& GetGroupName() const = 0;
     virtual const TTabletCellBundlePtr GetBundle() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
 };
@@ -42,19 +42,19 @@ DEFINE_REFCOUNTED_TYPE(IReshardIteration)
 
 IReshardIterationPtr CreateSizeReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig);
 
 IReshardIterationPtr CreateReplicaReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
-    std::string clusterName);
+    TClusterName clusterName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
