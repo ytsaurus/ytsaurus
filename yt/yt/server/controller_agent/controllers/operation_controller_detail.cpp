@@ -470,7 +470,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function incrementer = [
         this,
         this_ = MakeStrong(this),
-        operationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_add(AllocationPartSize);
@@ -481,7 +480,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function decrementer = [
         this,
         this_ = MakeStrong(this),
-        OperationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_sub(AllocationPartSize);
@@ -2921,7 +2919,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     YT_VERIFY(table->TabletHunkChunkListIds.size() == table->TabletChunkListIds.size());
                     for (const auto& [index, chunkTrees] : SEnumerate(tabletHunkChunks)) {
                         table->OutputHunkChunkListId = table->TabletHunkChunkListIds[index];
-                        for (auto& chunkTree : chunkTrees) {
+                        for (const auto& chunkTree : chunkTrees) {
                             addChunkTree(chunkTree, /*isHunk*/ true);
                         }
                         flushSubrequest(true);
@@ -3754,7 +3752,7 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
     if (allocation.Joblet) {
-        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(eventSummary));
+        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::forward<TAllocationEvent>(eventSummary));
         OnJobAborted(allocation.Joblet, std::move(jobSummary));
     }
 
@@ -3774,7 +3772,7 @@ void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSumma
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    ProcessAllocationEvent(finishedAllocationSummary, "finished");
+    ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
 }
 
 void TOperationControllerBase::OnJobRunning(
@@ -8072,7 +8070,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     continue;
                 }
                 auto mediumName = *diskRequest->MediumName;
-                auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+                const auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
                 if (!mediumDescriptor) {
                     THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
                 }
@@ -8153,7 +8151,7 @@ void TOperationControllerBase::InferInputRanges()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config_->MaxRangesOnTable;
 
-    for (auto& table : InputManager_->GetInputTables()) {
+    for (const auto& table : InputManager_->GetInputTables()) {
         yielder.TryYield();
 
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());

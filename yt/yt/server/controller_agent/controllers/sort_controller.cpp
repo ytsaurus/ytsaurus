@@ -1819,7 +1819,7 @@ protected:
         if (Spec_->PartitionCount.has_value()) {
             return std::nullopt;
         } else if (Spec_->PartitionDataWeightForMerging.has_value()) {
-            return *Spec_->PartitionDataWeightForMerging;
+            return Spec_->PartitionDataWeightForMerging;
         } else {
             return std::min(Options_->DefaultPartitionDataWeightForMerging, Spec_->DataWeightPerShuffleJob);
         }
@@ -2109,12 +2109,12 @@ protected:
 
     void PrepareSortedMergeTask()
     {
-        auto SortedMergeInputStreamDescriptors = BuildInputStreamDescriptorsFromOutputStreamDescriptors(
+        auto sortedMergeInputStreamDescriptors = BuildInputStreamDescriptorsFromOutputStreamDescriptors(
             SimpleSortTask_
             ? SimpleSortTask_->GetOutputStreamDescriptors()
             : IntermediateSortTask_->GetOutputStreamDescriptors());
 
-        SortedMergeTask_->SetInputStreamDescriptors(SortedMergeInputStreamDescriptors);
+        SortedMergeTask_->SetInputStreamDescriptors(sortedMergeInputStreamDescriptors);
         RegisterTask(SortedMergeTask_);
         SortedMergeTask_->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         SortedMergeTask_->RegisterInGraph();
@@ -2581,7 +2581,7 @@ protected:
         int lo = 0;
 
         for (int i = 0; i < bucketCount; ++i) {
-            int hi = static_cast<int>((i + 1) * partitionCount / bucketCount);
+            int hi = (i + 1) * partitionCount / bucketCount;
 
             i64 totalSum = 0;
             i64 runningSum = 0;

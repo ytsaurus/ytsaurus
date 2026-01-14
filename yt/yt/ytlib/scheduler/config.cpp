@@ -51,7 +51,9 @@ extern const TString OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
+namespace {
+
+void ValidateOperationAcl(const TSerializableAccessControlList& acl)
 {
     for (const auto& ace : acl.Entries) {
         if (ace.Action != ESecurityAction::Allow && ace.Action != ESecurityAction::Deny) {
@@ -69,8 +71,6 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
         }
     }
 }
-
-namespace {
 
 void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<std::string>* owners)
 {
@@ -3119,7 +3119,7 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
                 spec->NonPreemptibleResourceUsageThreshold = New<TJobResourcesConfig>();
             }
             if (!spec->NonPreemptibleResourceUsageThreshold->UserSlots) {
-                spec->NonPreemptibleResourceUsageThreshold->UserSlots = *spec->MaxUnpreemptibleRunningAllocationCount;
+                spec->NonPreemptibleResourceUsageThreshold->UserSlots = spec->MaxUnpreemptibleRunningAllocationCount;
             }
         }
     });
