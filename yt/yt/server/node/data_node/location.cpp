@@ -2045,7 +2045,7 @@ void Serialize(const TStoreLocation& location, IYsonConsumer* consumer)
 {
     NYT::NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("locaion_uuid").Value(location.GetUuid())
+            .Item("location_uuid").Value(location.GetUuid())
             .Item("index").Value(location.GetIndex())
             .Item("path").Value(location.GetPath())
             .Item("disk_family").Value(location.GetDiskFamily())
