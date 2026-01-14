@@ -453,10 +453,10 @@ private:
 
     void ProcessAttribute(int attributeIndex)
     {
-        auto attributeIndexCodicil = TErrorCodicils::Guard("attribute_index", [attributeIndex] () -> std::string {
+        auto attributeIndexCodicil = TErrorCodicils::MakeGuard("attribute_index", [attributeIndex] () -> std::string {
             return NYT::ToString(attributeIndex);
         });
-        auto attributePathCodicil = TErrorCodicils::Guard("attribute_path", [attributePath = AttributeValues_[attributeIndex].Path] () -> std::string {
+        auto attributePathCodicil = TErrorCodicils::MakeGuard("attribute_path", [attributePath = AttributeValues_[attributeIndex].Path] () -> std::string {
             return attributePath;
         });
         const auto& attributePath = AttributePaths_[attributeIndex];
