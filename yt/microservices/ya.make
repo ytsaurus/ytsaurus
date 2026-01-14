@@ -10,6 +10,7 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        abcdapter
         error_manager
         excel
         firehose

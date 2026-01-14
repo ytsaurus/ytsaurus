@@ -20,7 +20,6 @@ RECURSE(
 IF (NOT OPENSOURCE)
     # Yandex-specific parts of YT.
     RECURSE(
-        abcdapter
         buildall
         cfg
         docs
