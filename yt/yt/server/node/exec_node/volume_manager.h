@@ -56,6 +56,8 @@ struct IVolume
         const std::string& target) = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
+
+    virtual bool IsCached() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolume)
