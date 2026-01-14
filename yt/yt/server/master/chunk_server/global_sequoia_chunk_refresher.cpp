@@ -173,7 +173,8 @@ private:
 
         YT_LOG_DEBUG("Starting global Sequoia chunk refresh iteration");
 
-        auto logError = [&] (const auto& error, const std::string& textToWrite) {
+        auto chunksOrError = FetchNextChunksBatch(lastProcessedChunkId);
+        if (!chunksOrError.IsOK()) {
             auto guard = Guard(Lock_);
 
             ++UnsuccessfulRefreshIterations_;
@@ -183,15 +184,9 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 logLevel,
-                error,
-                "%v (UnsuccessfulIterations: %v)",
-                textToWrite,
+                chunksOrError,
+                "Failed to fetch chunks for global Sequoia chunk refresh (UnsuccessfulIterations: %v)",
                 UnsuccessfulRefreshIterations_);
-        };
-
-        auto chunksOrError = FetchNextChunksBatch(lastProcessedChunkId);
-        if (!chunksOrError.IsOK()) {
-            logError(chunksOrError, "Failed to fetch chunks for global Sequoia chunk refresh");
             return;
         }
         auto chunks = std::move(chunksOrError).Value();
@@ -244,7 +239,18 @@ private:
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
 
         if (!addToRefreshQueueResult.IsOK()) {
-            logError(addToRefreshQueueResult, "Failed to add chunks to refresh queue during global Sequoia chunk refresh");
+            auto guard = Guard(Lock_);
+
+            ++UnsuccessfulRefreshIterations_;
+            auto logLevel = UnsuccessfulRefreshIterations_ > MaxUnsuccessfulRefreshIterations_ ?
+                NLogging::ELogLevel::Alert :
+                NLogging::ELogLevel::Debug;
+            YT_LOG_EVENT(
+                Logger,
+                logLevel,
+                addToRefreshQueueResult,
+                "Failed to add chunks to refresh queue during global Sequoia chunk refresh (UnsuccessfulIterations: %v)",
+                UnsuccessfulRefreshIterations_);
             return;
         }
 
