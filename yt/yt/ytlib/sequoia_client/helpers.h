@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/misc/property.h>
 
+#include <library/cpp/yt/farmhash/farm_hash.h>
+
 namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +37,8 @@ TString ToStringLiteral(NYPath::TYPathBuf key);
 // TODO(danilalexeev): YT-20675. This method is for the time being until the validation
 // is global across all components.
 NYPath::TYPath ValidateAndMakeYPath(TRawYPath&& path);
+
+TFingerprint GetObjectIdFingerprint(NObjectClient::TObjectId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
