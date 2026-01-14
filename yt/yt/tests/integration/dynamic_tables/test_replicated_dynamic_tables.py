@@ -733,7 +733,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("fomasha")
     @pytest.mark.parametrize("mode", ["async", "sync"])
-    def test_per_cluster_tablet_replication_sync_replicas_count_orchid(self, mode):
+    def test_per_cluster_tablet_replication_sync_replica_count_orchid(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": True})
 
