@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v0.2.3)
+VERSION(v0.2.4)
 
 SRCS(
     logger.go
