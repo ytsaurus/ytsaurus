@@ -176,6 +176,8 @@ private:
                         "User pending for removal has accessed chunk service (User: %v)",
                         user->GetName());
 
+                    queue->SetQueueSizeLimit(10'000);
+
                     const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
                     auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;
                     auto bytesThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestBytesThrottling;
