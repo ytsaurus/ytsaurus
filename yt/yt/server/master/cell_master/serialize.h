@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExplicitAccountSetOnSequoiaNodeCreation)                      (3138))  // danilalexeev
     ((PersistAccountStatisticsGossip)                               (3139))  // theevilbird
     ((RemoveRecalculationMaxReplicasPerFailureDomainFlag)           (3140))  // theevilbird
+    ((IncreaseTabletToCellRatioDefaultToEffectiveInfinity)          (3141))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
