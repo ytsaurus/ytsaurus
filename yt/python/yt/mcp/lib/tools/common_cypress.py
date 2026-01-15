@@ -86,8 +86,8 @@ A tool for common cypress method.
                 ]
             },
             {
-                "name": "sample_table",
-                "description": "A tool for getting sample of table content.",
+                "name": "sample_static_table",
+                "description": "A tool for getting sample of static table content. Table must be \"static\" (\"type\" attribute should be \"static\").",
                 "input": [
                     {"name": "cluster"},
                     {
@@ -98,7 +98,7 @@ A tool for common cypress method.
                     },
                     {
                         "name": "table",
-                        "description": "Path to table. Path should be appended with row selector \"[#0:#1]\" for data sampling (selecting first row)",
+                        "description": "Path to table. Path should be appended with row selector \"[#0:#1]\" for data sampling (selecting first row).",
                     },
                 ]
             },

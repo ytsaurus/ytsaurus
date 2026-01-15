@@ -132,16 +132,17 @@ List of result attributes: account, owner
         else:
             path_filter = None
 
-
-        object_filter = lambda obj: all([  # noqa
-            obj.attributes.get(k) == v for k, v in attributes_to_match.items()
-        ])
-
         if not attributes:
             attributes = []
 
         if attributes_to_match:
             attributes.extend(attributes_to_match.keys())
+
+            object_filter = lambda obj: all([  # noqa
+                obj.attributes.get(k) == v for k, v in attributes_to_match.items()
+            ])
+        else:
+            object_filter = None
 
         attributes.extend([
             "creation_time",
