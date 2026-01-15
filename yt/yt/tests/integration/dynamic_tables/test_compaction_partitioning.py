@@ -1029,9 +1029,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         all_chunk_ids = builtins.set()
 
         def _create_table():
-            nonlocal table_paths
-            nonlocal all_chunk_ids
-
             table = f"//tmp/t{generate_uuid()}"
             table_paths.add(table)
 

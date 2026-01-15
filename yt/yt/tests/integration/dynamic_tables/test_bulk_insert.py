@@ -2639,8 +2639,6 @@ class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtoco
         )
 
         def _create_tx(parent_tx_num, append, chunk_count, commit):
-            nonlocal tx_infos
-
             tx_infos.append((
                 self.TransactionTest(
                     parent_tx=None if parent_tx_num is None else tx_infos[parent_tx_num][0],
