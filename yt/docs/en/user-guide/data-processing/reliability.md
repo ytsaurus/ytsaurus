@@ -31,7 +31,7 @@ The reliability of operations is ensured by Cypress, which safely stores meta in
 
 Note that these transactions have a timeout, which is typically a few hours. If the scheduler remains unavailable for a longer period then the new incarnation will attempt to restart operations from scratch. However, it may not have the necessary input or output tables or files. In this case, the operation aborts with an error.
 
-### Preserving computation progress
+### Preserving computation progress { #revival }
 
 Unlike with real-time cluster components, the execution of a single operation takes a significant amount of time: from minutes to days depending on the size of processed data, the available computational quotas, and the code executed within the jobs. Because of this, the requirements for the availability of the data processing system are rather relaxed: delays of a few minutes, and in most even a few dozens of minutes, are not supposed to affect the SLOs of systems that run their computations on {{product-name}} clusters.
 
