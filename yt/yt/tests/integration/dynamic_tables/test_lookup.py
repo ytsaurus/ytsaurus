@@ -317,8 +317,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         timestamps = []
 
         def _random_write(table, keys):
-            global timestamps
-
             for key in keys:
                 for v in "v1", "v2", "v3":
                     if random.randint(0, 99) < value_probability:

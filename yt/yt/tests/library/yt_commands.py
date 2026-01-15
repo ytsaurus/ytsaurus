@@ -371,8 +371,6 @@ def execute_command(
     parse_yson=None,
     unwrap_v4_result=True,
 ):
-    global _zombie_responses
-
     if "verbose" in parameters:
         verbose = parameters["verbose"]
         del parameters["verbose"]

@@ -7157,7 +7157,6 @@ class TestChaosSmoothMovement(ChaosTestBase):
         rows = []
 
         def _insert_row():
-            nonlocal rows
             row = {"key": len(rows), "value": str(len(rows))}
             rows.append(row)
             insert_rows("//tmp/t", [row])
