@@ -802,7 +802,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31060.
+// Next field 31061.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -963,6 +963,10 @@ extend google.protobuf.FieldOptions
 
     // Allow to use the same counter in difference counting references.
     optional bool is_multiple_referencable = 31058;
+
+    // Saves the attribute value only within the transaction.
+    // Triggers history and watch logs, if they are enabled for field's path.
+    optional bool ephemeral = 31060;
 }
 
 // Next field 32016.
