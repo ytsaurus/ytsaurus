@@ -458,6 +458,12 @@ TPIValue* AllocateJoinKeys(
     return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 }
 
+// Define here to inline.
+size_t GetUnversionedRowByteSize(ui32 valueCount)
+{
+    return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
+}
+
 bool StorePrimaryRow(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
@@ -479,9 +485,11 @@ bool StorePrimaryRow(
             *PtrFromVM(compartment, primaryValues) + columnIndex);
     }
 
-    for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-        auto& item = closure->Items[joinId];
-        auto* key = PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId];
+    auto joinItems = TMutableRange(closure->Items);
+
+    for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+        auto& item = joinItems[joinId];
+        auto* key = PtrFromVM(compartment, keysPtr, joinItems.size())[joinId];
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -497,7 +505,7 @@ bool StorePrimaryRow(
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
                 CapturePIValue(
                     compartment,
-                    &closure->Items[joinId].Context,
+                    &joinItems[joinId].Context,
                     &key[columnIndex]);
             }
 
@@ -506,12 +514,12 @@ bool StorePrimaryRow(
             auto* data = PtrFromVM(compartment, offset, length);
             auto row = TMutableRow::Create(data, item.KeySize);
             auto* rowBeginOffset = PtrToVM(compartment, row.Begin(), row.GetCount());
-            PtrFromVM(compartment, keysPtr, closure->Items.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
+            PtrFromVM(compartment, keysPtr, joinItems.size())[joinId] = std::bit_cast<TPIValue*>(rowBeginOffset);
         }
 
         auto* insertedOffset = std::bit_cast<TSlot*>(*inserted.first + item.KeySize);
         auto** arrayOffset = std::bit_cast<TSlot**>(*PtrFromVM(compartment, primaryValues) + closure->PrimaryRowSize);
-        auto** array = PtrFromVM(compartment, arrayOffset, closure->Items.size());
+        auto** array = PtrFromVM(compartment, arrayOffset, joinItems.size());
         array[joinId] = insertedOffset;
     }
 
@@ -523,8 +531,8 @@ bool StorePrimaryRow(
         }
 
         // Allocate all keys
-        for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
-            auto& item = closure->Items[joinId];
+        for (size_t joinId = 0; joinId < joinItems.size(); ++joinId) {
+            auto& item = joinItems[joinId];
             char* data = AllocateAlignedBytes(
                 &item.Context,
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
@@ -535,7 +543,7 @@ bool StorePrimaryRow(
         }
     }
 
-    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
+    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * joinItems.size();
 
     *PtrFromVM(compartment, primaryValues) = std::bit_cast<TPIValue*>(AllocateAlignedBytes(&closure->Context, primaryRowSize));
 
@@ -961,6 +969,8 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
     auto* compartment = GetCurrentCompartment();
 
     int arrayCount = types.size();
+
+    // TODO(lukyan): Reuse.
     std::vector<TPIValue*> nestedRows;
 
     for (int index = 0; index < arrayCount; ++index) {
