@@ -593,7 +593,6 @@ struct TQueryExpression
 
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
 
-void FormatIdFinal(TStringBuilderBase* builder, TStringBuf id);
 std::string FormatId(TStringBuf id);
 std::string FormatLiteralValue(const TLiteralValue& value);
 std::string FormatReference(const TReference& ref);
@@ -602,6 +601,7 @@ std::string FormatExpression(const TExpressionList& exprs);
 std::string FormatJoin(const TJoin& join);
 std::string FormatArrayJoin(const TArrayJoin& join);
 std::string FormatQuery(const TQuery& query);
+std::string FormatQueryConcise(const TQuery& query);
 std::string InferColumnName(const TExpression& expr);
 std::string InferColumnName(const TColumnReference& ref);
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
