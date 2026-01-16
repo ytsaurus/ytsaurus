@@ -135,6 +135,7 @@ private:
         i64 Offset = 0;
         IChunkReaderPtr Reader;
         IChunkReader::TReadBlocksOptions ReadBlocksOptions;
+        IChunkReader::TGetMetaOptions GetMetaOptions;
         NChunkClient::NProto::TChunkSpec Spec;
 
         mutable TFuture<std::vector<TBlock>> BlocksExtFuture;
@@ -227,7 +228,7 @@ private:
         auto offset = chunk.Offset;
 
         auto future = chunk.Reader->GetMeta(
-            /*options*/ {},
+            chunk.GetMetaOptions,
             /*partitionTags*/ {},
             extensionTags)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
@@ -316,7 +317,8 @@ private:
                         .BlocksExt = std::move(blocksExt),
                     };
                 }));
-        }));
+        })
+        .AsyncVia(Invoker_));
 
         return readFuture.AsUnique().Apply(BIND([
             index = chunk.Index,
@@ -388,7 +390,8 @@ private:
             }
 
             return refs;
-        }));
+        })
+        .AsyncVia(Invoker_));
     }
 
     void InitializeChunkStructs()
@@ -437,6 +440,8 @@ private:
                 /*mediumThrottler*/ GetUnlimitedThrottler());
 
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = NYT::EWorkloadCategory::UserInteractive;
+            chunk.ReadBlocksOptions.SessionInvoker = Invoker_;
+            chunk.GetMetaOptions.SessionInvoker = Invoker_;
 
             YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
                 chunk.Index);

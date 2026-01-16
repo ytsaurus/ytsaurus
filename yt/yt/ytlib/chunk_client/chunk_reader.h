@@ -28,6 +28,7 @@ struct IChunkReader
     {
         TClientChunkReadOptions ClientOptions;
         std::optional<i64> MetaSize;
+        IInvokerPtr SessionInvoker;
     };
 
     //! Asynchronously reads a given set of blocks.
