@@ -11,7 +11,8 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table, remount_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
-    disable_write_sessions_on_node, disable_tablet_cells_on_node, get_singular_chunk_id)
+    disable_write_sessions_on_node, disable_tablet_cells_on_node, get_singular_chunk_id,
+    create_secondary_index)
 
 from yt_type_helpers import make_schema, make_column, make_sorted_column, list_type
 import yt_error_codes
@@ -1091,6 +1092,37 @@ class TestBulkInsert(DynamicTablesBase):
             wait(check)
         finally:
             _set_global_permit(True)
+
+    @authors("sabdenovch")
+    def test_forbid_insert_into_indexed_table(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        create("table", "//tmp/t_output_index", attributes={
+            "schema": [
+                {"name": "value", "type": "string", "sort_order": "ascending"},
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "$empty", "type": "int64"},
+            ],
+            "dynamic": True,
+        })
+        create_secondary_index(
+            "//tmp/t_output",
+            "//tmp/t_output_index",
+            "full_sync",
+            "bijective",
+        )
+        sync_mount_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output_index")
+
+        write_table("//tmp/t_input", [{"key": 1, "value": "1"}])
+
+        with raises_yt_error("is not supported at the moment"):
+            map(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                command="cat",
+            )
 
     @pytest.mark.parametrize("schema_inference_mode", ["from_input", "from_output"])
     def test_inference_mode(self, schema_inference_mode):
