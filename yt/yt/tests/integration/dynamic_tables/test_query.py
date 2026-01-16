@@ -157,8 +157,7 @@ class TestQuery(DynamicTablesBase):
         select_rows(
             "sum(1) from [//tmp/t] join [//tmp/t] J on (b / 10) % 3 * 3 = J.a group by 1",
             response_parameters=response_parameters,
-            enable_statistics=True,
-            statistics_aggregation="depth")
+            enable_statistics=True)
 
         while "inner_statistics" in response_parameters:
             assert len(response_parameters["inner_statistics"]) == 1
