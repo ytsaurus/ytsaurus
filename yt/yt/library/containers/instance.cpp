@@ -313,11 +313,6 @@ public:
         Spec_.RootFS = rootFS;
     }
 
-    void SetBinds(const std::vector<TBind>& binds) override
-    {
-        Spec_.Binds = binds;
-    }
-
     void SetCpuWeight(double cpuWeight) override
     {
         Spec_.CpuWeight = cpuWeight;

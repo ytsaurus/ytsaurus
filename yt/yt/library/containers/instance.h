@@ -104,7 +104,6 @@ struct IInstanceLauncher
     // Null core dump handler implies disabled core dumps.
     virtual void SetCoreDumpHandler(const std::optional<std::string>& handler) = 0;
     virtual void SetRoot(const TRootFS& rootFS) = 0;
-    virtual void SetBinds(const std::vector<TBind>& binds) = 0;
 
     virtual void SetCpuWeight(double cpuWeight) = 0;
     virtual void SetThreadLimit(i64 threadLimit) = 0;
