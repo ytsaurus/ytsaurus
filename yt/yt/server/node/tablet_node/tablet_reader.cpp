@@ -927,6 +927,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         /*mergeRowsOnFlush*/ false,
         /*useTtlColumn*/ true,
         /*mergeDeletionsOnFlush*/ false,
+        mountConfig->NestedRowDiscardPolicy,
         std::move(rowMergerMemoryTracker));
 
     std::vector<TLegacyOwningKey> boundaries;
