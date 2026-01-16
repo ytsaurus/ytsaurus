@@ -3359,7 +3359,9 @@ public:
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(mediumThrottler),
-            TDispatcher::Get()->GetReaderInvoker())
+            options.SessionInvoker
+                ? options.SessionInvoker
+                : TDispatcher::Get()->GetReaderInvoker())
         , MetaSize_(options.MetaSize)
         , PartitionTags_(std::move(partitionTags))
         , ExtensionTags_(extensionTags)
