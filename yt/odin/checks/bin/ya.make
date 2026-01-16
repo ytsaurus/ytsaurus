@@ -10,6 +10,7 @@ RECURSE(
     discovery
     dynamic_table_commands
     dynamic_table_replication
+    inconsistently_placed_chunks
     local_binary
     lost_vital_chunks
     map_result
@@ -33,6 +34,7 @@ RECURSE(
     queue_agent_controller_liveness
     queue_api
     quorum_health
+    quorum_missing_chunks
     register_watcher
     scheduler
     scheduler_alerts

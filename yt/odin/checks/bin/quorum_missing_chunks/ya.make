@@ -1,4 +1,4 @@
-PY3_PROGRAM(lost_vital_chunks)
+PY3_PROGRAM(quorum_missing_chunks)
 
 PEERDIR(
     yt/odin/checks/lib/check_runner
