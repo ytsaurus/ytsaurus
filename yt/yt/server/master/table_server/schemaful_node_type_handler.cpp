@@ -59,7 +59,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoBranch(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
-    branchedNode->Constraints() = originatingNode->Constraints();
+    branchedNode->SetConstraints(originatingNode->Constraints());
 }
 
 template <class TImpl>
@@ -71,7 +71,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMerge(
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     tableManager->ResetTableSchema(branchedNode);
-    originatingNode->Constraints() = branchedNode->Constraints();
+    originatingNode->SetConstraints(branchedNode->Constraints());
 
     TBase::DoMerge(originatingNode, branchedNode);
 }
@@ -90,7 +90,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoClone(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
-    clonedTrunkNode->Constraints() = sourceNode->Constraints();
+    clonedTrunkNode->SetConstraints(sourceNode->Constraints());
 }
 
 template <class TImpl>
@@ -102,6 +102,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoSerializeNode(
 
     Save(*context, schemafulNode->GetSchema());
     Save(*context, schemafulNode->GetSchemaMode());
+    Save(*context, schemafulNode->Constraints());
 }
 
 template <class TImpl>
@@ -115,6 +116,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     auto schema = Load<TMasterTableSchemaRawPtr>(*context);
     tableManager->SetTableSchema(schemafulNode, schema);
     schemafulNode->SetSchemaMode(Load<ETableSchemaMode>(*context));
+    schemafulNode->SetConstraints(Load<TColumnStableNameToConstraintMap>(*context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
