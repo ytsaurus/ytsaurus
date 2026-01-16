@@ -21,10 +21,12 @@ class TSchemafulNode
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(TMasterTableSchemaRawPtr, Schema);
-    DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnStableNameToConstraintMap, Constraints);
 
 public:
     virtual NSecurityServer::TAccount* GetAccount() const = 0;
+
+    const NTableClient::TColumnStableNameToConstraintMap& Constraints() const;
+    void SetConstraints(NTableClient::TColumnStableNameToConstraintMap constraints);
 
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
     virtual NObjectClient::TCellTag GetExternalCellTag() const = 0;
@@ -32,6 +34,9 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+private:
+    std::unique_ptr<NTableClient::TColumnStableNameToConstraintMap> Constraints_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2504,7 +2504,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->IsEmpty());
 
         if (effectiveConstraints) {
-            table->Constraints() = std::move(*effectiveConstraints);
+            table->SetConstraints(std::move(*effectiveConstraints));
         }
     }
 
