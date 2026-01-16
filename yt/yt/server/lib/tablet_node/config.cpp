@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/row_merger/nested_row_merger.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -391,6 +393,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
+
+    registrar.Parameter("nested_row_discard_policy", &TThis::NestedRowDiscardPolicy)
+        .Optional();
 
     registrar.Parameter("max_hunk_compaction_garbage_ratio", &TThis::MaxHunkCompactionGarbageRatio)
         .InRange(0.0, 1.0)

@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/library/row_merger/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -294,6 +296,8 @@ struct TCustomTableMountConfig
     bool SkipValueBlocksForMissingKeys;
 
     bool EnableHunkColumnarProfiling;
+
+    NRowMerger::TNestedRowDiscardPolicyPtr NestedRowDiscardPolicy;
 
     double MaxHunkCompactionGarbageRatio;
 
