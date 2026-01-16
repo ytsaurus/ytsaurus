@@ -543,7 +543,7 @@ class QueueStaticExportHelpers(ABC):
             return
 
         print_debug(f"Aborting transactions in subtree {path}")
-        abort_transactions(transactions, driver=driver, verbose=True)
+        abort_transactions(list(transactions), driver=driver, verbose=True)
 
     # NB(apachee): We only take queue snapshots, so we wouldn't run into any issues with locks here.
     def _remove_queue_export_by_export_destination(self, export_dir, driver=None, **kwargs):
