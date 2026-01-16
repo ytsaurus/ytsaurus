@@ -47,6 +47,8 @@
 #include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
 #include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
 
+#include <yt/yt/ytlib/api/native/pool_weight_provider.h>
+
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
 
@@ -100,89 +102,6 @@ static const std::string PullRowsThreadPoolName = "PullRows";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
-
-class TPoolWeightCache
-    : public TAsyncExpiringCache<std::string, double>
-    , public IPoolWeightProvider
-{
-public:
-    TPoolWeightCache(
-        TAsyncExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::NNative::IClient> client,
-        IInvokerPtr invoker)
-        : TAsyncExpiringCache(
-            std::move(config),
-            invoker,
-            TabletNodeLogger().WithTag("Cache: PoolWeight"))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-    { }
-
-    double GetWeight(const std::string& poolName) override
-    {
-        auto poolWeight = DefaultQLExecutionPoolWeight;
-        auto weightFuture = this->Get(poolName);
-        if (auto optionalWeightOrError = weightFuture.TryGet()) {
-            poolWeight = optionalWeightOrError->ValueOrThrow();
-        }
-        return poolWeight;
-    }
-
-private:
-    static constexpr double DefaultQLExecutionPoolWeight = 1.0;
-
-    const TWeakPtr<NApi::NNative::IClient> Client_;
-    const IInvokerPtr Invoker_;
-
-    TFuture<double> DoGet(
-        const std::string& poolName,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        auto client = Client_.Lock();
-        if (!client) {
-            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
-        }
-        return BIND(GetPoolWeight, std::move(client), poolName)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const std::string& poolName)
-    {
-        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
-
-        NApi::TGetNodeOptions options;
-        options.ReadFrom = NApi::EMasterChannelKind::Cache;
-        auto rspOrError = WaitFor(client->GetNode(path + "/@weight", options));
-
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-
-        try {
-            auto weight = ConvertTo<double>(rspOrError.Value());
-            THROW_ERROR_EXCEPTION_IF(!std::isfinite(weight) || weight <= 0,
-                "Weight must be a finite positive number");
-            return weight;
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
-                poolName);
-            return DefaultQLExecutionPoolWeight;
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBootstrap
     : public IBootstrap
     , public TBootstrapBase
@@ -229,10 +148,11 @@ public:
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
             {
-                New<TPoolWeightCache>(
+                .PoolWeightProvider=CreateCachingCypressPoolWeightProvider(
                     GetConfig()->QueryAgent->PoolWeightCache,
                     GetClient(),
-                    GetControlInvoker())
+                    GetControlInvoker(),
+                    Logger())
             });
 
         PullRowsThreadPool_ = CreateFairShareThreadPool(

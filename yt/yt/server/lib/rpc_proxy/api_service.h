@@ -39,9 +39,8 @@ DEFINE_REFCOUNTED_TYPE(IApiService)
 //! between services (e.g.: ORM and RPC proxy).
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr controlInvoker,
-    IInvokerPtr workerInvoker,
-    IInvokerPtr generateTimestampsInvoker,
+    IInvokerPtr defaultInvoker,
+    NConcurrency::TPooledInvokerProvider workerInvokerProvider,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
