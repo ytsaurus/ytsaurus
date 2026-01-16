@@ -166,13 +166,12 @@ WHERE value IS NOT NULL;
 
 ## IS \[NOT\] DISTINCT FROM {#is-distinct-from}
 
-Comparing of two values. Unlike regular [comparison operators](#comparison-operators), null values are considered equal to each other.
+Comparing of two values. Unlike regular [comparison operators](#comparison-operators), `NULL` values are considered equal to each other.
 
 Comparison is done according to the following rules:
 
 1. `IS DISTINCT FROM`/`IS NOT DISTINCT FROM` operators are defined for those (and only those) arguments for which `!=` and `=` operators are defined.
 2. The result of `IS NOT DISTINCT FROM` is equal to the logical negation of the `IS DISTINCT FROM` result for these arguments.
-
 3. If the result of the `==` operator is not equal to `NULL` for some arguments, then it is equal to the result of the `IS NOT DISTINCT FROM` operator for the same arguments.
 4. If both arguments are empty `Optional's` or `NULL's`, then the value of `IS NOT DISTINCT FROM` is `True`.
 5. The result of `IS NOT DISTINCT FROM` for an empty `Optional` or `NULL` and a non-empty `Optional` or non-`Optional` value is `False`.
@@ -373,6 +372,7 @@ $_ = 1;
 select $_; --- error: Unable to reference anonymous name $_
 export $_; --- error: Can not export anonymous name $_
 ```
+
 Also, you can't import a named expression using an anonymous alias:
 
 ```yql
@@ -427,8 +427,8 @@ A table expression is an expression that returns a table. Table expressions in Y
 
 * Subqueries: `(SELECT key, subkey FROM T)`
 * [named subqueries](#named-nodes): `$foo = SELECT * FROM T;` (use of a `$foo` named subquery is a table expression)
-
 * [subquery templates](subquery.md#define-subquery): `DEFINE SUBQUERY $foo($name) AS ... END DEFINE;` (`$foo("InputTable")` call is a table expression).
+
 
 Semantics of a table expression depends on the context where it is used. In YQL, table expressions can be used in the following contexts:
 
@@ -436,7 +436,7 @@ Semantics of a table expression depends on the context where it is used. In YQL,
 
     In this case, table expressions work as expected: for example, `$input = SELECT a, b, c FROM T; SELECT * FROM $input` returns a table with three columns.
 
-    The table context also appears after [UNION ALL](select/index.md#unionall), [JOIN](join.md#join), [PROCESS](process.md#process), and [REDUCE](reduce.md#reduce);
+    The table context also appears after [UNION [ALL]](select/operators.md#union), [INTERSECT [ALL]](select/operators.md#intersect), [EXCEPT [ALL]](select/operators.md#except), [JOIN](join.md#join), [PROCESS](process.md#process), and [REDUCE](reduce.md#reduce).
 
 * Vector context: after [IN](#in). In this context, the table expression must contain exactly one column (the name of this column doesn't affect the expression result in any way).
 
@@ -493,7 +493,6 @@ SELECT * FROM $merge_dict("Input", $dict); -- $dict is a subquery template (not 
 ```
 
 {% endnote %}
-
 
 ## Lambda functions {#lambda}
 

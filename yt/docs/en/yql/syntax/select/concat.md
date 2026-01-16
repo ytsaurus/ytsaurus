@@ -1,6 +1,6 @@
 # Accessing multiple tables in one query
 
-In standard SQL, [UNION ALL](union.md#union-all) is used to execute a query across tables that bundle outputs of two or more `SELECT`s. This is not very convenient for the use case of running the same query on multiple tables (for example, if they contain data for different dates). To make this more convenient, in YQL `SELECT` statements, after `FROM`, you can specify not only a table or a subquery, but also call built-in functions letting you combine data from multiple tables.
+In standard SQL, [UNION ALL](../select/operators.md#union-all) is used to execute a query across tables that bundle outputs of two or more `SELECT`s. This is not very convenient for the use case of running the same query on multiple tables (for example, if they contain data for different dates). To make this more convenient, in YQL `SELECT` statements, after `FROM`, you can specify not only a table or a subquery, but also call built-in functions letting you combine data from multiple tables.
 
 The following functions are defined for these purposes:
 
@@ -26,9 +26,9 @@ The list of tables is calculated **before** executing the query. Therefore, the 
 
 {% endnote %}
 
-By default, the schemas of all participating tables are aligned based on [UNION ALL](union.md#union-all) rules. If you don't want to align schemas, then you can use functions with the `_STRICT` suffix, for example `CONCAT_STRICT` or `RANGE_STRICT` that are totally similar to the original functions, but treat any difference in table schemas as an error.
+By default, the schemas of all participating tables are merged based on [UNION ALL](operators.md#union-all) rules. If you don't want to merge schemas, use functions with the `_STRICT` suffix (for example, `CONCAT_STRICT`) — they will work the same but treat any difference in table schemas as an error.
 
-To specify a cluster of unioned tables, add it before the function name.
+To specify a cluster for the joined tables, add it before the function name.
 
 All arguments of the functions described above can be declared separately using [named expressions](../expressions.md#named-nodes). In this case, you can also use  simple expressions in them by implicitly calling [EvaluateExpr](../../builtins/basic.md#evaluate_expr_atom).
 

@@ -1,10 +1,10 @@
-# Global {#pragmas}
+# Global
 
 ## Scope {#pragmascope}
 
-Unless otherwise specified, a pragma affects all the subsequent expressions up to the end of the module where it's used. If necessary and logically possible, you can change the value of this setting several times within a given query to make it different at different execution steps.
+Unless otherwise specified, a global pragma affects all the subsequent expressions up to the end of the module where it's used. If necessary and logically possible, you can change the value of this setting several times within a given query to make it different at different execution steps.
 
-There are also special scoped pragmas with the scope defined by the same rules as the scope of [named expressions](../expressions.md#named-nodes).
+There are also special scoped pragmas with the scope defined by the same rules as the scope of [named expressions](../expressions.md#named-nodes). Their scope is limited to certain SQL blocks, including ACTION, SUBQUERY, and lambda.
 
 Unlike scoped pragmas, global pragmas can only be used in the global scope (not inside [DEFINE ACTION](../action.md#define-action) and [DEFINE SUBQUERY](../subquery.md#define-subquery)).
 
@@ -143,7 +143,7 @@ Controls implicit Coalesce for the key `JOIN` columns in the SimpleColumns mode.
 If the flag is set, [JOIN](../join.md) will require a strict match of key types.
 By default, JOIN preconverts keys to a shared type, which might result in performance degradation.
 
-StrictJoinKeyTypes is a [scoped](index.md#pragmascope) setting.
+StrictJoinKeyTypes is a [scoped](#pragmascope) setting.
 
 
 ## AnsiInForEmptyOrNullableItemsCollections
@@ -190,11 +190,11 @@ And in `RANGE` mode, the end of the `CURRENT ROW` frame means "the last row in t
 
 `OrderedColumns` / `DisableOrderedColumns`
 
-Output the [sequence of columns](../select/index.md#orderedcolumns) to SELECT/JOIN/UNION ALL and save it when recording the results. The order of columns is undefined by default.
+Preserve the [order of columns](../select/index.md#orderedcolumns) to `SELECT` / `JOIN` / `UNION [ALL]` / `INTERSECT [ALL]` / `EXCEPT [ALL]` and save it when writing the results. The order of columns is undefined by default.
 
 ## PositionalUnionAll {#positionalunionall}
 
-Enable the standard columnar execution for [UNION ALL](../select/union.md#union-all). This automatically enables [ordered columns](#orderedcolumns).
+Enable the standard columnar execution for [UNION [ALL]](../select/operators.md#union), [INTERSECT [ALL]](../select/operators.md#intersect), and [EXCEPT [ALL]](../select/operators.md#except). This automatically enables [ordered columns](#orderedcolumns).
 
 ## RegexUseRe2
 
