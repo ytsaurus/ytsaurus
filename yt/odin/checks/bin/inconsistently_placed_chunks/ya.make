@@ -1,4 +1,4 @@
-PY3_PROGRAM(lost_vital_chunks)
+PY3_PROGRAM(inconsistently_placed_chunks)
 
 PEERDIR(
     yt/odin/checks/lib/check_runner

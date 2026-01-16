@@ -8,7 +8,8 @@ def run_check(yt_client, logger, options, states):
         logger,
         options,
         states,
-        "lost_vital"
+        "quorum_missing",
+        options["chunk_count_threshold"],
     )
 
 
