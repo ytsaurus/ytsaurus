@@ -1992,7 +1992,16 @@ def execute(**kwargs):
     command_description = get_commands_description()[kwargs["command_name"]]
     if "output_format" not in kwargs["execute_params"]:
         kwargs["execute_params"]["output_format"] = yt.create_format(output_format)
-    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if command_description.input_type is not None else None
+
+    # command_description behaves differently in python and native implementations.
+    if callable(command_description.input_type):
+        # native implementation.
+        input_type_is_null = command_description.input_type() == b'Null'
+    else:
+        # python implementation.
+        input_type_is_null = command_description.input_type is None
+
+    data = chunk_iter_stream(get_binary_std_stream(sys.stdin), 16 * MB) if not input_type_is_null else None
     result = yt.driver.make_request(kwargs["command_name"], kwargs["execute_params"], data=data)
     if result is not None:
         print_to_output(result, eoln=False)
