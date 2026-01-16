@@ -2579,6 +2579,8 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
     auto revision = GetSnapshotRevision();
 
+    auto nodeMemoryUsageTracker = Tablet_->MaybeGetNodeMemoryUsageTracker();
+
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
 
@@ -2598,7 +2600,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
         // Ensure deterministic snapshots.
         tableWriterOptions->SetChunkCreationTime = false;
-        if (auto nodeMemoryUsageTracker = Tablet_->MaybeGetNodeMemoryUsageTracker()) {
+        if (nodeMemoryUsageTracker) {
             tableWriterOptions->MemoryUsageTracker = nodeMemoryUsageTracker
                 ->WithCategory(EMemoryCategory::TabletBackground);
         }
