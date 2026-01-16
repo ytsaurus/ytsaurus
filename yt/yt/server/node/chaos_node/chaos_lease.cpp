@@ -11,7 +11,7 @@ bool TChaosLease::IsRoot() const
     return !RootId_;
 }
 
-bool TChaosLease::IsNormal() const
+bool TChaosLease::IsNormalState() const
 {
     return State_ == EChaosLeaseState::Normal;
 }
