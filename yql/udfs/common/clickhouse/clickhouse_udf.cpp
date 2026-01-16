@@ -82,6 +82,19 @@
 using namespace NYql;
 using namespace NUdf;
 
+namespace {
+
+static constexpr char CLICKHOUSE_GEODATA_ROOT[] = "YQL_UDF_CLICKHOUSE_GEODATA_ROOT";
+
+TMaybe<TString> GetClickHouseGeoDataRoot() {
+    static TMaybe<TString> Path = [](){
+        return TryGetEnv(TString(CLICKHOUSE_GEODATA_ROOT));
+    }();
+    return Path;
+}
+
+} // namespace
+
 namespace DB::Setting {
 
 extern const SettingsUInt64 preferred_block_size_bytes;
@@ -136,12 +149,12 @@ public:
     bool getRaw(const std::string& key, std::string& value) const override {
         if (const std::unique_lock lock(Mutex_); key == "path_to_regions_hierarchy_file") {
             PrepareGeo();
-            value = (TmpDir_->Path() / "regions_hierarchy.txt").GetPath();
+            value = (GeoDataRoot_ / "regions_hierarchy.txt").GetPath();
             return true;
         }
         else if (key == "path_to_regions_names_files") {
             PrepareGeo();
-            value = TmpDir_->Path().GetPath();
+            value = GeoDataRoot_.GetPath();
             return true;
         }
 
@@ -150,8 +163,18 @@ public:
 
 private:
     void PrepareGeo() const {
-        if (!TmpDir_) {
-            TmpDir_ = std::make_unique<TTempDir>();
+        if (!GeoDataRoot_) {
+            if (const auto geoDataRoot = GetClickHouseGeoDataRoot()) {
+                GeoDataRoot_ = *geoDataRoot;
+                // GeoData is already extracted within the
+                // directory, specified by env variable.
+                IsGeoExtracted_ = true;
+            } else {
+                // XXX: Anchor temporary directory to prevent its
+                // removal while using UDF.
+                TmpDirAnchor_ = std::make_unique<TTempDir>();
+                GeoDataRoot_ = TmpDirAnchor_->Path();
+            }
         }
 
         if (!IsGeoExtracted_) {
@@ -160,7 +183,7 @@ private:
             for (const auto& r : resources) {
                 auto file = r.Key;
                 Y_ENSURE(file.SkipPrefix("/geo/"));
-                TUnbufferedFileOutput out(TmpDir_->Path() / file);
+                TUnbufferedFileOutput out(GeoDataRoot_ / file);
                 out.Write(r.Data.data(), r.Data.size());
                 out.Finish();
             }
@@ -171,7 +194,8 @@ private:
 
 private:
     mutable std::mutex Mutex_;
-    mutable std::unique_ptr<TTempDir> TmpDir_;
+    mutable TFsPath GeoDataRoot_;
+    mutable std::unique_ptr<TTempDir> TmpDirAnchor_;
     mutable bool IsGeoExtracted_ = false;
 };
 
