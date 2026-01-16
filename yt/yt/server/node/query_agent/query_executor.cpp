@@ -857,6 +857,7 @@ private:
 
         auto remoteExecutor = CreateQueryExecutor(
             MemoryChunkProvider_,
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
             client->GetNativeConnection(),
             ColumnEvaluatorCache_,
             Evaluator_,

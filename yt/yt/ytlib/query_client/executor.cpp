@@ -270,12 +270,14 @@ public:
         TTableSchemaPtr schema,
         NCompression::ECodec codecId,
         IMemoryChunkProviderPtr memoryChunkProvider,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         NLogging::TLogger logger)
         : Id_(id)
         , Schema_(std::move(schema))
         , CodecId_(codecId)
         , Logger(std::move(logger))
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
     void Initialize(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
@@ -354,11 +356,16 @@ private:
     TFuture<TFeatureFlags> ResponseFeatureFlags_;
     TAtomicIntrusivePtr<ISchemafulUnversionedReader> RowsetReader_;
     IMemoryChunkProviderPtr MemoryChunkProvider_;
+    IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TErrorOr<TQueryStatistics> OnResponse(const TErrorOr<TQueryServiceProxy::TRspExecutePtr>& responseOrError)
     {
         if (responseOrError.IsOK()) {
             const auto& response = responseOrError.Value();
+            for (auto& attachment : response->Attachments()) {
+                attachment = TryTrackMemory(MemoryUsageTracker_, std::move(attachment))
+                    .ValueOrThrow();
+            }
             RowsetReader_.Store(CreateWireProtocolRowsetReader(
                 std::move(response->Attachments()),
                 CodecId_,
@@ -393,12 +400,14 @@ class TQueryExecutor
 public:
     TQueryExecutor(
         IMemoryChunkProviderPtr memoryChunkProvider,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         NNative::IConnectionPtr connection,
         IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
         TFunctionImplCachePtr functionImplCache)
         : MemoryChunkProvider_(std::move(memoryChunkProvider))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Connection_(std::move(connection))
         , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
@@ -453,6 +462,7 @@ public:
 
 private:
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const NNative::IConnectionPtr Connection_;
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const IEvaluatorPtr Evaluator_;
@@ -810,6 +820,7 @@ private:
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             MemoryChunkProvider_,
+            MemoryUsageTracker_,
             Logger);
 
         resultReader->Initialize(req->Invoke());
@@ -844,6 +855,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 
 IExecutorPtr CreateQueryExecutor(
     IMemoryChunkProviderPtr memoryChunkProvider,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     NNative::IConnectionPtr connection,
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,
@@ -852,6 +864,7 @@ IExecutorPtr CreateQueryExecutor(
 {
     return New<TQueryExecutor>(
         std::move(memoryChunkProvider),
+        std::move(memoryUsageTracker),
         std::move(connection),
         std::move(columnEvaluatorCache),
         std::move(evaluator),
