@@ -2076,6 +2076,15 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t1` (xyz Text not null);", None, settings=settings)
         self._test_simple_query_error("drop view `//tmp/t1`;", 'Drop of "tmp/t1" table can not be done via DROP VIEW statement.', settings=settings)
 
+    def test_create_drop_table_by_exists(self, query_tracker, yql_agent):
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query("create table if not exists `//tmp/tt00` (xyz Text, abc Int16 not null, uvw Date null);", None)
+        self._test_simple_query("create table if not exists `//tmp/tt00` (abc Text, def Float not null, klm Date null);", None)
+        self._test_simple_query("$p = process `//tmp/tt00`; select FormatType(ListItemType(TypeOf($p))) as type;", [{'type': "Struct<'abc':Int16,'uvw':Date?,'xyz':Utf8?>"}])
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query("drop table if exists `//tmp/tt00`;", None)
+        self._test_simple_query_error("select * from `//tmp/tt00`;", "does not exist")
+
 
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
