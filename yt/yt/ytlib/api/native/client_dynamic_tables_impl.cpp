@@ -1837,6 +1837,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,
+        HeavyRequestMemoryUsageTracker_,
         GetNativeConnection(),
         GetNativeConnection()->GetColumnEvaluatorCache(),
         GetNativeConnection()->GetQueryEvaluator(),
