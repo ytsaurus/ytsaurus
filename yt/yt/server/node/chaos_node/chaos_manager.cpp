@@ -460,8 +460,7 @@ public:
             case EObjectType::ReplicationCard:
                 return ReplicationCardMap_.Find(chaosObjectId);
 
-            case EObjectType::ChaosLease:
-            {
+            case EObjectType::ChaosLease: {
                 const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
                 return chaosLeaseManager->FindChaosLease(chaosObjectId);
             }
@@ -684,7 +683,7 @@ private:
 
         // COMPAT(gryzlov-ad)
         if (MoveChaosLeasesToChaosLeaseManager_) {
-            auto getRootId = [&](TChaosLease* chaosLease) {
+            auto getRootId = [&] (TChaosLease* chaosLease) {
                 auto* currentChaosLease = chaosLease;
                 while (currentChaosLease && chaosLease->GetParentId()) {
                     currentChaosLease = ChaosLeaseMap_.Find(chaosLease->GetParentId());
@@ -1688,6 +1687,11 @@ private:
         }
     }
 
+    void RevokeShortcut(TChaosObjectBase* chaosObject, std::optional<TCellId> suspendedChaosCellId = std::nullopt)
+    {
+        RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
+    }
+
     void GrantShortcuts(TChaosObjectBase* chaosObject, const std::vector<TCellId>& coordinatorCellIds, bool strict = true) override
     {
         YT_VERIFY(HasMutationContext());
@@ -1800,7 +1804,7 @@ private:
                 auto chaosLeaseManager = Slot_->GetChaosLeaseManager();
                 chaosLeaseManager->HandleChaosLeaseStateTransition(chaosLease);
             } else {
-                YT_LOG_FATAL("Unexpected chaos object %v with type %Qlv during ForsakeCoordinator",
+                YT_LOG_FATAL("Unexpected chaos object during ForsakeCoordinator (ChaosObjectId: %v, Type: %v)",
                     chaosObject->GetId(),
                     TypeFromId(chaosObject->GetId()));
             }
@@ -2482,7 +2486,7 @@ private:
                 && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
                 continue;
             }
-            if (!chaosObject->IsNormal()) {
+            if (!chaosObject->IsNormalState()) {
                 continue;
             }
 
@@ -2516,7 +2520,7 @@ private:
                 && !IsReplicationCardType(TypeFromId(chaosObject->GetId()))) {
                 continue;
             }
-            if (!chaosObject->IsNormal()) {
+            if (!chaosObject->IsNormalState()) {
                 continue;
             }
 
@@ -3356,7 +3360,7 @@ IChaosManagerPtr CreateChaosManager(
 {
     return New<TChaosManager>(
         std::move(config),
-        slot,
+        std::move(slot),
         bootstrap);
 }
 
