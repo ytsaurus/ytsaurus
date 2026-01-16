@@ -370,7 +370,7 @@ struct TConnectionDynamicConfig
 
     TSlruCacheDynamicConfigPtr BannedReplicaTrackerCache;
 
-    NChaosClient::TReplicationCardChannelConfigPtr ChaosCellChannel;
+    NChaosClient::TChaosObjectChannelConfigPtr ChaosCellChannel;
 
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 

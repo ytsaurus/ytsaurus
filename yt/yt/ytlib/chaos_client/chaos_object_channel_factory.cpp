@@ -1,4 +1,4 @@
-#include "replication_card_channel_factory.h"
+#include "chaos_object_channel_factory.h"
 
 #include "chaos_cell_directory_synchronizer.h"
 #include "config.h"
@@ -35,33 +35,34 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardChannelProvider
+class TChaosObjectChannelProvider
     : public IRoamingChannelProvider
 {
 public:
-    TReplicationCardChannelProvider(
-        TReplicationCardId replicationCardId,
+    TChaosObjectChannelProvider(
+        TChaosObjectId chaosObjectId,
         ICellDirectoryPtr cellDirectory,
         IChaosResidencyCachePtr residencyCache,
         IChaosCellDirectorySynchronizerPtr synchronizer,
         EPeerKind peerKind,
-        TReplicationCardChannelConfigPtr config)
+        TChaosObjectChannelConfigPtr config)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , ChaosResidencyCache_(std::move(residencyCache))
         , PeerKind_(peerKind)
-        , ReplicationCardId_(replicationCardId)
-        , EndpointDescription_(Format("ReplicationCardId:%v", replicationCardId))
+        , ChaosObjectId_(chaosObjectId)
+        , EndpointDescription_(Format("ChaosObjectId: %v, Type: %v", chaosObjectId, TypeFromId(chaosObjectId)))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
-                .Item("replication_card_id").Value(replicationCardId)
+                .Item("chaos_object_id").Value(chaosObjectId)
             .EndMap()))
-        , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Replication card channel is not available")
+        , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Chaos object channel is not available")
             << TErrorAttribute("endpoint", EndpointDescription_))
         , Logger(ChaosClientLogger()
-            .WithTag("ProviderId: %v, ReplicationCardId: %v",
+            .WithTag("ProviderId: %v, ChaosObjectId: %v, Type: %v",
                 TGuid::Create(),
-                replicationCardId))
+                chaosObjectId,
+                TypeFromId(chaosObjectId)))
     {
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }
@@ -99,11 +100,11 @@ public:
     { }
 
 private:
-    const TReplicationCardChannelConfigPtr Config_;
+    const TChaosObjectChannelConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
     const IChaosResidencyCachePtr ChaosResidencyCache_;
     const EPeerKind PeerKind_;
-    const TReplicationCardId ReplicationCardId_;
+    const TChaosObjectId ChaosObjectId_;
 
     const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
@@ -120,7 +121,7 @@ private:
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& error)
     {
-        YT_LOG_DEBUG(error, "Replication card channel failed (IsUnavailable: %v)", IsUnavailableError(error));
+        YT_LOG_DEBUG(error, "Chaos object channel failed (IsUnavailable: %v)", IsUnavailableError(error));
 
         auto cellTag = InvalidCellTag;
 
@@ -130,19 +131,19 @@ private:
         }
 
         if (cellTag != InvalidCellTag) {
-            ChaosResidencyCache_->ForceRefresh(ReplicationCardId_, cellTag);
+            ChaosResidencyCache_->ForceRefresh(ChaosObjectId_, cellTag);
             ChannelFuture_.Store(TFuture<IChannelPtr>());
 
-            YT_LOG_DEBUG("Invalidated replication card cell tag from residency cache");
+            YT_LOG_DEBUG("Invalidated chaos object cell tag from residency cache");
         }
     }
 
     TFuture<IChannelPtr> CreateChannel()
     {
-        YT_LOG_DEBUG("Creating new replication card channel");
+        YT_LOG_DEBUG("Creating new chaos object channel");
 
-        auto future = ChaosResidencyCache_->GetChaosResidency(ReplicationCardId_)
-            .Apply(BIND(&TReplicationCardChannelProvider::OnChaosResidencyFound, MakeStrong(this)));
+        auto future = ChaosResidencyCache_->GetChaosResidency(ChaosObjectId_)
+            .Apply(BIND(&TChaosObjectChannelProvider::OnChaosResidencyFound, MakeStrong(this)));
 
         ChannelFuture_.Store(future);
         return future;
@@ -150,15 +151,15 @@ private:
 
     TFuture<IChannelPtr> OnChaosResidencyFound(TCellTag cellTag)
     {
-        YT_LOG_DEBUG("Found replication card residency (CellTag: %v)",
+        YT_LOG_DEBUG("Found chaos object residency (CellTag: %v)",
             cellTag);
 
         if (auto channel = CellDirectory_->FindChannelByCellTag(cellTag, PeerKind_)) {
             auto detectingChannel = CreateFailureDetectingChannel(
                 std::move(channel),
                 Config_->RpcAcknowledgementTimeout,
-                BIND(&TReplicationCardChannelProvider::OnChannelFailed, MakeWeak(this)),
-                BIND(&TReplicationCardChannelProvider::IsUnavailableError));
+                BIND(&TChaosObjectChannelProvider::OnChannelFailed, MakeWeak(this)),
+                BIND(&TChaosObjectChannelProvider::IsUnavailableError));
 
             {
                 auto guard = Guard(Lock_);
@@ -166,13 +167,13 @@ private:
                 Channel_ = detectingChannel;
             }
 
-            YT_LOG_DEBUG("Created replication card channel");
+            YT_LOG_DEBUG("Created chaos object channel");
 
             return MakeFuture<IChannelPtr>(detectingChannel);
         }
 
         YT_LOG_DEBUG(
-            "Unable to created replication card channel due to cell tag absence in cell directory (CellTag: %v)",
+            "Unable to created chaos object channel due to cell tag absence in cell directory (CellTag: %v)",
             cellTag);
 
         return MakeFuture<IChannelPtr>(UnavailableError_);
@@ -194,25 +195,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardChannelFactory
-    : public IReplicationCardChannelFactory
+class TChaosObjectChannelFactory
+    : public IChaosObjectChannelFactory
 {
 public:
-    TReplicationCardChannelFactory(
+    TChaosObjectChannelFactory(
         ICellDirectoryPtr cellDirectory,
         IChaosResidencyCachePtr residencyCache,
         IChaosCellDirectorySynchronizerPtr synchronizer,
-        TReplicationCardChannelConfigPtr config)
+        TChaosObjectChannelConfigPtr config)
         : Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
         , ChaosResidencyCache_(std::move(residencyCache))
         , Synchronizer_(std::move(synchronizer))
     { }
 
-    NRpc::IChannelPtr CreateChannel(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    NRpc::IChannelPtr CreateChannel(TChaosObjectId chaosObjectId, EPeerKind peerKind) override
     {
-        auto provider = New<TReplicationCardChannelProvider>(
-            replicationCardId,
+        auto provider = New<TChaosObjectChannelProvider>(
+            chaosObjectId,
             CellDirectory_,
             ChaosResidencyCache_,
             Synchronizer_,
@@ -222,7 +223,7 @@ public:
     }
 
 private:
-    const TReplicationCardChannelConfigPtr Config_;
+    const TChaosObjectChannelConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
     const IChaosResidencyCachePtr ChaosResidencyCache_;
     const IChaosCellDirectorySynchronizerPtr Synchronizer_;
@@ -230,13 +231,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicationCardChannelFactoryPtr CreateReplicationCardChannelFactory(
+IChaosObjectChannelFactoryPtr CreateChaosObjectChannelFactory(
     ICellDirectoryPtr cellDirectory,
     IChaosResidencyCachePtr residencyCache,
     IChaosCellDirectorySynchronizerPtr synchronizer,
-    TReplicationCardChannelConfigPtr config)
+    TChaosObjectChannelConfigPtr config)
 {
-    return New<TReplicationCardChannelFactory>(
+    return New<TChaosObjectChannelFactory>(
         std::move(cellDirectory),
         std::move(residencyCache),
         std::move(synchronizer),
