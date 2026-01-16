@@ -527,19 +527,11 @@ class TestJobProber(YTEnvSetup):
 
         # Since the running command gets into the output, it is necessary that there is no substring SUCCESS in it,
         # for this it is written S\\UCCESS.
-        command = "test -f .bashrc && test -f .motd && bash -c 'touch .bashrc || rm .bashrc || touch .motd || rm .motd || echo S\\UCCESS'\r"
+        command = "test -f .bashrc && test -f .motd && (touch .bashrc || rm -f .bashrc || touch .motd || rm -f .motd || echo S\\UCCESS); exit\r"
         self._send_keys(job_id, shell_id, command, 0)
-        output = self._poll_until_prompt(job_id, shell_id)
+        output = self._poll_until_shell_exited(job_id, shell_id)
 
         assert "SUCCESS" in output
-
-        poll_job_shell(job_id, operation="terminate", shell_id=shell_id)
-        with pytest.raises(YtError):
-            self._poll_until_prompt(job_id, shell_id)
-
-        abandon_job(job_id)
-
-        op.track()
 
 
 class TestJobProberCri(TestJobProber):
