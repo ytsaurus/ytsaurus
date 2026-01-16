@@ -108,7 +108,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
-    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, buffer);
+    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
 
     i64 offset = 0;
 
@@ -116,7 +116,7 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         // Slice the untracked and mutable buffer to avoid const_cast.
         auto slice = TMutableRef(buffer).Slice(offset, offset + block.Data.Size());
         ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
-        block.Data = MarkUndumpable(trackedBuffer.Slice(offset, offset + block.Data.Size()));
+        block.Data = trackedBuffer.Slice(offset, offset + block.Data.Size());
         offset += block.Data.Size();
     }
 }
