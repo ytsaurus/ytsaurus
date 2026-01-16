@@ -6609,7 +6609,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
             std::vector<std::string>{
-                "schema_id"
+                "schema_id",
+                "secondary_indices",
             });
     }();
 
@@ -6676,6 +6677,14 @@ void TOperationControllerBase::GetOutputTablesSchema()
             }
 
             ValidateOutputDynamicTablesAllowed();
+
+            using TSecondaryIndicesAttribute = THashMap<TObjectId, NYTree::INodePtr>;
+            if (auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices")) {
+                auto keyView = std::views::keys(*secondaryIndices);
+                THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
+                    << TErrorAttribute("table_path", path)
+                    << TErrorAttribute("secondary_index_ids", std::vector<TObjectId>(keyView.begin(), keyView.end()));
+            }
         }
 
         if (path.GetOutputTimestamp()) {
