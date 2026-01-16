@@ -1641,7 +1641,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     TQueryOptions queryOptions;
 
     auto useOrderByInJoinSubqueriesDefault = false;
-    auto statisticsAggregationDefault = EStatisticsAggregation::None;
+    auto statisticsAggregationDefault = EStatisticsAggregation::DepthOmitNode;
     if (queryConfig) {
         useOrderByInJoinSubqueriesDefault = queryConfig->UseOrderByInJoinSubqueries.value_or(
             useOrderByInJoinSubqueriesDefault);
