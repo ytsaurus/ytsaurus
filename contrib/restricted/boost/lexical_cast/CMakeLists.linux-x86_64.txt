@@ -32,6 +32,5 @@ target_link_libraries(restricted-boost-lexical_cast INTERFACE
   restricted-boost-container
   restricted-boost-core
   restricted-boost-throw_exception
-  restricted-boost-type_traits
 )
 
