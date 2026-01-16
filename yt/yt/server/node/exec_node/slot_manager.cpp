@@ -134,8 +134,8 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
         return;
     }
 
-    auto error = result
-            << TError(NExecNode::EErrorCode::PortoHealthCheckFailed, "Porto health check failed");
+    auto error = result.Wrap(
+        TError(NExecNode::EErrorCode::PortoHealthCheckFailed, "Porto health check failed"));
 
     if (!IsJobSchedulingDisabled()) {
         YT_LOG_INFO(
