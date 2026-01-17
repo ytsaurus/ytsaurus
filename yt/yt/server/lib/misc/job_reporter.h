@@ -31,7 +31,7 @@ public:
     void HandleJobReport(TJobReport&& statistics);
     void SetOperationsArchiveVersion(int version);
     int ExtractWriteFailuresCount();
-    bool GetQueueIsTooLarge();
+    bool IsQueueIsTooLarge();
 
     // For updates by original config changes (CA).
     void UpdateConfig(const TJobReporterConfigPtr& config);
