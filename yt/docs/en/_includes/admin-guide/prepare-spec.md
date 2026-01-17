@@ -192,6 +192,36 @@ A proper logging configuration is essential for diagnosing problems and facilita
 
 There are recommendations for disk layout and location configuration on a separate [page](../../admin-guide/locations.md).
 
+## Pod antiaffinity {#antiaffinity}
+
+For production deployments, it's crucial to configure pod antiaffinity to ensure high availability by distributing component instances across different Kubernetes nodes. This prevents multiple instances of the same component from running on the same node, which could lead to service disruption if that node fails.
+
+### Configuration
+
+Antiaffinity is configured using the standard Kubernetes `affinity` field in the component specification. The recommended pattern uses `podAntiAffinity` with `requiredDuringSchedulingIgnoredDuringExecution` to ensure strict separation of pods.
+
+Example configuration for tablet nodes:
+
+```yaml
+tabletNodes:
+  - instanceCount: 3
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: yt_component
+              operator: In
+              values:
+              - "ytdemo-yt-tablet-node"
+          topologyKey: "kubernetes.io/hostname"
+```
+
+In this configuration:
+- `yt_component` label identifies pods of the same component type
+- The value format is `<cluster-name>-yt-<component-type>` (e.g., `ytdemo-yt-tablet-node` for a cluster named `ytdemo`)
+- `topologyKey: "kubernetes.io/hostname"` ensures pods are spread across different nodes
+
 ## Operation execution environment {#job-environment}
 
 `Exec nodes` can run jobs in isolated containers to handle the `docker_image` operation option. You can find the required settings under `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). See the sample [cluster configuration](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
