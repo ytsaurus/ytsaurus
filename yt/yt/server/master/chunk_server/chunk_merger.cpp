@@ -1156,7 +1156,7 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
 
     if (backoff == maxBackoffPeriod) {
         if (rescheduleIteration + 1 > GetDynamicConfig()->MaxAllowedBackoffReschedulingsPerSession) {
-            YT_LOG_ALERT("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
+            YT_LOG_DEBUG("Node is suspected in being stuck in merge pipeline (NodeId: %v, RescheduleIteration: %v, AccountId: %v)",
                 nodeId,
                 rescheduleIteration,
                 accountId);
