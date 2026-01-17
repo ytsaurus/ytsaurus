@@ -668,7 +668,7 @@ int TJobReporter::ExtractWriteFailuresCount()
     return 0;
 }
 
-bool TJobReporter::GetQueueIsTooLarge()
+bool TJobReporter::IsQueueIsTooLarge()
 {
     if (Impl_) {
         return Impl_->IsQueueTooLarge();
