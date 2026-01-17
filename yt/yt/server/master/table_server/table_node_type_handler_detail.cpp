@@ -397,7 +397,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             chunkManager->AttachToChunkList(newHunkRootChunkList, {newHunkChunkList});
         }
         if (effectiveConstraints) {
-            node->Constraints() = std::move(*effectiveConstraints);
+            node->SetConstraints(std::move(*effectiveConstraints));
         }
     } catch (const std::exception&) {
         this->Zombify(node);
