@@ -90,9 +90,14 @@ void SetGlobalTracer(const ITracerPtr& tracer)
 
 namespace NDetail {
 
+// NB: Don't use max value to avoid overflow during addition.
+std::atomic<TCpuDuration> TraceContextDefaultLeakDurationThreshold = 1LL << 60;
+
+YT_DEFINE_GLOBAL(TCounter, TraceContextsLeakedCounter, TracingProfiler().Counter("/trace_contexts_leaked"));
+
 // Expended from YT_DEFINE_THREAD_LOCAL(TTraceContext*, CurrentTraceContext);
 // with Overrides added.
-thread_local TTraceContext *CurrentTraceContextData{};
+thread_local TTraceContext* CurrentTraceContextData{};
 YT_PREVENT_TLS_CACHING TTraceContext*& CurrentTraceContext()
 {
     NYT::NDetail::EnableErrorOriginOverrides();
@@ -244,8 +249,12 @@ TTraceContext::TTraceContext(
     , TargetEndpoint_(ParentContext_ ? ParentContext_->GetTargetEndpoint() : std::nullopt)
     , LoggingTag_(ParentContext_ ? ParentContext_->GetLoggingTag() : TString{})
     , StartTime_(startTime.value_or(GetCpuInstant()))
+    , LeakDeadline_(StartTime_ + NDetail::TraceContextDefaultLeakDurationThreshold.load(std::memory_order::relaxed))
     , Baggage_(ParentContext_ ? ParentContext_->GetBaggage() : TYsonString{})
 {
+    if (ParentContext_) {
+        ParentContext_->CheckForLeak(StartTime_);
+    }
     NDetail::InitializeTraceContexts();
 }
 
@@ -374,6 +383,23 @@ TDuration TTraceContext::GetDuration() const
     auto finishTime = FinishTime_.load();
     YT_VERIFY(finishTime != 0);
     return NProfiling::CpuDurationToDuration(finishTime - StartTime_);
+}
+
+void TTraceContext::CheckForLeak(TCpuInstant now)
+{
+    if (Y_UNLIKELY(now > LeakDeadline_)) {
+        if (!LeakDetected_.exchange(true)) {
+            YT_LOG_DEBUG("Trace context leak detected (TraceId: %v, StartTime: %v)",
+                GetTraceId(),
+                GetStartTime());
+            NDetail::TraceContextsLeakedCounter().Increment();
+        }
+    }
+}
+
+void TTraceContext::SetLeakDurationThreshold(TDuration duration)
+{
+    LeakDeadline_.store(StartTime_ + DurationToCpuDuration(duration));
 }
 
 TTraceContext::TTagList TTraceContext::GetTags() const
@@ -720,6 +746,16 @@ Y_NO_INLINE TTraceContext* TryGetTraceContextFromPropagatingStorage(const NConcu
     auto result = storage.Find<TTraceContextPtr>();
     return result ? result->Get() : nullptr;
 }
+
+void SetTraceContextDefaultLeakDurationThreshold(TDuration threshold)
+{
+    NDetail::TraceContextDefaultLeakDurationThreshold.store(DurationToCpuDuration(threshold));
+}
+
+YT_STATIC_INITIALIZER({
+    // Seems like a reasonable default.
+    SetTraceContextDefaultLeakDurationThreshold(TDuration::Minutes(10));
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 
