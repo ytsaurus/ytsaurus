@@ -38,7 +38,7 @@ private:
 
     TYsonString GetObjectYson(TChaosLeaseId chaosLeaseId) override
     {
-        auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.GetChaosLease();
@@ -93,7 +93,7 @@ private:
         TReplicationCardId chaosLeaseId,
         const TRemoveNodeOptions& options) override
     {
-        auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
@@ -105,23 +105,6 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
-    }
-
-    TCellId GetChaosCellId(TGuid objectId)
-    {
-        const auto& residencyCache = Client_->GetNativeConnection()->GetChaosResidencyCache();
-        auto cellTag = WaitFor(residencyCache->GetChaosResidency(objectId))
-            .ValueOrThrow();
-
-        const auto& cellDirectory = Client_->GetNativeConnection()->GetCellDirectory();
-        auto descriptor = cellDirectory->FindDescriptorByCellTag(cellTag);
-        if (!descriptor) {
-            THROW_ERROR_EXCEPTION("Chaos cell for %v %v is absent from cell directory",
-                CamelCaseToUnderscoreCase(ToString(TypeFromId(objectId))),
-                objectId);
-        }
-
-        return descriptor->CellId;
     }
 };
 
