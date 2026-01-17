@@ -120,7 +120,7 @@ Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec]
 | `coreImage` | `string` | Image for the main server components (for example, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`). |
 | `uiImage` | `string` | Image for the UI (for example, `ghcr.io/ytsaurus/ui:stable`). |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Secrets needed to pull images from a private registry. Learn more [here](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
-| `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. It should only be used in rare cases. |
+| `configOverrides` | `optional<LocalObjectReference>` | A ConfigMap for overriding generated static configs. See [Configuration overrides](../../admin-guide/config-overrides.md) for details. |
 | `adminCredentials` | `optional<LocalObjectReference>` | A secret with the login/password for the admin account. |
 | `isManaged` | `bool` | A flag that lets you disable all operator actions on this cluster in order to manually work with the cluster where needed. |
 | `ephemeralCluster` | `bool` | A flag that lets you disable antiaffinity constraints. It should only be used in test cluster scenarios or when the number of k8s nodes is smaller than the number of master servers. |

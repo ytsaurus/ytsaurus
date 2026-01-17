@@ -475,6 +475,8 @@ items:
          items:
           - name: Description
             href: admin-guide/prepare-spec.md
+          - name: Configuration overrides
+            href: admin-guide/config-overrides.md
           - name: Setting up locations
             href: admin-guide/locations.md
           - name: Configuring server component logging
