@@ -189,7 +189,8 @@ private:
         }
 
         return code == NChaosClient::EErrorCode::ReplicationCardMigrated ||
-            code == NChaosClient::EErrorCode::ReplicationCardNotKnown;
+            code == NChaosClient::EErrorCode::ReplicationCardNotKnown ||
+            code == NChaosClient::EErrorCode::ChaosCellIsNotEnabled;
     }
 };
 

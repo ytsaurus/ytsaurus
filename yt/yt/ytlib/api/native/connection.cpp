@@ -715,7 +715,8 @@ public:
 
     IChannelPtr GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind) override
     {
-        if (TypeFromId(chaosObjectId) != EObjectType::ReplicationCard)
+        if (TypeFromId(chaosObjectId) != EObjectType::ReplicationCard &&
+            TypeFromId(chaosObjectId) != EObjectType::ChaosLease)
         {
             THROW_ERROR_EXCEPTION("Malformed chaos object id %v",
                 chaosObjectId);
