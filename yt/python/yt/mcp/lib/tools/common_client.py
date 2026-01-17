@@ -2,12 +2,12 @@ from .helpers import YTToolBase
 
 
 class CommonCypress(YTToolBase):
-    METHODS = set(["get_table_schema", "read_table", "infer_table_schema"])
+    ALLOWED_CLIENT_METHODS = set(["get_table_schema", "read_table", "infer_table_schema", "get_current_user"])
 
     def get_tool_description(self):
         return (
             self.ToolName(
-                name="common_cypress",
+                name="common_client",
                 description="""
 A tool for common cypress method.
 """,
@@ -38,7 +38,7 @@ A tool for common cypress method.
         self.runner._logger.debug(f"Starting {self}")
         yt_client = self.runner.helper_get_yt_client(cluster, request_context)
 
-        if method not in self.METHODS:
+        if method not in self.ALLOWED_CLIENT_METHODS:
             raise RuntimeError("Method not allowed")
 
         method_func = getattr(yt_client, method)
@@ -116,6 +116,19 @@ A tool for common cypress method.
                     {
                         "name": "table",
                         "description": "Path to table.",
+                    },
+                ]
+            },
+            {
+                "name": "whoami",
+                "description": "Tool get current user info on cluster.",
+                "input": [
+                    {"name": "cluster"},
+                    {
+                        "name": "method",
+                        "description": "Method to call. Should be set to \"get_current_user\".",
+                        "examples": ["get_current_user"],
+                        # "default": "PydanticUndefined",
                     },
                 ]
             },

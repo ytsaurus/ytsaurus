@@ -17,7 +17,7 @@ PY_SRCS(
     tools/check_is_paths_exists.py
     tools/admin.py
     tools/account.py
-    tools/common_cypress.py
+    tools/common_client.py
 )
 
 PEERDIR(
