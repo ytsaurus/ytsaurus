@@ -48,8 +48,8 @@ metadata:
 spec:
   configOverrides:
     name: overrides
-  
-  # ... остальная часть спецификации
+
+  # ... rest of your specification
 ```
 
 ### Доступные конфигурационные файлы
