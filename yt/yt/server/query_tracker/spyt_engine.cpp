@@ -246,7 +246,7 @@ private:
         return builder->EndTree();
     }
 
-    INodePtr ExecuteGetQuery(const TString& url) const
+    INodePtr ExecuteGetQuery(const std::string& url) const
     {
         YT_LOG_DEBUG("Executing HTTP GET request (Url: %v)", url);
         auto rsp = WaitFor(HttpClient_->Get(url))
@@ -257,7 +257,7 @@ private:
         return jsonRoot;
     }
 
-    TString WaitSessionStatusChange(const TString& url, const TString& defaultState)
+    TString WaitSessionStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
@@ -267,7 +267,7 @@ private:
         return state;
     }
 
-    TString WaitStatementStatusChange(const TString& url, const TString& defaultState)
+    TString WaitStatementStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
