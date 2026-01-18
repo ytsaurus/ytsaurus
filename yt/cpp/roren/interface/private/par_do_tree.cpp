@@ -1,6 +1,5 @@
 #include "par_do_tree.h"
 
-#include "misc.h"
 #include "fn_attributes_ops.h"
 
 #include "../fns.h"
@@ -154,15 +153,9 @@ public:
 
     void Finish() override
     {
-        NYT::TError e;
         for (const auto& parDoNode : ParDoTopoOrder()) {
-            try {
-                parDoNode.ParDo->Finish();
-            } catch (...) {
-                e = e.IsOK()? MakeErrorFromCurrentException() : e << MakeErrorFromCurrentException();
-            }
+            parDoNode.ParDo->Finish();
         }
-        e.ThrowOnError();
     }
 
     TDefaultFactoryFunc GetDefaultFactory() const override
