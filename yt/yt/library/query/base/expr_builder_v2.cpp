@@ -38,6 +38,10 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
         return operand;
     }
 
+    if (GetWireType(operand->LogicalType) == EValueType::Composite && type == EValueType::Any) {
+        return operand;
+    }
+
     const char* castName;
     if (type == EValueType::Int64) {
         castName = "int64";
