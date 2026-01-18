@@ -27,6 +27,15 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     IInvokerPtr sessionInvoker = nullptr,
     const std::optional<NYT::NChunkClient::TDataSourcePtr>& dataSource = std::nullopt);
 
+TBlockManagerFactory CreateSimpleAsyncBlockWindowManagerFactory(
+    NTableClient::TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
+    IInvokerPtr sessionInvoker = nullptr,
+    const std::optional<NYT::NChunkClient::TDataSourcePtr>& dataSource = std::nullopt);
+
 TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
     NChunkClient::IBlockCachePtr blockCache,
     NTableClient::TCachedVersionedChunkMetaPtr chunkMeta,
@@ -53,7 +62,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics = nullptr,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics = nullptr,
-    IMemoryUsageTrackerPtr memoryUsageTracker = nullptr);
+    IMemoryUsageTrackerPtr memoryUsageTracker = nullptr,
+    bool skipValueBlocksForMissingKeys = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

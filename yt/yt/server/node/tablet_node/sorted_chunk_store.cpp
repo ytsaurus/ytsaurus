@@ -587,14 +587,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto keyFilterStatistics = keyFilterUsed ? chunkReadOptions.KeyFilterStatistics : nullptr;
 
     if (chunkState->ChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
-        auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
+        auto createBlockWindowManagerFactory = tabletSnapshot->Settings.MountConfig->SkipValueBlocksForMissingKeys
+            ? NColumnarChunkFormat::CreateSimpleAsyncBlockWindowManagerFactory
+            : NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory;
+
+        auto blockManagerFactory = createBlockWindowManagerFactory(
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState->BlockCache,
             chunkReadOptions,
             chunkState->ChunkMeta,
             // Enable current invoker for range reads.
-            GetCurrentInvoker());
+            GetCurrentInvoker(),
+            std::nullopt);
 
         return wrapReaderWithPerformanceCounting(
             MaybeWrapWithTimestampResettingAdapter(
@@ -609,7 +614,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
                     produceAllVersions,
                     /*readerStatistics*/ nullptr,
                     std::move(keyFilterStatistics),
-                    chunkReadOptions.MemoryUsageTracker)));
+                    chunkReadOptions.MemoryUsageTracker,
+                    tabletSnapshot->Settings.MountConfig->SkipValueBlocksForMissingKeys)));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with

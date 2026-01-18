@@ -310,12 +310,14 @@ public:
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         TReaderStatisticsPtr readerStatistics,
-        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics)
+        NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
+        bool skipValueBlocksForMissingKeys)
         : BlockManager_(std::move(blockManager))
         , ReaderStatistics_(std::move(readerStatistics))
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , RowsetBuilder_(std::move(rowsetBuilder))
         , WindowsList_(std::move(windowsList))
+        , SkipValueBlocksForMissingKeys_(skipValueBlocksForMissingKeys)
     {
         std::reverse(WindowsList_.begin(), WindowsList_.end());
     }
@@ -331,7 +333,22 @@ public:
         RowsetBuilder_->ClearBuffer();
         ui32 offset = 0;
 
+        bool hasMoreRows = true;
         while (offset < readCount) {
+            // Check that window is ready.
+            if (NeedUpdateWindow_) {
+                if (WindowsList_.empty()) {
+                    hasMoreRows = false;
+                    break;
+                }
+
+                if (!UpdateWindow()) {
+                    break;
+                } else {
+                    NeedUpdateWindow_ = false;
+                }
+            }
+
             if (!RowsetBuilder_->IsReadListEmpty()) {
                 // Read rows within window.
                 offset += RowsetBuilder_->ReadRowsByList(
@@ -340,18 +357,14 @@ public:
                     dataWeight,
                     ReaderStatistics_.Get());
                 // Segment limit reached, readCount reached, or read list exhausted.
-            } else if (WindowsList_.empty()) {
-                rows->resize(offset);
-                ReaderStatistics_->RowCount += rows->size();
-                return false;
-            } else if (!UpdateWindow()) {
-                break;
+            } else {
+                NeedUpdateWindow_ = true;
             }
         }
 
         rows->resize(offset);
         ReaderStatistics_->RowCount += rows->size();
-        return true;
+        return hasMoreRows;
     }
 
     TChunkedMemoryPool* GetPool()
@@ -372,8 +385,15 @@ private:
     // Also use stack for WindowsList and do not keep NextWindowIndex.
     std::vector<TSpanMatching> WindowsList_;
 
+    const bool SkipValueBlocksForMissingKeys_;
+    // State variable for ReadRows method.
+    bool NeedUpdateWindow_ = true;
+
+    // State variable for UpdateWindow method.
+    bool OnlyKeyBlocks_ = true;
+
     // Returns false if need wait for ready event.
-    bool UpdateWindow()
+    bool UpdateWindowSimple()
     {
         YT_VERIFY(!WindowsList_.empty());
 
@@ -387,8 +407,46 @@ private:
 
             // Update read list.
             RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
+
             WindowsList_.pop_back();
         }
+
+        return true;
+    }
+
+    // Returns false if need wait for ready event.
+    bool UpdateWindow()
+    {
+        if (!SkipValueBlocksForMissingKeys_) {
+            return UpdateWindowSimple();
+        }
+
+        YT_VERIFY(!WindowsList_.empty());
+
+        if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+            return false;
+        }
+
+        if (OnlyKeyBlocks_) {
+            {
+                TCpuDurationIncrementingGuard timingGuard(&ReaderStatistics_->BuildRangesTime);
+                YT_VERIFY(RowsetBuilder_->IsReadListEmpty());
+
+                // Update read list.
+                RowsetBuilder_->BuildReadListForWindow(WindowsList_.back(), KeyFilterStatistics_);
+            }
+
+            // If read list is not empty TryUpdateWindow for value columns.
+            if (!RowsetBuilder_->IsReadListEmpty()) {
+                OnlyKeyBlocks_ = false;
+                if (!BlockManager_->TryUpdateWindow(WindowsList_.back().Chunk.Lower, ReaderStatistics_.Get(), OnlyKeyBlocks_)) {
+                    return false;
+                }
+            }
+        }
+
+        WindowsList_.pop_back();
+        OnlyKeyBlocks_ = true;
 
         return true;
     }
@@ -456,6 +514,7 @@ public:
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
         bool lookup,
+        bool skipValueBlocksForMissingKeys,
         TReaderStatisticsPtr readerStatistics,
         NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
         int lookupKeyCount)
@@ -464,7 +523,8 @@ public:
             std::move(rowsetBuilder),
             std::move(windowsList),
             std::move(readerStatistics),
-            std::move(keyFilterStatistics))
+            std::move(keyFilterStatistics),
+            skipValueBlocksForMissingKeys)
         , PreparedMeta_(std::move(preparedMeta))
         , ChunkMeta_(std::move(chunkMeta))
         , ColumnHunkFlags_(std::move(columnHunkFlags))
@@ -660,7 +720,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker)
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
@@ -723,33 +784,46 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     // Use raw data pointer because TCompactVector has branch in index operator.
     auto* columnInfosData = columnInfos.data();
 
-    auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
+    auto getBlockHolderIndex = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo) {
         auto groupId = columnInfo.GroupId;
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         YT_VERIFY(blockHolderIndex < std::ssize(groupIds) && groupIds[blockHolderIndex] == groupId);
-        const auto* blockRef = &groupBlockHolders[blockHolderIndex];
+        return blockHolderIndex;
+    };
 
+    auto makeColumnBase = [&] (const TPreparedChunkMeta::TColumnInfo& columnInfo, ui16 columnId) {
+        const auto* blockRef = &groupBlockHolders[getBlockHolderIndex(columnInfo)];
         *columnInfosData++ = {blockRef, columnInfo.IndexInGroup, columnId};
     };
 
-    auto makeKeyColumnBase = [&] (int keyColumnIndex) {
+    for (int keyColumnIndex = 0; keyColumnIndex < readItemWidth; ++keyColumnIndex) {
         if (keyColumnIndex < chunkKeyColumnCount) {
-            makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
+            const auto columnInfo = preparedChunkMeta->ColumnInfos[keyColumnIndex];
+
+            auto blockHolderIndex = getBlockHolderIndex(columnInfo);
+            const auto* blockRef = &groupBlockHolders[blockHolderIndex];
+            *columnInfosData++ = {blockRef, columnInfo.IndexInGroup, ui16(keyColumnIndex)};
+
+            // Mark key block holders with flags.
+            groupBlockHolders[blockHolderIndex].SetContainsKeyColumn(true);
         } else {
+            // Null column.
             *columnInfosData++ = {nullptr, 0, ui16(keyColumnIndex)};
         }
-    };
-
-    for (int keyColumnIndex = 0; keyColumnIndex < readItemWidth; ++keyColumnIndex) {
-        makeKeyColumnBase(keyColumnIndex);
     }
 
+    // Some key columns may be skipped.
     for (auto keyColumnIndex : keyColumnIndexes) {
         if (keyColumnIndex < readItemWidth) {
             continue;
         }
 
-        makeKeyColumnBase(keyColumnIndex);
+        if (keyColumnIndex < chunkKeyColumnCount) {
+            makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
+        } else {
+            // Null column.
+            *columnInfosData++ = {nullptr, 0, ui16(keyColumnIndex)};
+        }
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
@@ -813,6 +887,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(rowsetBuilder),
         std::move(windowsList),
         IsKeys(readItems),
+        skipValueBlocksForMissingKeys,
         readerStatistics,
         std::move(keyFilterStatistics),
         readItemCount);
@@ -830,7 +905,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
@@ -844,7 +920,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
@@ -858,7 +935,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
     bool produceAll,
     TReaderStatisticsPtr readerStatistics,
     NTableClient::TKeyFilterStatisticsPtr keyFilterStatistics,
-    IMemoryUsageTrackerPtr memoryUsageTracker);
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool skipValueBlocksForMissingKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

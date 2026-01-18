@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/table_client/config.h>
 
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
@@ -252,11 +254,13 @@ public:
             BlockSizeStatistics_);
     }
 
+    // Does not need to keep and clear used blocks because every block switch in TAsyncBlockWindowManager
+    // always interrupts reading.
     void ClearUsedBlocks() override
     { }
 
     // Returns false if need wait for ready event.
-    bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics) override
+    bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics, bool onlyKeyBlocks) override
     {
         ++readerStatistics->TryUpdateWindowCallCount;
         TCpuDurationIncrementingGuard timingGuard(&readerStatistics->FetchBlockTime);
@@ -276,6 +280,10 @@ public:
 
             size_t index = 0;
             for (auto& blockHolder : BlockHolders_) {
+                if (onlyKeyBlocks && !blockHolder.GetContainsKeyColumn()) {
+                    continue;
+                }
+
                 if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
                     ++readerStatistics->SetBlockCallCount;
                     YT_VERIFY(index < loadedBlocks.size());
@@ -300,6 +308,10 @@ public:
 
         readerStatistics->SkipToBlockCallCount += BlockHolders_.size();
         for (auto& blockHolder : BlockHolders_) {
+            if (onlyKeyBlocks && !blockHolder.GetContainsKeyColumn()) {
+                continue;
+            }
+
             if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
                 ++readerStatistics->FetchBlockCallCount;
                 // N.B. Even if all futures are set we cannot use fast path and
@@ -445,6 +457,268 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleAsyncBlockWindowManager
+    : public IBlockManager
+{
+public:
+    TSimpleAsyncBlockWindowManager(
+        std::vector<TGroupBlockHolder> blockHolders,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const TRefCountedDataBlockMetaPtr& blockMetas,
+        double compressionRatio,
+        IChunkReaderPtr underlyingReader,
+        IInvokerPtr sessionInvoker,
+        IBlockCachePtr blockCache,
+        NCompression::ECodec codecId,
+        TTraceContextPtr traceContext)
+        : BlockHolders_(std::move(blockHolders))
+        , ChunkReadOptions_(chunkReadOptions)
+        , BlockMetas_(blockMetas)
+        , CompressionRatio_(compressionRatio)
+        , UnderlyingReader_(std::move(underlyingReader))
+        , SessionInvoker_(std::move(sessionInvoker))
+        , BlockCache_(std::move(blockCache))
+        , Codec_(NCompression::GetCodec(codecId))
+        , TraceContext_(std::move(traceContext))
+        , FinishGuard_(TraceContext_)
+        , BlockCountStatistics_(BlockHolders_.size(), 0)
+        , BlockSizeStatistics_(BlockHolders_.size(), 0)
+    { }
+
+    ~TSimpleAsyncBlockWindowManager()
+    {
+        YT_LOG_DEBUG(
+            "Reader block statistics (Counts: %v, Sizes: %v)",
+            BlockCountStatistics_,
+            BlockSizeStatistics_);
+    }
+
+    void ClearUsedBlocks() override
+    {
+        UsedBlocks_.clear();
+    }
+
+    TSharedRef DecompressBlock(TBlock compressedBlock, int blockId)
+    {
+        TSharedRef uncompressedBlock;
+        if (Codec_->GetId() == NCompression::ECodec::None) {
+            uncompressedBlock = std::move(compressedBlock.Data);
+        } else {
+            NProfiling::TWallTimer timer;
+            uncompressedBlock = Codec_->Decompress(compressedBlock.Data);
+
+            DecompressionTime_ += timer.GetElapsedValue();
+            UncompressedDataSize_ += uncompressedBlock.Size();
+            CompressedDataSize_ += compressedBlock.Size();
+
+            YT_VERIFY(std::ssize(uncompressedBlock) == BlockMetas_->data_blocks(blockId).uncompressed_size());
+        }
+
+        uncompressedBlock = TrackMemory(
+            ChunkReadOptions_.MemoryUsageTracker,
+            std::move(uncompressedBlock));
+
+        BlockCache_->PutBlock(
+            {UnderlyingReader_->GetChunkId(), blockId},
+            EBlockType::UncompressedData,
+            TBlock(uncompressedBlock));
+
+        return uncompressedBlock;
+    }
+
+    // Returns false if need wait for ready event.
+    bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics, bool onlyKeyBlocks) override
+    {
+        ++readerStatistics->TryUpdateWindowCallCount;
+        TCpuDurationIncrementingGuard timingGuard(&readerStatistics->FetchBlockTime);
+
+        if (FetchedBlocks_) {
+            if (!FetchedBlocks_.IsSet()) {
+                // Blocks have been already requested from previous Read but are not fetched yet.
+                return false;
+            }
+
+            auto loadedBlocksOrError = FetchedBlocks_.AsUnique().Get();
+            if (!loadedBlocksOrError.IsOK()) {
+                return false;
+            }
+
+            auto periodicYielder = NConcurrency::CreatePeriodicYielder(TDuration::MilliSeconds(30));
+
+            auto loadedBlocks = std::move(loadedBlocksOrError).Value();
+
+            size_t index = 0;
+            for (auto& blockHolder : BlockHolders_) {
+                if (onlyKeyBlocks && !blockHolder.GetContainsKeyColumn()) {
+                    continue;
+                }
+
+                if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
+                    ++readerStatistics->SetBlockCallCount;
+                    YT_VERIFY(index < loadedBlocks.size());
+
+                    loadedBlocks[index].Data = DecompressBlock(loadedBlocks[index], *blockId);
+
+                    periodicYielder.TryYield();
+
+                    ++BlockCountStatistics_[&blockHolder - BlockHolders_.data()];
+                    BlockSizeStatistics_[&blockHolder - BlockHolders_.data()] += loadedBlocks[index].Data.Size();
+
+                    UsedBlocks_.push_back(blockHolder.SwitchBlock(std::move(loadedBlocks[index++].Data)));
+                }
+            }
+            YT_VERIFY(index == loadedBlocks.size());
+
+            FetchedBlocks_.Reset();
+            return true;
+        }
+
+        // Skip to window.
+        std::vector<int> pendingBlockIds;
+        i64 uncompressedSize = 0;
+
+        TCurrentTraceContextGuard guard(TraceContext_);
+
+        readerStatistics->SkipToBlockCallCount += BlockHolders_.size();
+        for (auto& blockHolder : BlockHolders_) {
+            if (onlyKeyBlocks && !blockHolder.GetContainsKeyColumn()) {
+                continue;
+            }
+
+            if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
+                ++readerStatistics->FetchBlockCallCount;
+                // N.B. Even if all futures are set we cannot use fast path and
+                // set block to block holder. Blocks hold blob data and
+                // current blocks must not be destructed until next call of Read method.
+
+                auto cachedBlock = /*Config_->UseUncompressedBlockCache*/ true
+                    ? BlockCache_->FindBlock({UnderlyingReader_->GetChunkId(), int(*blockId)}, EBlockType::UncompressedData)
+                    : TBlock();
+                if (cachedBlock) {
+                    ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                        cachedBlock.Size(),
+                        std::memory_order::relaxed);
+
+                    cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryUsageTracker, std::move(cachedBlock.Data));
+
+                    UsedBlocks_.push_back(blockHolder.SwitchBlock(cachedBlock.Data));
+                } else {
+                    uncompressedSize += BlockMetas_->data_blocks(*blockId).uncompressed_size();
+                    pendingBlockIds.push_back(*blockId);
+                }
+            }
+        }
+
+        // Not every window switch causes block updates.
+        // Read windows are built by all block last keys but here only reading block set is considered.
+        if (pendingBlockIds.empty()) {
+            return true;
+        }
+
+        FetchedBlocks_ = UnderlyingReader_->ReadBlocks(
+            {
+                .ClientOptions = ChunkReadOptions_,
+                .EstimatedSize = static_cast<i64>(uncompressedSize * CompressionRatio_),
+                .SessionInvoker = SessionInvoker_,
+            },
+            pendingBlockIds);
+
+        ReadyEvent_ = FetchedBlocks_.As<void>();
+
+        return false;
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return ReadyEvent_;
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    i64 GetUncompressedDataSize() const override
+    {
+        return UncompressedDataSize_;
+    }
+
+    i64 GetCompressedDataSize() const override
+    {
+        return CompressedDataSize_;
+    }
+
+    NChunkClient::TCodecDuration GetDecompressionTime() const override
+    {
+        return {
+            Codec_->GetId(),
+            NProfiling::ValueToDuration(DecompressionTime_)
+        };
+    }
+
+private:
+    std::vector<TGroupBlockHolder> BlockHolders_;
+    TClientChunkReadOptions ChunkReadOptions_;
+    TRefCountedDataBlockMetaPtr BlockMetas_;
+
+    double CompressionRatio_;
+    const IChunkReaderPtr UnderlyingReader_;
+    const IInvokerPtr SessionInvoker_;
+    IBlockCachePtr BlockCache_;
+    NCompression::ICodec* const Codec_;
+
+    TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
+    TFuture<void> ReadyEvent_ = VoidFuture;
+
+    // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
+    TTraceContextPtr TraceContext_;
+    TTraceContextFinishGuard FinishGuard_;
+
+    std::vector<TSharedRef> UsedBlocks_;
+
+    std::vector<ui32> BlockCountStatistics_;
+    std::vector<ui64> BlockSizeStatistics_;
+
+    i64 UncompressedDataSize_ = 0;
+    i64 CompressedDataSize_ = 0;
+    NProfiling::TCpuDuration DecompressionTime_ = 0;
+};
+
+TBlockManagerFactory CreateSimpleAsyncBlockWindowManagerFactory(
+    TChunkReaderConfigPtr /*config*/,
+    IChunkReaderPtr underlyingReader,
+    IBlockCachePtr blockCache,
+    TClientChunkReadOptions chunkReadOptions,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    IInvokerPtr sessionInvoker,
+    const std::optional<NChunkClient::TDataSourcePtr>& dataSource)
+{
+    return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> /*windowsList*/) -> std::unique_ptr<IBlockManager> {
+        TTraceContextPtr traceContext{};
+
+        if (dataSource) {
+            traceContext = CreateTraceContextFromCurrent("ChunkReader");
+            PackBaggageForChunkReader(traceContext, *dataSource, NTableClient::MakeExtraChunkTags(chunkMeta->Misc()));
+        }
+
+        auto compressedSize = chunkMeta->Misc().compressed_data_size();
+        auto uncompressedSize = chunkMeta->Misc().uncompressed_data_size();
+
+        return std::make_unique<TSimpleAsyncBlockWindowManager>(
+            std::move(blockHolders),
+            chunkReadOptions,
+            chunkMeta->DataBlockMeta(),
+            static_cast<double>(compressedSize) / uncompressedSize,
+            std::move(underlyingReader),
+            std::move(sessionInvoker),
+            std::move(blockCache),
+            FromProto<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
+            std::move(traceContext));
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSyncBlockWindowManager
     : public IBlockManager
 {
@@ -465,7 +739,7 @@ public:
         UsedBlocks_.clear();
     }
 
-    bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics = nullptr) override
+    bool TryUpdateWindow(ui32 rowIndex, TReaderStatistics* readerStatistics, bool /*onlyKeyBlocks*/) override
     {
         ++readerStatistics->TryUpdateWindowCallCount;
         TCpuDurationIncrementingGuard timingGuard(&readerStatistics->FetchBlockTime);
@@ -512,6 +786,9 @@ private:
     const NChunkClient::TChunkId ChunkId_;
     const NCompression::ECodec CodecId_;
 
+    // Need to keed used blocks within single Read call because
+    // TryUpdateWindow always return true and does not interrupt reading when switching blocks.
+    // In this case blocks can be switched multiple times in single Read call.
     std::vector<TSharedRef> UsedBlocks_;
     TDuration DecompressionDuration_;
 

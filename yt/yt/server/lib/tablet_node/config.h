@@ -291,6 +291,7 @@ struct TCustomTableMountConfig
     TMisraGriesHeavyHittersConfigPtr LookupHeavyHitters;
 
     bool SingleColumnGroupByDefault;
+    bool SkipValueBlocksForMissingKeys;
 
     bool EnableHunkColumnarProfiling;
 
