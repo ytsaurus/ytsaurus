@@ -569,10 +569,6 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 
-        int splitCount;
-        TGetSubreader getSubqueryReader;
-        TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource;
-
         bool ordered = frontQuery->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit);
         auto classifiedDataSources = GetClassifiedDataSources();
         auto minKeyWidth = GetMinKeyWidth(classifiedDataSources);
@@ -581,15 +577,61 @@ private:
             ? CoordinateDataSourcesOld(std::move(classifiedDataSources))
             : CoordinateDataSourcesNew(std::move(classifiedDataSources));
 
-        splitCount = std::ssize(groupedDataSplits);
+        int splitCount = std::ssize(groupedDataSplits);
+
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
+
+        YT_LOG_DEBUG("Coordinating query (Ordered: %v, Prefetching: %v, RegroupByTablets: %v, MergeVersionedRows: %v)",
+            Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit),
+            Query_->IsPrefetching(),
+            regroupByTablets,
+            QueryOptions_.MergeVersionedRows);
+
+        TGetSubreader getSubqueryReader;
+        if (!QueryOptions_.MergeVersionedRows && !regroupByTablets && !Query_->IsOrdered(QueryOptions_.AllowUnorderedGroupByWithLimit)) {
+            splitCount = std::min(splitCount, 16);
+
+            auto dataSourceQueue = MakeDataSourcesQueue(groupedDataSplits);
+            getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
+                return CreateOrderedSchemafulReader([dataSourceQueue, subqueryIndex, this, this_ = MakeStrong(this)] () -> ISchemafulUnversionedReaderPtr {
+                    TPlainDataSource dataSource;
+                    if (!dataSourceQueue->DataSources.Dequeue(&dataSource)) {
+                        return nullptr;
+                    }
+
+                    auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSource.TabletId);
+                    auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
+
+                    auto reader = DoCreateScanReader(
+                        tabletSnapshot,
+                        columnFilter,
+                        GetStoresAndBounds(tabletSnapshot, dataSource.PartitionIndex, MakeSharedRange(dataSource.Bounds, RowBuffer_)),
+                        QueryOptions_.TimestampRange,
+                        ChunkReadOptions_,
+                        ETabletDistributedThrottlerKind::Select,
+                        ChunkReadOptions_.WorkloadDescriptor.Category,
+                        std::move(timestampReadOptions),
+                        QueryOptions_.MergeVersionedRows);
+
+                    return New<TProfilingReaderWrapper>(
+                        reader,
+                        *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
+                        tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
+                        dataSource.TabletId,
+                        subqueryIndex,
+                        TabletRatios_);
+                });
+            };
+        } else {
+            getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
+                // TODO(lukyan): std::move(groupedDataSplits[subqueryIndex])
+                return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
+            };
+        }
 
         TabletRatios_->resize(splitCount);
 
-        getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
-            return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
-        };
-
-        getPrefetchJoinDataSource = [
+        TGetPrefetchJoinSubDataSource getPrefetchJoinDataSource = [
             =,
             this,
             this_ = MakeStrong(this)
@@ -617,6 +659,8 @@ private:
             [
                 &,
                 getSubqueryReader = std::move(getSubqueryReader),
+                functionGenerators,
+                aggregateGenerators,
                 getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
                 bottomQueryPattern = std::move(bottomQueryPattern),
                 executePlanCallback = GetExecutePlanCallback(),
@@ -666,7 +710,7 @@ private:
                     .AsyncVia(Invoker_)
                     .Run(
                         bottomQuery,
-                        getSubqueryReader(subqueryIndex++),
+                        getSubqueryReader(subqueryIndex),
                         pipe->GetWriter(),
                         joinProfilers,
                         functionGenerators,
@@ -676,6 +720,8 @@ private:
                         QueryOptions_,
                         RequestFeatureFlags_,
                         responseFeatureFlags);
+
+                ++subqueryIndex;
 
                 asyncStatistics = asyncStatistics.AsUnique().Apply(BIND([
                     =,
@@ -1339,6 +1385,8 @@ private:
 
         auto minWeightPerSubquery = QueryOptions_.MinRowCountPerSubquery;
         int maxGroups = std::min(QueryOptions_.MaxSubqueries, Config_->MaxSubqueries);
+
+        maxGroups = 64;
         YT_VERIFY(maxGroups > 0);
 
         auto weightPerSubquery = std::max(maxWeight, std::min(minWeightPerSubquery, totalWeight));
@@ -1364,6 +1412,9 @@ private:
         TRow lowerBound;
         const TRowRange* lastRowRange;
 
+        ui64 currentGroupWeight = 0;
+        ui64 groupIndex = 0;
+
         for (const auto& [partitionRanges, tabletId, ranges, keys] : tabletRanges) {
             if (!ranges.empty() || !keys.empty()) {
                 YT_VERIFY(tabletBoundsGroup.empty());
@@ -1376,6 +1427,7 @@ private:
 
                 for (const auto& sampleRange : sampleRanges) {
                     currentSummaryWeight += sampleRange.Weight;
+                    currentGroupWeight += sampleRange.Weight;
 
                     if (tabletBoundsGroup.empty() || tabletBoundsGroup.back().TabletId != tabletId) {
                         tabletBoundsGroup.push_back({.TabletId = tabletId});
@@ -1425,6 +1477,8 @@ private:
                             }
                         }
 
+                        YT_LOG_DEBUG("Making group (GroupIndex: %v, Weight: %v)", groupIndex++, currentGroupWeight);
+
                         groupedReadRanges.push_back(std::move(tabletBoundsGroup));
 
                         // Initialize new group.
@@ -1433,6 +1487,8 @@ private:
 
                         ++groupId;
                         nextWeight = (groupId + 1) * totalWeight / targetGroupCount;
+
+                        currentGroupWeight = 0;
                     }
                 }
             }
@@ -1609,6 +1665,40 @@ private:
         };
 
         return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
+    }
+
+    struct TPlainDataSource
+    {
+        TTabletId TabletId;
+
+        std::vector<NTableClient::TRowRange> Bounds;
+        int PartitionIndex;
+    };
+
+    struct TDataSourceQueue final
+    {
+        TLockFreeStack<TPlainDataSource> DataSources;
+    };
+
+    TIntrusivePtr<TDataSourceQueue> MakeDataSourcesQueue(TSharedRange<std::vector<TTabletReadItems>> dataSources)
+    {
+        auto result = New<TDataSourceQueue>();
+        int count = 0;
+        for (const auto& group : dataSources) {
+            for (const auto& tabletReadRanges : group) {
+                auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletReadRanges.TabletId);
+                auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
+
+                for (const auto& [bounds, partitionIndex] : tabletReadRanges.PartitionBounds) {
+                    result->DataSources.Enqueue({tabletReadRanges.TabletId, bounds, partitionIndex});
+                    ++count;
+                }
+            }
+        }
+
+        YT_LOG_DEBUG("Creating reader balancing queue (Size:% v)", count);
+
+        return result;
     }
 
     void AccountCpuTimeToTablets(const TQueryStatistics& statistics)

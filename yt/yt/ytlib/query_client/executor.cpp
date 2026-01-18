@@ -375,9 +375,18 @@ private:
                 Logger));
             auto statistics = FromProto<TQueryStatistics>(response->query_statistics());
 
-            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
+
+
+            size_t bottomRowsRead = 0;
+            for (const auto& inner : statistics.InnerStatistics) {
+                bottomRowsRead += inner.RowsRead.GetTotal();
+            }
+
+            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v, BottomRowsRead: %v)",
                 Id_,
-                statistics);
+                statistics,
+                bottomRowsRead);
+
             return statistics;
         } else {
             YT_LOG_DEBUG(responseOrError, "Subquery failed (SubqueryId: %v)",
