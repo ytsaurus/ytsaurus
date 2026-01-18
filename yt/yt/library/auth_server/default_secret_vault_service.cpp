@@ -463,7 +463,7 @@ private:
     }
 
     TSharedRef HttpPost(
-        const TString& url,
+        const std::string& url,
         const TSharedRef& body,
         const THeadersPtr& headers)
     {
