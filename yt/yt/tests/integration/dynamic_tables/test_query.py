@@ -2073,6 +2073,80 @@ class TestQuery(DynamicTablesBase):
             select_rows("a from [//tmp/t] where b != 0 limit 3", use_canonical_null_relations=True),
             [{"a": 1}])
 
+    @authors("lukyan")
+    def test_read_without_merge_agg(self):
+        sync_create_cells(1)
+
+        int64_list = {"type_name": "list", "item": "int64"}
+        optional_int64_list = {"type_name": "optional", "item": int64_list}
+
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64", "aggregate": "sum"},
+            {"name": "v2", "type": "int64", "aggregate": "sum"},
+            {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+        ]
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": schema,
+                "single_column_group_by_default": False,
+            })
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
+                {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 1], "nk2": [20, 10], "nv1": [200, 100]},
+            ],
+            update=True,
+        )
+
+        insert_rows(
+            "//tmp/t",
+            [
+                {"k1": 1, "k2": 10, "v1": 1, "v2": 10, "nk1": [2, 3], "nk2": [20, 30], "nv1": [200, 300], "nv2": [2000, 3000]},
+                {"k1": 2, "k2": 10, "v1": 0, "v2": 0, "nk1": [1, 2], "nk2": [10, 20], "nv2": [1000, 2000]},
+            ],
+            update=True,
+            aggregate=True,
+        )
+
+        def test_query(query):
+            res1 = select_rows(query, merge_versioned_rows=False)
+            res2 = select_rows(query, merge_versioned_rows=True)
+            assert_items_equal(res1, res2)
+
+        test_query(
+            "k1, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk1_")
+
+        test_query(
+            "k2, nk1_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk1 as nk1_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk1_")
+
+        test_query(
+            "k1, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k1, nk2_")
+
+        test_query(
+            "k2, nk2_, sum(v1) as sv1, sum(v2) as sv2, sum(nv1_) as snv1, sum(nv2_) as snv2 "
+            "from [//tmp/t] array join nk2 as nk2_, nv1 as nv1_, nv2 as nv2_ "
+            "group by k2, nk2_")
+
     @authors("sabdenovch")
     def test_read_without_merge_sorted(self):
         sync_create_cells(1)
