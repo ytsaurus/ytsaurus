@@ -43,14 +43,14 @@ namespace NDetail {
 
 // Porto passes command string to wordexp, where quota (') symbol
 // is delimiter. So we must replace it with concatenation ('"'"').
-std::string EscapeForWordexp(const char* in)
+TString EscapeForWordexp(const char* in)
 {
-    std::string buffer;
+    TString buffer;
     while (*in) {
         if (*in == '\'') {
             buffer.append(R"('"'"')");
         } else {
-            buffer.push_back(*in);
+            buffer.append(*in);
         }
         in++;
     }
@@ -58,9 +58,9 @@ std::string EscapeForWordexp(const char* in)
 }
 
 i64 Extract(
-    const std::string& input,
-    const std::string& pattern,
-    const std::string& terminator = "\n")
+    const TString& input,
+    const TString& pattern,
+    const TString& terminator = "\n")
 {
     auto start = input.find(pattern) + pattern.length();
     auto end = input.find(terminator, start);
@@ -68,13 +68,13 @@ i64 Extract(
 }
 
 i64 ExtractSum(
-    const std::string& input,
-    const std::string& pattern,
-    const std::string& delimiter,
-    const std::string& terminator = "\n")
+    const TString& input,
+    const TString& pattern,
+    const TString& delimiter,
+    const TString& terminator = "\n")
 {
     i64 sum = 0;
-    std::string::size_type pos = 0;
+    TString::size_type pos = 0;
     while (pos < input.length()) {
         pos = input.find(pattern, pos);
         if (pos == input.npos) {
@@ -95,7 +95,7 @@ i64 ExtractSum(
 }
 
 std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
-    const std::string& input)
+    const TString& input)
 {
     // Example of input: 'hw: 34843530298; sdb: 618096087; sdi: 9284833908'.
     static const NRe2::RE2 regex("([a-z]+) *: *([0-9]+)");
@@ -103,7 +103,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
     std::vector<TResourceUsage::TTaggedStat> result;
     std::string_view inputView{input.c_str(), input.length()};
 
-    std::string deviceName;
+    TString deviceName;
     int statisticsValue;
 
     while (NRe2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
@@ -119,36 +119,36 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
     return result;
 }
 
-using TPortoStatRule = std::pair<std::string, std::function<i64(const std::string& input)>>;
+using TPortoStatRule = std::pair<TString, std::function<i64(const TString& input)>>;
 
-using TPortoTaggedStatRule = std::pair<std::string, std::function<std::vector<TResourceUsage::TTaggedStat>(const std::string& input)>>;
+using TPortoTaggedStatRule = std::pair<TString, std::function<std::vector<TResourceUsage::TTaggedStat>(const TString& input)>>;
 
-static const std::function<i64(const std::string&)> LongExtractor = [] (const std::string& in) {
+static const std::function<i64(const TString&)> LongExtractor = [] (const TString& in) {
     return std::stol(in);
 };
 
-static const std::function<i64(const std::string&)> CoreNsPerSecondExtractor = [] (const std::string& in) {
+static const std::function<i64(const TString&)> CoreNsPerSecondExtractor = [] (const TString& in) {
     int pos = in.find("c", 0);
     return (std::stod(in.substr(0, pos))) * 1'000'000'000;
 };
 
-static const std::function<std::vector<TResourceUsage::TTaggedStat>(const std::string&)> GetIOTaggedStatExtractor()
+static const std::function<std::vector<TResourceUsage::TTaggedStat>(const TString&)> GetIOTaggedStatExtractor()
 {
-    return [] (const std::string& in) -> std::vector<TResourceUsage::TTaggedStat> {
+    return [] (const TString& in) -> std::vector<TResourceUsage::TTaggedStat> {
         return ExtractIOStatsPerDevice(in);
     };
 }
 
-static const std::function<i64(const std::string&)> GetIOStatExtractor(const std::string& rwMode = "")
+static const std::function<i64(const TString&)> GetIOStatExtractor(const TString& rwMode = "")
 {
-    return [rwMode] (const std::string& in) {
+    return [rwMode] (const TString& in) {
         return ExtractSum(in, "hw", rwMode + ":",  ";");
     };
 }
 
-static const std::function<i64(const std::string&)> GetStatByKeyExtractor(const std::string& statKey)
+static const std::function<i64(const TString&)> GetStatByKeyExtractor(const TString& statKey)
 {
-    return [statKey] (const std::string& in) {
+    return [statKey] (const TString& in) {
         return Extract(in, statKey);
     };
 }
@@ -212,21 +212,21 @@ const THashMap<EStatField, TPortoTaggedStatRule> PortoTaggedStatRules = {
     {EStatField::IOWaitTime, {"io_wait", GetIOTaggedStatExtractor()}},
 };
 
-std::optional<std::string> GetParentName(const std::string& name)
+std::optional<TString> GetParentName(const TString& name)
 {
     if (name.empty()) {
         return std::nullopt;
     }
 
     auto slashPosition = name.rfind('/');
-    if (slashPosition == std::string::npos) {
+    if (slashPosition == TString::npos) {
         return "";
     }
 
     return name.substr(0, slashPosition);
 }
 
-std::optional<std::string> GetRootName(const std::string& name)
+std::optional<TString> GetRootName(const TString& name)
 {
     if (name.empty()) {
         return std::nullopt;
@@ -237,7 +237,7 @@ std::optional<std::string> GetRootName(const std::string& name)
     }
 
     auto slashPosition = name.find('/');
-    if (slashPosition == std::string::npos) {
+    if (slashPosition == TString::npos) {
         return name;
     }
 
@@ -268,7 +268,7 @@ public:
         };
     }
 
-    const std::string& GetName() const override
+    const TString& GetName() const override
     {
         return Spec_.Name;
     }
@@ -278,27 +278,27 @@ public:
         return static_cast<bool>(Spec_.RootFS);
     }
 
-    void SetStdIn(const std::string& inputPath) override
+    void SetStdIn(const TString& inputPath) override
     {
         Spec_.StdinPath = inputPath;
     }
 
-    void SetStdOut(const std::string& outPath) override
+    void SetStdOut(const TString& outPath) override
     {
         Spec_.StdoutPath = outPath;
     }
 
-    void SetStdErr(const std::string& errorPath) override
+    void SetStdErr(const TString& errorPath) override
     {
         Spec_.StderrPath = errorPath;
     }
 
-    void SetCwd(const std::string& pwd) override
+    void SetCwd(const TString& pwd) override
     {
         Spec_.CurrentWorkingDirectory = pwd;
     }
 
-    void SetCoreDumpHandler(const std::optional<std::string>& handler) override
+    void SetCoreDumpHandler(const std::optional<TString>& handler) override
     {
         if (handler) {
             Spec_.CoreCommand = *handler;
@@ -363,7 +363,7 @@ public:
         Spec_.User = user;
     }
 
-    void SetNetworkInterface(const std::string& networkInterface) override
+    void SetNetworkInterface(const TString& networkInterface) override
     {
         Spec_.NetworkInterface = networkInterface;
     }
@@ -382,20 +382,20 @@ public:
         Spec_.EnableNat64 = false;
     }
 
-    void SetHostName(const std::string& hostName) override
+    void SetHostName(const TString& hostName) override
     {
         Spec_.HostName = hostName;
     }
 
-    void SetPlaces(const std::vector<std::string>& places) override
+    void SetPlaces(const std::vector<TString>& places) override
     {
         Spec_.Places = places;
     }
 
     TFuture<IInstancePtr> Launch(
-        const std::string& path,
-        const std::vector<std::string>& args,
-        const THashMap<std::string, std::string>& env) override
+        const TString& path,
+        const std::vector<TString>& args,
+        const THashMap<TString, TString>& env) override
     {
         TStringBuilder commandBuilder;
         auto append = [&] (const auto& value) {
@@ -429,7 +429,7 @@ public:
             .Apply(BIND(onContainerCreated));
     }
 
-    TFuture<IInstancePtr> LaunchMeta(const THashMap<std::string, std::string>& env) override
+    TFuture<IInstancePtr> LaunchMeta(const THashMap<TString, TString>& env) override
     {
         Spec_.Env = env;
 
@@ -468,16 +468,16 @@ public:
         return New<TPortoInstance>(GetSelfContainerName(executor), executor);
     }
 
-    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const std::string& name)
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
     {
         return New<TPortoInstance>(name, executor);
     }
 
-    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const std::string& name, const std::optional<std::string>& networkInterface)
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
     {
         return New<TPortoInstance>(
             name,
-            networkInterface.value_or(std::string(DefaultPortoNetworkInterface)),
+            networkInterface.value_or(TString(DefaultPortoNetworkInterface)),
             executor);
     }
 
@@ -534,7 +534,7 @@ public:
     TResourceUsage GetResourceUsage(
         const std::vector<EStatField>& fields) const override
     {
-        std::vector<std::string> properties;
+        std::vector<TString> properties;
         properties.push_back("absolute_name");
 
         bool userTimeRequested = false;
@@ -542,7 +542,7 @@ public:
         bool volumeCountRequested = false;
         bool layerCountRequested = false;
 
-        auto makeNetworkProperty = [&] (const std::string& name) {
+        auto makeNetworkProperty = [&] (const TString& name) {
             return Format("%v[%v]", name, NetworkInterface_);
         };
 
@@ -610,9 +610,9 @@ public:
             }
         };
 
-        handleProperties(NDetail::PortoStatRules, [] (const std::string& name) { return name; }, result.ContainerStats);
+        handleProperties(NDetail::PortoStatRules, [] (const TString& name) { return name; }, result.ContainerStats);
         handleProperties(NDetail::PortoNetworkStatRules, makeNetworkProperty, result.ContainerStats);
-        handleProperties(NDetail::PortoTaggedStatRules, [] (const std::string& name) { return name; }, result.ContainerTaggedStats);
+        handleProperties(NDetail::PortoTaggedStatRules, [] (const TString& name) { return name; }, result.ContainerTaggedStats);
 
         // We should maintain context switch information even if this field
         // is not requested since metrics of individual containers can go up and down.
@@ -640,7 +640,7 @@ public:
         if (volumeCountRequested) {
             auto volumeList = WaitFor(Executor_->GetVolumes());
 
-            THashMap<std::string, i64> volumeCounts;
+            THashMap<TString, i64> volumeCounts;
 
             if (volumeList.IsOK()) {
                 for (const auto& volume : volumeList.Value()) {
@@ -688,10 +688,10 @@ public:
 
     TResourceLimits GetResourceLimits() const override
     {
-        std::vector<std::string> properties;
-        static std::string memoryLimitProperty = "memory_limit_total";
-        static std::string cpuLimitProperty = "cpu_limit_bound";
-        static std::string cpuGuaranteeProperty = "cpu_guarantee_bound";
+        std::vector<TString> properties;
+        static TString memoryLimitProperty = "memory_limit_total";
+        static TString cpuLimitProperty = "cpu_limit_bound";
+        static TString cpuGuaranteeProperty = "cpu_guarantee_bound";
         properties.push_back(memoryLimitProperty);
         properties.push_back(cpuLimitProperty);
         properties.push_back(cpuGuaranteeProperty);
@@ -714,7 +714,7 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from Porto");
 
         double cpuLimit;
-        YT_VERIFY(cpuLimitRsp.Value().ends_with('c'));
+        YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
             THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from Porto")
@@ -725,11 +725,11 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(cpuGuaranteeRsp, "Failed to get CPU guarantee from Porto");
 
         double cpuGuarantee;
-        if (cpuGuaranteeRsp.Value().empty()) {
+        if (!cpuGuaranteeRsp.Value()) {
             // XXX(ignat): hack for missing response from Porto.
             cpuGuarantee = 0.0;
         } else {
-            YT_VERIFY(cpuGuaranteeRsp.Value().ends_with('c'));
+            YT_VERIFY(cpuGuaranteeRsp.Value().EndsWith('c'));
             auto cpuGuaranteeValue = TStringBuf(cpuGuaranteeRsp.Value().begin(), cpuGuaranteeRsp.Value().size() - 1);
             if (!TryFromString<double>(cpuGuaranteeValue, cpuGuarantee)) {
                 THROW_ERROR_EXCEPTION("Failed to parse CPU guarantee value from Porto")
@@ -774,43 +774,43 @@ public:
         SetProperty("io_ops_limit", operations);
     }
 
-    std::string GetStdout() const override
+    TString GetStdout() const override
     {
-        return *WaitFor(Executor_->GetContainerProperty(std::string(Name_), "stdout"))
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stdout"))
             .ValueOrThrow();
     }
 
-    std::string GetStderr() const override
+    TString GetStderr() const override
     {
-        return *WaitFor(Executor_->GetContainerProperty(std::string(Name_), "stderr"))
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))
             .ValueOrThrow();
     }
 
-    std::string GetName() const override
+    TString GetName() const override
     {
         return Name_;
     }
 
-    std::optional<std::string> GetParentName() const override
+    std::optional<TString> GetParentName() const override
     {
         return NDetail::GetParentName(Name_);
     }
 
-    std::optional<std::string> GetRootName() const override
+    std::optional<TString> GetRootName() const override
     {
         return NDetail::GetRootName(Name_);
     }
 
     pid_t GetPid() const override
     {
-        auto pid = *WaitFor(Executor_->GetContainerProperty(std::string(Name_), "root_pid"))
+        auto pid = *WaitFor(Executor_->GetContainerProperty(Name_, "root_pid"))
             .ValueOrThrow();
         return std::stoi(pid);
     }
 
     i64 GetMajorPageFaultCount() const override
     {
-        auto faults = WaitFor(Executor_->GetContainerProperty(std::string(Name_), "major_faults"))
+        auto faults = WaitFor(Executor_->GetContainerProperty(Name_, "major_faults"))
             .ValueOrThrow();
         return faults
             ? std::stoll(*faults)
@@ -819,7 +819,7 @@ public:
 
     double GetCpuGuarantee() const override
     {
-        auto result = WaitFor(Executor_->GetContainerProperty(std::string(Name_), "cpu_guarantee"))
+        auto result = WaitFor(Executor_->GetContainerProperty(Name_, "cpu_guarantee"))
             .ValueOrThrow();
         return result
             ? std::stod(*result)
@@ -828,11 +828,11 @@ public:
 
     std::vector<pid_t> GetPids() const override
     {
-        auto getPidCgroup = [&] (const std::string& cgroups) {
+        auto getPidCgroup = [&] (const TString& cgroups) {
             for (TStringBuf cgroup : StringSplitter(cgroups).SplitByString("; ")) {
                 if (cgroup.StartsWith("pids:")) {
                     auto startPosition = cgroup.find('/');
-                    YT_VERIFY(startPosition != std::string::npos);
+                    YT_VERIFY(startPosition != TString::npos);
                     return cgroup.substr(startPosition);
                 }
             }
@@ -847,7 +847,7 @@ public:
 
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
-            THashMap<std::string, std::string> cgroups;
+            THashMap<TString, TString> cgroups;
             try {
                 cgroups = GetProcessCGroups(pid);
             } catch (const std::exception& ex) {
@@ -875,8 +875,8 @@ public:
     }
 
 private:
-    const std::string Name_;
-    const std::string NetworkInterface_;
+    const TString Name_;
+    const TString NetworkInterface_;
     const IPortoExecutorPtr Executor_;
     const NLogging::TLogger Logger;
 
@@ -884,31 +884,31 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ContextSwitchMapLock_);
     mutable i64 TotalContextSwitches_ = 0;
-    mutable THashMap<std::string, i64> ContextSwitchMap_;
+    mutable THashMap<TString, i64> ContextSwitchMap_;
 
-    TPortoInstance(std::string name, IPortoExecutorPtr executor)
-        : TPortoInstance(name, std::string(DefaultPortoNetworkInterface), executor)
+    TPortoInstance(TString name, IPortoExecutorPtr executor)
+        : TPortoInstance(name, TString(DefaultPortoNetworkInterface), executor)
     { }
 
-    TPortoInstance(std::string name, std::string networkInterface, IPortoExecutorPtr executor)
+    TPortoInstance(TString name, TString networkInterface, IPortoExecutorPtr executor)
         : Name_(std::move(name))
         , NetworkInterface_(std::move(networkInterface))
         , Executor_(std::move(executor))
         , Logger(ContainersLogger().WithTag("Container: %v", Name_))
     { }
 
-    void SetProperty(const std::string& key, const std::string& value)
+    void SetProperty(const TString& key, const TString& value)
     {
         WaitFor(Executor_->SetContainerProperty(Name_, key, value))
             .ThrowOnError();
     }
 
-    void SetProperty(const std::string& key, i64 value)
+    void SetProperty(const TString& key, i64 value)
     {
         SetProperty(key, ToString(value));
     }
 
-    void SetProperty(const std::string& key, double value)
+    void SetProperty(const TString& key, double value)
     {
         SetProperty(key, ToString(value));
     }
@@ -918,12 +918,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GetSelfContainerName(const IPortoExecutorPtr& executor)
+TString GetSelfContainerName(const IPortoExecutorPtr& executor)
 {
     try {
         auto properties = WaitFor(executor->GetContainerProperties(
             "self",
-            std::vector<std::string>{"absolute_name", "absolute_namespace"}))
+            std::vector<TString>{"absolute_name", "absolute_namespace"}))
             .ValueOrThrow();
 
         auto absoluteName = properties.at("absolute_name")
@@ -939,7 +939,7 @@ std::string GetSelfContainerName(const IPortoExecutorPtr& executor)
             YT_VERIFY(absoluteName + "/" == absoluteNamespace);
             return "";
         } else {
-            YT_VERIFY(absoluteName.starts_with(absoluteNamespace));
+            YT_VERIFY(absoluteName.StartsWith(absoluteNamespace));
             return absoluteName.substr(absoluteNamespace.length());
         }
     } catch (const std::exception& ex) {
@@ -953,7 +953,7 @@ IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
     return TPortoInstance::GetSelf(executor);
 }
 
-IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const std::string& name, const std::optional<std::string>& networkInterface)
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
 {
     return TPortoInstance::GetInstance(executor, name, networkInterface);
 }
@@ -967,7 +967,7 @@ IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
 double GetSelfPortoInstanceVCpuFactor()
 {
     // DEPLOY_VCPU_LIMIT stores value in millicores.
-    std::string vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT");
+    TString vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT");
     if (vcpuLimitStr.empty()) {
         THROW_ERROR_EXCEPTION("Failed to get vcpu limit from env variable");
     }

@@ -16,11 +16,11 @@ using TGenericTool = std::function<NYson::TYsonString(const NYson::TYsonString&)
 
 struct TToolRegistryEntry
 {
-    std::string Name;
+    TString Name;
     TGenericTool Tool;
 };
 
-using TToolRegistry = std::map<std::string, TToolRegistryEntry>;
+using TToolRegistry = std::map<TString, TToolRegistryEntry>;
 
 TToolRegistry* GetToolRegistry();
 

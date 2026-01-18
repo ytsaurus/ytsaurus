@@ -22,7 +22,7 @@ using namespace NProfiling;
 #ifdef _linux_
 
 TContainerDevicesChecker::TContainerDevicesChecker(
-    std::string testDirectoryPath,
+    TString testDirectoryPath,
     TPortoExecutorDynamicConfigPtr config,
     IInvokerPtr invoker,
     TLogger logger)
@@ -91,7 +91,7 @@ void TContainerDevicesChecker::PrepareDirectory()
 
     std::vector<TFuture<void>> unlinkFutures;
     for (const auto& volumePath : volumePathsOrErros.Value()) {
-        if (volumePath.starts_with(VolumesPath_)) {
+        if (volumePath.StartsWith(VolumesPath_)) {
             unlinkFutures.push_back(Executor_->UnlinkVolume(volumePath, "self"));
         }
     }
@@ -140,7 +140,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
 
     auto containerName = Format("%v/test_container", RootContainerName_);
     auto volumePath = NFS::CombinePaths(VolumesPath_, "test_volume");
-    std::string mountPath = NFS::CombinePaths(volumePath, "mount");
+    TString mountPath = NFS::CombinePaths(volumePath, "mount");
 
     // Create rootfs volume.
     {
@@ -150,7 +150,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
 
         NFS::MakeDirRecursive(mountPath, 0755);
 
-        THashMap<std::string, std::string> volumeProperties = {
+        THashMap<TString, TString> volumeProperties = {
             {"backend", "overlay"},
             {"place", TestDirectoryPath_},
             {"layers", mountPath}
@@ -228,7 +228,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
 ////////////////////////////////////////////////////////////////////////////////
 
 TContainerDevicesCheckerPtr CreateContainerDevicesChecker(
-    std::string testDirectoryPath,
+    TString testDirectoryPath,
     TPortoExecutorDynamicConfigPtr config,
     IInvokerPtr invoker,
     NLogging::TLogger logger)
@@ -245,7 +245,7 @@ TContainerDevicesCheckerPtr CreateContainerDevicesChecker(
 #else
 
 TContainerDevicesCheckerPtr CreateContainerDevicesChecker(
-    std::string /*testDirectoryPath*/,
+    TString /*testDirectoryPath*/,
     TPortoExecutorDynamicConfigPtr /*config*/,
     IInvokerPtr /*invoker*/,
     NLogging::TLogger /*logger*/)

@@ -43,7 +43,7 @@ template <
 >
 TResult RunTool(
     const TArg& arg,
-    std::function<NYson::TYsonString(const std::string&, const NYson::TYsonString&)> invoker)
+    std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker)
 {
     auto name = typeid(TTool).name();
 
@@ -79,7 +79,7 @@ template <
     typename TTool,
     typename TArg
 >
-std::vector<std::string> GenerateToolArguments(const TArg& arg)
+std::vector<TString> GenerateToolArguments(const TArg& arg)
 {
     auto name = typeid(TTool).name();
 
@@ -91,7 +91,7 @@ std::vector<std::string> GenerateToolArguments(const TArg& arg)
             << ex;
     }
 
-    return std::vector<std::string>{
+    return std::vector<TString>{
         "--tool-name",
         name,
         "--tool-spec",

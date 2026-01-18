@@ -18,7 +18,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorOr<std::string> ResolveBinaryPath(const std::string& binary);
+TErrorOr<TString> ResolveBinaryPath(const TString& binary);
 bool TryKillProcessByPid(int pid, int signal);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,9 +33,9 @@ public:
     void AddEnvVar(TStringBuf var);
 
     void AddArguments(std::initializer_list<TStringBuf> args);
-    void AddArguments(const std::vector<std::string>& args);
+    void AddArguments(const std::vector<TString>& args);
 
-    void SetWorkingDirectory(const std::string& path);
+    void SetWorkingDirectory(const TString& path);
     void CreateProcessGroup();
 
     virtual NNet::IConnectionWriterPtr GetStdInWriter() = 0;
@@ -47,15 +47,15 @@ public:
 
     virtual void Kill(int signal) = 0;
 
-    std::string GetPath() const;
+    TString GetPath() const;
     int GetProcessId() const;
     bool IsStarted() const;
     bool IsFinished() const;
 
-    std::string GetCommandLine() const;
+    TString GetCommandLine() const;
 
 protected:
-    const std::string Path_;
+    const TString Path_;
 
     int ProcessId_;
     std::atomic<bool> Started_ = false;
@@ -66,8 +66,8 @@ protected:
     std::deque<std::string> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
-    std::string ResolvedPath_;
-    std::string WorkingDirectory_;
+    TString ResolvedPath_;
+    TString WorkingDirectory_;
     bool CreateProcessGroup_ = false;
     TPromise<void> FinishedPromise_ = NewPromise<void>();
 
@@ -95,7 +95,7 @@ class TSimpleProcess
 {
 public:
     explicit TSimpleProcess(
-        const std::string& path,
+        const TString& path,
         bool copyEnv = true,
         TDuration pollPeriod = TDuration::MilliSeconds(100));
     // We move dtor in .cpp file to avoid

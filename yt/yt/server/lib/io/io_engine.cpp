@@ -47,7 +47,7 @@ struct TInternalReadResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIOEngineHandle::TIOEngineHandle(const std::string& fName, EOpenMode oMode) noexcept
+TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
     : TFileHandle(fName, oMode)
     , OpenForDirectIO_(oMode & DirectAligned)
 { }
@@ -671,7 +671,7 @@ TFlushFileRangeResponse DoFlushFileRange(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TReadResponse> IIOEngine::ReadAll(
-    const std::string& path,
+    const TString& path,
     EWorkloadCategory category,
     TIOSessionId sessionId,
     TFairShareSlotId fairShareSlot)
@@ -791,7 +791,7 @@ class TFixedPriorityExecutor
 public:
     TFixedPriorityExecutor(
         const TThreadPoolIOEngineConfigPtr& config,
-        const std::string& locationId,
+        const TString& locationId,
         NLogging::TLogger /*logger*/)
         : ReadThreadPool_(CreateThreadPool(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
@@ -851,7 +851,7 @@ class TFairShareThreadPool
 public:
     TFairShareThreadPool(
         TThreadPoolIOEngineConfigPtr config,
-        const std::string& locationId,
+        const TString& locationId,
         NLogging::TLogger logger)
         : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(
             config->ReadThreadCount,
@@ -918,7 +918,7 @@ public:
 
     TThreadPoolIOEngine(
         TConfigPtr config,
-        std::string locationId,
+        TString locationId,
         IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
@@ -1163,7 +1163,7 @@ public:
 
     TFairShareHierarchicalThreadPoolIOEngine(
         TConfigPtr config,
-        std::string locationId,
+        TString locationId,
         IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger,
@@ -1678,7 +1678,7 @@ private:
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
-    std::string locationId,
+    TString locationId,
     TProfiler profiler,
     NLogging::TLogger logger,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,

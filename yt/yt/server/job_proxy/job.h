@@ -67,7 +67,7 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
-    virtual std::string GetAuthenticatedUser() const = 0;
+    virtual TString GetAuthenticatedUser() const = 0;
 
     virtual std::string GetLocalHostName() const = 0;
 
@@ -76,11 +76,11 @@ struct IJobHost
     virtual void OnPrepared() = 0;
 
     virtual void PrepareArtifact(
-        const std::string& artifactName,
-        const std::string& pipePath) = 0;
+        const TString& artifactName,
+        const TString& pipePath) = 0;
     virtual void OnArtifactPreparationFailed(
-        const std::string& artifactName,
-        const std::string& artifactPath,
+        const TString& artifactName,
+        const TString& artifactPath,
         const TError& error) = 0;
 
     virtual void OnJobMemoryThrashing() = 0;
@@ -96,9 +96,9 @@ struct IJobHost
 
     virtual NRpc::IServerPtr GetRpcServer() const = 0;
 
-    virtual std::string GetPreparationPath() const = 0;
-    virtual std::string GetSlotPath() const = 0;
-    virtual std::string GetJobProxyUnixDomainSocketPath() const = 0;
+    virtual TString GetPreparationPath() const = 0;
+    virtual TString GetSlotPath() const = 0;
+    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyGrpcUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
@@ -109,7 +109,7 @@ struct IJobHost
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const = 0;
 
-    virtual std::string AdjustPath(const std::string& path) const = 0;
+    virtual TString AdjustPath(const TString& path) const = 0;
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
@@ -141,7 +141,7 @@ struct IJob
 
     virtual i64 GetStderrSize() const = 0;
 
-    virtual std::optional<std::string> GetFailContext() = 0;
+    virtual std::optional<TString> GetFailContext() = 0;
 
     virtual std::vector<NJobAgent::TJobProfile> GetProfiles() = 0;
 

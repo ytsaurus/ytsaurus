@@ -22,7 +22,7 @@ static constexpr pid_t InvalidProcessId = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortoProcess::TPortoProcess(
-    const std::string& path,
+    const TString& path,
     IInstanceLauncherPtr containerLauncher,
     bool copyEnv)
     : TProcessBase(path)
@@ -59,7 +59,7 @@ void TPortoProcess::DoSpawn()
     try {
         // TPortoProcess doesn't support running processes inside rootFS.
         YT_VERIFY(!ContainerLauncher_->HasRoot());
-        std::vector<std::string> args(Args_.begin() + 1, Args_.end());
+        std::vector<TString> args(Args_.begin() + 1, Args_.end());
         auto instance = WaitFor(ContainerLauncher_->Launch(ResolvedPath_, args, DecomposeEnv()))
             .ValueOrThrow();
         ContainerInstance_.Store(instance);
@@ -106,13 +106,13 @@ IInstancePtr TPortoProcess::GetInstance()
     return ContainerInstance_.Acquire();
 }
 
-THashMap<std::string, std::string> TPortoProcess::DecomposeEnv() const
+THashMap<TString, TString> TPortoProcess::DecomposeEnv() const
 {
-    THashMap<std::string, std::string> result;
+    THashMap<TString, TString> result;
     for (const auto& env : Env_) {
         TStringBuf name, value;
         TStringBuf(env).TrySplit('=', name, value);
-        result.emplace(name, value);
+        result[name] = value;
     }
     return result;
 }

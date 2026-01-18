@@ -10,10 +10,10 @@ namespace NYT::NContainers::NCri {
 void TCriExecutorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("runtime_endpoint", &TThis::RuntimeEndpoint)
-        .Default(std::string(DefaultCriEndpoint));
+        .Default(TString(DefaultCriEndpoint));
 
     registrar.Parameter("image_endpoint", &TThis::ImageEndpoint)
-        .Default(std::string(DefaultCriEndpoint));
+        .Default(TString(DefaultCriEndpoint));
 
     registrar.Parameter("namespace", &TThis::Namespace)
         .NonEmpty();

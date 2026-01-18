@@ -171,13 +171,14 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 artifact.Key.GetCompressedDataSize());
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
-            auto symlinkPath = CombinePaths(sandboxPath, artifact.Name);
+            // TODO(dgolear): Switch to std::string.
+            TString symlinkPath = CombinePaths(sandboxPath, artifact.Name);
 
             WaitFor(slot->MakeLink(
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
+                TString(artifact.Artifact->GetFileName()),
                 symlinkPath,
                 artifact.Executable))
                 .ThrowOnError();
@@ -213,7 +214,8 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
             YT_VERIFY(artifact.Artifact);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
-            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+            // TODO(dgolear): Swtich to std::string.
+            TString artifactPath = CombinePaths(sandboxPath, artifact.Name);
 
             YT_LOG_INFO(
                 "Set permissions for artifact (FileName: %v, Executable: "
@@ -227,7 +229,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
+                TString(artifact.Artifact->GetFileName()),
                 artifactPath,
                 artifact.Executable));
         } else {
@@ -326,7 +328,8 @@ private:
         }
 
         return TRootFS{
-            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            // TODO(dgolear): Switch to std::string.
+            .RootPath = TString(ResultHolder_.RootVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = std::move(binds),
         };
@@ -810,7 +813,7 @@ private:
         }
 
         return TRootFS{
-            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .RootPath = TString(ResultHolder_.RootVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = std::move(binds),
         };
@@ -823,7 +826,7 @@ private:
         YT_VERIFY(ResultHolder_.GpuCheckVolume);
 
         return TRootFS{
-            .RootPath = ResultHolder_.GpuCheckVolume->GetPath(),
+            .RootPath = TString(ResultHolder_.GpuCheckVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = {},
         };

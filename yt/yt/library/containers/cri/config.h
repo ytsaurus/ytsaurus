@@ -16,20 +16,20 @@ struct TCriExecutorConfig
     : public NRpc::TRetryingChannelConfig
 {
     //! gRPC endpoint for CRI container runtime service.
-    std::string RuntimeEndpoint;
+    TString RuntimeEndpoint;
 
     //! gRPC endpoint for CRI image manager service.
-    std::string ImageEndpoint;
+    TString ImageEndpoint;
 
     //! CRI namespace where this executor operates.
-    std::string Namespace;
+    TString Namespace;
 
     //! Name of CRI runtime configuration to use.
-    std::string RuntimeHandler;
+    TString RuntimeHandler;
 
     //! Common parent cgroup for all pods.
     //! Should be absolute and follow slice notation for systemd setup.
-    std::string BaseCgroup;
+    TString BaseCgroup;
 
     //! Cpu quota period for cpu limits.
     TDuration CpuPeriod;
@@ -60,15 +60,15 @@ struct TCriAuthConfig
 {
     std::string Username;
 
-    std::string Password;
+    TString Password;
 
-    std::string Auth;
+    TString Auth;
 
-    std::string ServerAddress;
+    TString ServerAddress;
 
-    std::string IdentityToken;
+    TString IdentityToken;
 
-    std::string RegistryToken;
+    TString RegistryToken;
 
     REGISTER_YSON_STRUCT(TCriAuthConfig);
 
@@ -85,13 +85,13 @@ struct TCriImageCacheConfig
     //! Manage only images with these prefixes, except images explicitly marked
     //! as unmanaged. Present unmanaged images could be used, but they are not
     //! accounted and never removed or pulled from/into cache on demand.
-    std::vector<std::string> ManagedPrefixes;
+    std::vector<TString> ManagedPrefixes;
 
     //! Never pull or remove images with these prefixes.
-    std::vector<std::string> UnmanagedPrefixes;
+    std::vector<TString> UnmanagedPrefixes;
 
     //! List of images which must be prefetched and kept in cache.
-    std::vector<std::string> PinnedImages;
+    std::vector<TString> PinnedImages;
 
     //! Initial estimation for space required for pulling image into cache.
     i64 ImageSizeEstimation;
