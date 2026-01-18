@@ -71,7 +71,7 @@ struct TResourceUsage
 {
     struct TTaggedStat
     {
-        std::string Tag;
+        TString Tag;
         i64 Value;
     };
 
@@ -94,15 +94,15 @@ struct IInstanceLauncher
     : public TRefCounted
 {
     virtual bool HasRoot() const = 0;
-    virtual const std::string& GetName() const = 0;
+    virtual const TString& GetName() const = 0;
 
-    virtual void SetStdIn(const std::string& inputPath) = 0;
-    virtual void SetStdOut(const std::string& outPath) = 0;
-    virtual void SetStdErr(const std::string& errorPath) = 0;
-    virtual void SetCwd(const std::string& pwd) = 0;
+    virtual void SetStdIn(const TString& inputPath) = 0;
+    virtual void SetStdOut(const TString& outPath) = 0;
+    virtual void SetStdErr(const TString& errorPath) = 0;
+    virtual void SetCwd(const TString& pwd) = 0;
 
     // Null core dump handler implies disabled core dumps.
-    virtual void SetCoreDumpHandler(const std::optional<std::string>& handler) = 0;
+    virtual void SetCoreDumpHandler(const std::optional<TString>& handler) = 0;
     virtual void SetRoot(const TRootFS& rootFS) = 0;
     virtual void SetBinds(const std::vector<TBind>& binds) = 0;
 
@@ -116,20 +116,20 @@ struct IInstanceLauncher
     virtual void EnableMemoryTracking() = 0;
     virtual void SetGroup(int groupId) = 0;
     virtual void SetUser(const std::string& user) = 0;
-    virtual void SetNetworkInterface(const std::string& networkInterface) = 0;
+    virtual void SetNetworkInterface(const TString& networkInterface) = 0;
     virtual void SetIPAddresses(
         const std::vector<NNet::TIP6Address>& addresses,
         bool enableNat64 = false) = 0;
     virtual void DisableNetwork() = 0;
-    virtual void SetHostName(const std::string& hostName) = 0;
-    virtual void SetPlaces(const std::vector<std::string>& places) = 0;
+    virtual void SetHostName(const TString& hostName) = 0;
+    virtual void SetPlaces(const std::vector<TString>& places) = 0;
 
     virtual TFuture<IInstancePtr> Launch(
-        const std::string& path,
-        const std::vector<std::string>& args,
-        const THashMap<std::string, std::string>& env) = 0;
+        const TString& path,
+        const std::vector<TString>& args,
+        const THashMap<TString, TString>& env) = 0;
     virtual TFuture<IInstancePtr> LaunchMeta(
-        const THashMap<std::string, std::string>& env) = 0;
+        const THashMap<TString, TString>& env) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInstanceLauncher)
@@ -158,12 +158,12 @@ struct IInstance
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
 
-    virtual std::string GetStdout() const = 0;
-    virtual std::string GetStderr() const = 0;
+    virtual TString GetStdout() const = 0;
+    virtual TString GetStderr() const = 0;
 
-    virtual std::string GetName() const = 0;
-    virtual std::optional<std::string> GetParentName() const = 0;
-    virtual std::optional<std::string> GetRootName() const = 0;
+    virtual TString GetName() const = 0;
+    virtual std::optional<TString> GetParentName() const = 0;
+    virtual std::optional<TString> GetRootName() const = 0;
 
     //! Returns externally visible pid of the root process inside container.
     //! Throws if container is not running.
@@ -184,11 +184,11 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
-std::string GetSelfContainerName(const IPortoExecutorPtr& executor);
+TString GetSelfContainerName(const IPortoExecutorPtr& executor);
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor);
-IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const std::string& name, const std::optional<std::string>& networkInterface = std::nullopt);
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface = std::nullopt);
 
 //! Works only in Yandex.Deploy pod environment where env DEPLOY_VCPU_LIMIT is set.
 //! Throws if this env is absent.

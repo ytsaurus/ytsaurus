@@ -23,18 +23,18 @@ struct INbdServer
     //! Registers a new #device with a given #name.
     //! Throws if #name is already in use.
     virtual void RegisterDevice(
-        const std::string& name,
+        const TString& name,
         IBlockDevicePtr device) = 0;
 
     //! Tries to unregister the device with a given #name.
     //! Returns |true| upon success and |false| if no such device is registered.
-    virtual bool TryUnregisterDevice(const std::string& name) = 0;
+    virtual bool TryUnregisterDevice(const TString& name) = 0;
 
-    virtual bool IsDeviceRegistered(const std::string& name) const = 0;
+    virtual bool IsDeviceRegistered(const TString& name) const = 0;
 
-    virtual IBlockDevicePtr GetDeviceOrThrow(const std::string& name) const = 0;
+    virtual IBlockDevicePtr GetDeviceOrThrow(const TString& name) const = 0;
 
-    virtual IBlockDevicePtr FindDevice(const std::string& name) const = 0;
+    virtual IBlockDevicePtr FindDevice(const TString& name) const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
 

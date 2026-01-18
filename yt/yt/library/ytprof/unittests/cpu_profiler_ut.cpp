@@ -94,9 +94,9 @@ void RunUnderProfiler(
     Symbolize(&profile, true);
     AddBuildInfo(&profile, TBuildInfo::GetDefault());
     SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
-        .TmpDir = GetOutputPath().GetPath(),
+        .TmpDir = GetOutputPath(),
         .KeepTmpDir = true,
-        .RunTool = [] (const std::vector<std::string>& args) {
+        .RunTool = [] (const std::vector<TString>& args) {
             TShellCommand command{args[0], TList<TString>{args.begin()+1, args.end()}};
             command.Run();
 

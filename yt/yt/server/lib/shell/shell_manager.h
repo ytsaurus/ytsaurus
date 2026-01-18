@@ -24,14 +24,14 @@ namespace NYT::NShell {
 struct TShellManagerConfig
 {
 public:
-    std::string PreparationDir;
-    std::string WorkingDir;
+    TString PreparationDir;
+    TString WorkingDir;
 
     std::optional<int> UserId;
     std::optional<int> GroupId;
 
-    std::optional<std::string> MessageOfTheDay;
-    std::vector<std::string> Environment;
+    std::optional<TString> MessageOfTheDay;
+    std::vector<TString> Environment;
 
     bool EnableJobShellSeccopm;
 };

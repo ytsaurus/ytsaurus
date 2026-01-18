@@ -51,7 +51,7 @@ bool TCriImageCacheEntry::HasAliases() const
 
 class TCriImageCache
     : public ICriImageCache
-    , private TAsyncSlruCacheBase<std::string, TCriImageCacheEntry>
+    , private TAsyncSlruCacheBase<TString, TCriImageCacheEntry>
 {
 public:
     TCriImageCache(TCriImageCacheConfigPtr config, ICriExecutorPtr executor)
@@ -186,7 +186,7 @@ public:
             case EImagePullPolicy::Missing:
                 break;
             case EImagePullPolicy::Default:
-                if (Config_->AlwaysPullLatest && image.Image.ends_with(":latest")) {
+                if (Config_->AlwaysPullLatest && image.Image.EndsWith(":latest")) {
                     pullPolicy = EImagePullPolicy::Always;
                 }
 
@@ -296,7 +296,7 @@ private:
     bool IsManagedImage(const TCriImageDescriptor& image) const
     {
         for (const auto& prefix : Config_->UnmanagedPrefixes) {
-            if (image.Image.starts_with(prefix)) {
+            if (image.Image.StartsWith(prefix)) {
                 return false;
             }
         }
@@ -304,7 +304,7 @@ private:
             return true;
         }
         for (const auto& prefix : Config_->ManagedPrefixes) {
-            if (image.Image.starts_with(prefix)) {
+            if (image.Image.StartsWith(prefix)) {
                 return true;
             }
         }

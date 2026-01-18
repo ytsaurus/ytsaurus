@@ -12,7 +12,7 @@ namespace NYT::NNbd {
 
 struct TArtifactMountOptions
 {
-    std::string Path;
+    TString Path;
     ui16 Permissions;
     IRandomAccessFileReaderPtr Reader;
 };

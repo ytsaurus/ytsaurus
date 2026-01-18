@@ -30,7 +30,7 @@ using TNetworkStatistics = TNetwork::TStatistics;
 
 struct TVolumeStatistics
 {
-    std::vector<std::pair<std::string, i64>> VolumeCounts;
+    std::vector<std::pair<TString, i64>> VolumeCounts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ private:
     template <class T, class F>
     T GetStatistics(
         std::optional<T>& cachedStatistics,
-        const std::string& statisticsKind,
+        const TString& statisticsKind,
         F extractor) const;
 
     TCpuStatistics ExtractCpuStatistics(const TResourceUsage& resourceUsage) const;

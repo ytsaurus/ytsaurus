@@ -519,9 +519,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuManagerDynamicConfig)
 struct TShellCommandConfig
     : public NYTree::TYsonStruct
 {
-    std::string Path;
-    std::vector<std::string> Args;
-    THashMap<std::string, std::string> EnvironmentVariables;
+    TString Path;
+    std::vector<TString> Args;
+    THashMap<TString, TString> EnvironmentVariables;
 
     REGISTER_YSON_STRUCT(TShellCommandConfig);
 

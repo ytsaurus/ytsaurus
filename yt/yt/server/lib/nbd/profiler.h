@@ -16,15 +16,15 @@ class TNbdProfilerCounters
 public:
     TNbdProfilerCounters(const TNbdProfilerCounters& other) = delete;
 
-    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const std::string& name);
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name);
 
-    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const std::string& name);
+    NProfiling::TGauge GetGauge(const NProfiling::TTagSet& tagSet, const TString& name);
 
-    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const std::string& name);
+    NProfiling::TEventTimer GetTimeHistogram(const NProfiling::TTagSet& tagSet, const TString& name);
 
-    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const std::string& name);
+    NProfiling::TEventTimer GetTimer(const NProfiling::TTagSet& tagSet, const TString& name);
 
-    static NProfiling::TTagSet MakeTagSet(const std::string& filePath);
+    static NProfiling::TTagSet MakeTagSet(const TString& filePath);
 
     static TNbdProfilerCounters* Get();
 
@@ -34,7 +34,7 @@ private:
 
     using TKey = NProfiling::TTagList;
 
-    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const std::string& name);
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -46,3 +46,4 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNbd
+

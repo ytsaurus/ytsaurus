@@ -8,7 +8,7 @@ namespace NYT::NContainers {
 
 void FormatValue(TStringBuilderBase* builder, const TDevice& device, TStringBuf /*spec*/)
 {
-    if (!device.Access.empty()) {
+    if (device.Access) {
         builder->AppendFormat("{Device: %v, Access: %v}", device.DeviceName, device.Access);
     } else {
         builder->AppendString(device.DeviceName);

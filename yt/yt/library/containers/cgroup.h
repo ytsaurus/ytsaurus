@@ -17,13 +17,13 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveAllSubcgroups(const std::string& path);
+void RemoveAllSubcgroups(const TString& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TKillProcessGroupTool
 {
-    void operator()(const std::string& processGroupPath) const;
+    void operator()(const TString& processGroupPath) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,12 +32,12 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(std::string, FullPath);
+    DEFINE_BYREF_RO_PROPERTY(TString, FullPath);
 
 public:
     TNonOwningCGroup() = default;
-    explicit TNonOwningCGroup(const std::string& fullPath);
-    TNonOwningCGroup(const std::string& type, const std::string& name);
+    explicit TNonOwningCGroup(const TString& fullPath);
+    TNonOwningCGroup(const TString& type, const TString& name);
     TNonOwningCGroup(TNonOwningCGroup&& other);
 
     void AddTask(int pid) const;
@@ -49,7 +49,7 @@ public:
 
     std::vector<int> GetProcesses() const;
     std::vector<int> GetTasks() const;
-    const std::string& GetFullPath() const;
+    const TString& GetFullPath() const;
 
     std::vector<TNonOwningCGroup> GetChildren() const;
 
@@ -64,9 +64,9 @@ public:
     void RemoveRecursive() const;
 
 protected:
-    std::string Get(const std::string& name) const;
-    void Set(const std::string& name, const std::string& value) const;
-    void Append(const std::string& name, const std::string& value) const;
+    TString Get(const TString& name) const;
+    void Set(const TString& name, const TString& value) const;
+    void Append(const TString& name, const TString& value) const;
 
     void DoLock() const;
     void DoUnlock() const;
@@ -81,7 +81,7 @@ protected:
         const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
         const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const;
 
-    std::string GetPath(const std::string& filename) const;
+    TString GetPath(const TString& filename) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ class TCGroup
     : public TNonOwningCGroup
 {
 protected:
-    TCGroup(const std::string& type, const std::string& name);
+    TCGroup(const TString& type, const TString& name);
     explicit TCGroup(TNonOwningCGroup&& other);
     TCGroup(TCGroup&& other);
 
@@ -112,7 +112,7 @@ class TCpuAccounting
     : public TCGroup
 {
 public:
-    static const std::string Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -133,7 +133,7 @@ public:
         TErrorOr<TDuration> GuaranteeTime;
     };
 
-    explicit TCpuAccounting(const std::string& name);
+    explicit TCpuAccounting(const TString& name);
 
     TStatistics GetStatisticsRecursive() const;
     TStatistics GetStatistics() const;
@@ -150,9 +150,9 @@ class TCpu
     : public TCGroup
 {
 public:
-    static const std::string Name;
+    static const TString Name;
 
-    explicit TCpu(const std::string& name);
+    explicit TCpu(const TString& name);
 
     void SetShare(double share);
 };
@@ -163,7 +163,7 @@ class TBlockIO
     : public TCGroup
 {
 public:
-    static const std::string Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -182,7 +182,7 @@ public:
             TErrorOr<TDuration> IOWaitTime{TError("Resource usage is missing IOWaitTime field")};
         };
 
-        using TDeviceIOStatistics = THashMap<std::string, TIOStatistics>;
+        using TDeviceIOStatistics = THashMap<TString, TIOStatistics>;
 
         TIOStatistics TotalIOStatistics;
         TDeviceIOStatistics DeviceIOStatistics;
@@ -190,12 +190,12 @@ public:
 
     struct TStatisticsItem
     {
-        std::string DeviceId;
-        std::string Type;
+        TString DeviceId;
+        TString Type;
         i64 Value = 0;
     };
 
-    explicit TBlockIO(const std::string& name);
+    explicit TBlockIO(const TString& name);
 
     TStatistics GetStatistics() const;
     void ThrottleOperations(i64 iops) const;
@@ -204,7 +204,7 @@ private:
     //! Guards device ids.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     //! Set of all seen device ids.
-    mutable THashSet<std::string> DeviceIds_;
+    mutable THashSet<TString> DeviceIds_;
 
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
 
@@ -220,7 +220,7 @@ class TMemory
     : public TCGroup
 {
 public:
-    static const std::string Name;
+    static const TString Name;
 
     struct TStatistics
     {
@@ -242,7 +242,7 @@ public:
         TErrorOr<i64> OomKillsTotal;
     };
 
-    explicit TMemory(const std::string& name);
+    explicit TMemory(const TString& name);
 
     TStatistics GetStatistics() const;
     i64 GetMaxMemoryUsage() const;
@@ -281,21 +281,21 @@ class TFreezer
     : public TCGroup
 {
 public:
-    static const std::string Name;
+    static const TString Name;
 
-    explicit TFreezer(const std::string& name);
+    explicit TFreezer(const TString& name);
 
-    std::string GetState() const;
+    TString GetState() const;
     void Freeze() const;
     void Unfreeze() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<std::string, std::string> ParseProcessCGroups(const std::string& str);
-THashMap<std::string, std::string> GetProcessCGroups(pid_t pid);
-THashMap<std::string, std::string> GetSelfProcessCGroups();
-bool IsValidCGroupType(const std::string& type);
+THashMap<TString, TString> ParseProcessCGroups(const TString& str);
+THashMap<TString, TString> GetProcessCGroups(pid_t pid);
+THashMap<TString, TString> GetSelfProcessCGroups();
+bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

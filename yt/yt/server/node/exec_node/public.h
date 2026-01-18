@@ -35,7 +35,7 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 struct TTmpfsVolumeParams
 {
     //! Path relative to sandbox, e.g. my_tmpfs
-    std::string Path;
+    TString Path;
     i64 Size = 0;
     //! Slot user id.
     int UserId = 0;
@@ -45,7 +45,7 @@ struct TTmpfsVolumeParams
 
 struct TVirtualSandboxData
 {
-    std::string NbdExportId;
+    TString NbdExportId;
     NNbd::IImageReaderPtr Reader;
 };
 
@@ -55,7 +55,7 @@ struct TVirtualSandboxData
 struct TSandboxNbdRootVolumeData
 {
     //! Identifier of NBD disk within NBD server.
-    std::string ExportId;
+    TString ExportId;
 
     //! Volume params.
     i64 Size = 0;
@@ -101,7 +101,7 @@ struct TArtifactDownloadOptions
 {
     NChunkClient::TTrafficMeterPtr TrafficMeter;
 
-    std::vector<std::string> WorkloadDescriptorAnnotations;
+    std::vector<TString> WorkloadDescriptorAnnotations;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +115,7 @@ struct TVolumePreparationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const std::string ProxyConfigFileName;
+extern const TString ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_STRUCT(IJobController)
 
@@ -185,7 +185,7 @@ DEFINE_ENUM(EVolumeType,
 struct TTmpfsVolumeResult
 {
     //! Tmpfs path, i.e. path relative to sandbox, e.g. my_tmpfs
-    std::string Path;
+    TString Path;
     //! Tmpfs volume.
     IVolumePtr Volume;
 };

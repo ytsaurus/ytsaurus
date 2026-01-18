@@ -209,14 +209,14 @@ public:
         return LastMeasuredThroughput_;
     }
 
-    std::string GetRootPath() const
+    TString GetRootPath() const
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return Location_->GetPath();
     }
 
-    std::string GetId() const
+    TString GetId() const
     {
         return Location_->GetId();
     }

@@ -12,12 +12,12 @@ void TPodSpecConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TCGroupConfig::IsCGroupSupported(const std::string& cgroupType) const
+bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
 {
     auto it = std::find_if(
         SupportedCGroups.begin(),
         SupportedCGroups.end(),
-        [&] (const std::string& type) {
+        [&] (const TString& type) {
             return type == cgroupType;
         });
     return it != SupportedCGroups.end();

@@ -19,7 +19,7 @@ public:
         NYTree::INodePtr defaultIOConfig,
         TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
         IHugePageManagerPtr hugePageManager,
-        std::string locationId,
+        TString locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
@@ -244,7 +244,7 @@ public:
     }
 
 private:
-    const std::string LocationId_;
+    const TString LocationId_;
     const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
     const IHugePageManagerPtr HugePageManager_;
     const NProfiling::TProfiler Profiler_;
@@ -287,7 +287,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     NYTree::INodePtr ioConfig,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
     IHugePageManagerPtr hugePageManager,
-    std::string locationId,
+    TString locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
 {

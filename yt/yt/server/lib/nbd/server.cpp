@@ -107,7 +107,7 @@ public:
     }
 
     void RegisterDevice(
-        const std::string& name,
+        const TString& name,
         IBlockDevicePtr device) override
     {
         YT_LOG_INFO("Registering device (Name: %v, Info: %v)", name, device->DebugString());
@@ -123,7 +123,7 @@ public:
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
-    bool TryUnregisterDevice(const std::string& name) override
+    bool TryUnregisterDevice(const TString& name) override
     {
         YT_LOG_INFO("Unregistering device (Name: %v)", name);
 
@@ -142,13 +142,13 @@ public:
         return true;
     }
 
-    bool IsDeviceRegistered(const std::string& name) const override
+    bool IsDeviceRegistered(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return NameToDevice_.contains(name);
     }
 
-    IBlockDevicePtr GetDeviceOrThrow(const std::string& name) const override
+    IBlockDevicePtr GetDeviceOrThrow(const TString& name) const override
     {
         auto device = FindDevice(name);
         if (!device) {
@@ -158,7 +158,7 @@ public:
         return device;
     }
 
-    IBlockDevicePtr FindDevice(const std::string& name) const override
+    IBlockDevicePtr FindDevice(const TString& name) const override
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return GetOrDefault(NameToDevice_, name);
@@ -192,9 +192,9 @@ private:
     IListenerPtr Listener_;
 
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
-    THashMap<std::string, IBlockDevicePtr> NameToDevice_;
+    THashMap<TString, IBlockDevicePtr> NameToDevice_;
 
-    std::vector<std::pair<std::string, IBlockDevicePtr>> ListDevices()
+    std::vector<std::pair<TString, IBlockDevicePtr>> ListDevices()
     {
         auto guard = ReaderGuard(NameToDeviceLock_);
         return {NameToDevice_.begin(), NameToDevice_.end()};
@@ -748,7 +748,7 @@ private:
                 YT_VERIFY(readSize >= 0);
                 if (readSize == 0) {
                     // The connection has been closed by the peer.
-                    std::string strTagSet;
+                    TString strTagSet;
                     NProfiling::TTagSet tagSet;
                     if (Device_) {
                         strTagSet = Device_->GetProfileSensorTag();

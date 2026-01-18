@@ -51,7 +51,7 @@ private:
             request->force_reset(),
             slotManager->HasArmedPersistentAlerts());
 
-        THashSet<std::string> alertTypesToReset(
+        THashSet<TString> alertTypesToReset(
             request->alert_types_to_reset().begin(),
             request->alert_types_to_reset().end());
         for (const auto& alertTypeString : alertTypesToReset) {
@@ -65,12 +65,12 @@ private:
 
         auto locations = slotManager->GetLocations();
 
-        THashSet<std::string> locationIds;
+        THashSet<TString> locationIds;
         for (const auto& location : locations) {
             locationIds.insert(location->GetId());
         }
 
-        THashSet<std::string> requestLocationIds(
+        THashSet<TString> requestLocationIds(
             request->locations().begin(),
             request->locations().end());
         for (const auto& locationId : requestLocationIds) {
