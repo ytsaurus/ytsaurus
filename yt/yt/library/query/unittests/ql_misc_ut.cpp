@@ -246,9 +246,9 @@ TEST(TFingerprintTest, NestedDataSubqueries)
 
     auto fingerprint = InferName(query, TInferNameOptions{.OmitValues = true});
 
-    EXPECT_EQ(fingerprint, "SELECT first(try_get_int64(to_any(("
+    EXPECT_EQ(fingerprint, "SELECT first(try_get_int64(("
         "SELECT sum(i + ?) + ? AS x FROM (b AS i) GROUP BY [common prefix: 0, aggregates: [sum]] ?"
-        ")), ?)) + ? AS nested GROUP BY [common prefix: 0, disjoint: False, aggregates: [first]] ?");
+        "), ?)) + ? AS nested GROUP BY [common prefix: 0, disjoint: False, aggregates: [first]] ?");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

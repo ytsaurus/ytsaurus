@@ -88,6 +88,8 @@ Value* CodegenLexicographicalCompare(
     Value* rhsData,
     Value* rhsLength);
 
+Value* CodegenAllocateValues(const TCGIRBuilderPtr& builder, size_t valueCount);
+
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
     bool nullable,
