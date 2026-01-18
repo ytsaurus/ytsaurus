@@ -794,7 +794,38 @@ size_t TExpressionProfiler::Profile(
     }
 
     Fold(id);
-    const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
+
+    // Logic is placed here to preserve compatibility with coordinator.
+    auto functionName = functionExpr->FunctionName;
+
+    if (functionName == "try_get_int64") {
+        YT_VERIFY(functionExpr->Arguments.size() == 2);
+        auto ysonType = functionExpr->Arguments[0]->LogicalType;
+
+        if (ysonType->GetMetatype() == ELogicalMetatype::Optional) {
+            ysonType = ysonType->GetElement();
+        }
+
+        if (ysonType->GetMetatype() == ELogicalMetatype::List &&
+            ysonType->GetElement()->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Int64)
+        {
+            if (auto ysonPath = functionExpr->Arguments[1]->As<TLiteralExpression>()) {
+                if (static_cast<TUnversionedValue>(ysonPath->Value).AsStringBuf() == "/0") {
+                    functionName = "try_get_front_int64_from_list";
+                }
+            }
+        }
+    } else if (functionName == "farm_hash") {
+        if (functionExpr->Arguments.size() == 1) {
+            auto argumentType = functionExpr->Arguments[0]->LogicalType;
+
+            if (GetWireType(argumentType) == EValueType::Int64) {
+                functionName = "farm_hash_int64";
+            }
+        }
+    }
+
+    const auto& function = FunctionProfilers_->GetFunction(functionName);
 
     std::vector<bool> nullableArgs;
     for (size_t argId : argIds) {

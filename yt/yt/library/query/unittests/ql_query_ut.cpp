@@ -6541,6 +6541,35 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
+{
+    auto split = MakeSplit({
+        {"yson", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto source = TSource{
+        "yson=[1; 2; 3]",
+        "yson=[4]",
+        "yson=[]",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "result=1",
+        "result=4",
+        "result=#",
+        "result=#"
+    }, resultSplit);
+
+    Evaluate("try_get_int64(yson, \"/0\") as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, YPathGetInt64)
 {
     auto split = MakeSplit({

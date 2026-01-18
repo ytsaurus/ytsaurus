@@ -32,6 +32,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
+#include <yt/yt/client/table_client/lightweight_yson_list_parser.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
@@ -967,6 +968,119 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
+int DoUnpackComplex(
+    TExpressionContext* context,
+    std::vector<TPIValue*>& nestedRows,
+    EValueType listItemType,
+    TPIValue* arrayAtHost,
+    int arrayCount,
+    int currentArrayIndex,
+    int index)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TMemoryInput memoryInput;
+    std::string buffer;
+    if (compartment) {
+        buffer = arrayAtHost->AsStringBuf();
+        memoryInput = TMemoryInput(TStringBuf(buffer));
+    } else {
+        memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+    }
+
+    auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
+    auto cursor = TYsonPullParserCursor(&parser);
+
+    TPIValue parsedValue;
+
+    auto validateType = [] (EValueType expected, EValueType actual) {
+        THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
+            expected,
+            actual);
+    };
+
+    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+        const auto current = cursor->GetCurrent();
+        switch (current.GetType()) {
+            case EYsonItemType::EntityValue: {
+                MakePositionIndependentNullValue(&parsedValue);
+                break;
+            }
+            case EYsonItemType::Int64Value: {
+                validateType(listItemType, EValueType::Int64);
+
+                auto value = current.UncheckedAsInt64();
+                MakePositionIndependentInt64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::Uint64Value: {
+                validateType(listItemType, EValueType::Uint64);
+
+                auto value = current.UncheckedAsUint64();
+                MakePositionIndependentUint64Value(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::DoubleValue: {
+                validateType(listItemType, EValueType::Double);
+
+                auto value = current.UncheckedAsDouble();
+                MakePositionIndependentDoubleValue(&parsedValue, value);
+                break;
+            }
+            case EYsonItemType::StringValue: {
+                validateType(listItemType, EValueType::String);
+
+                auto value = current.UncheckedAsString();
+                MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
+                break;
+            }
+            case EYsonItemType::BeginList:
+            case EYsonItemType::BeginMap: {
+                THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
+                    "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
+                    EValueType::Any,
+                    EValueType::Composite,
+                    listItemType);
+
+                NDetail::TContextStringOutput output(context);
+                TCheckedInDebugYsonTokenWriter writer(&output);
+
+                cursor->TransferComplexValue(&writer);
+
+                writer.Finish();
+
+                MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
+                break;
+            }
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
+                    current.GetType(),
+                    listItemType);
+        }
+
+        if (currentArrayIndex >= std::ssize(nestedRows)) {
+            int nestedRowSize = arrayCount;
+            auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+            for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+            }
+            nestedRows.push_back(mutableRange.Begin());
+        }
+
+        CopyPositionIndependent(
+            PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+            parsedValue);
+        currentArrayIndex++;
+
+        // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
+        if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
+            cursor->Next();
+        }
+    });
+
+    return currentArrayIndex;
+}
+
 std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
 {
     auto* compartment = GetCurrentCompartment();
@@ -976,110 +1090,42 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
     // TODO(lukyan): Reuse.
     std::vector<TPIValue*> nestedRows;
 
+    TToken token;
+    TStatelessLexer lexer;
+
     for (int index = 0; index < arrayCount; ++index) {
+        auto listItemType = types[index];
+
         auto* arrayAtHost = PtrFromVM(compartment, &lists[index]);
         int currentArrayIndex = 0;
 
         if (arrayAtHost->Type != EValueType::Null) {
-            TMemoryInput memoryInput;
-            std::string buffer;
-            if (compartment) {
-                buffer = arrayAtHost->AsStringBuf();
-                memoryInput = TMemoryInput(TStringBuf(buffer));
+            if (listItemType != EValueType::Any && listItemType != EValueType::Composite) {
+                DoUnpackValuesTyped([&] (const TUnversionedValue& value) {
+                    if (currentArrayIndex >= std::ssize(nestedRows)) {
+                        int nestedRowSize = arrayCount;
+                        auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
+                        for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
+                            MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
+                        }
+                        nestedRows.push_back(mutableRange.Begin());
+                    }
+
+                    MakePositionIndependentFromUnversioned(
+                        PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
+                        value);
+                    currentArrayIndex++;
+
+                    return false;
+                },
+                arrayAtHost->AsStringBuf(),
+                listItemType,
+                &lexer,
+                &token);
+
             } else {
-                memoryInput = TMemoryInput(FromPositionIndependentValue<NYson::TYsonStringBuf>(*arrayAtHost).AsStringBuf());
+                currentArrayIndex = DoUnpackComplex(context, nestedRows, listItemType, arrayAtHost, arrayCount, currentArrayIndex, index);
             }
-
-            auto parser = TYsonPullParser(&memoryInput, EYsonType::Node);
-            auto cursor = TYsonPullParserCursor(&parser);
-
-            auto listItemType = types[index];
-            TPIValue parsedValue;
-
-            auto validateType = [] (EValueType expected, EValueType actual) {
-                THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
-                    expected,
-                    actual);
-            };
-
-            cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-                const auto current = cursor->GetCurrent();
-                switch (current.GetType()) {
-                    case EYsonItemType::EntityValue: {
-                        MakePositionIndependentNullValue(&parsedValue);
-                        break;
-                    }
-                    case EYsonItemType::Int64Value: {
-                        validateType(listItemType, EValueType::Int64);
-
-                        auto value = current.UncheckedAsInt64();
-                        MakePositionIndependentInt64Value(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::Uint64Value: {
-                        validateType(listItemType, EValueType::Uint64);
-
-                        auto value = current.UncheckedAsUint64();
-                        MakePositionIndependentUint64Value(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::DoubleValue: {
-                        validateType(listItemType, EValueType::Double);
-
-                        auto value = current.UncheckedAsDouble();
-                        MakePositionIndependentDoubleValue(&parsedValue, value);
-                        break;
-                    }
-                    case EYsonItemType::StringValue: {
-                        validateType(listItemType, EValueType::String);
-
-                        auto value = current.UncheckedAsString();
-                        MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
-                        break;
-                    }
-                    case EYsonItemType::BeginList:
-                    case EYsonItemType::BeginMap: {
-                        THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
-                            "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
-                            EValueType::Any,
-                            EValueType::Composite,
-                            listItemType);
-
-                        NDetail::TContextStringOutput output(context);
-                        TCheckedInDebugYsonTokenWriter writer(&output);
-
-                        cursor->TransferComplexValue(&writer);
-
-                        writer.Finish();
-
-                        MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
-                        break;
-                    }
-                    default:
-                        THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
-                            current.GetType(),
-                            listItemType);
-                }
-
-                if (currentArrayIndex >= std::ssize(nestedRows)) {
-                    int nestedRowSize = arrayCount;
-                    auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
-                    for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
-                        MakePositionIndependentNullValue(PtrFromVM(compartment, &mutableRange[leadingRowIndex]));
-                    }
-                    nestedRows.push_back(mutableRange.Begin());
-                }
-
-                CopyPositionIndependent(
-                    PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
-                    parsedValue);
-                currentArrayIndex++;
-
-                // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
-                if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
-                    cursor->Next();
-                }
-            });
         }
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
@@ -2503,6 +2549,52 @@ DEFINE_YPATH_GET(Double)
 DEFINE_YPATH_GET(Boolean)
 DEFINE_YPATH_GET_STRING
 DEFINE_YPATH_GET_ANY
+
+void TryGetFrontAsInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* anyValueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    int count = 0;
+    if (anyValueAtHost->Type != EValueType::Null) {
+        DoUnpackValuesTyped(
+            [&] (const TUnversionedValue& value) {
+                ++count;
+                MakePositionIndependentFromUnversioned(resultAtHost, value);
+                // Break.
+                return true;
+            },
+            anyValueAtHost->AsStringBuf(),
+            EValueType::Int64);
+    }
+
+    if (count == 0) {
+        MakePositionIndependentFromUnversioned(resultAtHost, MakeUnversionedNullValue());
+    }
+}
+
+void GetFarmHashInt64(
+    TPIValue* result,
+    TPIValue* anyValue)
+{
+    auto* compartment = GetCurrentCompartment();
+
+    TPIValue* valueAtHost = PtrFromVM(compartment, anyValue);
+    TPIValue* resultAtHost = PtrFromVM(compartment, result);
+
+    i64 intValue = valueAtHost->Type != EValueType::Null ? BitCast<ui64>(valueAtHost->Data.Int64) : 0;
+
+    // Compatible with farm_hash function.
+    ui64 resultHash = 0xdeadc0de;
+    resultHash = FarmFingerprint(resultHash, NYT::FarmFingerprint(intValue));
+    resultHash = resultHash ^ 1;
+
+    MakePositionIndependentUint64Value(resultAtHost, resultHash);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4281,6 +4373,7 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContex
                     index);
         }
     }
+
     writer.OnEndList();
 
     return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetVMView());
@@ -4554,6 +4647,8 @@ REGISTER_YPATH_GET_ROUTINE(Double);
 REGISTER_YPATH_GET_ROUTINE(Boolean);
 REGISTER_YPATH_GET_ROUTINE(String);
 REGISTER_YPATH_GET_ROUTINE(Any);
+REGISTER_ROUTINE(TryGetFrontAsInt64);
+REGISTER_ROUTINE(GetFarmHashInt64);
 REGISTER_ROUTINE(AnyToInt64);
 REGISTER_ROUTINE(AnyToUint64);
 REGISTER_ROUTINE(AnyToDouble);
