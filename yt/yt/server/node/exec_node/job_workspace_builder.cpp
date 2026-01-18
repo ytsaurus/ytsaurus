@@ -177,8 +177,8 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
-                symlinkPath,
+                TString(artifact.Artifact->GetFileName()),
+                TString(symlinkPath),
                 artifact.Executable))
                 .ThrowOnError();
 
@@ -228,7 +228,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
+                TString(artifact.Artifact->GetFileName()),
                 artifactPath,
                 artifact.Executable));
         } else {

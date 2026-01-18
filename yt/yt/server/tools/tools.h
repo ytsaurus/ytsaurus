@@ -11,8 +11,8 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString DoRunTool(const std::string& toolName, const NYson::TYsonString& serializedArgument);
-NYson::TYsonString DoRunToolInProcess(const std::string& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString DoRunTool(const TString& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString DoRunToolInProcess(const TString& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,17 +23,17 @@ template <
 >
 TResult RunTool(
     const TArg& arg,
-    std::function<NYson::TYsonString(const std::string&, const NYson::TYsonString&)> invoker = DoRunTool);
+    std::function<NYson::TYsonString(const TString&, const NYson::TYsonString&)> invoker = DoRunTool);
 
 template <
     typename TTool,
     typename TArg = typename TFunctionTraits<TTool>::TArg
 >
-std::vector<std::string> GenerateToolArguments(const TArg& arg);
+std::vector<TString> GenerateToolArguments(const TArg& arg);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString ExecuteTool(const std::string& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString ExecuteTool(const TString& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 

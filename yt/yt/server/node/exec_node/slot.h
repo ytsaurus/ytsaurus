@@ -56,31 +56,31 @@ struct IUserSlot
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,
-        const std::string& artifactName,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
-        const std::string& targetPath,
-        const std::string& linkPath,
+        const TString& targetPath,
+        const TString& linkPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeFileForSandboxBind(
         TJobId jobId,
-        const std::string& artifactName,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
-        const std::string& targetPath,
-        const std::string& bindPath,
+        const TString& targetPath,
+        const TString& bindPath,
         bool executable) = 0;
 
     virtual TFuture<void> MakeCopy(
         TJobId jobId,
-        const std::string& artifactName,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
-        const std::string& sourcePath,
+        const TString& sourcePath,
         const TFile& destinationFile,
         const TCacheLocationPtr& sourceLocation) = 0;
 
     virtual TFuture<void> MakeFile(
         TJobId jobId,
-        const std::string& artifactName,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
@@ -102,7 +102,7 @@ struct IUserSlot
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const std::string& slotPath) = 0;
+        const TString& slotPath) = 0;
 
     virtual TFuture<void> LinkTmpfsVolumes(
         const IVolumePtr& rootVolume,
@@ -120,13 +120,13 @@ struct IUserSlot
 
     virtual TDiskStatistics GetDiskStatistics() const = 0;
 
-    virtual std::string GetSlotPath() const = 0;
+    virtual TString GetSlotPath() const = 0;
 
-    virtual std::string GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
+    virtual TString GetSandboxPath(ESandboxKind sandboxKind, const IVolumePtr& rootVolume, bool testRootFs) const = 0;
 
     virtual std::string GetMediumName() const = 0;
 
-    virtual std::string GetJobProxyUnixDomainSocketPath() const = 0;
+    virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
     virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
@@ -135,16 +135,16 @@ struct IUserSlot
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
-        const std::optional<std::string>& hostName,
+        const std::optional<TString>& hostName,
         const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag,
         bool throwOnFailedCommand) = 0;
 
     virtual void OnArtifactPreparationFailed(
         TJobId jobId,
-        const std::string& artifactName,
+        const TString& artifactName,
         ESandboxKind sandboxKind,
-        const std::string& artifactPath,
+        const TString& artifactPath,
         const TError& error) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
@@ -171,7 +171,7 @@ IUserSlotPtr CreateSlot(
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     NExecNode::IBootstrap* bootstrap,
-    const std::string& nodeTag,
+    const TString& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
     NScheduler::NProto::TOldDiskRequest diskRequest,

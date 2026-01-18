@@ -19,7 +19,7 @@ class TChunkBlockDevice
 {
 public:
     TChunkBlockDevice(
-        std::string exportId,
+        TString exportId,
         TChunkBlockDeviceConfigPtr config,
         IThroughputThrottlerPtr readThrottler,
         IThroughputThrottlerPtr writeThrottler,
@@ -59,14 +59,14 @@ public:
         return false;
     }
 
-    std::string DebugString() const override
+    TString DebugString() const override
     {
         return Format("{Size, %v}", GetTotalSize());
     }
 
-    std::string GetProfileSensorTag() const override
+    TString GetProfileSensorTag() const override
     {
-        return std::string();
+        return TString();
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
@@ -213,7 +213,7 @@ public:
     }
 
 private:
-    const std::string ExportId_;
+    const TString ExportId_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
@@ -225,7 +225,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateChunkBlockDevice(
-    std::string exportId,
+    TString exportId,
     TChunkBlockDeviceConfigPtr config,
     IThroughputThrottlerPtr readThrottler,
     IThroughputThrottlerPtr writeThrottler,

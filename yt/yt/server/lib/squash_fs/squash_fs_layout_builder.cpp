@@ -139,7 +139,7 @@ DEFINE_REFCOUNTED_TYPE(TFileInode)
 struct IEntry
     : public virtual TRefCounted
 {
-    virtual const std::string& Name() const = 0;
+    virtual const TString& Name() const = 0;
     virtual ui16 GetPermissions() const = 0;
     virtual ui32 GetUid() const = 0;
     virtual ui32 GetGid() const = 0;
@@ -160,7 +160,7 @@ class TDirectory
     : public IEntry
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(std::string, Name);
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(TString, Name);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui16, Permissions);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Uid);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Gid);
@@ -169,7 +169,7 @@ public:
 
 public:
     TDirectory(
-        std::string name,
+        TString name,
         ui16 permissions,
         ui32 uid,
         ui32 gid,
@@ -181,11 +181,11 @@ public:
 
     EInodeType GetType() const override;
 
-    TDirectoryPtr CreateDirectory(const std::string& name);
+    TDirectoryPtr CreateDirectory(const TString& name);
 
     void CreateFile(
-        const std::string& name,
-        const std::string& path,
+        const TString& name,
+        const TString& path,
         ui16 permissions,
         IRandomAccessFileReaderPtr reader);
 
@@ -194,7 +194,7 @@ public:
 private:
     TDirectoryInodePtr Inode_;
 
-    IEntryPtr GetEntry(const std::string& name) const;
+    IEntryPtr GetEntry(const TString& name) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDirectory)
@@ -205,8 +205,8 @@ class TFile
     : public IEntry
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(std::string, Name);
-    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(std::string, Path);
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT_OVERRIDE(TString, Name);
+    DEFINE_BYVAL_RO_PROPERTY_NO_INIT(TString, Path);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, Size);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui16, Permissions);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT_OVERRIDE(ui32, Uid);
@@ -216,8 +216,8 @@ public:
 
 public:
     TFile(
-        std::string name,
-        std::string path,
+        TString name,
+        TString path,
         ui16 permissions,
         ui32 uid,
         ui32 gid,
@@ -245,7 +245,7 @@ public:
     explicit TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions options);
 
     void AddFile(
-        std::string path,
+        TString path,
         ui16 permissions,
         IRandomAccessFileReaderPtr reader) override;
     TSquashFSLayoutPtr Build() override;
@@ -605,7 +605,7 @@ void TSquashFSLayout::DumpHexText(IOutputStream& output) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TDirectory::TDirectory(
-    std::string name,
+    TString name,
     ui16 permissions,
     ui32 uid,
     ui32 gid,
@@ -637,7 +637,7 @@ EInodeType TDirectory::GetType() const
     return EInodeType::BasicDirectory;
 }
 
-TDirectoryPtr TDirectory::CreateDirectory(const std::string& name)
+TDirectoryPtr TDirectory::CreateDirectory(const TString& name)
 {
     auto entry = GetEntry(name);
     if (entry) {
@@ -660,8 +660,8 @@ TDirectoryPtr TDirectory::CreateDirectory(const std::string& name)
 }
 
 void TDirectory::CreateFile(
-    const std::string& name,
-    const std::string& path,
+    const TString& name,
+    const TString& path,
     ui16 permissions,
     IRandomAccessFileReaderPtr reader)
 {
@@ -698,7 +698,7 @@ void TDirectory::SortEntries()
         compareNames);
 }
 
-IEntryPtr TDirectory::GetEntry(const std::string& name) const
+IEntryPtr TDirectory::GetEntry(const TString& name) const
 {
     for (const auto& entry : Entries_) {
         if (entry->Name() == name) {
@@ -712,8 +712,8 @@ IEntryPtr TDirectory::GetEntry(const std::string& name) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TFile::TFile(
-    std::string name,
-    std::string path,
+    TString name,
+    TString path,
     ui16 permissions,
     ui32 uid,
     ui32 gid,
@@ -775,11 +775,11 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
 }
 
 void TSquashFSLayoutBuilder::AddFile(
-    std::string path,
+    TString path,
     ui16 permissions,
     IRandomAccessFileReaderPtr reader)
 {
-    auto splittedPath = StringSplitter(path).Split('/').ToList<std::string>();
+    auto splittedPath = StringSplitter(path).Split('/').ToList<TString>();
 
     if (splittedPath.empty()) {
         THROW_ERROR_EXCEPTION("The path is empty");
@@ -793,7 +793,7 @@ void TSquashFSLayoutBuilder::AddFile(
         THROW_ERROR_EXCEPTION("The path ends by directory, not by file");
     }
 
-    auto validateName = [] (const std::string& name) {
+    auto validateName = [] (const TString& name) {
         if (name.empty() ||
             name.size() > MaxEntryNameLength)
         {

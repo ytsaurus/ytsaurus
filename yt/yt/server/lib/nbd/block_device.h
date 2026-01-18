@@ -51,8 +51,8 @@ struct IBlockDevice
 {
     virtual i64 GetTotalSize() const = 0;
     virtual bool IsReadOnly() const = 0;
-    virtual std::string DebugString() const = 0;
-    virtual std::string GetProfileSensorTag() const = 0;
+    virtual TString DebugString() const = 0;
+    virtual TString GetProfileSensorTag() const = 0;
 
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;

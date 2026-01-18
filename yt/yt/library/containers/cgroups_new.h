@@ -44,7 +44,7 @@ public:
     i64 GetOomKillCount() const;
 
 private:
-    std::string CGroup_;
+    TString CGroup_;
     bool IsV2_;
 
     void DetectSelfCGroup();

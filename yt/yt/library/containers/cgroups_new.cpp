@@ -17,9 +17,9 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "CGroups");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<std::string, i64> ReadAndParseStatFile(const std::string& fileName)
+THashMap<TString, i64> ReadAndParseStatFile(const TString& fileName)
 {
-    THashMap<std::string, i64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (auto line : SplitString(rawStatFile, "\n")) {
@@ -34,7 +34,7 @@ THashMap<std::string, i64> ReadAndParseStatFile(const std::string& fileName)
     return statistics;
 }
 
-i64 ReadAndParseValueFile(const std::string& fileName)
+i64 ReadAndParseValueFile(const TString& fileName)
 {
     auto rawValueFile = TFileInput(fileName).ReadLine();
     return FromString<i64>(rawValueFile);
@@ -42,7 +42,7 @@ i64 ReadAndParseValueFile(const std::string& fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryStatistics GetMemoryStatisticsV1(const std::string& cgroup)
+TMemoryStatistics GetMemoryStatisticsV1(const TString& cgroup)
 {
     auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/memory/%v/memory.stat", cgroup));
 
@@ -56,7 +56,7 @@ TMemoryStatistics GetMemoryStatisticsV1(const std::string& cgroup)
     };
 }
 
-TMemoryStatistics GetMemoryStatisticsV2(const std::string& cgroup)
+TMemoryStatistics GetMemoryStatisticsV2(const TString& cgroup)
 {
     auto statistics = ReadAndParseStatFile(Format("/sys/fs/cgroup/%v/memory.stat", cgroup));
 
@@ -72,7 +72,7 @@ TMemoryStatistics GetMemoryStatisticsV2(const std::string& cgroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuStatistics GetCpuStatisticsV1(const std::string& cgroup)
+TCpuStatistics GetCpuStatisticsV1(const TString& cgroup)
 {
     auto cpuAcctStatPath = Format("/sys/fs/cgroup/cpuacct/%v/cpuacct.stat", cgroup);
     auto cpuAcctStatistics = ReadAndParseStatFile(cpuAcctStatPath);
@@ -94,7 +94,7 @@ TCpuStatistics GetCpuStatisticsV1(const std::string& cgroup)
     };
 }
 
-TCpuStatistics GetCpuStatisticsV2(const std::string& cgroup)
+TCpuStatistics GetCpuStatisticsV2(const TString& cgroup)
 {
     auto cpuStatPath = Format("/sys/fs/cgroup/%v/cpu.stat", cgroup);
     auto cpuStatistics = ReadAndParseStatFile(cpuStatPath);
@@ -107,9 +107,9 @@ TCpuStatistics GetCpuStatisticsV2(const std::string& cgroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const std::string& fileName)
+THashMap<TString, i64> ReadAndParseBlkIOStatFile(const TString& fileName)
 {
-    THashMap<std::string, i64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (const auto& line : SplitString(rawStatFile, "\n")) {
@@ -124,9 +124,9 @@ THashMap<std::string, i64> ReadAndParseBlkIOStatFile(const std::string& fileName
     return statistics;
 }
 
-THashMap<std::string, i64> ReadAndParseIOStatFile(const std::string& fileName)
+THashMap<TString, i64> ReadAndParseIOStatFile(const TString& fileName)
 {
-    THashMap<std::string, i64> statistics;
+    THashMap<TString, i64> statistics;
 
     auto rawStatFile = TFileInput(fileName).ReadAll();
     for (auto line : SplitString(rawStatFile, "\n")) {
@@ -143,7 +143,7 @@ THashMap<std::string, i64> ReadAndParseIOStatFile(const std::string& fileName)
     return statistics;
 }
 
-TBlockIOStatistics GetBlockIOStatisticsV1(const std::string& cgroup)
+TBlockIOStatistics GetBlockIOStatisticsV1(const TString& cgroup)
 {
     TBlockIOStatistics statistics;
 
@@ -174,7 +174,7 @@ TBlockIOStatistics GetBlockIOStatisticsV1(const std::string& cgroup)
     return statistics;
 }
 
-TBlockIOStatistics GetBlockIOStatisticsV2(const std::string& cgroup)
+TBlockIOStatistics GetBlockIOStatisticsV2(const TString& cgroup)
 {
     auto ioStatPath = Format("/sys/fs/cgroup/%v/io.stat", cgroup);
     auto ioStatistics = ReadAndParseIOStatFile(ioStatPath);
@@ -233,7 +233,7 @@ void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
     auto rawSelfCGroups = TFileInput("/proc/self/cgroup").ReadAll();
     for (auto line : SplitString(rawSelfCGroups, "\n")) {
         // NB: CGroup name may contain ":".
-        std::vector<std::string> tokens = StringSplitter(line).Split(':').Limit(3);
+        std::vector<TString> tokens = StringSplitter(line).Split(':').Limit(3);
         if (tokens.size() < 3) {
             continue;
         }

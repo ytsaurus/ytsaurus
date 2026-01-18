@@ -53,7 +53,7 @@ struct IVolume
     //! Link volume mount point to target.
     virtual TFuture<void> Link(
         TGuid tag,
-        const std::string& target) = 0;
+        const TString& target) = 0;
     //! Remove volume and links where it points to.
     virtual TFuture<void> Remove() = 0;
 
@@ -76,16 +76,16 @@ struct IVolumeManager
 
     //! Prepare tmpfs volumes.
     virtual TFuture<std::vector<TTmpfsVolumeResult>> PrepareTmpfsVolumes(
-        const std::optional<std::string>& sandboxPath,
+        const std::optional<TString>& sandboxPath,
         const std::vector<TTmpfsVolumeParams>& volumes) = 0;
 
     virtual TFuture<IVolumePtr> RbindRootVolume(
         const IVolumePtr& volume,
-        const std::string& slotPath) = 0;
+        const TString& slotPath) = 0;
 
     //! Link tmpfs volumes into destination directory.
     virtual TFuture<void> LinkTmpfsVolumes(
-        const std::string& destinationDirectory,
+        const TString& destinationDirectory,
         const std::vector<TTmpfsVolumeResult>& volumes) = 0;
 
     virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;

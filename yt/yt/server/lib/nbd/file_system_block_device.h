@@ -9,7 +9,7 @@ namespace NYT::NNbd {
 ////////////////////////////////////////////////////////////////////////////////
 
 IBlockDevicePtr CreateFileSystemBlockDevice(
-    std::string exportId,
+    TString exportId,
     TFileSystemBlockDeviceConfigPtr config,
     IImageReaderPtr reader,
     IInvokerPtr invoker,

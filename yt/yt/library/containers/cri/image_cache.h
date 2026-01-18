@@ -10,7 +10,7 @@ namespace NYT::NContainers::NCri {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCriImageCacheEntry
-    : public TAsyncCacheValueBase<std::string, TCriImageCacheEntry>
+    : public TAsyncCacheValueBase<TString, TCriImageCacheEntry>
     , private TIntrusiveListItem<TCriImageCacheEntry>
 {
 public:

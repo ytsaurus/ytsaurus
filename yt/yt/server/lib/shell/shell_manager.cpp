@@ -139,9 +139,9 @@ public:
                 if (parameters.Command) {
                     options->Command = parameters.Command;
                 } else {
-                    auto bashrc = std::string{Bashrc};
+                    auto bashrc = TString{Bashrc};
                     for (const auto& variable : Environment_) {
-                        if (variable.starts_with("PS1=")) {
+                        if (variable.StartsWith("PS1=")) {
                             bashrc = Format("export %v\n%v", variable, bashrc);
                         }
                     }
@@ -254,14 +254,14 @@ public:
     }
 
 protected:
-    const std::string PreparationDir_;
-    const std::string WorkingDir_;
+    const TString PreparationDir_;
+    const TString WorkingDir_;
     const bool EnableJobShellSeccopm;
     std::optional<int> UserId_;
     std::optional<int> GroupId_;
-    std::optional<std::string> MessageOfTheDay_;
+    std::optional<TString> MessageOfTheDay_;
 
-    std::vector<std::string> Environment_;
+    std::vector<TString> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
     THashMap<int, IShellPtr> IndexToShell_;
     bool Terminated_ = false;
@@ -363,7 +363,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
 
 #ifdef _linux_
-    void EnsureToolBinaryPath(const std::string& container) const
+    void EnsureToolBinaryPath(const TString& container) const
     {
         auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
             .ValueOrThrow();
@@ -372,17 +372,17 @@ private:
             container,
             containerRoot);
 
-        auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
+        TString toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
             RunTool<TCreateDirectoryAsRootTool>(toolDirectory);
             auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
         }
 
         if (IsDirEmpty(toolDirectory)) {
-            auto toolPathOrError = ResolveBinaryPath(std::string(NTools::ToolsProgramName));
+            auto toolPathOrError = ResolveBinaryPath(TString(NTools::ToolsProgramName));
             THROW_ERROR_EXCEPTION_IF_FAILED(toolPathOrError, "Failed to resolve tool binary path");
 
-            THashMap<std::string, std::string> volumeProperties;
+            THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "bind";
             volumeProperties["storage"] = GetDirectoryName(toolPathOrError.Value());
 

@@ -65,18 +65,18 @@ public:
 
     NJobTrackerClient::TJobId GetJobId() const override;
 
-    std::string GetAuthenticatedUser() const override;
+    TString GetAuthenticatedUser() const override;
 
     std::string GetLocalHostName() const override;
 
     NRpc::IServerPtr GetRpcServer() const override;
 
-    std::string GetPreparationPath() const override;
-    std::string GetSlotPath() const override;
-    std::string GetJobProxyUnixDomainSocketPath() const override;
+    TString GetPreparationPath() const override;
+    TString GetSlotPath() const override;
+    TString GetJobProxyUnixDomainSocketPath() const override;
     std::string GetJobProxyGrpcUnixDomainSocketPath() const override;
     std::string GetJobProxyHttpUnixDomainSocketPath() const override;
-    std::string AdjustPath(const std::string& path) const override;
+    TString AdjustPath(const TString& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
 
@@ -248,12 +248,12 @@ private:
     void OnPrepared() override;
 
     void PrepareArtifact(
-        const std::string& artifactName,
-        const std::string& pipePath) override;
+        const TString& artifactName,
+        const TString& pipePath) override;
 
     void OnArtifactPreparationFailed(
-        const std::string& artifactName,
-        const std::string& artifactPath,
+        const TString& artifactName,
+        const TString& artifactPath,
         const TError& error) override;
 
     void OnJobMemoryThrashing() override;

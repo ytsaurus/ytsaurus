@@ -273,7 +273,7 @@ public:
         TJobId jobId,
         TPortoJobEnvironmentConfigPtr config,
         const TUserJobEnvironmentOptions& options,
-        const std::string& slotContainerName,
+        const TString& slotContainerName,
         IPortoExecutorPtr portoExecutor)
         : JobId_(jobId)
         , Config_(std::move(config))
@@ -352,7 +352,7 @@ public:
         }
     }
 
-    std::string HandleVolumeCreationError(TErrorOr<std::string> volumeCreationResult)
+    TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
     {
         if (!volumeCreationResult.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -365,9 +365,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const std::string& path,
-        const std::vector<std::string>& arguments,
-        const std::string& workingDirectory) override
+        const TString& path,
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
     {
         auto jobIdAsGuid = JobId_.Underlying();
         auto containerName = Config_->UseShortContainerNames
@@ -473,7 +473,7 @@ public:
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
 
-        launcher->SetNetworkInterface(std::string(JobNetworkInterface));
+        launcher->SetNetworkInterface(TString(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != NContainers::EEnablePorto::Full);
@@ -514,7 +514,7 @@ public:
         return Instance_.Acquire();
     }
 
-    const std::vector<std::string>& GetEnvironmentVariables() const override
+    const std::vector<TString>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -561,10 +561,10 @@ private:
     const TJobId JobId_;
     const TPortoJobEnvironmentConfigPtr Config_;
     const TUserJobEnvironmentOptions Options_;
-    const std::string SlotContainerName_;
+    const TString SlotContainerName_;
     const IPortoExecutorPtr PortoExecutor_;
 
-    std::vector<std::string> Environment_;
+    std::vector<TString> Environment_;
 
     TAtomicIntrusivePtr<IInstance> Instance_;
     TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
@@ -665,7 +665,7 @@ private:
 
 private:
     IInstancePtr Instance_;
-    std::string CurrentWorkDirectory_;
+    TString CurrentWorkDirectory_;
     IInstanceLauncherPtr Launcher_;
     TFuture<void> SidecarFinished_;
     TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
@@ -729,19 +729,19 @@ public:
 
     void SetCpuGuarantee(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(TString(SlotContainerName_), "cpu_guarantee", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_guarantee", ToString(value) + "c"))
             .ThrowOnError();
     }
 
     void SetCpuLimit(double value) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(TString(SlotContainerName_), "cpu_limit", ToString(value) + "c"))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_limit", ToString(value) + "c"))
             .ThrowOnError();
     }
 
-    void SetCpuPolicy(const std::string& policy) override
+    void SetCpuPolicy(const TString& policy) override
     {
-        WaitFor(PortoExecutor_->SetContainerProperty(TString(SlotContainerName_), "cpu_policy", TString(policy)))
+        WaitFor(PortoExecutor_->SetContainerProperty(SlotContainerName_, "cpu_policy", policy))
             .ThrowOnError();
     }
 
@@ -806,7 +806,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
-    const std::string SlotContainerName_;
+    const TString SlotContainerName_;
     const IInvokerPtr Invoker_;
     const std::string JobProxyContainerPath_;
 
@@ -885,9 +885,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const std::string& path,
-        const std::vector<std::string>& arguments,
-        const std::string& workingDirectory) override
+        const TString& path,
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, false);
         process->AddArguments(arguments);
@@ -926,9 +926,9 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<std::string>& GetEnvironmentVariables() const override
+    const std::vector<TString>& GetEnvironmentVariables() const override
     {
-        static std::vector<std::string> emptyEnvironment;
+        static std::vector<TString> emptyEnvironment;
         return emptyEnvironment;
     }
 
@@ -970,7 +970,7 @@ public:
         YT_LOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
-    void SetCpuPolicy(const std::string& /*value*/) override
+    void SetCpuPolicy(const TString& /*value*/) override
     {
         YT_LOG_WARNING("CPU policy is not supported in simple job environment");
     }
@@ -1173,9 +1173,9 @@ public:
     }
 
     TFuture<void> SpawnUserProcess(
-        const std::string& path,
-        const std::vector<std::string>& arguments,
-        const std::string& workingDirectory) override
+        const TString& path,
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
     {
         auto process = New<TSimpleProcess>(path, /*copyEnv*/ false);
         process->AddArguments(arguments);
@@ -1214,7 +1214,7 @@ public:
     }
 
     //! Returns the list of environment-specific environment variables in key=value format.
-    const std::vector<std::string>& GetEnvironmentVariables() const override
+    const std::vector<TString>& GetEnvironmentVariables() const override
     {
         return Environment_;
     }
@@ -1237,7 +1237,7 @@ public:
 private:
     const IJobProxyEnvironmentPtr JobProxyEnvironment_;
     TAtomicIntrusivePtr<TProcessBase> Process_;
-    std::vector<std::string> Environment_;
+    std::vector<TString> Environment_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TCriUserJobEnvironment)
@@ -1254,8 +1254,8 @@ struct TCriJobProxyConfig
         , Binds(config->Binds)
     { }
 
-    std::optional<std::string> DockerImage;
-    std::string SlotPath;
+    std::optional<TString> DockerImage;
+    TString SlotPath;
     std::vector<TBindConfigPtr> Binds;
 };
 
@@ -1263,7 +1263,7 @@ struct TSidecarCriConfig
 {
     TSidecarJobSpecPtr JobSpec;
     NCri::TCriContainerSpecPtr ContainerSpec;
-    std::string Command;
+    TString Command;
 };
 
 class TCriJobProxyEnvironment
@@ -1279,7 +1279,7 @@ public:
         : CriJobProxyConfig_(std::move(criJobProxyConfig))
         , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
         , Invoker_(std::move(invoker))
-        , ProcessWorkingDirectory_(NFS::CombinePaths(jobProxySlotPath, GetSandboxRelPath(ESandboxKind::User)))
+        , ProcessWorkingDirectory_(NFS::CombinePaths(TString(jobProxySlotPath), GetSandboxRelPath(ESandboxKind::User)))
         , FailedSidecarCallback_(std::move(failedSidecarCallback))
         , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
@@ -1295,7 +1295,7 @@ public:
         YT_LOG_WARNING("CPU limits are not supported in CRI job environment");
     }
 
-    void SetCpuPolicy(const std::string& /*value*/) override
+    void SetCpuPolicy(const TString& /*value*/) override
     {
         YT_LOG_WARNING("CPU policy is not supported in CRI job environment");
     }
@@ -1447,8 +1447,8 @@ public:
 
             for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
-                    .ContainerPath = devicePath,
-                    .HostPath = devicePath,
+                    .ContainerPath = TString(devicePath),
+                    .HostPath = TString(devicePath),
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                 });
             }
@@ -1499,7 +1499,7 @@ public:
             CriJobEnvironmentConfig_->PodDescriptor,
             CriJobEnvironmentConfig_->PodSpec
         );
-        process->AddArguments(std::vector<std::string>{"-c", sidecar.Config.Command});
+        process->AddArguments(std::vector<TString>{"-c", sidecar.Config.Command});
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
         sidecar.Process = process;
 
@@ -1589,7 +1589,7 @@ private:
     const TCriJobProxyConfig CriJobProxyConfig_;
     const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
     const IInvokerPtr Invoker_;
-    const std::string ProcessWorkingDirectory_;
+    const TString ProcessWorkingDirectory_;
     const std::function<void(TError)> FailedSidecarCallback_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
@@ -1602,7 +1602,7 @@ private:
         TFutureCallbackCookie FutureCallbackCookie;
     };
 
-    THashMap<std::string, TRunningSidecar> RunningSidecars_;
+    THashMap<TString, TRunningSidecar> RunningSidecars_;
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };

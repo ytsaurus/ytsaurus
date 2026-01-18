@@ -171,7 +171,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::string ExecutorConfigFileName = "executor_config.yson";
+static const TString ExecutorConfigFileName = "executor_config.yson";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,12 +215,12 @@ TJobProxy::TJobProxy(
     }
 }
 
-std::string TJobProxy::GetPreparationPath() const
+TString TJobProxy::GetPreparationPath() const
 {
     return NFs::CurrentWorkingDirectory();
 }
 
-std::string TJobProxy::GetSlotPath() const
+TString TJobProxy::GetSlotPath() const
 {
     if ((!Config_->RootPath && !Config_->DockerImage) || Config_->TestRootFS) {
         return NFs::CurrentWorkingDirectory();
@@ -229,10 +229,10 @@ std::string TJobProxy::GetSlotPath() const
     return "/slot";
 }
 
-std::string TJobProxy::GetJobProxyUnixDomainSocketPath() const
+TString TJobProxy::GetJobProxyUnixDomainSocketPath() const
 {
     // TODO(babenko): migrate to std::string
-    return AdjustPath(std::string(*Config_->BusServer->UnixDomainSocketPath));
+    return AdjustPath(TString(*Config_->BusServer->UnixDomainSocketPath));
 }
 
 std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
@@ -243,12 +243,12 @@ std::string TJobProxy::GetJobProxyGrpcUnixDomainSocketPath() const
     YT_VERIFY(addresses.size() == 1);
     YT_VERIFY(addresses[0]->Address.starts_with(prefix));
 
-    return AdjustPath(std::string(addresses[0]->Address.substr(prefix.size())));
+    return AdjustPath(TString(addresses[0]->Address.substr(prefix.size())));
 }
 
 std::string TJobProxy::GetJobProxyHttpUnixDomainSocketPath() const
 {
-    return AdjustPath(std::string(Config_->HttpServerUdsPath));
+    return AdjustPath(TString(Config_->HttpServerUdsPath));
 }
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(TTransactionId transactionId)
@@ -530,7 +530,7 @@ void TJobProxy::RetrieveJobSpec()
         JobProxyMemoryReserve_ = totalMemoryReserve;
     }
 
-    std::vector<std::string> annotations{
+    std::vector<TString> annotations{
         Format("Type: SchedulerJob"),
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", JobId_),
@@ -687,7 +687,7 @@ IJobPtr TJobProxy::CreateBuiltinJob()
     }
 }
 
-std::string TJobProxy::AdjustPath(const std::string& path) const
+TString TJobProxy::AdjustPath(const TString& path) const
 {
     return NFS::CombinePaths(GetSlotPath(), NFS::GetRelativePath(GetPreparationPath(), path));
 }
@@ -1061,7 +1061,7 @@ TJobResult TJobProxy::RunJob()
         OnSpawned();
     } catch (const std::exception& ex) {
         auto isSupervisorProxyTimeoutError = [] (const TError& error) {
-            auto serviceAttribute = error.Attributes().Find<std::optional<std::string>>("service");
+            auto serviceAttribute = error.Attributes().Find<std::optional<TString>>("service");
             return error.GetCode() == NYT::EErrorCode::Timeout &&
                 serviceAttribute == TSupervisorServiceProxy::GetDescriptor().ServiceName;
         };
@@ -1429,7 +1429,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
     YT_VERIFY(environment);
 
     auto createRootFS = [&] () -> std::optional<TRootFS> {
-        std::string stderrPath;
+        TString stderrPath;
         if (Config_->ExecutorStderrPath) {
             stderrPath = *Config_->ExecutorStderrPath;
         } else {
@@ -1622,7 +1622,7 @@ TJobId TJobProxy::GetJobId() const
     return JobId_;
 }
 
-std::string TJobProxy::GetAuthenticatedUser() const
+TString TJobProxy::GetAuthenticatedUser() const
 {
     return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
@@ -1716,8 +1716,8 @@ void TJobProxy::OnPrepared()
 }
 
 void TJobProxy::PrepareArtifact(
-    const std::string& artifactName,
-    const std::string& pipePath)
+    const TString& artifactName,
+    const TString& pipePath)
 {
     YT_LOG_INFO("Requesting node to prepare artifact (ArtifactName: %v, PipePath: %v)",
         artifactName,
@@ -1733,8 +1733,8 @@ void TJobProxy::PrepareArtifact(
 }
 
 void TJobProxy::OnArtifactPreparationFailed(
-    const std::string& artifactName,
-    const std::string& artifactPath,
+    const TString& artifactName,
+    const TString& artifactPath,
     const TError& error)
 {
     YT_LOG_ERROR(error, "Artifact preparation failed (ArtifactName: %v, ArtifactPath: %v)",

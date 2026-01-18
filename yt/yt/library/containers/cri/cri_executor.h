@@ -14,14 +14,14 @@ namespace NYT::NContainers::NCri {
 
 struct TCriDescriptor
 {
-    std::string Name;
-    std::string Id;
+    TString Name;
+    TString Id;
 };
 
 struct TCriImageDescriptor
 {
-    std::string Image;
-    std::string Id;
+    TString Image;
+    TString Id;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TCriDescriptor& descriptor, TStringBuf spec);
@@ -32,8 +32,8 @@ void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descrip
 
 struct TCriBindMount
 {
-    std::string ContainerPath;
-    std::string HostPath;
+    TString ContainerPath;
+    TString HostPath;
     bool ReadOnly;
 };
 
@@ -45,8 +45,8 @@ DEFINE_BIT_ENUM(ECriBindDevicePermissions,
 
 struct TCriBindDevice
 {
-    std::string ContainerPath;
-    std::string HostPath;
+    TString ContainerPath;
+    TString HostPath;
 
     ECriBindDevicePermissions Permissions;
 };
@@ -61,9 +61,9 @@ struct TCriCredentials
 struct TCriContainerSpec
     : public TRefCounted
 {
-    std::string Name;
+    TString Name;
 
-    THashMap<std::string, std::string> Labels;
+    THashMap<TString, TString> Labels;
 
     TCriImageDescriptor Image;
 
@@ -78,19 +78,19 @@ struct TCriContainerSpec
     TCriContainerResources Resources;
 
     //! Command to execute (i.e., entrypoint for docker).
-    std::vector<std::string> Command;
+    std::vector<TString> Command;
 
     //! Arguments for the Command (i.e., command for docker).
-    std::vector<std::string> Arguments;
+    std::vector<TString> Arguments;
 
     //! Current working directory of the command.
-    std::string WorkingDirectory;
+    TString WorkingDirectory;
 
     //! Environment variable to set in the container.
-    THashMap<std::string, std::string> Environment;
+    THashMap<TString, TString> Environment;
 
     //! Capabilities to add to the container.
-    std::vector<std::string> CapabilitiesToAdd;
+    std::vector<TString> CapabilitiesToAdd;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriContainerSpec)
@@ -110,7 +110,7 @@ struct ICriExecutor
 
     // PodSandbox
 
-    virtual std::string GetPodCgroup(std::string podName) const = 0;
+    virtual TString GetPodCgroup(TString podName) const = 0;
 
     virtual TFuture<TCriRuntimeApi::TRspListPodSandboxPtr> ListPodSandbox(
         std::function<void(NProto::PodSandboxFilter&)> initFilter = nullptr) = 0;
@@ -186,7 +186,7 @@ struct ICriExecutor
 
     // FIXME(khlebnikov): temporary compat
     virtual TProcessBasePtr CreateProcess(
-        const std::string& path,
+        const TString& path,
         TCriContainerSpecPtr containerSpec,
         TCriPodDescriptorPtr pod,
         TCriPodSpecPtr podSpec) = 0;

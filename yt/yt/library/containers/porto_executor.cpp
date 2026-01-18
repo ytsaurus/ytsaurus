@@ -80,7 +80,7 @@ static const std::vector<TDevice> DefaultContainerDevices = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string PortoErrorCodeFormatter(int code)
+TString PortoErrorCodeFormatter(int code)
 {
     return TEnumTraits<EPortoErrorCode>::ToString(static_cast<EPortoErrorCode>(code));
 }
@@ -104,13 +104,13 @@ bool IsRetriableErrorCode(EPortoErrorCode error, bool idempotent)
         error == EPortoErrorCode::SocketTimeout && idempotent;
 }
 
-THashMap<std::string, TErrorOr<std::string>> ParsePortoGetResponse(
+THashMap<TString, TErrorOr<TString>> ParsePortoGetResponse(
     const Porto::TGetResponse_TContainerGetListResponse& response)
 {
-    THashMap<std::string, TErrorOr<std::string>> result;
+    THashMap<TString, TErrorOr<TString>> result;
     for (const auto& property : response.keyval()) {
         if (property.error() == EError::Success) {
-            result[property.variable()] = std::string(property.value());
+            result[property.variable()] = property.value();
         } else {
             result[property.variable()] = TError(ConvertPortoErrorCode(property.error()), TRuntimeFormat(property.errormsg()))
                 << TErrorAttribute("porto_error", ConvertPortoErrorCode(property.error()));
@@ -119,8 +119,8 @@ THashMap<std::string, TErrorOr<std::string>> ParsePortoGetResponse(
     return result;
 }
 
-THashMap<std::string, TErrorOr<std::string>> ParseSinglePortoGetResponse(
-    const std::string& name,
+THashMap<TString, TErrorOr<TString>> ParseSinglePortoGetResponse(
+    const TString& name,
     const Porto::TGetResponse& getResponse)
 {
     for (const auto& container : getResponse.list()) {
@@ -132,17 +132,17 @@ THashMap<std::string, TErrorOr<std::string>> ParseSinglePortoGetResponse(
         << TErrorAttribute("container", name);
 }
 
-THashMap<std::string, THashMap<std::string, TErrorOr<std::string>>> ParseMultiplePortoGetResponse(
+THashMap<TString, THashMap<TString, TErrorOr<TString>>> ParseMultiplePortoGetResponse(
     const Porto::TGetResponse& getResponse)
 {
-    THashMap<std::string, THashMap<std::string, TErrorOr<std::string>>> result;
+    THashMap<TString, THashMap<TString, TErrorOr<TString>>> result;
     for (const auto& container : getResponse.list()) {
         result[container.name()] = ParsePortoGetResponse(container);
     }
     return result;
 }
 
-std::string FormatEnablePorto(EEnablePorto value)
+TString FormatEnablePorto(EEnablePorto value)
 {
     switch (value) {
         case EEnablePorto::None:    return "none";
@@ -230,7 +230,7 @@ private:
     template <class T, class... TArgs1, class... TArgs2>
     auto ExecutePortoApiAction(
         T(TPortoExecutor::*Method)(TArgs1...),
-        const std::string& command,
+        const TString& command,
         TArgs2&&... args)
     {
         YT_LOG_DEBUG("Enqueue Porto API action (Command: %v)", command);
@@ -240,7 +240,7 @@ private:
     };
 
 public:
-    TFuture<void> CreateContainer(const std::string& container) override
+    TFuture<void> CreateContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoCreateContainer,
@@ -257,9 +257,9 @@ public:
             start);
     }
 
-    TFuture<std::optional<std::string>> GetContainerProperty(
-        const std::string& container,
-        const std::string& property) override
+    TFuture<std::optional<TString>> GetContainerProperty(
+        const TString& container,
+        const TString& property) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerProperty,
@@ -268,9 +268,9 @@ public:
             property);
     }
 
-    TFuture<THashMap<std::string, TErrorOr<std::string>>> GetContainerProperties(
-        const std::string& container,
-        const std::vector<std::string>& properties) override
+    TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
+        const TString& container,
+        const std::vector<TString>& properties) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerProperties,
@@ -279,9 +279,9 @@ public:
             properties);
     }
 
-    TFuture<THashMap<std::string, THashMap<std::string, TErrorOr<std::string>>>> GetContainerProperties(
-        const std::vector<std::string>& containers,
-        const std::vector<std::string>& properties) override
+    TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
+        const std::vector<TString>& containers,
+        const std::vector<TString>& properties) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerMultipleProperties,
@@ -290,9 +290,9 @@ public:
             properties);
     }
 
-    TFuture<THashMap<std::string, i64>> GetContainerMetrics(
-        const std::vector<std::string>& containers,
-        const std::string& metric) override
+    TFuture<THashMap<TString, i64>> GetContainerMetrics(
+        const std::vector<TString>& containers,
+        const TString& metric) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerMetrics,
@@ -302,9 +302,9 @@ public:
     }
 
     TFuture<void> SetContainerProperty(
-        const std::string& container,
-        const std::string& property,
-        const std::string& value) override
+        const TString& container,
+        const TString& property,
+        const TString& value) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoSetContainerProperty,
@@ -314,7 +314,7 @@ public:
             value);
     }
 
-    TFuture<void> DestroyContainer(const std::string& container) override
+    TFuture<void> DestroyContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoDestroyContainer,
@@ -322,7 +322,7 @@ public:
             container);
     }
 
-    TFuture<void> StopContainer(const std::string& container) override
+    TFuture<void> StopContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoStopContainer,
@@ -330,7 +330,7 @@ public:
             container);
     }
 
-    TFuture<void> StartContainer(const std::string& container) override
+    TFuture<void> StartContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoStartContainer,
@@ -338,7 +338,7 @@ public:
             container);
     }
 
-    TFuture<void> RespawnContainer(const std::string& container) override
+    TFuture<void> RespawnContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoRespawnContainer,
@@ -346,7 +346,7 @@ public:
             container);
     }
 
-    TFuture<std::string> ConvertPath(const std::string& path, const std::string& container) override
+    TFuture<TString> ConvertPath(const TString& path, const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoConvertPath,
@@ -355,7 +355,7 @@ public:
             container);
     }
 
-    TFuture<void> KillContainer(const std::string& container, int signal) override
+    TFuture<void> KillContainer(const TString& container, int signal) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoKillContainer,
@@ -364,8 +364,8 @@ public:
             signal);
     }
 
-    TFuture<std::vector<std::string>> ListSubcontainers(
-        const std::string& rootContainer,
+    TFuture<std::vector<TString>> ListSubcontainers(
+        const TString& rootContainer,
         bool includeRoot) override
     {
         return ExecutePortoApiAction(
@@ -375,7 +375,7 @@ public:
             includeRoot);
     }
 
-    TFuture<int> PollContainer(const std::string& container) override
+    TFuture<int> PollContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoPollContainer,
@@ -383,7 +383,7 @@ public:
             container);
     }
 
-    TFuture<int> WaitContainer(const std::string& container) override
+    TFuture<int> WaitContainer(const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoWaitContainer,
@@ -392,9 +392,9 @@ public:
     }
 
     // This method allocates Porto "resources", so it should be uncancellable.
-    TFuture<std::string> CreateVolume(
-        const std::string& path,
-        const THashMap<std::string, std::string>& properties) override
+    TFuture<TString> CreateVolume(
+        const TString& path,
+        const THashMap<TString, TString>& properties) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoCreateVolume,
@@ -406,9 +406,9 @@ public:
 
     // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<void> LinkVolume(
-        const std::string& path,
-        const std::string& name,
-        const std::string& target) override
+        const TString& path,
+        const TString& name,
+        const TString& target) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoLinkVolume,
@@ -421,9 +421,9 @@ public:
 
     // This method deallocates Porto "resources", so it should be uncancellable.
     TFuture<void> UnlinkVolume(
-        const std::string& path,
-        const std::string& name,
-        const std::string& target) override
+        const TString& path,
+        const TString& name,
+        const TString& target) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoUnlinkVolume,
@@ -434,7 +434,7 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<std::vector<std::string>> ListVolumePaths() override
+    TFuture<std::vector<TString>> ListVolumePaths() override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoListVolumePaths,
@@ -449,11 +449,7 @@ public:
     }
 
     // This method allocates Porto "resources", so it should be uncancellable.
-    TFuture<void> ImportLayer(
-        const std::string& archivePath,
-        const std::string& layerId,
-        const std::string& place,
-        const std::string& container) override
+    TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place, const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoImportLayer,
@@ -466,7 +462,7 @@ public:
     }
 
     // This method deallocates Porto "resources", so it should be uncancellable.
-    TFuture<void> RemoveLayer(const std::string& layerId, const std::string& place, bool async) override
+    TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoRemoveLayer,
@@ -477,7 +473,7 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<std::vector<std::string>> ListLayers(const std::string& place) override
+    TFuture<std::vector<TString>> ListLayers(const TString& place) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoListLayers,
@@ -493,8 +489,8 @@ private:
     const TPeriodicExecutorPtr PollExecutor_;
     TAtomicIntrusivePtr<TPortoExecutorDynamicConfig> DynamicConfig_;
 
-    std::vector<std::string> Containers_;
-    THashMap<std::string, TPromise<int>> ContainerMap_;
+    std::vector<TString> Containers_;
+    THashMap<TString, TPromise<int>> ContainerMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     //! Gauge counting actual difference between the number of created and unlinked volumes.
@@ -518,9 +514,9 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CommandLock_);
-    THashMap<std::string, TCommandEntry> CommandToEntry_;
+    THashMap<TString, TCommandEntry> CommandToEntry_;
 
-    static const std::vector<std::string> ContainerRequestVars_;
+    static const std::vector<TString> ContainerRequestVars_;
 
     bool IsTestPortoFailureEnabled() const
     {
@@ -540,32 +536,32 @@ private:
         return config->StubErrorCode;
     }
 
-    static TError CreatePortoError(EPortoErrorCode errorCode, const std::string& message)
+    static TError CreatePortoError(EPortoErrorCode errorCode, const TString& message)
     {
         return TError(errorCode, "Porto API error")
             << TErrorAttribute("original_porto_error_code", static_cast<int>(errorCode) - PortoErrorCodeBase)
             << TErrorAttribute("porto_error_message", message);
     }
 
-    THashMap<std::string, TErrorOr<std::string>> DoGetContainerProperties(
-        const std::string& container,
-        const std::vector<std::string>& properties)
+    THashMap<TString, TErrorOr<TString>> DoGetContainerProperties(
+        const TString& container,
+        const std::vector<TString>& properties)
     {
         auto response = DoRequestContainerProperties({container}, properties);
         return ParseSinglePortoGetResponse(container, response);
     }
 
-    THashMap<std::string, THashMap<std::string, TErrorOr<std::string>>> DoGetContainerMultipleProperties(
-        const std::vector<std::string>& containers,
-        const std::vector<std::string>& properties)
+    THashMap<TString, THashMap<TString, TErrorOr<TString>>> DoGetContainerMultipleProperties(
+        const std::vector<TString>& containers,
+        const std::vector<TString>& properties)
     {
         auto response = DoRequestContainerProperties(containers, properties);
         return ParseMultiplePortoGetResponse(response);
     }
 
-    std::optional<std::string> DoGetContainerProperty(
-        const std::string& container,
-        const std::string& property)
+    std::optional<TString> DoGetContainerProperty(
+        const TString& container,
+        const TString& property)
     {
         auto response = DoRequestContainerProperties({container}, {property});
         auto parsedResponse = ParseSinglePortoGetResponse(container, response);
@@ -577,10 +573,10 @@ private:
         }
     }
 
-    void DoCreateContainer(const std::string& container)
+    void DoCreateContainer(const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->Create(TString(container)); },
+            [&] { return Api_->Create(container); },
             "Create",
             /*idempotent*/ false);
     }
@@ -653,11 +649,11 @@ private:
 
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
-            netConfig->add_arg(spec.NetworkInterface.value_or(std::string(DefaultPortoNetworkInterface)));
+            netConfig->add_arg(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
-                ipConfig->set_dev(spec.NetworkInterface.value_or(std::string(DefaultPortoNetworkInterface)));
+                ipConfig->set_dev(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
                 ipConfig->set_ip(ToString(address));
             }
 
@@ -739,19 +735,19 @@ private:
             /*idempotent*/ false);
     }
 
-    void DoSetContainerProperty(const std::string& container, const std::string& property, const std::string& value)
+    void DoSetContainerProperty(const TString& container, const TString& property, const TString& value)
     {
         ExecuteApiCall(
-            [&] { return Api_->SetProperty(TString(container), TString(property), TString(value)); },
+            [&] { return Api_->SetProperty(container, property, value); },
             "SetProperty",
             /*idempotent*/ true);
     }
 
-    void DoDestroyContainer(const std::string& container)
+    void DoDestroyContainer(const TString& container)
     {
         try {
             ExecuteApiCall(
-                [&] { return Api_->Destroy(TString(container)); },
+                [&] { return Api_->Destroy(container); },
                 "Destroy",
                 /*idempotent*/ true);
         } catch (const TErrorException& ex) {
@@ -761,49 +757,49 @@ private:
         }
     }
 
-    void DoStopContainer(const std::string& container)
+    void DoStopContainer(const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->Stop(TString(container)); },
+            [&] { return Api_->Stop(container); },
             "Stop",
             /*idempotent*/ true);
     }
 
-    void DoStartContainer(const std::string& container)
+    void DoStartContainer(const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->Start(TString(container)); },
+            [&] { return Api_->Start(container); },
             "Start",
             /*idempotent*/ false);
     }
 
-    void DoRespawnContainer(const std::string& container)
+    void DoRespawnContainer(const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->Respawn(TString(container)); },
+            [&] { return Api_->Respawn(container); },
             "Respawn",
             /*idempotent*/ false);
     }
 
-    std::string DoConvertPath(const std::string& path, const std::string& container)
+    TString DoConvertPath(const TString& path, const TString& container)
     {
         TString result;
         ExecuteApiCall(
-            [&] { return Api_->ConvertPath(TString(path), TString(container), "self", result); },
+            [&] { return Api_->ConvertPath(path, container, "self", result); },
             "ConvertPath",
             /*idempotent*/ true);
         return result;
     }
 
-    void DoKillContainer(const std::string& container, int signal)
+    void DoKillContainer(const TString& container, int signal)
     {
         ExecuteApiCall(
-            [&] { return Api_->Kill(TString(container), signal); },
+            [&] { return Api_->Kill(container, signal); },
             "Kill",
             /*idempotent*/ false);
     }
 
-    std::vector<std::string> DoListSubcontainers(const std::string& rootContainer, bool includeRoot)
+    std::vector<TString> DoListSubcontainers(const TString& rootContainer, bool includeRoot)
     {
         Porto::TListContainersRequest req;
         auto filter = req.add_filters();
@@ -820,27 +816,26 @@ private:
             "ListContainersBy",
             /*idempotent*/ true);
 
-        std::vector<std::string> containerNames;
+        std::vector<TString> containerNames;
         containerNames.reserve(containers.size());
         for (const auto& container : containers) {
             const auto& absoluteName = container.status().absolute_name();
             if (!absoluteName.empty()) {
-                containerNames.emplace_back(absoluteName);
+                containerNames.push_back(absoluteName);
             }
         }
         return containerNames;
     }
 
-    TFuture<int> DoWaitContainer(const std::string& container)
+    TFuture<int> DoWaitContainer(const TString& container)
     {
         auto result = NewPromise<int>();
         auto waitCallback = [=, this, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
             return OnContainerTerminated(rsp, result);
         };
 
-        auto names = TVector{TString(container)};
         ExecuteApiCall(
-            [&] { return Api_->AsyncWait(names, {}, waitCallback); },
+            [&] { return Api_->AsyncWait({container}, {}, waitCallback); },
             "AsyncWait",
             /*idempotent*/ false);
 
@@ -860,7 +855,7 @@ private:
 
         // TODO(max42): switch to Subscribe.
         YT_UNUSED_FUTURE(GetContainerProperty(container, "exit_status").Apply(BIND(
-            [=] (const TErrorOr<std::optional<std::string>>& errorOrExitCode) {
+            [=] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
                 if (!errorOrExitCode.IsOK()) {
                     result.TrySet(TError("Container finished, but exit status is unknown")
                         << errorOrExitCode);
@@ -888,9 +883,9 @@ private:
             })));
     }
 
-    TFuture<int> DoPollContainer(const std::string& container)
+    TFuture<int> DoPollContainer(const TString& container)
     {
-        auto [it, inserted] = ContainerMap_.emplace(container, NewPromise<int>());
+        auto [it, inserted] = ContainerMap_.insert({container, NewPromise<int>()});
         if (!inserted) {
             YT_LOG_WARNING("Container already added for polling (Container: %v)",
                 container);
@@ -901,8 +896,8 @@ private:
     }
 
     Porto::TGetResponse DoRequestContainerProperties(
-        const std::vector<std::string>& containers,
-        const std::vector<std::string>& vars)
+        const std::vector<TString>& containers,
+        const std::vector<TString>& vars)
     {
         TVector<TString> containers_(containers.begin(), containers.end());
         TVector<TString> vars_(vars.begin(), vars.end());
@@ -921,16 +916,16 @@ private:
         return *getResponse;
     }
 
-    THashMap<std::string, i64> DoGetContainerMetrics(
-        const std::vector<std::string>& containers,
-        const std::string& metric)
+    THashMap<TString, i64> DoGetContainerMetrics(
+        const std::vector<TString>& containers,
+        const TString& metric)
     {
         TVector<TString> containers_(containers.begin(), containers.end());
 
         TMap<TString, uint64_t> result;
 
         ExecuteApiCall(
-            [&] { return Api_->GetProcMetric(containers_, TString(metric), result); },
+            [&] { return Api_->GetProcMetric(containers_, metric, result); },
             "GetProcMetric",
             /*idempotent*/ true);
 
@@ -952,7 +947,7 @@ private:
 
             auto getProperty = [] (
                 const Porto::TGetResponse::TContainerGetListResponse& container,
-                const std::string& name) -> Porto::TGetResponse::TContainerGetValueResponse
+                const TString& name) -> Porto::TGetResponse::TContainerGetValueResponse
             {
                 for (const auto& property : container.keyval()) {
                     if (property.variable() == name) {
@@ -978,11 +973,11 @@ private:
         }
     }
 
-    std::string DoCreateVolume(
-        const std::string& path,
-        const THashMap<std::string, std::string>& properties)
+    TString DoCreateVolume(
+        const TString& path,
+        const THashMap<TString, TString>& properties)
     {
-        auto volume = TString(path);
+        auto volume = path;
         TMap<TString, TString> propertyMap(properties.begin(), properties.end());
         ExecuteApiCall(
             [&] { return Api_->CreateVolume(volume, propertyMap); },
@@ -997,18 +992,18 @@ private:
         return volume;
     }
 
-    void DoLinkVolume(const std::string& path, const std::string& container, const std::string& target)
+    void DoLinkVolume(const TString& path, const TString& container, const TString& target)
     {
         ExecuteApiCall(
-            [&] { return Api_->LinkVolume(TString(path), TString(container), TString(target)); },
+            [&] { return Api_->LinkVolume(path, container, target); },
             "LinkVolume",
             /*idempotent*/ false);
     }
 
-    void DoUnlinkVolume(const std::string& path, const std::string& container, const std::string& target)
+    void DoUnlinkVolume(const TString& path, const TString& container, const TString& target)
     {
         ExecuteApiCall(
-            [&] { return Api_->UnlinkVolume(TString(path), TString(container), TString(target)); },
+            [&] { return Api_->UnlinkVolume(path, container, target); },
             "UnlinkVolume",
             /*idempotent*/ false);
 
@@ -1017,7 +1012,7 @@ private:
         }
     }
 
-    std::vector<std::string> DoListVolumePaths()
+    std::vector<TString> DoListVolumePaths()
     {
         TVector<TString> volumes;
         ExecuteApiCall(
@@ -1055,39 +1050,35 @@ private:
         return specs;
     }
 
-    void DoImportLayer(
-        const std::string& archivePath,
-        const std::string& layerId,
-        const std::string& place,
-        const std::string& container)
+    void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place, const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->ImportLayer(TString(layerId), TString(archivePath), false, TString(place), "", TString(container)); },
+            [&] { return Api_->ImportLayer(layerId, archivePath, false, place, "", container); },
             "ImportLayer",
             /*idempotent*/ false);
         LayerSurplus_ += 1;
     }
 
-    void DoRemoveLayer(const std::string& layerId, const std::string& place, bool async)
+    void DoRemoveLayer(const TString& layerId, const TString& place, bool async)
     {
         ExecuteApiCall(
-            [&] { return Api_->RemoveLayer(TString(layerId), TString(place), async); },
+            [&] { return Api_->RemoveLayer(layerId, place, async); },
             "RemoveLayer",
             /*idempotent*/ false);
         LayerSurplus_ -= 1;
     }
 
-    std::vector<std::string> DoListLayers(const std::string& place)
+    std::vector<TString> DoListLayers(const TString& place)
     {
         TVector<TString> layers;
         ExecuteApiCall(
-            [&] { return Api_->ListLayers(layers, TString(place)); },
+            [&] { return Api_->ListLayers(layers, place); },
             "ListLayers",
             /*idempotent*/ true);
         return {layers.begin(), layers.end()};
     }
 
-    TCommandEntry* GetCommandEntry(const std::string& command)
+    TCommandEntry* GetCommandEntry(const TString& command)
     {
         auto guard = Guard(CommandLock_);
         if (auto it = CommandToEntry_.find(command)) {
@@ -1098,7 +1089,7 @@ private:
 
     void ExecuteApiCall(
         std::function<EError()> callback,
-        const std::string& command,
+        const TString& command,
         bool idempotent)
     {
         YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
@@ -1146,7 +1137,7 @@ private:
     }
 
     void HandleApiError(
-        const std::string& command,
+        const TString& command,
         TInstant startTime,
         bool idempotent)
     {
@@ -1168,7 +1159,7 @@ private:
         }
     }
 
-    void HandleResult(const std::string& container, const Porto::TGetResponse::TContainerGetValueResponse& rsp)
+    void HandleResult(const TString& container, const Porto::TGetResponse::TContainerGetValueResponse& rsp)
     {
         auto portoErrorCode = ConvertPortoErrorCode(rsp.error());
         auto it = ContainerMap_.find(container);
@@ -1205,7 +1196,7 @@ private:
         RemoveFromPoller(container);
     }
 
-    void RemoveFromPoller(const std::string& container)
+    void RemoveFromPoller(const TString& container)
     {
         ContainerMap_.erase(container);
 
@@ -1216,7 +1207,7 @@ private:
     }
 };
 
-const std::vector<std::string> TPortoExecutor::ContainerRequestVars_ = {
+const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
     "state",
     "exit_status"
 };
