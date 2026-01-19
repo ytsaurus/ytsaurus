@@ -296,15 +296,21 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
 }
 
 // Build yson list from values.
-TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, TRowBuffer* rowBuffer)
 {
     TString resultYson;
     TStringOutput output(resultYson);
     NYson::TYsonWriter writer(&output);
 
+    YT_ASSERT(values.size() == discard.size());
+
     writer.OnBeginList();
     for (int index = 0; index < std::ssize(values); ++index) {
         const auto& valueArg = values[index];
+
+        if (discard[index]) {
+            continue;
+        }
 
         writer.OnListItem();
 
@@ -340,6 +346,19 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
 
     return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNestedRowDiscardPolicy::Register(TRegistrar registrar)
+{
+    registrar.Parameter("discard_rows_with_zero_values", &TThis::DiscardRowsWithZeroValues)
+        .Default(false);
+    registrar.Parameter("floating_point_tolerance", &TThis::FloatingPointTolerance)
+        .GreaterThanOrEqual(0.0)
+        .Default(0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TNestedTableMerger::UnpackKeyColumn(
     ui16 keyColumnId,
@@ -399,6 +418,9 @@ void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
     Timestamps_.clear();
     UnpackedKeys_.clear();
     Offsets_ = {0};
+    ResultKeys_.clear();
+    ResultValues_.clear();
+    Discarded_.clear();
 
     Timestamps_.reserve(mergeStreamCount);
     UnpackedKeys_.resize(keyWidth);
@@ -425,6 +447,8 @@ void TNestedTableMerger::UnpackKeyColumns(
     std::iota(OrderingTranslationLayer_.begin(), OrderingTranslationLayer_.end(), 0);
 
     BuildMergeScript();
+
+    ApplyMergeScriptToKeys(keyWidth);
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
@@ -463,6 +487,126 @@ void TNestedTableMerger::UnpackKeyColumns(
     }
 
     BuildMergeScript();
+
+    ApplyMergeScriptToKeys(keyWidth);
+}
+
+void TNestedTableMerger::UnpackValueColumn(
+    TRange<TVersionedValue> values,
+    EValueType elementType,
+    TAggregateFunction* aggregateFunction)
+{
+    // Unpack values.
+    auto& unpackedValues = ValueBuffer_;
+    unpackedValues.clear();
+    CurrentOffsets_.assign(Timestamps_.size(), -1);
+
+    YT_VERIFY(values.Size() <= Timestamps_.size());
+
+    for (const auto& value : values) {
+        auto timestampIt = LowerBound(Timestamps_.begin(), Timestamps_.end(), value.Timestamp);
+
+        if (timestampIt == Timestamps_.end() && *timestampIt != value.Timestamp) {
+            THROW_ERROR_EXCEPTION("Cannot find matching timestamp for value column")
+                << TErrorAttribute("timestamp", value.Timestamp);
+        }
+
+        if (value.Type == EValueType::Null) {
+            continue;
+        }
+
+        int id = timestampIt - Timestamps_.begin();
+
+        CurrentOffsets_[id] = unpackedValues.size();
+
+        // TODO(lukyan): Set aggregate flag from initial versioned value.
+        UnpackNestedValuesList(&unpackedValues, value.AsStringBuf(), elementType);
+    }
+
+    const auto* rowIdPtr = RowIds_.cbegin();
+
+    ResultValues_.push_back({});
+    auto& resultValues = ResultValues_.back();
+
+    for (auto count : NestedRowCounts_) {
+        // Ids and timestamps in increasing order.
+
+        auto rowId = *rowIdPtr++;
+
+        TUnversionedValue mergeState = MakeUnversionedNullValue();
+
+        // Do not merge if CurrentOffsets_[id] is -1 (npos).
+        if (CurrentOffsets_[rowId] != -1) {
+            mergeState = unpackedValues[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+        }
+
+        for (int index = 1; index < count; ++index) {
+            rowId = *rowIdPtr++;
+            auto value = MakeUnversionedNullValue();
+            // Do not merge if CurrentOffsets_[id] is -1 (npos).
+            if (CurrentOffsets_[rowId] != -1) {
+                value = unpackedValues[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+            }
+            (*aggregateFunction)(&mergeState, value);
+        }
+
+        resultValues.push_back(mergeState);
+    }
+}
+
+void TNestedTableMerger::DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedRowDiscardPolicy)
+{
+    if (!nestedRowDiscardPolicy || !nestedRowDiscardPolicy->DiscardRowsWithZeroValues || ResultValues_.empty()) {
+        Discarded_.resize(NestedRowCounts_.size(), false);
+        return;
+    }
+
+    Discarded_.resize(NestedRowCounts_.size(), true);
+
+    auto shouldDiscard = [&] (TUnversionedValue value) {
+        switch (value.Type) {
+            case EValueType::Int64:
+                return value.Data.Int64 == 0;
+                break;
+
+            case EValueType::Uint64:
+                return value.Data.Uint64 == 0;
+                break;
+
+            case EValueType::Double:
+                return std::abs(value.Data.Double) < nestedRowDiscardPolicy->FloatingPointTolerance;
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    };
+
+    for (const auto& valueColumn : ResultValues_) {
+        YT_ASSERT(valueColumn.size() == NestedRowCounts_.size());
+
+        for (int index = 0; index < std::ssize(NestedRowCounts_); ++index) {
+            Discarded_[index] = static_cast<bool>(Discarded_[index]) && shouldDiscard(valueColumn[index]);
+        }
+    }
+}
+
+TVersionedValue TNestedTableMerger::GetPackedKeyColumn(int index, TRowBuffer* rowBuffer)
+{
+    TVersionedValue value;
+    static_cast<TUnversionedValue&>(value) = PackValues(ResultKeys_[index], Discarded_, rowBuffer);
+    value.Timestamp = Timestamps_.back();
+
+    return value;
+}
+
+TVersionedValue TNestedTableMerger::GetPackedValueColumn(int index, TRowBuffer* rowBuffer)
+{
+    TVersionedValue value;
+    static_cast<TUnversionedValue&>(value) = PackValues(ResultValues_[index], Discarded_, rowBuffer);
+    value.Timestamp = Timestamps_.back();
+
+    return value;
 }
 
 void TNestedTableMerger::BuildMergeScript()
@@ -549,114 +693,24 @@ void TNestedTableMerger::BuildMergeScript()
     }
 }
 
-TUnversionedValue TNestedTableMerger::BuildMergedKeyColumns(
-    TRange<int> counts,
-    TRange<int> rowIds,
-    TRange<TUnversionedValue> unpackedKeys,
-    TRowBuffer* rowBuffer)
+void TNestedTableMerger::ApplyMergeScriptToKeys(int keyWidth)
 {
-    CurrentOffsets_ = Offsets_;
+    ResultKeys_.resize(keyWidth);
+    for (int index = 0; index < keyWidth; ++index) {
+        CurrentOffsets_ = Offsets_;
 
-    const auto* idPtr = rowIds.Begin();
-    ResultValues_.clear();
-    for (auto count : counts) {
-        // Ids and timestamps are in increasing order.
+        const auto* idPtr = RowIds_.begin();
+        for (auto count : NestedRowCounts_) {
+            // Ids and timestamps are in increasing order.
 
-        auto id = *idPtr++;
-        ResultValues_.push_back(unpackedKeys[OrderingTranslationLayer_[CurrentOffsets_[id]++]]);
+            auto id = *idPtr++;
+            ResultKeys_[index].push_back(UnpackedKeys_[index][OrderingTranslationLayer_[CurrentOffsets_[id]++]]);
 
-        for (int i = 1; i < count; ++i) {
-            ++CurrentOffsets_[*idPtr++];
-        }
-    }
-
-    return PackValues(ResultValues_, rowBuffer);
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
-    TRange<int> counts,
-    TRange<int> rowIds,
-    TRange<TTimestamp> timestamps,
-    TRange<TVersionedValue> values,
-    EValueType elementType,
-    TAggregateFunction* aggregateFunction,
-    TRowBuffer* rowBuffer)
-{
-    // Unpack values.
-    UnpackedValues_.clear();
-    CurrentOffsets_.assign(timestamps.size(), -1);
-
-    YT_VERIFY(values.Size() <= timestamps.Size());
-
-    for (const auto& value : values) {
-        auto timestampIt = LowerBound(timestamps.Begin(), timestamps.End(), value.Timestamp);
-
-        if (timestampIt == timestamps.End() && *timestampIt != value.Timestamp) {
-            THROW_ERROR_EXCEPTION("Cannot find matching timestamp for value column")
-                << TErrorAttribute("timestamp", value.Timestamp);
-        }
-
-        if (value.Type == EValueType::Null) {
-            continue;
-        }
-
-        int id = timestampIt - timestamps.Begin();
-
-        CurrentOffsets_[id] = UnpackedValues_.size();
-
-        // TODO(lukyan): Set aggregate flag from initial versioned value.
-        UnpackNestedValuesList(&UnpackedValues_, value.AsStringBuf(), elementType);
-    }
-
-    const auto* rowIdPtr = rowIds.Begin();
-
-    ResultValues_.clear();
-    for (auto count : counts) {
-        // Ids and timestamps in increasing order.
-
-        auto rowId = *rowIdPtr++;
-
-        TUnversionedValue mergeState = MakeUnversionedNullValue();
-
-        // Do not merge if CurrentOffsets_[id] is -1 (npos).
-        if (CurrentOffsets_[rowId] != -1) {
-            mergeState = UnpackedValues_[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
-        }
-
-        for (int index = 1; index < count; ++index) {
-            rowId = *rowIdPtr++;
-            auto value = MakeUnversionedNullValue();
-            // Do not merge if CurrentOffsets_[id] is -1 (npos).
-            if (CurrentOffsets_[rowId] != -1) {
-                value = UnpackedValues_[OrderingTranslationLayer_[CurrentOffsets_[rowId]++]];
+            for (int i = 1; i < count; ++i) {
+                ++CurrentOffsets_[*idPtr++];
             }
-            (*aggregateFunction)(&mergeState, value);
         }
-
-        ResultValues_.push_back(mergeState);
     }
-
-    TVersionedValue result;
-    static_cast<TUnversionedValue&>(result) = PackValues(ResultValues_, rowBuffer);
-    result.Timestamp = timestamps.Back();
-    return result;
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedKeyColumns(int index, TRowBuffer* rowBuffer)
-{
-    TVersionedValue state;
-    static_cast<TUnversionedValue&>(state) = BuildMergedKeyColumns(NestedRowCounts_, RowIds_, UnpackedKeys_[index], rowBuffer);
-    state.Timestamp = Timestamps_.back();
-    return state;
-}
-
-TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
-    TRange<TVersionedValue> values,
-    EValueType elementType,
-    TAggregateFunction* aggregateFunction,
-    TRowBuffer* rowBuffer)
-{
-    return BuildMergedValueColumn(NestedRowCounts_, RowIds_, Timestamps_, values, elementType, aggregateFunction, rowBuffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

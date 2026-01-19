@@ -603,7 +603,8 @@ public:
         // Adjacent delete timestamps and aggregates (before allVersionsTimestamp) can be merged.
         // Major timestamp should be zero in flush mode.
         bool flushMode,
-        TNestedColumnsSchema nestedColumnsSchema)
+        TNestedColumnsSchema nestedColumnsSchema,
+        TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy)
         : RowBuffer_(std::move(rowBuffer))
         , ColumnEvaluator_(std::move(columnEvaluator))
         , AllVersionsTimestamp_(allVersionsTimestamp)
@@ -611,6 +612,7 @@ public:
         , MajorTimestamp_(majorTimestamp)
         , FlushMode_(flushMode)
         , NestedColumnsSchema_(std::move(nestedColumnsSchema))
+        , NestedRowDiscardPolicy_(std::move(nestedRowDiscardPolicy))
     {
         YT_VERIFY(RetentionTimestamp_ <= AllVersionsTimestamp_);
         YT_VERIFY(MajorTimestamp_ <= AllVersionsTimestamp_);
@@ -822,6 +824,7 @@ public:
         }
 
         NestedKeyColumns_.clear();
+        NestedValueColumns_.clear();
 
         auto resultKeyColumnCount = std::ssize(Keys_);
 
@@ -829,8 +832,7 @@ public:
             YT_VERIFY(ColumnIdToIndex_[nestedKeyColumnId] >= resultKeyColumnCount);
             int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
 
-            auto& values = Values_[columnIndex];
-            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
+            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&Values_[columnIndex], baseDeleteTimestamp);
             auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
 
             NestedKeyColumns_.push_back({valueIt, endCompactValueIt});
@@ -838,9 +840,28 @@ public:
 
         NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
 
+        for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+            auto nestedValueColumnId = NestedColumnsSchema_.ValueColumns[index].Id;
+
+            YT_VERIFY(ColumnIdToIndex_[nestedValueColumnId] >= resultKeyColumnCount);
+
+            int columnIndex = ColumnIdToIndex_[nestedValueColumnId] - resultKeyColumnCount;
+
+            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&Values_[columnIndex], baseDeleteTimestamp);
+            auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
+
+            NestedValueColumns_.push_back({valueIt, endCompactValueIt});
+
+            NestedMerger_.UnpackValueColumn(
+                NestedValueColumns_.back(),
+                NestedColumnsSchema_.ValueColumns[index].Type,
+                NestedColumnsSchema_.ValueColumns[index].AggregateFunction);
+        }
+
+        NestedMerger_.DiscardZeroes(NestedRowDiscardPolicy_);
+
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
             auto nestedKeyColumnId = NestedColumnsSchema_.KeyColumns[index].Id;
-            YT_VERIFY(ColumnIdToIndex_[nestedKeyColumnId] >= resultKeyColumnCount);
             int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
 
             auto valueIt = NestedKeyColumns_[index].Begin();
@@ -849,7 +870,7 @@ public:
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
 
-                auto state = NestedMerger_.BuildMergedKeyColumns(index, RowBuffer_.Get());
+                auto state = NestedMerger_.GetPackedKeyColumn(index, RowBuffer_.Get());
 
                 // TODO(lukyan): Move inside BuildMergedKeyColumns?
                 state.Id = nestedKeyColumnId;
@@ -870,21 +891,17 @@ public:
 
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
             auto nestedValueColumnId = NestedColumnsSchema_.ValueColumns[index].Id;
-            YT_VERIFY(ColumnIdToIndex_[nestedValueColumnId] >= resultKeyColumnCount);
             int columnIndex = ColumnIdToIndex_[nestedValueColumnId] - resultKeyColumnCount;
 
+            auto valueIt = NestedValueColumns_[index].Begin();
+            auto endCompactValueIt = NestedValueColumns_[index].End();
+
             auto& values = Values_[columnIndex];
-            auto valuesRange = SortUniqueValuesAndSkipDeletedPrefix(&values, baseDeleteTimestamp);
-            auto [valueIt, endCompactValueIt] = getAggregationRange(valuesRange);
 
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
 
-                auto mergedValue = NestedMerger_.BuildMergedValueColumn(
-                    {valueIt, endCompactValueIt},
-                    NestedColumnsSchema_.ValueColumns[index].Type,
-                    NestedColumnsSchema_.ValueColumns[index].AggregateFunction,
-                    RowBuffer_.Get());
+                auto mergedValue = NestedMerger_.GetPackedValueColumn(index, RowBuffer_.Get());
 
                 mergedValue.Id = nestedValueColumnId;
                 mergedValue.Flags = (mergedValue.Flags & ~EValueFlags::Aggregate) | initialAggregateFlags;
@@ -987,6 +1004,7 @@ private:
     const TTimestamp MajorTimestamp_;
     const bool FlushMode_;
     const TNestedColumnsSchema NestedColumnsSchema_;
+    const TNestedRowDiscardPolicyPtr NestedRowDiscardPolicy_;
 
     std::vector<int> ColumnIdToIndex_;
     std::vector<TUnversionedValue> Keys_;
@@ -1000,6 +1018,7 @@ private:
 
     TNestedTableMerger NestedMerger_;
     std::vector<TMutableRange<TVersionedValue>> NestedKeyColumns_;
+    std::vector<TMutableRange<TVersionedValue>> NestedValueColumns_;
 
     bool Started_ = false;
 
@@ -1180,7 +1199,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
-    TNestedColumnsSchema nestedColumnsSchema)
+    TNestedColumnsSchema nestedColumnsSchema,
+    TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy)
 {
     if (config && config->IgnoreMajorTimestamp) {
         mergeRowsOnFlush = true;
@@ -1192,7 +1212,7 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
     auto [retentionTimestamp, allVersionsTimestamp] = GetPivotTimestamps(currentTimestamp, config);
     return std::make_unique<TNewVersionedRowMerger>(
         rowBuffer,
-        columnEvaluator,
+        std::move(columnEvaluator),
         columnCount,
         keyColumnCount,
         columnFilter,
@@ -1200,7 +1220,8 @@ std::unique_ptr<IVersionedRowMerger> CreateNewVersionedRowMerger(
         retentionTimestamp,
         std::min(majorTimestamp, allVersionsTimestamp),
         mergeRowsOnFlush,
-        nestedColumnsSchema);
+        std::move(nestedColumnsSchema),
+        std::move(nestedRowDiscardPolicy));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1214,10 +1235,11 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator,
-    NYson::TYsonString customRuntimeData,
+    const NYson::TYsonString& customRuntimeData,
     bool mergeRowsOnFlush,
     bool useTtlColumn,
     bool mergeDeletionsOnFlush,
+    TNestedRowDiscardPolicyPtr nestedRowDiscardPolicy,
     IMemoryUsageTrackerPtr memoryTracker)
 {
     if (useTtlColumn && tableSchema->GetTtlColumnIndex()) {
@@ -1301,7 +1323,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 majorTimestamp,
                 columnEvaluator,
                 mergeRowsOnFlush,
-                std::move(nestedColumnsSchema));
+                std::move(nestedColumnsSchema),
+                std::move(nestedRowDiscardPolicy));
     }
 }
 

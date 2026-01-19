@@ -1065,6 +1065,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*mergeRowsOnFlush*/ false,
             /*useTtlColumn*/ false,
             /*mergeDeletionsOnFlush*/ false,
+            mountConfig->NestedRowDiscardPolicy,
             memoryUsageTracker);
 
         // Retained timestamp according to compactionRowMerger.
