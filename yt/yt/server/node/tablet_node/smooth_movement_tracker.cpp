@@ -326,7 +326,7 @@ public:
         };
 
         validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
-        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
+        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 12, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
         validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
@@ -347,7 +347,7 @@ public:
                Two relevant parts of code:
                - TTabletManager::PrepareReplicateTabletContentRequest
                  Populated at source servant. May throw on unsupported features.
-               - HydraReplcateTabletContent
+               - HydraReplicateTabletContent
                  Executed at target servant. Must not throw.
 
             - Mutation forwarding. Most mutations (particularly those affecting

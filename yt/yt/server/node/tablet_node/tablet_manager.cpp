@@ -1253,6 +1253,9 @@ private:
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMovementTarget = request->has_movement_source_cell_id();
         auto useRetainedPreloadedChunks = request->use_retained_preloaded_chunks();
+        auto originatorTablets = request->has_replicatable_content()
+            ? FromProto<std::vector<NTabletServer::TOriginatorTablet>>(request->replicatable_content().originator_tablets())
+            : std::vector<NTabletServer::TOriginatorTablet>();
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
@@ -1309,6 +1312,11 @@ private:
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
+        // COMPAT(atalmenev)
+        auto reign = GetCurrentMutationContext()->Request().Reign;
+        if (static_cast<ETabletReign>(reign) >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+            tabletHolder->OriginatorTablets() = std::move(originatorTablets);
+        }
 
         InitializeTablet(tabletHolder.get());
 

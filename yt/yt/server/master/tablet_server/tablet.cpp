@@ -161,6 +161,7 @@ void TTablet::Save(NCellMaster::TSaveContext& context) const
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
     Save(context, AuxiliaryNodeStatistics_);
+    Save(context, OriginatorTablets_);
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
@@ -187,6 +188,11 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
         context.GetVersion() < EMasterReign::Start_25_2)
     {
         Load(context, AuxiliaryNodeStatistics_);
+    }
+
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= EMasterReign::SaveOriginatorTabletsAfterReshard) {
+        Load(context, OriginatorTablets_);
     }
 
     Load(context, TrimmedRowCount_);

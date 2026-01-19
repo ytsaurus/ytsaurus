@@ -387,6 +387,7 @@
     XX(OptimizeFor, optimize_for) \
     XX(OptimizeForStatistics, optimize_for_statistics) \
     XX(Options, options) \
+    XX(OriginatorTablets, originator_tablets) \
     XX(Overlayed, overlayed) \
     XX(Owner, owner) \
     XX(OwnerId, owner_id) \
