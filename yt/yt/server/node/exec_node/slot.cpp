@@ -671,20 +671,20 @@ public:
         VerifyEnabled();
 
         switch (sandboxKind) {
-        case ESandboxKind::User:
-            if (rootVolume && !testRootFs) {
-                YT_VERIFY(!rootVolume->GetPath().empty());
+            case ESandboxKind::User:
+                if (rootVolume && !testRootFs) {
+                    YT_VERIFY(!rootVolume->GetPath().empty());
 
-                // Use user sandbox within root volume.
-                return NFS::CombinePaths(
-                    rootVolume->GetPath(),
-                    Format("slot/%v", GetSandboxRelPath(sandboxKind)));
-            }
-            [[fallthrough]];
-        default:
-            return Location_->GetSandboxPath(
-                SlotIndex_,
-                sandboxKind);
+                    // Use user sandbox within root volume.
+                    return NFS::CombinePaths(
+                        rootVolume->GetPath(),
+                        Format("slot/%v", GetSandboxRelPath(sandboxKind)));
+                }
+                [[fallthrough]];
+            default:
+                return Location_->GetSandboxPath(
+                    SlotIndex_,
+                    sandboxKind);
         }
     }
 
