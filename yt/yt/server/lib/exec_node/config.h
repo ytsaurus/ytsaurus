@@ -583,6 +583,12 @@ struct TJobCommonConfig
 
     bool TreatJobProxyFailureAsAbort;
 
+    // These are panic buttons.
+    // They should not live for too long (we eventually should turn on
+    // TreatJobProxyFailureAsAbort).
+    bool TreatJobProxyPreparationFailureAsAbort;
+    bool TreatJobProxyIOErrorAsAbort;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
     TString SetupCommandUser;
 

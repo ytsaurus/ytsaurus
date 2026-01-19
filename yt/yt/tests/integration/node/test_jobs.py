@@ -268,6 +268,52 @@ class TestJobProxyCallFailed(YTEnvSetup):
         op.track()
 
 
+class TestJobProxyPreparationFailed(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_preparation": True,
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("coteeq")
+    def test_job_proxy_preparation_failed(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "job_proxy_failed"})
+        failed_job_profiler = JobCountProfiler(
+            "failed", tags={"tree": "default", "job_type": "vanilla"})
+
+        op = run_test_vanilla("sleep 1", job_count=1)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() >= 5)
+
+        assert failed_job_profiler.get_job_count_delta() == 0
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_preparation": False,
+                        },
+                    },
+                },
+            },
+        })
+
+        op.track()
+
+
 class TestJobStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
