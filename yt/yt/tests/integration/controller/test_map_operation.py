@@ -2261,7 +2261,7 @@ print(json.dumps(input))
         assert exists("//tmp/out2")
         assert get("//tmp/out2/@abacaba") == "dabacaba"
 
-        with pytest.raises(YtError, match="Create of type 'Int64' is not supported"):
+        with pytest.raises(YtError, match='Attribute "create" cannot be of type "int64"'):
             map(
                 in_="//tmp/in",
                 out="<create=42>//tmp/out3",
