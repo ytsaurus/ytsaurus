@@ -906,4 +906,12 @@ void TClient::DoCheckClusterLiveness(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<NYson::TYsonString> TClient::GetConnectionOrchidValue(
+    const NApi::TGetConnectionOrchidValueOptions& options)
+{
+    return AsyncYPathGet(Connection_->GetOrchidService(), options.Path);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

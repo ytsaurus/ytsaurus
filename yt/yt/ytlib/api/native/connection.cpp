@@ -310,7 +310,8 @@ public:
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
-            this,
+            MakeWeak(this),
+            GetClusterName(),
             GetInvoker(),
             Profiler_.WithPrefix("/queue_consumer_registration_manager"),
             Logger);
