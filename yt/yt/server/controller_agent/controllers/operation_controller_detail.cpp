@@ -1117,7 +1117,8 @@ void TOperationControllerBase::CreateOutputTables(
         bool skipTable = false;
         std::optional<IAttributeDictionaryPtr> maybeAttributes;
 
-        Visit(table->Path.GetCreate(), TOverloaded{
+        Visit(
+            table->Path.GetCreate(),
             [&] (bool create) {
                 if (!create) {
                     skipTable = true;
@@ -1125,8 +1126,7 @@ void TOperationControllerBase::CreateOutputTables(
             },
             [&] (const IAttributeDictionaryPtr& attributes) {
                 maybeAttributes = attributes;
-            },
-        });
+            });
 
         if (skipTable) {
             continue;
