@@ -14,26 +14,25 @@ def main():
 
     client = yt.wrapper.YtClient(cluster)
 
-    # Создаём батч-клиент.
+    # Create a batch client.
     batch_client = client.create_batch_client()
 
-    # Добавляем запросы в пачку, добавление запроса в этом месте не приводит к его немедленному выполнению.
-    # Вся пачка выполняется после того, как будет позван метод commit_batch.
-    # В качестве результата нам возвращается специальный объект, из которого можно будет позже получить результат
-    # выполнения запроса.
+    # Add requests to the batch. Just adding doesn`t mean that request will be executed immediately.
+    # The whole batch will be executed after calling of the `commit_batch` method.
+    # Result: special object is returned. We can get a result of request execution from the returned object later.
     doc_title_exists_result = batch_client.exists("//home/tutorial/doc_title")
     unexisting_table_exists_result = batch_client.exists("//home/tutorial/unexisting_table")
 
     output_table_name = "//tmp/{}-pytutorial-batch-client".format(getpass.getuser())
     create_result = batch_client.create("table", output_table_name)
 
-    # Выполняем накопленную пачку запросов.
+    # Executing of the accumulated requests batch.
     batch_client.commit_batch()
 
-    # После выполнения запросов, есть несколько полезных методов.
-    #  - is_ok() -- проверяет успешно ли был выполненен запрос
-    #  - get_result() -- возвращает результат, если запрос был выполнен успешно (для неуспешно выполненых возвращает None)
-    #  - get_error() -- возвращает ошибку для неудачно выполненых запросов
+    # After requests execution you can have several useful methods:
+    #  - `is_ok()` — checks if was the request successfully executed or failed.
+    #  - `get_result()` — returns the result of executed request. Returns "None" for failed requests.
+    #  - `get_error()` — returns an error for failed requests.
 
     print(doc_title_exists_result.get_result())
     print(unexisting_table_exists_result.get_result())
@@ -41,8 +40,8 @@ def main():
     if create_result.is_ok():
         print("Table was created successfully.")
     else:
-        # Если запустить этот скрипт два раза подряд, то во второй раз создание таблицы завершится с ошибкой,
-        # что таблица уже существует.
+        # If you run this script twice a row, you`ll get an error for the second
+        # time because of the table is already exists.
         print("Cannot create table {table} error: {error}.".format(
             table=output_table_name, error=create_result.get_error()
         ))

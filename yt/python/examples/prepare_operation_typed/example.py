@@ -35,10 +35,10 @@ class NamedClicks:
 
 @yt.wrapper.with_context
 class Mapper(yt.wrapper.TypedJob):
-    # В методе prepare_operation указываются входные и выходные типы строк.
+    # We specify input and output rows types in the `prepare_operation` method.
     def prepare_operation(self, context, preparer):
-        # Вместо обычных констант лучше использовать именованные,
-        # но для краткости напишем так.
+        # It`s better use named constants instead of standard.
+        # But we will write like this to be short.
         preparer.input(0, type=User).input(1, type=Activity).output(0, type=User).output(1, type=Click)
 
     def __call__(self, row, context):
@@ -46,7 +46,7 @@ class Mapper(yt.wrapper.TypedJob):
             yield yt.wrapper.OutputRow(row, table_index=0)
         else:
             assert context.get_table_index() == 1
-            # Выбираем только события типа "клик".
+            # Selecting only click-type events.
             if row.type == "click":
                 assert row.url is not None
                 yield yt.wrapper.OutputRow(
@@ -55,14 +55,14 @@ class Mapper(yt.wrapper.TypedJob):
                 )
 
     def get_intermediate_stream_count(self):
-        # Указываем, что промежуточные данные текут в два потока.
+        # Specifying the intermediate data flows in two streams.
         return 2
 
 
 class Reducer(yt.wrapper.TypedJob):
     def prepare_operation(self, context, preparer):
-        # В объекте context лежит информация о количестве входных и выходных потоков,
-        # их схемы и пути к таблицам.
+        # The context object contains information about the number of input and output streams,
+        # also their schemas, and the paths to tables.
         assert context.get_input_count() == 2
         assert context.get_output_count() == 1
 
@@ -73,11 +73,11 @@ class Reducer(yt.wrapper.TypedJob):
         user_row = None
         for row, ctx in rows.with_context():
             if ctx.get_table_index() == 0:
-                # Пользователи приходят в нулевой таблице.
+                # Users come in the null table.
                 user_row = row
             else:
                 assert ctx.get_table_index() == 1
-                # А клики — в первой.
+                # And clicks come in the first table.
                 urls.append(row.url)
         if user_row is not None:
             yield NamedClicks(name=user_row.name, urls=urls)
