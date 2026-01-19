@@ -17,6 +17,12 @@ void TPerformanceCountersEma::UpdateEma()
     Ema.Update(Counter.load(std::memory_order::relaxed));
 }
 
+void TPerformanceCountersEma::Merge(const TEmaCounter<i64>& other)
+{
+    Counter.fetch_add(other.Count, std::memory_order::relaxed);
+    Ema.Merge(other);
+}
+
 void TChunkReaderPerformanceCounters::IncrementHunkDataWeight(
     EPerformanceCountedRequestType requestType,
     i64 value,
