@@ -239,7 +239,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 
     auto allSetFuture = AllSet(ioOperationFutures);
     auto errors = WaitFor(allSetFuture).ValueOrThrow();
-    for (auto& error : errors) {
+    for (const auto& error : errors) {
         error.ThrowOnError();
     }
 
