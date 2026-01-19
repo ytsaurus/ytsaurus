@@ -3293,6 +3293,118 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert tablet_performance_counters[0]["tablet_id"] == tablet_id
         assert "dynamic_row_write_count" in get("#" + tablet_id + "/@performance_counters")
 
+    @authors("atalmenev")
+    def test_originator_tablets(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_balancer_config={"enable_auto_reshard": False}
+        )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "f"}, {"key": 103, "value": "FF"}])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/@originator_tablets") == []
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [100]])
+
+        def _check_originators(actual_originator_tablets, expected_tablet_ids):
+            return {t["tablet_id"] for t in actual_originator_tablets} == {*expected_tablet_ids}
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        originator_tablets = get(f"#{tablet_ids[0]}/@originator_tablets")
+        assert _check_originators(originator_tablets, [tablet_id])
+
+        originator_tablets = get(f"#{tablet_ids[1]}/@originator_tablets")
+        assert _check_originators(originator_tablets, [tablet_id])
+
+        sync_reshard_table("//tmp/t", [[]])
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        originator_tablets = get(f"#{tablet_id}/@originator_tablets")
+        assert _check_originators(originator_tablets, tablet_ids)
+
+    @authors("atalmenev")
+    def test_originator_tablet_size(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[]] + [[pivot] for pivot in [3, 5, 7, 10, 15]],
+            compression_codec="none",
+            enable_compaction_and_partitioning=False,
+            tablet_balancer_config={"enable_auto_reshard": False}
+        )
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "xx"} for i in range(20)])
+        sync_unmount_table("//tmp/t")
+
+        chunk_sizes = [
+            get(f"#{chunk_id}/@compressed_data_size")
+            for chunk_id in get("//tmp/t/@chunk_ids")
+        ]
+
+        def _check_size(inherited_data, originator_data):
+            for index, inherited_tablet, originator_tablet in zip(range(len(inherited_data)), inherited_data, originator_data):
+                originator_tablets = get(f"#{tablet_ids[index]}/@originator_tablets")
+
+                for originator_index, inherited_chunks, originator_chunks in zip(range(len(originator_tablet)), inherited_tablet, originator_tablet):
+                    assert originator_tablets[originator_index]["inherited_compressed_data_size"] == sum(chunk_sizes[i] for i in inherited_chunks)
+                    assert originator_tablets[originator_index]["originator_compressed_data_size"] == sum(chunk_sizes[i] for i in originator_chunks)
+
+        # old_pivot_keys 0          3          5          7          10         15         20
+        # old_tablets    | tablet_0 | tablet_1 | tablet_2 | tablet_3 | tablet_4 | tablet_5 |
+        #
+        # chunks         | chunk_0  | chunk_1  | chunk_2  | chunk_3  | chunk_4  | chunk_5  |
+        #                     \      /        \      |       /   \         |         |
+        # new_pivot_keys 0                4                   8                            20
+        # new_tablets    |    tablet_0    |     tablet_1      |          tablet_2          |
+
+        originator_data = [[[0], [1]], [[1], [2], [3]], [[3], [4], [5]]]
+        inherited_data = [[[0], [1]], [[1], [2], [3]], [[3], [4], [5]]]
+        sync_reshard_table("//tmp/t", [[]] + [[pivot] for pivot in [4, 8]])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        _check_size(inherited_data, originator_data)
+
+        # old_pivot_keys 0                     4                      8                                                20
+        # old_tablets    |      tablet_0       |       tablet_1       |                   tablet_2                     |
+        #
+        #                0                3          5          7                    10                      15        20
+        # chunks         |     chunk_0    | chunk_1  | chunk_2  |      chunk_3       |        chunk_4        | chunk_5 |
+        #                      |       \    /      \    /     \     /         \                   |         \     |
+        # new_pivot_keys 0          2          4           6              9          10                    14          20
+        # new_tablets    | tablet_0 | tablet_1 | tablet_2  |  tablet_3    | tablet_4  |        tablet_5     |  tablet_6 |
+
+        originator_data = [[[0, 1]], [[0, 1]], [[1, 2, 3]], [[1, 2, 3], [3, 4, 5]], [[3, 4, 5]], [[3, 4, 5]], [[3, 4, 5]]]
+        inherited_data = [[[0]], [[0, 1]], [[1, 2]], [[2, 3], [3]], [[3]], [[4]], [[4, 5]]]
+        sync_reshard_table("//tmp/t", [[]] + [[pivot] for pivot in [2, 4, 6, 9, 10,  14]])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        _check_size(inherited_data, originator_data)
+
+    @authors("atalmenev")
+    def test_reshard_many_to_many_tablets(self):
+        sync_create_cells(1)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "Press F"} for i in range(100000)])
+        sync_unmount_table("//tmp/t")
+
+        first_pivot_keys = [[]] + [[i] for i in range(2, 10000, 2)]
+        second_pivot_keys = [[]] + [[i] for i in range(1, 10000, 2)]
+
+        start_time = time.time()
+        sync_reshard_table("//tmp/t", first_pivot_keys)
+        sync_reshard_table("//tmp/t", second_pivot_keys)
+        delta = time.time() - start_time
+        assert delta < 15
+
     @authors("alexelexa")
     def test_bundle_ban(self):
         sync_create_cells(1)

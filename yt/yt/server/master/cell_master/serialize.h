@@ -190,6 +190,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveRecalculationMaxReplicasPerFailureDomainFlag)           (3140))  // theevilbird
     ((IncreaseTabletToCellRatioDefaultToEffectiveInfinity)          (3141))  // alexelexa
     ((AddConstraintsIntoMasterSnapshot)                             (3142))  // cherepashka
+    ((SaveOriginatorTabletsAfterReshard)                            (3143))  // atalmenev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

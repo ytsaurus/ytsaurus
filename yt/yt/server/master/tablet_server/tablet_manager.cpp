@@ -4145,10 +4145,14 @@ private:
         }
 
         std::vector<TOwningKeyBound> oldPivotKeyBounds;
+        std::vector<TTabletId> oldTabletIds;
+        oldTabletIds.reserve(lastTabletIndex - firstTabletIndex + 1);
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
+            oldTabletIds.push_back(tablet->GetId());
+
             if (table->IsPhysicallySorted()) {
                 oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
@@ -4179,6 +4183,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
+            oldTabletIds,
             oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);

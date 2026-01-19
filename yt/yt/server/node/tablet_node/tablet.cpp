@@ -925,6 +925,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
     Save(context, UpstreamReplicaId_);
+    Save(context, OriginatorTablets_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -1026,6 +1027,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
     Load(context, UpstreamReplicaId_);
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+        Load(context, OriginatorTablets_);
+    }
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -2648,6 +2653,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             *replicationProgress);
     }
 
+    ToProto(replicatableContent->mutable_originator_tablets(), OriginatorTablets_);
+
     auto* chaosData = request->mutable_chaos_data();
     chaosData->set_replication_era(RuntimeData()->ReplicationEra.load());
     chaosData->set_replication_round(ChaosData()->ReplicationRound.load());
@@ -2726,6 +2733,8 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
         ? TYsonString(replicatableContent.custom_runtime_data())
         : TYsonString();
+
+    FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
 
