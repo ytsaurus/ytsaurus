@@ -17,13 +17,13 @@ public:
     DEFINE_RPC_PROXY(TJobProberServiceProxy, JobProberService,
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, DumpInputContext);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, GetStderr);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, PollJobShell);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, Interrupt);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, Fail);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, GracefulAbort);
-    DEFINE_RPC_PROXY_METHOD(NJobProxy::JobProber::NProto, DumpSensors);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, DumpInputContext);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, GetStderr);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, PollJobShell);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, Interrupt);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, Fail);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, GracefulAbort);
+    DEFINE_RPC_PROXY_METHOD(NJobProxy::NJobProber::NProto, DumpSensors);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

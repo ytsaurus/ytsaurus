@@ -9,7 +9,7 @@ namespace NYT::NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateJobApiService(
-    NJobProxy::TJobApiServiceConfigPtr config,
+    TJobApiServiceConfigPtr config,
     IInvokerPtr controlInvoker,
     TWeakPtr<TJobProxy> jobProxy);
 
