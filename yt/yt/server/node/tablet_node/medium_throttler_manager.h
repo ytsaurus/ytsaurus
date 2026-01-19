@@ -13,9 +13,13 @@ namespace NYT::NTabletNode {
 struct IMediumThrottlerManager
     : public TRefCounted
 {
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(
+        const std::string& mediumName,
+        ETabletDistributedThrottlerKind kind) = 0;
 
-    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) = 0;
+    virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(
+        const std::string& mediumName,
+        ETabletDistributedThrottlerKind kind) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMediumThrottlerManager)

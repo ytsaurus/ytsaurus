@@ -16,7 +16,7 @@ struct IDistributedThrottlerManager
         NObjectClient::TCellTag cellTag,
         const NConcurrency::TThroughputThrottlerConfigPtr& config,
         const NDistributedThrottler::TThrottlerId& throttlerId,
-        NDistributedThrottler::EDistributedThrottlerMode mode,
+        ETabletDistributedThrottlerKind kind,
         TDuration rpcTimeout,
         bool admitUnlimitedThrottler,
         NProfiling::TProfiler profiler = {}) = 0;

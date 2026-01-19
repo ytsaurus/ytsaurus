@@ -1,4 +1,5 @@
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -20,6 +21,7 @@ namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NDistributedThrottler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -593,6 +595,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
 
+    registrar.Parameter("distributed_throttlers", &TThis::DistributedThrottlers)
+        .Optional();
+
     registrar.Parameter("store_compactor", &TThis::StoreCompactor)
         .DefaultNew();
     registrar.Parameter("store_flusher", &TThis::StoreFlusher)
@@ -665,6 +670,18 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        // Instantiate default distributed throttler configs.
+        for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
+            if (config->DistributedThrottlers[kind]) {
+                continue;
+            }
+
+            config->DistributedThrottlers[kind] = New<TDistributedThrottlerConfig>();
+            config->DistributedThrottlers[kind]->Mode = GetDistributedThrottledMode(kind);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

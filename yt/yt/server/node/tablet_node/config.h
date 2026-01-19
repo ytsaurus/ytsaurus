@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
+#include <yt/yt/ytlib/distributed_throttler/public.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -653,6 +655,8 @@ struct TTabletNodeDynamicConfig
     TTabletHunkLockManagerDynamicConfigPtr HunkLockManager;
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
+
+    TEnumIndexedArray<ETabletDistributedThrottlerKind, NDistributedThrottler::TDistributedThrottlerConfigPtr> DistributedThrottlers;
 
     TStoreCompactorDynamicConfigPtr StoreCompactor;
     TStoreFlusherDynamicConfigPtr StoreFlusher;
