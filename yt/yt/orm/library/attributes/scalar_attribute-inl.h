@@ -449,16 +449,14 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing, bool allowRelative)
+void ClearFieldByPath(T&& from, NYPath::TYPathBuf path, bool skipMissing)
 {
     TClearVisitor visitor;
     visitor.SetAllowAsterisk(true);
     if (skipMissing) {
         visitor.SetMissingFieldPolicy(EMissingFieldPolicy::Skip);
     }
-    visitor.SetRelativeIndexPolicy(allowRelative
-        ? ERelativeIndexPolicy::Reinterpret
-        : ERelativeIndexPolicy::Throw);
+    visitor.SetRelativeIndexPolicy(ERelativeIndexPolicy::Throw);
     visitor.Visit(std::forward<T>(from), path);
 }
 
