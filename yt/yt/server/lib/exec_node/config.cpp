@@ -685,6 +685,12 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("treat_job_proxy_failure_as_abort", &TThis::TreatJobProxyFailureAsAbort)
         .Default(false);
 
+    registrar.Parameter("treat_job_proxy_preparation_failure_as_abort", &TThis::TreatJobProxyPreparationFailureAsAbort)
+        .Default(true);
+
+    registrar.Parameter("treat_job_proxy_io_error_as_abort", &TThis::TreatJobProxyIOErrorAsAbort)
+        .Default(true);
+
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
 

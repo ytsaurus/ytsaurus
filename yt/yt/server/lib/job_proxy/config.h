@@ -49,6 +49,8 @@ struct TJobProxyTestingConfig
 {
     bool FailOnJobProxySpawnedCall;
 
+    bool FailPreparation;
+
     REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
 
     static void Register(TRegistrar registrar);

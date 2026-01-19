@@ -14,6 +14,9 @@ void TJobProxyTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_on_job_proxy_spawned_call", &TThis::FailOnJobProxySpawnedCall)
         .Default(false);
+
+    registrar.Parameter("fail_preparation", &TThis::FailPreparation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
