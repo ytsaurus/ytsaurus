@@ -841,7 +841,7 @@ public:
         NestedMerger_.UnpackKeyColumns(NestedKeyColumns_, NestedColumnsSchema_.KeyColumns);
 
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
-            auto nestedValueColumnId = NestedColumnsSchema_.ValueColumns[index].Id;
+            auto [nestedValueColumnId, type, aggregateFunction] = NestedColumnsSchema_.ValueColumns[index];
 
             YT_VERIFY(ColumnIdToIndex_[nestedValueColumnId] >= resultKeyColumnCount);
 
@@ -854,14 +854,14 @@ public:
 
             NestedMerger_.UnpackValueColumn(
                 NestedValueColumns_.back(),
-                NestedColumnsSchema_.ValueColumns[index].Type,
-                NestedColumnsSchema_.ValueColumns[index].AggregateFunction);
+                type,
+                aggregateFunction);
         }
 
         NestedMerger_.DiscardZeroes(NestedRowDiscardPolicy_);
 
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.KeyColumns); ++index) {
-            auto nestedKeyColumnId = NestedColumnsSchema_.KeyColumns[index].Id;
+            auto [nestedKeyColumnId, type] = NestedColumnsSchema_.KeyColumns[index];
             int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
 
             auto valueIt = NestedKeyColumns_[index].Begin();
@@ -870,7 +870,7 @@ public:
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
 
-                auto state = NestedMerger_.GetPackedKeyColumn(index, RowBuffer_.Get());
+                auto state = NestedMerger_.GetPackedKeyColumn(index, type, RowBuffer_->GetPool());
 
                 // TODO(lukyan): Move inside BuildMergedKeyColumns?
                 state.Id = nestedKeyColumnId;
@@ -890,7 +890,8 @@ public:
         }
 
         for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
-            auto nestedValueColumnId = NestedColumnsSchema_.ValueColumns[index].Id;
+            auto [nestedValueColumnId, type, aggregateFunction] = NestedColumnsSchema_.ValueColumns[index];
+
             int columnIndex = ColumnIdToIndex_[nestedValueColumnId] - resultKeyColumnCount;
 
             auto valueIt = NestedValueColumns_[index].Begin();
@@ -901,7 +902,7 @@ public:
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
 
-                auto mergedValue = NestedMerger_.GetPackedValueColumn(index, RowBuffer_.Get());
+                auto mergedValue = NestedMerger_.GetPackedValueColumn(index, type, RowBuffer_->GetPool());
 
                 mergedValue.Id = nestedValueColumnId;
                 mergedValue.Flags = (mergedValue.Flags & ~EValueFlags::Aggregate) | initialAggregateFlags;

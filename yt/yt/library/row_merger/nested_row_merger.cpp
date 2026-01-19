@@ -6,6 +6,7 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/lightweight_yson_list_parser.h>
 
 #include <yt/yt/core/misc/heap.h>
 
@@ -223,6 +224,23 @@ const TNestedValueColumn* FindNestedColumnById(TRange<TNestedValueColumn> keyCol
     return nullptr;
 }
 
+int UnpackNestedValuesListFast(std::vector<TUnversionedValue>* parsedValues, TStringBuf data, EValueType listItemType)
+{
+    int itemCount = 0;
+    DoUnpackValuesTyped(
+        [&] (const TUnversionedValue& value) {
+            if (parsedValues) {
+                parsedValues->push_back(value);
+            }
+            ++itemCount;
+            return false;
+        },
+        data,
+        listItemType);
+
+    return itemCount;
+}
+
 int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TStringBuf data, EValueType listItemType)
 {
     try {
@@ -295,8 +313,166 @@ int UnpackNestedValuesList(std::vector<TUnversionedValue>* parsedValues, TString
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE ui32 TSimpleOutputBuffer::RemainingBytes() const
+{
+    ui32 currentSize = CurrentPtr_ - Data_.get();
+    return Capacity_ - currentSize;
+}
+
+Y_FORCE_INLINE char* TSimpleOutputBuffer::Current() const
+{
+    return CurrentPtr_;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Advance(ui32 count)
+{
+    CurrentPtr_ += count;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::PushBack(char ch)
+{
+    Reserve(1);
+    *CurrentPtr_++ = ch;
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Write(const void* data, ui32 length)
+{
+    Reserve(length);
+    ::memcpy(CurrentPtr_, data, length);
+    Advance(length);
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Clear()
+{
+    CurrentPtr_ = Data_.get();
+}
+
+Y_FORCE_INLINE void TSimpleOutputBuffer::Reserve(ui32 count)
+{
+    ui32 currentSize = CurrentPtr_ - Data_.get();
+    if (currentSize + count <= Capacity_) {
+        return;
+    }
+
+    auto newCapacity = FastClp2(currentSize + count);
+    auto newData = std::make_unique<char[]>(newCapacity);
+    ::memcpy(newData.get(), Data_.get(), currentSize);
+    Data_ = std::move(newData);
+    Capacity_ = newCapacity;
+    CurrentPtr_ = Data_.get() + currentSize;
+}
+
+Y_FORCE_INLINE TStringBuf TSimpleOutputBuffer::GetBuffer() const
+{
+    return {Data_.get(), CurrentPtr_};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+void WriteVarInt(TSimpleOutputBuffer* writer, T value)
+{
+    writer->Reserve(MaxVarIntSize<T>);
+    auto size = NYT::WriteVarInt(writer->Current(), value);
+    writer->Advance(size);
+}
+
+void DoPackValuesTyped(TRange<TUnversionedValue> values, TRange<char> discard, EValueType type, TSimpleOutputBuffer* output)
+{
+    using namespace NYson::NDetail;
+
+    output->PushBack(BeginListSymbol);
+
+    int index = 0;
+
+    auto writeList = [&] (auto onItem) {
+        for (const auto& valueArg : values) {
+            if (discard[index++]) {
+                continue;
+            }
+
+            if (valueArg.Type == type) {
+                onItem(valueArg);
+            } else if (valueArg.Type == EValueType::Null) {
+                output->PushBack(EntitySymbol);
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected type");
+            }
+            output->PushBack(ItemSeparatorSymbol);
+        }
+    };
+
+    switch (type) {
+        case EValueType::Int64:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(Int64Marker);
+                WriteVarInt(output, valueArg.Data.Int64);
+            });
+            break;
+        case EValueType::Uint64:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(Uint64Marker);
+                WriteVarInt(output, valueArg.Data.Uint64);
+            });
+            break;
+        case EValueType::Double:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(DoubleMarker);
+                output->Write(&valueArg.Data.Double, sizeof(double));
+            });
+            break;
+        case EValueType::Boolean:
+            writeList([&] (const auto& valueArg) {
+                output->PushBack(valueArg.Data.Boolean ? TrueMarker : FalseMarker);
+            });
+            break;
+        case EValueType::String:
+            writeList([&] (const auto& valueArg) {
+                auto stringData = valueArg.AsStringBuf();
+                output->PushBack(StringMarker);
+                WriteVarInt(output, static_cast<i32>(stringData.length()));
+                output->Write(stringData.begin(), stringData.length());
+            });
+            break;
+        case EValueType::Any:
+        case EValueType::Composite:
+            writeList([&] (const auto& valueArg) {
+                auto stringData = valueArg.AsStringBuf();
+                output->Write(stringData.begin(), stringData.length());
+            });
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected type %Qlv",
+                type);
+    }
+
+    output->PushBack(EndListSymbol);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Build yson list from values.
-TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, TRowBuffer* rowBuffer)
+TUnversionedValue TNestedTableMerger::PackValuesFast(
+    TRange<TUnversionedValue> values,
+    TRange<char> discard,
+    EValueType type,
+    TChunkedMemoryPool* memoryPool)
+{
+    PackBuffer_.Clear();
+    DoPackValuesTyped(values, discard, type, &PackBuffer_);
+    auto result = MakeUnversionedCompositeValue(PackBuffer_.GetBuffer());
+
+    // Do not use TRowBuffer because of extra memory tracking.
+    char* dst = memoryPool->AllocateUnaligned(result.Length);
+    memcpy(dst, result.Data.String, result.Length);
+    result.Data.String = dst;
+
+    return result;
+}
+
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> discard, EValueType /*type*/, TChunkedMemoryPool* memoryPool)
 {
     TString resultYson;
     TStringOutput output(resultYson);
@@ -344,7 +520,14 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRange<char> disc
     }
     writer.OnEndList();
 
-    return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
+    auto result = MakeUnversionedCompositeValue(resultYson);
+
+    // Do not use TRowBuffer because of extra memory tracking.
+    char* dst = memoryPool->AllocateUnaligned(result.Length);
+    memcpy(dst, result.Data.String, result.Length);
+    result.Data.String = dst;
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,6 +542,10 @@ void TNestedRowDiscardPolicy::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TNestedTableMerger::TNestedTableMerger(bool useFastYsonRoutines)
+    : UseFastYsonRoutines_(useFastYsonRoutines)
+{ }
 
 void TNestedTableMerger::UnpackKeyColumn(
     ui16 keyColumnId,
@@ -385,7 +572,7 @@ void TNestedTableMerger::UnpackKeyColumn(
         auto timestamp = keyColumn[index].Timestamp;
 
         if (keyColumn[index].Type != EValueType::Null) {
-            UnpackNestedValuesList(
+            (UseFastYsonRoutines_ ? UnpackNestedValuesListFast : UnpackNestedValuesList)(
                 &unpackedColumn,
                 keyColumn[index].AsStringBuf(),
                 keyColumnSchema.Type);
@@ -416,7 +603,6 @@ void TNestedTableMerger::UnpackKeyColumn(
 void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
 {
     Timestamps_.clear();
-    UnpackedKeys_.clear();
     Offsets_ = {0};
     ResultKeys_.clear();
     ResultValues_.clear();
@@ -424,6 +610,9 @@ void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
 
     Timestamps_.reserve(mergeStreamCount);
     UnpackedKeys_.resize(keyWidth);
+    for (auto& column : UnpackedKeys_) {
+        column.clear();
+    }
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
@@ -520,7 +709,7 @@ void TNestedTableMerger::UnpackValueColumn(
         CurrentOffsets_[id] = unpackedValues.size();
 
         // TODO(lukyan): Set aggregate flag from initial versioned value.
-        UnpackNestedValuesList(&unpackedValues, value.AsStringBuf(), elementType);
+        (UseFastYsonRoutines_ ? UnpackNestedValuesListFast : UnpackNestedValuesList)(&unpackedValues, value.AsStringBuf(), elementType);
     }
 
     const auto* rowIdPtr = RowIds_.cbegin();
@@ -591,19 +780,25 @@ void TNestedTableMerger::DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedR
     }
 }
 
-TVersionedValue TNestedTableMerger::GetPackedKeyColumn(int index, TRowBuffer* rowBuffer)
+TVersionedValue TNestedTableMerger::GetPackedKeyColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool)
 {
     TVersionedValue value;
-    static_cast<TUnversionedValue&>(value) = PackValues(ResultKeys_[index], Discarded_, rowBuffer);
+    static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
+        ? PackValuesFast(ResultKeys_[index], Discarded_, type, memoryPool)
+        : PackValues(ResultKeys_[index], Discarded_, type, memoryPool);
+
     value.Timestamp = Timestamps_.back();
 
     return value;
 }
 
-TVersionedValue TNestedTableMerger::GetPackedValueColumn(int index, TRowBuffer* rowBuffer)
+TVersionedValue TNestedTableMerger::GetPackedValueColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool)
 {
     TVersionedValue value;
-    static_cast<TUnversionedValue&>(value) = PackValues(ResultValues_[index], Discarded_, rowBuffer);
+    static_cast<TUnversionedValue&>(value) = UseFastYsonRoutines_
+        ? PackValuesFast(ResultValues_[index], Discarded_, type, memoryPool)
+        : PackValues(ResultValues_[index], Discarded_, type, memoryPool);
+
     value.Timestamp = Timestamps_.back();
 
     return value;
