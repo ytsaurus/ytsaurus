@@ -1517,17 +1517,17 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
 
     return BIND_NO_PROPAGATE([
         weakThis = MakeWeak(this),
-        storePtr = store.Get(),
+        rawStore = store.Get(),
         invoker = std::move(epochInvoker)
     ] (
         TSortedDynamicRow row,
         TSortedDynamicStore::TConflictInfo conflictInfo,
         TDuration timeout)
     {
-        if (auto lockedThis = weakThis.Lock()) {
-            return lockedThis->OnRowBlocked(
-                storePtr,
-                std::move(invoker),
+        if (auto this_ = weakThis.Lock()) {
+            return this_->OnRowBlocked(
+                rawStore,
+                invoker,
                 row,
                 conflictInfo,
                 timeout);
@@ -1671,7 +1671,7 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::OnRowBlocked(
             row,
             conflictInfo,
             timeout)
-        .AsyncVia(invoker)
+        .AsyncVia(std::move(invoker))
         .Run())
     .ValueOrThrow();
 }
@@ -1705,7 +1705,7 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlocked
 
     auto waitResult = WaitFor(transaction->GetFinished().WithTimeout(timeout));
     if (!waitResult.IsOK() && waitResult.GetCode() != NYT::EErrorCode::Timeout) {
-        waitResult.ThrowOnError();
+        THROW_ERROR(std::move(waitResult));
     }
 
     result.TransactionId = transactionId;
