@@ -3653,7 +3653,7 @@ TFuture<void> TOverlayData::Remove()
 
     const auto& self = GetVolume();
     if (self->IsCached()) {
-        return VoidFuture;
+        return OKFuture;
     }
 
     return self->Remove();
