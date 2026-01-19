@@ -13,7 +13,7 @@ from yt_commands import (alter_table_replica, authors, commit_transaction, gener
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
                          execute_batch, make_batch_request, abort_transaction, read_table)
 
-from yt_helpers import profiler_factory
+from yt_helpers import calculate_object_diff, profiler_factory
 
 from yt.common import YtError, update, update_inplace
 
@@ -3125,7 +3125,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
 
             actual_meta = {r["path"]: r["meta"] for r in get_replicated_table_mapping()}
 
-            assert actual_meta == expected_meta, f"diff is {self._calculate_diff(actual_meta, expected_meta)}"
+            assert actual_meta == expected_meta, f"diff is {calculate_object_diff(actual_meta, expected_meta):actual_meta,expected_meta}"
             assert get_replica_mapping_from_replicated_table_mapping() == get_replica_mapping()
 
         assert rebuilding_checked

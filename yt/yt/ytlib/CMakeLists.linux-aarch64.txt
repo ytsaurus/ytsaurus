@@ -89,6 +89,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-federated
   yt-client-logging
   yt-library-formats
   yt-library-orchid
@@ -460,6 +461,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_producer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager_new.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/cluster_name.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
@@ -621,6 +623,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/acls.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.record.h
@@ -657,6 +660,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
@@ -1764,6 +1768,36 @@ add_custom_command(
   yt/yt/ytlib/queue_client/public.h
 )
 
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
+  COMMAND
+  ${Python3_EXECUTABLE}
+  -B
+  -m
+  yt_record_codegen.bin
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/replica_mapping.record.cpp
+  --output-include
+  yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/public.h
+)
+
 target_proto_outs(yt-yt-ytlib
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
@@ -1831,6 +1865,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
+  yt-client-federated
   yt-client-logging
   yt-library-formats
   yt-library-orchid

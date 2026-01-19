@@ -96,37 +96,37 @@ struct TQueueConsumerRegistrationManagerProfilingCounters
 
 TQueueConsumerRegistrationManagerBase::TQueueConsumerRegistrationManagerBase(
     TQueueConsumerRegistrationManagerConfigPtr config,
-    NApi::NNative::IConnection* connection,
+    TWeakPtr<NApi::NNative::IConnection> connection,
+    std::optional<std::string> clusterName,
     IInvokerPtr invoker,
-    const NProfiling::TProfiler& profiler,
-    const NLogging::TLogger& logger)
+    NProfiling::TProfiler profiler,
+    NLogging::TLogger logger)
     : Config_(std::move(config))
-    , Connection_(connection)
+    , Connection_(std::move(connection))
     , Invoker_(std::move(invoker))
-    , ClusterName_(connection->GetClusterName())
-    , ConfigurationRefreshExecutor_(New<TPeriodicExecutor>(
-        Invoker_,
-        BIND(&TQueueConsumerRegistrationManagerBase::RefreshConfiguration, MakeWeak(this)),
-        Config_->ConfigurationRefreshPeriod))
+    , ClusterName_(std::move(clusterName))
     , Logger(logger)
     , ProfilingCounters_(profiler)
     , DynamicConfig_(Config_)
 { }
 
-void TQueueConsumerRegistrationManagerBase::StartSync() const
+void TQueueConsumerRegistrationManagerBase::Initialize()
+{
+    VerifyConfigImplementation(Config_);
+}
+
+void TQueueConsumerRegistrationManagerBase::StartSync()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting queue consumer registration manager sync");
-    ConfigurationRefreshExecutor_->Start();
 }
 
-void TQueueConsumerRegistrationManagerBase::StopSync() const
+void TQueueConsumerRegistrationManagerBase::StopSync()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
-    YT_UNUSED_FUTURE(ConfigurationRefreshExecutor_->Stop());
 }
 
 IQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistrationManagerBase::GetRegistrationOrThrow(
@@ -233,61 +233,6 @@ void TQueueConsumerRegistrationManagerBase::UnregisterQueueConsumer(
         .ValueOrThrow();
 }
 
-void TQueueConsumerRegistrationManagerBase::RefreshConfiguration()
-{
-    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
-    try {
-        GuardedRefreshConfiguration();
-    } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Could not refresh queue consumer registration manager configuration");
-    }
-}
-
-void TQueueConsumerRegistrationManagerBase::GuardedRefreshConfiguration()
-{
-    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
-    YT_LOG_DEBUG("Refreshing queue consumer registration manager configuration");
-
-    auto newConfig = Config_;
-
-    if (ClusterName_) {
-        if (auto localConnection = Connection_.Lock()) {
-            if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
-                newConfig = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
-                YT_LOG_DEBUG(
-                    "Retrieved queue consumer registration manager dynamic config (Config: %v)",
-                    ConvertToYsonString(newConfig, EYsonFormat::Text));
-            }
-        }
-    }
-
-    auto oldConfig = GetDynamicConfig();
-
-    YT_VERIFY(oldConfig);
-    YT_VERIFY(newConfig);
-
-    // NB: Should be safe to call inside the periodic executor, since it doesn't post any new callbacks while executing a callback.
-    // This just sets the internal period to be used for scheduling the next invocation.
-    if (newConfig->ConfigurationRefreshPeriod != oldConfig->ConfigurationRefreshPeriod) {
-        YT_LOG_DEBUG(
-            "Resetting queue consumer registration manager configuration refresh period (Period: %v -> %v)",
-            oldConfig->ConfigurationRefreshPeriod,
-            newConfig->ConfigurationRefreshPeriod);
-        ConfigurationRefreshExecutor_->SetPeriod(newConfig->ConfigurationRefreshPeriod);
-    }
-
-    OnDynamicConfigChanged(oldConfig, newConfig);
-
-    {
-        auto guard = WriterGuard(ConfigurationSpinLock_);
-        DynamicConfig_ = newConfig;
-    }
-
-    YT_LOG_DEBUG("Refreshed queue consumer registration manager configuration");
-}
-
 TConsumerRegistrationTablePtr TQueueConsumerRegistrationManagerBase::CreateRegistrationTableWriteClientOrThrow() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -299,6 +244,27 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationManagerBase::CreateRegis
         config->StateWritePath.GetCluster(),
         config->StateWritePath.GetPath(),
         config->User);
+}
+
+void TQueueConsumerRegistrationManagerBase::Reconfigure(
+    const TQueueConsumerRegistrationManagerConfigPtr& /*oldConfig*/,
+    const TQueueConsumerRegistrationManagerConfigPtr& newConfig)
+{
+    VerifyConfigImplementation(newConfig);
+
+    {
+        auto guard = WriterGuard(ConfigurationSpinLock_);
+        DynamicConfig_ = newConfig;
+    }
+}
+
+void TQueueConsumerRegistrationManagerBase::VerifyConfigImplementation(const TQueueConsumerRegistrationManagerConfigPtr& config)
+{
+    YT_LOG_FATAL_UNLESS(
+        config->Implementation == GetImplementationType(),
+        "Configuration implementation and interface implementation mismatch (ConfigImpl: %v, InterfaceImpl: %v)",
+        config->Implementation,
+        GetImplementationType());
 }
 
 TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManagerBase::GetDynamicConfig() const
