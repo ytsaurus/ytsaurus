@@ -840,6 +840,13 @@ private:
             if (ypathExt->has_read_complexity_limits()) {
                 FromProto(&subrequest.ReadRequestComplexityOverrides, ypathExt->read_complexity_limits());
             }
+            if (TraceContext_ && TraceContext_->IsRecorded()) {
+                subrequest.TraceContext = TraceContext_->CreateChild(
+                    Format("YPath%v.%v.%v",
+                        ypathExt->mutating() ? "Write"_sb : "Read"_sb,
+                        RpcContext_->GetService(),
+                        RpcContext_->GetMethod()));
+            }
         }
 
         CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
@@ -1147,7 +1154,7 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
-            subrequest->Mutation->SetTraceContext(TraceContext_);
+            subrequest->Mutation->SetTraceContext(subrequest->TraceContext);
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
             subrequest->ProfilingCounters->LocalWriteRequestCounter.Increment();
         } else {
@@ -2076,6 +2083,8 @@ private:
 
     void ExecuteLocalSubrequest(TSubrequest* subrequest)
     {
+        TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
+
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalWrite:
                 YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2163,13 +2172,6 @@ private:
         TAuthenticatedUserGuard userGuard(securityManager, User_.Get());
 
         const auto& rpcContext = subrequest->RpcContext;
-
-        if (TraceContext_ && TraceContext_->IsRecorded()) {
-            subrequest->TraceContext = TraceContext_->CreateChild(
-                ConcatToString(TStringBuf("YPathRead:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
-        }
-
-        TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
         try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
@@ -2272,10 +2274,6 @@ private:
     void OnMissingSubresponse(TSubrequest* subrequest)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        // Missing subresponses are only possible for remote subrequests, and
-        // there should be no trace contexts for them.
-        YT_ASSERT(!subrequest->TraceContext);
 
         YT_VERIFY(!subrequest->Uncertain.load());
         YT_VERIFY(!subrequest->Completed.load());
