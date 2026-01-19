@@ -2340,7 +2340,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("tablet_stores_update"),
             "tablet_stores_update",
-            EDistributedThrottlerMode::Precise,
+            ETabletDistributedThrottlerKind::StoresUpdate,
             TabletStoresUpdateThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ true);
 
@@ -2350,7 +2350,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("lookup"),
             "lookup",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Lookup,
             LookupThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
     YT_VERIFY(
@@ -2363,7 +2363,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("select"),
             "select",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Select,
             SelectThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2373,7 +2373,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("compaction_read"),
             "compaction_read",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::CompactionRead,
             CompactionReadThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2383,7 +2383,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("write"),
             "write",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Write,
             WriteThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 

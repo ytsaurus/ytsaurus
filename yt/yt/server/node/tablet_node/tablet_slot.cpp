@@ -772,21 +772,27 @@ private:
         auto options = GetOptions();
         YT_VERIFY(options);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(options->ChangelogPrimaryMedium);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            options->ChangelogPrimaryMedium,
+            ETabletDistributedThrottlerKind::ChangelogMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumWriteThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumWrite);
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_VERIFY(MediumThrottlerManager_);
 
-        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(mediumName);
+        return MediumThrottlerManager_->GetOrCreateMediumReadThrottler(
+            mediumName,
+            ETabletDistributedThrottlerKind::BlobMediumRead);
     }
 };
 
