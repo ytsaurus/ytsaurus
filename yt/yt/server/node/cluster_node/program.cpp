@@ -105,9 +105,9 @@ public:
             .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
-                "dont-abort-on-alert",
-                "Do not set AbortOnAlert flag in logger config")
-            .StoreFalse(&AbortOnAlert_)
+                "abort-on-alert",
+                "Set AbortOnAlert flag in logger config")
+            .StoreTrue(&AbortOnAlert_)
             .NoArgument();
         Opts_
             .AddLongOption(
@@ -290,7 +290,7 @@ private:
     bool DumpSnapshotFlag_ = false;
     ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
-    bool AbortOnAlert_ = true;
+    bool AbortOnAlert_ = false;
     bool CheckInvariants_ = true;
     TString LoadSnapshotPath_;
     bool ReplayChangelogsFlag_ = false;
