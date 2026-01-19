@@ -984,6 +984,8 @@ private:
             return response;
         }
 
+        NTracing::TChildTraceContextGuard traceContextGuard("SequoiaService.Invoke");
+
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
         return Visit(invokeResult,
