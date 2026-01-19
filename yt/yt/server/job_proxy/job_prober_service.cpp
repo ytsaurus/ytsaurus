@@ -16,10 +16,9 @@
 
 #include <util/system/fs.h>
 
-namespace NYT::NJobProber {
+namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
-using namespace NJobProxy;
 using namespace NRpc;
 using namespace NTools;
 using namespace NYson;
@@ -58,7 +57,7 @@ public:
 private:
     const TWeakPtr<IJobProbe> JobProxy_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, DumpInputContext)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, DumpInputContext)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo("TransactionId: %v", transactionId);
@@ -70,7 +69,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, GetStderr)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, GetStderr)
     {
         context->SetRequestInfo();
 
@@ -85,7 +84,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, PollJobShell)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, PollJobShell)
     {
         auto parameters = TYsonString(request->parameters());
 
@@ -108,7 +107,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, Interrupt)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, Interrupt)
     {
         Y_UNUSED(response);
 
@@ -119,7 +118,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, Fail)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, Fail)
     {
         Y_UNUSED(response);
 
@@ -132,7 +131,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, GracefulAbort)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, GracefulAbort)
     {
         Y_UNUSED(response);
 
@@ -145,7 +144,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProxy::JobProber::NProto, DumpSensors)
+    DECLARE_RPC_SERVICE_METHOD(NJobProxy::NJobProber::NProto, DumpSensors)
     {
         context->SetRequestInfo();
 
@@ -171,4 +170,4 @@ IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInv
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProber
+} // namespace NYT::NJobProxy

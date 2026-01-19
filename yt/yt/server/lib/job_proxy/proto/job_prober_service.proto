@@ -1,4 +1,4 @@
-package NYT.NJobProxy.JobProber.NProto;
+package NYT.NJobProxy.NJobProber.NProto;
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";

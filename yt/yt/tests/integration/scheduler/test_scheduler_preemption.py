@@ -29,7 +29,7 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 import yt.yson as yson
 
-from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqProgressSaved, TRspProgressSaved
+from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqOnProgressSaved, TRspOnProgressSaved
 
 import grpc
 
@@ -838,11 +838,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
-            "/JobApiService/ProgressSaved",
-            TReqProgressSaved.SerializeToString,
-            TRspProgressSaved.FromString,
+            "/JobApiService/OnProgressSaved",
+            TReqOnProgressSaved.SerializeToString,
+            TRspOnProgressSaved.FromString,
         )
-        endpoint(TReqProgressSaved())
+        endpoint(TReqOnProgressSaved())
 
     @authors("pogorelov", "dann239")
     @pytest.mark.parametrize(
