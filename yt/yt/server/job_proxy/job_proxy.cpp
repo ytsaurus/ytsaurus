@@ -1073,6 +1073,10 @@ TJobResult TJobProxy::RunJob()
         Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
+    if (Config_->TestingConfig->FailPreparation) {
+        Abort(EJobProxyExitCode::JobProxyPrepareFailed);
+    }
+
     job->PrepareArtifacts();
     OnArtifactsPrepared();
 

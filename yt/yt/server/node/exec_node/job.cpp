@@ -3896,25 +3896,38 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
             return EAbortReason::Other;
         }
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
-            auto exitCode = NExecNode::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-            switch (exitCode) {
-                case EJobProxyExitCode::SupervisorCommunicationFailed:
-                case EJobProxyExitCode::ResultReportFailed:
-                case EJobProxyExitCode::ResourcesUpdateFailed:
-                case EJobProxyExitCode::GetJobSpecFailed:
-                case EJobProxyExitCode::InvalidSpecVersion:
-                case EJobProxyExitCode::PortoManagementFailed:
-                    return EAbortReason::Other;
+            auto exitCode = processError->Attributes().Get<int>("exit_code");
+            if (CommonConfig_->TreatJobProxyIOErrorAsAbort && exitCode == static_cast<int>(EProcessExitCode::IOError)) {
+                return EAbortReason::JobProxyFailed;
+            }
 
-                case EJobProxyExitCode::ResourceOverdraft:
-                    return EAbortReason::ResourceOverdraft;
+            auto jobProxyExitCode = EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
+            if (TEnumTraits<EJobProxyExitCode>::IsKnownValue(jobProxyExitCode)) {
+                switch (jobProxyExitCode) {
+                    case EJobProxyExitCode::SupervisorCommunicationFailed:
+                    case EJobProxyExitCode::ResultReportFailed:
+                    case EJobProxyExitCode::ResourcesUpdateFailed:
+                    case EJobProxyExitCode::GetJobSpecFailed:
+                    case EJobProxyExitCode::InvalidSpecVersion:
+                    case EJobProxyExitCode::PortoManagementFailed:
+                        return EAbortReason::Other;
 
-                default: {
-                    if (CommonConfig_->TreatJobProxyFailureAsAbort) {
-                        return EAbortReason::JobProxyFailed;
-                    }
-                    break;
+                    case EJobProxyExitCode::JobProxyPrepareFailed:
+                        if (CommonConfig_->TreatJobProxyPreparationFailureAsAbort) {
+                            return EAbortReason::JobProxyFailed;
+                        }
+                        break;
+
+                    case EJobProxyExitCode::ResourceOverdraft:
+                        return EAbortReason::ResourceOverdraft;
+
+                    default:
+                        break;
                 }
+            }
+
+            if (CommonConfig_->TreatJobProxyFailureAsAbort) {
+                return EAbortReason::JobProxyFailed;
             }
         }
         if (auto processSignal = resultError.FindMatching(EProcessErrorCode::Signal)) {
