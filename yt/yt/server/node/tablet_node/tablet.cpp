@@ -755,6 +755,11 @@ void TSmoothMovementData::Persist(const TPersistenceContext& context)
     Persist(context, SiblingMountRevision_);
     Persist(context, SiblingAvenueEndpointId_);
     Persist(context, CommonDynamicStoreIds_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementOrdered) {
+        Persist(context, StoreRowCountOverride_);
+    }
 }
 
 void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const

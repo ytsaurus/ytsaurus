@@ -32,6 +32,9 @@ public:
         TRange<const NTabletNode::NProto::TAddHunkChunkDescriptor*> hunkChunkDescriptors,
         TMountOptions options) override;
 
+    void PopulateReplicateTabletContentRequest(
+        NProto::TReqReplicateTabletContent* request) override;
+
     void LockHunkStores(TWriteContext* context) override;
 
     bool ExecuteWrites(

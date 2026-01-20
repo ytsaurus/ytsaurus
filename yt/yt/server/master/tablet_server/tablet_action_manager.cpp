@@ -328,10 +328,6 @@ public:
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
             }
 
-            if (!table->IsPhysicallySorted()) {
-                THROW_ERROR_EXCEPTION("Ordered table tablet cannot be moved");
-            }
-
             if (table->GetAtomicity() != EAtomicity::Full) {
                 THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
                     table->GetAtomicity());

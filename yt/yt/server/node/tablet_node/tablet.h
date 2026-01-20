@@ -547,6 +547,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
 
+    using TStoreRowCountMap = THashMap<TStoreId, i64>;
+    DEFINE_BYREF_RW_PROPERTY(TStoreRowCountMap, StoreRowCountOverride);
+
     // Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStageChangeTime);
