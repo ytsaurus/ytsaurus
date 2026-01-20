@@ -837,6 +837,9 @@ extend google.protobuf.FieldOptions
     optional uint32 max_length = 31008;
     optional string valid_charset = 31011;
 
+    // Supported only for string-like columns, enables hunks for specified column.
+    optional uint64 max_inline_hunk_size = 31012;
+
     // Supported only for integer key fields. Use any expression that will convert to the
     // appropriate type in C++.
     optional string min_value = 31009;
