@@ -2,7 +2,7 @@
 
 ## Overview
 
-Odin is a service that provides qualitative monitoring of a {{producer-name}} cluster. For more details, see the [Monitoring](../../admin-guide/monitoring.md#odin) section.
+Odin is a service that provides qualitative monitoring of a {{product-name}} cluster. For more details, see the [Monitoring](../../admin-guide/monitoring.md#odin) section.
 
 ## Prerequisites
 
