@@ -341,6 +341,7 @@ protected:
         miscExt.set_unique_keys(Schema_->IsUniqueKeys());
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
+        miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
             miscExt.set_min_timestamp(ChunkTimestamps_.MinTimestamp);
@@ -438,13 +439,26 @@ protected:
         int keyColumnCount = IsSorted() ? Schema_->GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {
-            weight += NTableClient::GetDataWeight(row[index]);
+            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            if (valueWeight > MaxStringValueLength) {
+                IsCompatibleWithDynamicTableConstraints_ = false;
+            }
+            weight += valueWeight;
         }
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
-            weight += NTableClient::GetDataWeight(row[index]);
+            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            if (valueWeight > MaxStringValueLength) {
+                IsCompatibleWithDynamicTableConstraints_ = false;
+            }
+            weight += valueWeight;
         }
+
+        if (weight > MaxClientVersionedRowDataWeight) {
+            IsCompatibleWithDynamicTableConstraints_ = false;
+        }
+
         ValidateRowWeight(weight, Config_, Options_);
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
@@ -466,6 +480,7 @@ private:
     i64 SamplesExtSize_ = 0;
 
     TColumnarStatistics ColumnarStatistics_;
+    bool IsCompatibleWithDynamicTableConstraints_ = true;
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
