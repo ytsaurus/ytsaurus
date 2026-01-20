@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -226,6 +228,10 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
 
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, UpdateStatistics);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Truncate);
+
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopySource);
@@ -274,6 +280,10 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
+
+        DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
+        DISPATCH_YPATH_SERVICE_METHOD(Truncate);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -1069,6 +1079,33 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, ReshardAutomatic)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, UpdateStatistics)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Seal)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Truncate)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
 
