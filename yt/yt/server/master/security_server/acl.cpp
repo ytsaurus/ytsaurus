@@ -456,6 +456,11 @@ TWrappedAccessControlDescriptorPtr::operator bool() const
     return Underlying_;
 }
 
+TAccessControlDescriptor* TWrappedAccessControlDescriptorPtr::Underlying()
+{
+    return Underlying_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

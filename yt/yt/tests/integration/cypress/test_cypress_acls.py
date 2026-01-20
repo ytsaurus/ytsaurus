@@ -839,6 +839,16 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             set("//sys/users/u1/@name", "u2")
 
+    @authors("danilalexeev")
+    def test_user_rename_ace(self):
+        create_user("u1")
+        create("map_node", "//tmp/d", attributes={
+            "inherit_acl": False,
+            "acl": [make_ace("allow", "u1", "read")]
+        })
+        set("//sys/users/u1/@name", "u2")
+        assert get("//tmp/d", authenticated_user="u2") == {}
+
     @authors("babenko", "ignat")
     def test_deny_create(self):
         create_user("u")
