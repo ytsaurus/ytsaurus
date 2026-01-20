@@ -122,6 +122,13 @@ MasterInternal =   ProjectSensor("master_internal",   "yt-master")  # noqa: E222
 MasterRpc =        ProjectSensor("master_rpc",        "yt-master")  # noqa: E222
 MasterRpcClient =  ProjectSensor("master_rpc_client", "yt-master", base=RpcBase)  # noqa: E222
 
+# Cypress Proxy.
+CypressProxy =           ProjectSensor("cypress_proxy",            "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyCpu =        ProjectSensor("cypress_proxy_cpu",        "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyMemory =     ProjectSensor("cypress_proxy_memory",     "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyRpc =        ProjectSensor("cypress_proxy_rpc",        "yt-cypress_proxy.*")  # noqa: E222
+CypressProxyRpcClient =  ProjectSensor("cypress_proxy_rpc_client", "yt-cypress_proxy.*", base=RpcBase)  # noqa: E222
+
 # Misc.
 HttpProxy =           ProjectSensor("http_proxy",             "yt-http-proxy.*")  # noqa: E222
 HttpProxyPorto =      ProjectSensor("http_proxy_porto",       "yt-http-proxy.*")  # noqa: E222

@@ -5,6 +5,7 @@ from yt_dashboards.common.runner import run
 from yt_dashboards.master import (
     build_master_global, build_master_local, build_master_node_tracker, build_master_cpu, build_master_merge_jobs,
     build_master_accounts)
+from yt_dashboards.cypress_proxies import build_cypress_proxies
 from yt_dashboards.artemis import (
     build_local_artemis, build_bundle_artemis, build_global_artemis, build_local_artemis_container)
 from yt_dashboards.scheduler_internal import build_scheduler_internal
@@ -231,6 +232,10 @@ dashboards = {
         "func": build_master_accounts,
         "monitoring": {},
         "grafana": {},
+    },
+    "cypress-proxy": {
+        "func": build_cypress_proxies,
+        "monitoring": {},
     },
     "chyt-monitoring-test": {
         "func": build_chyt_monitoring,
