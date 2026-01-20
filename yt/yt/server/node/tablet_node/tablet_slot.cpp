@@ -671,14 +671,14 @@ public:
 
     i64 EstimateChangelogMediumBytes(i64 payload) const override
     {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->EstimateChangelogMediumBytes(payload);
     }
 
     void AccountChangelogPayloadBytes(i64 payloadBytes) override
     {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Occupant_->AccountChangelogPayloadBytes(payloadBytes);
     }

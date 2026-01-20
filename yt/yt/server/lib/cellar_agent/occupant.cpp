@@ -64,8 +64,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/duration_moving_average.h>
-
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
@@ -104,73 +102,47 @@ static const auto& Profiler = CellarAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto DefaultWrittenBytesMovingAverageWindow = TDuration::Minutes(1);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJournalWritesObserver
     : public IJournalWritesObserver
 {
 public:
-    TJournalWritesObserver(
-        IThroughputThrottlerPtr changelogOutThrottler,
-        NProfiling::TProfiler profiler,
-        IInvokerPtr automatonInvoker)
+    TJournalWritesObserver(IThroughputThrottlerPtr changelogOutThrottler, NProfiling::TProfiler profiler)
         : ChangelogOutThrottler_(std::move(changelogOutThrottler))
-        , Profiler_(profiler.WithPrefix("/changelog_medium_usage"))
-        , AutomatonInvoker_(std::move(automatonInvoker))
+        , Profiler(profiler.WithPrefix("/changelog_medium_usage"))
         , PayloadWrittenBytesCounter_(profiler.Counter("/payload_written_bytes_counter"))
-        , PayloadWrittenBytesMovingAverage_(profiler.Gauge("/payload_written_bytes_moving_average"))
         , MediaWrittenBytesCounter_(profiler.Counter("/media_written_bytes_counter"))
-        , MediaWrittenBytesMovingAverage_(profiler.Gauge("/media_written_bytes_moving_average"))
         , EstimatedInBytesCounter_(profiler.Counter("/estimated_in_bytes_counter"))
         , EstimatedOutBytesCounter_(profiler.Counter("/estimated_out_bytes_counter"))
     { }
 
     void RegisterPayloadWrite(i64 payload) override
     {
+        PayloadWrittenBytes_.fetch_add(payload, std::memory_order::relaxed);
         PayloadWrittenBytesCounter_.Increment(payload);
-
-        PayloadWrittenBytes_.UpdateAt(GetInstant(), payload);
-        PayloadWrittenBytesMovingAverage_.Update(PayloadWrittenBytes_.GetAverage());
-        TotalPayloadWrittenBytes_ += payload;
     }
 
     void RegisterJournalWrite(i64 journalWrittenBytes, i64 mediaWrittenBytes) override
     {
+        MediaWrittenBytes_.fetch_add(mediaWrittenBytes, std::memory_order::relaxed);
         MediaWrittenBytesCounter_.Increment(mediaWrittenBytes);
 
         if (ChangelogOutThrottler_ && EnableChangelogNetworkUsageAccounting_.load(std::memory_order::relaxed)) {
             ChangelogOutThrottler_->Acquire(journalWrittenBytes);
         }
-
-        AddAndGetMediaWrittenBytes(mediaWrittenBytes);
     }
 
     i64 EstimateMediaBytes(i64 payloadBytes) const
     {
         static constexpr auto AccumulatedStatisticsThreshold = 1_MBs;
-        static constexpr auto MovingAverageStatisticsThreshold = 10_KBs;
 
-        double payloadWrittenBytes = PayloadWrittenBytes_.GetAverage();
-        PayloadWrittenBytesMovingAverage_.Update(payloadWrittenBytes);
-        double totalPayloadBytes = TotalPayloadWrittenBytes_;
+        double totalPayloadBytes = PayloadWrittenBytes_.load(std::memory_order::relaxed);
+        double mediaWrittenBytes = MediaWrittenBytes_.load(std::memory_order::relaxed);
 
-        double mediaWrittenBytes;
-        i64 totalMediaBytes;
-        std::tie(mediaWrittenBytes, totalMediaBytes) = AddAndGetMediaWrittenBytes(0);
-
-        if (totalPayloadBytes < AccumulatedStatisticsThreshold || totalMediaBytes < AccumulatedStatisticsThreshold) {
+        if (totalPayloadBytes < AccumulatedStatisticsThreshold || mediaWrittenBytes < AccumulatedStatisticsThreshold) {
             return payloadBytes;
         }
 
-        // Using total statistics if moving averages are too small. Also prevents division by zero
-        if (payloadWrittenBytes < MovingAverageStatisticsThreshold || mediaWrittenBytes < MovingAverageStatisticsThreshold) {
-            payloadWrittenBytes = totalPayloadBytes;
-            mediaWrittenBytes = totalMediaBytes;
-        }
-
-        auto results = static_cast<i64>(mediaWrittenBytes * payloadBytes / payloadWrittenBytes);
+        auto results = static_cast<i64>(mediaWrittenBytes * payloadBytes / totalPayloadBytes);
 
         EstimatedInBytesCounter_.Increment(payloadBytes);
         EstimatedOutBytesCounter_.Increment(results);
@@ -183,59 +155,21 @@ public:
         EnableChangelogNetworkUsageAccounting_.store(
             dynamicConfig->EnableChangelogNetworkUsageAccounting.value_or(false),
             std::memory_order::relaxed);
-
-        auto guard = Guard(MediaWrittenBytesLock_);
-        auto newWindow = dynamicConfig->ChangelogThrottlingStatisticsMovingAverageWindow;
-        if (WrittenBytesMovingAverageWindow_ != newWindow) {
-            WrittenBytesMovingAverageWindow_ = newWindow;
-
-            auto window = WrittenBytesMovingAverageWindow_.value_or(DefaultWrittenBytesMovingAverageWindow);
-
-            MediaWrittenBytes_.SetWindow(window);
-            AutomatonInvoker_->Invoke(BIND([window, this_ = MakeStrong(this)](){
-                this_->PayloadWrittenBytes_.SetWindow(window);
-            }));
-        }
     }
 
 private:
     const IThroughputThrottlerPtr ChangelogOutThrottler_;
-    NProfiling::TProfiler Profiler_;
-
-    const IInvokerPtr AutomatonInvoker_;
-
+    NProfiling::TProfiler Profiler;
     NProfiling::TCounter PayloadWrittenBytesCounter_;
-    NProfiling::TGauge PayloadWrittenBytesMovingAverage_;
     NProfiling::TCounter MediaWrittenBytesCounter_;
-    NProfiling::TGauge MediaWrittenBytesMovingAverage_;
 
     NProfiling::TCounter EstimatedInBytesCounter_;
     NProfiling::TCounter EstimatedOutBytesCounter_;
 
-    i64 TotalPayloadWrittenBytes_ = 0;
-    mutable i64 TotalMediaWrittenBytes_ = 0;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MediaWrittenBytesLock_);
-    std::optional<TDuration> WrittenBytesMovingAverageWindow_;
-    mutable TAverageDurationMovingAverage PayloadWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
-    mutable TAverageDurationMovingAverage MediaWrittenBytes_{DefaultWrittenBytesMovingAverageWindow};
+    std::atomic<i64> PayloadWrittenBytes_ = 0;
+    std::atomic<i64> MediaWrittenBytes_ = 0;
 
     std::atomic<bool> EnableChangelogNetworkUsageAccounting_ = false;
-
-    std::tuple<double, i64> AddAndGetMediaWrittenBytes(i64 delta) const
-    {
-        auto guard = Guard(MediaWrittenBytesLock_);
-
-        if (delta) {
-            MediaWrittenBytes_.UpdateAt(GetInstant(), delta);
-            TotalMediaWrittenBytes_ += delta;
-        }
-
-        double averageMediaWrittenBytes = MediaWrittenBytes_.GetAverage();
-        MediaWrittenBytesMovingAverage_.Update(averageMediaWrittenBytes);
-
-        return {averageMediaWrittenBytes, TotalMediaWrittenBytes_};
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalWritesObserver);
@@ -263,8 +197,7 @@ public:
         , Logger(MakeLogger())
         , JournalWritesObserver_(New<TJournalWritesObserver>(
             bootstrap->GetChangelogOutThrottler(),
-            GetOccupier()->GetProfiler(),
-            GetOccupier()->GetOccupierAutomatonInvoker()))
+            Occupier_.Acquire()->GetProfiler()))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
@@ -860,15 +793,11 @@ public:
 
     i64 EstimateChangelogMediumBytes(i64 payload) const override
     {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
         return JournalWritesObserver_->EstimateMediaBytes(payload);
     }
 
     void AccountChangelogPayloadBytes(i64 payloadBytes) override
     {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
         JournalWritesObserver_->RegisterPayloadWrite(payloadBytes);
     }
 
