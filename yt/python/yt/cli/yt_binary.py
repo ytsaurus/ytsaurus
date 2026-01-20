@@ -79,8 +79,8 @@ Operation commands:
     abort-op, suspend-op, resume-op, complete-op, update-op-parameters,
     get-operation, list-operations, track-op
 Job commands:
-    run-job-shell, abort-job, get-job-stderr, get-job-input,
-    get-job-input-paths, get-job, list-jobs
+    run-job-shell, run-job-shell-command, abort-job, get-job-stderr,
+    get-job-input, get-job-input-paths, get-job, list-jobs
 Transaction commands:
     start-tx, commit-tx, abort-tx, ping-tx,
     lock, unlock
@@ -2068,6 +2068,18 @@ def add_run_job_shell_parser(add_parser):
     add_hybrid_argument(parser, "command", group_required=False)
 
 
+@copy_docstring_from(yt.run_job_shell_command)
+def run_job_shell_command(**kwargs):
+    write_silently(chunk_iter_stream(yt.run_job_shell_command(**kwargs), yt.config["read_buffer_size"]))
+
+
+def add_run_job_shell_command_parser(add_parser):
+    parser = add_parser("run-job-shell-command", run_job_shell_command)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    add_hybrid_argument(parser, "command", help="command to execute in job sandbox")
+    parser.add_argument("--shell-name", type=str, help="name of the job shell to use")
+
+
 def add_abort_job_parser(add_parser):
     parser = add_parser("abort-job", yt.abort_job)
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
@@ -3144,6 +3156,7 @@ def _prepare_parser():
     add_generate_timestamp_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
+    add_run_job_shell_command_parser(add_parser)
     add_get_job_stderr_parser(add_parser)
     add_get_job_input_parser(add_parser)
     add_get_job_input_paths_parser(add_parser)
