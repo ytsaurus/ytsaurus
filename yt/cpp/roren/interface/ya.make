@@ -20,6 +20,7 @@ SRCS(
     private/stateful_par_do.cpp
     private/stateful_timer_par_do.cpp
     private/tags.cpp
+    private/misc.cpp
     private/par_do_tree.cpp
     private/save_loadable_logicaltype_wrapper.cpp
     private/save_loadable_tableschema_wrapper.cpp
