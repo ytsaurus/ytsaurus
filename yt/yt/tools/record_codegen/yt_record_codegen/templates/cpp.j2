@@ -98,7 +98,9 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- if type.add_empty_field %}
         TColumnSchema("$empty", ESimpleLogicalValueType::Int64),
 {%- endif %}
-        }))
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ {% if type.sorted -%} true {%- else -%} false {%- endif %}))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
     , PartialIdMapping_(NameTable_)
