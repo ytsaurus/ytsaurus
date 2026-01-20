@@ -2093,12 +2093,12 @@ DEFINE_ENUM(ESliceByRowsWithForeignKind,
     (Right)
 );
 
-class TSortedChunkPoolNewKeysTestSliceByRows
+class TSortedChunkPoolNewKeysSliceByRowsTest
     : public WithParamInterface<ESliceByRowsWithForeignKind>
     , public TSortedChunkPoolNewKeysTest
 { };
 
-TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
+TEST_P(TSortedChunkPoolNewKeysSliceByRowsTest, SliceByRowsAndAttachForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     DataWeightPerJob_ = 100_KB;
@@ -2177,7 +2177,6 @@ TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
             }
             EXPECT_EQ(attached, mustAttach);
         }
-
     }
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
@@ -2187,7 +2186,7 @@ TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
 
 INSTANTIATE_TEST_SUITE_P(
     Instantiate,
-    TSortedChunkPoolNewKeysTestSliceByRows,
+    TSortedChunkPoolNewKeysSliceByRowsTest,
     ValuesIn(TEnumTraits<ESliceByRowsWithForeignKind>::GetDomainValues()),
     [](const TestParamInfo<ESliceByRowsWithForeignKind>& info) {
         return Format("%v", info.param);

@@ -652,7 +652,10 @@ private:
 
         auto cookies = JobManager_->AddJobs(std::move(jobStubPtrs));
 
-        YT_LOG_TRACE("Jobs are built (CookieCount: %v, Statistics: %v)", cookies, ChunkPoolStatistics_);
+        YT_LOG_TRACE(
+            "Jobs are built (CookieCount: %v, Statistics: %v)",
+            cookies,
+            ChunkPoolStatistics_);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
