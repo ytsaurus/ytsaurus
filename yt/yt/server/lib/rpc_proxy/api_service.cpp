@@ -156,10 +156,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::string DyntableLightPoolName = "$dyntable_light";
-
-////////////////////////////////////////////////////////////////////////////////
-
 TError MakeCanceledError()
 {
     return TError("RPC request canceled");
@@ -640,8 +636,9 @@ public:
 
     TApiService(
         TApiServiceConfigPtr config,
-        IInvokerPtr defaultInvoker,
-        TPooledInvokerProvider workerInvokerProvider,
+        IInvokerPtr controlInvoker,
+        IInvokerPtr workerInvoker,
+        IInvokerPtr lowLatencyInvoker,
         NApi::NNative::IConnectionPtr connection,
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
@@ -664,12 +661,13 @@ private:
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
+    const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr LowLatencyInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
     const IUserAccessValidatorPtr UserAccessValidator_;
-    const TPooledInvokerProvider WorkerInvokerProvider_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -911,8 +909,6 @@ private:
 
     IInvokerPtr GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const;
 
-    IInvokerPtr GetWorkerInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const;
-
     void ProcessLookupRowsDetailedProfilingInfo(
         TWallTimer timer,
         const std::string& userTag,
@@ -973,8 +969,9 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 
 TApiService::TApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr defaultInvoker,
-    TPooledInvokerProvider workerInvokerProvider,
+    IInvokerPtr controlInvoker,
+    IInvokerPtr workerInvoker,
+    IInvokerPtr lowLatencyInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -987,7 +984,7 @@ TApiService::TApiService(
     ISignatureValidatorPtr signatureValidator,
     IQueryCorpusReporterPtr queryCorpusReporter)
     : TServiceBase(
-        std::move(defaultInvoker),
+        std::move(workerInvoker),
         GetServiceDescriptor(),
         std::move(logger),
         TServiceOptions{
@@ -1004,6 +1001,8 @@ TApiService::TApiService(
         ? stickyTransactionPool
         : CreateStickyTransactionPool(Logger))
     , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
+    , ControlInvoker_(std::move(controlInvoker))
+    , LowLatencyInvoker_(std::move(lowLatencyInvoker))
     , HeapProfilerTestingOptions_(config->TestingOptions
         ? config->TestingOptions->HeapProfiler
         : nullptr)
@@ -1014,7 +1013,6 @@ TApiService::TApiService(
         ApiServiceConfig_->UserAccessValidator,
         LocalConnection_,
         Logger))
-    , WorkerInvokerProvider_(std::move(workerInvokerProvider))
     , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
     , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
     , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -1116,15 +1114,11 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbortJob));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows)
-        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
-    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows)
-        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this))));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(LookupRows));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(MultiLookup)
-        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetConcurrencyLimit(1'000));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(SelectRows)
-        .SetInvokerProvider(BIND(&TApiService::GetWorkerInvoker, Unretained(this)))
         .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ExplainQuery));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PullRows)
@@ -1283,7 +1277,7 @@ void TApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& conf
 IYPathServicePtr TApiService::CreateOrchidService()
 {
     return IYPathService::FromProducer(BIND_NO_PROPAGATE(&TApiService::BuildOrchid, MakeStrong(this)))
-        ->Via(WorkerInvokerProvider_(OrchidExecutionPoolName, DefaultExecutionTag));
+        ->Via(ControlInvoker_);
 }
 
 std::optional<std::string> TApiService::GetMultiproxyTargetCluster(const IServiceContextPtr& context)
@@ -1639,33 +1633,22 @@ TDetailedProfilingCountersPtr TApiService::GetOrCreateDetailedProfilingCounters(
         .first;
 }
 
-IInvokerPtr TApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
+IInvokerPtr TApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
 {
-    auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
-    return WorkerInvokerProvider_(DyntableLightPoolName, tag);
+    if (Config_.Acquire()->EnableLowLatencyGenerateTimestampsInvoker) {
+        return LowLatencyInvoker_;
+    }
+
+    return GetDefaultInvoker();
 }
 
-IInvokerPtr TApiService::GetWorkerInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
+IInvokerPtr TApiService::GetStartTransactionInvoker(const NRpc::NProto::TRequestHeader& /*requestHeader*/) const
 {
-    const auto& ext = requestHeader.GetExtension(NApi::NRpcProxy::NProto::TReqFairSharePoolExt::req_fair_share_pool_ext);
+    if (Config_.Acquire()->EnableLowLatencyStartTransactionInvoker) {
+        return LowLatencyInvoker_;
+    }
 
-    static const auto DefaultExecutionPool = "default";
-
-    const auto& tag = ext.has_execution_tag()
-        ? ext.execution_tag()
-        : DefaultExecutionTag;
-
-    const auto& poolName = ext.has_execution_pool()
-        ? ext.execution_pool()
-        : DefaultExecutionPool;
-
-    return WorkerInvokerProvider_(poolName, tag);
-}
-
-IInvokerPtr TApiService::GetGenerateTimestampsInvoker(const NRpc::NProto::TRequestHeader& requestHeader) const
-{
-    auto tag = ToString(FromProto<TRequestId>(requestHeader.request_id()));
-    return WorkerInvokerProvider_(DyntableLightPoolName, tag);
+    return GetDefaultInvoker();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
@@ -8006,8 +7989,9 @@ const TStructuredLoggingMethodDynamicConfigPtr TApiService::DefaultMethodConfig 
 
 IApiServicePtr CreateApiService(
     TApiServiceConfigPtr config,
-    IInvokerPtr defaultInvoker,
-    TPooledInvokerProvider workerInvokerProvider,
+    IInvokerPtr controlInvoker,
+    IInvokerPtr workerInvoker,
+    IInvokerPtr lowLatencyInvoker,
     NApi::NNative::IConnectionPtr connection,
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
@@ -8023,8 +8007,9 @@ IApiServicePtr CreateApiService(
     YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
-        std::move(defaultInvoker),
-        std::move(workerInvokerProvider),
+        std::move(controlInvoker),
+        std::move(workerInvoker),
+        std::move(lowLatencyInvoker),
         std::move(connection),
         std::move(authenticator),
         std::move(proxyCoordinator),

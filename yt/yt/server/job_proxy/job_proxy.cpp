@@ -762,7 +762,6 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
     }
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
-    auto apiInvoker = ApiServiceThreadPool_->GetInvoker();
 
     auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
@@ -781,7 +780,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
         auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
-            apiInvoker,
+            ApiServiceThreadPool_->GetInvoker(),
             rootClient,
             localServerAddress);
         PublicRpcServer_->RegisterService(std::move(shuffleService));
@@ -801,8 +800,9 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
-        apiInvoker,
-        [=] (const std::string&, const TFairShareThreadPoolTag&) { return apiInvoker; },
+        GetControlInvoker(),
+        ApiServiceThreadPool_->GetInvoker(),
+        ApiServiceThreadPool_->GetInvoker(),
         connection,
         authenticationManager->GetRpcAuthenticator(),
         proxyCoordinator,
