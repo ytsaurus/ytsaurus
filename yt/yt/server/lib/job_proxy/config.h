@@ -527,6 +527,8 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     //! Enable root volume disk quota.
@@ -595,6 +597,9 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
+
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;

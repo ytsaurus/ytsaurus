@@ -3304,6 +3304,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
+        proxyInternalConfig->OomScoreAdjOnExceededMemoryReserve = proxyDynamicConfig->OomScoreAdjOnExceededMemoryReserve;
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
         proxyInternalConfig->DumpSingleLocalClusterStatistics = proxyDynamicConfig->DumpSingleLocalClusterStatistics;
