@@ -2137,6 +2137,13 @@ public:
             .Item("new_name").Value(newName);
 
         subject->SetName(newName);
+
+        // Update the Sequoia ACL table entries.
+        for (auto [object, _] : subject->LinkedObjects()) {
+            for (auto acd : ListAcds(object)) {
+                OnObjectAcdUpdated(acd.Underlying());
+            }
+        }
     }
 
     TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
