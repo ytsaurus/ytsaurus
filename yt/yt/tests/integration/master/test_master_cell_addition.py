@@ -144,7 +144,7 @@ class TestMasterCellAdditionWithRemoteClusters(MasterCellAdditionWithRemoteClust
 
     DOWNTIME_ALL_COMPONENTS = True
 
-    @authors("ponasenko-rs")
+    @authors("cherepashka", "ponasenko-rs")
     @pytest.mark.timeout(350)
     def test_add_new_cell(self):
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
