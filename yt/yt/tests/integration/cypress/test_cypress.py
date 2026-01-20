@@ -2816,8 +2816,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("danilalexeev")
-    # TODO(danilalexeev): YT-26539.
-    @not_implemented_in_sequoia
     def test_effective_expiration_time_and_timeout(self):
         assert get("//tmp/@effective_expiration") == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
 
@@ -2846,6 +2844,32 @@ class TestCypress(YTEnvSetup):
 
         child_tx = start_transaction(tx=tx)
         assert get("//tmp/table/@effective_expiration", tx=child_tx)["timeout"] == {"value": 20000, "path": "//tmp/table"}
+
+    @authors("danilalexeev")
+    def test_base_and_effective_attributes(self):
+        create_user("u")
+        expected_acl = [make_ace("allow", "u", "write")]
+
+        set("//tmp/dir", b"{foo={bar={}};baz={}}", is_raw=True)
+        set("//tmp/dir/foo/@", {
+            "acl": expected_acl,
+            "inherit_acl": False})
+        set("//tmp/dir/foo/@expiration_time", "2076-12-31T23:59:59.000000Z")
+        set("//tmp/dir/foo/bar/@expiration_timeout", 10**6)
+
+        ATTRIBUTE_LIST = [
+            "effective_acl", "acl", "inherit_acl",
+            "effective_expiration", "expiration_time", "expiration_timeout",
+        ]
+
+        tt = get("//tmp/dir", attributes=ATTRIBUTE_LIST)
+        assert sorted(tt["baz"].attributes.keys()) == ["acl", "effective_acl", "effective_expiration", "inherit_acl"]
+        assert tt["baz"].attributes["effective_expiration"] == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
+        assert tt["foo"].attributes["acl"] == tt["foo"].attributes["effective_acl"]
+        assert tt["foo"]["bar"].attributes["effective_expiration"] == {
+            "time": {"value": "2076-12-31T23:59:59.000000Z", "path": "//tmp/dir/foo"},
+            "timeout": {"value": 10**6, "path": "//tmp/dir/foo/bar"}}
+        assert tt["foo"]["bar"].attributes["effective_acl"] == expected_acl
 
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
@@ -3371,8 +3395,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/t1/@chunk_merger_mode") == "deep"
 
     @authors("kvk1920", "h0pless")
-    # This attribute should be handled in CP like @recursive_resource_usage.
-    @not_implemented_in_sequoia
     def test_effective_inheritable_attributes_attribute(self):
         create("map_node", "//tmp/grandparent")
         set("//tmp/grandparent/@compression_codec", "zlib_9")
@@ -3392,11 +3414,11 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction(timeout=60000)
         remove("//tmp/grandparent/parent/@compression_codec", tx=tx)
         set(f"{child_path}/@chunk_merger_mode", "shallow", tx=tx)
-        get(f"{child_path}/@effective_inheritable_attributes", tx=tx) == {"chunk_merger_mode": "shallow", "compression_codec": "zlib_4"}
+        assert get(f"{child_path}/@effective_inheritable_attributes", tx=tx) == {"chunk_merger_mode": "shallow", "compression_codec": "zlib_9"}
 
-        create("table", f"{child_path}/grandchild")
+        create("table", f"{child_path}/table")
         with raises_yt_error("Attribute \"effective_inheritable_attributes\" is not found"):
-            get(f"{child_path}/grandchild/@effective_inheritable_attributes")
+            get(f"{child_path}/table/@effective_inheritable_attributes")
 
     @authors("kvk1920")
     @pytest.mark.parametrize("inherit_from", ["source", "destination"])

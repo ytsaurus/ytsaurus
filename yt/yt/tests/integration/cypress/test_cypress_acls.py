@@ -1261,8 +1261,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             check_permission("u", "read", "//tmp")
 
-    @authors("levysotsky")
-    @not_implemented_in_sequoia
+    @authors("danilalexeev")
     def test_effective_acl(self):
         create_user("u")
         for ch in "abcd":
