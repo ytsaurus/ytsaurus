@@ -156,6 +156,9 @@ struct IRequestBatcher
         std::vector<NProto::TP2PBarrier> Barriers;
         TPeer PrimaryPeer;
         std::optional<TPeer> BackupPeer;
+
+        bool EnableP2P = true;
+        bool FetchNodeDescriptors = false;
     };
 
     struct TGetBlocksResult
@@ -224,7 +227,7 @@ public:
             "(InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
             MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)),
-            Config_->FetchFromPeers,
+            Config_->FetchNodeDescriptors,
             LocalDescriptor_,
             Config_->PopulateCache,
             Options_->AllowFetchingSeedsFromMaster,
@@ -489,6 +492,9 @@ protected:
         }
 
         const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+        if (rsp->has_node_directory()) {
+            NodeDirectory_->MergeFrom(rsp->node_directory());
+        }
 
         return {
             .NetThrottling = rsp->net_throttling(),
@@ -1715,6 +1721,8 @@ private:
                 .Channel = std::move(channel),
                 .BlockIndexes = blockIndexes,
                 .Session = MakeStrong(this),
+                .EnableP2P = ReaderConfig_->FetchFromPeers,
+                .FetchNodeDescriptors = ReaderConfig_->FetchNodeDescriptors
             });
 
         if (peer.NodeSuspicionMarkTime) {
@@ -2061,6 +2069,8 @@ public:
                 : GetCompressionInvoker(options.ClientOptions.WorkloadDescriptor))
         , BlockIndexes_(std::move(blockIndexes))
         , EstimatedSize_(options.EstimatedSize)
+        , EnableP2P_(options.EnableP2P)
+        , FetchNodeDescriptors_(options.FetchNodeDescriptors)
     {
         YT_LOG_DEBUG("Will read block set (Blocks: %v)",
             MakeCompactIntervalView(BlockIndexes_));
@@ -2102,13 +2112,17 @@ private:
             TPeer primaryPeer,
             TPeer secondaryPeer,
             std::vector<int> blockIndexes,
-            const TPeerList& peers)
+            const TPeerList& peers,
+            bool enableP2P,
+            bool fetchNodeDescriptors)
             : Session_(std::move(session))
             , ThrottlingCondition_(Session_->GetThrottlingCondition())
             , PrimaryPeer_(std::move(primaryPeer))
             , SecondaryPeer_(std::move(secondaryPeer))
             , BlockIndexes_(std::move(blockIndexes))
             , Barriers_(Session_->FillP2PBarriers(peers, BlockIndexes_))
+            , EnableP2P_(enableP2P)
+            , FetchNodeDescriptors_(fetchNodeDescriptors)
         {
             YT_VERIFY(Session_->SessionOptions_.AdaptiveHedgingManager);
         }
@@ -2139,6 +2153,8 @@ private:
         const TPeer SecondaryPeer_;
         const std::vector<int> BlockIndexes_;
         const std::vector<NProto::TP2PBarrier> Barriers_;
+        const bool EnableP2P_;
+        const bool FetchNodeDescriptors_;
         const TInstant StartTime_ = TInstant::Now();
 
         TPromise<IRequestBatcher::TGetBlocksResult> Promise_ = NewPromise<IRequestBatcher::TGetBlocksResult>();
@@ -2234,6 +2250,8 @@ private:
                     .Barriers = Barriers_,
                     .PrimaryPeer = peer,
                     .BackupPeer = {},
+                    .EnableP2P = EnableP2P_,
+                    .FetchNodeDescriptors = FetchNodeDescriptors_,
                 },
                 // NB: This forbids block batching.
                 /*hedgingEnabled*/ true);
@@ -2301,6 +2319,9 @@ private:
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
+
+    const bool EnableP2P_;
+    const bool FetchNodeDescriptors_;
 
     //! Promise representing the session.
     const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -2704,6 +2725,10 @@ private:
         auto netThrottling = rsp->net_throttling();
         auto diskThrottling = rsp->disk_throttling();
 
+        if (rsp->has_node_directory()) {
+            NodeDirectory_->MergeFrom(rsp->node_directory());
+        }
+
         UpdatePeerBlockMap(
             respondedPeer,
             rsp->peer_descriptors(),
@@ -2832,7 +2857,9 @@ private:
                 primaryPeer,
                 *backupPeer,
                 blockIndexes,
-                peers)
+                peers,
+                /*enableP2P*/ ReaderConfig_->FetchFromPeers,
+                /*fetchNodeDescriptors*/ ReaderConfig_->FetchNodeDescriptors)
                 ->Run();
         } else {
             std::optional<THedgingChannelOptions> hedgingOptions = ReaderConfig_->BlockRpcHedgingDelay
@@ -2872,6 +2899,8 @@ private:
                     .Barriers = FillP2PBarriers(peers, blockIndexes),
                     .PrimaryPeer = primaryPeer,
                     .BackupPeer = backupPeer,
+                    .EnableP2P = EnableP2P_,
+                    .FetchNodeDescriptors = FetchNodeDescriptors_,
                 },
                 // If hedging is enabled, then get block batching is not allowed.
                 /*hedgingEnabled*/ hedgingOptions.has_value());

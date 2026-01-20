@@ -18,6 +18,7 @@ public:
         TNodeDirectoryPtr directory,
         NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);
 
+    void Add(TNodeId nodeId);
     void Add(NChunkClient::TChunkReplica replica);
     void Add(const NChunkClient::TChunkReplicaList& replicas);
     void Add(const NChunkClient::TChunkReplicaWithMediumList& replicas);
