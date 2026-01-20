@@ -4253,7 +4253,7 @@ private:
             // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetAccountStatistics request;
-                for (auto [accountId, account] : AccountMap_) {
+                for (auto account : GetValuesSortedByKey(AccountMap_)) {
                     if (!IsObjectAlive(account)) {
                         continue;
                     }
@@ -4270,7 +4270,7 @@ private:
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
             request.set_cell_tag(multicellManager->GetCellTag().Underlying());
-            for (auto [accountId, account] : AccountMap_) {
+            for (auto account : GetValuesSortedByKey(AccountMap_)) {
                 if (!IsObjectAlive(account)) {
                     continue;
                 }
