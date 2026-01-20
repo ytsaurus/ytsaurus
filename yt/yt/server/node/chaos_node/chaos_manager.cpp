@@ -1523,7 +1523,7 @@ private:
                     auto* chaosObject = FindChaosObject(chaosObjectId);
 
                     if (!chaosObject) {
-                        YT_LOG_WARNING("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
+                        YT_LOG_DEBUG("Got grant shortcut response for an unknown object (ChaosObjectId: %v, Type: %v)",
                             chaosObjectId,
                             TypeFromId(chaosObjectId));
                         continue;
@@ -1532,8 +1532,8 @@ private:
                     chaosObjects.push_back(chaosObject);
                 }
 
-                YT_LOG_DEBUG("Received grant shortcuts response, but coordinator is suspended. "
-                    "Revoking shortcuts (CoordinatorCellId: %v)",
+                YT_LOG_DEBUG("Received grant shortcuts response, but coordinator is suspended; "
+                    "revoking shortcuts (CoordinatorCellId: %v)",
                     coordinatorCellId);
 
                 RevokeShortcuts(chaosObjects, coordinatorCellId);
@@ -1615,7 +1615,7 @@ private:
     }
 
     std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
-        TRange<TChaosObjectBase*> chaosObjects, std::optional<TCellId> suspendedCoordinatorCellId)
+        TRange<TChaosObjectBase*> chaosObjects, TCellId suspendedCoordinatorCellId)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1626,8 +1626,8 @@ private:
             if (!suspendedCoordinatorCellId) {
                 coordinators = GetValuesSortedByKey(chaosObject->Coordinators());
             } else {
-              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), *suspendedCoordinatorCellId);
-              coordinators = {{suspendedCoordinatorCellId.value(), coordinatorInfo}};
+              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), suspendedCoordinatorCellId);
+              coordinators = {{suspendedCoordinatorCellId, coordinatorInfo}};
             }
 
             for (auto [cellId, coordinator] : coordinators) {
@@ -1664,9 +1664,7 @@ private:
         return SortHashMapByKeys(coordinatorToRequest);
     }
 
-    void RevokeShortcuts(
-        TRange<TChaosObjectBase*> chaosObjects,
-        std::optional<TCellId> suspendedChaosCellId) override
+    void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects, TCellId suspendedChaosCellId) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1687,7 +1685,7 @@ private:
         }
     }
 
-    void RevokeShortcut(TChaosObjectBase* chaosObject, std::optional<TCellId> suspendedChaosCellId = std::nullopt)
+    void RevokeShortcut(TChaosObjectBase* chaosObject, TCellId suspendedChaosCellId = NullCellId)
     {
         RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
     }
