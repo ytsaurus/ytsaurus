@@ -56,10 +56,12 @@
 #include <Common/DateLUT.h>
 #include <Common/Exception.h>
 #include <Common/StringUtils.h>
+#include <Common/ThreadStatus.h>
+
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
-#include <IO/HTTPCommon.h>
 
+#include <IO/HTTPCommon.h>
 
 #include <util/system/env.h>
 
@@ -249,6 +251,8 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         YT_VERIFY(getContext());
+
+        DB::MainThreadStatus::getInstance();
 
         if (Config_->ControlInvokerChecker->Enabled) {
             ControlInvokerChecker_->Start();
