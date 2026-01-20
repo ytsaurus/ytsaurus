@@ -416,6 +416,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         last_seen_replicas = get_last_seen_replicas()
         assert stored_replicas == last_seen_replicas
 
+        remove("//tmp/t")
+
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_refresh(self, erasure_codec):
@@ -879,6 +881,43 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 
     def teardown_method(self, method):
         super(TestSequoiaReplicasMulticell, self).teardown_method(method)
+
+
+class TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster(TestSequoiaReplicas):
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            # Making sure we do not use it for replicas.
+            "enable": False
+        },
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+                "processed_removed_sequoia_replicas_on_master": True,
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "store_sequoia_replicas_on_master": False,
+                "validate_sequoia_replicas_fetch": False,
+                "batch_chunk_confirmation": True,
+                "always_include_unapproved_replicas": False,
+            }
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super(TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster, cls).modify_node_config(config, cluster_index)
+
+    @classmethod
+    def setup_class(cls):
+        super(TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster, cls).setup_class()
+
+    def teardown_method(self, method):
+        super(TestSequoiaReplicasProcessRemovedSequoiaReplicasOnMaster, self).teardown_method(method)
 
 
 class TestSequoiaQueues(YTEnvSetup):
