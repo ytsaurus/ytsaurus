@@ -26,6 +26,7 @@ struct TPerformanceCountersEma
     }};
 
     void UpdateEma();
+    void Merge(const TEmaCounter<i64>& other);
 };
 
 static_assert(sizeof(TEmaCounter<i64>) >= 64 - 8, "Consider adding alignment in TPerformanceCountersEma to avoid false sharing.");
@@ -65,6 +66,8 @@ struct TTabletPerformanceCounters
     TPerformanceCountersEma WriteError;
     TPerformanceCountersEma LookupCpuTime;
     TPerformanceCountersEma SelectCpuTime;
+
+    bool Initialized = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
