@@ -279,8 +279,6 @@ struct TDynamicDistributedHydraManagerConfig
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
     std::optional<bool> EnableSnapshotNetworkThrottling;
 
-    std::optional<TDuration> ChangelogThrottlingStatisticsMovingAverageWindow;
-
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 
     static void Register(TRegistrar registrar);
