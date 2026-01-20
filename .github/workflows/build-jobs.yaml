@@ -275,7 +275,7 @@ jobs:
           fi
 
       - name: Build ytsaurus (ya-make, ${{ matrix.build-type }})
-        if: ${{ inputs.build-ytsaurus || inputs.build-query-tracker }}
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
