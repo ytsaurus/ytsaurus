@@ -6,8 +6,8 @@ from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, generate_uuid,
     exists, create_account, freeze_table, mount_table, reshard_table, unfreeze_table,
     create_user, start_transaction, abort_transaction, commit_transaction, lock,
-    insert_rows, select_rows, lookup_rows, alter_table, read_table, wait_for_tablet_state, write_table,
-    map, reduce, map_reduce, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
+    insert_rows, select_rows, lookup_rows, alter_table, read_table, update_controller_agent_config, wait_for_tablet_state,
+    write_table, map, reduce, map_reduce, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table, remount_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
@@ -29,6 +29,7 @@ from copy import deepcopy
 
 import builtins
 import random
+import string
 
 from io import BytesIO
 
@@ -76,6 +77,9 @@ class TestBulkInsert(DynamicTablesBase):
         else:
             assert False
         return ypath
+
+    def _get_random_string(self, length):
+        return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
     @parametrize_external
     @pytest.mark.parametrize("freeze", [True, False])
@@ -620,6 +624,43 @@ class TestBulkInsert(DynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
         lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}, {"key": 2}], versioned=True)
         assert lookup_result[0].attributes["write_timestamps"] == lookup_result[1].attributes["write_timestamps"]
+
+    @authors("atalmenev")
+    def test_max_chunk_size(self):
+        sync_create_cells(1)
+        KB = 1024
+
+        self._create_sorted_table("//tmp/t_output", enable_compaction_and_partitioning=False)
+        sync_mount_table("//tmp/t_output")
+
+        create("table", "//tmp/t_input", attributes={"schema": get("//tmp/t_output/@schema")})
+
+        rows = [{"key": key, "value": self._get_random_string(KB)} for key in range(1, 100)]
+        write_table(
+            "//tmp/t_input",
+            rows,
+            table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
+        )
+
+        update_controller_agent_config("max_unversioned_dynamic_table_output_block_size", KB)
+        update_controller_agent_config("max_unversioned_dynamic_table_output_chunk_size", 5 * KB)
+
+        merge(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", mode="ordered")
+
+        update_controller_agent_config("enable_dynamic_table_output_chunk_constraint_validation", True)
+        update_controller_agent_config("max_unversioned_dynamic_table_output_chunk_size", 1000 * KB)
+
+        with raises_yt_error("it has too large block size"):
+            merge(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", mode="ordered")
+
+        update_controller_agent_config("max_unversioned_dynamic_table_output_block_size", 100 * KB)
+        update_controller_agent_config("max_unversioned_dynamic_table_output_chunk_size", 5 * KB)
+
+        with raises_yt_error("it is too large"):
+            merge(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", mode="ordered")
+
+        update_controller_agent_config("max_unversioned_dynamic_table_output_chunk_size", 1000 * KB)
+        merge(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", mode="ordered")
 
     def test_partially_sorted(self):
         sync_create_cells(1)

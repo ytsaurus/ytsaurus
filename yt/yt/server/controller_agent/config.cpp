@@ -1406,6 +1406,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
         .Default(false);
 
+    registrar.Parameter("max_unversioned_dynamic_table_output_chunk_size", &TThis::MaxUnversionedDynamicTableOutputChunkSize)
+        .GreaterThan(0)
+        .Default(320_MB);
+
+    registrar.Parameter("max_unversioned_dynamic_table_output_block_size", &TThis::MaxUnversionedDynamicTableOutputBlockSize)
+        .GreaterThan(0)
+        .Default(512_KB);
+
+    registrar.Parameter("enable_dynamic_table_output_chunk_constraint_validation", &TThis::EnableDynamicTableOutputChunkConstraintValidation)
+        .Default(false);
+
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
         .DefaultNew();
 

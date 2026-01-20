@@ -2858,7 +2858,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
                 std::vector<THashSet<TChunkId>> tabletHunkChunks(table->PivotKeys.size());
 
+                auto maxChunkSize = Config_->MaxUnversionedDynamicTableOutputChunkSize;
+                auto maxBlockSize = Config_->MaxUnversionedDynamicTableOutputBlockSize;
+                auto enableConstraintValidation = Config_->EnableDynamicTableOutputChunkConstraintValidation;
                 for (const auto& chunk : table->OutputChunks) {
+                    if (enableConstraintValidation && OperationType_ != EOperationType::RemoteCopy) {
+                        ValidateDynamicTableOutputChunkConstraints(chunk, maxChunkSize, maxBlockSize);
+                    }
+
                     auto chunkId  = chunk->GetChunkId();
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
