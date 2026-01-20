@@ -284,20 +284,21 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     NestedMerger_.DiscardZeroes(/*nestedRowDiscardPolicy*/ nullptr);
 
     for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+        auto [columnId, type, aggregateFunction] = NestedColumnsSchema_.ValueColumns[index];
+
         NestedMerger_.UnpackValueColumn(
             NestedValueColumns_[index],
-            NestedColumnsSchema_.ValueColumns[index].Type,
-            NestedColumnsSchema_.ValueColumns[index].AggregateFunction);
+            type,
+            aggregateFunction);
 
         if (NestedValueColumns_[index].Empty()) {
             continue;
         }
 
-        auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
         auto columnIndex = ColumnIdToIndex_[columnId];
 
         // For nested value columns requested and enriched column filters are matched.
-        auto state = NestedMerger_.GetPackedValueColumn(index, RowBuffer_.Get());;
+        auto state = NestedMerger_.GetPackedValueColumn(index, type, RowBuffer_->GetPool());
         MergedRow_[columnIndex] = state;
         MergedRow_[columnIndex].Id = columnId;
         MergedTimestamps_[columnIndex] = state.Timestamp;
@@ -308,12 +309,12 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             continue;
         }
 
-        auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
+        auto [columnId, type] = NestedColumnsSchema_.KeyColumns[index];
         auto columnIndex = ColumnIdToIndex_[columnId];
 
         // Nested key columns are added to enriched column filter.
         if (columnIndex != -1) {
-            auto state = NestedMerger_.GetPackedKeyColumn(index, RowBuffer_.Get());
+            auto state = NestedMerger_.GetPackedKeyColumn(index, type, RowBuffer_->GetPool());
             MergedRow_[columnIndex] = state;
             MergedRow_[columnIndex].Id = columnId;
             MergedTimestamps_[columnIndex] = state.Timestamp;
@@ -578,8 +579,9 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         }
 
         auto initialAggregateFlags = NestedKeyColumns_[index].front().Flags & EValueFlags::Aggregate;
-        auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
-        auto state = NestedMerger_.GetPackedKeyColumn(index, RowBuffer_.Get());
+
+        auto [columnId, type] = NestedColumnsSchema_.KeyColumns[index];
+        auto state = NestedMerger_.GetPackedKeyColumn(index, type, RowBuffer_->GetPool());
 
         state.Id = columnId;
         state.Type = EValueType::Composite;
@@ -590,18 +592,19 @@ TMutableUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     }
 
     for (int index = 0; index < std::ssize(NestedColumnsSchema_.ValueColumns); ++index) {
+        auto [columnId, type, aggregateFunction] = NestedColumnsSchema_.ValueColumns[index];
+
         NestedMerger_.UnpackValueColumn(
             NestedValueColumns_[index],
-            NestedColumnsSchema_.ValueColumns[index].Type,
-            NestedColumnsSchema_.ValueColumns[index].AggregateFunction);
+            type,
+            aggregateFunction);
 
         if (NestedValueColumns_[index].empty()) {
             continue;
         }
 
         auto initialAggregateFlags = NestedValueColumns_[index].front().Flags & EValueFlags::Aggregate;
-        auto columnId = NestedColumnsSchema_.ValueColumns[index].Id;
-        auto state = NestedMerger_.GetPackedValueColumn(index, RowBuffer_.Get());
+        auto state = NestedMerger_.GetPackedValueColumn(index, type, RowBuffer_->GetPool());
 
         state.Id = columnId;
         state.Type = EValueType::Composite;

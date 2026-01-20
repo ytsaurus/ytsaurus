@@ -58,9 +58,38 @@ DEFINE_REFCOUNTED_TYPE(TNestedRowDiscardPolicy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleOutputBuffer
+{
+public:
+    ui32 RemainingBytes() const;
+
+    char* Current() const;
+
+    void Advance(ui32 count);
+
+    void PushBack(char ch);
+
+    void Write(const void* data, ui32 length);
+
+    void Clear();
+
+    void Reserve(ui32 count);
+
+    TStringBuf GetBuffer() const;
+
+private:
+    std::unique_ptr<char[]> Data_;
+    char* CurrentPtr_ = nullptr;
+    ui32 Capacity_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNestedTableMerger
 {
 public:
+    explicit TNestedTableMerger(bool useFastYsonRoutines = false);
+
     void UnpackKeyColumns(TRange<TMutableRange<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
     void UnpackKeyColumns(TRange<std::vector<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
 
@@ -71,8 +100,8 @@ public:
 
     void DiscardZeroes(const TNestedRowDiscardPolicyPtr& nestedRowDiscardPolicy);
 
-    NTableClient::TVersionedValue GetPackedKeyColumn(int index, NTableClient::TRowBuffer* rowBuffer);
-    NTableClient::TVersionedValue GetPackedValueColumn(int index, NTableClient::TRowBuffer* rowBuffer);
+    NTableClient::TVersionedValue GetPackedKeyColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool);
+    NTableClient::TVersionedValue GetPackedValueColumn(int index, NTableClient::EValueType type, TChunkedMemoryPool* memoryPool);
 
 private:
     std::vector<int> NestedRowCounts_;
@@ -92,6 +121,16 @@ private:
     std::vector<char> Discarded_;
 
     std::vector<int> OrderingTranslationLayer_;
+
+    TSimpleOutputBuffer PackBuffer_;
+
+    const bool UseFastYsonRoutines_ = false;
+
+    NTableClient::TUnversionedValue PackValuesFast(
+        TRange<NTableClient::TUnversionedValue> values,
+        TRange<char> discard,
+        NTableClient::EValueType type,
+        TChunkedMemoryPool* memoryPool);
 
     void UnpackKeyColumn(
         ui16 keyColumnId,
