@@ -148,7 +148,7 @@ struct IChaosManager
 
     virtual void RevokeShortcuts(
         TRange<TChaosObjectBase*> chaosObjects,
-        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt) = 0;
+        NElection::TCellId suspendedChaosCellId = NElection::NullCellId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)
