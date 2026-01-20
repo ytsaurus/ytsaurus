@@ -25,8 +25,6 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <util/generic/function_ref.h>
-
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,13 +316,6 @@ public:
         TUser* user,
         EPermission permission,
         const TAccessControlList& acl,
-        TPermissionCheckOptions options = {}) = 0;
-
-    //! Checks if given ACL allows access with #permission.
-    virtual TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
         TPermissionCheckOptions options = {}) = 0;
 
     //! Checks if given user is a member of superusers group.
