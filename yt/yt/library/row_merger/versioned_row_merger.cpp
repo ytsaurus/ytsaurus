@@ -864,8 +864,8 @@ public:
             auto [nestedKeyColumnId, type] = NestedColumnsSchema_.KeyColumns[index];
             int columnIndex = ColumnIdToIndex_[nestedKeyColumnId] - resultKeyColumnCount;
 
-            auto valueIt = NestedKeyColumns_[index].Begin();
-            auto endCompactValueIt = NestedKeyColumns_[index].End();
+            auto valueIt = const_cast<TVersionedValue*>(NestedKeyColumns_[index].Begin());
+            auto endCompactValueIt = const_cast<TVersionedValue*>(NestedKeyColumns_[index].End());
 
             if (valueIt < endCompactValueIt) {
                 auto initialAggregateFlags = valueIt->Flags & EValueFlags::Aggregate;
@@ -894,8 +894,8 @@ public:
 
             int columnIndex = ColumnIdToIndex_[nestedValueColumnId] - resultKeyColumnCount;
 
-            auto valueIt = NestedValueColumns_[index].Begin();
-            auto endCompactValueIt = NestedValueColumns_[index].End();
+            auto valueIt = const_cast<TVersionedValue*>(NestedValueColumns_[index].Begin());
+            auto endCompactValueIt = const_cast<TVersionedValue*>(NestedValueColumns_[index].End());
 
             auto& values = Values_[columnIndex];
 
@@ -1018,8 +1018,8 @@ private:
     std::vector<TTimestamp> DeleteTimestamps_;
 
     TNestedTableMerger NestedMerger_;
-    std::vector<TMutableRange<TVersionedValue>> NestedKeyColumns_;
-    std::vector<TMutableRange<TVersionedValue>> NestedValueColumns_;
+    std::vector<TRange<TVersionedValue>> NestedKeyColumns_;
+    std::vector<TRange<TVersionedValue>> NestedValueColumns_;
 
     bool Started_ = false;
 
