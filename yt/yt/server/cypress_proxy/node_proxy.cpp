@@ -812,7 +812,7 @@ protected:
             // The key is requested by path, and we haven't forwarded request to master.
             // This means that key is special attribute which we have fetched, so we can return it.
             if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv not found", key.value());
+                THROW_ERROR_EXCEPTION("Attribute %Qv is not found", key.value());
             }
 
             auto attributeFragmentPath = TYPath(tokenizer.GetInput());
