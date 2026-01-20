@@ -30,6 +30,9 @@
 
 #include <yt/yt/server/lib/user_job/config.h>
 
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -1804,6 +1807,11 @@ void TJobProxy::CheckMemoryUsage()
         return;
     }
 
+    if (Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+        int targetOomScore = jobProxyMemoryUsage > JobProxyMemoryReserve_ ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+        SetOomScoreAdj(targetOomScore);
+    }
+
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
     UpdateCumulativeMemoryUsage(jobProxyMemoryUsage);
 
@@ -2099,6 +2107,34 @@ void TJobProxy::OnProgressSaved(TInstant when)
 {
     GetJobOrThrow()->OnProgressSaved(when);
     HeartbeatExecutor_->ScheduleOutOfBand();
+}
+
+void TJobProxy::SetOomScoreAdj(int score)
+{
+    if (OomScoreAdj_.has_value() && *OomScoreAdj_ == score) {
+        return;
+    }
+
+    pid_t pid = GetPID();
+
+    YT_LOG_DEBUG(
+        "Changing oom_score_adj of a job proxy process (Pid: %v, OomScoreAdj: %v)",
+        pid,
+        score);
+
+    auto config = New<NTools::TChangeOomScoreAdjAsRootConfig>();
+    config->Pid = pid;
+    config->Score = score;
+
+    try {
+        RunTool<NTools::TChangeOomScoreAdjAsRootTool>(config);
+        OomScoreAdj_ = score;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(
+            ex,
+            "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
+            pid);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

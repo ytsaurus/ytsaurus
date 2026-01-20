@@ -193,6 +193,8 @@ private:
 
     NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
 
+    std::optional<int> OomScoreAdj_;
+
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
@@ -275,6 +277,8 @@ private:
     void Abort(EJobProxyExitCode exitCode);
 
     void LogSystemStats() const;
+
+    void SetOomScoreAdj(int score);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)
