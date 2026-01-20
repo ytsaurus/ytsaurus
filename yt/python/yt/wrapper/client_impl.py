@@ -2576,6 +2576,23 @@ class YtClient(ClientState):
             client=self,
             shell_name=shell_name, timeout=timeout, command=command)
 
+    def run_job_shell_command(
+            self,
+            job_id: str, command: str,
+            shell_name: Optional[str] = None) -> bytes:
+        """
+        Runs a command in the job sandbox and returns the output.
+
+        :param str job_id: job id.
+        :param str command: command to execute.
+        :param str shell_name: shell name.
+
+        """
+        return client_api.run_job_shell_command(
+            job_id, command,
+            client=self,
+            shell_name=shell_name)
+
     def run_join_reduce(
             self,
             binary, source_table, destination_table,

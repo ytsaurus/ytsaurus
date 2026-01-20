@@ -172,6 +172,23 @@ def run_job_shell(job_id: str, shell_name: Optional[str] = None, timeout=None, c
     JobShell(job_id, shell_name=shell_name, interactive=True, timeout=timeout, client=client).run(command=command)
 
 
+def run_job_shell_command(job_id: str, command: str, shell_name: Optional[str] = None, client=None) -> bytes:
+    """Runs a command in the job sandbox and returns the output.
+
+    :param str job_id: job id.
+    :param str command: command to execute.
+    :param str shell_name: shell name.
+    """
+    params = {"job_id": job_id, "command": command}
+    set_param(params, "shell_name", shell_name)
+    return make_request(
+        "run_job_shell_command",
+        params,
+        return_content=False,
+        use_heavy_proxy=True,
+        client=client)
+
+
 def get_job_stderr(operation_id: str, job_id: str, stderr_type: Optional[str] = None, client=None) -> bytes:
     """Gets stderr of the specified job.
 
