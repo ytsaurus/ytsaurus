@@ -159,8 +159,6 @@ struct TProxyBootstrapConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
-    TAsyncExpiringCacheConfigPtr PoolWeightCache;
-
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
@@ -200,8 +198,6 @@ struct TProxyDynamicConfig
     TProxyMemoryLimitsPtr MemoryLimits;
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
-
-    THashMap<std::string, double> WorkerPoolWeightOverrides;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

@@ -55,8 +55,9 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const NFusion::IServiceLocatorPtr ServiceLocator_;
 
-    const NConcurrency::ITwoLevelFairShareThreadPoolPtr WorkerPool_;
-    const NApi::NNative::ICypressPoolWeightProviderPtr WorkerWeightProvider_;
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::IThreadPoolPtr WorkerPool_;
+    const NConcurrency::TActionQueuePtr LowLatencyActionQueue_;
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
@@ -104,10 +105,8 @@ private:
         const TBundleProxyDynamicConfigPtr& /*oldConfig*/,
         const TBundleProxyDynamicConfigPtr& newConfig);
 
-    IInvokerPtr GetWorkerInvoker(
-        const std::string& poolName,
-        const NConcurrency::TFairShareThreadPoolTag& tag) const;
-    IInvokerPtr GetControlInvoker() const;
+    const IInvokerPtr& GetWorkerInvoker() const;
+    const IInvokerPtr& GetControlInvoker() const;
 
     void ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimits);
 
