@@ -1467,12 +1467,18 @@ private:
 
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
+        // COMPAT(ifsmirnov)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::SmoothMovementOrdered) {
+            if (tablet->IsPhysicallyOrdered()) {
+                THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+            }
+        }
+
         // Validation against not implemented features.
         if (tablet->IsPhysicallyLog() ||
-            tablet->IsPhysicallyOrdered() ||
             tablet->IsReplicated())
         {
-            THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+            THROW_ERROR_EXCEPTION("Replicated tables are not supported");
         }
 
         if (!tablet->GetLockManager()->IsEmpty()) {

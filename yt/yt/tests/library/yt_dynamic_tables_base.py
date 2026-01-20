@@ -39,44 +39,33 @@ class DynamicTablesBase(YTEnvSetup):
         }
     }
 
+    @staticmethod
+    def _testing_delay(delay=30):
+        return {"testing": {"random_delay": delay}}
+
     DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "hydra_manager": {
+                "recovery_min_log_level": "debug",
+            },
+        },
         "rpc_server": {
             "services": {
                 "TabletService": {
                     "methods": {
-                        "Write": {
-                            "testing": {
-                                "random_delay": 30,
-                            },
-                        },
-                        "RegisterTransactionActions": {
-                            "testing": {
-                                "random_delay": 30,
-                            },
-                        },
+                        "Write": _testing_delay(),
+                        "RegisterTransactionActions": _testing_delay(),
                     },
                 },
                 "TransactionSupervisorService": {
                     "methods": {
-                        "CommitTransaction": {
-                            "testing": {
-                                "random_delay": 30,
-                            },
-                        },
+                        "CommitTransaction": _testing_delay(),
                     },
                 },
                 "TransactionParticipantService": {
                     "methods": {
-                        "CommitTransaction": {
-                            "testing": {
-                                "random_delay": 30,
-                            },
-                        },
-                        "PrepareTransaction": {
-                            "testing": {
-                                "random_delay": 30,
-                            },
-                        },
+                        "CommitTransaction": _testing_delay(),
+                        "PrepareTransaction": _testing_delay(),
                     },
                 },
             },
@@ -274,6 +263,12 @@ class DynamicTablesBase(YTEnvSetup):
                 }
             )
         create_dynamic_table(path, **attributes)
+
+    def _create_table(self, path, sorted, **attributes):
+        if sorted:
+            self._create_sorted_table(path, **attributes)
+        else:
+            self._create_ordered_table(path, **attributes)
 
     def _get_recursive(self, path, result=None, driver=None):
         if result is None or result.attributes.get("opaque", False):

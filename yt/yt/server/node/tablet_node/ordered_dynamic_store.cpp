@@ -7,9 +7,7 @@
 #include "serialize.h"
 #include "tablet.h"
 
-#include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -35,6 +33,10 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
@@ -135,8 +137,8 @@ public:
 
         i64 dataWeight = 0;
         while (CurrentRowIndex_ < UpperRowIndex_ &&
-               std::ssize(rows) < options.MaxRowsPerRead &&
-               dataWeight < options.MaxDataWeightPerRead)
+           std::ssize(rows) < options.MaxRowsPerRead &&
+           dataWeight < options.MaxDataWeightPerRead)
         {
             auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
             rows.push_back(row);
@@ -482,6 +484,13 @@ void TOrderedDynamicStore::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, HunkStoreRefs_);
+}
+
+void TOrderedDynamicStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor)
+{
+    TDynamicStoreBase::PopulateAddStoreDescriptor(descriptor);
+
+    descriptor->set_starting_row_index(GetStartingRowIndex());
 }
 
 TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
