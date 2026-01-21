@@ -7,7 +7,7 @@ import yt.yson as yson
 from copy import deepcopy
 from collections import defaultdict
 
-BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME = "banned_queue_agent_instance"
+BANNED_ATTRIBUTE_NAME = "banned"
 
 
 def run_check(secrets, yt_client, logger, options, states):
@@ -40,7 +40,7 @@ def run_check(secrets, yt_client, logger, options, states):
         config["proxy"]["retries"] = {"count": 1, "enable": False}
         queue_agent_stage_client = YtClient(proxy=queue_agent_stage_proxy, config=config)
 
-        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME]),
+        queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME]),
                                            null_value=[])
 
         queue_agent_instances_count = len(queue_agent_instances)
@@ -51,11 +51,11 @@ def run_check(secrets, yt_client, logger, options, states):
 
         for yson_instance in queue_agent_instances:
             instance = str(yson_instance)
-            if yson_instance.has_attributes() and BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME in yson_instance.attributes:
-                attribute_value = yson_instance.attributes[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME]
+            if yson_instance.has_attributes() and BANNED_ATTRIBUTE_NAME in yson_instance.attributes:
+                attribute_value = yson_instance.attributes[BANNED_ATTRIBUTE_NAME]
                 # NB(apachee): Check type to match the behavior of queue agent sharding manager (it ignores anything except bool).
                 if isinstance(attribute_value, yson.YsonBoolean) and attribute_value:
-                    logger.info(f"Skipping collecting alerts from {instance}, since it is banned by {BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME!r} attribute")
+                    logger.info(f"Skipping collecting alerts from {instance}, since it is banned by {BANNED_ATTRIBUTE_NAME!r} attribute")
                     banned_instance_count += 1
                     instances_errors.append(YtError(f"Instance {instance} is banned"))
                     continue
