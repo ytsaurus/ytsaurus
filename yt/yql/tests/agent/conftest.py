@@ -14,10 +14,10 @@ import yatest.common
 
 
 class YqlAgent():
-    def __init__(self, env, count, libraries, modify_yql_agent_config, max_yql_version, subprocesses_count):
+    def __init__(self, env, count, libraries, config):
         self.yql_agent = YqlAgentComponent()
 
-        self.yql_agent.prepare(env, config={
+        config = {
             "count": count,
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
             "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/mrjob"),
@@ -25,10 +25,9 @@ class YqlAgent():
             "yql_plugin_shared_library": yatest.common.binary_path("yt/yql/plugin/dynamic/libyqlplugin.so"),
             "native_client_supported": True,
             "libraries": libraries,
-            "modify_yql_agent_config": modify_yql_agent_config,
-            "max_supported_yql_version": max_yql_version,
-            "subprocesses_count": subprocesses_count
-        })
+        } | config
+
+        self.yql_agent.prepare(env, config=config)
 
     def __enter__(self):
         self.yql_agent.run()
@@ -63,10 +62,13 @@ def yql_agent(request):
         with open(test_lib_path, "w") as fp:
             fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
 
-    modify_yql_agent_config = getattr(cls, "modify_yql_agent_config", None)
-    max_yql_version = getattr(cls, "MAX_YQL_VERSION", None)
-    subprocesses_count = getattr(cls, "YQL_SUBPROCESSES_COUNT", None)
+    config = {}
+    config["modify_yql_agent_config"] = getattr(cls, "modify_yql_agent_config", None)
+    config["max_supported_yql_version"] = getattr(cls, "MAX_YQL_VERSION", None)
+    config["default_yql_ui_version"] = getattr(cls, "DEFAULT_YQL_UI_VERSION", None)
+    config["allow_not_released_yql_versions"] = getattr(cls, "ALLOW_NOT_RELEASED_YQL_VERSIONS", True)
+    config["subprocesses_count"] = getattr(cls, "YQL_SUBPROCESSES_COUNT", None)
 
-    with YqlAgent(cls.Env, count, libraries, modify_yql_agent_config, max_yql_version, subprocesses_count) as yql_agent:
+    with YqlAgent(cls.Env, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
         yield yql_agent

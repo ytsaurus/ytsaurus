@@ -78,7 +78,8 @@ protected:
 
         if (config->DynamicGatewaysConfig) {
             yqlPlugin->OnDynamicConfigChanged(TYqlPluginDynamicConfig{
-                .GatewaysConfig = *config->DynamicGatewaysConfig
+                .GatewaysConfig = *config->DynamicGatewaysConfig,
+                .MaxSupportedYqlVersion = NYson::TYsonString(config->MaxSupportedYqlVersion),
             });
         }
 
