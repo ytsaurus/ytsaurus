@@ -465,7 +465,7 @@ class TestNodeRestartAfterCellAddition(MasterCellAdditionBase):
     def test_node_restart_after_cell_addition(self):
         self.execute_checks_with_cell_addition(downtime=False)
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"a" : "b"}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         chunk_id = get_singular_chunk_id("//tmp/t")
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
