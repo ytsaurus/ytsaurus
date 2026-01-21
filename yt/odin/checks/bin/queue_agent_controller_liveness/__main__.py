@@ -20,7 +20,7 @@ Options explanation:
 }
 """
 
-BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME = "banned_queue_agent_instance"
+BANNED_ATTRIBUTE_NAME = "banned"
 DEFAULT_MAX_LAG_MS = 60 * 1000
 
 
@@ -70,7 +70,7 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
     max_lag_ms = options.get("max_lag_ms", DEFAULT_MAX_LAG_MS)
     ignore_unavailable_instances = options.get("ignore_unavailable_instances", True)
 
-    queue_agent_instances = client.list("//sys/queue_agents/instances", attributes=[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME])
+    queue_agent_instances = client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME])
 
     now = datetime.datetime.now(pytz.UTC)
     logger.info(f"Using {now} as now() value")
@@ -81,11 +81,11 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
 
     for yson_instance in queue_agent_instances:
         instance = str(yson_instance)
-        if yson_instance.has_attributes() and BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME in yson_instance.attributes:
-            attribute_value = yson_instance.attributes[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME]
+        if yson_instance.has_attributes() and BANNED_ATTRIBUTE_NAME in yson_instance.attributes:
+            attribute_value = yson_instance.attributes[BANNED_ATTRIBUTE_NAME]
             # NB(apachee): Check type to match the behavior of queue agent sharding manager (it ignores anything except bool).
             if isinstance(attribute_value, yson.YsonBoolean) and attribute_value:
-                logger.info(f"Skipping check for instance {instance}, since it is banned by {BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME!r} attribute")
+                logger.info(f"Skipping check for instance {instance}, since it is banned by {BANNED_ATTRIBUTE_NAME!r} attribute")
                 continue
 
         try:
