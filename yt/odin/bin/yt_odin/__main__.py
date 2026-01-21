@@ -77,6 +77,7 @@ def acquire_yt_lock(proxy, token, token_env_variable, locks_dir, timeout, queue,
 
 def run_logging_server(port):
     socket_receiver = socketserver.ThreadingTCPServer(("localhost", port), LogRecordStreamHandler)
+    socket_receiver.allow_reuse_address = True
     socket_receiver.serve_forever()
 
 
