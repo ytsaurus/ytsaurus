@@ -4925,7 +4925,7 @@ class TestDeletingConfigFile(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @authors("pavook")
-    def test_ytserver_exec_gets_deleted(self):
+    def test_executor_config_gets_truncated(self):
         op = run_test_vanilla(
             command=with_breakpoint("echo \"$HOME\" >&2; BREAKPOINT"),
         )
@@ -4934,4 +4934,5 @@ class TestDeletingConfigFile(YTEnvSetup):
         sandbox_path = op.read_stderr(job_id).decode("utf-8").strip()
         slot_path = os.path.dirname(sandbox_path)
         print_debug(f"Looking for config files in {slot_path}...")
-        assert not os.path.exists(os.path.join(slot_path, "executor_config.yson"))
+        with open(os.path.join(slot_path, "executor_config.yson")) as f:
+            assert len(f.read()) == 0
