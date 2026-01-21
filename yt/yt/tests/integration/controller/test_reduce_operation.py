@@ -50,6 +50,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 },
+                "min_slice_data_weight": 1,
             },
         }
     }
@@ -3243,6 +3244,68 @@ for line in sys.stdin:
                 op.track()
         finally:
             set_nodes_banned(table_nodes, False)
+
+    @authors("apollo1321")
+    def test_slicing_with_high_columnar_selectivity_factor(self):
+        """
+        This test ensures that controller agent actually applies selectivity factors
+        for data slices return from data node GetChunkSlices method. If selectivity
+        factors are not applied, sorted chunk pool builder will build more jobs than
+        needed.
+        """
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "<append=%true>//tmp/t_in",
+            [
+                {"key": 1, "value": "a" * 10000},
+                {"key": 2, "value": "b" * 10000},
+            ]
+        )
+        write_table(
+            "<append=%true>//tmp/t_in",
+            [
+                {"key": 3, "value": "a" * 10000},
+                {"key": 4, "value": "b" * 10000},
+            ]
+        )
+
+        create("table", "//tmp/t_out", attributes={
+            "schema": [
+                {"name": "key", "type": "string", "sort_order": "ascending"},
+            ],
+        })
+
+        op = reduce(
+            command="cat",
+            in_="//tmp/t_in{key}",
+            out="//tmp/t_out",
+            reduce_by=["key"],
+            spec={
+                "job_count": 1,
+                "input_table_columnar_statistics": {
+                    "mode": "from_nodes",
+                    "enable": True,
+                },
+                "use_columnar_statistics": True,
+                "reducer": {"format": "dsv"},
+            }
+        )
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == 1
+        assert read_table("//tmp/t_out") == [
+            {"key": "1"},
+            {"key": "2"},
+            {"key": "3"},
+            {"key": "4"},
+        ]
 
 
 ##################################################################
