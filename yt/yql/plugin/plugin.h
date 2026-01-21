@@ -47,6 +47,7 @@ struct TYqlPluginOptions
 struct TYqlPluginDynamicConfig
 {
     NYson::TYsonString GatewaysConfig;
+    NYson::TYsonString MaxSupportedYqlVersion;
 };
 
 struct TQueryResult

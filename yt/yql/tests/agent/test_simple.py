@@ -1863,6 +1863,74 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
         self._test_qt_info_with_incorrect_yqla_stage()
 
 
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBase(TestGetQueryTrackerInfoBase):
+    _ALL_YQL_VERSIONS = ["2025.01", "2025.02", "2025.03", "2025.04", "2025.05"]
+    _RELEASED_YQL_VERSIONS = ["2025.01", "2025.02", "2025.03", "2025.04"]
+
+    def _check_specific_qt_info(self, qt_info, all_versions):
+        self._check_qt_info(qt_info)
+        assert qt_info["engines_info"]["yql"] == \
+            {
+                "available_yql_versions": self._ALL_YQL_VERSIONS if all_versions else self._RELEASED_YQL_VERSIONS,
+                "default_yql_ui_version": "2025.03",
+                "supported_features": {"declare_params": True, "yql_runner": True},
+            }
+
+    def _test_visible_versions(self, all_versions):
+        self._check_specific_qt_info(get_query_tracker_info(), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(settings={"yql_agent_stage": "production"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(settings={"some_unused_settings": "some_unused_settings"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"]), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"yql_agent_stage": "production"}), all_versions)
+        self._check_specific_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}), all_versions)
+        self._test_qt_info_with_incorrect_yqla_stage()
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionStatic(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.03"
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=True)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamic(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": False,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=False)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBoth(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.01"
+    ALLOW_NOT_RELEASED_YQL_VERSIONS = True
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": False,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=False)
+
+
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBothNotReleased(TestGetQueryTrackerInfoWithVisibleYqlVersionBase):
+    DEFAULT_YQL_UI_VERSION = "2025.01"
+    ALLOW_NOT_RELEASED_YQL_VERSIONS = False
+    YQL_AGENT_DYNAMIC_CONFIG = {
+        "default_yql_ui_version": "2025.03",
+        "allow_not_released_yql_versions": True,
+    }
+
+    @authors("lucius")
+    def test_visible_versions(self, query_tracker, yql_agent):
+        self._test_visible_versions(all_versions=True)
+
+
 class TestDeclare(TestQueriesYqlBase):
     @authors("kirsiv40")
     def test_declare(self, query_tracker, yql_agent):
@@ -1910,6 +1978,36 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInf
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionStaticRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionStatic):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionDynamicRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionDynamic):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoWithVisibleYqlVersionBothRpcProxy(TestGetQueryTrackerInfoWithVisibleYqlVersionBoth):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 

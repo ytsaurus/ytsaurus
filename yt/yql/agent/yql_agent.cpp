@@ -46,6 +46,7 @@ using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NLogging;
 using namespace NSecurityClient;
+using namespace NThreading;
 using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYqlPlugin;
@@ -208,6 +209,21 @@ static void RefreshToken(const TString& user, const TString& token, const THashM
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+std::optional<NYql::TLangVersion> ParseYQLVersion(const std::string& version)
+{
+    NYql::TLangVersion result;
+    if (NYql::ParseLangVersion(version, result) && NYql::IsValidLangVersion(result)) {
+        return result;
+    }
+    return {};
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlAgent
     : public IYqlAgent
 {
@@ -294,31 +310,13 @@ public:
             }
         }
 
-        NYql::TLangVersionBuffer buffer;
-        TStringBuf maxVersionStringBuf;
-        NYql::TLangVersion maxYqlLangVersion;
-        if (!Config_->MaxSupportedYqlVersion || !NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion.value(), maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
-            maxYqlLangVersion = NYql::GetMaxLangVersion();
-            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
-            if (Config_->MaxSupportedYqlVersion) {
-                YT_LOG_ERROR("Max YQL version set via config or flag is not valid. Setting default version as maximum available (VersionFromConfig: %v)", Config_->MaxSupportedYqlVersion);
-            }
-        } else {
-            NYql::FormatLangVersion(maxYqlLangVersion, buffer, maxVersionStringBuf);
-        }
+        InitYqlVersions();
 
-        MaxSupportedYqlVersion_ = maxVersionStringBuf;
-        YT_LOG_INFO("Maximum supported YQL language version is set (Version: %v)", MaxSupportedYqlVersion_);
-
-        TStringBuf defaultVersionStringBuf;
-        NYql::FormatLangVersion(std::min(NYql::GetMaxReleasedLangVersion(), maxYqlLangVersion), buffer, defaultVersionStringBuf);
-        DefaultYqlUILangVersion_ = defaultVersionStringBuf;
-        YT_LOG_INFO("Default YQL language version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
         auto options = ConvertToOptions(
             Config_,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            MaxSupportedYqlVersion_,
+            MaxSupportedYqlVersionStr_,
             Config_->EnableDQ);
 
         // NB: under debug build this method does not fit in regular fiber stack
@@ -334,7 +332,7 @@ public:
                         Config_,
                         singletonsConfigDefaultLogging,
                         bootstrap->GetClusterConnectionConfig(),
-                        TString(MaxSupportedYqlVersion_),
+                        TString(MaxSupportedYqlVersionStr_),
                         YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                     : CreateBridgeYqlPlugin(std::move(options));
             }),
@@ -372,9 +370,12 @@ public:
         }
         ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
 
+        InitYqlVersions();
+
         if (DynamicConfig_->GatewaysConfig) {
             TYqlPluginDynamicConfig pluginDynamicConfig{
                 .GatewaysConfig = ConvertToYsonString(DynamicConfig_->GatewaysConfig),
+                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
             };
             YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
@@ -447,15 +448,22 @@ public:
             #include "yql/essentials/public/langver/yql_langver_list.inc"
         };
 
+        NYql::TLangVersion maxVersion;
+        {
+            auto guard = ReaderGuard(YqlVersionLock_);
+            response.set_default_ui_yql_version(DefaultYqlUILangVersionStr_);
+            maxVersion = MaxSupportedYqlVersion_;
+        }
+
         NYql::TLangVersionBuffer buffer;
-        TStringBuf formattedVersion;
-        for (const auto& version : versions) {
-            NYql::FormatLangVersion(NYql::MakeLangVersion(version.first, version.second), buffer, formattedVersion);
-            if (formattedVersion <= MaxSupportedYqlVersion_) {
+        for (const auto& [year, minor] : versions) {
+            const auto version = NYql::MakeLangVersion(year, minor);
+            if (version <= maxVersion) {
+                TStringBuf formattedVersion;
+                YT_VERIFY(NYql::FormatLangVersion(version, buffer, formattedVersion));
                 response.add_available_yql_versions(formattedVersion);
             }
         }
-        response.set_default_ui_yql_version(DefaultYqlUILangVersion_);
 
         auto supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
@@ -476,8 +484,10 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
 
-    std::string MaxSupportedYqlVersion_;
-    std::string DefaultYqlUILangVersion_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, YqlVersionLock_);
+    NYql::TLangVersion MaxSupportedYqlVersion_;
+    std::string MaxSupportedYqlVersionStr_;
+    std::string DefaultYqlUILangVersionStr_;
 
     TYqlAgentDynamicConfigPtr DynamicConfig_;
 
@@ -979,6 +989,57 @@ private:
         for (const auto& resultFuture : resultFutures) {
             resultFuture.ThrowOnError();
         }
+    }
+
+    void InitYqlVersions()
+    {
+        std::optional<NYql::TLangVersion> maxVersion;
+        if (Config_->MaxSupportedYqlVersion.has_value()) {
+            maxVersion = ParseYQLVersion(Config_->MaxSupportedYqlVersion.value());
+            if (!maxVersion.has_value()) {
+                YT_LOG_ERROR("Max YQL version set via config or flag is not valid. Setting default version as maximum available (VersionFromConfig: %v)", Config_->MaxSupportedYqlVersion.value());
+            }
+        }
+
+        const bool allowNotReleased = DynamicConfig_->AllowNotReleasedYqlVersions.value_or(Config_->AllowNotReleasedYqlVersions.value_or(false));
+        if (maxVersion.has_value()) {
+            maxVersion = std::min(maxVersion.value(), allowNotReleased ? NYql::GetMaxLangVersion() : NYql::GetMaxReleasedLangVersion());
+        } else {
+            maxVersion = allowNotReleased ? NYql::GetMaxLangVersion() : NYql::GetMaxReleasedLangVersion();
+        }
+
+
+        std::optional<NYql::TLangVersion> defaultVersion;
+        if (DynamicConfig_->DefaultYqlUIVersion.has_value()) {
+            defaultVersion = ParseYQLVersion(DynamicConfig_->DefaultYqlUIVersion.value());
+            if (!defaultVersion.has_value()) {
+                YT_LOG_ERROR("Default UI YQL version set via dynamic config is not valid (VersionFromConfig: %v)", DynamicConfig_->DefaultYqlUIVersion.value());
+            }
+        } else if (Config_->DefaultYqlUIVersion.has_value()) {
+            defaultVersion = ParseYQLVersion(Config_->DefaultYqlUIVersion.value());
+            if (!defaultVersion.has_value()) {
+                YT_LOG_ERROR("Default UI YQL version set via config or flag is not valid (VersionFromConfig: %v)", Config_->DefaultYqlUIVersion.value());
+            }
+        }
+        if (defaultVersion.has_value()) {
+            defaultVersion = std::min(defaultVersion.value(), maxVersion.value());
+        } else {
+            defaultVersion = NYql::MinLangVersion;
+        }
+
+        {
+            auto guard = WriterGuard(YqlVersionLock_);
+            MaxSupportedYqlVersion_ = maxVersion.value();
+            NYql::TLangVersionBuffer buffer;
+            TStringBuf maxVersionStr;
+            YT_VERIFY(NYql::FormatLangVersion(maxVersion.value(), buffer, maxVersionStr));
+            MaxSupportedYqlVersionStr_ = maxVersionStr;
+            TStringBuf defaultVersionStr;
+            YT_VERIFY(NYql::FormatLangVersion(defaultVersion.value(), buffer, defaultVersionStr));
+            DefaultYqlUILangVersionStr_ = defaultVersionStr;
+        }
+        YT_LOG_INFO("Maximum supported YQL language version is set (Version: %v)", maxVersion.value());
+        YT_LOG_INFO("Default YQL language version for UI is set (Version: %v)", defaultVersion.value());
     }
 };
 
