@@ -32,7 +32,6 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-deprecated-atomic
   cpp-http-io
   cpp-string_utils-base64
   cpp-string_utils-quote
