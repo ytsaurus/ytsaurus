@@ -65,7 +65,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     IInvokerPtr ioInvoker,
     TIncarnationId incarnationId,
     TForkCountersPtr counters)
-    : TForkExecutor(std::move(counters))
+    : TForkExecutor(std::move(counters), /*dumpCoreOnTimeout*/ false)
     , Config_(config)
     , Client_(client)
     , IOInvoker_(ioInvoker)

@@ -404,7 +404,7 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
 public:
     TForkSnapshotBuilder(TDecoratedAutomatonPtr owner, TForkCountersPtr counters)
         : TSnapshotBuilderBase(owner)
-        , TForkExecutor(std::move(counters))
+        , TForkExecutor(std::move(counters), /*dumpCoreOnTimeout*/ true)
     { }
 
 private:

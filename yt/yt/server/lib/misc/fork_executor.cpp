@@ -22,6 +22,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
+static const auto CoreDumpTimeout = TDuration::Minutes(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,8 +39,11 @@ TForkCounters::TForkCounters(const NProfiling::TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TForkExecutor::TForkExecutor(TForkCountersPtr counters)
-    : Counters_(std::move(counters))
+TForkExecutor::TForkExecutor(
+    TForkCountersPtr counters,
+    bool dumpCoreOnTimeout)
+    : DumpCoreOnTimeout_(dumpCoreOnTimeout)
+    , Counters_(std::move(counters))
 { }
 
 TForkExecutor::~TForkExecutor()
@@ -149,17 +153,32 @@ void TForkExecutor::OnWatchdogCheck()
 
     auto timeout = GetTimeout();
     if (TInstant::Now() > StartTime_ + timeout) {
+        if (DumpCoreOnTimeout_ && DumpCoreStartTime_ && TInstant::Now() < DumpCoreStartTime_.value() + CoreDumpTimeout) {
+            int status;
+            if (::waitpid(ChildPid_, &status, WNOHANG) != 0) {
+                YT_LOG_INFO("Child process killed");
+                DoEndChild();
+            }
+            return;
+        }
+
         auto error = TError("Child process timed out")
             << TErrorAttribute("timeout", timeout);
         YT_LOG_ERROR(error);
-        Result_.Set(error);
-        DoCancel(error);
+        Result_.TrySet(error);
+
+        if (!DumpCoreStartTime_ && DumpCoreOnTimeout_) {
+            KillWithCore();
+        } else {
+            DoCancel(error);
+        }
         return;
     }
 
     int status;
-    if (::waitpid(ChildPid_, &status, WNOHANG) == 0)
+    if (::waitpid(ChildPid_, &status, WNOHANG) == 0) {
         return;
+    }
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
@@ -199,6 +218,20 @@ void TForkExecutor::OnCanceled(const TError& error)
     YT_LOG_INFO(error, "Fork executor canceled");
     GetWatchdogInvoker()->Invoke(
         BIND(&TForkExecutor::DoCancel, MakeStrong(this), error));
+}
+
+void TForkExecutor::KillWithCore()
+{
+    if (DumpCoreStartTime_) {
+        return;
+    }
+
+    YT_LOG_ALERT("Killing child process with core dump (ChildPid: %v)", ChildPid_);
+#ifdef _unix_
+    ::kill(ChildPid_, SIGABRT);
+#endif
+
+    DumpCoreStartTime_ = TInstant::Now();
 }
 
 void TForkExecutor::DoCancel(const TError& error)
