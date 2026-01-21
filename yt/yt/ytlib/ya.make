@@ -114,11 +114,11 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
-    chaos_client/replication_card_channel_factory.cpp
     chaos_client/replication_card_updates_batcher.cpp
     chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp

@@ -3769,9 +3769,9 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
     return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
-IChannelPtr TClient::GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind)
+IChannelPtr TClient::GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind)
 {
-    return GetNativeConnection()->GetChaosChannelByCardIdOrThrow(replicationCardId, peerKind);
+    return GetNativeConnection()->GetChaosChannelByObjectIdOrThrow(chaosObjectId, peerKind);
 }
 
 TReplicationCardPtr TClient::DoGetReplicationCard(
@@ -3788,7 +3788,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
             .ValueOrThrow();
     }
 
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3814,7 +3814,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     const TUpdateChaosTableReplicaProgressOptions& options)
 {
     auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3840,7 +3840,7 @@ void TClient::DoAlterReplicationCard(
             replicationCardId);
     }
 
-    auto channel = GetChaosChannelByCardIdOrThrow(replicationCardId);
+    auto channel = GetChaosChannelByObjectIdOrThrow(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
@@ -3967,7 +3967,7 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     TChaosLeaseId chaosLeaseId,
     const TChaosLeaseAttachOptions& options)
 {
-    auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosLeaseId));
+    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
     auto proxy = TChaosNodeServiceProxy(channel);
     proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 

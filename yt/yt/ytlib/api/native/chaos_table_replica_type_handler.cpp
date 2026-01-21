@@ -48,7 +48,7 @@ public:
 
         auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
 
-        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId);
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.AlterTableReplica();
@@ -132,7 +132,7 @@ private:
         auto replicationProgress = attributes->Find<TReplicationProgress>("replication_progress");
         auto enableReplicatedTableTracker = attributes->Get<bool>("enable_replicated_table_tracker", true);
 
-        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId);
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.CreateTableReplica();
@@ -199,7 +199,7 @@ private:
     {
         auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
 
-        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId);
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.RemoveTableReplica();

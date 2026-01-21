@@ -187,6 +187,8 @@ public:
 
     TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) const override
     {
+        ValidateEnabledState();
+
         auto* chaosLease = FindChaosLease(chaosLeaseId);
         if (!chaosLease) {
             ThrowChaosLeaseNotKnown(chaosLeaseId);

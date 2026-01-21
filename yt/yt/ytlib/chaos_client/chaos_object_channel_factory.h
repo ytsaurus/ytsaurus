@@ -8,7 +8,7 @@
 
 namespace NYT::NChaosClient {
 
-struct IReplicationCardChannelFactory
+struct IChaosObjectChannelFactory
     : public virtual TRefCounted
 {
     virtual NRpc::IChannelPtr CreateChannel(
@@ -16,15 +16,15 @@ struct IReplicationCardChannelFactory
         NHydra::EPeerKind peerKind) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IReplicationCardChannelFactory)
+DEFINE_REFCOUNTED_TYPE(IChaosObjectChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicationCardChannelFactoryPtr CreateReplicationCardChannelFactory(
+IChaosObjectChannelFactoryPtr CreateChaosObjectChannelFactory(
     NHiveClient::ICellDirectoryPtr cellDirectory,
     IChaosResidencyCachePtr residencyCache,
     IChaosCellDirectorySynchronizerPtr synchronizer,
-    TReplicationCardChannelConfigPtr config);
+    TChaosObjectChannelConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

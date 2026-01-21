@@ -121,8 +121,8 @@ struct IConnection
     virtual NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
-    virtual NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId replicationCardId,
+    virtual NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId chaosObjectId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
