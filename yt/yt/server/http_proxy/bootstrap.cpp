@@ -430,6 +430,9 @@ void TBootstrap::OnDynamicConfigChanged(
     if (newConfig->SignatureComponents) {
         YT_UNUSED_FUTURE(SignatureComponents_->Reconfigure(newConfig->SignatureComponents));
     }
+
+    Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(
+        newConfig->MasterCellDirectorySynchronizer.value_or(Config_->ClusterConnection->Static->MasterCellDirectorySynchronizer));
 }
 
 void TBootstrap::HandleRequest(
