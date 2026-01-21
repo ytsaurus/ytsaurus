@@ -687,9 +687,17 @@ private:
         for (const auto& dataSlice : foreignInputDataSlices) {
             dataWeight += dataSlice->GetDataWeight();
         }
-        i64 dataWeightPerJob = splitJobCount == 1
-            ? std::numeric_limits<i64>::max() / 4
-            : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
+
+        // NB(coteeq): We do not set isExplicitJob count because sorted pool
+        // does not support this flag and it would be *very* hard to support
+        // (and it probably is not worth it).
+        // So we just increase all constraints to effective infinity to trick
+        // the pool to always make a single job.
+        auto adjustSizeIfSingleJob = [singleJob = splitJobCount == 1] (i64 size) {
+            return singleJob ? std::numeric_limits<i64>::max() / 4 : size;
+        };
+
+        i64 dataWeightPerJob = adjustSizeIfSingleJob(DivCeil(dataWeight, static_cast<i64>(splitJobCount)));
 
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
@@ -699,9 +707,9 @@ private:
             /*jobCount*/ splitJobCount,
             dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
-            JobSizeConstraints_->GetCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetPrimaryCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetCompressedDataSizePerJob()),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetPrimaryCompressedDataSizePerJob()),
+            adjustSizeIfSingleJob(JobSizeConstraints_->GetMaxDataSlicesPerJob()),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
