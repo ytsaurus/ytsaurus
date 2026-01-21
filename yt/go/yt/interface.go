@@ -78,10 +78,9 @@ type MutatingOptions struct {
 type ReadKind string
 
 const (
-	ReadFromLeader      ReadKind = "leader"
-	ReadFromFollower    ReadKind = "follower"
-	ReadFromCache       ReadKind = "cache"
-	ReadFromMasterCache ReadKind = "master_cache"
+	ReadFromLeader   ReadKind = "leader"
+	ReadFromFollower ReadKind = "follower"
+	ReadFromCache    ReadKind = "cache"
 )
 
 // ReadRetryOptions is marker for distinguishing requests that might be safely retried.
