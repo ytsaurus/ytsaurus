@@ -146,12 +146,9 @@ struct IChaosManager
         const std::vector<NObjectClient::TCellId>& coordinatorCellIds,
         bool strict = true) = 0;
 
-    virtual void RevokeShortcuts(TRange<TChaosObjectBase*> chaosObjects) = 0;
-
-    void RevokeShortcut(TChaosObjectBase* chaosObject)
-    {
-        RevokeShortcuts(TRange(&chaosObject, 1));
-    }
+    virtual void RevokeShortcuts(
+        TRange<TChaosObjectBase*> chaosObjects,
+        NElection::TCellId suspendedChaosCellId = NElection::NullCellId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)
