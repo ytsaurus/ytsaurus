@@ -89,6 +89,49 @@ void AggregateMaxDouble(TUnversionedValue* state, const TUnversionedValue& value
     }
 }
 
+void AggregateMaxString(TUnversionedValue* state, const TUnversionedValue& value)
+{
+    if (state->Type == EValueType::Null) {
+        *state = value;
+    } else if (value.Type != EValueType::Null) {
+        if (value.AsStringBuf() > state->AsStringBuf()) {
+            *state = value;
+        }
+    }
+}
+
+TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
+{
+    if (name == "sum") {
+        if (type == EValueType::Int64) {
+            return &AggregateSumInt64;
+        } else if (type == EValueType::Uint64) {
+            return &AggregateSumUint64;
+        } else if (type == EValueType::Double) {
+            return &AggregateSumDouble;
+        } else {
+            THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
+                << TErrorAttribute("type", type);
+        }
+    } else if (name == "max") {
+        if (type == EValueType::Int64) {
+            return &AggregateMaxInt64;
+        } else if (type == EValueType::Uint64) {
+            return &AggregateMaxUint64;
+        } else if (type == EValueType::Double) {
+            return &AggregateMaxDouble;
+        } else if (type == EValueType::String) {
+            return &AggregateMaxString;
+        } else {
+            THROW_ERROR_EXCEPTION("Unsupported simple aggregate for type")
+                << TErrorAttribute("type", type);
+        }
+    } else {
+        THROW_ERROR_EXCEPTION("Unsupported simple aggregate")
+            << TErrorAttribute("aggregate_function", name);
+    }
+}
+
 TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
 {
     std::vector<TNestedKeyColumn> keyColumns;
@@ -616,7 +659,7 @@ void TNestedTableMerger::Reset(int keyWidth, int mergeStreamCount)
 }
 
 void TNestedTableMerger::UnpackKeyColumns(
-    TRange<TMutableRange<TVersionedValue>> keyColumns,
+    TRange<TRange<TVersionedValue>> keyColumns,
     TRange<TNestedKeyColumn> keyColumnsSchema)
 {
     if (keyColumns.Empty()) {

@@ -56,7 +56,7 @@ private:
     std::vector<std::vector<NTableClient::TVersionedValue>> AggregateValues_;
 
     TNestedTableMerger NestedMerger_{true};
-    std::vector<TMutableRange<NTableClient::TVersionedValue>> NestedKeyColumns_;
+    std::vector<TRange<NTableClient::TVersionedValue>> NestedKeyColumns_;
     std::vector<TMutableRange<NTableClient::TVersionedValue>> NestedValueColumns_;
 
     NTableClient::TTimestamp LatestWrite_;

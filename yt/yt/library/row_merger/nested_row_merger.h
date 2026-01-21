@@ -13,6 +13,10 @@ namespace NYT::NRowMerger {
 
 using TAggregateFunction = void(NTableClient::TUnversionedValue* state, const NTableClient::TUnversionedValue& value);
 
+TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, NTableClient::EValueType type);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNestedKeyColumn
 {
     ui16 Id;
@@ -90,7 +94,7 @@ class TNestedTableMerger
 public:
     explicit TNestedTableMerger(bool useFastYsonRoutines = false);
 
-    void UnpackKeyColumns(TRange<TMutableRange<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
+    void UnpackKeyColumns(TRange<TRange<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
     void UnpackKeyColumns(TRange<std::vector<NTableClient::TVersionedValue>> keyColumns, TRange<TNestedKeyColumn> keyColumnsSchema);
 
     void UnpackValueColumn(
