@@ -30,6 +30,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NApi;
@@ -233,6 +235,8 @@ private:
             /*forbiddenAddresses*/ {},
             /*allocatedAddresses*/ {},
             Logger);
+
+        Shuffle(replicas.begin(), replicas.end());
 
         YT_VERIFY(std::ssize(replicas) == ReplicaCount_);
         if (Options_->ErasureCodec != NErasure::ECodec::None) {
