@@ -22,6 +22,7 @@ ALL_RESOURCE_FILES(
     PREFIX yt/benchmarks/run/
     sql
     queries
+    queries_optimized
 )
 
 ALL_RESOURCE_FILES(
