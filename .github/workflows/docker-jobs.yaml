@@ -55,6 +55,7 @@ jobs:
   docker:
     runs-on: ${{ inputs.runs-on-value }}
     strategy:
+      fail-fast: false
       matrix:
         build-type: ${{ fromJson(inputs.build-types) }}
 
