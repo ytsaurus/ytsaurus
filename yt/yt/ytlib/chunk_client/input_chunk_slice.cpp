@@ -510,8 +510,26 @@ TInputChunkSlice::TInputChunkSlice(
     OverrideSize(inputChunk, protoChunkSpec);
 }
 
-template <class TProtoChunkSpec>
-void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec)
+void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSlice& protoChunkSlice)
+{
+    YT_VERIFY(
+        protoChunkSlice.has_row_count_override() &&
+        protoChunkSlice.has_data_weight_override() &&
+        protoChunkSlice.has_compressed_data_size_override() &&
+        protoChunkSlice.has_uncompressed_data_size_override());
+
+    auto computeSize = [] (i64 sizeOverride, double selectivityFactor) {
+        return std::max(1l, SignedSaturationConversion(sizeOverride * selectivityFactor));
+    };
+
+    OverrideSize(
+        protoChunkSlice.row_count_override(),
+        computeSize(protoChunkSlice.data_weight_override(), inputChunk->GetDataWeightSelectivityFactor()),
+        computeSize(protoChunkSlice.compressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()),
+        computeSize(protoChunkSlice.uncompressed_data_size_override(), inputChunk->GetReadSizeSelectivityFactor()));
+}
+
+void TInputChunkSlice::OverrideSize(const TInputChunkPtr& inputChunk, const NProto::TChunkSpec& protoChunkSpec)
 {
     if (!protoChunkSpec.has_row_count_override()) {
         YT_VERIFY(
