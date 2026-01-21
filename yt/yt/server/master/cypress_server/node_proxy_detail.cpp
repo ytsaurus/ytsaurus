@@ -665,6 +665,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AnnotationPath)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImmediateAnnotation)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
         .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
         .SetOpaque(true));
@@ -925,6 +927,17 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 const auto& cypressManager = Bootstrap_->GetCypressManager();
                 BuildYsonFluently(consumer)
                     .Value(cypressManager->GetNodePath(annotationNode->GetTrunkNode(), GetTransaction()));
+            } else {
+                BuildYsonFluently(consumer)
+                    .Entity();
+            }
+            return true;
+        }
+
+        case EInternedAttributeKey::ImmediateAnnotation: {
+            if (auto annotation = node->TryGetAnnotation()) {
+                BuildYsonFluently(consumer)
+                    .Value(*annotation);
             } else {
                 BuildYsonFluently(consumer)
                     .Entity();
