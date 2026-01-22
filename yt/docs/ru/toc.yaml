@@ -487,6 +487,8 @@ items:
         items:
           - name: Описание
             href: admin-guide/prepare-spec.md
+          - name: Переопределение конфигурации
+            href: admin-guide/config-overrides.md
           - name: Разметка дисков и локаций
             href: admin-guide/locations.md
           - name: Настройка логирования
