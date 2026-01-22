@@ -14,3 +14,8 @@ main:
   constraints:
     operator: ">=0.26.0 && main"
     ytsaurus: ">=24.2"
+0.1:
+  source: release
+  constraints:
+    operator: ">=0.27.0 && main"
+    ytsaurus: ">24.2"

@@ -38,11 +38,14 @@ def reproduce(job_id, cloud_function_token):
 
 
 @cli.command()
-def matrix():
+@click.option(
+    "--version-filter", type=str, required=False, default="{}", help="--version-filter '{\"operator\": \"main\"}'"
+)
+def matrix(version_filter):
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
 
-    suites = graph.find_all_test_suites()
+    suites = graph.find_all_test_suites(json.loads(version_filter))
     compatibility_graph.print_suites(suites)
 
     if suites:
@@ -56,6 +59,7 @@ def matrix():
 @click.option("--git-token", type=str, required=True)
 @click.option("--git-api-url", type=str, default="https://api.github.com")
 @click.option("--cloud-function-token", type=str, required=True)
+@click.option("--version-filter", type=str, required=False, default="{}")
 @click.option("--apply", is_flag=True, help="Make new task with generated spec")
 @click.option("--force", is_flag=True, help="Overwrite job")
 @click.option("--verbose", is_flag=True, help="Detailed output of request")
@@ -64,12 +68,13 @@ def run_scenario(
     git_token,
     git_api_url,
     cloud_function_token,
+    version_filter,
     apply,
     force,
     verbose,
 ):
     auth = ghcr.GitHubAuth(token=git_token, base_url=git_api_url)
-    processed_scenarios = scenario_processor.ProcessScenario(scenario, auth)
+    processed_scenarios = scenario_processor.ProcessScenario(scenario, auth, json.loads(version_filter))
     client = cloudfunction_client.CloudFunctionClient(
         cloudfunction_client.YCFunctionAuth(
             cloud_function_token=cloud_function_token,
