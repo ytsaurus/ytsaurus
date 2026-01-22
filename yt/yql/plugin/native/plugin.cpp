@@ -462,7 +462,8 @@ public:
             TLangVersionBuffer buf;
             TStringBuf versionStringBuf;
 
-            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
+            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersionInitial_);
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
             YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
 
             DefaultYqlApiLangVersion_ = MinLangVersion;
@@ -864,6 +865,20 @@ public:
         YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
 
         DynamicConfig_.Store(CreateDynamicConfig(std::move(newGatewaysConfig)));
+
+        if (!config.MaxSupportedYqlVersion) {
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+        } else {
+            const auto maxVersionStr = config.MaxSupportedYqlVersion.ToString();
+            YQL_LOG(DEBUG) << __FUNCTION__ << ": config.MaxSupportedYqlVersion = " << maxVersionStr;
+            TLangVersion maxVersion;
+            if (ParseLangVersion(maxVersionStr, maxVersion)) {
+                MaxYqlLangVersion_ = maxVersion;
+            } else {
+                YQL_LOG(DEBUG) << __FUNCTION__ << ": cannot parse config.MaxSupportedYqlVersion";
+                MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+            }
+        }
         YQL_LOG(INFO) << "Dynamic config update finished";
     }
 
@@ -880,7 +895,8 @@ private:
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
-    TLangVersion MaxYqlLangVersion_;
+    std::atomic<TLangVersion> MaxYqlLangVersion_;
+    TLangVersion MaxYqlLangVersionInitial_;
     TLangVersion DefaultYqlApiLangVersion_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
