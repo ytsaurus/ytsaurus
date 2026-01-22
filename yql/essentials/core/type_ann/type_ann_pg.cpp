@@ -6101,6 +6101,11 @@ IGraphTransformer::TStatus PgBetweenWrapper(const TExprNode::TPtr& input, TExprN
             return IGraphTransformer::TStatus::Error;
         }
 
+        if (isUniversal) {
+            input->SetTypeAnn(ctx.Expr.MakeType<TUniversalExprType>());
+            return IGraphTransformer::TStatus::Ok;
+        }
+
         children[i] = ctx.Expr.WrapByCallableIf(convertToPg, "ToPg", std::move(children[i]));
         needRetype |= convertToPg;
     }
