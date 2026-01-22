@@ -23,4 +23,5 @@ END()
 
 RECURSE(
     bin
+    tests
 )

@@ -105,6 +105,10 @@ struct {{type.type_name}}Key
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
 
+{% if type.add_equality_operator -%}
+    bool operator==(const {{type.type_name}}Key& rhs) const = default;
+{%- endif %}
+
     NYT::NTableClient::TLegacyKey ToKey(const NYT::NTableClient::TRowBufferPtr& rowBuffer) const;
     static {{type.type_name}}Key FromKey(NYT::NTableClient::TLegacyKey key);
 };
@@ -128,6 +132,11 @@ struct {{type.type_name}}
 {% for field in type.fields if not field.sort_order and field.expression is none %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
+
+{% if type.add_equality_operator -%}
+    bool operator==(const {{type.type_name}}& rhs) const = default;
+{%- endif %}
+
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
         const {{type.type_name}}PartialIdMapping& idMapping,
@@ -155,6 +164,10 @@ struct {{type.type_name}}Partial
 {% for field in type.fields if not field.sort_order and field.expression is none %}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}
+
+{% if type.add_equality_operator -%}
+    bool operator==(const {{type.type_name}}Partial& rhs) const = default;
+{%- endif %}
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
