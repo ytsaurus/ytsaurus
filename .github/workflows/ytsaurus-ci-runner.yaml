@@ -24,8 +24,9 @@ jobs:
         with:
           path: ytsaurus
           sparse-checkout-cone-mode: false
-          sparse-checkout: '.github/ytsaurus-ci'
-
+          sparse-checkout: |
+            yt/admin/ytsaurus_ci
+            ya
       - name: Prepare
         run: |
           ./ya make -r yt/admin/ytsaurus_ci
