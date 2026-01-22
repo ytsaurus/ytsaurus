@@ -844,7 +844,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_unused_volumes(self):
-        with raises_yt_error('Volume was described, but not used'):
+        with raises_yt_error('Volume was described but not used'):
             vanilla(
                 spec={
                     "tasks": {
@@ -866,7 +866,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_not_described_volumes(self):
-        with raises_yt_error('Volume was ordered but not described'):
+        with raises_yt_error('Volume was requested but not described'):
             vanilla(
                 spec={
                     "tasks": {
@@ -887,7 +887,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     # TODO(krasovav): Rewrite to check two different mediums after supporting two non tmpfs volumes.
     @authors("krasovav")
     def test_two_non_tmpfs_volumes(self):
-        with raises_yt_error('Volume request with 2 or more different not tmpfs disk request are not currently supported'):
+        with raises_yt_error('Volume request with two or more different non tmpfs disk request are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {

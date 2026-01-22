@@ -52,13 +52,22 @@ bool TLayerJobExperiment::IsEnabled(
     const TOperationSpecBasePtr& operationSpec,
     const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
+    auto doAllVolumesHaveNoLayers = [] (const auto& userJobSpec) {
+        return std::all_of(
+            userJobSpec->Volumes.begin(),
+            userJobSpec->Volumes.end(),
+            [] (const auto& itToVolume) {
+                return itToVolume.second->Layers.empty();
+            });
+    };
+
     return TJobExperimentBase::IsEnabled(operationSpec, userJobSpecs) &&
         operationSpec->DefaultBaseLayerPath &&
         operationSpec->JobExperiment->BaseLayerPath &&
         std::all_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [] (const auto& userJobSpec) { return userJobSpec->LayerPaths.empty(); }) &&
+            doAllVolumesHaveNoLayers) &&
         std::any_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),

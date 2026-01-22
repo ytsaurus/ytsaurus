@@ -5,8 +5,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
-
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NConcurrency;
@@ -156,7 +154,7 @@ private:
     {
         struct TMemoryInfo
         {
-            absl::flat_hash_map<std::string, std::optional<i64>> MaxTmpfsUsage;
+            THashMap<std::string, std::optional<i64>> MaxTmpfsUsage;
             std::optional<i64> MaxMemoryUsage;
             i64 MemoryReserve = 0;
 
@@ -194,10 +192,7 @@ private:
                     jobState,
                     task->GetVertexDescriptor());
                 if (summary) {
-                    if (!memoryInfo.MaxMemoryUsage) {
-                        memoryInfo.MaxMemoryUsage = 0;
-                    }
-                    memoryInfo.MaxMemoryUsage = std::max(*memoryInfo.MaxMemoryUsage, summary->GetMax());
+                    memoryInfo.MaxMemoryUsage = std::max(memoryInfo.MaxMemoryUsage.value_or(0), summary->GetMax());
                 }
             }
 
@@ -210,15 +205,14 @@ private:
                 }
             }
 
-            int countOfTmpfs = 0;
+            int tmpfsCount = 0;
             for (const auto& [_, volume] : userJobSpec->Volumes) {
-                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
-                    ++countOfTmpfs;
+                if (IsDiskRequestTmpfs(volume->DiskRequest)) {
+                    ++tmpfsCount;
                 }
             }
 
-
-            YT_VERIFY(countOfTmpfs == std::ssize(maxUsedTmpfsSizes));
+            YT_VERIFY(tmpfsCount == std::ssize(maxUsedTmpfsSizes));
             YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
         }
 
@@ -235,9 +229,7 @@ private:
                 i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
 
                 for (const auto& [name, maxTmpfsUsage] : memoryInfo.MaxTmpfsUsage) {
-                    if (maxTmpfsUsage) {
-                        memoryUsage += *maxTmpfsUsage;
-                    }
+                    memoryUsage += maxTmpfsUsage.value_or(0);
                 }
 
                 auto memoryUsageRatio = static_cast<double>(memoryUsage) / memoryInfo.MemoryReserve;
@@ -277,7 +269,7 @@ private:
             }
 
             for (const auto& [name, volume] : jobSpec->Volumes) {
-                if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
+                if (!IsDiskRequestTmpfs(volume->DiskRequest)) {
                     continue;
                 }
 

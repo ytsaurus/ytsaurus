@@ -15,7 +15,7 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
     try {
         spec->Load(specNode);
 
-        auto checkUserJobSpec = [] (const THashMap<std::string, NScheduler::TVolumePtr>& volumes) {
+        auto checkVolumeRequest = [] (const THashMap<std::string, NScheduler::TVolumePtr>& volumes) {
             THashSet<std::string> allVolumesMediums;
             for (const auto& [_, volume] : volumes) {
                 if (!volume->DiskRequest) {
@@ -29,36 +29,36 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
                 }
             }
 
-            // TODO(krasovav): Delete after supporting multiple mediums.
+            // TODO(krasovav): Delete after supporting multiple medium.
             if (allVolumesMediums.size() > 1) {
-                THROW_ERROR_EXCEPTION("Disk requests with 2 or more different Mediums are not currently supported")
+                THROW_ERROR_EXCEPTION("Disk requests with two or more different medium are not currently supported")
                     << TErrorAttribute("volumes", volumes);
             }
 
             // TODO(krasovav): Delete after supporting multiple diskrequests.
-            if (CountOfNonTmpfsVolumes(volumes) > 1) {
-                THROW_ERROR_EXCEPTION("Volume request with 2 or more different not tmpfs disk request are not currently supported")
+            if (CountNonTmpfsVolumes(volumes) > 1) {
+                THROW_ERROR_EXCEPTION("Volume request with two or more different non tmpfs disk request are not currently supported")
                     << TErrorAttribute("volumes", volumes);
             }
         };
 
         if constexpr (std::is_same_v<TSpec, NScheduler::TVanillaTaskSpec>) {
-            checkUserJobSpec(spec->Volumes);
+            checkVolumeRequest(spec->Volumes);
         } else if constexpr (std::is_same_v<TSpec, NScheduler::TMapOperationSpec>) {
-            checkUserJobSpec(spec->Mapper->Volumes);
+            checkVolumeRequest(spec->Mapper->Volumes);
         } else if constexpr (std::is_same_v<TSpec, NScheduler::TReduceOperationSpec>) {
-            checkUserJobSpec(spec->Reducer->Volumes);
+            checkVolumeRequest(spec->Reducer->Volumes);
         } else if constexpr (std::is_same_v<TSpec, NScheduler::TMapReduceOperationSpec>) {
-            checkUserJobSpec(spec->Reducer->Volumes);
+            checkVolumeRequest(spec->Reducer->Volumes);
             if (spec->Mapper) {
-                checkUserJobSpec(spec->Mapper->Volumes);
+                checkVolumeRequest(spec->Mapper->Volumes);
             }
             if (spec->ReduceCombiner) {
-                checkUserJobSpec(spec->ReduceCombiner->Volumes);
+                checkVolumeRequest(spec->ReduceCombiner->Volumes);
             }
         } else if constexpr (std::is_same_v<TSpec, NScheduler::TVanillaOperationSpec>) {
              for (const auto& [_, task] : spec->Tasks) {
-                checkUserJobSpec(task->Volumes);
+                checkVolumeRequest(task->Volumes);
             }
         }
     } catch (const std::exception& ex) {

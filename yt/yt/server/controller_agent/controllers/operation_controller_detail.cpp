@@ -161,8 +161,6 @@
 #include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/type_registry.h>
 
-#include <library/cpp/containers/absl_flat_hash/flat_hash_set.h>
-
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -8092,7 +8090,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     }
                 }
                 if (Config_->DeprecatedMedia.contains(mediumName) &&
-                        volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+                    volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd)
+                {
                     THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                         << TErrorAttribute("medium_name", mediumName);
                 }
@@ -10331,8 +10330,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (Config_->EnableTmpfs) {
         // COMPAT(krasovav)
-        std::vector<TTmpfsVolumeConfigPtr> orderedTmpfsVolumeConfigs;
-        orderedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
+        std::vector<TTmpfsVolumeConfigPtr> requestedTmpfsVolumeConfigs;
+        requestedTmpfsVolumeConfigs.resize(jobSpecConfig->Volumes.size());
         for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
             const auto& tmpfsVolume = jobSpecConfig->Volumes[volumeMount->VolumeId];
 
@@ -10350,10 +10349,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             volume->Size = tmpfsDiskRequest->DiskSpace;
 
             YT_VERIFY(tmpfsDiskRequest->TmpfsIndex);
-            orderedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
+            requestedTmpfsVolumeConfigs[*tmpfsDiskRequest->TmpfsIndex] = std::move(volume);
         }
 
-        for (auto& tmpfsDiskRequest : orderedTmpfsVolumeConfigs) {
+        for (const auto& tmpfsDiskRequest : requestedTmpfsVolumeConfigs) {
             if (!tmpfsDiskRequest) {
                 break;
             }
@@ -10381,31 +10380,27 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     // COMPAT(krasovav)
-    YT_VERIFY(CountOfNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
-
-    absl::flat_hash_set<std::string> volumesNotAllowedToBeCreate;
-    for (const auto& [name, volume] : jobSpecConfig->Volumes) {
-        if (!volume->DiskRequest) {
-            continue;
+    YT_VERIFY(CountNonTmpfsVolumes(jobSpecConfig->Volumes) <= 1);
+    {
+        THashSet<std::string> volumesNotAllowedToBeCreated;
+        for (const auto& [name, volume] : jobSpecConfig->Volumes) {
+            if (IsDiskRequestTmpfs(volume->DiskRequest) && !Config_->EnableTmpfs) {
+                volumesNotAllowedToBeCreated.insert(name);
+            }
         }
 
-        if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs && !Config_->EnableTmpfs) {
-            volumesNotAllowedToBeCreate.insert(name);
+        for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
+            if (!volumesNotAllowedToBeCreated.contains(volumeMount->VolumeId)) {
+                ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
+            }
         }
 
-    }
-
-    for (const auto& volumeMount : jobSpecConfig->JobVolumeMounts) {
-        if (!volumesNotAllowedToBeCreate.contains(volumeMount->VolumeId)) {
-            ToProto(jobSpec->add_job_volume_mounts(), *volumeMount);
-        }
-    }
-
-    auto* protoVolumes = jobSpec->mutable_volumes();
-    for (const auto& [name, volume]: jobSpecConfig->Volumes) {
-        if (!volumesNotAllowedToBeCreate.contains(name)) {
-            auto& protoVolume = (*protoVolumes)[name];
-            ToProto(&protoVolume, *volume);
+        auto* protoVolumes = jobSpec->mutable_volumes();
+        for (const auto& [name, volume]: jobSpecConfig->Volumes) {
+            if (!volumesNotAllowedToBeCreated.contains(name)) {
+                auto& protoVolume = (*protoVolumes)[name];
+                ToProto(&protoVolume, *volume);
+            }
         }
     }
 

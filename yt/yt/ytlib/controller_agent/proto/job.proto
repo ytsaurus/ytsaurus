@@ -209,7 +209,7 @@ message TVolumeMount
 {
     required string volume_id = 1;
     required string mount_path = 2;
-    required bool is_read_only = 3 [default = false];
+    required bool read_only = 3 [default = false];
 }
 
 // Specification for starting user code during a job.
@@ -285,7 +285,7 @@ message TUserJobSpec
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
 
-    optional NYT.NScheduler.NProto.TOldDiskRequest disk_request = 51;
+    optional NYT.NScheduler.NProto.TDeprecatedDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;

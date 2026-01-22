@@ -515,7 +515,7 @@ public:
     {
         YT_VERIFY(Bootstrap_->IsExecNode());
 
-        NScheduler::NProto::TOldDiskRequest diskRequest;
+        NScheduler::NProto::TDeprecatedDiskRequest diskRequest;
         diskRequest.set_disk_space(neededResources.DiskSpaceRequest);
         diskRequest.set_inode_count(neededResources.InodeRequest);
 
