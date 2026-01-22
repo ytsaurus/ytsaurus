@@ -21,12 +21,6 @@ jobs:
     steps:
       - name: Checkout ytsaurus
         uses: actions/checkout@v4
-        with:
-          path: ytsaurus
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            yt/admin/ytsaurus_ci
-            ya
       - name: Prepare
         run: |
           ./ya make -r yt/admin/ytsaurus_ci
