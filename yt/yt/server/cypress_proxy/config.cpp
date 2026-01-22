@@ -72,6 +72,9 @@ void TObjectServiceDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_fast_path_prerequisite_transaction_check", &TThis::EnableFastPathPrerequisiteTransactionCheck)
         .Default(true);
 
+    registrar.Parameter("request_rate_limit_factor", &TThis::RequestRateLimitFactor)
+        .Default(10);
+
     registrar.Postprocessor([] (TThis* config) {
         THROW_ERROR_EXCEPTION_IF(
             config->DistributedThrottler->Mode == NDistributedThrottler::EDistributedThrottlerMode::Precise,
