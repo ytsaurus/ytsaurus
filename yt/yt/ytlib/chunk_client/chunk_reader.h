@@ -22,6 +22,8 @@ struct IChunkReader
         std::optional<i64> EstimatedSize;
         IInvokerPtr SessionInvoker;
         bool DisableBandwidthThrottler = false;
+        bool EnableP2P = true;
+        bool FetchNodeDescriptors = false;
     };
 
     struct TGetMetaOptions
