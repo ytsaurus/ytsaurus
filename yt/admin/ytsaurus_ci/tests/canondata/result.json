@@ -1,0 +1,5 @@
+{
+    "test_matrix.test_valid_dependencies_graph": {
+        "uri": "file://test_matrix.test_valid_dependencies_graph/dependencies_graph.json"
+    }
+}
