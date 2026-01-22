@@ -4114,6 +4114,29 @@ class TestCypress(YTEnvSetup):
         move("//tmp/test_node", "//test")
         assert get("//test/@annotation") == get("//test/child/@annotation") == "test"
 
+    @authors("theevilbird")
+    def test_immediate_annotation_attribute(self):
+        create("map_node", "//tmp/test_node")
+        create("map_node", "//tmp/test_node/child")
+        assert get("//tmp/test_node/@immediate_annotation") == yson.YsonEntity()
+        assert get("//tmp/test_node/child/@immediate_annotation") == yson.YsonEntity()
+
+        set("//tmp/test_node/@annotation", "test_node")
+        assert get("//tmp/test_node/@immediate_annotation") == "test_node"
+        assert get("//tmp/test_node/child/@immediate_annotation") == yson.YsonEntity()
+
+        set("//tmp/test_node/child/@annotation", "child_node")
+        assert get("//tmp/test_node/@immediate_annotation") == "test_node"
+        assert get("//tmp/test_node/child/@immediate_annotation") == "child_node"
+        assert get("//tmp/test_node/child/@annotation") == "child_node"
+
+        remove("//tmp/test_node/@annotation")
+        assert get("//tmp/test_node/@immediate_annotation") == yson.YsonEntity()
+        assert get("//tmp/test_node/child/@immediate_annotation") == "child_node"
+
+        with raises_yt_error():
+            set("//tmp/test_node/@immediate_annotation", "test")
+
     @authors("shakurov")
     def test_recursive_copy_sets_parent_on_branched_node(self):
         create_user("u")
