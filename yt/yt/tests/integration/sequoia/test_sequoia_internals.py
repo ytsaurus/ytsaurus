@@ -607,11 +607,15 @@ class TestSequoiaInternals(YTEnvSetup):
             }
         })
 
-        NUM_REQUESTS = 10
+        BASE_REQUEST_COUNT = 10
+        REQUEST_COUNT_FACTOR = 1 + self.NUM_SECONDARY_MASTER_CELLS
+        REQUEST_COUNT = BASE_REQUEST_COUNT * REQUEST_COUNT_FACTOR
+        set("//sys/cypress_proxies/@config/object_service/request_rate_limit_factor", REQUEST_COUNT_FACTOR)
+        sleep(1)
 
         def measure_read_time():
             start_time = datetime.now()
-            for _ in range(NUM_REQUESTS):
+            for _ in range(REQUEST_COUNT):
                 get("//tmp/t/@id", authenticated_user=username)
             return (datetime.now() - start_time).total_seconds()
 
@@ -633,7 +637,8 @@ class TestSequoiaInternals(YTEnvSetup):
         checker = self.spawn_additional_thread(name="wait for profiling counter to change",
                                                target=wait_for_counter_to_change)
 
-        assert measure_read_time() > NUM_REQUESTS * 0.7
+        # Last request empties the throttler, but we don't wait for it to be replenished.
+        assert measure_read_time() > (BASE_REQUEST_COUNT - 1)
 
         checker.join()
 
