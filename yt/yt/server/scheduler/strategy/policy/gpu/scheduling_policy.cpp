@@ -876,6 +876,10 @@ private:
     //! Returns true otherwise
     bool CheckInitializationTimeout()
     {
+        if (!InitialPersistentState_) {
+            return false;
+        }
+
         if (Y_LIKELY(InitialPersistentState_->NodeStates.empty() && InitialPersistentState_->OperationStates.empty())) {
             return false;
         }
