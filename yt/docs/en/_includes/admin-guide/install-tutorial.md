@@ -13,7 +13,7 @@ Before proceeding, you should have:
 * a dedicated user with an issued token (see [Token Management](../../user-guide/storage/auth.md#token-management));
 * Running Query Tracker and YQL Agent.
 
-> Typically, http-proxy address has template: http://http-proxies.<k8s-namespace-name>.svc.cluster.local
+> Typically, http-proxy address has template: http://http-proxies.default.svc.cluster.local
 
 ## Configuration
 
