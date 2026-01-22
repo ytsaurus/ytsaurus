@@ -3,7 +3,7 @@ name: YTsaurus CI Nightly Trigger
 on:
   push:
     branches:
-      - 'docker/job-environment/0\.[0-9]+\.[0-9]+'
+      - 'members/epsilond1/try-enable-ytsaurus-ci'
   schedule:
     - cron: '*/59 * * * *'
   workflow_dispatch:
