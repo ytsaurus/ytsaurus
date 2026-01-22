@@ -27,7 +27,7 @@ jobs:
       - name: Call task creator
         id: call-task-creator
         run: |
-          ./yt/admin/ytsaurus_ci run-scenario \
+          ./yt/admin/ytsaurus_ci/ytsaurus_ci run-scenario \
               --scenario "${{ inputs.scenario }}" \
               --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
               --cloud-functions-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
