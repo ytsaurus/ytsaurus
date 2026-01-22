@@ -1374,10 +1374,13 @@ bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
     if (it != InputChunkMap_.end()) {
         YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
         auto* descriptor = &it->second;
-        auto scraper = GetClusterOrCrash(*descriptor)->ChunkScraper();
-        YT_VERIFY(scraper);
-        scraper->OnChunkBecameUnavailable(chunkId);
-        scraper->Start();
+        if (Host_->GetSpec()->UnavailableChunkTactics == EUnavailableChunkAction::Wait) {
+            // Scrap unavailable chunk only if we need it.
+            auto scraper = GetClusterOrCrash(*descriptor)->ChunkScraper();
+            YT_VERIFY(scraper);
+            scraper->OnChunkBecameUnavailable(chunkId);
+            scraper->Start();
+        }
         OnInputChunkUnavailable(chunkId, descriptor);
         return true;
     }
