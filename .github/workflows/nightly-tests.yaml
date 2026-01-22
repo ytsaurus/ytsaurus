@@ -1,14 +1,18 @@
 name: YTsaurus CI Nightly Trigger
 
 on:
+  push:
+    branches:
+      - 'members/epsilond1/try-enable-ytsaurus-ci'
   schedule:
     - cron: '*/59 * * * *'
   workflow_dispatch:
 
 jobs:
   create-task-for-ytsaurus-ci:
-    if: false
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: nightly-dev
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}

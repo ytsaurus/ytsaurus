@@ -202,12 +202,38 @@ def _make_tasks(
     ghcr_client: ghcr.GitHubPackagesClient,
     scenario_name: str,
     check_registry: check_registry.CheckRegistry,
+    version_filter: dict,
 ) -> List[Task]:
+    for component, constraint in version_filter.items():
+        if component == "operator":
+            continue
+        if component not in config.components:
+            raise ValueError("unexpected component, add it to the scenario", component)
+        if config.components[component].version_filter:
+            raise ValueError(
+                "it is forbidden to override the filter from the scenario",
+                component,
+                constraint,
+                config.components[component],
+            )
+        if not constraint:
+            raise ValueError("filter cannot be empty")
+        config.components[component].version_filter = constraint
+
     constraints = {
         name: component.version_filter for name, component in config.components.items() if component.version_filter
     }
-    if config.operator.version_filter:
-        constraints["operator"] = config.operator.version_filter
+    for constraint in (
+        config.operator.version_filter,
+        version_filter.get("operator"),
+    ):
+        if not constraint:
+            continue
+
+        if constraints.get("operator"):
+            raise ValueError("it is forbidden to override the operator's filter from the scenario", constraint)
+
+        constraints["operator"] = constraint
 
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
@@ -228,13 +254,19 @@ def _make_tasks(
     return tasks
 
 
-def ProcessScenario(scenario_name: str, auth: ghcr.GitHubAuth) -> List[Task]:
+def ProcessScenario(scenario_name: str, auth: ghcr.GitHubAuth, version_filter: dict = {}) -> List[Task]:
     ghcr_client = ghcr.GitHubPackagesClient(auth)
 
-    scenario_config = models.ScenarioConfig(**yaml.safe_load(resource.resfs_read(SCENARIOS_FILE_PATH)))
+    scenario_config = models.ScenarioConfig.from_dict(yaml.safe_load(resource.resfs_read(SCENARIOS_FILE_PATH)))
     if scenario_name not in scenario_config.scenarios:
         raise Exception(f"Scenario {scenario_name} not found")
 
     test_registry = check_registry.CheckRegistry(scenario_config.checks)
 
-    return _make_tasks(scenario_config.scenarios[scenario_name], ghcr_client, scenario_name, test_registry)
+    return _make_tasks(
+        scenario_config.scenarios[scenario_name],
+        ghcr_client,
+        scenario_name,
+        test_registry,
+        version_filter,
+    )

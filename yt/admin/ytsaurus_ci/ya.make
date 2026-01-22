@@ -18,7 +18,6 @@ PEERDIR(
     contrib/python/click
     contrib/python/curlify
     contrib/python/Jinja2
-    contrib/python/pydantic
     contrib/python/pytest
     contrib/python/PyYAML
     contrib/python/requests

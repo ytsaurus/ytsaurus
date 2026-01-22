@@ -43,6 +43,23 @@ class GitHubPackagesClient:
     def get_package_versions(self, package_name, package_type="container"):
         org = self.config.org
         endpoint = f"/orgs/{org}/packages/{package_type}/{package_name}/versions"
-        params = {"per_page": 100}
-        response = self._make_request("GET", endpoint, params=params)
-        return response.json()
+        params = {}
+        params.setdefault("per_page", 100)
+        params.setdefault("page", 1)
+
+        while True:
+            response = self._make_request("GET", endpoint, params=params)
+            data = response.json()
+
+            if not data:
+                break
+
+            for version in data:
+                yield version
+
+            if 'next' not in response.links:
+                break
+
+            params["page"] += 1
+
+        return []

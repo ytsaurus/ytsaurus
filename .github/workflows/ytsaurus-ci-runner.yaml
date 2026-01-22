@@ -2,6 +2,11 @@ name: YTsaurus CI runner
 
 on:
   workflow_call:
+    inputs:
+      scenario:
+        description: "Name of the scenario"
+        required: true
+        type: string
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
@@ -16,19 +21,14 @@ jobs:
     steps:
       - name: Checkout ytsaurus
         uses: actions/checkout@v4
-        with:
-          path: ytsaurus
-          sparse-checkout-cone-mode: false
-          sparse-checkout: '.github/ytsaurus-ci'
-
       - name: Prepare
         run: |
           ./ya make -r yt/admin/ytsaurus_ci
       - name: Call task creator
         id: call-task-creator
         run: |
-          ./yt/admin/ytsaurus_ci run-scenario \
-              --scenario nightly-dev \
+          ./yt/admin/ytsaurus_ci/ytsaurus_ci run-scenario \
+              --scenario "${{ inputs.scenario }}" \
               --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
-              --cloud-functions-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
+              --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}" \
               --apply
