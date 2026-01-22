@@ -1,0 +1,10 @@
+main:
+  source: dev
+0.0.1:
+  source: special
+0.24.0:
+  source: test
+0.25.0:
+  source: test
+0.26.0:
+  source: test
