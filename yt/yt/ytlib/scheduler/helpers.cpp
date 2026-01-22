@@ -993,8 +993,8 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
                 &(*volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()),
                 volumeProto.tmpfs_storage_request());
             break;
-        default:
-            break;
+        case TProtoMessage::DISK_REQUEST_NOT_SET:
+            YT_ABORT();
     }
 }
 
@@ -1004,7 +1004,7 @@ void FromProto(
 {
     volumeMount->VolumeId = volumeMountProto.volume_id();
     volumeMount->MountPath = volumeMountProto.mount_path();
-    volumeMount->IsReadOnly = volumeMountProto.is_read_only();
+    volumeMount->ReadOnly = volumeMountProto.read_only();
 }
 
 void ToProto(
@@ -1013,7 +1013,7 @@ void ToProto(
 {
     volumeMountProto->set_volume_id(volumeMount.VolumeId);
     volumeMountProto->set_mount_path(volumeMount.MountPath);
-    volumeMountProto->set_is_read_only(volumeMount.IsReadOnly);
+    volumeMountProto->set_read_only(volumeMount.ReadOnly);
 }
 
 void FromProto(
@@ -1030,7 +1030,7 @@ void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTm
     protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
 }
 
-void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TOldDiskRequest& protoDiskRequestConfig)
+void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig)
 {
     switch (static_cast<NExecNode::EVolumeType>(protoDiskRequestConfig.type())) {
         case NExecNode::EVolumeType::Nbd:
@@ -1043,12 +1043,10 @@ void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TOldDiskR
             break;
         case NExecNode::EVolumeType::Tmpfs:
             break;
-        default:
-            YT_ABORT();
     }
 }
 
-void ToProto(NProto::TOldDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
+void ToProto(NProto::TDeprecatedDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
 {
     if (auto nbdDiskRequest = diskRequestConfig.TryGetConcrete<TNbdDiskRequest>()) {
         protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Nbd));
@@ -1137,17 +1135,24 @@ void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CountOfNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes)
+int CountNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes)
 {
-    int countOfNotTmpfsPaths = 0;
+    int count = 0;
 
     for (const auto& [_, volume] : volumes) {
         if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Tmpfs) {
-            ++countOfNotTmpfsPaths;
+            ++count;
         }
     }
 
-    return countOfNotTmpfsPaths;
+    return count;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
+{
+    return diskRequest && diskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

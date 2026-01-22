@@ -130,7 +130,7 @@ void TTask::Initialize()
     if (IsSimpleTask()) {
         if (auto userJobSpec = GetUserJobSpec()) {
             for (const auto& [name, volume] : userJobSpec->Volumes) {
-                if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+                if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                     MaximumUsedTmpfsSizes_[name];
                 }
             }
@@ -830,7 +830,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     if (userJobSpec) {
         i64 totalTmpfsSize = 0;
         for (const auto& [_, volume] : userJobSpec->Volumes) {
-            if (volume->DiskRequest && volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (IsDiskRequestTmpfs(volume->DiskRequest)) {
                 totalTmpfsSize += (*volume->DiskRequest)->DiskSpace;
             }
         }

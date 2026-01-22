@@ -803,7 +803,7 @@ struct TNbdDiskConfig
 
 DEFINE_REFCOUNTED_TYPE(TNbdDiskConfig)
 
-struct TOldDiskRequestConfig
+struct TDeprecatedDiskRequestConfig
     : public NYTree::TYsonStruct
 {
     //! Required disk space in bytes, may be enforced as a limit.
@@ -819,17 +819,17 @@ struct TOldDiskRequestConfig
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
 
-    TOldDiskRequestConfig& operator=(const TStorageRequestBase& config);
-    TOldDiskRequestConfig& operator=(const TDiskRequestConfig& config);
-    TOldDiskRequestConfig& operator=(const TLocalDiskRequest& config);
-    TOldDiskRequestConfig& operator=(const TNbdDiskRequest& config);
+    TDeprecatedDiskRequestConfig& operator=(const TStorageRequestBase& config);
+    TDeprecatedDiskRequestConfig& operator=(const TDiskRequestConfig& config);
+    TDeprecatedDiskRequestConfig& operator=(const TLocalDiskRequest& config);
+    TDeprecatedDiskRequestConfig& operator=(const TNbdDiskRequest& config);
 
-    REGISTER_YSON_STRUCT(TOldDiskRequestConfig);
+    REGISTER_YSON_STRUCT(TDeprecatedDiskRequestConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOldDiskRequestConfig)
+DEFINE_REFCOUNTED_TYPE(TDeprecatedDiskRequestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1348,7 +1348,7 @@ struct TVolumeMount
 {
     std::string VolumeId;
     std::string MountPath;
-    bool IsReadOnly;
+    bool ReadOnly;
 
     REGISTER_YSON_STRUCT(TVolumeMount);
 
@@ -1447,7 +1447,7 @@ struct TStorageRequestBase
 {
     i64 DiskSpace;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TStorageRequestBase);
 
@@ -1479,7 +1479,7 @@ struct TDiskRequestConfig
     std::optional<int> MediumIndex;
     std::optional<std::string> Account;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TDiskRequestConfig);
 
@@ -1491,7 +1491,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
 struct TLocalDiskRequest
     : public TDiskRequestConfig
 {
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
 
     REGISTER_YSON_STRUCT(TLocalDiskRequest);
 
@@ -1505,7 +1505,7 @@ struct TNbdDiskRequest
 {
     TNbdDiskConfigPtr NbdDisk;
 
-    TStorageRequestBase& operator=(TOldDiskRequestConfigPtr& oldRequest);
+    TStorageRequestBase& operator=(TDeprecatedDiskRequestConfigPtr& oldRequest);
     REGISTER_YSON_STRUCT(TNbdDiskRequest);
 
     static void Register(TRegistrar registrar);
@@ -1546,7 +1546,8 @@ struct TUserJobSpec
     TString TaskTitle;
 
     std::vector<NYPath::TRichYPath> FilePaths;
-    std::vector<NYPath::TRichYPath> LayerPaths;
+    // COMPAT(krasovav)
+    std::vector<NYPath::TRichYPath> DeprecatedLayerPaths;
 
     std::optional<NFormats::TFormat> Format;
     std::optional<NFormats::TFormat> InputFormat;
@@ -1588,13 +1589,15 @@ struct TUserJobSpec
     std::optional<i64> TmpfsSize;
     std::optional<TString> TmpfsPath;
 
-    std::vector<TTmpfsVolumeConfigPtr> TmpfsVolumes;
+    // COMPAT(krasovav)
+    std::vector<TTmpfsVolumeConfigPtr> DeprecatedTmpfsVolumes;
 
     // COMPAT(ignat)
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
 
-    TOldDiskRequestConfigPtr DiskRequest;
+    // COMPAT(krasovav)
+    TDeprecatedDiskRequestConfigPtr DeprecatedDiskRequest;
 
     bool CopyFiles;
 
@@ -1696,8 +1699,10 @@ struct TUserJobSpec
     THashMap<std::string, TVolumePtr> Volumes;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
 
-    bool IsFirstPostprocessorDone = false;
+private:
+    bool IsFirstIterationPostprocessorComplete = false;
 
+public:
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

@@ -350,7 +350,7 @@ void ToProto(
 
 void FromProto(
     TStorageRequestConfig* diskRequestConfig,
-    const NProto::TOldDiskRequest& protoDiskRequestConfig);
+    const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig);
 
 template <class TProtoDiskRequest>
 void FromProto(
@@ -366,7 +366,11 @@ void ToProto(
 
 void ValidateTmpfsPaths(const std::vector<std::string_view>& tmpfsPaths);
 
-int CountOfNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
+int CountNonTmpfsVolumes(const THashMap<std::string, TVolumePtr>& volumes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsDiskRequestTmpfs(const std::optional<NScheduler::TStorageRequestConfig>& diskRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

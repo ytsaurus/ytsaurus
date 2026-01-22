@@ -15,7 +15,7 @@ void FromProto(TNbdDiskRequest* diskRequestConfig, const TProtoDiskRequest& prot
         FromProto(static_cast<TDiskRequestConfig*>(diskRequestConfig), protoDiskRequestConfig.disk_request());
         FromProto(&(*diskRequestConfig->NbdDisk), protoDiskRequestConfig.nbd());
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         FromProto(static_cast<TDiskRequestConfig*>(diskRequestConfig), protoDiskRequestConfig);
         FromProto(&(*diskRequestConfig->NbdDisk), protoDiskRequestConfig.nbd_disk());
     }
@@ -29,7 +29,7 @@ void ToProto(TProtoDiskRequest* protoDiskRequestConfig, const TNbdDiskRequest& d
         ToProto(protoDiskRequestConfig->mutable_disk_request(), static_cast<const TDiskRequestConfig&>(diskRequestConfig));
         ToProto(protoDiskRequestConfig->mutable_nbd(), *diskRequestConfig.NbdDisk);
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         ToProto(protoDiskRequestConfig, static_cast<const TDiskRequestConfig&>(diskRequestConfig));
         ToProto(protoDiskRequestConfig->mutable_nbd_disk(), *diskRequestConfig.NbdDisk);
     }
@@ -42,7 +42,7 @@ void FromProto(TLocalDiskRequest* diskRequestConfig, const TProtoDiskRequest& pr
     if constexpr (std::is_same_v<TProtoDiskRequest, NProto::TLocalDiskRequest>) {
         FromProto(static_cast<TDiskRequestConfig*>(diskRequestConfig), protoDiskRequestConfig.disk_request());
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         FromProto(static_cast<TDiskRequestConfig*>(diskRequestConfig), protoDiskRequestConfig);
     }
 }
@@ -53,7 +53,7 @@ void ToProto(TProtoDiskRequest* protoDiskRequestConfig, const TLocalDiskRequest&
     if constexpr (std::is_same_v<TProtoDiskRequest, NProto::TLocalDiskRequest>) {
         ToProto(protoDiskRequestConfig->mutable_disk_request(), static_cast<const TDiskRequestConfig&>(diskRequestConfig));
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         ToProto(protoDiskRequestConfig, static_cast<const TDiskRequestConfig&>(diskRequestConfig));
     }
 }
@@ -64,7 +64,7 @@ void FromProto(TDiskRequestConfig* diskRequestConfig, const TProtoDiskRequest& p
     if constexpr (std::is_same_v<TProtoDiskRequest, NProto::TDiskRequest>) {
         FromProto(static_cast<TStorageRequestBase*>(diskRequestConfig), protoDiskRequestConfig.storage_request_common_parameters());
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         FromProto(static_cast<TStorageRequestBase*>(diskRequestConfig), protoDiskRequestConfig);
     }
 
@@ -83,7 +83,7 @@ void ToProto(TProtoDiskRequest* protoDiskRequestConfig, const TDiskRequestConfig
     if constexpr (std::is_same_v<TProtoDiskRequest, NProto::TDiskRequest>) {
         ToProto(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const TStorageRequestBase&>(diskRequestConfig));
     } else {
-        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TOldDiskRequest>);
+        static_assert(std::is_same_v<TProtoDiskRequest, NProto::TDeprecatedDiskRequest>);
         ToProto(protoDiskRequestConfig, static_cast<const TStorageRequestBase&>(diskRequestConfig));
     }
 

@@ -69,7 +69,7 @@ public:
         const TString& nodeTag,
         ESlotType slotType,
         NClusterNode::TCpu requestedCpu,
-        NScheduler::NProto::TOldDiskRequest diskRequest,
+        NScheduler::NProto::TDeprecatedDiskRequest diskRequest,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -779,7 +779,7 @@ IUserSlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     NClusterNode::TCpu requestedCpu,
-    NScheduler::NProto::TOldDiskRequest diskRequest,
+    NScheduler::NProto::TDeprecatedDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
     auto slot = NewWithOffloadedDtor<TUserSlot>(

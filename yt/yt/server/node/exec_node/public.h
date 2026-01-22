@@ -176,7 +176,7 @@ struct TNumaNodeInfo
 DEFINE_ENUM(EVolumeType,
     ((Local)    (0))
     ((Nbd)      (1))
- // Reserved    (2))
+    // Reserved (2))
     ((Tmpfs)    (3))
 );
 

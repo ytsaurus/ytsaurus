@@ -628,7 +628,7 @@ private:
             YT_VERIFY(signal);
 
             YT_LOG_INFO(
-                "Sending signal to sidecar (sidecar: %v, signal: %v, timeout: %v)",
+                "Sending signal to sidecar (Sidecar: %v, Signal: %v, Timeout: %v)",
                 Name_,
                 signal,
                 Spec_->GracefulShutdown->Timeout);
@@ -645,7 +645,7 @@ private:
                     .ThrowOnError();
             } catch (...) {
                 YT_LOG_INFO(
-                    "Sidecar's shutdown timeout has expired (sidecar: %v, timeout: %v)",
+                    "Sidecar's shutdown timeout has expired (Sidecar: %v, Timeout: %v)",
                     Name_,
                     Spec_->GracefulShutdown->Timeout);
             }

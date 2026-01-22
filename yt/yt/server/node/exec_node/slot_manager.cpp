@@ -367,7 +367,7 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TOldDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allowIdleCpuPolicy)
+IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDeprecatedDiskRequest diskRequest, NClusterNode::TCpu requestedCpu, bool allowIdleCpuPolicy)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
