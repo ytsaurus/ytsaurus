@@ -57,7 +57,7 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    virtual bool IsNormal() const = 0;
+    virtual bool IsNormalState() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
