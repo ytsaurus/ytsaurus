@@ -30,6 +30,9 @@
 
 #include <yt/yt/server/lib/user_job/config.h>
 
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -145,7 +148,6 @@ using namespace NControllerAgent::NProto;
 using namespace NControllerAgent;
 using namespace NExecNode::NProto;
 using namespace NExecNode;
-using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NLogging;
@@ -612,13 +614,13 @@ void TJobProxy::DoRun()
     }
 
 
-    if (GrpcServer_ != nullptr) {
+    if (GrpcServer_) {
         auto error = WaitFor(GrpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
     }
 
-    if (HttpServer_ != nullptr) {
+    if (HttpServer_) {
         auto error = WaitFor(HttpServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping HTTP server");
@@ -1074,6 +1076,10 @@ TJobResult TJobProxy::RunJob()
         Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
+    if (Config_->TestingConfig->FailPreparation) {
+        Abort(EJobProxyExitCode::JobProxyPrepareFailed);
+    }
+
     job->PrepareArtifacts();
     OnArtifactsPrepared();
 
@@ -1472,13 +1478,13 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             GetSandboxRelPath(ESandboxKind::Tmp));
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/tmp",
             .ReadOnly = false,
         });
 
         rootFS.Binds.push_back(TBind{
-            .SourcePath = tmpPath,
+            .SourcePath = TString(tmpPath),
             .TargetPath = "/var/tmp",
             .ReadOnly = false,
         });
@@ -1511,7 +1517,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 .TargetPath = NFS::CombinePaths(
                     slotPath,
                     ExecutorConfigFileName),
-                .ReadOnly = true,
+                .ReadOnly = false,
             });
         }
 
@@ -1527,8 +1533,8 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 target);
 
             rootFS.Binds.push_back(TBind{
-                .SourcePath = source,
-                .TargetPath = target,
+                .SourcePath = TString(source),
+                .TargetPath = TString(target),
                 .ReadOnly = false,
             });
         }
@@ -1799,6 +1805,11 @@ void TJobProxy::CheckMemoryUsage()
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get process memory usage");
         return;
+    }
+
+    if (Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+        int targetOomScore = jobProxyMemoryUsage > JobProxyMemoryReserve_ ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+        SetOomScoreAdj(targetOomScore);
     }
 
     JobProxyMaxMemoryUsage_ = std::max(JobProxyMaxMemoryUsage_.load(), jobProxyMemoryUsage);
@@ -2096,6 +2107,34 @@ void TJobProxy::OnProgressSaved(TInstant when)
 {
     GetJobOrThrow()->OnProgressSaved(when);
     HeartbeatExecutor_->ScheduleOutOfBand();
+}
+
+void TJobProxy::SetOomScoreAdj(int score)
+{
+    if (OomScoreAdj_.has_value() && *OomScoreAdj_ == score) {
+        return;
+    }
+
+    pid_t pid = GetPID();
+
+    YT_LOG_DEBUG(
+        "Changing oom_score_adj of a job proxy process (Pid: %v, OomScoreAdj: %v)",
+        pid,
+        score);
+
+    auto config = New<NTools::TChangeOomScoreAdjAsRootConfig>();
+    config->Pid = pid;
+    config->Score = score;
+
+    try {
+        RunTool<NTools::TChangeOomScoreAdjAsRootTool>(config);
+        OomScoreAdj_ = score;
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(
+            ex,
+            "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
+            pid);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

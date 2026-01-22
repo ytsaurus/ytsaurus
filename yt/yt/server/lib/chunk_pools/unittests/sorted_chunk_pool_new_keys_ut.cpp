@@ -2093,12 +2093,12 @@ DEFINE_ENUM(ESliceByRowsWithForeignKind,
     (Right)
 );
 
-class TSortedChunkPoolNewKeysTestSliceByRows
+class TSortedChunkPoolNewKeysSliceByRowsTest
     : public WithParamInterface<ESliceByRowsWithForeignKind>
     , public TSortedChunkPoolNewKeysTest
 { };
 
-TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
+TEST_P(TSortedChunkPoolNewKeysSliceByRowsTest, SliceByRowsAndAttachForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     DataWeightPerJob_ = 100_KB;
@@ -2177,7 +2177,6 @@ TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
             }
             EXPECT_EQ(attached, mustAttach);
         }
-
     }
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
@@ -2187,7 +2186,7 @@ TEST_P(TSortedChunkPoolNewKeysTestSliceByRows, SliceByRowsAndAttachForeign)
 
 INSTANTIATE_TEST_SUITE_P(
     Instantiate,
-    TSortedChunkPoolNewKeysTestSliceByRows,
+    TSortedChunkPoolNewKeysSliceByRowsTest,
     ValuesIn(TEnumTraits<ESliceByRowsWithForeignKind>::GetDomainValues()),
     [](const TestParamInfo<ESliceByRowsWithForeignKind>& info) {
         return Format("%v", info.param);
@@ -2921,7 +2920,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
         return std::vector({
             unreadSecond,  // s0
             dataSlices[2], // s1
-            dataSlices[3], // s2
+            dataSlices[3], // s2,
         });
     };
 
@@ -2940,6 +2939,79 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
         }
         ChunkPool_->Completed(cookie, jobSummary);
     }
+
+    ExtractOutputCookiesWhilePossible();
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    DataWeightPerJob_ = 2048;
+    CompressedDataSizePerJob_ = 2048;
+    InitTables(
+        /*isForeign*/ {false, false},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitJobConstraints();
+    PrepareNewMock();
+
+    // Create a couple of chunks.
+    auto chunkA = CreateChunk(BuildRow({1}), BuildRow({2}), 0, 1_KB, 100, 1_KB);
+    auto chunkB = CreateChunk(BuildRow({3}), BuildRow({4}), 1, 1_KB, 100, 1_KB);
+    auto chunkC = CreateChunk(BuildRow({5}), BuildRow({6}), 0, 1_KB, 100, 1_KB);
+    auto chunkD = CreateChunk(BuildRow({7}), BuildRow({8}), 1, 1_KB, 100, 1_KB);
+    auto dataSliceA = CreateDataSlice(chunkA);
+    auto dataSliceB = CreateDataSlice(chunkB);
+    auto dataSliceC = CreateDataSlice(chunkC);
+    auto dataSliceD = CreateDataSlice(chunkD);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceA);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceB);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceC);
+    CurrentMock().RegisterTriviallySliceableUnversionedDataSlice(dataSliceD);
+
+    CreateChunkPool();
+
+    AddDataSlice(dataSliceA);
+    AddDataSlice(dataSliceB);
+    AddDataSlice(dataSliceC);
+    AddDataSlice(dataSliceD);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(ExtractedCookies_.size(), 2u);
+
+    const auto& stripeList = stripeLists[0];
+    std::vector<TLegacyDataSlicePtr> unreadDataSlices;
+    for (const auto& stripe : stripeList->Stripes()) {
+        for (const auto& dataSlice : stripe->DataSlices()) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                // Lie a little to the chunk pool - make unread slice
+                // larger than the original slice.
+                // Originally, a bug in ReadSelectivityFactor was the trigger,
+                // but since it is fixed, we can emulate the bug by hand.
+                // Moreover, for scan chunks the estimation of unread size
+                // is just an estimation, so it can be inaccurate on its own.
+                chunkSlice->OverrideSize(
+                    chunkSlice->GetRowCount(),
+                    chunkSlice->GetDataWeight() * 10,
+                    chunkSlice->GetCompressedDataSize() * 10,
+                    chunkSlice->GetUncompressedDataSize() * 10);
+            }
+            unreadDataSlices.push_back(CreateInputDataSlice(dataSlice));
+        }
+    }
+
+    TCompletedJobSummary jobSummary;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
+    jobSummary.UnreadInputDataSlices = unreadDataSlices;
+    jobSummary.SplitJobCount = 1;
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    ChunkPool_->Completed(ExtractedCookies_[0], jobSummary);
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
 
     ExtractOutputCookiesWhilePossible();
 }

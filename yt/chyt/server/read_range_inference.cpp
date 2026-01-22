@@ -66,21 +66,32 @@ NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::Dat
         return {};
     }
 
-    if (constantNode->getResultType()->getTypeId() != DB::TypeIndex::Tuple) {
-        return {};
-    }
-    auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
-    auto tupleElementTypes = tupleType->getElements();
-
-    const auto& tupleValues = constantNode->getValue().safeGet<DB::Tuple>();
     std::vector<DB::Field> convertedValues;
-    convertedValues.reserve(tupleValues.size());
-    for (const auto& [value, data] : Zip(tupleValues, tupleElementTypes)) {
-        auto convertedValue = DB::convertFieldToTypeStrict(value, *data, *targetDataType);
-        if (!convertedValue.has_value()) {
-            return {};
+    if (constantNode->getResultType()->getTypeId() == DB::TypeIndex::Tuple) {
+        auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
+        const auto& types = tupleType->getElements();
+        const auto& values = constantNode->getValue().safeGet<DB::Tuple>();
+
+        convertedValues.reserve(values.size());
+        for (const auto& [value, type] : Zip(values, types)) {
+            auto convertedValue = DB::convertFieldToTypeStrict(value, *type, *targetDataType);
+            if (!convertedValue.has_value()) {
+                convertedValues.clear();
+                break;
+            }
+            convertedValues.emplace_back(std::move(*convertedValue));
         }
-        convertedValues.emplace_back(std::move(*convertedValue));
+
+    } else {
+        // Assume "value in (42)".
+        auto convertedValue = DB::convertFieldToTypeStrict(constantNode->getValue(), *constantNode->getResultType(), *targetDataType);
+        if (convertedValue.has_value()) {
+            convertedValues.emplace_back(std::move(*convertedValue));
+        }
+    }
+
+    if (convertedValues.empty()) {
+        return {};
     }
 
     // NB: QL range inferrer expects that values to be sorted.
@@ -293,7 +304,7 @@ TConstExpressionPtr ConvertToConstExpression(const TTableSchemaPtr& schema, DB::
         node,
         GetDataTypeBoolean(),
         EValueType::Boolean);
-    return result->Expression;
+    return result ? result->Expression : nullptr;
 }
 
 std::vector<TReadRange> InferReadRange(

@@ -73,7 +73,7 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
     return result;
 }
 
-NConcurrency::IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const TString& url)
+NConcurrency::IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const std::string& url)
 {
     auto headers = New<THeaders>();
     if (Token_) {

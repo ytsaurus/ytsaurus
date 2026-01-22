@@ -174,7 +174,7 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
 
-    registrar.Parameter("disable_reading_time_estimation", &TThis::DisableReadingTimeEstimation)
+    registrar.Parameter("disable_read_time_estimation", &TThis::DisableReadTimeEstimation)
         .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +200,8 @@ void TConcatTablesSettings::Register(TRegistrar registrar)
     registrar.Parameter("max_tables", &TThis::MaxTables)
         .LessThanOrEqual(2500)
         .Default(250);
+    registrar.Parameter("ignore_fetch_errors", &TThis::IgnoreFetchErrors)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

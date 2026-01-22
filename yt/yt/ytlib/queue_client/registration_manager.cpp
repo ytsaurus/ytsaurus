@@ -1,5 +1,7 @@
 #include "registration_manager.h"
+
 #include "registration_manager_base.h"
+#include "registration_manager_new.h"
 #include "config.h"
 #include "dynamic_state.h"
 #include "helpers.h"
@@ -21,6 +23,7 @@ namespace NYT::NQueueClient {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NSecurityClient;
@@ -38,35 +41,41 @@ TQueueConsumerRegistrationManagerProfilingCounters::TQueueConsumerRegistrationMa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueConsumerRegistrationManager
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueConsumerRegistrationManagerOldImpl
     : public TQueueConsumerRegistrationManagerBase
 {
 public:
-    TQueueConsumerRegistrationManager(
+    TQueueConsumerRegistrationManagerOldImpl(
         TQueueConsumerRegistrationManagerConfigPtr config,
-        NApi::NNative::IConnection* connection,
+        TWeakPtr<NApi::NNative::IConnection> connection,
+        std::optional<std::string> clusterName,
         IInvokerPtr invoker,
-        const NProfiling::TProfiler& profiler,
-        const NLogging::TLogger& logger)
+        TProfiler profiler,
+        TLogger logger)
         : TQueueConsumerRegistrationManagerBase(
             std::move(config),
-            connection,
+            std::move(connection),
+            std::move(clusterName),
             std::move(invoker),
-            profiler,
-            logger)
+            std::move(profiler),
+            std::move(logger))
         , CacheRefreshExecutor_(New<TPeriodicExecutor>(
             Invoker_,
-            BIND(&TQueueConsumerRegistrationManager::RefreshCache, MakeWeak(this)),
+            BIND(&TQueueConsumerRegistrationManagerOldImpl::RefreshCache, MakeWeak(this)),
             Config_->CacheRefreshPeriod))
     { }
 
-    void StartSync() const override
+    void StartSync() override
     {
         TBase::StartSync();
         CacheRefreshExecutor_->Start();
     }
 
-    void StopSync() const override
+    void StopSync() override
     {
         TBase::StopSync();
         YT_UNUSED_FUTURE(CacheRefreshExecutor_->Stop());
@@ -101,9 +110,11 @@ public:
         fluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
+                .Item("queue_consumer_registration_manager_implementation").Value(GetImplementationType())
             .EndAttributes()
             .BeginMap()
                 .Item("effective_config").Value(config)
+                .Item("unrecognized_config_options").Value(config->GetRecursiveUnrecognized())
                 .Item("registrations").DoListFor(registrations, [&] (TFluentList fluent, const auto& pair) {
                     const TConsumerRegistrationTableRow& registration = pair.second;
                     fluent
@@ -178,13 +189,20 @@ protected:
         }
     }
 
-    void OnDynamicConfigChanged(
-        const TQueueConsumerRegistrationManagerConfigPtr oldConfig,
-        const TQueueConsumerRegistrationManagerConfigPtr newConfig) override
+    EQueueConsumerRegistrationManagerImplementation GetImplementationType() const override
     {
+        return EQueueConsumerRegistrationManagerImplementation::Legacy;
+    }
+
+    void Reconfigure(
+        const TQueueConsumerRegistrationManagerConfigPtr& oldConfig,
+        const TQueueConsumerRegistrationManagerConfigPtr& newConfig) override
+    {
+        TBase::Reconfigure(oldConfig, newConfig);
+
         if (newConfig->CacheRefreshPeriod != oldConfig->CacheRefreshPeriod) {
             YT_LOG_DEBUG(
-                "Resetting queue consumer registration manager cache refresh period (Period: %v -> %v)",
+                "Resetting queue consumer registration manager cache refresh period (Period: %v, %v)",
                 oldConfig->CacheRefreshPeriod,
                 newConfig->CacheRefreshPeriod);
             CacheRefreshExecutor_->SetPeriod(newConfig->CacheRefreshPeriod);
@@ -321,19 +339,277 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TQueueConsumerRegistrationManagerBasePtr CreateQueueConsumerRegistrationManagerOldImpl(
+    TQueueConsumerRegistrationManagerConfigPtr config,
+    TWeakPtr<NApi::NNative::IConnection> connection,
+    std::optional<std::string> clusterName,
+    IInvokerPtr invoker,
+    TProfiler profiler,
+    TLogger logger)
+{
+    auto result = New<TQueueConsumerRegistrationManagerOldImpl>(
+        std::move(config),
+        std::move(connection),
+        std::move(clusterName),
+        std::move(invoker),
+        std::move(profiler),
+        std::move(logger));
+
+    result->Initialize();
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCallback<TQueueConsumerRegistrationManagerBasePtr(TQueueConsumerRegistrationManagerConfigPtr, TWeakPtr<NApi::NNative::IConnection>, std::optional<std::string>, IInvokerPtr, TProfiler, TLogger)> GetRegistrationManagerImplFactory(
+    EQueueConsumerRegistrationManagerImplementation implementation)
+{
+    switch (implementation) {
+        case EQueueConsumerRegistrationManagerImplementation::Legacy:
+            return BIND_NO_PROPAGATE(&NDetail::CreateQueueConsumerRegistrationManagerOldImpl);
+        case EQueueConsumerRegistrationManagerImplementation::AsyncExpiringCache:
+            return BIND_NO_PROPAGATE(&NDetail::CreateQueueConsumerRegistrationManagerNewImpl);
+    }
+    YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueConsumerRegistrationManagerWrapper
+    : public IQueueConsumerRegistrationManager
+{
+public:
+    TQueueConsumerRegistrationManagerWrapper(
+        TQueueConsumerRegistrationManagerConfigPtr config,
+        TWeakPtr<NApi::NNative::IConnection> connection,
+        std::optional<std::string> clusterName,
+        IInvokerPtr invoker,
+        TProfiler profiler,
+        TLogger logger)
+        : Connection_(std::move(connection))
+        , Invoker_(std::move(invoker))
+        , Config_(std::move(config))
+        , ClusterName_(std::move(clusterName))
+        , ConfigurationRefreshExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TQueueConsumerRegistrationManagerWrapper::RefreshConfiguration, MakeWeak(this)),
+            Config_->ConfigurationRefreshPeriod))
+        , Profiler_(profiler)
+        , Logger(logger)
+        , AppliedConfig_(Config_)
+    {
+        // NB(apachee): Skip acquiring the lock in constructor.
+        // NB(apachee): Created in constructor body, since this method relies on many parts of the object state.
+        Impl_ = CreateRegistrationManagerGuarded(Config_);
+    }
+
+    void StartSync() override
+    {
+        auto guard = Guard(StateLock_);
+        IsStarted_ = true;
+
+        ConfigurationRefreshExecutor_->Start();
+        Impl_.Acquire()->StartSync();
+    }
+
+    void StopSync() override
+    {
+        auto guard = Guard(StateLock_);
+        IsStarted_ = false;
+
+        YT_UNUSED_FUTURE(ConfigurationRefreshExecutor_->Stop());
+        Impl_.Acquire()->StopSync();
+    }
+
+    TGetRegistrationResult GetRegistrationOrThrow(
+        NYPath::TRichYPath queue,
+        NYPath::TRichYPath consumer) override
+    {
+        return Impl_.Acquire()->GetRegistrationOrThrow(std::move(queue), std::move(consumer));
+    }
+
+    std::vector<TConsumerRegistrationTableRow> ListRegistrations(
+        std::optional<NYPath::TRichYPath> queue,
+        std::optional<NYPath::TRichYPath> consumer) override
+    {
+        return Impl_.Acquire()->ListRegistrations(std::move(queue), std::move(consumer));
+    }
+
+    void RegisterQueueConsumer(
+        NYPath::TRichYPath queue,
+        NYPath::TRichYPath consumer,
+        bool vital,
+        const std::optional<std::vector<int>>& partitions = {}) override
+    {
+        return Impl_.Acquire()->RegisterQueueConsumer(std::move(queue), std::move(consumer), vital, partitions);
+    }
+
+    void UnregisterQueueConsumer(
+        NYPath::TRichYPath queue,
+        NYPath::TRichYPath consumer) override
+    {
+        return Impl_.Acquire()->UnregisterQueueConsumer(std::move(queue), std::move(consumer));
+    }
+
+    void Clear() override
+    {
+        return Impl_.Acquire()->Clear();
+    }
+
+    //! Exports information about current applied config and cached registrations.
+    void BuildOrchid(NYTree::TFluentAny fluent) override
+    {
+        Impl_.Acquire()->BuildOrchid(fluent);
+    }
+
+private:
+    const TWeakPtr<NApi::NNative::IConnection> Connection_;
+    const IInvokerPtr Invoker_;
+    const TQueueConsumerRegistrationManagerConfigPtr Config_;
+    const std::optional<std::string> ClusterName_;
+    const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
+    const TProfiler Profiler_;
+    const TLogger Logger;
+
+    //! Last successfully applied configuration.
+    //! \note Does not require synchronization, since it is only accessed from periodic executor.
+    TQueueConsumerRegistrationManagerConfigPtr AppliedConfig_;
+
+    using TQueueConsumerRegistrationManagerBaseAtomicPtr = TAtomicIntrusivePtr<TQueueConsumerRegistrationManagerBase>;
+    TQueueConsumerRegistrationManagerBaseAtomicPtr Impl_;
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_);
+    bool IsStarted_ = false;
+
+    TQueueConsumerRegistrationManagerBasePtr CreateRegistrationManager(TQueueConsumerRegistrationManagerConfigPtr config, TGuard<TSpinLock>& /*stateLockGuard*/)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(StateLock_);
+
+        return CreateRegistrationManagerGuarded(std::move(config));
+    }
+
+    TQueueConsumerRegistrationManagerBasePtr CreateRegistrationManagerGuarded(TQueueConsumerRegistrationManagerConfigPtr config)
+    {
+        YT_LOG_INFO(
+            "Creating new queue consumer registration manager implementation (Implementation: %v)",
+            config->Implementation);
+
+        auto registrationManagerImplFactory = GetRegistrationManagerImplFactory(config->Implementation);
+        auto impl = registrationManagerImplFactory(std::move(config), Connection_, ClusterName_, Invoker_, Profiler_, Logger);
+
+        if (IsStarted_) {
+            impl->StartSync();
+        }
+
+        return impl;
+    }
+
+    //! Updates configuration from cluster connection and calls #Reconfigure
+    //! to process the changes after a successful update.
+    void RefreshConfiguration()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        try {
+            GuardedRefreshConfiguration();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Could not refresh queue consumer registration manager configuration");
+        }
+    }
+
+    void GuardedRefreshConfiguration()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        YT_LOG_INFO("Refreshing queue consumer registration manager configuration");
+
+        auto newConfig = Config_;
+
+        if (ClusterName_) {
+            if (auto localConnection = Connection_.Lock()) {
+                if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
+                    newConfig = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
+                    YT_LOG_DEBUG(
+                        "Retrieved queue consumer registration manager dynamic config (Config: %v)",
+                        ConvertToYsonString(newConfig, EYsonFormat::Text));
+                }
+            }
+        }
+
+        auto oldConfig = AppliedConfig_;
+
+        YT_VERIFY(oldConfig);
+        YT_VERIFY(newConfig);
+
+        Reconfigure(oldConfig, newConfig);
+
+        AppliedConfig_ = newConfig;
+
+        YT_LOG_INFO("Refreshed queue consumer registration manager configuration");
+    }
+
+    void Reconfigure(const TQueueConsumerRegistrationManagerConfigPtr& oldConfig, const TQueueConsumerRegistrationManagerConfigPtr& newConfig)
+    {
+        if (*oldConfig == *newConfig) {
+            YT_LOG_INFO("Skipping queue consumer registration manager reconfiguration since the configuration is unchanged");
+            return;
+        }
+
+        if (newConfig->ConfigurationRefreshPeriod != oldConfig->ConfigurationRefreshPeriod) {
+            YT_LOG_INFO(
+                "Resetting queue consumer registration manager configuration refresh period (Period: %v, %v)",
+                oldConfig->ConfigurationRefreshPeriod,
+                newConfig->ConfigurationRefreshPeriod);
+            ConfigurationRefreshExecutor_->SetPeriod(newConfig->ConfigurationRefreshPeriod);
+        }
+
+        // Implementation reconfiguration.
+        if (oldConfig->Implementation == newConfig->Implementation) {
+            Impl_.Acquire()->Reconfigure(oldConfig, newConfig);
+        } else {
+            // XXX(apachee): Add safeguard from constant constant implementation switches?
+            // Creating old implementation causes full-scans. If reconfiguration fails we might end up stuck here.
+            // This would lead to catastrophic dynamic state overload.
+            // Maybe use in retrying periodic executor instead?
+            YT_LOG_INFO(
+                "Changing queue consumer registration manager implementation (OldImplementation: %v, NewImplementation: %v)",
+                oldConfig->Implementation,
+                newConfig->Implementation);
+
+            auto guard = Guard(StateLock_);
+            auto newImpl = CreateRegistrationManager(newConfig, guard);
+            auto oldImpl = Impl_.Exchange(newImpl);
+            oldImpl->StopSync();
+        }
+
+        YT_LOG_INFO(
+            "Queue consumer registration manager reconfigured (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IQueueConsumerRegistrationManagerPtr CreateQueueConsumerRegistrationManager(
     TQueueConsumerRegistrationManagerConfigPtr config,
-    NApi::NNative::IConnection* connection,
+    TWeakPtr<NApi::NNative::IConnection> connection,
+    std::optional<std::string> clusterName,
     IInvokerPtr invoker,
-    const NProfiling::TProfiler& profiler,
-    const NLogging::TLogger& logger)
+    TProfiler profiler,
+    TLogger logger)
 {
-    return New<TQueueConsumerRegistrationManager>(
+    return New<TQueueConsumerRegistrationManagerWrapper>(
         std::move(config),
-        connection,
+        std::move(connection),
+        std::move(clusterName),
         std::move(invoker),
-        profiler,
-        logger);
+        std::move(profiler),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

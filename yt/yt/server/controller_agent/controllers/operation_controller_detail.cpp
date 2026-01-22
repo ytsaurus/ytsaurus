@@ -181,6 +181,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NCodegen;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NEventLog;
@@ -469,7 +470,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function incrementer = [
         this,
         this_ = MakeStrong(this),
-        operationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_add(AllocationPartSize);
@@ -480,7 +480,6 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
     std::function decrementer = [
         this,
         this_ = MakeStrong(this),
-        OperationId = ToString(OperationId_),
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_sub(AllocationPartSize);
@@ -1118,7 +1117,8 @@ void TOperationControllerBase::CreateOutputTables(
         bool skipTable = false;
         std::optional<IAttributeDictionaryPtr> maybeAttributes;
 
-        Visit(table->Path.GetCreate(), TOverloaded{
+        Visit(
+            table->Path.GetCreate(),
             [&] (bool create) {
                 if (!create) {
                     skipTable = true;
@@ -1126,8 +1126,7 @@ void TOperationControllerBase::CreateOutputTables(
             },
             [&] (const IAttributeDictionaryPtr& attributes) {
                 maybeAttributes = attributes;
-            },
-        });
+            });
 
         if (skipTable) {
             continue;
@@ -2857,7 +2856,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
                 std::vector<THashSet<TChunkId>> tabletHunkChunks(table->PivotKeys.size());
 
+                auto maxChunkSize = Config_->MaxUnversionedDynamicTableOutputChunkSize;
+                auto maxBlockSize = Config_->MaxUnversionedDynamicTableOutputBlockSize;
+                auto enableConstraintValidation = Config_->EnableDynamicTableOutputChunkConstraintValidation;
                 for (const auto& chunk : table->OutputChunks) {
+                    if (enableConstraintValidation && OperationType_ != EOperationType::RemoteCopy) {
+                        ValidateDynamicTableOutputChunkConstraints(chunk, maxChunkSize, maxBlockSize);
+                    }
+
                     auto chunkId  = chunk->GetChunkId();
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
@@ -2913,7 +2919,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     YT_VERIFY(table->TabletHunkChunkListIds.size() == table->TabletChunkListIds.size());
                     for (const auto& [index, chunkTrees] : SEnumerate(tabletHunkChunks)) {
                         table->OutputHunkChunkListId = table->TabletHunkChunkListIds[index];
-                        for (auto& chunkTree : chunkTrees) {
+                        for (const auto& chunkTree : chunkTrees) {
                             addChunkTree(chunkTree, /*isHunk*/ true);
                         }
                         flushSubrequest(true);
@@ -3746,7 +3752,7 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
     if (allocation.Joblet) {
-        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(eventSummary));
+        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::forward<TAllocationEvent>(eventSummary));
         OnJobAborted(allocation.Joblet, std::move(jobSummary));
     }
 
@@ -3766,7 +3772,7 @@ void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSumma
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    ProcessAllocationEvent(finishedAllocationSummary, "finished");
+    ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
 }
 
 void TOperationControllerBase::OnJobRunning(
@@ -6608,7 +6614,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
             std::vector<std::string>{
-                "schema_id"
+                "schema_id",
+                "secondary_indices",
             });
     }();
 
@@ -6675,6 +6682,14 @@ void TOperationControllerBase::GetOutputTablesSchema()
             }
 
             ValidateOutputDynamicTablesAllowed();
+
+            using TSecondaryIndicesAttribute = THashMap<TObjectId, NYTree::INodePtr>;
+            if (auto secondaryIndices = attributes->Find<TSecondaryIndicesAttribute>("secondary_indices")) {
+                auto keyView = std::views::keys(*secondaryIndices);
+                THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
+                    << TErrorAttribute("table_path", path)
+                    << TErrorAttribute("secondary_index_ids", std::vector<TObjectId>(keyView.begin(), keyView.end()));
+            }
         }
 
         if (path.GetOutputTimestamp()) {
@@ -7552,7 +7567,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .PopulateSecurityTags = true
+                .PopulateSecurityTags = true,
             });
     }
 
@@ -7842,7 +7857,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
     // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<std::string> externalNames;
@@ -7860,18 +7875,18 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
                 << TErrorAttribute("external_names", externalNames);
         }
 
-        std::vector<std::pair<TYPath, std::string>> keys;
+        auto keys = std::vector<TExternalFunction>();
         keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
-            keys.emplace_back(*Config_->UdfRegistryPath, name);
+            keys.emplace_back(EExecutionBackend::Native, *Config_->UdfRegistryPath, /*IsSdk=*/ false, name);
         }
 
         auto descriptors = LookupAllUdfDescriptors(keys, Host_->GetClient());
 
-        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors, EExecutionBackend::Native);
     };
 
-    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers, EExecutionBackend /*executionBackend*/) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
         for (const auto& name : names) {
             if (!typeInferrers->contains(name)) {
@@ -8064,7 +8079,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     continue;
                 }
                 auto mediumName = *diskRequest->MediumName;
-                auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
+                const auto* mediumDescriptor = mediumDirectory->FindByName(mediumName);
                 if (!mediumDescriptor) {
                     THROW_ERROR_EXCEPTION("Unknown medium %Qv", mediumName);
                 }
@@ -8145,7 +8160,7 @@ void TOperationControllerBase::InferInputRanges()
     queryOptions.VerboseLogging = true;
     queryOptions.RangeExpansionLimit = Config_->MaxRangesOnTable;
 
-    for (auto& table : InputManager_->GetInputTables()) {
+    for (const auto& table : InputManager_->GetInputTables()) {
         yielder.TryYield();
 
         auto ranges = table->Path.GetNewRanges(table->Comparator, table->Schema->GetKeyColumnTypes());

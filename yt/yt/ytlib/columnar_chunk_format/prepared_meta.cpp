@@ -400,7 +400,24 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
         }
     }
 
-    return New<TPreparedChunkMeta>(std::move(groupInfos), std::move(columnInfos), size, static_cast<bool>(blockProvider));
+    std::vector<ui32> blockChunkRowCounts;
+    blockChunkRowCounts.reserve(blockMeta->data_blocks_size());
+
+    std::vector<ui32> blockUncompressedSizes;
+    blockUncompressedSizes.reserve(blockMeta->data_blocks_size());
+
+    for (const auto& block : blockMeta->data_blocks()) {
+        blockChunkRowCounts.push_back(block.chunk_row_count());
+        blockUncompressedSizes.push_back(block.uncompressed_size());
+    }
+
+    return New<TPreparedChunkMeta>(
+        std::move(groupInfos),
+        std::move(columnInfos),
+        std::move(blockChunkRowCounts),
+        std::move(blockUncompressedSizes),
+        size,
+        static_cast<bool>(blockProvider));
 }
 
 TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromSegmentMetasStoredInBlocks(
@@ -439,7 +456,24 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromSegmentMetasStoredInBl
         size += group.SegmentMetaOffsets.capacity() * sizeof(ui16);
     }
 
-    return New<TPreparedChunkMeta>(std::move(groupInfos), std::move(columnInfos), size, true);
+    std::vector<ui32> blockChunkRowCounts;
+    blockChunkRowCounts.reserve(blockMeta->data_blocks_size());
+
+    std::vector<ui32> blockUncompressedSizes;
+    blockUncompressedSizes.reserve(blockMeta->data_blocks_size());
+
+    for (const auto& block : blockMeta->data_blocks()) {
+        blockChunkRowCounts.push_back(block.chunk_row_count());
+        blockUncompressedSizes.push_back(block.uncompressed_size());
+    }
+
+    return New<TPreparedChunkMeta>(
+        std::move(groupInfos),
+        std::move(columnInfos),
+        std::move(blockChunkRowCounts),
+        std::move(blockUncompressedSizes),
+        size,
+        true);
 }
 
 void TPreparedChunkMeta::VerifyEquality(

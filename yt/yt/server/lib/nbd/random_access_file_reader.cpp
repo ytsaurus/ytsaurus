@@ -116,7 +116,7 @@ public:
         };
     }
 
-    TYPath GetPath() const override
+    const std::string& GetPath() const override
     {
         return Path_;
     }
@@ -135,13 +135,14 @@ private:
         i64 Offset = 0;
         IChunkReaderPtr Reader;
         IChunkReader::TReadBlocksOptions ReadBlocksOptions;
+        IChunkReader::TGetMetaOptions GetMetaOptions;
         NChunkClient::NProto::TChunkSpec Spec;
 
         mutable TFuture<std::vector<TBlock>> BlocksExtFuture;
     };
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
-    const TYPath Path_;
+    const std::string Path_;
     const IThroughputThrottlerPtr InThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
     const TChunkReaderHostPtr ChunkReaderHost_;
@@ -227,7 +228,7 @@ private:
         auto offset = chunk.Offset;
 
         auto future = chunk.Reader->GetMeta(
-            /*options*/ {},
+            chunk.GetMetaOptions,
             /*partitionTags*/ {},
             extensionTags)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
@@ -316,7 +317,8 @@ private:
                         .BlocksExt = std::move(blocksExt),
                     };
                 }));
-        }));
+        })
+        .AsyncVia(Invoker_));
 
         return readFuture.AsUnique().Apply(BIND([
             index = chunk.Index,
@@ -388,7 +390,8 @@ private:
             }
 
             return refs;
-        }));
+        })
+        .AsyncVia(Invoker_));
     }
 
     void InitializeChunkStructs()
@@ -437,6 +440,8 @@ private:
                 /*mediumThrottler*/ GetUnlimitedThrottler());
 
             chunk.ReadBlocksOptions.ClientOptions.WorkloadDescriptor.Category = NYT::EWorkloadCategory::UserInteractive;
+            chunk.ReadBlocksOptions.SessionInvoker = Invoker_;
+            chunk.GetMetaOptions.SessionInvoker = Invoker_;
 
             YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
                 chunk.Index);
@@ -454,7 +459,7 @@ private:
 
 IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs,
-    TYPath path,
+    std::string path,
     TChunkReaderHostPtr readerHost,
     IThroughputThrottlerPtr inThrottler,
     IThroughputThrottlerPtr outRpsThrottler,

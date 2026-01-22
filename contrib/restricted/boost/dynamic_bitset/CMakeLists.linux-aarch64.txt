@@ -32,9 +32,6 @@ target_link_libraries(restricted-boost-dynamic_bitset INTERFACE
   restricted-boost-config
   restricted-boost-container_hash
   restricted-boost-core
-  restricted-boost-integer
-  restricted-boost-move
-  restricted-boost-static_assert
   restricted-boost-throw_exception
 )
 

@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    builtins.cpp
     GLOBAL compartment.cpp
     GLOBAL data_transfer.cpp
     GLOBAL function.cpp

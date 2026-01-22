@@ -422,7 +422,7 @@ private:
             if (auto* currentShard = ShardFromTransactionId(currentId); currentShard != rootShard) {
                 currentShard->Requests.Enqueue(TPingRequest{
                     .TransactionId = currentId,
-                    .PingerAddress = pingerAddress
+                    .PingerAddress = pingerAddress,
                 });
                 break;
             }

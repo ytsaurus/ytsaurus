@@ -1037,19 +1037,19 @@ INSTANTIATE_TEST_SUITE_P(
             .IOWeights = {1, 1, 1, 1, 1},
             .SessionCountLimits = {128, 128, 128, 128, 128},
             .SkipWriteThrottlingLocations = true,
-            .AlwaysThrottleLocation = true
+            .AlwaysThrottleLocation = true,
         },
         TSkipWriteThrottlingLocationsTestCase{
             .IOWeights = {1, 1, 1, 1, 1},
             .SessionCountLimits = {128, 128, 128, 128, 128},
             .SkipWriteThrottlingLocations = false,
-            .AlwaysThrottleLocation = true
+            .AlwaysThrottleLocation = true,
         },
         TSkipWriteThrottlingLocationsTestCase{
             .IOWeights = {1, 1, 1, 1, 1},
             .SessionCountLimits = {128, 128, 128, 128, 128},
             .SkipWriteThrottlingLocations = true,
-            .AlwaysThrottleLocation = false
+            .AlwaysThrottleLocation = false,
         },
         TSkipWriteThrottlingLocationsTestCase{
             .IOWeights = {1, 1, 1, 1, 1},
@@ -1161,13 +1161,13 @@ INSTANTIATE_TEST_SUITE_P(
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
-            .EnableSequentialIORequests = true
+            .EnableSequentialIORequests = true,
         },
         TGetBlockSetGapTestCase{
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
-            .EnableSequentialIORequests = false
+            .EnableSequentialIORequests = false,
         },
         TGetBlockSetGapTestCase{
             .BlockSize = 1_KB,

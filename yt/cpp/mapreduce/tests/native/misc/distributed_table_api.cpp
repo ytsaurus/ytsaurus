@@ -139,4 +139,25 @@ TEST(DistributedWriteTable, WithTransaction)
     EXPECT_EQ(reader->GetRow(), row);
 }
 
+TEST(DistributedWriteTable, ExceedTimeout)
+{
+    TTestDistributedWriteTableFixture fixture;
+
+    auto client = fixture.GetClient();
+    auto path = fixture.GetTablePath();
+
+    TStartDistributedWriteTableOptions options;
+    options.Timeout(TDuration::Seconds(1));
+
+    auto session = client->StartDistributedWriteTableSession(path, /*cookieCount*/ 1, options);
+    EXPECT_EQ(std::ssize(session.Cookies_), 1);
+
+    Sleep(TDuration::Seconds(2));
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        client->FinishDistributedWriteTableSession(session.Session_, {}),
+        NYT::TErrorResponse,
+        "No such transaction");
+}
+
 ////////////////////////////////////////////////////////////////////////////////

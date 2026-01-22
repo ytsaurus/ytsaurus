@@ -21,6 +21,7 @@ target_compile_options(join_reduce_tnode PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(join_reduce_tnode PUBLIC

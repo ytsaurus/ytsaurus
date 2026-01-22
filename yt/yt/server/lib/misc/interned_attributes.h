@@ -266,6 +266,7 @@
     XX(HydraLogicalTime, hydra_logical_time) \
     XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
+    XX(ImmediateAnnotation, immediate_annotation) \
     XX(Implicit, implicit) \
     XX(ImportRefCounter, import_ref_counter) \
     XX(ImportedObjectCount, imported_object_count) \
@@ -387,6 +388,7 @@
     XX(OptimizeFor, optimize_for) \
     XX(OptimizeForStatistics, optimize_for_statistics) \
     XX(Options, options) \
+    XX(OriginatorTablets, originator_tablets) \
     XX(Overlayed, overlayed) \
     XX(Owner, owner) \
     XX(OwnerId, owner_id) \

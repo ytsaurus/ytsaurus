@@ -9,6 +9,7 @@ SRCS(
     proto/tablet_manager.proto
 
     config.cpp
+    originator_tablet.cpp
     replicated_table_tracker.cpp
 )
 

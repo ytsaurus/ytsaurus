@@ -61,7 +61,7 @@ public:
 
         std::vector<std::string> tableNames = traverser.GetTables();
 
-        auto tables = FetchTables(
+        auto tables = FetchTablesSoft(
             queryContext,
             ConvertToPaths(tableNames),
             /*skipUnsuitableNodes*/ true,

@@ -63,6 +63,8 @@ public:
         EThrottlerTrafficType trafficType) override;
 
 private:
+    static constexpr TDuration DefaultConfigUpdatePeriod = TDuration::Seconds(10);
+
     NClusterNode::IBootstrap* const Bootstrap_;
     // Fields from bootstrap.
     const NRpc::IAuthenticatorPtr Authenticator_;
@@ -287,10 +289,19 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
     YT_LOG_DEBUG("Try update cluster throttlers config");
 
+    auto clearState = [&] {
+        auto guard = Guard(Lock_);
+        ClusterThrottlersConfig_.Reset();
+        DistributedThrottlersHolder_.clear();
+        DistributedThrottlerFactory_.Reset();
+        ClusterThrottlersConfigUpdater_->SetPeriod(DefaultConfigUpdatePeriod);
+    };
+
     auto future = GetClusterThrottlersYson(Client_);
     auto errorOrYson = WaitFor(future);
     if (errorOrYson.FindMatching(NYTree::EErrorCode::ResolveError)) {
         YT_LOG_DEBUG(errorOrYson, "Cluster throttlers are not configured");
+        clearState();
         ClusterThrottlersConfigInitializedPromise_.TrySet();
         return;
     }
@@ -311,12 +322,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
         YT_LOG_ERROR(ex, "Failed to parse cluster throttlers config (Config: %v)",
             NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
 
-        {
-            auto guard = Guard(Lock_);
-            ClusterThrottlersConfig_.Reset();
-            DistributedThrottlersHolder_.clear();
-            DistributedThrottlerFactory_.Reset();
-        }
+        clearState();
 
         // NB: Still regard the manager to be initialized, albeit unsuccessfully.
         ClusterThrottlersConfigInitializedPromise_.TrySet();
@@ -542,7 +548,7 @@ TThrottlerManager::TThrottlerManager(
         Bootstrap_->GetControlInvoker(),
         BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
         // Default period will be updated once config has been retrieved.
-        TDuration::Seconds(10)))
+        DefaultConfigUpdatePeriod))
     , JobsDisabledByMasterUpdatedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::UpdateJobsDisabledByMaster, MakeWeak(this)))
     , MasterConnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)))
     , MasterDisconnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)))
@@ -550,9 +556,9 @@ TThrottlerManager::TThrottlerManager(
     YT_LOG_INFO("Constructing throttler manager");
 
     if (ClusterNodeConfig_->EnableFairThrottler) {
-        Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
-        Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = Bootstrap_->GetInThrottler("artifact_cache_in");
-        Throttlers_[EExecNodeThrottlerKind::JobOut] = Bootstrap_->GetOutThrottler("job_out");
+        Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->CreateInThrottler("job_in");
+        Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = Bootstrap_->CreateInThrottler("artifact_cache_in");
+        Throttlers_[EExecNodeThrottlerKind::JobOut] = Bootstrap_->CreateOutThrottler("job_out");
     } else {
         for (auto kind : TEnumTraits<EExecNodeThrottlerKind>::GetDomainValues()) {
             auto config = ClusterNodeConfig_->DataNode->Throttlers[GetDataNodeThrottlerKind(kind)];
@@ -690,58 +696,83 @@ std::optional<THashMap<TClusterName, bool>> TThrottlerManager::GetClusterToIncom
     }
 
     THashMap<TClusterName, bool> result;
-    if (clusterTrafficUtilization) {
-        auto guard = Guard(Lock_);
-        for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
-            YT_VERIFY(0 < trafficUtilization.Limit);
-            auto rateLimitRatio = trafficUtilization.Rate / trafficUtilization.Limit;
-            auto isAvailable = true;
+    auto addClusterToResult = [&] (const TClusterName& clusterName, bool isAvailable) {
+        result[clusterName] = isAvailable;
+        auto throttlerId = ToThrottlerId(trafficType, clusterName);
+        if (!NetworkAvailabilityGauges_.contains(throttlerId)) {
+            NetworkAvailabilityGauges_[throttlerId] = Profiler_
+                .WithPrefix("/distributed_throttler")
+                .WithTag("throttler_id", throttlerId)
+                .Gauge("/network_availability");
+        }
+        NetworkAvailabilityGauges_[throttlerId].Update(isAvailable);
+    };
 
-            if (trafficUtilization.RateLimitRatioHardThreshold < rateLimitRatio) {
-                // Network usage is higher than the available limit.
-                isAvailable = false;
-            } else if (trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MinEstimatedTimeToReadPendingBytes) {
-                // There is a queue of pending read requests on every exe node.
-                isAvailable = false;
-            } else if (trafficUtilization.RateLimitRatioSoftThreshold < rateLimitRatio) {
-                // Network usage is above threshold.
-                if (trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MaxEstimatedTimeToReadPendingBytes) {
-                    // There is a big queue of pending read requests on some exe node.
-                    isAvailable = false;
-                }
-            }
+    auto guard = Guard(Lock_);
+    for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
+        if (trafficUtilization.Limit <= 0) {
+            YT_LOG_DEBUG("Skip adding cluster network bandwidth availability to controller agent heartbeat request because of unexpected limit (ClusterName: %v, Limit: %v)",
+                clusterName,
+                trafficUtilization.Limit);
+            continue;
+        }
 
-            result[clusterName] = isAvailable;
-            auto throttlerId = ToThrottlerId(trafficType, clusterName);
-            if (!NetworkAvailabilityGauges_.contains(throttlerId)) {
-                NetworkAvailabilityGauges_[throttlerId] = Profiler_
-                    .WithPrefix("/distributed_throttler")
-                    .WithTag("throttler_id", throttlerId)
-                    .Gauge("/network_availability");
+        auto rateLimitRatio = trafficUtilization.Rate / trafficUtilization.Limit;
+        auto isAvailable = true;
+
+        if (trafficUtilization.RateLimitRatioHardThreshold < rateLimitRatio) {
+            // Network usage is higher than the available limit.
+            isAvailable = false;
+        } else if (trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MinEstimatedTimeToReadPendingBytes) {
+            // There is a queue of pending read requests on every exe node.
+            isAvailable = false;
+        } else if (trafficUtilization.RateLimitRatioSoftThreshold < rateLimitRatio) {
+            // Network usage is above threshold.
+            if (trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MaxEstimatedTimeToReadPendingBytes) {
+                // There is a big queue of pending read requests on some exe node.
+                isAvailable = false;
             }
-            NetworkAvailabilityGauges_[throttlerId].Update(isAvailable);
+        }
+
+        addClusterToResult(clusterName, isAvailable);
+
+        YT_LOG_DEBUG(
+            "Add cluster network bandwidth availability to controller agent heartbeat request "
+            "(ClusterName: %v, Rate: %v, Limit: %v, "
+            "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
+            "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
+            "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
+            "PendingBytes: %v, IsAvailable: %v)",
+            clusterName,
+            trafficUtilization.Rate,
+            trafficUtilization.Limit,
+            rateLimitRatio,
+            trafficUtilization.RateLimitRatioHardThreshold,
+            trafficUtilization.RateLimitRatioSoftThreshold,
+            trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
+            trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
+            trafficUtilization.MinEstimatedTimeToReadPendingBytes,
+            trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
+            trafficUtilization.PendingBytes,
+            isAvailable);
+    }
+
+    // Lock is already taken.
+    const auto& config = ClusterThrottlersConfig_;
+    if (config && config->RateLimitRatioHardThreshold < 0) {
+        // Make all clusters unavailable.
+        for (const auto& [clusterName, clusterLimits] : config->ClusterLimits) {
+            bool isAvailable = false;
+            addClusterToResult(TClusterName{clusterName}, isAvailable);
 
             YT_LOG_DEBUG(
                 "Add cluster network bandwidth availability to controller agent heartbeat request "
-                "(ClusterName: %v, Rate: %v, Limit: %v, "
-                "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
-                "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
-                "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
-                "PendingBytes: %v, IsAvailable: %v)",
+                "(ClusterName: %v, IsAvailable: %v)",
                 clusterName,
-                trafficUtilization.Rate,
-                trafficUtilization.Limit,
-                rateLimitRatio,
-                trafficUtilization.RateLimitRatioHardThreshold,
-                trafficUtilization.RateLimitRatioSoftThreshold,
-                trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
-                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
-                trafficUtilization.MinEstimatedTimeToReadPendingBytes,
-                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
-                trafficUtilization.PendingBytes,
                 isAvailable);
         }
     }
+
     return result;
 }
 

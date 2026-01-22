@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <atomic>
 
 namespace NYT::NNodeTrackerServer {
@@ -632,7 +634,7 @@ std::string TNode::GetCapitalizedObjectName() const
 
 TYPath TNode::GetObjectPath() const
 {
-    return Format("//sys/cluster_nodes/%v", GetDefaultAddress());
+    return Format("//sys/cluster_nodes/%v", NYPath::ToYPathLiteral(GetDefaultAddress()));
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const

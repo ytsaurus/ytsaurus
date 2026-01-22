@@ -163,7 +163,7 @@ private:
         auto* user = request->has_user()
             ? securityManager->GetUserByNameOrThrow(request->user(), true /*activeLifeStageOnly*/)
             : securityManager->GetAuthenticatedUser();
-        auto permission = EPermission(request->permission());
+        auto permission = FromProto<EPermission>(request->permission());
 
         auto ignoreMissingSubjects = request->ignore_missing_subjects();
         auto ignorePendingRemovalSubjects = request->ignore_pending_removal_subjects();
@@ -635,7 +635,7 @@ private:
                 .PreserveExpirationTimeout = preserveExpirationTimeout,
                 .PreserveOwner = preserveOwner,
                 .PreserveAcl = true, // Same as modification time.
-                .PessimisticQuotaCheck = pessimisticQuotaCheck
+                .PessimisticQuotaCheck = pessimisticQuotaCheck,
             },
             /*serviceTrunkNode*/ nullptr,
             /*unresolvedSuffix*/ {}); // Unused during copy, relevant only for "create".

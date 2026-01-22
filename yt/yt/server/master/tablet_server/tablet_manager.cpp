@@ -918,6 +918,16 @@ public:
                     continue;
                 }
 
+                if (auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
+                    miscExt &&
+                        miscExt->has_is_compatible_with_dynamic_table_constraints() &&
+                        !miscExt->is_compatible_with_dynamic_table_constraints())
+                {
+                    error = TError("Cannot mount tablet %v since chunk %v has too large row or value size",
+                        tablet->GetId(),
+                        chunk->GetId());
+                }
+
                 if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize();
                     maxBlockSize.has_value() && chunkMaxBlockSize > *maxBlockSize)
                 {
@@ -3009,7 +3019,7 @@ private:
                 entries.push_back({
                     GetMinKeyOrThrow(chunkOrView),
                     GetUpperBoundKeyOrThrow(chunkOrView),
-                    size
+                    size,
                 });
                 totalSize += size;
             }
@@ -4135,10 +4145,14 @@ private:
         }
 
         std::vector<TOwningKeyBound> oldPivotKeyBounds;
+        std::vector<TTabletId> oldTabletIds;
+        oldTabletIds.reserve(lastTabletIndex - firstTabletIndex + 1);
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
+            oldTabletIds.push_back(tablet->GetId());
+
             if (table->IsPhysicallySorted()) {
                 oldPivotKeyBounds.push_back(tablet->GetPivotKeyBound());
             }
@@ -4169,6 +4183,7 @@ private:
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
+            oldTabletIds,
             oldPivotKeyBounds,
             pivotKeys,
             oldEdenStoreIds);

@@ -282,7 +282,7 @@ std::vector<TTableResolveResponse> ResolveTablePaths(
         tableResolveResponses.push_back(TTableResolveResponse{
             .Id = tableId,
             .CellTag = cellTag,
-            .UpstreamReplicaId = *upstreamReplicaId
+            .UpstreamReplicaId = *upstreamReplicaId,
         });
     }
     return tableResolveResponses;
@@ -740,6 +740,7 @@ void TBundleState::InitializeAttributes(
     Health_ = attributes->Get<ETabletCellHealth>("health");
 
     auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
+    std::vector<TTabletActionId> actionIds;
     for (auto actionMapNode : actions) {
         auto state = ConvertTo<ETabletActionState>(actionMapNode->GetChildOrThrow("state"));
         if (IsTabletActionFinished(state)) {
@@ -747,8 +748,9 @@ void TBundleState::InitializeAttributes(
         }
 
         auto actionId = ConvertTo<TTabletActionId>(actionMapNode->GetChildOrThrow("tablet_action_id"));
-        UnfinishedActions_.push_back(actionId);
+        actionIds.push_back(actionId);
     }
+    UnfinishedActions_ = actionIds;
 
     try {
         bundleSnapshot->Bundle->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");

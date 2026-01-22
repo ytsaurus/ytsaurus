@@ -140,7 +140,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
 
     auto containerName = Format("%v/test_container", RootContainerName_);
     auto volumePath = NFS::CombinePaths(VolumesPath_, "test_volume");
-    auto mountPath = NFS::CombinePaths(volumePath, "mount");
+    TString mountPath = NFS::CombinePaths(volumePath, "mount");
 
     // Create rootfs volume.
     {
@@ -184,7 +184,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
         launcher->SetUser(*portoUserOrError.Value());
         launcher->SetRoot(TRootFS{
             .RootPath = mountPath,
-            .IsRootReadOnly = false
+            .IsRootReadOnly = false,
         });
         launcher->SetDevices({});
         launcher->DisableNetwork();

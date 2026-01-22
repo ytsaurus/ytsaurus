@@ -95,7 +95,12 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- endif %}
             ,
 {%- endfor %}
-        }))
+{%- if type.add_empty_field %}
+        TColumnSchema("$empty", ESimpleLogicalValueType::Int64),
+{%- endif %}
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ {% if type.sorted -%} true {%- else -%} false {%- endif %}))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
     , PartialIdMapping_(NameTable_)
@@ -126,6 +131,9 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- endif -%}
 ,
 {%- endfor %}
+{%- if type.add_empty_field %}
+        TColumnSchema("$empty", ESimpleLogicalValueType::Int64),
+{%- endif %}
         })
 {% if type.sorted -%}
             ->SetUniqueKeys(true)
@@ -193,6 +201,9 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
             ),
 {%- endfor %}
     };
+{%- if type.add_empty_field %}
+    Y_UNUSED(flags);
+{%- endif %}
     return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
 }
 
@@ -275,7 +286,9 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
         ));
     }
 {%- endfor %}
-
+{%- if type.add_empty_field %}
+    Y_UNUSED(flags);
+{%- endif %}
     return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);
 }
 

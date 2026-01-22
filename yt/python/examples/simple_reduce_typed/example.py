@@ -22,10 +22,9 @@ class CountRow:
 
 
 class CountNamesReducer(yt.wrapper.TypedJob):
-    # Метод __call__ Reducer-а принимает на вход
-    # итератор по всем записям входной таблицы с данным ключом.
-    # На выходе он должна вернуть (как и __call__ у Mapper-а) все записи,
-    # которые мы хотим записать в выходные таблицы.
+    # The `__call__` method of a reducer gets
+    # an iterator over all records in the input table with the given key as input.
+    # The output should be like all the records that we want to write to the output tables (like the `__call__` method of a mapper).
     def __call__(self, input_row_iterator: RowIterator[StaffRow]) -> typing.Iterable[CountRow]:
         count = 0
         longest_login = ""
@@ -45,16 +44,16 @@ def main():
     client = yt.wrapper.YtClient(cluster)
 
     sorted_tmp_table = "//tmp/{}-pytutorial-tmp".format(getpass.getuser())
-    output_table = "//tmp/{}-pytutorial-simle-reduce-typed-name-stat".format(getpass.getuser())
+    output_table = "//tmp/{}-pytutorial-simple-reduce-typed-name-stat".format(getpass.getuser())
 
-    # Отсортируем таблицу по возрастанию поля name.
+    # Sorting the table by the field "name" in ascending order.
     client.run_sort(
         source_table="//home/tutorial/staff_unsorted_schematized",
         destination_table=sorted_tmp_table,
         sort_by=["name"],
     )
 
-    # Теперь можно запустить reducer.
+    # Running the reducer.
     client.run_reduce(
         CountNamesReducer(),
         source_table=sorted_tmp_table,

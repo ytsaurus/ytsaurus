@@ -17,10 +17,9 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMockResult
+struct TMockResult
     : public TYsonStruct
 {
-public:
     TError Error;
     TTableSchemaPtr Schema;
     std::vector<INodePtr> Rows;
@@ -51,14 +50,13 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockResult)
-DECLARE_REFCOUNTED_CLASS(TMockResult)
+DECLARE_REFCOUNTED_STRUCT(TMockResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMockSettings
+struct TMockSettings
     : public TYsonStruct
 {
-public:
     TDuration Duration;
 
     std::vector<TMockResultPtr> Results;
@@ -75,7 +73,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockSettings)
-DECLARE_REFCOUNTED_CLASS(TMockSettings)
+DECLARE_REFCOUNTED_STRUCT(TMockSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 

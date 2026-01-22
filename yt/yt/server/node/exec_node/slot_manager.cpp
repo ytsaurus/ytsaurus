@@ -134,8 +134,8 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
         return;
     }
 
-    auto error = result
-            << TError(NExecNode::EErrorCode::PortoHealthCheckFailed, "Porto health check failed");
+    auto error = result.Wrap(
+        TError(NExecNode::EErrorCode::PortoHealthCheckFailed, "Porto health check failed"));
 
     if (!IsJobSchedulingDisabled()) {
         YT_LOG_INFO(
@@ -1260,7 +1260,7 @@ void TSlotManager::AsyncInitialize()
         NumaNodeStates_.push_back(TNumaNodeState{
             .NumaNodeInfo = TNumaNodeInfo{
                 .NumaNodeId = numaNode->NumaNodeId,
-                .CpuSet = numaNode->CpuSet
+                .CpuSet = numaNode->CpuSet,
             },
             .FreeCpuCount = static_cast<NClusterNode::TCpu>(numaNode->CpuCount),
         });

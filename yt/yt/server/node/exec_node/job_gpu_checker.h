@@ -25,7 +25,7 @@ struct TJobGpuCheckerContext
     IUserSlotPtr Slot;
     TJobPtr Job;
     NContainers::TRootFS RootFS;
-    TString CommandUser;
+    std::string CommandUser;
 
     EGpuCheckType Type;
 

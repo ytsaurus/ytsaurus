@@ -199,6 +199,8 @@ struct TProxyDynamicConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
+    std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

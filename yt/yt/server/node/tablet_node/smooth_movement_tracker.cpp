@@ -326,7 +326,7 @@ public:
         };
 
         validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
-        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
+        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 12, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
         validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
@@ -347,7 +347,7 @@ public:
                Two relevant parts of code:
                - TTabletManager::PrepareReplicateTabletContentRequest
                  Populated at source servant. May throw on unsupported features.
-               - HydraReplcateTabletContent
+               - HydraReplicateTabletContent
                  Executed at target servant. Must not throw.
 
             - Mutation forwarding. Most mutations (particularly those affecting
@@ -635,6 +635,22 @@ private:
         CheckTablet(tablet);
     }
 
+    bool ShouldRotateStoreOnTargetActivation(TTablet* tablet) const
+    {
+        // TODO(ifsmirnov): YT-17388 - frozen tablets.
+        if (!tablet->GetActiveStore()) {
+            return false;
+        }
+
+        if (tablet->IsPhysicallySorted()) {
+            // We cannot reliably check that sorted dynamic store
+            // is empty with regard to persistent state.
+            return true;
+        } else {
+            return !tablet->GetActiveStore()->IsEmpty();
+        }
+    }
+
     void ChangeStageAtSource(
         TTablet* tablet,
         ESmoothMovementStage expectedStage,
@@ -668,8 +684,30 @@ private:
 
                 ReleaseReservedDynamicStore(tablet);
 
-                // TODO(ifsmirnov): YT-17388 - frozen tablets.
-                if (tablet->GetActiveStore()) {
+                if (ShouldRotateStoreOnTargetActivation(tablet)) {
+                    if (const auto& store = tablet->GetActiveStore();
+                        store->GetLockCount() > 0)
+                    {
+                        YT_LOG_ALERT("Active store has locks when smooth movement rotation "
+                            "is requested (%v, StoreId: %v, LockCount: %v)",
+                            tablet->GetLoggingTag(),
+                            store->GetId(),
+                            store->GetLockCount());
+
+                        // COMPAT(ifsmirnov)
+                        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                            ETabletReign::SmoothMovementOrdered)
+                        {
+                            RejectMovement(
+                                tablet,
+                                TError(
+                                    "Active store has locks when smooth movement rotation "
+                                    "is requested")
+                                    << TErrorAttribute("store_id", store->GetId()));
+                            break;
+                        }
+                    }
+
                     tablet->GetStoreManager()->Rotate(
                         /*createNewStore*/ true,
                         NLsm::EStoreRotationReason::None,

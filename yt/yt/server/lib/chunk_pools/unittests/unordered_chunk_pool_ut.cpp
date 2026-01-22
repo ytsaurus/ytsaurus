@@ -1360,7 +1360,7 @@ TEST_PI(
         CheckJobCounter({
             .Total = expectedJobCount,
             .Pending = expectedJobCount - i - 1,
-            .Running = i + 1
+            .Running = i + 1,
         });
     }
 

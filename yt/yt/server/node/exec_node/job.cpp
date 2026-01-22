@@ -1844,6 +1844,7 @@ void TJob::DoInterrupt(
                     &TJob::OnJobInterruptionTimeout,
                     MakeWeak(this),
                     InterruptionReason_,
+                    timeout,
                     preemptionReason),
                 timeout,
                 Bootstrap_->GetJobInvoker());
@@ -2014,12 +2015,14 @@ bool TJob::IsInterruptible() const noexcept
 
 void TJob::OnJobInterruptionTimeout(
     EInterruptionReason interruptionReason,
+    TDuration interruptionTimeout,
     const std::optional<TString>& preemptionReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
         << TErrorAttribute("interruption_reason", InterruptionReason_)
+        << TErrorAttribute("interruption_timeout", interruptionTimeout)
         << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
 
     if (interruptionReason == EInterruptionReason::Preemption) {
@@ -3058,7 +3061,7 @@ std::vector<TBind> TJob::GetRootFSBinds()
         binds.push_back(TBind{
             .SourcePath = bindConfig->ExternalPath,
             .TargetPath = bindConfig->InternalPath,
-            .ReadOnly = bindConfig->ReadOnly
+            .ReadOnly = bindConfig->ReadOnly,
         });
     }
 
@@ -3301,6 +3304,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
+        proxyInternalConfig->OomScoreAdjOnExceededMemoryReserve = proxyDynamicConfig->OomScoreAdjOnExceededMemoryReserve;
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
         proxyInternalConfig->DumpSingleLocalClusterStatistics = proxyDynamicConfig->DumpSingleLocalClusterStatistics;
@@ -3559,7 +3563,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
             ++nbdExportCount;
 
             VirtualSandboxData_ = TVirtualSandboxData({
-                .NbdExportId = nbdExportId
+                .NbdExportId = nbdExportId,
             });
         }
     }
@@ -3590,7 +3594,7 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = descriptor.bypass_artifact_cache(),
                 .CopyFile = descriptor.copy_file(),
                 .Key = TArtifactKey(descriptor),
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
@@ -3644,7 +3648,7 @@ void TJob::InitializeArtifacts()
                 .BypassArtifactCache = false,
                 .CopyFile = false,
                 .Key = key,
-                .Artifact = nullptr
+                .Artifact = nullptr,
             });
         }
     }
@@ -3893,25 +3897,38 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
             return EAbortReason::Other;
         }
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
-            auto exitCode = NExecNode::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-            switch (exitCode) {
-                case EJobProxyExitCode::SupervisorCommunicationFailed:
-                case EJobProxyExitCode::ResultReportFailed:
-                case EJobProxyExitCode::ResourcesUpdateFailed:
-                case EJobProxyExitCode::GetJobSpecFailed:
-                case EJobProxyExitCode::InvalidSpecVersion:
-                case EJobProxyExitCode::PortoManagementFailed:
-                    return EAbortReason::Other;
+            auto exitCode = processError->Attributes().Get<int>("exit_code");
+            if (CommonConfig_->TreatJobProxyIOErrorAsAbort && exitCode == static_cast<int>(EProcessExitCode::IOError)) {
+                return EAbortReason::JobProxyFailed;
+            }
 
-                case EJobProxyExitCode::ResourceOverdraft:
-                    return EAbortReason::ResourceOverdraft;
+            auto jobProxyExitCode = EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
+            if (TEnumTraits<EJobProxyExitCode>::IsKnownValue(jobProxyExitCode)) {
+                switch (jobProxyExitCode) {
+                    case EJobProxyExitCode::SupervisorCommunicationFailed:
+                    case EJobProxyExitCode::ResultReportFailed:
+                    case EJobProxyExitCode::ResourcesUpdateFailed:
+                    case EJobProxyExitCode::GetJobSpecFailed:
+                    case EJobProxyExitCode::InvalidSpecVersion:
+                    case EJobProxyExitCode::PortoManagementFailed:
+                        return EAbortReason::Other;
 
-                default: {
-                    if (CommonConfig_->TreatJobProxyFailureAsAbort) {
-                        return EAbortReason::JobProxyFailed;
-                    }
-                    break;
+                    case EJobProxyExitCode::JobProxyPrepareFailed:
+                        if (CommonConfig_->TreatJobProxyPreparationFailureAsAbort) {
+                            return EAbortReason::JobProxyFailed;
+                        }
+                        break;
+
+                    case EJobProxyExitCode::ResourceOverdraft:
+                        return EAbortReason::ResourceOverdraft;
+
+                    default:
+                        break;
                 }
+            }
+
+            if (CommonConfig_->TreatJobProxyFailureAsAbort) {
+                return EAbortReason::JobProxyFailed;
             }
         }
         if (auto processSignal = resultError.FindMatching(EProcessErrorCode::Signal)) {

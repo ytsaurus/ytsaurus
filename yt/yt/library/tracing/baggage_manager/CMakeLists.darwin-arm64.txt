@@ -21,6 +21,7 @@ target_compile_options(library-tracing-baggage_manager PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-tracing-baggage_manager PUBLIC
@@ -45,6 +46,7 @@ target_compile_options(library-tracing-baggage_manager.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-tracing-baggage_manager.global PUBLIC

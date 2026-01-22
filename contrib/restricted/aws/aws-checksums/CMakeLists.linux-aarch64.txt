@@ -41,6 +41,7 @@ target_sources(restricted-aws-aws-checksums PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc64.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc64_sw.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_sw.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_util.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/intel/asm/crc32c_sse42_asm.c
 )
 
@@ -89,6 +90,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_sw.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-checksums/source/crc_util.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

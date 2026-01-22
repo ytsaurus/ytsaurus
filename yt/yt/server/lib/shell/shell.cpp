@@ -296,11 +296,18 @@ public:
 
         if (Options_->MessageOfTheDay) {
             auto path = NFS::CombinePaths(preparationDir, ".motd");
+            auto pathInContainer = NFS::CombinePaths(workingDir, ".motd");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
                 output.Write(Options_->MessageOfTheDay->c_str(), Options_->MessageOfTheDay->size());
+
+                TBind bind;
+                bind.SourcePath = path;
+                bind.TargetPath = pathInContainer;
+                bind.ReadOnly = true;
+                Options_->Binds.push_back(std::move(bind));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell message file")
                     << ex
@@ -309,11 +316,18 @@ public:
         }
         if (Options_->Bashrc) {
             auto path = NFS::CombinePaths(preparationDir, ".bashrc");
+            auto pathInContainer = NFS::CombinePaths(workingDir, ".bashrc");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
                 TUnbufferedFileOutput output(file);
                 output.Write(Options_->Bashrc->c_str(), Options_->Bashrc->size());
+
+                TBind bind;
+                bind.SourcePath = path;
+                bind.TargetPath = pathInContainer;
+                bind.ReadOnly = true;
+                Options_->Binds.push_back(std::move(bind));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
                     << ex

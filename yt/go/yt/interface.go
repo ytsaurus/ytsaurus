@@ -78,10 +78,9 @@ type MutatingOptions struct {
 type ReadKind string
 
 const (
-	ReadFromLeader      ReadKind = "leader"
-	ReadFromFollower    ReadKind = "follower"
-	ReadFromCache       ReadKind = "cache"
-	ReadFromMasterCache ReadKind = "master_cache"
+	ReadFromLeader   ReadKind = "leader"
+	ReadFromFollower ReadKind = "follower"
+	ReadFromCache    ReadKind = "cache"
 )
 
 // ReadRetryOptions is marker for distinguishing requests that might be safely retried.
@@ -729,6 +728,7 @@ type TotalJobCounter struct {
 	Total     int64 `yson:"total"`
 	Completed int64 `yson:"completed"`
 	Running   int64 `yson:"running"`
+	Failed    int64 `yson:"failed"`
 }
 
 type OperationStartClient interface {

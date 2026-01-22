@@ -166,7 +166,7 @@ private:
         auto promise = NewPromise<void>();
         CommandQueue_.push(TCommandEntry{
             .Command = std::move(command),
-            .Promise = promise
+            .Promise = promise,
         });
         RunCommands();
         return promise.ToFuture();

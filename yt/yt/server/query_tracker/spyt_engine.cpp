@@ -44,10 +44,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSpytSettings
+struct TSpytSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Cluster;
 
     std::optional<TYPath> DiscoveryPath;
@@ -80,7 +79,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSpytSettings)
-DECLARE_REFCOUNTED_CLASS(TSpytSettings)
+DECLARE_REFCOUNTED_STRUCT(TSpytSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,7 +246,7 @@ private:
         return builder->EndTree();
     }
 
-    INodePtr ExecuteGetQuery(const TString& url) const
+    INodePtr ExecuteGetQuery(const std::string& url) const
     {
         YT_LOG_DEBUG("Executing HTTP GET request (Url: %v)", url);
         auto rsp = WaitFor(HttpClient_->Get(url))
@@ -258,7 +257,7 @@ private:
         return jsonRoot;
     }
 
-    TString WaitSessionStatusChange(const TString& url, const TString& defaultState)
+    TString WaitSessionStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {
@@ -268,7 +267,7 @@ private:
         return state;
     }
 
-    TString WaitStatementStatusChange(const TString& url, const TString& defaultState)
+    TString WaitStatementStatusChange(const std::string& url, const TString& defaultState)
     {
         auto state = defaultState;
         while (state == defaultState) {

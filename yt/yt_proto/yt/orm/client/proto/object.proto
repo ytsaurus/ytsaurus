@@ -153,7 +153,7 @@ enum ECascadingRemovalPolicy
     // Forbid object removal with existing descendants.
     CRP_FORBID = 2;
     // If object has no descendants, it becomes removed.
-    // Otherwise add `_orm_descendants` finalizer to it and leave descendants untouched.
+    // Otherwise add `_orm_children` finalizer to it and leave descendants untouched.
     // When all descendants become removed, foreign object itself may be removed.
     // The system may try to remove it with last removed descendant.
     CRP_AWAIT_FOREIGN = 3;
@@ -802,7 +802,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31060.
+// Next field 31061.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -836,6 +836,9 @@ extend google.protobuf.FieldOptions
     optional uint32 min_length = 31007;
     optional uint32 max_length = 31008;
     optional string valid_charset = 31011;
+
+    // Supported only for string-like columns, enables hunks for specified column.
+    optional uint64 max_inline_hunk_size = 31012;
 
     // Supported only for integer key fields. Use any expression that will convert to the
     // appropriate type in C++.
@@ -963,6 +966,10 @@ extend google.protobuf.FieldOptions
 
     // Allow to use the same counter in difference counting references.
     optional bool is_multiple_referencable = 31058;
+
+    // Saves the attribute value only within the transaction.
+    // Triggers history and watch logs, if they are enabled for field's path.
+    optional bool ephemeral = 31060;
 }
 
 // Next field 32016.

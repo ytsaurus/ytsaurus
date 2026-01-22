@@ -103,7 +103,7 @@ private:
         TReplicationCardId replicationCardId,
         const TRemoveNodeOptions& options) override
     {
-        auto channel = Client_->GetChaosChannelByCardIdOrThrow(replicationCardId, EPeerKind::Leader);
+        auto channel = Client_->GetChaosChannelByObjectIdOrThrow(replicationCardId, EPeerKind::Leader);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.RemoveReplicationCard();

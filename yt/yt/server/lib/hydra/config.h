@@ -66,7 +66,7 @@ struct TFileChangelogStoreConfig
     , public TFileChangelogDispatcherConfig
 {
     //! A path where changelogs are stored.
-    TString Path;
+    std::string Path;
 
     //! Maximum number of cached changelogs.
     TSlruCacheConfigPtr ChangelogReaderCache;
@@ -101,7 +101,7 @@ struct TLocalSnapshotStoreConfig
     : public TSnapshotStoreConfigBase
 {
     //! A path where snapshots are stored.
-    TString Path;
+    std::string Path;
 
     //! Codec used to write snapshots.
     NCompression::ECodec Codec;
@@ -278,6 +278,8 @@ struct TDynamicDistributedHydraManagerConfig
 
     std::optional<bool> EnableChangelogNetworkUsageAccounting;
     std::optional<bool> EnableSnapshotNetworkThrottling;
+
+    std::optional<TDuration> ChangelogThrottlingStatisticsMovingAverageWindow;
 
     REGISTER_YSON_STRUCT(TDynamicDistributedHydraManagerConfig);
 

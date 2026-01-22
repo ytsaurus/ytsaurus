@@ -407,6 +407,7 @@ private:
         auto externalCGInfo = New<TExternalCGInfo>();
         FromProto(&externalCGInfo->Functions, request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
+        FromProto(&externalCGInfo->Sdk, request->sdk());
 
         auto queryOptions = FromProto<TQueryOptions>(request->options());
         queryOptions.InputRowLimit = request->query().input_row_limit();
@@ -431,7 +432,7 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSessionId: %v, MemoryLimitPerNode: %v, "
             "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qlv)",
+            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv)",
             query->Id,
             queryOptions.InputRowLimit,
             queryOptions.OutputRowLimit,
@@ -597,7 +598,7 @@ private:
             Config_->MaxSubqueries,
             TReadTimestampRange{
                 .Timestamp = timestamp,
-                .RetentionTimestamp = retentionTimestamp
+                .RetentionTimestamp = retentionTimestamp,
             },
             useLookupCache,
             std::move(chunkReadOptions),

@@ -282,6 +282,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue>
+using TAsyncMapValueBase = TAsyncCacheValueBase<TKey, TValue>;
+
+// NB(pogorelov): It is pretty dirty map.
+// The cache shard capacity is calculated to be 1,
+// so since we have the weight of each element equal to 2,
+// we get that the cache does not work as a cache, but works as a ValueMap.
+template <class TKey, class TValue>
+class TAsyncMapBase
+    : public TAsyncSlruCacheBase<TKey, TValue>
+{
+    using TBase = TAsyncSlruCacheBase<TKey, TValue>;
+public:
+    TAsyncMapBase(const NProfiling::TProfiler& profiler = {})
+        : TBase(TSlruCacheConfig::CreateWithCapacity(0, /*shardCount*/ 1), profiler)
+    { }
+
+private:
+    i64 GetWeight(const TBase::TValuePtr& /*value*/) const override
+    {
+        return 2;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVolumeArtifactCacheAdapter
     : public IVolumeArtifactCache
 {
@@ -336,7 +362,7 @@ struct TLayerMetaHeader
 struct TLayerMeta
     : public NProto::TLayerMeta
 {
-    TString Path;
+    std::string Path;
     TLayerId Id;
 };
 
@@ -405,7 +431,7 @@ public:
         : Variant_(std::move(volume))
     { }
 
-    const TString& GetPath() const;
+    const std::string& GetPath() const;
 
     bool IsLayer() const
     {
@@ -591,7 +617,8 @@ public:
         };
 
         return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
-            auto path = NFS::CombinePaths(volume->GetPath(), "slot");
+            // TODO(dgolear): Switch to std::string.
+            TString path = NFS::CombinePaths(volume->GetPath(), "slot");
 
             if (!NFS::Exists(path)) {
                 YT_LOG_DEBUG("Creating rbind directory (Path: %v)",
@@ -872,22 +899,22 @@ private:
     i64 UsedSpace_ = 0;
     TError Alert_;
 
-    TString GetLayerPath(const TLayerId& id) const
+    std::string GetLayerPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersPath_, ToString(id));
     }
 
-    TString GetLayerMetaPath(const TLayerId& id) const
+    std::string GetLayerMetaPath(const TLayerId& id) const
     {
         return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
     }
 
-    TString GetVolumePath(const TVolumeId& id) const
+    std::string GetVolumePath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesPath_, ToString(id));
     }
 
-    TString GetVolumeMetaPath(const TVolumeId& id) const
+    std::string GetVolumeMetaPath(const TVolumeId& id) const
     {
         return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
     }
@@ -908,7 +935,7 @@ private:
         THashSet<TGuid> fileIds;
         for (const auto& fileName : fileNames) {
             auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
-            if (fileName.EndsWith(NFS::TempFileSuffix)) {
+            if (fileName.ends_with(NFS::TempFileSuffix)) {
                 YT_LOG_DEBUG(
                     "Remove temporary file (Path: %v)",
                     filePath);
@@ -1102,7 +1129,7 @@ private:
         header.MetaChecksum = GetChecksum(metaBlob);
 
         auto layerMetaFileName = GetLayerMetaPath(layerMeta.Id);
-        auto temporaryLayerMetaFileName = layerMetaFileName + NFS::TempFileSuffix;
+        auto temporaryLayerMetaFileName = layerMetaFileName + std::string(NFS::TempFileSuffix);
 
         TFile metaFile(
             temporaryLayerMetaFileName,
@@ -1303,7 +1330,8 @@ private:
         auto volumeId = TVolumeId::Create();
         auto volumePath = GetVolumePath(volumeId);
         auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG(
@@ -1356,7 +1384,7 @@ private:
             header.MetaChecksum = GetChecksum(metaBlob);
 
             auto volumeMetaFileName = GetVolumeMetaPath(volumeId);
-            auto tempVolumeMetaFileName = volumeMetaFileName + NFS::TempFileSuffix;
+            auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
 
             {
                 auto metaFile = std::make_unique<TFile>(
@@ -1641,7 +1669,8 @@ private:
     void DoRemoveVolume(NProfiling::TTagSet tagSet, TVolumeId volumeId)
     {
         auto volumePath = GetVolumePath(volumeId);
-        auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+        // TODO(dgolear): Switch to std::string.
+        TString mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
 
         {
@@ -1850,6 +1879,231 @@ DECLARE_REFCOUNTED_CLASS(TLayerLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPortoVolumeBase
+    : public IVolume
+{
+public:
+    TPortoVolumeBase(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta&& volumeMeta,
+        TLayerLocationPtr location)
+        : TagSet_(std::move(tagSet))
+        , VolumeMeta_(std::move(volumeMeta))
+        , Location_(std::move(location))
+    { }
+
+    const TVolumeId& GetId() const override final
+    {
+        return VolumeMeta_.Id;
+    }
+
+    const std::string& GetPath() const override final
+    {
+        return VolumeMeta_.MountPath;
+    }
+
+    TFuture<void> Link(
+        TGuid tag,
+        const TString& target) override final
+    {
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (
+                TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard)
+            {
+                // Targets_ is protected with guard.
+                Y_UNUSED(guard);
+
+                Targets_.push_back(target);
+
+                // TODO(dgolear): Switch to std::string.
+                auto source = TString(GetPath());
+                return Location_->LinkVolume(tag, source, target);
+            }));
+    }
+
+    TFuture<void> Remove() override final
+    {
+        if (!RemovalRequested_.exchange(true)) {
+            TAsyncLockWriterGuard::Acquire(&Lock_).AsUnique().Subscribe(BIND(
+                [
+                    removalCallback = RemoveCallback_,
+                    removePromise = RemovePromise_,
+                    targets = Targets_,
+                    volumePath = VolumeMeta_.MountPath
+                ] (TErrorOr<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>&& guardOrError) mutable {
+                    YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock (VolumePath: %v)", volumePath);
+
+                    auto guard = std::move(guardOrError.Value());
+                    auto removeFuture = removalCallback(targets).Apply(BIND(
+                        [guard = std::move(guard), volumePath = std::move(volumePath)] (const TError& error) {
+                            if (!error.IsOK()) {
+                                YT_LOG_ERROR(
+                                    error,
+                                    "Failed to remove volume (VolumePath: %v)",
+                                    volumePath);
+                            }
+                            return error;
+                        }));
+                    removePromise.SetFrom(removeFuture);
+                }));
+        }
+
+        return RemovePromise_;
+    }
+
+    bool IsCached() const override
+    {
+        return false;
+    }
+
+protected:
+    const NProfiling::TTagSet TagSet_;
+    const TVolumeMeta VolumeMeta_;
+    const TLayerLocationPtr Location_;
+
+    TPromise<void> RemovePromise_ = NewPromise<void>();
+    std::atomic<bool> RemovalRequested_{false};
+
+    void SetRemoveCallback(TCallback<TFuture<void>()> callback)
+    {
+        // Unlink targets prior to removing volume.
+        RemoveCallback_ = BIND(
+            [
+                location = Location_,
+                volumePath = VolumeMeta_.MountPath,
+                callback = std::move(callback)
+            ] (const std::vector<TString>& targets) {
+                return UnlinkTargets(location, volumePath, targets)
+                    .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
+                                volumePath);
+                        } else {
+                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
+                                volumePath);
+                        }
+                        // Now remove the actual volume.
+                        return callback();
+                    }));
+            });
+    }
+
+private:
+    TAsyncReaderWriterLock Lock_;
+    std::vector<TString> Targets_;
+
+    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
+
+    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
+    {
+        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
+            source,
+            targets);
+
+        if (targets.empty()) {
+            return OKFuture;
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(targets.size());
+        for (const auto& target : targets) {
+            futures.emplace_back(location->UnlinkVolume(source, target));
+        }
+
+        return AllSucceeded(std::move(futures))
+            .ToUncancelable();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSquashFSVolume
+    : public TPortoVolumeBase
+    , public TAsyncMapValueBase<TArtifactKey, TSquashFSVolume>
+{
+public:
+    TSquashFSVolume(
+        NProfiling::TTagSet tagSet,
+        TVolumeMeta&& volumeMeta,
+        IVolumeArtifactPtr artifact,
+        TLayerLocationPtr location,
+        const TArtifactKey& artifactKey)
+        : TPortoVolumeBase(
+            std::move(tagSet),
+            std::move(volumeMeta),
+            std::move(location))
+        , TAsyncMapValueBase<TArtifactKey, TSquashFSVolume>(artifactKey)
+        , Artifact_(std::move(artifact))
+    {
+        SetRemoveCallback(BIND(
+            &TSquashFSVolume::DoRemove,
+            Destroying_,
+            TagSet_,
+            Location_,
+            VolumeMeta_
+        ));
+    }
+
+    ~TSquashFSVolume() override
+    {
+        // TODO(pogorelov): Well, we should rethink class hierarchy here.
+        *Destroying_ = true;
+        YT_UNUSED_FUTURE(Remove());
+    }
+
+    bool IsRootVolume() const override final
+    {
+        return false;
+    }
+
+    bool IsCached() const override final
+    {
+        return true;
+    }
+
+private:
+    std::shared_ptr<bool> Destroying_ = std::make_shared<bool>(false);
+
+    static TFuture<void> DoRemove(std::shared_ptr<bool> destroying, TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta)
+    {
+        YT_LOG_FATAL_UNLESS(*destroying, "SquashFS volume is being removed while it is still in use");
+
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
+
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
+
+        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
+
+        const auto volumeType = EVolumeType::Local;
+        const auto& volumeId = volumeMeta.Id;
+        const auto& volumePath = volumeMeta.MountPath;
+
+        YT_LOG_DEBUG(
+            "Removing volume (Type: %v, Id: %v, Path: %v)",
+            volumeType,
+            volumeId,
+            volumePath);
+
+        return location->RemoveVolume(tagSet, volumeId)
+            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
+                YT_LOG_DEBUG(
+                    "Removed volume (Type: %v, Id: %v)",
+                    volumeType,
+                    volumeId);
+            })).ToUncancelable();
+    }
+
+    const TArtifactKey ArtifactKey_;
+    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
+    const IVolumeArtifactPtr Artifact_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
+
+////////////////////////////////////////////////////////////////////////////////
+
 i64 GetCacheCapacity(const std::vector<TLayerLocationPtr>& layerLocations)
 {
     i64 result = 0;
@@ -1924,7 +2178,7 @@ public:
         return GetKey().data_source().path();
     }
 
-    const TString& GetPath() const
+    const std::string& GetPath() const
     {
         return LayerMeta_.Path;
     }
@@ -2088,7 +2342,7 @@ public:
 
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
-            auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
+            auto error = WaitFor(PortoExecutor_->UnlinkVolume(TString(path), "self"));
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
             }
@@ -2105,7 +2359,7 @@ public:
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->Capacity);
 
-            WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
+            WaitFor(PortoExecutor_->CreateVolume(TString(path), volumeProperties))
                 .ThrowOnError();
 
             MemoryUsageTracker_->Acquire(Config_->Capacity);
@@ -2438,6 +2692,180 @@ DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSquashFSVolumeMap
+    : public TAsyncMapBase<TArtifactKey, class TSquashFSVolume>
+{
+public:
+    TSquashFSVolumeMap(
+        std::vector<TLayerLocationPtr> layerLocations,
+        IVolumeArtifactCachePtr artifactCache)
+        : TAsyncMapBase(ExecNodeProfiler().WithPrefix("/squashfs_volume_map"))
+        , ArtifactCache_(std::move(artifactCache))
+        , LayerLocations_(std::move(layerLocations))
+    { }
+
+    bool IsEnabled() const
+    {
+        for (const auto& location : LayerLocations_) {
+            if (location->IsEnabled()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    TLayerLocationPtr PickLocation()
+    {
+        return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+            return candidate->GetVolumeCount() < current->GetVolumeCount();
+        });
+    }
+
+    TFuture<TSquashFSVolumePtr> PrepareVolume(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
+    {
+        auto cookie = BeginInsert(artifactKey);
+        auto value = cookie.GetValue();
+        if (cookie.IsActive()) {
+            DownloadAndPrepareVolume(artifactKey, downloadOptions, tag)
+                .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TSquashFSVolumePtr>& volumeOrError) mutable {
+                    if (volumeOrError.IsOK()) {
+                        YT_LOG_DEBUG(
+                            "Squashfs volume has been inserted into map (Tag: %v, ArtifactPath: %v, VolumeId: %v)",
+                            tag,
+                            artifactKey.data_source().path(),
+                            volumeOrError.Value()->GetId());
+                        cookie.EndInsert(volumeOrError.Value());
+                    } else {
+                        YT_LOG_DEBUG(
+                            volumeOrError,
+                            "Insert squashfs volume into map canceled (Tag: %v, ArtifactPath: %v)",
+                            tag,
+                            artifactKey.data_source().path());
+                        cookie.Cancel(volumeOrError);
+                    }
+                })
+                .Via(GetCurrentInvoker()));
+        } else {
+            YT_LOG_DEBUG(
+                "Squashfs volume is already being loaded into map (Tag: %v, ArtifactPath: %v, VolumeId: %v)",
+                tag,
+                artifactKey.data_source().path(),
+                value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetId()) : "Importing");
+        }
+
+        return value;
+    }
+
+private:
+    const IVolumeArtifactCachePtr ArtifactCache_;
+    const std::vector<TLayerLocationPtr> LayerLocations_;
+
+    TFuture<TSquashFSVolumePtr> DownloadAndPrepareVolume(
+        const TArtifactKey& artifactKey,
+        const TArtifactDownloadOptions& downloadOptions,
+        TGuid tag)
+    {
+        YT_VERIFY(!artifactKey.has_access_method() || FromProto<ELayerAccessMethod>(artifactKey.access_method()) == ELayerAccessMethod::Local);
+        YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
+        YT_VERIFY(!artifactKey.has_nbd_export_id());
+
+        YT_LOG_DEBUG(
+            "Downloading and preparing squashfs volume (Tag: %v, Path: %v)",
+            tag,
+            artifactKey.data_source().path());
+
+        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
+                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
+
+                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                return CreateSquashFSVolume(
+                    tag,
+                    std::move(tagSet),
+                    std::move(volumeCreateTimeGuard),
+                    artifactKey,
+                    artifact);
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+
+    TSquashFSVolumePtr CreateSquashFSVolume(
+        TGuid tag,
+        NProfiling::TTagSet tagSet,
+        TEventTimerGuard volumeCreateTimeGuard,
+        const TArtifactKey& artifactKey,
+        IVolumeArtifactPtr artifact)
+    {
+        auto squashFSFilePath = artifact->GetFileName();
+
+        YT_LOG_DEBUG(
+            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
+            tag,
+            squashFSFilePath);
+
+        auto location = PickLocation();
+        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
+        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
+            [
+                tagSet = std::move(tagSet),
+                artifactKey,
+                artifact = std::move(artifact),
+                location = std::move(location)
+            ] (TVolumeMeta&& volumeMeta) mutable {
+            return New<TSquashFSVolume>(
+                std::move(tagSet),
+                std::move(volumeMeta),
+                std::move(artifact),
+                std::move(location),
+                std::move(artifactKey));
+        })).ToUncancelable();
+        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
+        // and protects from Porto volume leak.
+
+        auto volume = WaitFor(volumeFuture)
+            .ValueOrThrow();
+
+        YT_LOG_INFO(
+            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+            tag,
+            volume->GetId(),
+            squashFSFilePath);
+
+        return volume;
+    }
+
+    void OnAdded(const TSquashFSVolumePtr& volume) override
+    {
+        YT_LOG_DEBUG(
+            "Squashfs volume added to map (VolumeId: %v)",
+            volume->GetId());
+    }
+
+    void OnRemoved(const TSquashFSVolumePtr& volume) override
+    {
+        YT_LOG_DEBUG(
+            "Squashfs volume removed from map (VolumeId: %v)",
+            volume->GetId());
+    }
+
+    void OnWeightUpdated(i64 weightDelta) override
+    {
+        YT_LOG_DEBUG(
+            "Squashfs volume map total weight updated (WeightDelta: %v)",
+            weightDelta);
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TSquashFSVolumeMap)
+DEFINE_REFCOUNTED_TYPE(TSquashFSVolumeMap)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLayerCache
     : public TAsyncSlruCacheBase<TArtifactKey, TLayer>
 {
@@ -2711,8 +3139,8 @@ private:
         auto cacheConfig = TSlruCacheConfig::CreateWithCapacity(
             config->EnableLayersCache
             ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
-            : 0);
-        cacheConfig->ShardCount = 1;
+            : 0,
+            /*shardCount*/ 1);
         return cacheConfig;
     }
 
@@ -2863,128 +3291,6 @@ DEFINE_REFCOUNTED_TYPE(TLayerCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoVolumeBase
-    : public IVolume
-{
-public:
-    TPortoVolumeBase(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& volumeMeta,
-        TLayerLocationPtr location)
-        : TagSet_(std::move(tagSet))
-        , VolumeMeta_(std::move(volumeMeta))
-        , Location_(std::move(location))
-    { }
-
-    const TVolumeId& GetId() const override final
-    {
-        return VolumeMeta_.Id;
-    }
-
-    const TString& GetPath() const override final
-    {
-        return VolumeMeta_.MountPath;
-    }
-
-    TFuture<void> Link(
-        TGuid tag,
-        const TString& target) override final
-    {
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([tag, target, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                // Targets_ is protected with guard.
-                Y_UNUSED(guard);
-
-                Targets_.push_back(target);
-
-                const auto& source = GetPath();
-                return Location_->LinkVolume(tag, source, target);
-            }));
-    }
-
-    TFuture<void> Remove() override final
-    {
-        return TAsyncLockWriterGuard::Acquire(&Lock_)
-            .AsUnique().Apply(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
-                Y_UNUSED(guard);
-                // guard protects RemoveLocked call.
-                return RemoveLocked();
-            }));
-    }
-
-protected:
-    const NProfiling::TTagSet TagSet_;
-    const TVolumeMeta VolumeMeta_;
-    const TLayerLocationPtr Location_;
-
-    void SetRemoveCallback(TCallback<TFuture<void>()> callback)
-    {
-        // Unlink targets prior to removing volume.
-        RemoveCallback_ = BIND(
-            [
-                location = Location_,
-                volumePath = VolumeMeta_.MountPath,
-                callback = std::move(callback)
-            ] (const std::vector<TString>& targets) {
-                return UnlinkTargets(location, volumePath, targets)
-                    .AsUnique().Apply(BIND([volumePath, callback = std::move(callback)] (TError&& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "Failed to unlink targets (VolumePath: %v)",
-                                volumePath);
-                        } else {
-                            YT_LOG_DEBUG("Unlinked targets (VolumePath: %v)",
-                                volumePath);
-                        }
-                        // Now remove the actual volume.
-                        return callback();
-                    }));
-            });
-    }
-
-    //! No need to take lock when called from destructor, otherwise take lock.
-    TFuture<void> RemoveLocked()
-    {
-        if (RemoveFuture_) {
-            return RemoveFuture_;
-        }
-
-        if (!RemoveCallback_) {
-            return OKFuture;
-        }
-
-        RemoveFuture_ = RemoveCallback_(Targets_);
-        return RemoveFuture_;
-    }
-
-private:
-    TAsyncReaderWriterLock Lock_;
-    std::vector<TString> Targets_;
-    TFuture<void> RemoveFuture_;
-    TCallback<TFuture<void>(const std::vector<TString>&)> RemoveCallback_;
-
-    static TFuture<void> UnlinkTargets(TLayerLocationPtr location, TString source, std::vector<TString> targets)
-    {
-        YT_LOG_DEBUG("Unlinking targets (VolumePath: %v, Targets: %v)",
-            source,
-            targets);
-
-        if (targets.empty()) {
-            return OKFuture;
-        }
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(targets.size());
-        for (const auto& target : targets) {
-            futures.emplace_back(location->UnlinkVolume(source, target));
-        }
-
-        return AllSucceeded(std::move(futures))
-            .ToUncancelable();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNbdVolume
     : public TPortoVolumeBase
 {
@@ -3016,7 +3322,7 @@ public:
 
     ~TNbdVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3103,7 +3409,8 @@ public:
 
     ~TOverlayVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_LOG_DEBUG("Overlay volume object is destroyed (VolumeId: %v)", GetId());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3128,7 +3435,8 @@ private:
         const auto& volumeId = volumeMeta.Id;
         const auto& volumePath = volumeMeta.MountPath;
 
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Removing volume (Type: %v, Id: %v, Path: %v)",
             volumeType,
             volumeId,
             volumePath);
@@ -3142,7 +3450,8 @@ private:
                 overlayDataArray = std::move(overlayDataArray),
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] () mutable {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
+                YT_LOG_DEBUG(
+                    "Removed volume (Type: %v, Id: %v)",
                     volumeType,
                     volumeId);
 
@@ -3158,76 +3467,6 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(TOverlayVolume)
 DEFINE_REFCOUNTED_TYPE(TOverlayVolume)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSquashFSVolume
-    : public TPortoVolumeBase
-{
-public:
-    TSquashFSVolume(
-        NProfiling::TTagSet tagSet,
-        TVolumeMeta&& volumeMeta,
-        IVolumeArtifactPtr artifact,
-        TLayerLocationPtr location)
-        : TPortoVolumeBase(
-            std::move(tagSet),
-            std::move(volumeMeta),
-            std::move(location))
-        , Artifact_(std::move(artifact))
-    {
-        SetRemoveCallback(BIND(
-            &TSquashFSVolume::DoRemove,
-            TagSet_,
-            Location_,
-            VolumeMeta_
-        ));
-    }
-
-    ~TSquashFSVolume() override
-    {
-        YT_UNUSED_FUTURE(RemoveLocked());
-    }
-
-    bool IsRootVolume() const override final
-    {
-        return false;
-    }
-
-private:
-    const TArtifactKey ArtifactKey_;
-    // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr Artifact_;
-
-    static TFuture<void> DoRemove(TTagSet tagSet, TLayerLocationPtr location, TVolumeMeta volumeMeta)
-    {
-        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
-            .Update(VolumeCounters().Decrement(tagSet));
-
-        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
-
-        TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/remove_time"));
-
-        const auto volumeType = EVolumeType::Local;
-        const auto& volumeId = volumeMeta.Id;
-        const auto& volumePath = volumeMeta.MountPath;
-
-        YT_LOG_DEBUG("Removing volume (Type: %v, Id: %v, Path: %v)",
-            volumeType,
-            volumeId,
-            volumePath);
-
-        return location->RemoveVolume(tagSet, volumeId)
-            .Apply(BIND([volumeType = volumeType, volumeId = volumeId, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-                YT_LOG_DEBUG("Removed volume (Type: %v, Id: %v)",
-                    volumeType,
-                    volumeId);
-            })).ToUncancelable();
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TSquashFSVolume)
-DEFINE_REFCOUNTED_TYPE(TSquashFSVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3254,7 +3493,7 @@ public:
 
     ~TTmpfsVolume() override
     {
-        YT_UNUSED_FUTURE(RemoveLocked());
+        YT_UNUSED_FUTURE(Remove());
     }
 
     bool IsRootVolume() const override final
@@ -3300,7 +3539,7 @@ class TSimpleTmpfsVolume
 public:
     TSimpleTmpfsVolume(
         NProfiling::TTagSet tagSet,
-        const TString& path,
+        const std::string& path,
         IInvokerPtr invoker,
         bool detachUnmount)
         : TagSet_(std::move(tagSet))
@@ -3317,6 +3556,11 @@ public:
     ~TSimpleTmpfsVolume() override
     {
         YT_UNUSED_FUTURE(Remove());
+    }
+
+    bool IsCached() const final
+    {
+        return false;
     }
 
     TFuture<void> Link(
@@ -3369,7 +3613,7 @@ public:
         return VolumeId_;
     }
 
-    const TString& GetPath() const override final
+    const std::string& GetPath() const override final
     {
         return Path_;
     }
@@ -3381,7 +3625,7 @@ public:
 
 private:
     const NProfiling::TTagSet TagSet_;
-    const TString Path_;
+    const std::string Path_;
     const TVolumeId VolumeId_;
     const IInvokerPtr Invoker_;
     const bool DetachUnmount_;
@@ -3392,7 +3636,7 @@ DEFINE_REFCOUNTED_TYPE(TSimpleTmpfsVolume)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& TOverlayData::GetPath() const
+const std::string& TOverlayData::GetPath() const
 {
     if (std::holds_alternative<TLayerPtr>(Variant_)) {
         return std::get<TLayerPtr>(Variant_)->GetPath();
@@ -3407,7 +3651,12 @@ TFuture<void> TOverlayData::Remove()
         return OKFuture;
     }
 
-    return GetVolume()->Remove();
+    const auto& self = GetVolume();
+    if (self->IsCached()) {
+        return OKFuture;
+    }
+
+    return self->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3469,14 +3718,14 @@ public:
         // To avoid problems with undeleting tmpfs ordered by user in sandbox
         // we always try to remove it several times.
         for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
-            std::vector<TString> mountPaths;
+            std::vector<std::string> mountPaths;
             for (const auto& location : locations) {
                 FindTmpfsMountPathsInLocation(location->Path, mountPaths);
             }
 
             // Sort from longest paths, to shortest.
-            std::sort(mountPaths.begin(), mountPaths.end(), [] (const TString& lhs, const TString& rhs) {
-                return SplitString(lhs, "/").size() > SplitString(rhs, "/").size();
+            std::sort(mountPaths.begin(), mountPaths.end(), [] (const std::string& lhs, const std::string& rhs) {
+                return StringSplitter(lhs).Split('/').Count() > StringSplitter(rhs).Split('/').Count();
             });
 
             auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
@@ -3539,7 +3788,8 @@ private:
         YT_VERIFY(sandboxPath);
 
         auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "tmpfs", /*volumeFilePath*/ "n/a");
-        auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
+        // TODO(dgolear): Switch to std::string.
+        TString path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, volume.Path));
 
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
@@ -3566,17 +3816,17 @@ private:
         .ToUncancelable();
     }
 
-    void FindTmpfsMountPathsInLocation(const TString& locationPath, std::vector<TString>& mountPaths)
+    void FindTmpfsMountPathsInLocation(const std::string& locationPath, std::vector<std::string>& mountPaths)
     {
         auto mountPoints = NFS::GetMountPoints("/proc/mounts");
         for (const auto& mountPoint : mountPoints) {
-            if (mountPoint.Path.StartsWith(locationPath + "/")) {
+            if (mountPoint.Path.starts_with(locationPath + "/")) {
                 mountPaths.push_back(mountPoint.Path);
             }
         }
     }
 
-    TFuture<void> CleanupTmpfsMountPaths(std::vector<TString>&& mountPaths) const
+    TFuture<void> CleanupTmpfsMountPaths(std::vector<std::string>&& mountPaths) const
     {
         return BIND([mountPaths = std::move(mountPaths), detachUnmount = DetachUnmount_] {
             for (const auto& path : mountPaths) {
@@ -3669,12 +3919,17 @@ public:
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
-            std::move(locations),
+            locations,
             tmpfsExecutor,
             ArtifactCache_,
             ControlInvoker_,
             MemoryUsageTracker_,
             Bootstrap_);
+
+        SquashFSVolumeMap_ = New<TSquashFSVolumeMap>(
+            std::move(locations),
+            ArtifactCache_);
+
         return LayerCache_->Initialize();
     }
 
@@ -3864,7 +4119,7 @@ public:
         std::vector<TFuture<void>> futures;
         futures.reserve(volumes.size());
         for (const auto& volume : volumes) {
-            const auto& target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
+            TString target = NFS::GetRealPath(NFS::CombinePaths(destinationDirectory, volume.Path));
             futures.push_back(volume.Volume->Link(tag, target));
         }
 
@@ -3923,6 +4178,7 @@ private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TLayerCachePtr LayerCache_;
+    TSquashFSVolumeMapPtr SquashFSVolumeMap_;
 
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
@@ -4285,20 +4541,7 @@ private:
         YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
         YT_VERIFY(!artifactKey.has_nbd_export_id());
 
-        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
-                auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
-                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
-                TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-
-                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                return CreateSquashFSVolume(
-                    tag,
-                    std::move(tagSet),
-                    std::move(volumeCreateTimeGuard),
-                    artifactKey,
-                    artifact);
-            }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
+        return SquashFSVolumeMap_->PrepareVolume(artifactKey, downloadOptions, tag).As<TOverlayData>();
     }
 
     TFuture<TTmpfsVolumeResult> CreateTmpfsVolume(
@@ -4496,50 +4739,6 @@ private:
             "Created overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volume->GetId());
-
-        return volume;
-    }
-
-    TSquashFSVolumePtr CreateSquashFSVolume(
-        TGuid tag,
-        NProfiling::TTagSet tagSet,
-        TEventTimerGuard volumeCreateTimeGuard,
-        const TArtifactKey& artifactKey,
-        IVolumeArtifactPtr artifact)
-    {
-        auto squashFSFilePath = artifact->GetFileName();
-
-        YT_LOG_DEBUG(
-            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
-            tag,
-            squashFSFilePath);
-
-        auto location = LayerCache_->PickLocation();
-        auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
-        auto volumeFuture = volumeMetaFuture.AsUnique().Apply(BIND(
-            [
-                tagSet = std::move(tagSet),
-                artifactKey,
-                artifact = std::move(artifact),
-                location = std::move(location)
-            ] (TVolumeMeta&& volumeMeta) {
-            return New<TSquashFSVolume>(
-                std::move(tagSet),
-                std::move(volumeMeta),
-                std::move(artifact),
-                std::move(location));
-        })).ToUncancelable();
-        // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
-        // and protects from Porto volume leak.
-
-        auto volume = WaitFor(volumeFuture)
-            .ValueOrThrow();
-
-        YT_LOG_INFO(
-            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
-            tag,
-            volume->GetId(),
-            squashFSFilePath);
 
         return volume;
     }

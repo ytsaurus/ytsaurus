@@ -23,6 +23,7 @@ target_compile_options(library-web_assembly-engine PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-web_assembly-engine PRIVATE
@@ -37,6 +38,7 @@ target_link_libraries(library-web_assembly-engine PUBLIC
 )
 
 target_sources(library-web_assembly-engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/builtins.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/intrinsics.cpp
 )
 
@@ -53,6 +55,7 @@ target_compile_options(library-web_assembly-engine.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(library-web_assembly-engine.global PRIVATE

@@ -23,6 +23,7 @@ target_compile_options(unittester-scheduler-strategy PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(unittester-scheduler-strategy PUBLIC

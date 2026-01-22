@@ -3,6 +3,7 @@ RECURSE(
     dashboards
     snapshot_processing
     timbertruck
+    ytsaurus_ci
 )
 
 IF (NOT OPENSOURCE)
@@ -16,7 +17,6 @@ IF (NOT OPENSOURCE)
         devil-hulk
         drive_monitor
         gh_ci_vm_image_builder
-        hulk
         hwinfo
         infra_cli
         infra_noc
@@ -32,5 +32,6 @@ IF (NOT OPENSOURCE)
         yt_logs
         ytcfgen
         ytdyncfgen
+        experiments
     )
 ENDIF()

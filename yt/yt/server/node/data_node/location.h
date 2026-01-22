@@ -525,7 +525,7 @@ private:
     std::optional<NNode::TChunkDescriptor> RepairChunk(TChunkId chunkId) override;
 
     std::vector<TString> GetChunkPartNames(TChunkId chunkId) const override;
-    bool ShouldSkipFileName(const TString& fileName) const override;
+    bool ShouldSkipFileName(const std::string& fileName) const override;
 
     void DoStart() override;
     std::vector<NNode::TChunkDescriptor> DoScan() override;

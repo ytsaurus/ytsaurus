@@ -183,9 +183,9 @@ public:
         };
 
         if (GetConfig()->EnableFairThrottler) {
-            ChangelogOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            ChangelogOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::ChangelogOut));
-            SnapshotOutThrottler_ = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(
+            SnapshotOutThrottler_ = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(
                 NTabletNode::ETabletNodeThrottlerKind::SnapshotOut));
         } else {
             ChangelogOutThrottler_ = GetUnlimitedThrottler();

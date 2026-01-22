@@ -104,6 +104,8 @@
 
 #include <library/cpp/yt/misc/cast.h>
 
+#include <library/cpp/yt/string/string.h>
+
 #include <algorithm>
 
 namespace NYT::NRpcProxy {
@@ -264,7 +266,7 @@ TServiceDescriptor GetServiceDescriptor()
     return TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
         .SetProtocolVersion({
             YTRpcProxyProtocolVersionMajor,
-            YTRpcProxyServerProtocolVersionMinor
+            YTRpcProxyServerProtocolVersionMinor,
         });
 }
 
@@ -874,18 +876,17 @@ private:
 
     template <class TRequestMessage, class TResponseMessage>
     void InitContext(TApiServiceContext<TRequestMessage, TResponseMessage>* context);
+    // Must be called only once per request.
     NNative::IClientPtr GetAuthenticatedClientOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request);
     ITransactionPtr FindTransaction(
-        const IServiceContextPtr& context,
-        const google::protobuf::Message* request,
+        const NNative::IClientPtr& client,
         TTransactionId transactionId,
         const std::optional<TTransactionAttachOptions>& options,
         bool searchInPool = true);
     ITransactionPtr GetTransactionOrThrow(
-        const IServiceContextPtr& context,
-        const google::protobuf::Message* request,
+        const NNative::IClientPtr& client,
         TTransactionId transactionId,
         const std::optional<TTransactionAttachOptions>& options,
         bool searchInPool = true);
@@ -1322,7 +1323,7 @@ void TApiService::BuildOrchid(IYsonConsumer* consumer)
                 fluent.GetConsumer(),
                 {
                     RpcProxyUserAllocationTagKey,
-                    RpcProxyMethodAllocationTagKey
+                    RpcProxyMethodAllocationTagKey,
                 });
         });
 }
@@ -1482,14 +1483,11 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
 }
 
 ITransactionPtr TApiService::FindTransaction(
-    const IServiceContextPtr& context,
-    const google::protobuf::Message* request,
+    const NNative::IClientPtr& client,
     TTransactionId transactionId,
     const std::optional<TTransactionAttachOptions>& options,
     bool searchInPool)
 {
-    auto client = GetAuthenticatedClientOrThrow(context, request);
-
     ITransactionPtr transaction;
     if (searchInPool) {
         transaction = StickyTransactionPool_->FindTransactionAndRenewLease(transactionId);
@@ -1504,15 +1502,13 @@ ITransactionPtr TApiService::FindTransaction(
 }
 
 ITransactionPtr TApiService::GetTransactionOrThrow(
-    const IServiceContextPtr& context,
-    const google::protobuf::Message* request,
+    const NNative::IClientPtr& client,
     TTransactionId transactionId,
     const std::optional<TTransactionAttachOptions>& options,
     bool searchInPool)
 {
     auto transaction = FindTransaction(
-        context,
-        request,
+        client,
         transactionId,
         options,
         searchInPool);
@@ -1797,6 +1793,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartTransaction)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     TTransactionAttachOptions attachOptions = {};
@@ -1808,8 +1806,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
         transactionId);
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         attachOptions);
 
@@ -1822,6 +1819,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingTransaction)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     TTransactionCommitOptions options;
@@ -1843,8 +1842,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
     attachOptions.Ping = false;
     attachOptions.PingAncestors = false;
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         attachOptions);
 
@@ -1865,6 +1863,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, CommitTransaction)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %v",
@@ -1874,8 +1874,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
     attachOptions.Ping = false;
     attachOptions.PingAncestors = false;
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         attachOptions);
 
@@ -1895,6 +1894,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FlushTransaction)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, AbortTransaction)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     TTransactionAbortOptions options;
@@ -1907,8 +1908,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AbortTransaction)
     attachOptions.Ping = false;
     attachOptions.PingAncestors = false;
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         attachOptions);
 
@@ -1939,8 +1939,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, AttachTransaction)
         transactionId);
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         options,
         /*searchInPool*/ true);
@@ -4480,9 +4479,13 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, MultiLookup)
                     request.Keys.Size());
             }));
     NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
-        for (const auto& subrequest : subrequests) {
-            traceContext->AddTag("yt.table_path", subrequest.Path);
-        }
+        auto tablePaths = JoinToString(
+            subrequests,
+            [] (TStringBuilderBase* builder, const TMultiLookupSubrequest& subrequest) {
+                builder->AppendString(subrequest.Path);
+            },
+            ";"_sb);
+        traceContext->AddTag("yt.table_paths", tablePaths);
     });
 
     ExecuteCall(
@@ -4917,6 +4920,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GetTabletErrors)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, PushQueueProducer)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     auto producerPath = FromProto<TRichYPath>(request->producer_path());
@@ -4946,8 +4951,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PushQueueProducer)
         transactionId);
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         /*options*/ std::nullopt,
         /*searchInPool*/ true);
@@ -5004,6 +5008,8 @@ void TApiService::AdvanceQueueConsumerImpl(
     NApi::NRpcProxy::NProto::TRspAdvanceQueueConsumer* /*response*/,
     const TCtxAdvanceQueueConsumerPtr& context)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
@@ -5024,8 +5030,7 @@ void TApiService::AdvanceQueueConsumerImpl(
         transactionId);
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         /*options*/ std::nullopt,
         /*searchInPool*/ true);
@@ -5440,6 +5445,8 @@ void TApiService::DoModifyRows(
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, ModifyRows)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     context->SetRequestInfo(
@@ -5449,8 +5456,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ModifyRows)
         request->row_modification_types_size());
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         transactionId,
         /*options*/ std::nullopt,
         /*searchInPool*/ true);
@@ -5462,6 +5468,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ModifyRows)
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, BatchModifyRows)
 {
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
     auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
     context->SetRequestInfo("TransactionId: %v, BatchSize: %v",
@@ -5488,8 +5496,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, BatchModifyRows)
     }
 
     auto transaction = GetTransactionOrThrow(
-        context,
-        request,
+        client,
         FromProto<TTransactionId>(request->transaction_id()),
         /*options*/ std::nullopt,
         /*searchInPool*/ true);

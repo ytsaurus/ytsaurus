@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
 
+#include <yt/yt/server/lib/tablet_server/originator_tablet.h>
+
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -545,6 +547,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, SiblingAvenueEndpointId);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TStoreId>, CommonDynamicStoreIds);
 
+    using TStoreRowCountMap = THashMap<TStoreId, i64>;
+    DEFINE_BYREF_RW_PROPERTY(TStoreRowCountMap, StoreRowCountOverride);
+
     // Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStageChangeTime);
@@ -598,6 +603,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ECommitOrdering, CommitOrdering);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::TTableReplicaId, UpstreamReplicaId);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NTabletServer::TOriginatorTablet>, OriginatorTablets);
 
     DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 

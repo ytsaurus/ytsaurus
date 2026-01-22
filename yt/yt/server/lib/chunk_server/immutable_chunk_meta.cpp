@@ -121,7 +121,7 @@ void FromProto(
         ::memcpy(ptr, extension.data().data(), extensionSize);
         rawMeta->ExtensionDescriptors_.push_back(TImmutableChunkMeta::TExtensionDescriptor{
             .Tag = extension.tag(),
-            .Offset = offset
+            .Offset = offset,
         });
         ptr += extensionSize;
         offset += extensionSize;

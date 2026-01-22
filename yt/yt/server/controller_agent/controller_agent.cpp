@@ -790,7 +790,7 @@ public:
                     transactionIds.AsyncId,
                     transactionIds.InputId,
                     transactionIds.OutputId,
-                    transactionIds.DebugId
+                    transactionIds.DebugId,
                 });
                 watchTransactionIds.push_back(operation->GetUserTransactionId());
 

@@ -20,7 +20,7 @@
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
@@ -280,6 +280,7 @@ public:
             StaticConfig_,
             Options_,
             ChannelFactory_,
+            MakeWeak(this),
             Logger);
         MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
@@ -309,7 +310,8 @@ public:
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
-            this,
+            MakeWeak(this),
+            GetClusterName(),
             GetInvoker(),
             Profiler_.WithPrefix("/queue_consumer_registration_manager"),
             Logger);
@@ -384,7 +386,7 @@ public:
             Options_.ChaosResidencyCacheMode,
             Logger);
 
-        ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
+        ChaosObjectChannelFactory_ = CreateChaosObjectChannelFactory(
             CellDirectory_,
             ChaosResidencyCache_,
             ChaosCellDirectorySynchronizer_,
@@ -712,14 +714,16 @@ public:
         return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
     }
 
-    IChannelPtr GetChaosChannelByCardIdOrThrow(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    IChannelPtr GetChaosChannelByObjectIdOrThrow(TChaosObjectId chaosObjectId, EPeerKind peerKind) override
     {
-        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-            THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-                replicationCardId);
+        if (TypeFromId(chaosObjectId) != EObjectType::ReplicationCard &&
+            TypeFromId(chaosObjectId) != EObjectType::ChaosLease)
+        {
+            THROW_ERROR_EXCEPTION("Malformed chaos object id %v",
+                chaosObjectId);
         }
 
-        return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
+        return WrapChaosChannel(ChaosObjectChannelFactory_->CreateChannel(chaosObjectId, peerKind));
     }
 
     IChannelPtr FindQueueAgentChannel(TStringBuf stage) const override
@@ -1099,7 +1103,7 @@ private:
     IThreadPoolPtr ConnectionThreadPool_;
 
     IChaosResidencyCachePtr ChaosResidencyCache_;
-    IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
+    IChaosObjectChannelFactoryPtr ChaosObjectChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 
     TServerAddressPoolPtr DiscoveryServerAddressPool_;

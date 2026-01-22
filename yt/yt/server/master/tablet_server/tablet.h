@@ -18,6 +18,8 @@
 
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
+#include <yt/yt/server/lib/tablet_server/originator_tablet.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
@@ -86,6 +88,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(NTabletClient::NProto::TTabletStatistics, AuxiliaryNodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(NTabletNode::TTabletPerformanceCounters, PerformanceCounters);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOriginatorTablet>, OriginatorTablets);
     //! Only used for ordered tablets.
     DEFINE_BYVAL_RW_PROPERTY(i64, TrimmedRowCount);
 

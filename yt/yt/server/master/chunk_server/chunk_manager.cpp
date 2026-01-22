@@ -5743,7 +5743,7 @@ private:
                     cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
                         childStatistics.LogicalRowCount,
                         childStatistics.ChunkCount,
-                        childStatistics.UncompressedDataSize
+                        childStatistics.UncompressedDataSize,
                     });
                 }
 
@@ -6296,7 +6296,8 @@ private:
         if (!chunkLocation->HasReplica(replica) && (
                 reason == ERemoveReplicaReason::IncrementalHeartbeat ||
                 reason == ERemoveReplicaReason::SequoiaModified ||
-                reason == ERemoveReplicaReason::NodeDisposed))
+                reason == ERemoveReplicaReason::NodeDisposed ||
+                reason == ERemoveReplicaReason::SequoiaNodeDisposed))
         {
             return;
         }

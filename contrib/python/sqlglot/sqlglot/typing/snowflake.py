@@ -110,7 +110,7 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
     """Annotate MEDIAN function with correct return type.
 
     Based on Snowflake documentation:
-    - If the expr is FLOAT -> annotate as FLOAT
+    - If the expr is FLOAT/DOUBLE -> annotate as DOUBLE (FLOAT is a synonym for DOUBLE)
     - If the expr is NUMBER(p, s) -> annotate as NUMBER(min(p+3, 38), min(s+3, 37))
     """
     # First annotate the argument to get its type
@@ -119,9 +119,9 @@ def _annotate_median(self: TypeAnnotator, expression: exp.Median) -> exp.Median:
     # Get the input type
     input_type = expression.this.type
 
-    if input_type.is_type(exp.DataType.Type.FLOAT):
-        # If input is FLOAT, return FLOAT
-        self._set_type(expression, exp.DataType.Type.FLOAT)
+    if input_type.is_type(exp.DataType.Type.DOUBLE):
+        # If input is FLOAT/DOUBLE, return DOUBLE (FLOAT is normalized to DOUBLE in Snowflake)
+        self._set_type(expression, exp.DataType.Type.DOUBLE)
     else:
         # If input is NUMBER(p, s), return NUMBER(min(p+3, 38), min(s+3, 37))
         exprs = input_type.expressions
@@ -199,6 +199,18 @@ def _annotate_math_with_float_decfloat(
         # For all other types (integers, decimals, etc.), return DOUBLE
         self._set_type(expression, exp.DataType.Type.DOUBLE)
 
+    return expression
+
+
+def _annotate_str_to_time(self: TypeAnnotator, expression: exp.StrToTime) -> exp.StrToTime:
+    # target_type is stored as a DataType instance
+    target_type_arg = expression.args.get("target_type")
+    target_type = (
+        target_type_arg.this
+        if isinstance(target_type_arg, exp.DataType)
+        else exp.DataType.Type.TIMESTAMP
+    )
+    self._set_type(expression, target_type)
     return expression
 
 
@@ -301,6 +313,7 @@ EXPRESSION_METADATA = {
             exp.BitwiseXorAgg,
             exp.RegexpCount,
             exp.RegexpInstr,
+            exp.ToNumber,
         )
     },
     **{
@@ -383,20 +396,27 @@ EXPRESSION_METADATA = {
     **{
         expr_type: {"returns": exp.DataType.Type.OBJECT}
         for expr_type in {
+            exp.ApproxPercentileAccumulate,
+            exp.ApproxPercentileCombine,
+            exp.ApproxTopKAccumulate,
+            exp.ApproxTopKCombine,
             exp.ObjectAgg,
             exp.ParseIp,
             exp.ParseUrl,
-            exp.ApproxPercentileCombine,
-            exp.ApproxPercentileAccumulate,
-            exp.ApproxTopKAccumulate,
-            exp.ApproxTopKCombine,
             exp.XMLGet,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DataType.Type.FILE}
+        for expr_type in {
+            exp.ToFile,
         }
     },
     **{
         expr_type: {"returns": exp.DataType.Type.TIME}
         for expr_type in {
             exp.TimeFromParts,
+            exp.TsOrDsToTime,
         }
     },
     **{
@@ -491,6 +511,7 @@ EXPRESSION_METADATA = {
     exp.LeastIgnoreNulls: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions")},
     exp.Median: {"annotator": _annotate_median},
     exp.Reverse: {"annotator": _annotate_reverse},
+    exp.StrToTime: {"annotator": _annotate_str_to_time},
     exp.TimeAdd: {"annotator": _annotate_date_or_time_add},
     exp.TimestampFromParts: {"annotator": _annotate_timestamp_from_parts},
     exp.WithinGroup: {"annotator": _annotate_within_group},

@@ -253,6 +253,7 @@ public:
 
     void OnJobInterruptionTimeout(
         NScheduler::EInterruptionReason interruptionReason,
+        TDuration interruptionTimeout,
         const std::optional<TString>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;

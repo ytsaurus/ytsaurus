@@ -96,6 +96,7 @@ private:
     const IThrottlingChannelPtr ThrottlingUpstreamChannel_;
     const NLogging::TLogger Logger;
 
+    // TODO(h0pless): this seems to be doing nothing. Fix it.
     const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     std::atomic<double> CacheTtlRatio_;
@@ -143,11 +144,13 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         auto suppressUpstreamSync = request->suppress_upstream_sync();
         auto suppressTransactionCoordinatorSync = request->suppress_transaction_coordinator_sync();
+        auto suppressStronglyOrderedTransactionBarrier = false;
         // COMPAT(aleksandra-zh)
         if (subrequestHeader.HasExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext)) {
             const auto& multicellSyncExt = subrequestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
             suppressUpstreamSync |= multicellSyncExt.suppress_upstream_sync();
             suppressTransactionCoordinatorSync |= multicellSyncExt.suppress_transaction_coordinator_sync();
+            suppressStronglyOrderedTransactionBarrier |= multicellSyncExt.suppress_strongly_ordered_transaction_barrier();
         }
 
         auto currentStickyGroupSize = request->has_current_sticky_group_size()
@@ -221,6 +224,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
             multicellSyncExt->set_suppress_upstream_sync(suppressUpstreamSync);
             multicellSyncExt->set_suppress_transaction_coordinator_sync(suppressTransactionCoordinatorSync);
+            multicellSyncExt->set_suppress_strongly_ordered_transaction_barrier(suppressStronglyOrderedTransactionBarrier);
 
             subrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
 

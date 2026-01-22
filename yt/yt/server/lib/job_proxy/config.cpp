@@ -14,6 +14,9 @@ void TJobProxyTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_on_job_proxy_spawned_call", &TThis::FailOnJobProxySpawnedCall)
         .Default(false);
+
+    registrar.Parameter("fail_preparation", &TThis::FailPreparation)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -462,6 +465,11 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(40000)
         .GreaterThan(0);
 
+    registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
+        .Default()
+        .GreaterThanOrEqual(-1000)
+        .LessThanOrEqual(1000);
+
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
 
@@ -551,6 +559,11 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
         .Default(40000)
         .GreaterThan(0);
+
+    registrar.Parameter("oom_score_adj_on_exceeded_memory_reserve", &TThis::OomScoreAdjOnExceededMemoryReserve)
+        .Default()
+        .GreaterThanOrEqual(-1000)
+        .LessThanOrEqual(1000);
 
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);

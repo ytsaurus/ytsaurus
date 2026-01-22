@@ -29,7 +29,7 @@ import yt.environment.init_operations_archive as init_operations_archive
 
 import yt.yson as yson
 
-from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqProgressSaved, TRspProgressSaved
+from yt_proto.yt.client.job_proxy.proto.job_api_service_pb2 import TReqOnProgressSaved, TRspOnProgressSaved
 
 import grpc
 
@@ -838,11 +838,11 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
         channel = grpc.insecure_channel(f"unix:{socket_file}")
         endpoint = channel.unary_unary(
-            "/JobApiService/ProgressSaved",
-            TReqProgressSaved.SerializeToString,
-            TRspProgressSaved.FromString,
+            "/JobApiService/OnProgressSaved",
+            TReqOnProgressSaved.SerializeToString,
+            TRspOnProgressSaved.FromString,
         )
-        endpoint(TReqProgressSaved())
+        endpoint(TReqOnProgressSaved())
 
     @authors("pogorelov", "dann239")
     @pytest.mark.parametrize(
@@ -907,7 +907,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             wait(lambda: exists(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}"))
 
             allocation_info = get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}")
-            allocation_info.update({"job_id": job_id})
+            allocation_info |= {"job_id": job_id, "allocation_id": allocation_id}
 
             return allocation_info
 
@@ -918,14 +918,14 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
         sorted_map_allocation_infos = sorted(map_allocation_infos, key=lambda x: x["preemptible_progress_start_time"])
 
-        print_debug("Sorted map_allocation_infos is ", sorted_map_allocation_infos)
+        print_debug("Sorted map_allocation_infos are ", sorted_map_allocation_infos)
 
-        allocation_expected_to_be_preempted = sorted_map_allocation_infos[2]
+        expected_preempted_allocation_index = 2
 
         if several_jobs_in_allocation:
-            allocation_expected_to_be_preempted = sorted_map_allocation_infos[0]
-            first_allocation_info = sorted_map_allocation_infos[0]
-            job_to_release = first_allocation_info["job_id"]
+            expected_preempted_allocation_index = 0
+            info = sorted_map_allocation_infos[expected_preempted_allocation_index]
+            job_to_release = info["job_id"]
 
             release_breakpoint(job_id=job_to_release, breakpoint_name="map")
 
@@ -937,33 +937,38 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
             assert first_map_allocation_infos == second_map_allocation_infos
 
         if call_on_progress_saved:
-            allocation_expected_to_be_preempted = sorted_map_allocation_infos[1]
-            job_to_notify = sorted_map_allocation_infos[1]["job_id"]
-            allocation_id = get_allocation_id_from_job_id(job_to_notify)
+            expected_preempted_allocation_index = 1
+            info = sorted_map_allocation_infos[expected_preempted_allocation_index]
+            job_to_notify = info["job_id"]
+            allocation_id = info["allocation_id"]
+
+            wait(lambda: get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time") != yson.YsonEntity)
+            t0 = datetime.datetime.now(datetime.timezone.utc)
 
             socket_path = map_op.read_stderr(job_to_notify).decode().strip()
             self._notify_progress_saved(socket_path)
 
-            wait(lambda: get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time") != yson.YsonEntity)
+            wait(lambda: t0 < datetime.datetime.fromisoformat(get(f"//sys/scheduler/orchid/scheduler/allocations/{allocation_id}/preemptible_progress_start_time")))
+
+        expected_preempted_allocation_id = sorted_map_allocation_infos[expected_preempted_allocation_index]["allocation_id"]
 
         vanilla_op = run_test_vanilla(with_breakpoint("BREAKPOINT", breakpoint_name="vanilla"), spec={"pool": "test_pool"})
 
         wait(lambda: map_op.get_job_count("aborted") == 1)
+        assert expected_preempted_allocation_id not in {get_allocation_id_from_job_id(job_id) for job_id in map_op.get_running_jobs()}
 
         vanilla_jobs = wait_breakpoint(breakpoint_name="vanilla")
         assert len(vanilla_jobs) == 1
 
-        print_debug("Allocation expected to be preempted is ", allocation_expected_to_be_preempted)
-
-        def check_allocation_preempted():
-            map_allocation_infos_after_preemption = {
-                get_allocation_id_from_job_id(job_id): get_allocation_info(job_id)
-                for job_id in map_job_ids_1
-            }
-
-            return not map_allocation_infos_after_preemption[get_allocation_id_from_job_id(allocation_expected_to_be_preempted["job_id"])]["running"]
-
-        wait(lambda: check_allocation_preempted())
+        def get_non_running_allocations():
+            result = []
+            for info in map_allocation_infos:
+                new_info = get_allocation_info(info["job_id"])
+                if not new_info["running"]:
+                    result.append(new_info["allocation_id"])
+            return result
+        wait(lambda: len(get_non_running_allocations()) > 0)
+        assert get_non_running_allocations() == [expected_preempted_allocation_id]
 
         vanilla_op.abort()
 

@@ -20,7 +20,7 @@ TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(IBootstrap* b
         TDynamicConfigManagerOptions{
             .ConfigPath = "//sys/cluster_nodes/@config",
             .Name = "ClusterNode",
-            .ConfigIsTagged = true
+            .ConfigIsTagged = true,
         },
         bootstrap->GetConfig()->DynamicConfigManager,
         bootstrap->GetClient(),

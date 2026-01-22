@@ -23,6 +23,7 @@ target_compile_options(offline_read_fmt_write PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(offline_read_fmt_write PRIVATE

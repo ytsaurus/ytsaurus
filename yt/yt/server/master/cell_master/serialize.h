@@ -187,6 +187,13 @@ DEFINE_ENUM(EMasterReign,
     ((ChangedExpirationResetApi)                                    (3137))  // koloshmet
     ((ExplicitAccountSetOnSequoiaNodeCreation)                      (3138))  // danilalexeev
     ((PersistAccountStatisticsGossip)                               (3139))  // theevilbird
+    ((RemoveRecalculationMaxReplicasPerFailureDomainFlag)           (3140))  // theevilbird
+    ((IncreaseTabletToCellRatioDefaultToEffectiveInfinity)          (3141))  // alexelexa
+    ((AddConstraintsIntoMasterSnapshot)                             (3142))  // cherepashka
+    ((SaveOriginatorTabletsAfterReshard)                            (3143))  // atalmenev
+    ((RemoveChunkReplicaReasonFix)                                  (3144))  // grphil
+    ((SmoothMovementOrdered)                                        (3145))  // ifsmirnov
+    ((FixSequoiaNodeAclParsing)                                     (3146))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

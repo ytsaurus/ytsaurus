@@ -159,7 +159,7 @@ TClient::TClient(
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))
-    , FunctionRegistry_ (BIND(CreateFunctionRegistryCache,
+    , FunctionRegistry_(BIND(CreateFunctionRegistryCache,
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
@@ -288,15 +288,6 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    if (TypeFromId(cellId) == EObjectType::MasterCell) {
-        auto masterChannel = cellDirectory->FindChannelByCellId(cellId);
-        if (masterChannel) {
-            return WrapChannel(masterChannel);
-        }
-        // Master cell directory synchronizer could have received new master, so it is worth trying to get chanel to master cell via master cell directory.
-        const auto& masterCellDirectory = Connection_->GetMasterCellDirectory();
-        return WrapChannel(masterCellDirectory->GetNakedMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(cellId)));
-    }
     return WrapChannel(cellDirectory->GetChannelByCellIdOrThrow(cellId));
 }
 
@@ -651,6 +642,7 @@ void TClient::ValidateSuperuserPermissions()
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
     options.SuppressUpstreamSync = true;
+    options.SuppressStronglyOrderedTransactionBarrier = true;
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
@@ -910,6 +902,14 @@ void TClient::DoCheckClusterLiveness(
                 << TErrorAttribute("bundle_health", health);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<NYson::TYsonString> TClient::GetConnectionOrchidValue(
+    const NApi::TGetConnectionOrchidValueOptions& options)
+{
+    return AsyncYPathGet(Connection_->GetOrchidService(), options.Path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

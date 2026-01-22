@@ -26,7 +26,7 @@ from yt.common import YtError
 from flaky import flaky
 
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytest
 import random
 import string
@@ -2261,7 +2261,7 @@ print(json.dumps(input))
         assert exists("//tmp/out2")
         assert get("//tmp/out2/@abacaba") == "dabacaba"
 
-        with pytest.raises(YtError, match="Create of type 'Int64' is not supported"):
+        with pytest.raises(YtError, match='Attribute "create" cannot be of type "int64"'):
             map(
                 in_="//tmp/in",
                 out="<create=42>//tmp/out3",
@@ -2754,6 +2754,63 @@ print(json.dumps(input))
         release_breakpoint()
 
         op.track()
+
+    @authors("apollo1321")
+    def test_fail_tactics_with_chunk_scraper(self):
+        """
+        This test ensures that unavailable input chunk is not added to chunk scraper if
+        unavailable_chunk_tactics is set to fail. Otherwise internal invariants may be
+        violated, because when this chunk is found, `Resume` is called without preceding
+        `Suspend` call.
+        """
+
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+
+        write_table("<append=%true>//tmp/t_in", [
+            {"col": "1"},
+            {"col": "2"},
+        ])
+
+        mapper_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("mapper_started"),
+                events_on_fs().wait_event_cmd("continue_mapper"),
+            ]
+        )
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command=mapper_cmd,
+            spec={
+                "job_count": 2,
+                "unavailable_chunk_strategy": "fail",
+                "unavailable_chunk_tactics": "fail",
+                "resource_limits": {"user_slots": 1},
+                "job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "testing": {
+                    "fail_operation_delay": "10s",
+                }
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("mapper_started", timeout=timedelta(1000))
+
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        set_nodes_banned(replicas, True)
+
+        events_on_fs().notify_event("continue_mapper")
+
+        time.sleep(5)
+
+        set_nodes_banned(replicas, False)
+
+        with raises_yt_error(f"Input chunk {chunk_id} is unavailable"):
+            op.track()
 
 
 ##################################################################

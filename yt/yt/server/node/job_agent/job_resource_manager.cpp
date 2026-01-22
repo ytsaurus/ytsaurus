@@ -1415,7 +1415,7 @@ private:
 
         YT_LOG_INFO("Check mapped memory usage");
 
-        THashMap<TString, i64> vmstat;
+        THashMap<std::string, i64> vmstat;
         try {
             vmstat = GetVmstat();
         } catch (const std::exception& ex) {

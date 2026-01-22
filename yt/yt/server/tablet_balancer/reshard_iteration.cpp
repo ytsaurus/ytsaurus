@@ -33,7 +33,7 @@ class TReshardIterationBase
 public:
     TReshardIterationBase(
         TBundleSnapshotPtr bundleSnapshot,
-        TString groupName,
+        TGroupName groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : BundleName_(bundleSnapshot->Bundle->Name)
         , GroupName_(std::move(groupName))
@@ -66,7 +66,7 @@ public:
         return BundleSnapshot_->Bundle;
     }
 
-    const TString& GetGroupName() const override
+    const TGroupName& GetGroupName() const override
     {
         return GroupName_;
     }
@@ -96,7 +96,7 @@ class TSizeReshardIteration
 public:
     TSizeReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
-        TString groupName,
+        TGroupName groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
             std::move(bundleSnapshot),
@@ -219,7 +219,7 @@ class TParameterizedReshardIteration
 public:
     TParameterizedReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
-        TString groupName,
+        TGroupName groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
             std::move(bundleSnapshot),
@@ -327,9 +327,9 @@ class TReplicaReshardIteration
 public:
     TReplicaReshardIteration(
         TBundleSnapshotPtr bundleSnapshot,
-        TString groupName,
+        TGroupName groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
-        std::string clusterName)
+        TClusterName clusterName)
         : TSizeReshardIteration(
             std::move(bundleSnapshot),
             std::move(groupName),
@@ -421,8 +421,8 @@ public:
         const TTablePtr& table,
         const IInvokerPtr& invoker) override
     {
-        auto referenceTablePtr = TableToReferenceTable_.find(table->Id);
-        if (referenceTablePtr == TableToReferenceTable_.end()) {
+        auto referenceTable = TableToReferenceTable_.find(table->Id);
+        if (referenceTable == TableToReferenceTable_.end()) {
             // The table is reference itself, so balance it as usual.
             YT_VERIFY(SelfReferenceTableIds_.contains(table->Id));
             return TSizeReshardIteration::MergeSplitTable(table, invoker);
@@ -431,7 +431,7 @@ public:
         return BIND(
             MergeSplitReplicaTable,
             table,
-            referenceTablePtr->second,
+            referenceTable->second,
             DynamicConfig_->ActionManager->MaxTabletCountPerAction,
             Logger()
                 .WithTag("BundleName: %v", BundleName_)
@@ -462,14 +462,15 @@ public:
     }
 
 private:
+    const TClusterName SelfClusterName_;
+
     THashMap<TTableId, TAlienTablePtr> TableToReferenceTable_;
     THashSet<TTableId> SelfReferenceTableIds_;
-    std::string SelfClusterName_;
 
     struct TReferenceTableSearchResponse
     {
         TAlienTablePtr AlienReferenceTable;
-        bool AreAllReplicasValid;
+        bool AreAllReplicasValid = true;
     };
 
     //! Returns nullptr if table is reference itself.
@@ -477,8 +478,8 @@ private:
     {
         struct TTableKey
         {
-            NTabletClient::ETableReplicaMode Mode;
-            std::string Cluster;
+            NTabletClient::ETableReplicaMode Mode = ETableReplicaMode::Sync;
+            TClusterName Cluster;
             TTableId Id;
         };
 
@@ -486,7 +487,7 @@ private:
         replicas.emplace_back(TTableKey{
             .Mode = *table->ReplicaMode,
             .Cluster = SelfClusterName_,
-            .Id = table->Id
+            .Id = table->Id,
         });
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
@@ -507,16 +508,16 @@ private:
                     return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
                 }
 
-                replicas.emplace_back(TTableKey{
+                replicas.push_back(TTableKey{
                     .Mode = *minorTable->ReplicaMode,
                     .Cluster = cluster,
-                    .Id = minorTable->Id
+                    .Id = minorTable->Id,
                 });
             }
         }
 
         //! Sorting by sync mode, then by cluster name, then by table id to determine major table.
-        auto referenceTableId = std::min_element(replicas.begin(), replicas.end(), [](auto lhs, auto rhs) {
+        auto referenceTableId = std::min_element(replicas.begin(), replicas.end(), [] (const auto& lhs, const auto& rhs) {
             if (lhs.Mode != rhs.Mode) {
                 return (lhs.Mode == NTabletClient::ETableReplicaMode::Sync) > (rhs.Mode == NTabletClient::ETableReplicaMode::Sync);
             } else if (lhs.Cluster != rhs.Cluster) {
@@ -525,7 +526,7 @@ private:
             return lhs.Id < rhs.Id;
         })->Id;
 
-        TReferenceTableSearchResponse response{.AreAllReplicasValid = true};
+        TReferenceTableSearchResponse response;
         if (referenceTableId != table->Id) {
             response.AlienReferenceTable = GetOrCrash(alienTables, referenceTableId);
 
@@ -547,7 +548,7 @@ private:
 
 IReshardIterationPtr CreateSizeReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TSizeReshardIteration>(
@@ -558,7 +559,7 @@ IReshardIterationPtr CreateSizeReshardIteration(
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
     return New<TParameterizedReshardIteration>(
@@ -569,9 +570,9 @@ IReshardIterationPtr CreateParameterizedReshardIteration(
 
 IReshardIterationPtr CreateReplicaReshardIteration(
     TBundleSnapshotPtr bundleSnapshot,
-    TString groupName,
+    TGroupName groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
-    std::string selfClusterName)
+    TClusterName selfClusterName)
 {
     return New<TReplicaReshardIteration>(
         std::move(bundleSnapshot),

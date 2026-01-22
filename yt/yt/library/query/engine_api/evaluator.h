@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/query/base/callbacks.h>
 
+#include <yt/yt/library/web_assembly/api/bytecode.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NQueryClient {
@@ -22,6 +24,7 @@ struct IEvaluator
         const std::vector<IJoinProfilerPtr>& joinProfilers,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,

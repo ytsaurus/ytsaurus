@@ -38,6 +38,7 @@ PY_SRCS(
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
     yt_dashboards/master.py
+    yt_dashboards/cypress_proxies.py
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
     yt_dashboards/scheduler_operation.py

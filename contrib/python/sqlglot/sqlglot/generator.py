@@ -138,6 +138,7 @@ class Generator(metaclass=_Generator):
         exp.CredentialsProperty: lambda self,
         e: f"CREDENTIALS=({self.expressions(e, 'expressions', sep=' ')})",
         exp.CurrentCatalog: lambda *_: "CURRENT_CATALOG",
+        exp.SessionUser: lambda *_: "SESSION_USER",
         exp.DateFormatColumnConstraint: lambda self, e: f"FORMAT {self.sql(e, 'this')}",
         exp.DefaultColumnConstraint: lambda self, e: f"DEFAULT {self.sql(e, 'this')}",
         exp.DynamicProperty: lambda *_: "DYNAMIC",
@@ -178,6 +179,8 @@ class Generator(metaclass=_Generator):
         exp.OnUpdateColumnConstraint: lambda self, e: f"ON UPDATE {self.sql(e, 'this')}",
         exp.Operator: lambda self, e: self.binary(e, ""),  # The operator is produced in `binary`
         exp.OutputModelProperty: lambda self, e: f"OUTPUT{self.sql(e, 'this')}",
+        exp.ExtendsLeft: lambda self, e: self.binary(e, "&<"),
+        exp.ExtendsRight: lambda self, e: self.binary(e, "&>"),
         exp.PathColumnConstraint: lambda self, e: f"PATH {self.sql(e, 'this')}",
         exp.PartitionedByBucket: lambda self, e: self.func("BUCKET", e.this, e.expression),
         exp.PartitionByTruncate: lambda self, e: self.func("TRUNCATE", e.this, e.expression),
@@ -3505,6 +3508,10 @@ class Generator(metaclass=_Generator):
         default = self.sql(expression, "default")
         default = f" DEFAULT {default} ON CONVERSION ERROR" if default else ""
         return f"{safe_prefix or ''}CAST({self.sql(expression, 'this')} AS{to_sql}{default}{format_sql}{action})"
+
+    # Base implementation that excludes safe, zone, and target_type metadata args
+    def strtotime_sql(self, expression: exp.StrToTime) -> str:
+        return self.func("STR_TO_TIME", expression.this, expression.args.get("format"))
 
     def currentdate_sql(self, expression: exp.CurrentDate) -> str:
         zone = self.sql(expression, "this")

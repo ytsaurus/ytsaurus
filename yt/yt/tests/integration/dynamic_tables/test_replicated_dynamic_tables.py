@@ -229,6 +229,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             attributes.update({"store_rotation_period": 10000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 10000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
         return create("hunk_storage", name, attributes=attributes)
 
     def _get_hunk_table_schema(self, schema, max_inline_hunk_size):
@@ -731,9 +733,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("fomasha")
     @pytest.mark.parametrize("mode", ["async", "sync"])
-    def test_per_cluster_tablet_replication_sync_replicas_count_orchid(self, mode):
+    def test_per_cluster_tablet_replication_sync_replica_count_orchid(self, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": True})
+        self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": False})
 
         replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": mode})
         replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "sync"})
@@ -752,16 +754,24 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
-        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", driver=self.replica_driver)
-
         timestamp = generate_timestamp()
         wait(lambda: are_items_equal(
             get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
             [replica_id1, replica_id2]))
 
         if mode == "sync":
-            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME), sleep_backoff=0.5)
+            wait(lambda: has_sync_replicas(self.REPLICA_CLUSTER_NAME))
+
+        set(
+            "//tmp/t/@replicated_table_options",
+            {
+                "enable_replicated_table_tracker": True,
+                "tablet_cell_bundle_name_failure_interval": 1000,
+            },
+        )
+
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication")
+        assert get("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication", driver=self.replica_driver)
 
         set(
             "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/enable_incoming_replication",

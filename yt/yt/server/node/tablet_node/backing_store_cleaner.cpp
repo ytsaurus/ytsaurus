@@ -153,7 +153,7 @@ private:
                     .Store = chunkStore,
                     .CreationTime = chunkStore->GetCreationTime(),
                     .BackingStoreSize = backingStore->GetDynamicMemoryUsage(),
-                    .Slot = slot
+                    .Slot = slot,
                 });
                 memoryUsage += backingStore->GetDynamicMemoryUsage();
             }

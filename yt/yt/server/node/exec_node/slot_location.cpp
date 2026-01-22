@@ -111,7 +111,7 @@ std::optional<TString> TSlotLocation::TSandboxTmpfsData::TryGetPathRelativeToSan
     auto fullPath = NFS::JoinPaths(path, "/");
     for (const auto& sandboxPath : SandboxPaths_) {
         auto fullSandboxPath = NFS::JoinPaths(sandboxPath, "/");
-        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.StartsWith(fullSandboxPath)) {
+        if (fullSandboxPath.empty() || fullPath.size() < fullSandboxPath.size() || !fullPath.starts_with(fullSandboxPath)) {
             continue;
         }
 
@@ -197,15 +197,15 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         static const TDirectory Directories[] = {
             {
                 .Path = "slot",
-                .RemoveIfExists = false
+                .RemoveIfExists = false,
             },
             {
                 .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)),
-                .RemoveIfExists = false
+                .RemoveIfExists = false,
             },
             {
                 .Path = Format("slot/%v", GetSandboxRelPath(ESandboxKind::Tmp)),
-                .RemoveIfExists = true
+                .RemoveIfExists = true,
             },
         };
 
@@ -215,7 +215,7 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
 
         int nodeUid = getuid();
 
-        auto createRootDirectoryConfig = [&]() {
+        auto createRootDirectoryConfig = [&] {
             auto rootConfig = New<NTools::TRootDirectoryConfig>();
             rootConfig->SlotPath = rootVolumeMountPath;
             rootConfig->UserId = nodeUid;
@@ -245,8 +245,8 @@ TFuture<void> TSlotLocation::CreateSlotDirectories(const IVolumePtr& rootVolume,
         YT_LOG_DEBUG("Created slot directories in root volume (RootPath: %v)",
             rootVolumeMountPath);
     })
-    .AsyncVia(ToolInvoker_)
-    .Run();
+        .AsyncVia(ToolInvoker_)
+        .Run();
 }
 
 TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
@@ -265,7 +265,7 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         YT_VERIFY(NFS::Exists(rootVolumeMountPath));
 
         for (const auto& p : ldLinuxPaths) {
-            auto path = NFS::CombinePaths(rootVolumeMountPath, p);
+            auto path = NFS::CombinePaths(rootVolumeMountPath, std::string(p));
             if (NFS::Exists(path)) {
                 YT_LOG_DEBUG("Found dynamic linker ld-linux in root fs (Path: %v)",
                     path);
@@ -273,11 +273,11 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
             }
         }
 
-        THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root fs")
+        THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root filesystem")
             << TErrorAttribute("root_volume_path", rootVolumeMountPath);
     })
-    .AsyncVia(HeavyInvoker_)
-    .Run();
+        .AsyncVia(HeavyInvoker_)
+        .Run();
 }
 
 TFuture<void> TSlotLocation::CreateTmpfsDirectoriesInsideSandbox(const TString& userSandboxPath, const std::vector<TTmpfsVolumeParams>& volumeParams) const
@@ -1111,7 +1111,7 @@ bool TSlotLocation::IsInsideTmpfs(int slotIndex, const TString& path) const
 void TSlotLocation::ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const
 {
     auto dirPath = GetDirectoryName(filePath);
-    if (!dirPath.StartsWith(sandboxPath)) {
+    if (!dirPath.starts_with(sandboxPath)) {
         THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
             << TErrorAttribute("sandbox_path", sandboxPath)
             << TErrorAttribute("file_path", filePath);

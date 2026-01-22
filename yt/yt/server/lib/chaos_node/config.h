@@ -94,7 +94,7 @@ DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
 struct TChaosLeaseManagerConfig
     : public NYTree::TYsonStruct
 {
-    i64 MigrationMaxBatchSize;
+    i64 MaxMigrationBatchSize;
 
     REGISTER_YSON_STRUCT(TChaosLeaseManagerConfig);
 

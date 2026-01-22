@@ -665,6 +665,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AnnotationPath)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImmediateAnnotation)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
         .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
         .SetOpaque(true));
@@ -932,6 +934,17 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::ImmediateAnnotation: {
+            if (auto annotation = node->TryGetAnnotation()) {
+                BuildYsonFluently(consumer)
+                    .Value(*annotation);
+            } else {
+                BuildYsonFluently(consumer)
+                    .Entity();
+            }
+            return true;
+        }
+
         case EInternedAttributeKey::TouchTime:
             if (!node->GetTouchTime()) {
                 break;
@@ -1068,6 +1081,7 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr
     SetAccessed();
     SetTouched();
     SequoiaNodeEffectiveAcl_.reset();
+    SequoiaNodeDeserializedEffectiveAcl_.reset();
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -1415,14 +1429,28 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 "Permission validation through this API is not supported for Sequoia nodes");
         }
 
-        auto effectiveAclProducer = [&] {
-            auto aclNode = ConvertToNode(*SequoiaNodeEffectiveAcl_);
-            return DeserializeAclOrThrow(aclNode, securityManager);
-        };
+        if (!SequoiaNodeDeserializedEffectiveAcl_.has_value()) {
+            auto aclNode = ConvertToNode(TYsonStringBuf(*SequoiaNodeEffectiveAcl_));
+            // After removed, the Sequoia ACL table still contains the subject
+            // until the next GUQM sync.
+            auto result = DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
+                aclNode,
+                securityManager,
+                /*ignoreMissingSubjects*/ true,
+                /*ignorePendingRemovalSubjects*/ false);
+            SequoiaNodeDeserializedEffectiveAcl_ = std::move(result.Acl);
+
+            YT_LOG_DEBUG_IF(!result.MissingSubjects.empty(),
+                "Missing subjects mentioned in effective ACL for Sequoia node "
+                "(NodeId: %v, MissingSubjects: %v)",
+                TrunkNode_->GetId(),
+                result.MissingSubjects);
+        }
+
         return securityManager->CheckPermission(
             user,
             permission,
-            effectiveAclProducer,
+            *SequoiaNodeDeserializedEffectiveAcl_,
             std::move(options));
     } else {
         return securityManager->CheckPermission(

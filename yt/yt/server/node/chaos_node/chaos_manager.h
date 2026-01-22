@@ -18,7 +18,7 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EExistenceResult, i8,
+DEFINE_ENUM(EExistenceResult,
     ((Available)   (0))
     ((Absent)      (1))
     ((NonExistent) (2))
@@ -148,14 +148,7 @@ struct IChaosManager
 
     virtual void RevokeShortcuts(
         TRange<TChaosObjectBase*> chaosObjects,
-        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt) = 0;
-
-    void RevokeShortcut(
-        TChaosObjectBase* chaosObject,
-        std::optional<NElection::TCellId> suspendedChaosCellId = std::nullopt)
-    {
-        RevokeShortcuts(TRange(&chaosObject, 1), suspendedChaosCellId);
-    }
+        NElection::TCellId suspendedChaosCellId = NElection::NullCellId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

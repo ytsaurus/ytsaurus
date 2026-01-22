@@ -755,6 +755,11 @@ void TSmoothMovementData::Persist(const TPersistenceContext& context)
     Persist(context, SiblingMountRevision_);
     Persist(context, SiblingAvenueEndpointId_);
     Persist(context, CommonDynamicStoreIds_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::SmoothMovementOrdered) {
+        Persist(context, StoreRowCountOverride_);
+    }
 }
 
 void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
@@ -925,6 +930,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
     Save(context, UpstreamReplicaId_);
+    Save(context, OriginatorTablets_);
     Save(context, HashTableSize_);
     Save(context, RuntimeData_->TotalRowCount);
     Save(context, RuntimeData_->TrimmedRowCount);
@@ -1026,6 +1032,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
     Load(context, UpstreamReplicaId_);
+    // COMPAT(atalmenev)
+    if (context.GetVersion() >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+        Load(context, OriginatorTablets_);
+    }
     Load(context, HashTableSize_);
     Load(context, RuntimeData_->TotalRowCount);
     Load(context, RuntimeData_->TrimmedRowCount);
@@ -1444,7 +1454,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
         TSampleKeyListTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
         nodeMemoryTracker
-            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
             : nullptr);
 
     std::vector<TLegacyOwningKey> immediateSplitKeys;
@@ -1548,7 +1558,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
             TSampleKeyListTag(),
             TChunkedMemoryPool::DefaultStartChunkSize,
             nodeMemoryTracker
-                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletInternal)
+                ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletFootprint)
                 : nullptr);
 
         while (sampleKeyIndex < std::ssize(existingSampleKeys) && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
@@ -2340,7 +2350,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("tablet_stores_update"),
             "tablet_stores_update",
-            EDistributedThrottlerMode::Precise,
+            ETabletDistributedThrottlerKind::StoresUpdate,
             TabletStoresUpdateThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ true);
 
@@ -2350,7 +2360,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("lookup"),
             "lookup",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Lookup,
             LookupThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
     YT_VERIFY(
@@ -2363,7 +2373,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("select"),
             "select",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Select,
             SelectThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2373,7 +2383,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("compaction_read"),
             "compaction_read",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::CompactionRead,
             CompactionReadThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2383,7 +2393,7 @@ void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
             CellTagFromId(Id_),
             getThrottlerConfig("write"),
             "write",
-            EDistributedThrottlerMode::Adaptive,
+            ETabletDistributedThrottlerKind::Write,
             WriteThrottlerRpcTimeout,
             /*admitUnlimitedThrottler*/ false);
 
@@ -2648,6 +2658,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             *replicationProgress);
     }
 
+    ToProto(replicatableContent->mutable_originator_tablets(), OriginatorTablets_);
+
     auto* chaosData = request->mutable_chaos_data();
     chaosData->set_replication_era(RuntimeData()->ReplicationEra.load());
     chaosData->set_replication_round(ChaosData()->ReplicationRound.load());
@@ -2726,6 +2738,8 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
         ? TYsonString(replicatableContent.custom_runtime_data())
         : TYsonString();
+
+    FromProto(&OriginatorTablets_, replicatableContent.originator_tablets());
 
     FromProto(&DynamicStoreIdPool_, request->allocated_dynamic_store_ids());
 

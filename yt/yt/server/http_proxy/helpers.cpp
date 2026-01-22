@@ -330,7 +330,7 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
     try {
         TNetworkStatistics totals;
         for (const auto& iface : GetNetworkInterfaceStatistics()) {
-            if (!iface.first.StartsWith("eth")) {
+            if (!iface.first.starts_with("eth")) {
                 continue;
             }
 
@@ -386,4 +386,3 @@ void RedirectToDataProxy(const IRequestPtr& request, const IResponseWriterPtr& r
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy
-

@@ -137,6 +137,9 @@ public:
         NObjectClient::TObjectId prerequisiteId,
         const TPrerequisiteAttachOptions& options) override;
 
+    TFuture<NYson::TYsonString> GetConnectionOrchidValue(
+        const NApi::TGetConnectionOrchidValueOptions& options = {}) override;
+
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
 private: \
@@ -1324,8 +1327,8 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCellTag(
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NRpc::IChannelPtr GetChaosChannelByCardIdOrThrow(
-        NChaosClient::TReplicationCardId replicationCardId,
+    NRpc::IChannelPtr GetChaosChannelByObjectIdOrThrow(
+        NChaosClient::TChaosObjectId chaosObjectId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
     //

@@ -1085,7 +1085,8 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        parsedSource->AstHead);
+        parsedSource->AstHead,
+        EExecutionBackend::Native);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);
@@ -1211,6 +1212,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
             DefaultExpressionBuilderVersion,
             /*memoryTracker*/ nullptr,
             /*syntaxVersion*/ 2,
@@ -1252,6 +1254,7 @@ TEST_F(TQueryPrepareTest, RewriteCardinalityIntoHyperLogLogWithPrecision)
             parsedSource->Source,
             std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
             parsedSource->AstHead,
+            NCodegen::EExecutionBackend::Native,
             DefaultExpressionBuilderVersion,
             /*memoryTracker*/ nullptr,
             /*syntaxVersion*/ 2,
@@ -6643,6 +6646,35 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
     }, resultSplit);
 
     Evaluate("try_get_int64(yson, ypath) as result FROM [//t]", split, source, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YPathTryGetInt64FromList)
+{
+    auto split = MakeSplit({
+        {"yson", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto source = TSource{
+        "yson=[1; 2; 3]",
+        "yson=[4]",
+        "yson=[]",
+        ""
+    };
+
+    auto resultSplit = MakeSplit({
+        {"result", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "result=1",
+        "result=4",
+        "result=#",
+        "result=#"
+    }, resultSplit);
+
+    Evaluate("try_get_int64(yson, \"/0\") as result FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }

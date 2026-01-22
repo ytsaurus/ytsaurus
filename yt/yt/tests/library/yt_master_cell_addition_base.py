@@ -156,7 +156,7 @@ class MasterCellAdditionBase(YTEnvSetup):
         try:
             action()
         except YtError as error:
-            if error.contains_text("Unknown master cell tag") or error.contains_text("No cell with id"):
+            if error.contains_text("Unknown master cell tag") or error.contains_text("No channel for cell with id"):
                 return False
             else:
                 raise

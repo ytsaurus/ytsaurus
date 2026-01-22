@@ -193,10 +193,10 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
 void RemoveEntitiesOnPath(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     NYTree::WalkNodeByYPath(node, path, {
-        .MissingAttributeHandler = [] (const TString& /*key*/) {
+        .MissingAttributeHandler = [] (const std::string& /*key*/) {
             return nullptr;
         },
-        .MissingChildKeyHandler = [] (const NYTree::IMapNodePtr& /*node*/, const TString& /*key*/) {
+        .MissingChildKeyHandler = [] (const NYTree::IMapNodePtr& /*node*/, const std::string& /*key*/) {
             return nullptr;
         },
         .MissingChildIndexHandler = [] (const NYTree::IListNodePtr& /*node*/, int /*index*/) {
@@ -320,20 +320,14 @@ public:
 
     void OnEntity() override;
 
-    void OnBeginList() override
-    {
-        Forward_->OnBeginList();
-    }
+    void OnBeginList() override;
 
     void OnListItem() override
     {
         Forward_->OnListItem();
     }
 
-    void OnEndList() override
-    {
-        Forward_->OnEndList();
-    }
+    void OnEndList() override;
 
     void OnBeginMap() override;
 
@@ -453,10 +447,10 @@ private:
 
     void ProcessAttribute(int attributeIndex)
     {
-        auto attributeIndexCodicil = TErrorCodicils::Guard("attribute_index", [attributeIndex] () -> std::string {
+        auto attributeIndexCodicil = TErrorCodicils::MakeGuard("attribute_index", [attributeIndex] () -> std::string {
             return NYT::ToString(attributeIndex);
         });
-        auto attributePathCodicil = TErrorCodicils::Guard("attribute_path", [attributePath = AttributeValues_[attributeIndex].Path] () -> std::string {
+        auto attributePathCodicil = TErrorCodicils::MakeGuard("attribute_path", [attributePath = AttributeValues_[attributeIndex].Path] () -> std::string {
             return attributePath;
         });
         const auto& attributePath = AttributePaths_[attributeIndex];
@@ -518,6 +512,18 @@ private:
                 << TErrorAttribute("key_prefix", prefix);
         }
         LastKey_ = key;
+    }
+
+    void OnBeginList()
+    {
+        UsedKeysForDepth_.emplace_back();
+        CurrentPathSegments_.emplace_back(LastKey_);
+    }
+
+    void OnEndList()
+    {
+        UsedKeysForDepth_.pop_back();
+        CurrentPathSegments_.pop_back();
     }
 
     void OnBeginMap()
@@ -590,6 +596,17 @@ void TRecursiveAttributeMergeConsumer::OnEndMap()
     Forward_->OnEndMap();
 }
 
+void TRecursiveAttributeMergeConsumer::OnBeginList()
+{
+    Forward_->OnBeginList();
+    Merger_.OnBeginList();
+}
+
+void TRecursiveAttributeMergeConsumer::OnEndList()
+{
+    Forward_->OnEndList();
+    Merger_.OnEndList();
+}
 
 TYsonString MergeAttributeValuesWithPrefixes(
     std::vector<TAttributeValue> attributeValues,

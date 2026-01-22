@@ -37,6 +37,7 @@ import os
 import struct
 import socket
 import time
+import uuid
 
 
 def try_parse_yt_error_headers(rsp):
@@ -80,6 +81,7 @@ class HttpProxyTestBase(YTEnvSetup):
                 "expire_after_access_time": 100,
             },
         },
+        "cancel_fiber_on_connection_close": True,
     }
 
     MASTER_CELL_DESCRIPTORS = {
@@ -614,6 +616,92 @@ class TestHttpProxy(HttpProxyTestBase):
         else:
             assert "$type" in tid
             assert "$value" in tid
+
+    @authors("ermolovd")
+    def test_request_cancellation(self):
+        user = "test_request_cancellation"
+        dir_path = "//tmp/test_request_cancellation"
+        create_user(user)
+
+        create("map_node", dir_path)
+        set(f"{dir_path}/@test_attr", [])
+
+        address = self.Env.get_http_proxy_address()
+        host, port = address.split(":")
+        port = int(port)
+
+        def make_request(count, correlation_id=None):
+            params = {
+                "concurrency": 1,
+                "requests": [
+                    {
+                        "command": "set",
+                        "parameters": {"path": f"{dir_path}/@test_attr/end"},
+                        "input": 1,
+                    }
+                ] * count,
+            }
+
+            body = yson.dumps(params, yson_format="text").decode("utf-8")
+
+            if correlation_id is None:
+                correlation_id = str(uuid.uuid4())
+
+            return (
+                "POST /api/v4/execute_batch HTTP/1.1\r\n"
+                f"Host: {address}\r\n"
+                f"X-YT-Header-Format: <format=text>yson\r\n"
+                f"X-YT-Output-Format: <format=text>yson\r\n"
+                f"X-YT-Input-Format: <format=text>yson\r\n"
+                f"X-YT-User-Name: {user}\r\n"
+                f"X-YT-Correlation-Id: {correlation_id}\r\n"
+                f"Content-Length: {len(body)}\r\n"
+                f"Connection: close\r\n"
+                "\r\n"
+                f"{body}"
+            )
+
+        def recv_all(sock, bufsize=4096):
+            chunks = []
+            while True:
+                data = sock.recv(bufsize)
+                if not data:
+                    break
+                chunks.append(data)
+            return b"".join(chunks)
+
+        def first_request():
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((host, port))
+            request = make_request(100)
+            sock.sendall(request.encode("ascii"))
+            bytes_response = recv_all(sock)
+            assert b"200 OK" in bytes_response
+        first_request()
+        assert get(f"{dir_path}/@test_attr") == [1] * 100
+
+        set(f"//sys/users/{user}/@write_request_rate_limit", 1)
+        set(f"{dir_path}/@test_attr", [])
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, port))
+        correlation_id = "111-222-333-" + str(uuid.uuid4())
+        request = make_request(1024, correlation_id=correlation_id)
+        sock.sendall(request.encode("ascii"))
+        time.sleep(1)
+        sock.close()
+
+        prev_len = 0
+        for _ in range(10):
+            time.sleep(2)
+            cur = get(f"{dir_path}/@test_attr")
+            if len(cur) == 1024:
+                raise AssertionError(f"Write request limiter didn't work for request {correlation_id}")
+            if len(cur) == prev_len:
+                break
+            prev_len = len(cur)
+        else:
+            raise AssertionError(f"Request {correlation_id} doesn't seem to be canceled")
 
 
 @pytest.mark.enabled_multidaemon

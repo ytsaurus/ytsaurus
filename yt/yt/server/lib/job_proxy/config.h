@@ -49,6 +49,8 @@ struct TJobProxyTestingConfig
 {
     bool FailOnJobProxySpawnedCall;
 
+    bool FailPreparation;
+
     REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -122,7 +124,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 struct TTmpfsManagerConfig
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> TmpfsPaths;
+    std::vector<std::string> TmpfsPaths;
 
     REGISTER_YSON_STRUCT(TTmpfsManagerConfig);
 
@@ -525,6 +527,8 @@ struct TJobProxyInternalConfig
 
     i64 AdaptiveRowCountUpperBound;
 
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     //! Enable root volume disk quota.
@@ -593,6 +597,9 @@ struct TJobProxyDynamicConfig
     NJobProxy::TJobTraceEventProcessorConfigPtr JobTraceEventProcessor;
 
     i64 AdaptiveRowCountUpperBound;
+
+    std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+
     bool UseNewDeliveryFencedConnection;
 
     std::optional<TString> MemoryProfileDumpPath;

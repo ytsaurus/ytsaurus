@@ -30,6 +30,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/adaptive_hedging_manager.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -644,7 +645,7 @@ private:
                 if (emplaced) {
                     it->second = probingInfos.size();
                     probingInfos.push_back({
-                        .NodeId = nodeId
+                        .NodeId = nodeId,
                     });
                     nodeIds.push_back(nodeId);
                 }
@@ -1413,7 +1414,7 @@ private:
                     perPeerPlan->Items.push_back({
                         .ChunkState = &chunkState,
                         .Plan = plan,
-                        .PeerIndex = peerIndex
+                        .PeerIndex = peerIndex,
                     });
                 }
             }
@@ -1543,9 +1544,10 @@ private:
 
             i64 dataByteSize = GetDataByteSize(req);
 
-            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, ChunkIds: %v)",
+            YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ByteSize: %v, IsHedged: %v, ChunkIds: %v)",
                 peerInfo->Address,
                 dataByteSize,
+                isHedged,
                 MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
                     builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));

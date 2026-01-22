@@ -170,9 +170,9 @@ static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString CreateNamedPipePath()
+static std::string CreateNamedPipePath()
 {
-    const TString& name = CreateGuidAsString();
+    std::string name = CreateGuidAsString();
     return GetRealPath(CombinePaths("./pipes", name));
 }
 
@@ -527,7 +527,8 @@ public:
             artifactPath);
 
         auto onError = [&] (const TError& error) {
-            Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
+            // TODO(dgolear): Switch to std::string.
+            Host_->OnArtifactPreparationFailed(artifactName, TString(artifactPath), error);
         };
 
         try {
@@ -542,7 +543,8 @@ public:
             TFile artifactFile(artifactPath, CreateAlways | WrOnly | Seq | CloseOnExec);
             artifactFile.Flock(LOCK_EX);
 
-            Host_->PrepareArtifact(artifactName, pipePath);
+            // TODO(dgolear): Switch to std::string.
+            Host_->PrepareArtifact(artifactName, TString(pipePath));
 
             // Now pipe is opened and O_NONBLOCK is not required anymore.
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
@@ -619,7 +621,7 @@ private:
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 
-    TString InputPipePath_;
+    std::string InputPipePath_;
 
     std::optional<int> UserId_;
 
@@ -704,6 +706,8 @@ private:
     i64 PageFaultLimitOverflowCount_ = 0;
 
     std::atomic<TInstant> LastProgressSaveTime_ = TInstant::Zero();
+
+    THashMap<pid_t, int> OomScoreAdjs_;
 
     TFuture<void> SpawnUserProcess()
     {
@@ -1919,6 +1923,11 @@ private:
             CleanupUserProcesses();
         }
 
+        if (UserJobSpec_.has_memory_reserve() && Config_->OomScoreAdjOnExceededMemoryReserve.has_value()) {
+            int targetOomScore = memoryUsage > UserJobSpec_.memory_reserve() ? *Config_->OomScoreAdjOnExceededMemoryReserve : 0;
+            SetOomScoreAdj(targetOomScore);
+        }
+
         Host_->SetUserJobMemoryUsage(memoryUsage);
 
         if (Config_->CheckUserJobOomKill) {
@@ -2073,6 +2082,65 @@ private:
             return time;
         } else {
             return std::nullopt;
+        }
+    }
+
+    void SetOomScoreAdj(int score)
+    {
+        // We have two possible approaches here: either mark only the root process for an oom kill
+        // or mark them all.
+        //
+        // The downsides of the former approach are that root processes are not representative of
+        // the job's memory consumption, and might not contain enough memory in themselves to
+        // satisfy the oom killer as there's generally no guarantee that its children would be
+        // reaped immediately after the parent, so it might potentially move on to reap innocent jobs.
+        //
+        // The downside of the latter approach is that killing a child within a job leaves it in an
+        // undefined state which is generally undesirable. It could be mitigated by setting
+        // memory.oom.group if cgroup v2 is available, or by monitoring for oom kills and finishing
+        // off any job that had one.
+        //
+        // Here, we go with the latter approach.
+
+        // TODO(dann239): Set memory.oom.group if cgroup v2 is available.
+        // TODO(dann239): Monitor for oom kills and finish off any job that had one.
+
+        std::vector<pid_t> pids;
+
+        if (auto maybePid = UserJobEnvironment_->GetJobRootPid()) {
+            pids.push_back(*maybePid);
+        }
+        for (auto pid : UserJobEnvironment_->GetJobPids()) {
+            pids.push_back(pid);
+        }
+
+        const THashMap<pid_t, int> oldOomScoreAdjs = std::move(OomScoreAdjs_);
+        OomScoreAdjs_.clear();
+
+        for (auto pid : pids) {
+            if (auto it = oldOomScoreAdjs.find(pid); it != oldOomScoreAdjs.end() && it->second == score) {
+                OomScoreAdjs_[pid] = score;
+                continue;
+            }
+
+            YT_LOG_DEBUG(
+                "Changing oom_score_adj of a user job process (Pid: %v, OomScoreAdj: %v)",
+                pid,
+                score);
+
+            auto config = New<TChangeOomScoreAdjAsRootConfig>();
+            config->Pid = pid;
+            config->Score = score;
+
+            try {
+                RunTool<TChangeOomScoreAdjAsRootTool>(config);
+                OomScoreAdjs_[pid] = score;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(
+                    ex,
+                    "Failed to set oom_score_adj of a user job process (Pid: %v)",
+                    pid);
+            }
         }
     }
 };

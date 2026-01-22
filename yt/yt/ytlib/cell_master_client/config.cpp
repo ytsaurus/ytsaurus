@@ -26,6 +26,11 @@ void TCellDirectoryConfig::Register(TRegistrar registrar)
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
 
+    registrar.Parameter("enable_hive_cell_directory_reconfiguration_on_new_master_cells", &TThis::EnableHiveCellDirectoryReconfigurationOnNewMasterCells)
+        .Default(true);
+    registrar.Parameter("enable_hive_cell_directory_reconfiguration_on_changed_master_cells", &TThis::EnableHiveCellDirectoryReconfigurationOnChangedMasterCells)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->CachingObjectService->RateLimit = 1000000; // effective infinity
     });

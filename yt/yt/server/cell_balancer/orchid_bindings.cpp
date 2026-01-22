@@ -1,6 +1,8 @@
 #include "orchid_bindings.h"
 
 #include "config.h"
+#include "input_state.h"
+#include "mutations.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

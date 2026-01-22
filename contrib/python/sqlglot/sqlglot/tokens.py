@@ -83,7 +83,10 @@ class TokenType(AutoName):
     PARAMETER = auto()
     SESSION = auto()
     SESSION_PARAMETER = auto()
+    SESSION_USER = auto()
     DAMP = auto()
+    AMP_LT = auto()
+    AMP_GT = auto()
     XOR = auto()
     DSTAR = auto()
     QMARK_AMP = auto()
@@ -297,6 +300,7 @@ class TokenType(AutoName):
     EXISTS = auto()
     FALSE = auto()
     FETCH = auto()
+    FILE = auto()
     FILE_FORMAT = auto()
     FILTER = auto()
     FINAL = auto()
@@ -783,6 +787,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "FALSE": TokenType.FALSE,
         "FETCH": TokenType.FETCH,
         "FILTER": TokenType.FILTER,
+        "FILE": TokenType.FILE,
         "FIRST": TokenType.FIRST,
         "FULL": TokenType.FULL,
         "FUNCTION": TokenType.FUNCTION,
@@ -863,6 +868,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "SELECT": TokenType.SELECT,
         "SEMI": TokenType.SEMI,
         "SESSION": TokenType.SESSION,
+        "SESSION_USER": TokenType.SESSION_USER,
         "SET": TokenType.SET,
         "SETTINGS": TokenType.SETTINGS,
         "SHOW": TokenType.SHOW,

@@ -21,6 +21,7 @@ target_compile_options(check_schema_compatibility PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(check_schema_compatibility PUBLIC

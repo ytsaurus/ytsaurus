@@ -72,9 +72,6 @@ def lazy_import_driver_bindings():
 
 
 def create_driver(config, connection_type):
-    global driver_bindings
-    global driver_bindings_type
-
     try:
         return driver_bindings.Driver(config, connection_type=connection_type)
     except RuntimeError as ex:

@@ -320,6 +320,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     options.Timeout = Config_->CypressTimeout;
     options.SuppressTransactionCoordinatorSync = true;
     options.SuppressUpstreamSync = true;
+    options.SuppressStronglyOrderedTransactionBarrier = true;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 

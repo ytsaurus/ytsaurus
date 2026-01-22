@@ -220,6 +220,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                     {wireType},
                     wireType,
                     EExecutionBackend::Native,
+                    NWebAssembly::GetBuiltinSdk(),
                     {});
             }
             column.AggregateInstance = column.AggregateImage.Instantiate();

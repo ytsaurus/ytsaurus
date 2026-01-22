@@ -159,7 +159,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_cpu_usage_alert_job_states", &TThis::LowCpuUsageAlertJobStates)
         .Default({
-            EJobState::Completed
+            EJobState::Completed,
         });
 
     registrar.Parameter("high_cpu_wait_alert_min_average_job_time", &TThis::HighCpuWaitAlertMinAverageJobTime)
@@ -177,7 +177,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("high_cpu_wait_alert_job_states", &TThis::HighCpuWaitAlertJobStates)
         .Default({
             EJobState::Completed,
-            EJobState::Running
+            EJobState::Running,
         });
 
 
@@ -1404,6 +1404,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
+        .Default(false);
+
+    registrar.Parameter("max_unversioned_dynamic_table_output_chunk_size", &TThis::MaxUnversionedDynamicTableOutputChunkSize)
+        .GreaterThan(0)
+        .Default(320_MB);
+
+    registrar.Parameter("max_unversioned_dynamic_table_output_block_size", &TThis::MaxUnversionedDynamicTableOutputBlockSize)
+        .GreaterThan(0)
+        .Default(512_KB);
+
+    registrar.Parameter("enable_dynamic_table_output_chunk_constraint_validation", &TThis::EnableDynamicTableOutputChunkConstraintValidation)
         .Default(false);
 
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)

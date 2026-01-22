@@ -51,7 +51,9 @@ extern const TString OperationAliasPrefix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
+namespace {
+
+void ValidateOperationAcl(const TSerializableAccessControlList& acl)
 {
     for (const auto& ace : acl.Entries) {
         if (ace.Action != ESecurityAction::Allow && ace.Action != ESecurityAction::Deny) {
@@ -69,8 +71,6 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
         }
     }
 }
-
-namespace {
 
 void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<std::string>* owners)
 {
@@ -2403,7 +2403,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             for (const auto& reduceColumn : spec->ReduceBy) {
                 columns.push_back(TColumnSortSchema{
                     .Name = reduceColumn,
-                    .SortOrder = ESortOrder::Ascending
+                    .SortOrder = ESortOrder::Ascending,
                 });
             }
             return columns;
@@ -2568,7 +2568,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("erasure_chunk_repair_delay", &TThis::ErasureChunkRepairDelay)
         .Default(TDuration::Minutes(15));
     registrar.Parameter("repair_erasure_chunks", &TThis::RepairErasureChunks)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("use_remote_master_caches", &TThis::UseRemoteMasterCaches)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
@@ -3119,7 +3119,7 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
                 spec->NonPreemptibleResourceUsageThreshold = New<TJobResourcesConfig>();
             }
             if (!spec->NonPreemptibleResourceUsageThreshold->UserSlots) {
-                spec->NonPreemptibleResourceUsageThreshold->UserSlots = *spec->MaxUnpreemptibleRunningAllocationCount;
+                spec->NonPreemptibleResourceUsageThreshold->UserSlots = spec->MaxUnpreemptibleRunningAllocationCount;
             }
         }
     });

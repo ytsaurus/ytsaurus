@@ -67,17 +67,17 @@ DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReplicationCardChannelConfig
+struct TChaosObjectChannelConfig
     : public NRpc::TRetryingChannelConfig
 {
     TDuration RpcAcknowledgementTimeout;
 
-    REGISTER_YSON_STRUCT(TReplicationCardChannelConfig);
+    REGISTER_YSON_STRUCT(TChaosObjectChannelConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicationCardChannelConfig)
+DEFINE_REFCOUNTED_TYPE(TChaosObjectChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

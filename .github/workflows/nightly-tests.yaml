@@ -1,8 +1,8 @@
-name: Hourly YTsaurus CI Trigger
+name: YTsaurus CI Nightly Trigger
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/59 * * * *'
   workflow_dispatch:
 
 jobs:

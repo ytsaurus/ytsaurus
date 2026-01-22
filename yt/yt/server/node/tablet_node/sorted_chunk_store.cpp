@@ -1096,7 +1096,7 @@ private:
             .Timestamp = timestamp,
             .ProduceAllVersions = produceAllVersions,
             .OverrideTimestamp = chunk->OverrideTimestamp_,
-            .EnableHashChunkIndex = tabletSnapshot->Settings.MountConfig->EnableHashChunkIndexForLookup
+            .EnableHashChunkIndex = tabletSnapshot->Settings.MountConfig->EnableHashChunkIndexForLookup,
         });
         MaybeWrapUnderlyingReader(
             chunk,
@@ -1745,4 +1745,3 @@ TSharedRange<TLegacyKey> FilterKeysByReadRange(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

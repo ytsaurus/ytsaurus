@@ -213,7 +213,7 @@ public:
             TWatcherLockOptions{
                 .LockPath = GetPoolTreesLockPath(),
                 .CheckBackoff = Config_->PoolTreesLockCheckBackoff,
-                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout
+                .WaitTimeout = Config_->PoolTreesLockTransactionTimeout,
             });
 
         MasterConnector_->SetCustomWatcher(

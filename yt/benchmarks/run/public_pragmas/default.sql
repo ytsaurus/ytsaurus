@@ -16,7 +16,9 @@ pragma config.flags(
     "DropAnyOverEquiJoinInputs",
     "PredicatePushdownOverEquiJoinBothSides",
     "FuseEquiJoinsInputMultiLabels",
-    "KeepPruneKeysOnInputTables"
+    "KeepPruneKeysOnInputTables",
+    "EqualityFilterOverJoin",
+    "NormalizeEqualityFilterOverJoin"
 );
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";

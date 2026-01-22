@@ -21,6 +21,7 @@ target_compile_options(read_arrow PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(read_arrow PUBLIC

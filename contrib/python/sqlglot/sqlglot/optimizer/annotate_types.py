@@ -290,10 +290,23 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
                 if not values:
                     continue
 
-                selects[name] = {
-                    alias: column.type
-                    for alias, column in zip(expression.alias_column_names, values)
-                }
+                alias_column_names = expression.alias_column_names
+
+                if (
+                    isinstance(expression, exp.Unnest)
+                    and not alias_column_names
+                    and expression.type
+                    and expression.type.is_type(exp.DataType.Type.STRUCT)
+                ):
+                    selects[name] = {
+                        col_def.name: t.cast(t.Union[exp.DataType, exp.DataType.Type], col_def.kind)
+                        for col_def in expression.type.expressions
+                        if isinstance(col_def, exp.ColumnDef) and col_def.kind
+                    }
+                else:
+                    selects[name] = {
+                        alias: column.type for alias, column in zip(alias_column_names, values)
+                    }
             elif isinstance(expression, exp.SetOperation) and len(expression.left.selects) == len(
                 expression.right.selects
             ):
@@ -673,31 +686,59 @@ class TypeAnnotator(metaclass=_TypeAnnotator):
         self._set_type(expression, expr_type)
         return expression
 
+    def _annotate_subquery(self, expression: exp.Subquery) -> exp.Subquery:
+        # For scalar subqueries (subqueries with a single projection), infer the type
+        # from that single projection. This allows type propagation in cases like:
+        # SELECT (SELECT 1 AS c) AS c
+        query = expression.unnest()
+
+        if isinstance(query, exp.Query):
+            selects = query.selects
+            if len(selects) == 1:
+                self._set_type(expression, selects[0].type)
+                return expression
+
+        self._set_type(expression, exp.DataType.Type.UNKNOWN)
+        return expression
+
     def _annotate_struct_value(
         self, expression: exp.Expression
     ) -> t.Optional[exp.DataType] | exp.ColumnDef:
         # Case: STRUCT(key AS value)
+        this: t.Optional[exp.Expression] = None
+        kind = expression.type
+
         if alias := expression.args.get("alias"):
-            return exp.ColumnDef(this=alias.copy(), kind=expression.type)
+            this = alias.copy()
+        elif expression.expression:
+            # Case: STRUCT(key = value) or STRUCT(key := value)
+            this = expression.this.copy()
+            kind = expression.expression.type
+        elif isinstance(expression, exp.Column):
+            # Case: STRUCT(c)
+            this = expression.this.copy()
 
-        # Case: STRUCT(key = value) or STRUCT(key := value)
-        if expression.expression:
-            return exp.ColumnDef(this=expression.this.copy(), kind=expression.expression.type)
+        if kind and kind.is_type(exp.DataType.Type.UNKNOWN):
+            return None
 
-        # Case: STRUCT(c)
-        if isinstance(expression, exp.Column):
-            return exp.ColumnDef(this=expression.this.copy(), kind=expression.type)
+        if this:
+            return exp.ColumnDef(this=this, kind=kind)
 
-        return expression.type
+        return kind
 
     def _annotate_struct(self, expression: exp.Struct) -> exp.Struct:
+        expressions = []
+        for expr in expression.expressions:
+            struct_field_type = self._annotate_struct_value(expr)
+            if struct_field_type is None:
+                self._set_type(expression, None)
+                return expression
+
+            expressions.append(struct_field_type)
+
         self._set_type(
             expression,
-            exp.DataType(
-                this=exp.DataType.Type.STRUCT,
-                expressions=[self._annotate_struct_value(expr) for expr in expression.expressions],
-                nested=True,
-            ),
+            exp.DataType(this=exp.DataType.Type.STRUCT, expressions=expressions, nested=True),
         )
         return expression
 

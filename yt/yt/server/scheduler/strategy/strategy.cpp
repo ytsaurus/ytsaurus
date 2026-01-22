@@ -1679,7 +1679,7 @@ private:
                 if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
                         .Id = treeId,
-                        .Tentative = true
+                        .Tentative = true,
                     });
                 }
             } else {
@@ -1701,7 +1701,7 @@ private:
             if (auto tree = FindTree(spec->ProbingPoolTree.value())) {
                 result.push_back(TPoolTreeDescription{
                     .Id = *spec->ProbingPoolTree,
-                    .Probing = true
+                    .Probing = true,
                 });
             } else {
                 THROW_ERROR_EXCEPTION("Probing pool tree %Qv not found", spec->ProbingPoolTree.value());

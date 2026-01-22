@@ -10,7 +10,7 @@ template <class T>
 void calc_log2(T& num, unsigned digits)
 {
    using ui_type = typename boost::multiprecision::detail::canonical<std::uint32_t, T>::type;
-   using si_type = typename std::tuple_element<0, typename T::signed_types>::type                        ;
+   using si_type = typename std::tuple_element<0, typename T::signed_types>::type;
 
    //
    // String value with 1100 digits:
@@ -249,8 +249,9 @@ const T& get_constant_e()
 template <class T>
 const T& get_constant_pi()
 {
-   static BOOST_MP_THREAD_LOCAL T             result;
+   static BOOST_MP_THREAD_LOCAL T result;
    static BOOST_MP_THREAD_LOCAL long digits = 0;
+
    if ((digits != boost::multiprecision::detail::digits2<number<T> >::value()))
    {
       boost::multiprecision::detail::maybe_promote_precision(&result);

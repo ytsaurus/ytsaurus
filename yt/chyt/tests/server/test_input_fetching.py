@@ -164,6 +164,9 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(
                 "select * from (select * from `//tmp/t` where key == 'k4')", exact=1
             )
+            assert clique.make_query("select * from (select key, value from `//tmp/t` where key in (select key from `//tmp/t` where key = 'k1')) t") == [
+                {"key": "k1", "value": "v1"}
+            ]
 
     @authors("max42")
     def test_dynamic_table_farm_hash_two_components(self):
@@ -1711,6 +1714,7 @@ class TestInferReadRange(ClickHouseTestBase):
                 2,
                 expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
             )
+            check("ts IN (toDateTime('2025-05-05T12:25:00'))", 1, expected=[{"ts": "2025-05-05 12:25:00.000000"}])
             check(
                 "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",
                 3,

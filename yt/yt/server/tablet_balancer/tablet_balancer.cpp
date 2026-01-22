@@ -149,7 +149,7 @@ private:
     IThreadPoolPtr WorkerPool_;
     IThreadPoolPtr PivotPickerPool_;
 
-    std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
+    std::atomic<bool> IsActive_ = false;
 
     THashMap<std::string, IBundleStatePtr> Bundles_;
     mutable THashMap<std::string, TBundleErrors> BundleErrors_;
@@ -306,7 +306,7 @@ void TTabletBalancer::Start()
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
 
-    if (IsActive_.test_and_set()) {
+    if (auto oldValue = false; IsActive_.compare_exchange_strong(oldValue, true)) {
         YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
     }
 
@@ -331,7 +331,7 @@ void TTabletBalancer::Stop()
 
     YT_LOG_INFO("Stopping tablet balancer instance");
 
-    IsActive_.clear();
+    IsActive_.store(false);
 
     YT_UNUSED_FUTURE(PollExecutor_->Stop());
 
@@ -605,7 +605,7 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    if (!IsActive_.test()) {
+    if (!IsActive_.load()) {
         YT_LOG_DEBUG("Removing errors by ttl for inactive instance");
 
         RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
@@ -1480,19 +1480,17 @@ TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag,
 void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& bundleName)
 {
     auto it = CancelledBundleIterationDueToUnhealthyState_.find(bundleName);
-    if (it != CancelledBundleIterationDueToUnhealthyState_.end()) {
-        it->second.Increment(1);
-        return;
+    if (it == CancelledBundleIterationDueToUnhealthyState_.end()) {
+        it = EmplaceOrCrash(
+            CancelledBundleIterationDueToUnhealthyState_,
+            bundleName,
+            TabletBalancerProfiler()
+                .WithSparse()
+                .WithTag("bundle", bundleName)
+                .Counter("/bundle_iteration_cancellations"));
     }
 
-    auto newCounter = EmplaceOrCrash(
-        CancelledBundleIterationDueToUnhealthyState_,
-        bundleName,
-        TabletBalancerProfiler()
-            .WithSparse()
-            .WithTag("bundle", bundleName)
-            .Counter("/bundle_iteration_cancellations"));
-    newCounter->second.Increment(1);
+    it->second.Increment(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

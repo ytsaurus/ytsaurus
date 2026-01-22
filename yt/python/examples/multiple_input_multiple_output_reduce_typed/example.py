@@ -23,7 +23,7 @@ class IsRobotRow:
 
 
 class FilterRobotsReducer(yt.wrapper.TypedJob):
-    # Чтобы не запутаться, можно завести именованные константы для индексов таблиц.
+    # Creating named constants for tables indexes in order not to be confused.
     ROBOT_TABLE_INDEX = 0
     HUMAN_TABLE_INDEX = 1
 
@@ -82,8 +82,7 @@ def main():
 
     client.run_reduce(
         FilterRobotsReducer(),
-        # Индексы входных и выходных таблиц так же определяются тем порядком,
-        # в котором они указываются в соответствующих параметрах.
+        # The indexes of input and output tables are determined in the same order as they are specified in the corresponding parameters.
         source_table=[sorted_staff_table, sorted_is_robot_table],
         destination_table=[robot_table, human_table],
         reduce_by=["uid"],

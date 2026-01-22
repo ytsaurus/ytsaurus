@@ -47,10 +47,9 @@ const std::string DefaultYqlAgentStageName = "production";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlSettings
+struct TYqlSettings
     : public TYsonStruct
 {
-public:
     std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
 
@@ -66,7 +65,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TYqlSettings)
-DECLARE_REFCOUNTED_CLASS(TYqlSettings)
+DECLARE_REFCOUNTED_STRUCT(TYqlSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 

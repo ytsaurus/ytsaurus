@@ -54,7 +54,7 @@ public:
     TUnbufferedFileChangelog(
         IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        TString fileName,
+        std::string fileName,
         TFileChangelogConfigPtr config)
         : IOEngine_(std::move(ioEngine))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
@@ -71,7 +71,7 @@ public:
         return Config_;
     }
 
-    const TString& GetFileName() const override
+    const std::string& GetFileName() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -88,7 +88,8 @@ public:
 
         try {
             NFS::WrapIOErrors([&] {
-                DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}))
+                // TODO(babenko): migrate to std::string
+                DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = TString(FileName_), .Mode = RdWr | Seq | CloseOnExec}))
                     .ValueOrThrow();
                 LockDataFile();
 
@@ -447,10 +448,12 @@ public:
             newIndex->SyncFlush();
 
             Index_->Close();
-            NFS::Remove(indexFileName);
+            // TODO(babenko): migrate to std::string
+            NFS::Remove(TString(indexFileName));
 
             newIndex->Close();
-            NFS::Rename(tempIndexFileName, indexFileName);
+            // TODO(babenko): migrate to std::string
+            NFS::Rename(TString(tempIndexFileName), TString(indexFileName));
 
             Index_ = MakeIndex(indexFileName);
             Index_->Open();
@@ -478,7 +481,7 @@ public:
 private:
     const IIOEnginePtr IOEngine_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const TString FileName_;
+    const std::string FileName_;
     const TFileChangelogConfigPtr Config_;
     const NLogging::TLogger Logger;
 
@@ -530,17 +533,18 @@ private:
             amplification);
     }
 
-    TString MakeIndexFileName()
+    std::string MakeIndexFileName()
     {
         return FileName_ + "." + ChangelogIndexExtension;
     }
 
-    TString MakeTempIndexFileName()
+    std::string MakeTempIndexFileName()
     {
-        return MakeIndexFileName() + NFS::TempFileSuffix;
+        // TODO(babenko): migrate to std::string
+        return TString(MakeIndexFileName()) + NFS::TempFileSuffix;
     }
 
-    TFileChangelogIndexPtr MakeIndex(TString fileName)
+    TFileChangelogIndexPtr MakeIndex(std::string fileName)
     {
         return New<TFileChangelogIndex>(
             IOEngine_,
@@ -640,7 +644,8 @@ private:
         YT_VERIFY(static_cast<i32>(buffer.Size()) == header.FirstRecordOffset);
 
         NFS::WrapIOErrors([&] {
-            auto tempFileName = FileName_ + NFS::TempFileSuffix;
+            // TODO(babenko): migrate to std::string
+            auto tempFileName = TString(FileName_) + NFS::TempFileSuffix;
 
             auto dataFile = WaitFor(IOEngine_->Open({.Path = tempFileName, .Mode = WrOnly | CloseOnExec | CreateAlways}))
                 .ValueOrThrow();
@@ -657,9 +662,11 @@ private:
                 .ThrowOnError();
 
             // TODO(babenko): use IO engine
-            NFS::Replace(tempFileName, FileName_);
+            // TODO(babenko): migrate to std::string
+            NFS::Replace(tempFileName, TString(FileName_));
 
-            DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | Seq | CloseOnExec}))
+            // TODO(babenko): migrate to std::string
+            DataFileHandle_ = WaitFor(IOEngine_->Open({.Path = TString(FileName_), .Mode = RdWr | Seq | CloseOnExec}))
                 .ValueOrThrow();
         });
     }
@@ -1112,7 +1119,7 @@ private:
 IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    TString fileName,
+    std::string fileName,
     TFileChangelogConfigPtr config)
 {
     return New<TUnbufferedFileChangelog>(

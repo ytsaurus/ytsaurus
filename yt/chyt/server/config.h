@@ -253,7 +253,7 @@ public:
 
     //! CH estimates total execution time by linearly extrapolating the current read rate.
     //! Since read throughput can vary, this estimate may be inaccurate and lead to false positive errors.
-    bool DisableReadingTimeEstimation;
+    bool DisableReadTimeEstimation;
 
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
@@ -274,6 +274,8 @@ public:
     ETypeMismatchMode TypeMismatchMode;
     //! Disable user-friendly check when there are no columns present in every input table.
     bool AllowEmptySchemaIntersection;
+    //! It helps to skip nodes for which the attribute could not be fetched.
+    bool IgnoreFetchErrors;
     //! Limit for number of tables in concat. If exceeded, the error is thrown.
     int MaxTables;
 

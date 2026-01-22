@@ -171,8 +171,8 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 artifact.Key.GetCompressedDataSize());
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
-            auto symlinkPath =
-                CombinePaths(sandboxPath, artifact.Name);
+            // TODO(dgolear): Switch to std::string.
+            TString symlinkPath = CombinePaths(sandboxPath, artifact.Name);
 
             WaitFor(slot->MakeLink(
                 Context_.Job->GetId(),
@@ -214,7 +214,8 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
             YT_VERIFY(artifact.Artifact);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
-            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+            // TODO(dgolear): Swtich to std::string.
+            TString artifactPath = CombinePaths(sandboxPath, artifact.Name);
 
             YT_LOG_INFO(
                 "Set permissions for artifact (FileName: %v, Executable: "
@@ -238,7 +239,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 
     auto allSetFuture = AllSet(ioOperationFutures);
     auto errors = WaitFor(allSetFuture).ValueOrThrow();
-    for (auto& error : errors) {
+    for (const auto& error : errors) {
         error.ThrowOnError();
     }
 
@@ -327,7 +328,8 @@ private:
         }
 
         return TRootFS{
-            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            // TODO(dgolear): Switch to std::string.
+            .RootPath = TString(ResultHolder_.RootVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = std::move(binds),
         };
@@ -569,25 +571,29 @@ private:
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
                 options)
-                .Apply(BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
-                        YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
+                    .Apply(
+                        BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                            if (!volumeOrError.IsOK()) {
+                                YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                            << volumeOrError;
-                    }
+                                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                    << volumeOrError;
+                            }
 
-                    auto rootVolume = std::move(volumeOrError.Value());
-                    return slot->CreateSlotDirectories(
-                        rootVolume,
-                        Context_.UserSandboxOptions.UserId)
-                        .Apply(BIND([rootVolume, this, this_ = MakeStrong(this)] () {
-                            Context_.RootVolume = rootVolume;
-                            YT_LOG_DEBUG("Root volume prepared");
-                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-                        }).AsyncVia(Invoker_));
+                            auto rootVolume = std::move(volumeOrError.Value());
+                            return slot->CreateSlotDirectories(
+                                rootVolume,
+                                Context_.UserSandboxOptions.UserId)
+                                    .Apply(
+                                        BIND([rootVolume, this, this_ = MakeStrong(this)] {
+                                            Context_.RootVolume = rootVolume;
+                                            YT_LOG_DEBUG("Root volume prepared");
+                                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                                        })
+                                        .AsyncVia(Invoker_));
 
-                }).AsyncVia(Invoker_));
+                        })
+                        .AsyncVia(Invoker_));
         } else {
             YT_LOG_DEBUG("Root volume preparation is not needed");
             return OKFuture;
@@ -611,23 +617,26 @@ private:
 
         const auto& slot = Context_.Slot;
         return slot->PrepareTmpfsVolumes(ResultHolder_.RootVolume, volumes, Context_.TestRootFS)
-            .AsUnique().Apply(BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
-                if (!volumeResultsOrError.IsOK()) {
-                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
-                        << volumeResultsOrError;
-                }
+            .AsUnique()
+            .Apply(
+                BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TTmpfsVolumeResult>>&& volumeResultsOrError) {
+                    if (!volumeResultsOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsVolumePreparationFailed, "Failed to prepare tmpfs volumes")
+                            << volumeResultsOrError;
+                    }
 
-                Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
+                    Context_.PreparedTmpfsVolumes = std::move(volumeResultsOrError.Value());
 
-                YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
+                    YT_LOG_DEBUG("Prepared tmpfs volumes (Volumes: %v)",
                     MakeFormattableView(Context_.PreparedTmpfsVolumes,
                         [] (auto* builder, const TTmpfsVolumeResult& result) {
                             builder->AppendFormat("{TmpfsPath: %v, VolumePath: %v}",
                                 result.Path,
                                 result.Volume->GetPath());
                         }));
-                SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
-            }).AsyncVia(Invoker_))
+                    SetNowTime(TimePoints_.PrepareTmpfsVolumesFinishTime);
+                })
+                .AsyncVia(Invoker_))
             .ToUncancelable();
     }
 
@@ -804,7 +813,7 @@ private:
         }
 
         return TRootFS{
-            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .RootPath = TString(ResultHolder_.RootVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = std::move(binds),
         };
@@ -817,7 +826,7 @@ private:
         YT_VERIFY(ResultHolder_.GpuCheckVolume);
 
         return TRootFS{
-            .RootPath = ResultHolder_.GpuCheckVolume->GetPath(),
+            .RootPath = TString(ResultHolder_.GpuCheckVolume->GetPath()),
             .IsRootReadOnly = false,
             .Binds = {},
         };

@@ -638,7 +638,7 @@ private:
                 Bootstrap_->GetIOTracker()->Enqueue(
                     TIOCounters{
                         .Bytes = totalBlockSize,
-                        .IORequests = 1
+                        .IORequests = 1,
                     },
                     /*tags*/ {
                         {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
@@ -1195,7 +1195,7 @@ private:
                     Bootstrap_->GetIOTracker()->Enqueue(
                         TIOCounters{
                             .Bytes = totalRecordsSize,
-                            .IORequests = 1
+                            .IORequests = 1,
                         },
                         /*tags*/ {
                             {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
@@ -2774,7 +2774,7 @@ private:
             for (int index = 0; index < std::ssize(erasurePartWriters); ++index) {
                 writers.push_back(TChunkWriterWithIndex{
                     .ChunkWriter = std::move(erasurePartWriters[index]),
-                    .Index = index
+                    .Index = index,
                 });
             }
 
@@ -2819,7 +2819,7 @@ private:
                     Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyOut));
                 writers.push_back(TChunkWriterWithIndex{
                     .ChunkWriter = std::move(writer),
-                    .Index = index
+                    .Index = index,
                 });
             }
 

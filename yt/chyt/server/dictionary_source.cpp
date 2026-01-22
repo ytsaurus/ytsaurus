@@ -198,7 +198,7 @@ private:
     TTablePtr FetchTable() {
         auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
 
-        auto table = FetchTables(
+        auto table = FetchTablesSoft(
             fakeQueryContext.Get(),
             {Path_},
             /*skipUnsuitableNodes*/ false,

@@ -1071,8 +1071,10 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
         }
 
-        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v)",
-            *clusterToNetworkBandwidthAvailability);
+        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v, NodeId: %v, NodeAddress: %v)",
+            *clusterToNetworkBandwidthAvailability,
+            nodeId,
+            nodeDescriptor.GetDefaultAddress());
     }
 
     ProfileHeartbeatRequest(request);
@@ -2317,7 +2319,7 @@ bool TJobTracker::HandleRunningJobInfo(
     ToProto(
         response->add_jobs_to_store(),
         TJobToStore{
-            .JobId = jobId
+            .JobId = jobId,
         });
 
     allocation.FinishRunningJob();

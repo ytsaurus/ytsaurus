@@ -112,6 +112,8 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_data_provider.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.h
@@ -139,6 +141,8 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_udf_resolver.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_features.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_window_frames_collector_params_serializer.h
 )
 
 

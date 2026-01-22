@@ -67,7 +67,7 @@ void TChaosManagerConfig::Register(TRegistrar registrar)
 
 void TChaosLeaseManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("migration_max_batch_size", &TThis::MigrationMaxBatchSize)
+    registrar.Parameter("max_migration_batch_size", &TThis::MaxMigrationBatchSize)
         .Default(1000);
 }
 

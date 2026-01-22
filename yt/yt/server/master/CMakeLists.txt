@@ -39,6 +39,7 @@ target_compile_options(yt-server-master PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_include_directories(yt-server-master PUBLIC

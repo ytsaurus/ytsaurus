@@ -6046,11 +6046,19 @@ class TestChaosMetaCluster(ChaosTestBase):
             for cell_id, driver in drivers.items()
         }
 
+        def retry_enabled_cell(func):
+            for _ in range(5):
+                try:
+                    func()
+                except YtError as e:
+                    if not e.contains_code(yt_error_codes.ChaosCellIsNotEnabled):
+                        raise e
+
         def get_chaos_lease_manager_state(cell_id):
             state_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/internal/state"
             return get(state_path, driver=drivers[cell_id])
 
-        def get_chaos_lease(cell_id, lease_id):
+        def get_chaos_lease_from_orchid(cell_id, lease_id):
             lease_path = f"{orchids_paths[cell_id]}/chaos_lease_manager/chaos_leases/{lease_id}"
             return get(lease_path, driver=drivers[cell_id])
 
@@ -6065,9 +6073,11 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "disabled")
 
             lease_id = create_chaos_lease(enabled_cell)
-            assert get_chaos_lease(enabled_cell, lease_id)["state"] == "normal"
+            assert get_chaos_lease_from_orchid(enabled_cell, lease_id)["state"] == "normal"
+            ping_chaos_lease(lease_id)
+
             with pytest.raises(YtError):
-                assert get_chaos_lease(disabled_cell, lease_id)
+                assert get_chaos_lease_from_orchid(disabled_cell, lease_id)
 
             with pytest.raises(YtError):
                 assert suspend_chaos_cells([disabled_cell])
@@ -6077,9 +6087,13 @@ class TestChaosMetaCluster(ChaosTestBase):
             wait(lambda: get_chaos_lease_manager_state(enabled_cell) == "disabled")
             wait(lambda: get_chaos_lease_manager_state(disabled_cell) == "enabled")
 
-            wait(lambda: get_chaos_lease(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
+            wait(lambda: get_chaos_lease_from_orchid(disabled_cell, lease_id)["state"] == "normal", ignore_exceptions=True)
             with pytest.raises(YtError):
-                assert get_chaos_lease(enabled_cell, lease_id)
+                assert get_chaos_lease_from_orchid(enabled_cell, lease_id)
+
+            retry_enabled_cell(lambda: get(f"#{lease_id}"))
+
+            retry_enabled_cell(lambda: ping_chaos_lease(lease_id))
 
         check_suspend(alpha_cell, beta_cell)
         check_suspend(beta_cell, alpha_cell)
@@ -7157,7 +7171,6 @@ class TestChaosSmoothMovement(ChaosTestBase):
         rows = []
 
         def _insert_row():
-            nonlocal rows
             row = {"key": len(rows), "value": str(len(rows))}
             rows.append(row)
             insert_rows("//tmp/t", [row])

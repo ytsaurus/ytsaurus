@@ -45,6 +45,7 @@ target_compile_options(yt-yt-core PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-core PUBLIC
@@ -144,6 +145,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_queue_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_share_thread_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_throttler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fair_throttler_ipc.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/fiber_manager.cpp
@@ -206,6 +208,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adaptive_hedging_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/histogram.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/adjusted_exponential_moving_average.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/duration_moving_average.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/id_generator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/inotify.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fair_share_hierarchical_queue.cpp
@@ -271,6 +274,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/overload_controlling_service_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_discovery.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/peer_priority_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/per_key_request_queue_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/public.cpp
@@ -382,6 +386,7 @@ target_compile_options(yt-yt-core.global PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC

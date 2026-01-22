@@ -18,7 +18,7 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/public.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/chaos_object_channel_factory.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/rpc/retrying_channel.h>

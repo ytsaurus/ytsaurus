@@ -21,6 +21,7 @@ target_compile_options(library-web_assembly-api PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(library-web_assembly-api PUBLIC
@@ -30,6 +31,7 @@ target_link_libraries(library-web_assembly-api PUBLIC
 )
 
 target_sources(library-web_assembly-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/bytecode.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/compartment.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/data_transfer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/api/function.cpp

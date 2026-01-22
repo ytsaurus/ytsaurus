@@ -30,7 +30,7 @@ void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& sche
 TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TTableSchemaPtr>(
         std::move(config),
-        NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         TableServerLogger().WithTag("Cache: TableSchema"),
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
@@ -97,7 +97,7 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCo
 TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TYsonTableSchemaCacheConfigPtr config)
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TYsonString>(
         config,
-        NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
         TableServerLogger().WithTag("Cache: YsonTableSchema"),
         TableServerProfiler().WithPrefix("/yson_table_schema_cache"))
     , WeakTableManager_(weakTableManager)

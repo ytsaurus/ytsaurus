@@ -40,6 +40,10 @@ on:
       nightly-image-tag:
         required: true
         type: string
+      build-types:
+        description: 'JSON array of build types: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: true
+        type: string
 
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
@@ -51,8 +55,9 @@ jobs:
   docker:
     runs-on: ${{ inputs.runs-on-value }}
     strategy:
+      fail-fast: false
       matrix:
-        build-type: [release, relwithdebinfo]
+        build-type: ${{ fromJson(inputs.build-types) }}
 
     steps:
       - name: Calculate variables

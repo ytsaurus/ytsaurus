@@ -103,6 +103,27 @@ void TOrderedStoreManager::Mount(
     Tablet_->RecomputeReplicaStatuses();
 }
 
+void TOrderedStoreManager::PopulateReplicateTabletContentRequest(
+    NProto::TReqReplicateTabletContent* request)
+{
+    auto* replicatableContent = request->mutable_replicatable_content();
+    auto& movementData = Tablet_->SmoothMovementData();
+
+    auto onStore = [&] (const IStorePtr& store) {
+        if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
+            movementData.CommonDynamicStoreIds().insert(store->GetId());
+        }
+
+        store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
+    };
+
+    for (const auto& [rowIndex, store] : Tablet_->StoreRowIndexMap()) {
+        onStore(store);
+    }
+
+    TStoreManagerBase::PopulateReplicateTabletContentRequest(request);
+}
+
 void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
 {
     if (context->HunkChunksInfo) {
@@ -158,6 +179,14 @@ i64 TOrderedStoreManager::ComputeStartingRowIndex() const
     }
 
     const auto& lastStore = storeRowIndexMap.rbegin()->second;
+
+    if (auto rowCountOverride = GetOrDefault(
+        Tablet_->SmoothMovementData().StoreRowCountOverride(),
+        lastStore->GetId()))
+    {
+        return lastStore->GetStartingRowIndex() + rowCountOverride;
+    }
+
     YT_VERIFY(lastStore->GetRowCount() > 0);
     return lastStore->GetStartingRowIndex() + lastStore->GetRowCount();
 }
@@ -301,7 +330,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto combinedThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             throttler,
-            tabletSnapshot->FlushThrottler
+            tabletSnapshot->FlushThrottler,
         });
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);

@@ -2134,6 +2134,13 @@ public:
             .Item("new_name").Value(newName);
 
         subject->SetName(newName);
+
+        // Update the Sequoia ACL table entries.
+        for (auto [object, _] : subject->LinkedObjects()) {
+            for (auto acd : ListAcds(object)) {
+                OnObjectAcdUpdated(acd.Underlying());
+            }
+        }
     }
 
     TWrappedAccessControlDescriptorPtr FindAcd(TObject* object) override
@@ -2382,33 +2389,6 @@ public:
             return std::move(checker).GetResponse();
         }
 
-        for (const auto& ace : acl.Entries) {
-            checker.ProcessAce(ace, nullptr, nullptr, 0);
-            if (!checker.ShouldProceed()) {
-                break;
-            }
-        }
-
-        return std::move(checker).GetResponse();
-    }
-
-    TPermissionCheckResponse CheckPermission(
-        TUser* user,
-        EPermission permission,
-        TFunctionRef<TAccessControlList()> aclProducer,
-        TPermissionCheckOptions options = {}) override
-    {
-        TPermissionChecker checker(
-            this,
-            user,
-            permission,
-            &options);
-
-        if (!checker.ShouldProceed()) {
-            return std::move(checker).GetResponse();
-        }
-
-        auto acl = aclProducer();
         for (const auto& ace : acl.Entries) {
             checker.ProcessAce(ace, nullptr, nullptr, 0);
             if (!checker.ShouldProceed()) {
@@ -4273,7 +4253,7 @@ private:
             // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetAccountStatistics request;
-                for (auto [accountId, account] : AccountMap_) {
+                for (auto account : GetValuesSortedByKey(AccountMap_)) {
                     if (!IsObjectAlive(account)) {
                         continue;
                     }
@@ -4290,7 +4270,7 @@ private:
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
             request.set_cell_tag(multicellManager->GetCellTag().Underlying());
-            for (auto [accountId, account] : AccountMap_) {
+            for (auto account : GetValuesSortedByKey(AccountMap_)) {
                 if (!IsObjectAlive(account)) {
                     continue;
                 }

@@ -35,7 +35,6 @@ using NMaintenanceTrackerServer::EMaintenanceType;
 struct INodeTracker
     : public virtual TRefCounted
 {
-public:
     virtual void Initialize() = 0;
 
     using TCtxRegisterNode = NRpc::TTypedServiceContext<

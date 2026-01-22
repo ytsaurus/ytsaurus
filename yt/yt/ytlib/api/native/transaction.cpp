@@ -2218,7 +2218,7 @@ private:
             }
 
             const auto& replicationCard = session->GetReplicationCard();
-            const auto& replicationCardId = session->GetInfo()->ReplicationCardId;
+            auto replicationCardId = session->GetInfo()->ReplicationCardId;
             if (replicationCardId &&
                 replicationCard->Era > InitialReplicationEra &&
                 !options.CoordinatorCellId)
@@ -2249,14 +2249,14 @@ private:
                 }
 
                 if (options.CoordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy) {
-                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qv is incompatible with chaos tables",
+                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qlv is incompatible with chaos tables",
                         options.CoordinatorCommitMode);
                 }
 
                 NObjectClient::TCellId coordinatorCellId;
-                // Actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
+                // The actual problem is NP-hard, so use a simple heuristic (however greedy approach could do better here):
                 // if we've already seen given cell id, use it. Otherwise select a random one.
-                for (const auto& coordinatorCellIdCandidate : coordinatorCellIds) {
+                for (auto coordinatorCellIdCandidate : coordinatorCellIds) {
                     if (selectedCellIds.contains(coordinatorCellIdCandidate)) {
                         coordinatorCellId = coordinatorCellIdCandidate;
                         break;
@@ -2277,7 +2277,7 @@ private:
                     auto prerequisiteType = TypeFromId(prerequisiteId);
                     if (!IsChaosLeaseType(prerequisiteType)) {
                         THROW_ERROR_EXCEPTION(
-                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids.")
+                            "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids")
                             << TErrorAttribute("prerequisite_id", prerequisiteId)
                             << TErrorAttribute("prerequisite_type", prerequisiteType)
                             << TErrorAttribute("table_path", path);
@@ -2291,7 +2291,7 @@ private:
                 CommitOptions_.Force2PC = true;
                 if (!CommitOptions_.CoordinatorCellId) {
                     CommitOptions_.CoordinatorCellId = coordinatorCellId;
-                    YT_LOG_DEBUG("2PC Coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
+                    YT_LOG_DEBUG("2PC coordinator selected (CoordinatorCellId: %v)", coordinatorCellId);
                 }
 
                 YT_LOG_DEBUG("Coordinator selected (Path: %v, ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",

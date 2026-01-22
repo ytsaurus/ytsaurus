@@ -655,7 +655,7 @@ i64 TChunkLocationBase::GetAdditionalSpace() const
     return 0;
 }
 
-bool TChunkLocationBase::ShouldSkipFileName(const TString& fileName) const
+bool TChunkLocationBase::ShouldSkipFileName(const std::string& fileName) const
 {
     return
         fileName == CellIdFileName ||

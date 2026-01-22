@@ -718,18 +718,18 @@ public:
                         const auto& [clusterName, replicationStatus] = *replicationStatusEntry;
                         bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
                             replicationStatus.ActiveReplicatorIterationCount != 0;
-                        bool hasSyncReplicas = replicationStatus.SyncReplicasCount != 0 ||
-                            replicationStatus.SyncToAsyncReplicasCount != 0 ||
-                            replicationStatus.AsyncToSyncReplicasCount != 0;
+                        bool hasSyncReplicas = replicationStatus.SyncReplicaCount != 0 ||
+                            replicationStatus.SyncToAsyncReplicaCount != 0 ||
+                            replicationStatus.AsyncToSyncReplicaCount != 0;
 
                         fluent.Item(clusterName)
                             .BeginMap()
                                 .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
                                 .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
                                 .Item("has_replication_activity").Value(hasReplicationActivity)
-                                .Item("sync_replicas_count").Value(replicationStatus.SyncReplicasCount)
-                                .Item("sync_to_async_replicas_count").Value(replicationStatus.SyncToAsyncReplicasCount)
-                                .Item("async_to_sync_replicas_count").Value(replicationStatus.AsyncToSyncReplicasCount)
+                                .Item("sync_replica_count").Value(replicationStatus.SyncReplicaCount)
+                                .Item("sync_to_async_replica_count").Value(replicationStatus.SyncToAsyncReplicaCount)
+                                .Item("async_to_sync_replica_count").Value(replicationStatus.AsyncToSyncReplicaCount)
                                 .Item("has_sync_replicas").Value(hasSyncReplicas)
                             .EndMap();
                     })
@@ -978,9 +978,9 @@ private:
     {
         int PreparedReplicatorTransactionCount = 0;
         int ActiveReplicatorIterationCount = 0;
-        int SyncReplicasCount = 0;
-        int AsyncToSyncReplicasCount = 0;
-        int SyncToAsyncReplicasCount = 0;
+        int SyncReplicaCount = 0;
+        int AsyncToSyncReplicaCount = 0;
+        int SyncToAsyncReplicaCount = 0;
     };
 
     TTabletContext TabletContext_;
@@ -1253,6 +1253,9 @@ private:
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMovementTarget = request->has_movement_source_cell_id();
         auto useRetainedPreloadedChunks = request->use_retained_preloaded_chunks();
+        auto originatorTablets = request->has_replicatable_content()
+            ? FromProto<std::vector<NTabletServer::TOriginatorTablet>>(request->replicatable_content().originator_tablets())
+            : std::vector<NTabletServer::TOriginatorTablet>();
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
@@ -1309,6 +1312,11 @@ private:
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
+        // COMPAT(atalmenev)
+        auto reign = GetCurrentMutationContext()->Request().Reign;
+        if (static_cast<ETabletReign>(reign) >= ETabletReign::SaveOriginatorTabletsAfterReshard) {
+            tabletHolder->OriginatorTablets() = std::move(originatorTablets);
+        }
 
         InitializeTablet(tabletHolder.get());
 
@@ -1459,12 +1467,18 @@ private:
 
     TReqReplicateTabletContent PrepareReplicateTabletContentRequest(TTablet* tablet) override
     {
+        // COMPAT(ifsmirnov)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::SmoothMovementOrdered) {
+            if (tablet->IsPhysicallyOrdered()) {
+                THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+            }
+        }
+
         // Validation against not implemented features.
         if (tablet->IsPhysicallyLog() ||
-            tablet->IsPhysicallyOrdered() ||
             tablet->IsReplicated())
         {
-            THROW_ERROR_EXCEPTION("Ordered and replicated tables are not supported");
+            THROW_ERROR_EXCEPTION("Replicated tables are not supported");
         }
 
         if (!tablet->GetLockManager()->IsEmpty()) {
@@ -3283,7 +3297,7 @@ private:
                 TChunkedMemoryPool::DefaultStartChunkSize,
                 Bootstrap_
                     ->GetNodeMemoryUsageTracker()
-                    ->WithCategory(EMemoryCategory::TabletInternal)));
+                    ->WithCategory(EMemoryCategory::TabletFootprint)));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
@@ -5804,15 +5818,15 @@ private:
                 if (auto state = replicaInfo.GetState(); state == ETableReplicaState::Enabled || state == ETableReplicaState::Enabling) {
                     switch (replicaInfo.GetMode()) {
                         case ETableReplicaMode::Sync: {
-                            replicaReplicationStatus.SyncReplicasCount++;
+                            ++replicaReplicationStatus.SyncReplicaCount;
                             break;
                         }
                         case ETableReplicaMode::AsyncToSync: {
-                            replicaReplicationStatus.AsyncToSyncReplicasCount++;
+                            ++replicaReplicationStatus.AsyncToSyncReplicaCount;
                             break;
                         }
                         case ETableReplicaMode::SyncToAsync: {
-                            replicaReplicationStatus.SyncToAsyncReplicasCount++;
+                            ++replicaReplicationStatus.SyncToAsyncReplicaCount;
                             break;
                         }
                         default:

@@ -220,6 +220,9 @@ items:
         - name: Настройки операций
           when: audience == "public"
           href: user-guide/data-processing/operations/operations-options.md
+        - name: Коллективы джобов
+          when: audience == "public"
+          href: user-guide/data-processing/operations/job-collectives.md
         - name: Автоматическое слияние чанков на выходе операций
           when: audience == "public"
           href: user-guide/data-processing/operations/automerge.md

@@ -23,6 +23,7 @@ from sqlglot.dialects.dialect import (
     no_datetime_sql,
     encode_decode_sql,
     build_formatted_time,
+    months_between_sql,
     no_comment_column_constraint_sql,
     no_time_sql,
     no_timestamp_sql,
@@ -84,6 +85,52 @@ WEEK_START_DAY_TO_DOW = {
     "SATURDAY": 6,
     "SUNDAY": 7,
 }
+
+MAX_BIT_POSITION = exp.Literal.number(32768)
+
+
+def _to_boolean_sql(self: DuckDB.Generator, expression: exp.ToBoolean) -> str:
+    """
+    Transpile TO_BOOLEAN function from Snowflake to DuckDB equivalent.
+
+    DuckDB's CAST to BOOLEAN supports most of Snowflake's TO_BOOLEAN strings except 'on'/'off'.
+    We need to handle the 'on'/'off' cases explicitly, plus NaN/INF error cases.
+
+    In Snowflake, NaN and INF values cause errors. We use DuckDB's native ERROR()
+    function to replicate this behavior with a clear error message.
+    """
+    arg = expression.this
+
+    cast_to_real = exp.func("TRY_CAST", arg, exp.DataType.build("REAL"))
+
+    # Check for NaN and INF values
+    nan_inf_check = exp.Or(
+        this=exp.func("ISNAN", cast_to_real), expression=exp.func("ISINF", cast_to_real)
+    )
+
+    case_expr = (
+        exp.case()
+        .when(
+            nan_inf_check,
+            exp.func(
+                "ERROR",
+                exp.Literal.string("TO_BOOLEAN: Non-numeric values NaN and INF are not supported"),
+            ),
+        )
+        # Handle 'on' -> TRUE (case insensitive) - only for string literals
+        .when(
+            exp.Upper(this=exp.cast(arg, exp.DataType.Type.VARCHAR)).eq(exp.Literal.string("ON")),
+            exp.true(),
+        )
+        # Handle 'off' -> FALSE (case insensitive) - only for string literals
+        .when(
+            exp.Upper(this=exp.cast(arg, exp.DataType.Type.VARCHAR)).eq(exp.Literal.string("OFF")),
+            exp.false(),
+        )
+        .else_(exp.cast(arg, exp.DataType.Type.BOOLEAN))
+    )
+
+    return self.sql(case_expr)
 
 
 # BigQuery -> DuckDB conversion for the DATE function
@@ -525,6 +572,83 @@ def _initcap_sql(self: DuckDB.Generator, expression: exp.Initcap) -> str:
     return _build_capitalization_sql(self, this_sql, escaped_delimiters_sql)
 
 
+def _floor_sql(self: DuckDB.Generator, expression: exp.Floor) -> str:
+    decimals = expression.args.get("decimals")
+
+    if decimals is not None and expression.args.get("to") is None:
+        this = expression.this
+        if isinstance(this, exp.Binary):
+            this = exp.Paren(this=this)
+
+        n_int = decimals
+        if not (decimals.is_int or decimals.is_type(*exp.DataType.INTEGER_TYPES)):
+            n_int = exp.cast(decimals, exp.DataType.Type.INT)
+
+        pow_ = exp.Pow(this=exp.Literal.number("10"), expression=n_int)
+        floored = exp.Floor(this=exp.Mul(this=this, expression=pow_))
+        result = exp.Div(this=floored, expression=pow_.copy())
+
+        return self.round_sql(
+            exp.Round(this=result, decimals=decimals, casts_non_integer_decimals=True)
+        )
+
+    return self.ceil_floor(expression)
+
+
+def _regr_val_sql(
+    self: DuckDB.Generator,
+    expression: exp.RegrValx | exp.RegrValy,
+) -> str:
+    """
+    Transpile Snowflake's REGR_VALX/REGR_VALY to DuckDB equivalent.
+
+    REGR_VALX(y, x) returns NULL if y is NULL; otherwise returns x.
+    REGR_VALY(y, x) returns NULL if x is NULL; otherwise returns y.
+    """
+    from sqlglot.optimizer.annotate_types import annotate_types
+
+    y = expression.this
+    x = expression.expression
+
+    # Determine which argument to check for NULL and which to return based on expression type
+    if isinstance(expression, exp.RegrValx):
+        # REGR_VALX: check y for NULL, return x
+        check_for_null = y
+        return_value = x
+        return_value_attr = "expression"
+    else:
+        # REGR_VALY: check x for NULL, return y
+        check_for_null = x
+        return_value = y
+        return_value_attr = "this"
+
+    # Get the type from the return argument
+    result_type = return_value.type
+
+    # If no type info, annotate the expression to infer types
+    if not result_type or result_type.this == exp.DataType.Type.UNKNOWN:
+        try:
+            annotated = annotate_types(expression.copy(), dialect=self.dialect)
+            result_type = getattr(annotated, return_value_attr).type
+        except Exception:
+            pass
+
+    # Default to DOUBLE for regression functions if type still unknown
+    if not result_type or result_type.this == exp.DataType.Type.UNKNOWN:
+        result_type = exp.DataType.build("DOUBLE")
+
+    # Cast NULL to the same type as return_value to avoid DuckDB type inference issues
+    typed_null = exp.Cast(this=exp.Null(), to=result_type)
+
+    return self.sql(
+        exp.If(
+            this=exp.Is(this=check_for_null.copy(), expression=exp.Null()),
+            true=typed_null,
+            false=return_value.copy(),
+        )
+    )
+
+
 class DuckDB(Dialect):
     NULL_ORDERING = "nulls_are_last"
     SUPPORTS_USER_DEFINED_TYPES = True
@@ -948,6 +1072,7 @@ class DuckDB(Dialect):
             **generator.Generator.TRANSFORMS,
             exp.AnyValue: _anyvalue_sql,
             exp.ApproxDistinct: approx_count_distinct_sql,
+            exp.Boolnot: lambda self, e: f"NOT ({self.sql(e, 'this')})",
             exp.Array: transforms.preprocess(
                 [transforms.inherit_struct_field_names],
                 generator=inline_array_unless_query,
@@ -997,6 +1122,7 @@ class DuckDB(Dialect):
             exp.IntDiv: lambda self, e: self.binary(e, "//"),
             exp.IsInf: rename_func("ISINF"),
             exp.IsNan: rename_func("ISNAN"),
+            exp.Floor: _floor_sql,
             exp.JSONBExists: rename_func("JSON_EXISTS"),
             exp.JSONExtract: _arrow_json_extract_sql,
             exp.JSONExtractArray: _json_extract_value_array_sql,
@@ -1010,12 +1136,7 @@ class DuckDB(Dialect):
             exp.MD5Digest: lambda self, e: self.func("UNHEX", self.func("MD5", e.this)),
             exp.SHA1Digest: lambda self, e: self.func("UNHEX", self.func("SHA1", e.this)),
             exp.SHA2Digest: lambda self, e: self.func("UNHEX", sha2_digest_sql(self, e)),
-            exp.MonthsBetween: lambda self, e: self.func(
-                "DATEDIFF",
-                "'month'",
-                exp.cast(e.expression, exp.DataType.Type.TIMESTAMP, copy=True),
-                exp.cast(e.this, exp.DataType.Type.TIMESTAMP, copy=True),
-            ),
+            exp.MonthsBetween: months_between_sql,
             exp.PercentileCont: rename_func("QUANTILE_CONT"),
             exp.PercentileDisc: rename_func("QUANTILE_DISC"),
             # DuckDB doesn't allow qualified columns inside of PIVOT expressions.
@@ -1033,6 +1154,8 @@ class DuckDB(Dialect):
                 "REGEXP_MATCHES", e.this, e.expression, exp.Literal.string("i")
             ),
             exp.RegexpSplit: rename_func("STR_SPLIT_REGEX"),
+            exp.RegrValx: _regr_val_sql,
+            exp.RegrValy: _regr_val_sql,
             exp.Return: lambda self, e: self.sql(e, "this"),
             exp.ReturnsProperty: lambda self, e: "TABLE" if isinstance(e.this, exp.Schema) else "",
             exp.Rand: rename_func("RANDOM"),
@@ -1062,6 +1185,7 @@ class DuckDB(Dialect):
                 "EPOCH", exp.cast(e.this, exp.DataType.Type.TIMESTAMP)
             ),
             exp.TimeToStr: lambda self, e: self.func("STRFTIME", e.this, self.format_time(e)),
+            exp.ToBoolean: _to_boolean_sql,
             exp.TimeToUnix: rename_func("EPOCH"),
             exp.TsOrDiToDi: lambda self,
             e: f"CAST(SUBSTR(REPLACE(CAST({self.sql(e, 'this')} AS TEXT), '-', ''), 1, 8) AS INT)",
@@ -1232,6 +1356,29 @@ class DuckDB(Dialect):
             exp.NthValue,
         )
 
+        def bitmapbitposition_sql(self: DuckDB.Generator, expression: exp.BitmapBitPosition) -> str:
+            """
+            Transpile Snowflake's BITMAP_BIT_POSITION to DuckDB CASE expression.
+
+            Snowflake's BITMAP_BIT_POSITION behavior:
+            - For n <= 0: returns ABS(n) % 32768
+            - For n > 0: returns (n - 1) % 32768 (maximum return value is 32767)
+            """
+            this = expression.this
+
+            return self.sql(
+                exp.Mod(
+                    this=exp.Paren(
+                        this=exp.If(
+                            this=exp.GT(this=this, expression=exp.Literal.number(0)),
+                            true=this - exp.Literal.number(1),
+                            false=exp.Abs(this=this),
+                        )
+                    ),
+                    expression=MAX_BIT_POSITION,
+                )
+            )
+
         def randstr_sql(self: DuckDB.Generator, expression: exp.Randstr) -> str:
             """
             Transpile Snowflake's RANDSTR to DuckDB equivalent using deterministic hash-based random.
@@ -1360,6 +1507,12 @@ class DuckDB(Dialect):
             from_clause = expression.args.get("from_")
             from_clause = f" FROM {from_clause}" if from_clause else ""
             return f"{force}INSTALL {this}{from_clause}"
+
+        def approxtopk_sql(self, expression: exp.ApproxTopK) -> str:
+            self.unsupported(
+                "APPROX_TOP_K cannot be transpiled to DuckDB due to incompatible return types. "
+            )
+            return self.function_fallback_sql(expression)
 
         def fromiso8601timestamp_sql(self, expression: exp.FromISO8601Timestamp) -> str:
             return self.sql(exp.cast(expression.this, exp.DataType.Type.TIMESTAMPTZ))
@@ -1797,11 +1950,11 @@ class DuckDB(Dialect):
             return self.func("DATE_TRUNC", unit, timestamp)
 
         def trim_sql(self, expression: exp.Trim) -> str:
-            result_sql = self.func(
-                "TRIM",
-                _cast_to_varchar(expression.this),
-                _cast_to_varchar(expression.expression),
-            )
+            expression.this.replace(_cast_to_varchar(expression.this))
+            if expression.expression:
+                expression.expression.replace(_cast_to_varchar(expression.expression))
+
+            result_sql = super().trim_sql(expression)
             return _gen_with_cast_to_blob(self, expression, result_sql)
 
         def round_sql(self, expression: exp.Round) -> str:
@@ -1812,10 +1965,7 @@ class DuckDB(Dialect):
             # DuckDB requires the scale (decimals) argument to be an INT
             # Some dialects (e.g., Snowflake) allow non-integer scales and cast to an integer internally
             if decimals is not None and expression.args.get("casts_non_integer_decimals"):
-                if isinstance(decimals, exp.Literal):
-                    if not decimals.is_int:
-                        decimals = exp.cast(decimals, exp.DataType.Type.INT)
-                elif not decimals.is_type(*exp.DataType.INTEGER_TYPES):
+                if not (decimals.is_int or decimals.is_type(*exp.DataType.INTEGER_TYPES)):
                     decimals = exp.cast(decimals, exp.DataType.Type.INT)
 
             func = "ROUND"

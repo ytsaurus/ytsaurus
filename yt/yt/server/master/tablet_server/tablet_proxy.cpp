@@ -72,6 +72,7 @@ private:
             .SetPresent(!table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::LastCommitTimestamp);
         descriptors->push_back(EInternedAttributeKey::LastWriteTimestamp);
+        descriptors->push_back(EInternedAttributeKey::OriginatorTablets);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PerformanceCounters)
             .SetOpaque(!Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->AddPerfCountersToTabletsAttribute)
             .SetPresent(tablet->GetCell()));
@@ -114,6 +115,11 @@ private:
             case EInternedAttributeKey::LastWriteTimestamp:
                 BuildYsonFluently(consumer)
                     .Value(tablet->NodeStatistics().last_write_timestamp());
+                return true;
+
+            case EInternedAttributeKey::OriginatorTablets:
+                BuildYsonFluently(consumer)
+                    .List(tablet->OriginatorTablets());
                 return true;
 
             case EInternedAttributeKey::PerformanceCounters:

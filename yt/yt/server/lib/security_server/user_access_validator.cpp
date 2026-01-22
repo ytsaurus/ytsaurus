@@ -36,7 +36,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NNative::IConnectionPtr connection,
         TLogger logger)
-        : TAsyncExpiringCache(std::move(config), NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
+        : TAsyncExpiringCache(std::move(config), NRpc::TDispatcher::Get()->GetHeavyInvoker(), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
         , Client_(Connection_->CreateNativeClient(NNative::TClientOptions::Root()))
@@ -95,6 +95,7 @@ private:
         options.ReadFrom = EMasterChannelKind::Cache;
         options.SuppressUpstreamSync = true;
         options.SuppressTransactionCoordinatorSync = true;
+        options.SuppressStronglyOrderedTransactionBarrier = true;
         auto clusterName = client->GetNativeConnection()->GetStaticConfig()->ClusterName;
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
             BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {

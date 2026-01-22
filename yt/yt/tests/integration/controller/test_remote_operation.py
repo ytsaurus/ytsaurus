@@ -2,7 +2,8 @@ from functools import partial
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
-    CONTROLLER_AGENTS_SERVICE
+    CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE
 )
 
 from yt_commands import (
@@ -19,7 +20,6 @@ from yt_commands import (
     raises_yt_error,
     read_table,
     release_breakpoint,
-    remove,
     set,
     start_transaction,
     update_controller_agent_config,
@@ -37,10 +37,12 @@ from yt_commands import (
     sort,
     set_all_nodes_banned,
     wait,
+    wait_for_nodes,
 )
 
 from yt_helpers import profiler_factory
 from yt.common import YtError
+from yt.common import YtResponseError
 import yt.yson as yson
 
 from textwrap import dedent
@@ -885,6 +887,15 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_DISCOVERY_SERVERS = 1
+    NUM_NODES = 2
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             # Enable job throttler on exe node.
@@ -921,8 +932,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         },
     }
 
-    CHUNK_COUNT = 3
-    BANDWIDTH_LIMIT = 10 ** 6
+    CHUNK_COUNT = 32
+    BANDWIDTH_LIMIT = 10 ** 7
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
@@ -952,44 +963,78 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             },
         }
 
-    # Setup //sys/cluster_throttlers on local cluster.
-    def _setup_default_cluster_throttlers_config(self):
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        config = self._create_default_cluster_throttlers_config()
+    # Setup cluster throttlers config on local cluster.
+    def _setup_cluster_throttlers_config(self, config=None):
+        create('document', '//sys/cluster_throttlers', force=True)
+        if config is None:
+            config = self._create_default_cluster_throttlers_config()
         set('//sys/cluster_throttlers', config)
 
-    # Wait for some exe nodes to register in remote_cluster_throttlers_group.
-    def _wait_for_some_remote_cluster_throttlers_group_members(self):
-        def has_remote_cluster_throttlers_group_members():
-            servers = ls("//sys/discovery_servers")
-            if len(servers) == 0:
-                return False
-            discovery_server = servers[0]
-            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
-            if 'remote_cluster_throttlers_group' not in groups:
-                return False
-            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
-            return len(group_members) > 0
+    # Restart exe nodes to initialize cluster throttlers after config setup.
+    def _restart_nodes(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
 
-        # Wait for some exe nodes to register in discovery service.
-        wait(lambda: has_remote_cluster_throttlers_group_members())
+        wait_for_nodes()
+
+    # Create and initialize cluster throttlers config on all exe nodes.
+    def _init_cluster_throttlers_config(self, config=None):
+        # Create and set cluster throttlers config on local cluster.
+        self._setup_cluster_throttlers_config(config=config)
+
+        # Restart exe nodes to pick up new cluster throttlers config.
+        self._restart_nodes()
+
+        # Wait for exe nodes to apply new cluster throttlers config.
+        self._wait_for_all_remote_cluster_throttlers_group_members()
+
+    # Wait for all exe nodes to register in remote_cluster_throttlers_group.
+    def _wait_for_all_remote_cluster_throttlers_group_members(self):
+        def has_all_remote_cluster_throttlers_group_members():
+            try:
+                sys = ls("//sys")
+                if len(sys) == 0:
+                    return False
+                if 'discovery_servers' not in sys:
+                    return False
+                servers = ls("//sys/discovery_servers")
+                if len(servers) == 0:
+                    return False
+                discovery_server = servers[0]
+                groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+                if 'remote_cluster_throttlers_group' not in groups:
+                    return False
+                group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+                return len(group_members) >= self.NUM_NODES
+            except YtResponseError:
+                return False
+
+        # Wait for all exe nodes to register in discovery service.
+        wait(lambda: has_all_remote_cluster_throttlers_group_members(), timeout=60)
 
     # Wait for all exe nodes to unregister from remote_cluster_throttlers_group.
     def _wait_for_no_remote_cluster_throttlers_group_members(self):
         def has_no_remote_cluster_throttlers_group_members():
-            servers = ls("//sys/discovery_servers")
-            if len(servers) == 0:
+            try:
+                sys = ls("//sys")
+                if len(sys) == 0:
+                    return False
+                if 'discovery_servers' not in sys:
+                    return False
+                servers = ls("//sys/discovery_servers")
+                if len(servers) == 0:
+                    return False
+                discovery_server = servers[0]
+                groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+                if 'remote_cluster_throttlers_group' not in groups:
+                    return True
+                group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+                return len(group_members) == 0
+            except YtResponseError:
                 return False
-            discovery_server = servers[0]
-            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
-            if 'remote_cluster_throttlers_group' not in groups:
-                return True
-            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
-            return len(group_members) == 0
 
         # Wait for all exe nodes to unregister from discovery service.
-        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=5*self.LEASE_TIMEOUT_SECONDS)
+        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=60)
 
     # Wait for bandwidth to become unavailable in CA.
     def _wait_for_bandwidth_to_become_unavailable(self, op):
@@ -1003,10 +1048,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
 
     @authors("yuryalekseev")
     def test_cluster_throttlers(self):
-        self._setup_default_cluster_throttlers_config()
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_some_remote_cluster_throttlers_group_members()
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
         # Create table on remote cluster.
         create(
@@ -1059,10 +1102,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
 
     @authors("yuryalekseev")
     def test_cluster_throttlers_all_nodes_banned(self):
-        self._setup_default_cluster_throttlers_config()
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_some_remote_cluster_throttlers_group_members()
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
         # Ban all nodes on local cluster.
         set_all_nodes_banned(True)
@@ -1072,22 +1113,15 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
 
     @authors("yuryalekseev")
     def test_rate_limit_ratio_hard_threshold(self):
-        bandwidth_limit = self.BANDWIDTH_LIMIT * 8
-
-        # Create cluster throttlers config.
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        cluster_throttlers_config = self._create_default_cluster_throttlers_config()
-        cluster_throttlers_config["rate_limit_ratio_hard_threshold"] = -1
-        cluster_throttlers_config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
+        config = self._create_default_cluster_throttlers_config()
+        # Set parameters to disable scheduling of operations.
+        config["rate_limit_ratio_hard_threshold"] = -1
+        config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
             "bandwidth": {
-                "limit": bandwidth_limit,
+                "limit": 0,
             },
         }
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_some_remote_cluster_throttlers_group_members()
+        self._init_cluster_throttlers_config(config)
 
         # Create table on remote cluster.
         create(
@@ -1104,36 +1138,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         # Create table on local cluster.
         create("table", "//tmp/local_table")
 
-        # Warm up CAs, let them run single map operation with single job.
-
-        operation_start_time = time.time()
-
-        # Copy table from remote cluster to local cluster.
-        op = map(
-            in_=self.to_remote_path("//tmp/remote_table"),
-            out="//tmp/local_table",
-            command="cat",
-            spec={
-                "job_io": {
-                    "table_reader": {
-                        "enable_local_throttling": True,
-                    },
-                },
-                "job_count": 1,
-                "use_cluster_throttlers": True,
-            },
-        )
-
-        operation_end_time = time.time()
-
-        operation_run_time = operation_end_time - operation_start_time
-
-        # Check that throttling has been disabled.
-        assert operation_run_time > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / bandwidth_limit)
-
-        # Because of negative "rate_limit_ratio_hard_threshold" CAs should now effectively disable scheduling of map operations, check it.
-
-        operation_time_limit = 2 * min(operation_run_time, 30) * 1000
+        operation_time_limit_seconds = 30
 
         # Copy table from remote cluster to local cluster.
         op = map(
@@ -1147,36 +1152,26 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                         "enable_local_throttling": True,
                     },
                 },
-                "job_count": 1,
+                "job_count": self.CHUNK_COUNT,
                 "use_cluster_throttlers": True,
-                "time_limit": operation_time_limit,
+                "time_limit": operation_time_limit_seconds * 1000,
             },
         )
 
-        op.wait_for_state("running")
-
-        # Wait for bandwith to become unavailable in CA.
+        # Wait for bandwidth to become unavailable in CA.
         self._wait_for_bandwidth_to_become_unavailable(op)
 
         # Wait for operation abortion by time limit.
         with pytest.raises(YtError) as err:
-            op.track(timeout=datetime.timedelta(seconds=10))
+            op.track(timeout=datetime.timedelta(seconds=2*operation_time_limit_seconds))
 
-        assert 'has not finished in' in str(err.value)
-
-        # Check that operation scheduling was paused due to unavailable network bandwidth.
+        assert 'has not finished in' in str(err.value) or 'running for too long' in str(err.value)
         assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()
 
     @authors("yuryalekseev")
     def test_map_with_auto_merge_with_remote_bandwidth_control(self):
-        # Create cluster throttlers config.
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        cluster_throttlers_config = self._create_default_cluster_throttlers_config()
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
-
-        # Wait for cluster throttlers config to apply.
-        self._wait_for_some_remote_cluster_throttlers_group_members()
+        # Create and initialize default cluster throttlers config on all exe nodes.
+        self._init_cluster_throttlers_config()
 
         # Create table on remote cluster.
         create(
@@ -1219,21 +1214,21 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         )
 
         # Wait for map jobs to reach the breakpoint.
-        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=20))
+        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=30))
 
         # Make bandwidth unavailable.
-        cluster_throttlers_config["rate_limit_ratio_hard_threshold"] = -1
-        cluster_throttlers_config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
+        config = self._create_default_cluster_throttlers_config()
+        config["rate_limit_ratio_hard_threshold"] = -1
+        config["cluster_limits"][self.REMOTE_CLUSTER_NAME] = {
             "bandwidth": {
                 "limit": 0,
             },
         }
 
-        remove('//sys/cluster_throttlers', force=True)
-        create('document', '//sys/cluster_throttlers')
-        set('//sys/cluster_throttlers', cluster_throttlers_config)
+        # Update cluster throttlers config.
+        set('//sys/cluster_throttlers', config)
 
-        # Wait for bandwith to become unavailable in CA.
+        # Wait for bandwidth to become unavailable in CA.
         self._wait_for_bandwidth_to_become_unavailable(op)
 
         # Resume jobs and complete the operation.

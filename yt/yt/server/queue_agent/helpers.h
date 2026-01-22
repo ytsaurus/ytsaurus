@@ -109,9 +109,7 @@ THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
 
 //! Returns null if null or ToString
 template <class T>
-std::optional<TString> ToOptionalString(const std::optional<T>& value) {
-    return value ? std::optional<TString>{ToString(value.value())} : std::nullopt;
-}
+std::optional<std::string> ToOptionalString(const std::optional<T>& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

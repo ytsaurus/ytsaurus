@@ -614,18 +614,18 @@ The named option is represented by a YSON list of length 2 that includes the fol
 - Alternative name.
 - An encoded value for the relevant alternative.
 
-Example values, type `variant<Foo:int64;Bar:optional<utf8>>:
+Example values, type `variant<Foo:int64;Bar:optional<utf8>>`:
 
 ```
-[Foo; 42]
-```
-
-```
-[Bar; #]
+[0; 42]
 ```
 
 ```
-[Bar; "foo bar";]
+[1; #]
+```
+
+```
+[1; "foo bar";]
 ```
 
 ###### Positional representation { #yson_variant_struct_positional }

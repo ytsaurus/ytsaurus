@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/journal_client/proto/journal_ypath.pb.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -226,6 +228,10 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
 
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, UpdateStatistics);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal);
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Truncate);
+
     // Used for cross-cell copy.
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopyDestination);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, LockCopySource);
@@ -274,6 +280,10 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
         DISPATCH_YPATH_SERVICE_METHOD(ReshardAutomatic);
+
+        DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
+        DISPATCH_YPATH_SERVICE_METHOD(Truncate);
 
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
 
@@ -802,7 +812,7 @@ protected:
             // The key is requested by path, and we haven't forwarded request to master.
             // This means that key is special attribute which we have fetched, so we can return it.
             if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %Qv not found", key.value());
+                THROW_ERROR_EXCEPTION("Attribute %Qv is not found", key.value());
             }
 
             auto attributeFragmentPath = TYPath(tokenizer.GetInput());
@@ -1071,6 +1081,33 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetMountInfo)
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, ReshardAutomatic)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, UpdateStatistics)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Seal)
+{
+    context->SetRequestInfo("TargetObjectId: %v", Id_);
+
+    ValidateEmptyUnresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Truncate)
 {
     context->SetRequestInfo("TargetObjectId: %v", Id_);
 
@@ -1485,7 +1522,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
             .Apply(BIND([&] (const INodePtr& rsp) {
                 return rsp->Attributes().Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
-        : TrueFuture;
+        : MakeFuture(true);
 
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();

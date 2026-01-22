@@ -23,6 +23,7 @@ target_compile_options(upload_chunk PRIVATE
   -Wparentheses
   -Wno-logical-op-parentheses
   -Wno-bitwise-op-parentheses
+  -Wswitch
 )
 
 target_link_libraries(upload_chunk PUBLIC

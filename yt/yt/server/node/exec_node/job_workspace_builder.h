@@ -39,7 +39,7 @@ struct TJobWorkspaceBuildingContext
     TUserSandboxOptions UserSandboxOptions;
     IUserSlotPtr Slot;
     TJobPtr Job;
-    TString CommandUser;
+    std::string CommandUser;
 
     TArtifactDownloadOptions ArtifactDownloadOptions;
 

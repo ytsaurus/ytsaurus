@@ -177,7 +177,7 @@ struct TLogTailerBootstrapConfig
 {
     TLogTailerConfigPtr LogTailer;
 
-    TString ClusterUser;
+    std::string ClusterUser;
 
     REGISTER_YSON_STRUCT(TLogTailerBootstrapConfig);
 

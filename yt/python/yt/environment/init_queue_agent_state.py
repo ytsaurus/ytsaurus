@@ -362,69 +362,8 @@ TRANSFORMS[3] = [
     ),
 ]
 
-# Add replica_mapping index.
-TRANSFORMS[4] = [
-    Conversion(
-        "replicated_table_mapping",
-        table_info=TableInfo(
-            [
-                ("cluster", "string"),
-                ("path", "string"),
-            ],
-            [
-                ("revision", "uint64"),
-                ("object_type", "string"),
-                ("meta", "any"),
-                ("synchronization_error", "any"),
-                ("replica_list", TypeV3({
-                    "type_name": "optional",
-                    "item": {
-                        "type_name": "list",
-                        "item": "string",
-                    },
-                })),
-            ],
-            optimize_for="lookup",
-            attributes=DEFAULT_TABLE_ATTRIBUTES,
-        ),
-        filter_callback=_replicated_table_filter_callback,
-    ),
-    Conversion(
-        "replica_mapping",
-        table_info=TableInfo(
-            [
-                ("replica_list", "string", None, {"required": True}),
-                ("cluster", "string"),
-                ("path", "string"),
-            ],
-            [
-                ("$empty", "int64"),
-            ],
-            optimize_for="lookup",
-            attributes=DEFAULT_TABLE_ATTRIBUTES,
-        ),
-        filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
-    ),
-]
-
-# Add secondary_index between replica_mapping and replicated_table_mapping.
-# Actual paths are set in prepare_migration.
-ACTIONS[5] = [
-    CreateSecondaryIndexAction(
-        table_name="replicated_table_mapping",
-        index_table_name="replica_mapping",
-        secondary_index_attributes={
-            "kind": "unfolding",
-            "unfolded_column": "replica_list",
-            "table_to_index_correspondence": "bijective",
-        },
-        table_filter_callback=_replicated_table_filter_callback,
-        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
-    )
-]
-
 # Add profiling tags to queues, consumers tables.
-TRANSFORMS[6] = [
+TRANSFORMS[4] = [
     Conversion(
         "queues",
         table_info=TableInfo(
@@ -472,6 +411,67 @@ TRANSFORMS[6] = [
             attributes=DEFAULT_TABLE_ATTRIBUTES,
         ),
     ),
+]
+
+# Add replica_mapping index.
+TRANSFORMS[5] = [
+    Conversion(
+        "replicated_table_mapping",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("meta", "any"),
+                ("synchronization_error", "any"),
+                ("replica_list", TypeV3({
+                    "type_name": "optional",
+                    "item": {
+                        "type_name": "list",
+                        "item": "string",
+                    },
+                })),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_replicated_table_filter_callback,
+    ),
+    Conversion(
+        "replica_mapping",
+        table_info=TableInfo(
+            [
+                ("replica_list", "string", None, {"required": True}),
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("$empty", "int64"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    ),
+]
+
+# Add secondary_index between replica_mapping and replicated_table_mapping.
+# Actual paths are set in prepare_migration.
+ACTIONS[6] = [
+    CreateSecondaryIndexAction(
+        table_name="replicated_table_mapping",
+        index_table_name="replica_mapping",
+        secondary_index_attributes={
+            "kind": "unfolding",
+            "unfolded_column": "replica_list",
+            "table_to_index_correspondence": "bijective",
+        },
+        table_filter_callback=_replicated_table_filter_callback,
+        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    )
 ]
 
 MIGRATION = Migration(

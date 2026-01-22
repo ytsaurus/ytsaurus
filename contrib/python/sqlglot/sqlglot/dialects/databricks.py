@@ -12,6 +12,7 @@ from sqlglot.dialects.dialect import (
     groupconcat_sql,
 )
 from sqlglot.dialects.spark import Spark
+from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
 from sqlglot.optimizer.annotate_types import TypeAnnotator
 
@@ -54,11 +55,21 @@ class Databricks(Spark):
 
         FUNCTIONS = {
             **Spark.Parser.FUNCTIONS,
+            "GETDATE": exp.CurrentTimestamp.from_arg_list,
             "DATEADD": build_date_delta(exp.DateAdd),
             "DATE_ADD": build_date_delta(exp.DateAdd),
             "DATEDIFF": build_date_delta(exp.DateDiff),
             "DATE_DIFF": build_date_delta(exp.DateDiff),
+            "NOW": exp.CurrentTimestamp.from_arg_list,
             "TO_DATE": build_formatted_time(exp.TsOrDsToDate, "databricks"),
+            "UNIFORM": lambda args: exp.Uniform(
+                this=seq_get(args, 0), expression=seq_get(args, 1), seed=seq_get(args, 2)
+            ),
+        }
+
+        NO_PAREN_FUNCTION_PARSERS = {
+            **Spark.Parser.NO_PAREN_FUNCTION_PARSERS,
+            "CURDATE": lambda self: self._parse_curdate(),
         }
 
         FACTOR = {
@@ -74,6 +85,12 @@ class Databricks(Spark):
                 to=to,
             ),
         }
+
+        def _parse_curdate(self) -> exp.CurrentDate:
+            # CURDATE, an alias for CURRENT_DATE, has optional parentheses
+            if self._match(TokenType.L_PAREN):
+                self._match_r_paren()
+            return self.expression(exp.CurrentDate)
 
     class Generator(Spark.Generator):
         TABLESAMPLE_SEED_KEYWORD = "REPEATABLE"
@@ -146,3 +163,13 @@ class Databricks(Spark):
         def jsonpath_sql(self, expression: exp.JSONPath) -> str:
             expression.set("escape", None)
             return super().jsonpath_sql(expression)
+
+        def uniform_sql(self, expression: exp.Uniform) -> str:
+            gen = expression.args.get("gen")
+            seed = expression.args.get("seed")
+
+            # From Snowflake UNIFORM(min, max, gen) as RANDOM(), RANDOM(seed), or constant value -> Extract seed
+            if gen:
+                seed = gen.this
+
+            return self.func("UNIFORM", expression.this, expression.expression, seed)

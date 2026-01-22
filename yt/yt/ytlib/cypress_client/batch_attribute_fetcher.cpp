@@ -64,7 +64,7 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
         if (!refreshRevisions.empty()) {
             entry.RefreshRevision = refreshRevisions[index];
         }
-        if (auto error = TryGetShouldNotPointToAttributesError(path); !error.IsOK()) {
+        if (auto error = CheckPathDoesNotPointToAttributes(path); !error.IsOK()) {
             entry.Error = std::move(error);
             ++invalidPathCount;
         }

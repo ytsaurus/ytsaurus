@@ -4,6 +4,8 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <library/cpp/yt/system/handle_eintr.h>
+
 #include <util/system/yield.h>
 #include <util/system/fs.h>
 #include <util/system/fstat.h>
@@ -423,6 +425,44 @@ void TMkFsAsRootTool::operator()(const TMkFsConfigPtr& config) const
 
     THROW_ERROR_EXCEPTION("Failed to make filesystem for %v: execl failed",
         config->Path) << TError::FromSystem();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChangeOomScoreAdjAsRootConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pid", &TThis::Pid);
+    registrar.Parameter("score", &TThis::Score);
+}
+
+void TChangeOomScoreAdjAsRootTool::operator()(const TChangeOomScoreAdjAsRootConfigPtr& config) const
+{
+    TrySetUid(0);
+
+    auto scoreStr = std::to_string(config->Score);
+    auto filename = Format("/proc/%v/oom_score_adj", config->Pid);
+
+    auto fdGuard = TFileDescriptorGuard(HandleEintr(::open, filename.c_str(), O_RDWR));
+    if (fdGuard.Get() == -1) {
+        if (errno == ENOENT) {
+            // If the process is dead, we get an ENOENT.
+            return;
+        }
+        THROW_ERROR_EXCEPTION(
+            "Failed to open oom_score_adj for PID %v",
+            config->Pid) << TError::FromSystem();
+    }
+
+    auto result = HandleEintr(::write, fdGuard.Get(), static_cast<const void*>(scoreStr.data()), scoreStr.size());
+    if (result == -1) {
+        if (errno == ESRCH) {
+            // If the process is dead, we get an ESRCH.
+            return;
+        }
+        THROW_ERROR_EXCEPTION(
+            "Failed to write to oom_score_adj for PID %v",
+            config->Pid) << TError::FromSystem();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,6 +106,7 @@ private:
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
         bool SuppressTransactionCoordinatorSync_ = false;
+        bool SuppressStronglyOrderedTransactionBarrier_ = false;
 
         TReqExecuteSubbatch(
             NRpc::IChannelPtr channel,
@@ -145,6 +146,9 @@ public:
 
         //! Sets the transaction coordinator sync suppression option.
         void SetSuppressTransactionCoordinatorSync(bool value);
+
+        //! Sets the prepared transaction barrier suppression option.
+        void SetSuppressStronglyOrderedTransactionBarrier(bool value);
 
         //! Adds an individual request into the batch.
         /*!
