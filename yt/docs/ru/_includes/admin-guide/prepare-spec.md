@@ -192,6 +192,36 @@ spec:
 
 Рекомендации по разметке дисков и конфигурации локаций собраны на отдельной [странице](../../admin-guide/locations.md).
 
+## Pod anti-affinity {#anti-affinity}
+
+Для продакшн-кластеров важно настроить правило [pod anti-affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) &mdash; чтобы обеспечить высокую доступность за счёт распределения подов по разным узлам Kubernetes-кластера. Это предотвращает запуск нескольких экземпляров одной компоненты на одном узле, что могло бы привести к нарушению работы сервиса при отказе этого узла.
+
+### Настройка {#anti-affinity-setup}
+
+Anti-affinity настраивается с помощью стандартного поля Kubernetes `affinity` в спецификации компоненты. Рекомендуемый паттерн использует `podAntiAffinity` с `requiredDuringSchedulingIgnoredDuringExecution` для обеспечения строгого разделения подов.
+
+Пример настройки для таблетных нод:
+
+```yaml
+tabletNodes:
+  - instanceCount: 3
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+            - key: yt_component
+              operator: In
+              values:
+              - "ytdemo-yt-tablet-node"
+          topologyKey: "kubernetes.io/hostname"
+```
+
+В этой конфигурации:
+- Лейбл `yt_component` идентифицирует поды одного типа компоненты.
+- Формат значения: `<cluster-name>-yt-<component-type>`. Например, `ytdemo-yt-tablet-node` для кластера с именем `ytdemo`.
+- `topologyKey: "kubernetes.io/hostname"` обеспечивает распределение подов по разным узлам.
+
 ## Среда исполнения операций {#job-environment}
 
 `Exec Nodes` могут запускать джобы в изолированных контейнерах для обработки опции операции `docker_image`. Требуемые настройки заключены в секциях `jobResources` и `jobEnvironment` в [ExecNodeSpec](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/docs/api.md#execnodesspec). Пример [настройки кластера](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
