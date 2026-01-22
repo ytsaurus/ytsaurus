@@ -46,6 +46,7 @@ class RecordType:
     descriptor_verbatim: Optional[str]
     sorted: bool = True
     add_empty_field: bool = False
+    add_equality_operator: bool = False
 
     def __post_init__(self):
         if not self.add_empty_field and not self._has_non_empty_field():
