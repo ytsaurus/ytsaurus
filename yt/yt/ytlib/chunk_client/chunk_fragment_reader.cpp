@@ -118,20 +118,21 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
         return true;
     }
 
-    NErasure::TPartIndexList partIndexes;
-    partIndexes.reserve(replicasWithRevision.Replicas.size());
-    for (const auto& replica : replicasWithRevision.Replicas) {
-        partIndexes.push_back(replica.ReplicaIndex);
-    }
-    SortUnique(partIndexes);
-
     auto* codec = NErasure::GetCodec(codecId);
-    auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
-    if (std::ssize(partIndexes) >= safeReplicaCount) {
+
+    NErasure::TPartIndexSet erasedPartIndexes;
+    for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+        erasedPartIndexes.set(index);
+    }
+    for (const auto& replica : replicasWithRevision.Replicas) {
+        erasedPartIndexes.reset(replica.ReplicaIndex);
+    }
+
+    if (static_cast<int>(erasedPartIndexes.count()) <= codec->GetGuaranteedRepairablePartCount()) {
         return false;
     }
 
-    return !codec->CanRepair(partIndexes);
+    return !codec->CanRepair(erasedPartIndexes);
 }
 
 TProbingPenalty PenalizeSuspciousNode(TProbingPenalty penalty)
