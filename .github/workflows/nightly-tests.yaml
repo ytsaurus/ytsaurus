@@ -18,8 +18,8 @@ jobs:
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
   create-release-task-for-ytsaurus-ci:
     name: Make task for YTsaurus CI
-    needs:
-      - docker-ya-make
+    # needs:
+    #   - docker-ya-make
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: release-tests
