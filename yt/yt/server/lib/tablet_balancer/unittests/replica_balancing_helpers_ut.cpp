@@ -42,7 +42,7 @@ TEST_F(TCommonPivotKeyIndicesTest, TestEqual)
         {0, 0},
         {1, 1},
         {2, 2},
-        {3, 3}
+        {3, 3},
     };
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
