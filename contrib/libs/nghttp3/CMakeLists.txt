@@ -66,6 +66,7 @@ target_sources(contrib-libs-nghttp3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_qpack_huffman.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_qpack_huffman_data.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_range.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_ratelim.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_rcbuf.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_ringbuf.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_settings.c
@@ -242,6 +243,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_range.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_ratelim.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
