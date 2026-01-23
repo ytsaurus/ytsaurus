@@ -25,7 +25,6 @@ target_link_libraries(record_codegen-yt_record_codegen-tests-cpp PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-client
-  yt-library-formats
 )
 
 target_allocator(record_codegen-yt_record_codegen-tests-cpp

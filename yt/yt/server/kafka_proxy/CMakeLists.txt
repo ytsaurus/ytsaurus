@@ -37,7 +37,6 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  yt-library-formats
   server-lib-cypress_registrar
   server-lib-misc
   yt-yt-ytlib

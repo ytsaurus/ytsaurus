@@ -66,7 +66,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  yt-library-formats
   contrib-libs-protobuf
   contrib-libs-re2
   contrib-libs-xxhash
@@ -92,6 +91,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-xor_filter
   yt-client-federated
   yt-client-logging
+  yt-library-formats
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
@@ -1841,7 +1841,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  yt-library-formats
   contrib-libs-protobuf
   contrib-libs-re2
   contrib-libs-xxhash
@@ -1867,6 +1866,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-xor_filter
   yt-client-federated
   yt-client-logging
+  yt-library-formats
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
