@@ -3,6 +3,8 @@ import os
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from typing import List
 
 import yaml
@@ -33,7 +35,7 @@ def parse_iso_to_pg_timestamp(date_str: str) -> str:
 
 class Component(ABC):
     def __init__(
-        self, name: str, source: component_registry.Source, version: str, ghcr_client: ghcr.GitHubPackagesClient
+        self, name: str, source: component_registry.Source, version: str, ghcr_client: ghcr.GitHubPackagesClient,
     ):
         self._name = name
         self._container = source.container
@@ -128,7 +130,7 @@ class OperatorComponent(ClusterComponent):
         }
 
 
-class Task:
+class TaskCI:
     def __init__(
         self,
         cluster_components,
@@ -197,13 +199,28 @@ class Task:
         return result
 
 
+def _make_task(args):
+    scenario_name = args["scenario_name"]
+    config = args["config"]
+    check_registry = args["check_registry"]
+
+    return TaskCI(
+        cluster_components=args["cluster_components"],
+        scenario_config=config,
+        component_registry=args["registry"],
+        ghcr_client=args["ghcr_client"],
+        scenario_name=f"{scenario_name}/{config.type}",
+        tests=[check_registry.get_check(test_name).dict() for test_name in config.checks],
+    )
+
+
 def _make_tasks(
     config: models.Scenario,
     ghcr_client: ghcr.GitHubPackagesClient,
     scenario_name: str,
     check_registry: check_registry.CheckRegistry,
     version_filter: dict,
-) -> List[Task]:
+) -> List[TaskCI]:
     for component, constraint in version_filter.items():
         if component == "operator":
             continue
@@ -238,23 +255,26 @@ def _make_tasks(
     registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
     graph = compatibility_graph.CompatibilityGraph(registry)
     paths = graph.find_all_test_suites(constraints)
-    tasks = []
-    for cluster_components in paths:
-        tasks.append(
-            Task(
-                cluster_components=cluster_components,
-                scenario_config=config,
-                component_registry=registry,
-                ghcr_client=ghcr_client,
-                scenario_name=f"{scenario_name}/{config.type}",
-                tests=[check_registry.get_check(test_name).dict() for test_name in config.checks],
-            )
-        )
 
-    return tasks
+    tasks_kwargs_for_futures = [
+        {
+            "cluster_components": cluster_components,
+            "config": config,
+            "registry": registry,
+            "ghcr_client": ghcr_client,
+            "scenario_name": scenario_name,
+            "check_registry": check_registry,
+        }
+        for cluster_components in paths
+    ]
+
+    with ThreadPoolExecutor() as pool:
+        return list(pool.map(_make_task, tasks_kwargs_for_futures))
+
+    return []
 
 
-def ProcessScenario(scenario_name: str, auth: ghcr.GitHubAuth, version_filter: dict = {}) -> List[Task]:
+def ProcessScenario(scenario_name: str, auth: ghcr.GitHubAuth, version_filter: dict = {}) -> List[TaskCI]:
     ghcr_client = ghcr.GitHubPackagesClient(auth)
 
     scenario_config = models.ScenarioConfig.from_dict(yaml.safe_load(resource.resfs_read(SCENARIOS_FILE_PATH)))

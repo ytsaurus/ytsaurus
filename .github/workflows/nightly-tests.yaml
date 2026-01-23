@@ -3,7 +3,7 @@ name: YTsaurus CI Nightly Trigger
 on:
   push:
     branches:
-      - 'members/epsilond1/try-enable-ytsaurus-ci'
+      - 'members/epsilond1/enable-release-trigger'
   schedule:
     - cron: '*/59 * * * *'
   workflow_dispatch:
@@ -13,6 +13,17 @@ jobs:
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: nightly-dev
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
+  create-release-task-for-ytsaurus-ci:
+    name: Make task for YTsaurus CI
+    needs:
+      - docker-ya-make
+    uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: release-tests
+      query_tracker_version: "0.1"
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
