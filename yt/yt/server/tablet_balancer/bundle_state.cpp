@@ -239,7 +239,7 @@ std::vector<TTableResolveResponse> ResolveTablePaths(
             "external",
             "external_cell_tag",
             "dynamic",
-            "upstream_replica_id"
+            "upstream_replica_id",
         };
         auto req = TYPathProxy::Get(path + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
@@ -1933,7 +1933,7 @@ THashMap<TTableId, TTableSettings> TBundleState::FetchActualTableSettings(
                     TYsonStringBuf(attributes.tablet_balancer_config())),
                 .InMemoryMode = FromProto<EInMemoryMode>(attributes.in_memory_mode()),
                 .Dynamic = attributes.dynamic(),
-                .UpstreamReplicaId = FromProto<TTableReplicaId>(attributes.upstream_replica_id())
+                .UpstreamReplicaId = FromProto<TTableReplicaId>(attributes.upstream_replica_id()),
             });
         }
     }
@@ -2028,11 +2028,11 @@ void TBundleState::FetchReplicaModes(
     const THashSet<TTableId>& majorTableIds,
     const THashSet<std::string>& allowedReplicaClusters)
 {
-    using cellTagWithReplicaType = std::pair<TCellTag, EObjectType>;
-    THashMap<cellTagWithReplicaType, THashSet<TTableReplicaId>> cellTagToReplicaIds;
+    using TCellTagWithReplicaType = std::pair<TCellTag, EObjectType>;
+    THashMap<TCellTagWithReplicaType, THashSet<TTableReplicaId>> cellTagToReplicaIds;
     THashMap<TTableReplicaId, TTableBase*> replicaIdToTable;
 
-    auto getCellTag = [&] (const auto& table) -> cellTagWithReplicaType {
+    auto getCellTag = [&] (const auto& table) -> TCellTagWithReplicaType {
         auto type = TypeFromId(table->UpstreamReplicaId);
         switch (type) {
             case EObjectType::ChaosTableReplica:
@@ -2111,8 +2111,8 @@ void TBundleState::FetchReplicaModes(
         }
     };
 
-    for (const auto& [cellTagWithReplicaType, replicaIds] : cellTagToReplicaIds) {
-        auto [cellTag, replicaType] = cellTagWithReplicaType;
+    for (const auto& [TCellTagWithReplicaType, replicaIds] : cellTagToReplicaIds) {
+        auto [cellTag, replicaType] = TCellTagWithReplicaType;
         auto connection = ClusterDirectory_->GetConnectionOrThrow(cellTag);
         auto clusterName = connection->GetClusterName();
         THROW_ERROR_EXCEPTION_IF(!clusterName,
