@@ -95,6 +95,10 @@ protected:
 
     virtual void DoBuildOrchidYson(NYTree::TFluentMap fluent);
 
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) override;
+
 private:
     i64 DynamicMemoryUsage_ = 0;
 
@@ -262,7 +266,7 @@ public:
     TBackendReaders GetBackendReaders(
         std::optional<EWorkloadCategory> workloadCategory) override;
     void InvalidateCachedReaders(
-        const TTableSettings& settings) override;
+        const TTabletStoreReaderConfigPtr& storeReaderConfig) override;
     NChunkClient::TChunkReplicaWithMediumSlimList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) override;
 
@@ -294,6 +298,10 @@ public:
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         bool prepareColumnarMeta);
+
+    void OnDynamicConfigChanged(
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) override;
 
 protected:
     std::vector<THunkChunkRef> HunkChunkRefs_;
@@ -339,6 +347,7 @@ protected:
 private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;
 
+    std::atomic<bool> CachedReadersInvalidationNeeded_ = false;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     IDynamicStorePtr BackingStore_;
 

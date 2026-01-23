@@ -893,7 +893,7 @@ void TStoreManagerBase::InvalidateCachedChunkReaders()
 {
     for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->IsChunk()) {
-            store->AsChunk()->InvalidateCachedReaders(Tablet_->GetSettings());
+            store->AsChunk()->InvalidateCachedReaders(Tablet_->GetSettings().StoreReaderConfig);
         }
     }
 }
