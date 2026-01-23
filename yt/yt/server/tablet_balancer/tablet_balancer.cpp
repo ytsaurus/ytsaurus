@@ -1480,19 +1480,17 @@ TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag,
 void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& bundleName)
 {
     auto it = CancelledBundleIterationDueToUnhealthyState_.find(bundleName);
-    if (it != CancelledBundleIterationDueToUnhealthyState_.end()) {
-        it->second.Increment(1);
-        return;
+    if (it == CancelledBundleIterationDueToUnhealthyState_.end()) {
+        it = EmplaceOrCrash(
+            CancelledBundleIterationDueToUnhealthyState_,
+            bundleName,
+            TabletBalancerProfiler()
+                .WithSparse()
+                .WithTag("bundle", bundleName)
+                .Counter("/bundle_iteration_cancellations"));
     }
 
-    auto newCounter = EmplaceOrCrash(
-        CancelledBundleIterationDueToUnhealthyState_,
-        bundleName,
-        TabletBalancerProfiler()
-            .WithSparse()
-            .WithTag("bundle", bundleName)
-            .Counter("/bundle_iteration_cancellations"));
-    newCounter->second.Increment(1);
+    it->second.Increment(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
