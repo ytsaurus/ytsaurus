@@ -13,6 +13,7 @@ from yt_commands import (
     register_queue_consumer,
     advance_consumer,
     ls,
+    set as yt_set,
 )
 
 from yt_helpers import profiler_factory
@@ -205,19 +206,41 @@ class TestQueueAgentConsumerProfiling(TestQueueAgentBase):
         consumer_orchid.wait_fresh_pass()
 
         def get_metric() -> list:
-            return profiler.gauge(
+            x = profiler.gauge(
                 'queue_agent/consumer_partition/lag_rows',
                 fixed_tags={
                     "queue_tag": queue_tag or NONE_TAG,
                     "consumer_tag": consumer_tag or NONE_TAG,
                 },
             ).get_all()
+            print_debug(x)
+            return x
 
         wait(get_metric, ignore_exceptions=True)
 
         lag_rows = get_metric()[0]
         assert lag_rows["tags"]["queue_tag"] == queue_tag or NONE_TAG
         assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
+
+        queue_tag = "new_queue_tag"
+        yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+
+        self._wait_for_component_passes()
+        wait(get_metric, ignore_exceptions=True)
+
+        lag_rows = get_metric()[0]
+        assert lag_rows["tags"]["queue_tag"] == queue_tag
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag or NONE_TAG
+
+        consumer_tag = "new_consumer_tag"
+        yt_set(f"{consumer_path}/@queue_consumer_profiling_tag", consumer_tag)
+
+        self._wait_for_component_passes()
+        wait(get_metric, ignore_exceptions=True)
+
+        lag_rows = get_metric()[0]
+        assert lag_rows["tags"]["queue_tag"] == queue_tag
+        assert lag_rows["tags"]["consumer_tag"] == consumer_tag
 
 
 class TestQueueAgentQueueProfiling(TestQueueAgentBase):
@@ -253,6 +276,15 @@ class TestQueueAgentQueueProfiling(TestQueueAgentBase):
         wait(get_metric, ignore_exceptions=True)
         partitions = get_metric()[0]
         assert partitions["tags"]["queue_tag"] == queue_tag or NONE_TAG
+
+        queue_tag = "new_queue_tag"
+        yt_set(f"{queue}/@queue_profiling_tag", queue_tag)
+
+        self._wait_for_component_passes()
+        wait(get_metric, ignore_exceptions=True)
+
+        partitions = get_metric()[0]
+        assert partitions["tags"]["queue_tag"] == queue_tag
 
 
 class TestQueueAgentPassProfiling(TestQueueAgentBase):

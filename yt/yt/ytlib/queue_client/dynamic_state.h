@@ -90,6 +90,8 @@ struct TQueueTableRow
 
     std::optional<TError> SynchronizationError;
 
+    std::optional<std::string> GetProfilingTag() const;
+
     static std::vector<TString> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
@@ -129,6 +131,8 @@ struct TConsumerTableRow
     std::optional<std::string> QueueConsumerProfilingTag;
 
     std::optional<TError> SynchronizationError;
+
+    std::optional<std::string> GetProfilingTag() const;
 
     static std::vector<TString> GetCypressAttributeNames();
 

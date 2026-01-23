@@ -507,8 +507,9 @@ public:
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
             dynamicConfig->PassPeriod))
+        , BaseProfiler_(profiler)
         , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, row, leading))
-        , PassProfiler_(ProfileManager_->GetPassProfiler().WithPrefix("/controller"))
+        , PassProfiler_(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)))
     {
         // Prepare initial erroneous snapshot.
         auto consumerSnapshot = New<TConsumerSnapshot>();
@@ -531,7 +532,11 @@ public:
 
         const auto& consumerRow = std::any_cast<const TConsumerTableRow&>(row);
 
-        ConsumerRow_.Store(consumerRow);
+        auto oldRow = ConsumerRow_.Exchange(consumerRow);
+        if (oldRow.QueueConsumerProfilingTag != consumerRow.QueueConsumerProfilingTag) {
+            ProfileManager_.Store(CreateConsumerProfileManager(BaseProfiler_, Logger, consumerRow, Leading_));
+            PassProfiler_.Store(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)));
+        }
     }
 
     void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
@@ -609,16 +614,19 @@ private:
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
 
-    const IConsumerProfileManagerPtr ProfileManager_;
-    const TPassProfiler PassProfiler_;
+    const TProfiler BaseProfiler_;
+
+    TAtomicIntrusivePtr<IConsumerProfileManager> ProfileManager_;
+    TAtomicIntrusivePtr<TPassProfiler> PassProfiler_;
 
     void Pass()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         auto startTime = TInstant::Now();
         auto previousConsumerSnapshot = ConsumerSnapshot_.Acquire();
+        auto passProfiler = PassProfiler_.Acquire();
         if (!!previousConsumerSnapshot) {
-            PassProfiler_.OnStart(previousConsumerSnapshot->PassIndex + 1, startTime);
+            passProfiler->OnStart(previousConsumerSnapshot->PassIndex + 1, startTime);
         }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("ConsumerControllerPass"));
@@ -681,7 +689,7 @@ private:
 
         auto finalizePass = Finally([&] {
             YT_LOG_INFO("Consumer controller pass finished");
-            PassProfiler_.OnFinish(TInstant::Now() - startTime);
+            passProfiler->OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextConsumerSnapshot->Banned) {
@@ -693,7 +701,7 @@ private:
         if (Leading_) {
             YT_LOG_DEBUG("Consumer controller is leading, performing mutating operations");
 
-            ProfileManager_->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
+            ProfileManager_.Acquire()->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
         }
     }
 };
