@@ -122,6 +122,14 @@ void SortAllocationsWithPreemptionInfo(std::vector<TAllocationWithPreemptionInfo
                 }
             }
 
+            if (!lhs.Allocation->GetPreemptibleProgressStartTime().has_value()) {
+                return false;
+            }
+
+            if (!rhs.Allocation->GetPreemptibleProgressStartTime().has_value()) {
+                return true;
+            }
+
             return lhs.Allocation->GetPreemptibleProgressStartTime() < rhs.Allocation->GetPreemptibleProgressStartTime();
         });
 }
