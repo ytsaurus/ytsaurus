@@ -7,24 +7,10 @@ on:
         description: "Name of the scenario"
         required: true
         type: string
-      query_tracker_version:
-        description: "Version filter for query_tracker"
+      ref_name:
         required: false
         type: string
-      ytsaurus_version:
-        description: "Version filter for ytsaurus"
-        required: false
-        type: string
-      operator_version:
-        description: "Version filter for k8s-operator"
-        required: false
-        type: string
-      strawberry_version:
-        description: "Version filter for strawberry"
-        required: false
-        type: string
-      chyt_version:
-        description: "Version filter for chyt"
+      image_tag:
         required: false
         type: string
     secrets:
@@ -50,38 +36,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          args=(
-            run-scenario
-            --scenario "${{ inputs.scenario }}"
-            --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
-            --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
-            --apply
-          )
+          ref='${{ inputs.ref_name }}'
+          tag='${{ inputs.image_tag }}'
+
+          tmp="${tag#*-}"
+          ver="${tmp%%-*}"
+
+          component=""
+          case "$ref" in
+            query-tracker/*) component="query_tracker" ;;
+            stable/*)        component="ytsaurus" ;;
+            chyt/*)          component="chyt" ;;
+          esac
 
           version_filter_json="{}"
-          filters=(
-            "query_tracker=${{ inputs.query_tracker_version }}"
-            "ytsaurus=${{ inputs.ytsaurus_version }}"
-            "operator=${{ inputs.operator_version }}"
-            "strawberry=${{ inputs.strawberry_version }}"
-            "chyt=${{ inputs.chyt_version }}"
-          )
-
-          for kv in "${filters[@]}"; do
-            key="${kv%%=*}"
-            val="${kv#*=}"
-
-            if [[ -n "$val" ]]; then
-              version_filter_json="$(
-                jq -cn \
-                  --argjson cur "$version_filter_json" \
-                  --arg k "$key" \
-                  --arg v "$val" \
-                  '$cur + {($k): $v}'
-              )"
-            fi
-          done
+          if [[ -n "$component" && -n "$ver" ]]; then
+            version_filter_json="$(jq -cn --arg k "$component" --arg v "$ver" '{($k): $v}')"
+          fi
 
           args+=( --version-filter "$version_filter_json" )
 
           ./yt/admin/ytsaurus_ci/ytsaurus_ci "${args[@]}"
+

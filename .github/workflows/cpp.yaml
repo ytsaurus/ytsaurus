@@ -200,6 +200,20 @@ jobs:
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
+  create-task-for-ytsaurus-ci:
+    name: Make task for YTsaurus CI
+    if: github.ref_name matches(stable|query-tracker|chyt)
+    needs:
+      - docker-ya-make
+    uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: release-tests
+      ref_name: ${{ github.ref_name }}
+      image_tag: ${{ needs.docker-ya-make.outputs.image-tag }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
+
   check:
     name: Check
     needs:
