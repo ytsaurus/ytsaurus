@@ -229,14 +229,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("//tmp/t")
 
-    @authors("gritukan")
+    @authors("gritukan", "akozhikhov")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     def test_lookup_hunk_chunk_with_repair(self, chunk_format):
         self._separate_tablet_and_data_nodes()
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
 
         sync_create_cells(1)[0]
-        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_6_3")
+        self._create_table(chunk_format=chunk_format, hunk_erasure_codec="isa_reed_solomon_3_3")
         if chunk_format == "table_versioned_indexed":
             self._enable_hash_chunk_index("//tmp/t")
 
