@@ -561,6 +561,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
         .Default(false);
 
+    registrar.Parameter("enable_reshard_with_slicing_by_default", &TThis::EnableReshardWithSlicingByDefault)
+        .Default(true);
+
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)
         .GreaterThan(0);

@@ -425,6 +425,8 @@ struct TConnectionDynamicConfig
     //! Enables strict access validation in operation info commands.
     bool StrictOperationInfoAccessValidation;
 
+    bool EnableReshardWithSlicingByDefault;
+
     i64 GetJobTraceBatchSize;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);

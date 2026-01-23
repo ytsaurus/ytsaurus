@@ -2828,12 +2828,20 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
+    ENABLE_SLICING_BY_DEFAULT = True
 
     @staticmethod
     def _value_by_optimize_for(optimize_for):
         if optimize_for == 'scan':
             return 'a' * 66000
         return 'value'
+
+    def _expect_error_without_slicing_by_default(self, func):
+        if self.ENABLE_SLICING_BY_DEFAULT:
+            func(None)
+        else:
+            with pytest.raises(YtError):
+                func(True)
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2843,15 +2851,16 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             "//tmp/t",
             optimize_for=optimize_for)
         tablet_count = 3
-        with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
-        with pytest.raises(YtError):
-            sync_reshard_table(
-                "//tmp/t",
-                tablet_count,
-                enable_slicing=True,
-                first_tablet_index=0,
-                last_tablet_index=0)
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            tablet_count,
+            enable_slicing=enable_slicing))
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            tablet_count,
+            enable_slicing=enable_slicing,
+            first_tablet_index=0,
+            last_tablet_index=0))
 
     @authors("alexelexa")
     @pytest.mark.parametrize(
@@ -2859,6 +2868,9 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_reshard_sizes(self, first_tablet_index, last_tablet_index, optimize_for):
+        if not self.ENABLE_SLICING_BY_DEFAULT:
+            pytest.skip()
+
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2869,7 +2881,6 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             assert get("//tmp/t/@tablet_count") == tablet_count_expected
@@ -2917,7 +2928,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             sync_compact_table("//tmp/t")
@@ -2928,8 +2939,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         value = self._value_by_optimize_for(optimize_for)
         rows = [{"key": i, "value": value} for i in range(10)]
         insert_rows("//tmp/t", rows)
-        with pytest.raises(YtError):
-            reshard_and_check(2 * len(rows), 2 * len(rows), first_tablet_index=None, last_tablet_index=None)
+
+        self._expect_error_without_slicing_by_default(
+            lambda _: reshard_and_check(2 * len(rows), 1, first_tablet_index=None, last_tablet_index=None))
+
         reshard_and_check(3, 3, first_tablet_index=0, last_tablet_index=0)
         reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
 
@@ -2949,7 +2962,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             sync_reshard_table(
                 "//tmp/t",
                 tablet_count,
-                enable_slicing=True,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             if with_compaction:
@@ -2997,10 +3010,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("with_after_alter_reshard", [True, False])
     def test_reshard_after_alter(self, with_alter, with_pivots, optimize_for, with_after_alter_reshard):
         if with_after_alter_reshard and not with_alter:
-            return
+            pytest.skip()
 
         if with_after_alter_reshard and not with_pivots:
-            return
+            pytest.skip()
 
         sync_create_cells(1)
         self._create_simple_table(
@@ -3060,7 +3073,10 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
         def reshard_and_check(tablet_count):
             sync_unmount_table("//tmp/t")
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None)
             assert get("//tmp/t/@tablet_count") == tablet_count
 
         sync_mount_table("//tmp/t")
@@ -3108,8 +3124,12 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", 4, enable_slicing=True, first_tablet_index=0, last_tablet_index=1)
+        self._expect_error_without_slicing_by_default(lambda enable_slicing: sync_reshard_table(
+            "//tmp/t",
+            4,
+            enable_slicing=enable_slicing,
+            first_tablet_index=0,
+            last_tablet_index=1))
 
     @authors("alexelexa")
     def test_replicated_table_reshard(self):
@@ -3124,7 +3144,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
             "replication_factor": 1})
 
         with pytest.raises(YtError):
-            sync_reshard_table("//tmp/t", 4, enable_slicing=True)
+            sync_reshard_table("//tmp/t", 4, enable_slicing=True if not self.ENABLE_SLICING_BY_DEFAULT else None)
 
     @authors("alexelexa")
     def test_too_many_chunks_reshard(self):
@@ -3158,6 +3178,17 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         set("//sys/@config/chunk_manager/max_chunks_per_fetch", 100)
         sync_reshard_table("//tmp/t", 4, enable_slicing=True)
         assert get("//tmp/t/@tablet_count") == 4
+
+
+##################################################################
+
+
+class TestReshardWithSlicingOnDemand(TestReshardWithSlicing):
+    ENABLE_SLICING_BY_DEFAULT = False
+
+    DELTA_DRIVER_CONFIG = {
+        "enable_reshard_with_slicing_by_default": False,
+    }
 
 
 ##################################################################

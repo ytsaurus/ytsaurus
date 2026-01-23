@@ -2332,7 +2332,9 @@ void TClient::DoReshardTableWithTabletCount(
         return;
     }
 
-    if (options.EnableSlicing.value_or(false)) {
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
+    if (options.EnableSlicing.value_or(dynamicConfig->EnableReshardWithSlicingByDefault)) {
         try {
             auto pivots = PickPivotKeysWithSlicing(
                 MakeStrong(this),
@@ -2346,6 +2348,9 @@ void TClient::DoReshardTableWithTabletCount(
             if (ex.Error().FindMatching(NChunkClient::EErrorCode::TooManyChunksToFetch)) {
                 YT_LOG_DEBUG(ex,
                     "Too many chunks have been requested to fetch, fallback to reshard without slicing");
+            } else if (dynamicConfig->EnableReshardWithSlicingByDefault) {
+                YT_LOG_DEBUG(ex,
+                    "Failed to pick pivot keys with slicing, fallback to reshard without slicing");
             } else {
                 throw;
             }

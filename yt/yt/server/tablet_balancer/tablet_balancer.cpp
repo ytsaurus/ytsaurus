@@ -1394,7 +1394,6 @@ TFuture<std::vector<TLegacyOwningKey>> TTabletBalancer::PickReshardPivotKeysIfNe
     }
 
     auto options = TReshardTableOptions{
-        .EnableSlicing = true,
         .SlicingAccuracy = slicingAccuracy,
     };
 
