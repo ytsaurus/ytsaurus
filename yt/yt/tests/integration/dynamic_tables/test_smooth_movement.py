@@ -746,6 +746,19 @@ class TestSmoothMovement(SmoothMovementBase):
 
         _check()
 
+    @authors("ifsmirnov")
+    def test_atomicity_none(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t", atomicity="none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "foo"}]
+        with SmoothMovementHelper("//tmp/t").forwarding_context():
+            insert_rows("//tmp/t", rows, atomicity="none")
+            assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
 
 ##################################################################
 
