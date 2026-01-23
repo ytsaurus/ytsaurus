@@ -4,15 +4,12 @@
 
 #include <yt/yt/client/table_client/record_codegen_cpp.h>
 
-
-
 namespace NYT::NTableClient::NTest::NRecords {
 
 using namespace NTableClient;
 using namespace NTableClient::NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TSimpleMappingIdMapping::TSimpleMappingIdMapping(const TNameTablePtr& nameTable)
     : KeyA(nameTable->GetIdOrThrow("key_a"))
@@ -104,27 +101,33 @@ TSimpleMappingDescriptor::TSimpleMappingDescriptor()
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
     , PartialIdMapping_(NameTable_)
-    , PrimaryTableSchema_(New<TTableSchema>(std::vector{
-TColumnSchema(
-            "key_a",
-            ESimpleLogicalValueType::String)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetRequired(true),TColumnSchema(
-            "key_b",
-            ESimpleLogicalValueType::String)
-            .SetSortOrder(ESortOrder::Ascending),TColumnSchema(
-            "key_c",
-            FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}"))
-            .SetSortOrder(ESortOrder::Ascending),TColumnSchema(
-            "value_a",
-            ESimpleLogicalValueType::String)
-            .SetRequired(true),TColumnSchema(
-            "value_b",
-            ESimpleLogicalValueType::String),TColumnSchema(
-            "value_c",
-            FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}")),
+    , PrimaryTableSchema_(New<TTableSchema>(
+        std::vector{
+            TColumnSchema(
+                "key_a",
+                ESimpleLogicalValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetRequired(true),
+            TColumnSchema(
+                "key_b",
+                ESimpleLogicalValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(
+                "key_c",
+                FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}"))
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(
+                "value_a",
+                ESimpleLogicalValueType::String)
+                .SetRequired(true),
+            TColumnSchema(
+                "value_b",
+                ESimpleLogicalValueType::String),
+            TColumnSchema(
+                "value_c",
+                FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}")),
         })
-->SetUniqueKeys(true))
+            ->SetUniqueKeys(true))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,44 +161,39 @@ TUnversionedRow TSimpleMapping::ToUnversionedRow(
     EValueFlags flags) const
 {
     std::array values{
-
-ToUnversionedValue(
+        ToUnversionedValue(
             Key.KeyA,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.KeyA, TStringBuf("key_a"))),ToUnversionedValue(
+            GetColumnIdOrThrow(
+                idMapping.KeyA,
+                TStringBuf("key_a"))),
+        ToUnversionedValue(
             Key.KeyB,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.KeyB, TStringBuf("key_b"))),ToUnversionedCompositeValue(
+            GetColumnIdOrThrow(
+                idMapping.KeyB,
+                TStringBuf("key_b"))),
+        ToUnversionedCompositeValue(
             Key.KeyC,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.KeyC, TStringBuf("key_c"))),
+            GetColumnIdOrThrow(
+                idMapping.KeyC,
+                TStringBuf("key_c"))),
         ToUnversionedValue(
             ValueA,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.ValueA,
-            TStringBuf("value_a")),
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-            ),
+            GetColumnIdOrThrow(idMapping.ValueA, TStringBuf("value_a")),
+            flags & NYT::NTableClient::EValueFlags::None),
         ToUnversionedValue(
             ValueB,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.ValueB,
-            TStringBuf("value_b")),
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-            ),
+            GetColumnIdOrThrow(idMapping.ValueB, TStringBuf("value_b")),
+            flags & NYT::NTableClient::EValueFlags::None),
         ToUnversionedCompositeValue(
             ValueC,
             rowBuffer,
-            GetColumnIdOrThrow(idMapping.ValueC,
-            TStringBuf("value_c")),
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-            ),
+            GetColumnIdOrThrow(idMapping.ValueC, TStringBuf("value_c")),
+            flags & NYT::NTableClient::EValueFlags::None),
     };
     return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
 }
@@ -206,80 +204,70 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
 {
     TSimpleMapping result;
 
-
     if (idMapping.KeyA) {
         auto id = *idMapping.KeyA;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.Key.KeyA, row[*idMapping.KeyA]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_a")
                 << ex;
         }
-    }else {
+    } else {
         THROW_ERROR_EXCEPTION("No such column %Qv", "key_a");
     }
-    
+
     if (idMapping.KeyB) {
         auto id = *idMapping.KeyB;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.Key.KeyB, row[*idMapping.KeyB]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_b")
                 << ex;
         }
     }
+
     if (idMapping.KeyC) {
         auto id = *idMapping.KeyC;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.Key.KeyC, row[*idMapping.KeyC]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_c")
                 << ex;
         }
     }
+
     if (idMapping.ValueA) {
         auto id = *idMapping.ValueA;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.ValueA, row[*idMapping.ValueA]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_a")
                 << ex;
         }
-    }else {
+    } else {
         THROW_ERROR_EXCEPTION("No such column %Qv", "value_a");
     }
-    
+
     if (idMapping.ValueB) {
         auto id = *idMapping.ValueB;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.ValueB, row[*idMapping.ValueB]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_b")
                 << ex;
         }
     }
+
     if (idMapping.ValueC) {
         auto id = *idMapping.ValueC;
         ValidateRowValueCount(row, id);
         try {
-
             FromUnversionedValue(&result.ValueC, row[*idMapping.ValueC]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_c")
                 << ex;
@@ -315,36 +303,27 @@ TUnversionedRow TSimpleMappingPartial::ToUnversionedRow(
             GetColumnIdOrThrow(idMapping.KeyC, TStringBuf("key_c"))));
     if (idMapping.ValueA && ValueA) {
         builder.AddValue(
-            ToUnversionedValue
-            (*ValueA,
-            rowBuffer,
-            *idMapping.ValueA,
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-        ));
+            ToUnversionedValue(
+                *ValueA,
+                rowBuffer,
+                *idMapping.ValueA,
+                flags & NYT::NTableClient::EValueFlags::None));
     }
     if (idMapping.ValueB && ValueB) {
         builder.AddValue(
-            ToUnversionedValue
-            (*ValueB,
-            rowBuffer,
-            *idMapping.ValueB,
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-        ));
+            ToUnversionedValue(
+                *ValueB,
+                rowBuffer,
+                *idMapping.ValueB,
+                flags & NYT::NTableClient::EValueFlags::None));
     }
     if (idMapping.ValueC && ValueC) {
         builder.AddValue(
-            ToUnversionedCompositeValue
-            (*ValueC,
-            rowBuffer,
-            *idMapping.ValueC,
-            
-                flags & NYT::NTableClient::EValueFlags::None
-            
-        ));
+            ToUnversionedCompositeValue(
+                *ValueC,
+                rowBuffer,
+                *idMapping.ValueC,
+                flags & NYT::NTableClient::EValueFlags::None));
     }
     return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);
 }
@@ -360,62 +339,61 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.Key.KeyA, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_a")
                 << ex;
         }
     }
+
     if (idMapping.KeyB) {
         auto id = *idMapping.KeyB;
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.Key.KeyB, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_b")
                 << ex;
         }
     }
+
     if (idMapping.KeyC) {
         auto id = *idMapping.KeyC;
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.Key.KeyC, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_c")
                 << ex;
         }
     }
+
     if (idMapping.ValueA) {
         auto id = *idMapping.ValueA;
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.ValueA, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_a")
                 << ex;
         }
     }
+
     if (idMapping.ValueB) {
         auto id = *idMapping.ValueB;
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.ValueB, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_b")
                 << ex;
         }
     }
+
     if (idMapping.ValueC) {
         auto id = *idMapping.ValueC;
         ValidateRowValueCount(row, id);
         try {
             FromUnversionedValue(&result.ValueC, row[id]);
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_c")
                 << ex;
@@ -424,7 +402,6 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
 
     return result;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
