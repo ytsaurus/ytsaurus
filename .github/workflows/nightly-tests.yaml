@@ -1,9 +1,6 @@
 name: YTsaurus CI Nightly Trigger
 
 on:
-  push:
-    branches:
-      - 'members/epsilond1/try-enable-ytsaurus-ci'
   schedule:
     - cron: '*/59 * * * *'
   workflow_dispatch:
