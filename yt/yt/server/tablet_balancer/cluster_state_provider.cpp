@@ -68,7 +68,7 @@ public:
     TFuture<THashMap<std::string, std::vector<std::string>>> GetUnhealthyBundles() override;
 
 private:
-    const IBootstrap* Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 
     const IThreadPoolPtr WorkerPool_;
