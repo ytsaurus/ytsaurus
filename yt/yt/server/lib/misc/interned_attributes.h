@@ -122,6 +122,7 @@
     XX(ConfigPresets, config_presets) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(ConflictHorizonTimestamp, conflict_horizon_timestamp) \
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \

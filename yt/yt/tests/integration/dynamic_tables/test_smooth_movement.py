@@ -4,13 +4,13 @@ from yt.environment.helpers import assert_items_equal, are_items_equal
 
 from yt_commands import (
     authors, create, wait, get, set, exists,
-    sync_create_cells, sync_mount_table, raises_yt_error,
+    sync_create_cells, sync_mount_table, sync_unmount_table, raises_yt_error,
     sync_reshard_table, insert_rows, ls,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
     get_singular_chunk_id, disable_tablet_cells_on_node, enable_tablet_cells_on_node,
     create_table_replica, alter_table_replica, unmount_table,
-    set_node_banned, trim_rows,
+    set_node_banned, trim_rows, generate_timestamp
 )
 
 from yt.common import YtError
@@ -191,6 +191,30 @@ class TestSmoothMovement(SmoothMovementBase):
                 pass
 
         assert_items_equal(expected_rows, select_rows("key, value from [//tmp/t]"))
+
+    @authors("ponasenko-rs")
+    def test_basic_conflict_horizon_timestamp_propagation(self):
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        ts = generate_timestamp()
+
+        expected_rows = []
+        for i in range(10):
+            row = {"key": i, "value": str(i)}
+            expected_rows.append(row)
+            insert_rows("//tmp/t", [row])
+
+        assert_items_equal(expected_rows, select_rows("* from [//tmp/t]"))
+
+        self._sync_move_tablet(tablet_id)
+
+        sync_unmount_table("//tmp/t")
+
+        assert get(f"#{tablet_id}/@conflict_horizon_timestamp") > ts
 
     def _update_testing_config(self, config):
         update_nodes_dynamic_config({

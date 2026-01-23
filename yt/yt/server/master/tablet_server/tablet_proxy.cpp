@@ -79,6 +79,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::RetainedTimestamp);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConflictHorizonTimestamp)
+            .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::UnflushedTimestamp);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnconfirmedDynamicTableLocks)
             .SetOpaque(true));
@@ -141,6 +143,11 @@ private:
             case EInternedAttributeKey::RetainedTimestamp:
                 BuildYsonFluently(consumer)
                     .Value(tablet->GetRetainedTimestamp());
+                return true;
+
+            case EInternedAttributeKey::ConflictHorizonTimestamp:
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetConflictHorizonTimestamp());
                 return true;
 
             case EInternedAttributeKey::UnflushedTimestamp:
