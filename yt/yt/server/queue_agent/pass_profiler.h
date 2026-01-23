@@ -8,7 +8,7 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPassProfiler
+class TPassProfiler final
 {
 public:
     TPassProfiler(const NProfiling::TProfiler& profiler);

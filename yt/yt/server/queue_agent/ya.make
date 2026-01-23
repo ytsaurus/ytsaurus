@@ -19,6 +19,7 @@ SRCS(
     snapshot_representation.cpp
     queue_exporter.cpp
     queue_exporter_old.cpp
+    queue_exporter_profile_manager.cpp
     queue_export_manager.cpp
 )
 

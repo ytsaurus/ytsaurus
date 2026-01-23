@@ -1454,8 +1454,7 @@ IQueueExporterPtr CreateQueueExporter(
     IInvokerPtr invoker,
     IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
-    const TProfiler& queueProfiler,
-    const TProfiler& queuePassProfiler,
+    IQueueExporterProfileManagerPtr profileManager,
     const TLogger& logger)
 {
     auto exporter =  New<TQueueExporter>(
@@ -1467,12 +1466,8 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(invoker),
         std::move(queueExportManager),
         std::move(alertCollector),
-        queueProfiler
-            .WithPrefix("/static_export")
-            .WithTag("export_name", exportName),
-        queuePassProfiler
-            .WithPrefix("/static_export")
-            .WithTag("export_name", exportName),
+        profileManager->GetProfiler(EProfilerScope::Object),
+        profileManager->GetProfiler(EProfilerScope::ObjectPass),
         logger);
     exporter->Initialize();
 

@@ -442,6 +442,11 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TR
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<std::string> TQueueTableRow::GetProfilingTag() const
+{
+    return QueueProfilingTag;
+}
+
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
     return {
@@ -514,6 +519,11 @@ TQueueTable::TQueueTable(TYPath root, IClientPtr client)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> TConsumerTableRow::GetProfilingTag() const
+{
+    return QueueConsumerProfilingTag;
+}
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
