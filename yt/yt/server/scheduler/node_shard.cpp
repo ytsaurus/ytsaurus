@@ -1529,7 +1529,8 @@ TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor
 void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime)
 {
     auto previousPreemptibleProgressStartTime = allocation->GetPreemptibleProgressStartTime();
-    YT_VERIFY(previousPreemptibleProgressStartTime < newPreemptibleProgressStartTime);
+    YT_VERIFY(!previousPreemptibleProgressStartTime.has_value() ||
+        previousPreemptibleProgressStartTime < newPreemptibleProgressStartTime);
 
     allocation->SetPreemptibleProgressStartTime(newPreemptibleProgressStartTime);
 
