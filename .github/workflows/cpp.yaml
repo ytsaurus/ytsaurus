@@ -202,7 +202,9 @@ jobs:
 
   create-task-for-ytsaurus-ci:
     name: Make task for YTsaurus CI
-    if: github.ref_name matches(stable|query-tracker|chyt)
+    if: ${{ startsWith(github.ref_name, 'stable/')
+          || startsWith(github.ref_name, 'query-tracker/')
+          || startsWith(github.ref_name, 'chyt/') }}
     needs:
       - docker-ya-make
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
