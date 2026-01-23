@@ -5534,6 +5534,10 @@ private:
                 RowDigestFetcher_->ResetCompactionHints(tablet);
             }
         }
+
+        for (auto& [_, tablet] : Tablets()) {
+            tablet->OnDynamicConfigChanged(Slot_, oldConfig, newConfig);
+        }
     }
 
     void ScheduleTabletConfigUpdate(

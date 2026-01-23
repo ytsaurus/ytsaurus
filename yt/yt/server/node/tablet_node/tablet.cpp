@@ -75,6 +75,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NClusterNode;
 using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -2269,7 +2270,7 @@ void TTablet::InvalidateChunkReaders()
 {
     for (const auto& [_, store] : StoreIdMap_) {
         if (store->IsChunk()) {
-            store->AsChunk()->InvalidateCachedReaders(Settings_);
+            store->AsChunk()->InvalidateCachedReaders(Settings_.StoreReaderConfig);
         }
     }
 }
@@ -3392,6 +3393,18 @@ INodeMemoryTrackerPtr TTablet::MaybeGetNodeMemoryUsageTracker() const
     return Context_ ? Context_->GetNodeMemoryUsageTracker() : nullptr;
 }
 
+void TTablet::OnDynamicConfigChanged(
+    const ITabletSlotPtr& slot,
+    const TClusterNodeDynamicConfigPtr& oldConfig,
+    const TClusterNodeDynamicConfigPtr& newConfig)
+{
+    for (const auto& [_, store] : StoreIdMap_) {
+        store->OnDynamicConfigChanged(oldConfig, newConfig);
+    }
+
+    ReconfigureChunkFragmentReader(slot);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent)
@@ -3427,7 +3440,7 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
 ////////////////////////////////////////////////////////////////////////////////
 
 IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
     auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;
@@ -3439,7 +3452,7 @@ IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
 }
 
 IThroughputThrottlerPtr GetBlobMediumReadThrottler(
-    const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
+    const TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot)
 {
     auto mediumThrottlersConfig = dynamicConfigManager->GetConfig()->TabletNode->MediumThrottlers;

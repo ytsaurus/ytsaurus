@@ -929,6 +929,11 @@ public:
 
     INodeMemoryTrackerPtr MaybeGetNodeMemoryUsageTracker() const;
 
+    void OnDynamicConfigChanged(
+        const ITabletSlotPtr& slot,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig);
+
 private:
     struct TTabletSizeMetrics
     {
