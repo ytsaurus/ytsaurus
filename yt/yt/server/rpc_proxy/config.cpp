@@ -203,6 +203,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     // NB(pavook): Static config is used when the dynamic is missing.
     registrar.Parameter("signature_components", &TThis::SignatureComponents)
         .Optional();
+
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
