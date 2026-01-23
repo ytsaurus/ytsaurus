@@ -1763,6 +1763,39 @@ class TestInferReadRange(ClickHouseTestBase):
             # Inferrer treats only columns as arguments to the IN operator.
             check('(key != 0) IN (0, 1)', 3, [{"key": 0}, {"key": 1},])
 
+    # CHYT-1387
+    @authors("buyval01")
+    def test_read_range_with_sorted_pool(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "id", "type": "int64", "required": True, "sort_order": "ascending"}]
+        })
+
+        value_cnt = 8
+        data = []
+        for i in range(4):
+            data += [{"id": i} for _ in range(value_cnt)]
+        # It is necessary to have approximately one block for each group of values.
+        write_table("//tmp/t", data, table_writer={"block_size": 8 * value_cnt},)
+
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_read_range_inferring": True,
+                    },
+                },
+                "subquery": {
+                    # The default minimum limit is too high for this test.
+                    # It is necessary to save the value that will be calculated when constructing JobSizeConstraints.
+                    "min_slice_data_weight": 1,
+                },
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            # To have explicit key bounds on the input block, need to request a range within the chunk: [1, 2] in [0, 3].
+            res = clique.make_query("select id, count(*) as cnt from `//tmp/t` where id between 1 and 2 group by id")
+            assert_items_equal(res, [{"id": 1, "cnt": value_cnt}, {"id": 2, "cnt": value_cnt}])
+
 
 class TestInputFetchingYPath(ClickHouseTestBase):
     def _create_table(self):

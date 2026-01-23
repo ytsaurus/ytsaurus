@@ -1126,9 +1126,6 @@ std::vector<TSubquery> BuildThreadSubqueries(
                     auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()]->GetComparator();
                     inputReadRangeRegistry.ApplyReadRange(dataSlice, comparator);
                 }
-
-                dataSlice->TransformToLegacy(queryContext->RowBuffer);
-                YT_VERIFY(dataSlice->IsLegacy);
             }
         }
 

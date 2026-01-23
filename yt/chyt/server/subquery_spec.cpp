@@ -38,9 +38,8 @@ void FillDataSliceDescriptors(
         auto& inputDataSliceDescriptor = dataSliceDescriptors.emplace_back();
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
-            auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
-            YT_VERIFY(it != miscExtMap.end());
+            ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), dataSlice->Type);
+            auto it = GetIteratorOrCrash(miscExtMap, chunkSlice->GetInputChunk()->GetChunkId());
             if (it->second) {
                 SetProtoExtension(
                     chunkSpec.mutable_chunk_meta()->mutable_extensions(),
