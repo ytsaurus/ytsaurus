@@ -84,6 +84,9 @@ jobs:
             elif [[ $GITHUB_REF =~ "query-tracker" ]];
             then
               IMAGE_TAG=dev-${GITHUB_REF#refs/*/query-tracker/}
+            elif [[ $GITHUB_REF =~ "chyt" ]];
+            then
+              IMAGE_TAG=dev-${GITHUB_REF#refs/*/chyt/}
             else
               IMAGE_TAG=dev-test
             fi
