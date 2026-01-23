@@ -327,11 +327,6 @@ public:
             if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replicated table tablet cannot be moved");
             }
-
-            if (table->GetAtomicity() != EAtomicity::Full) {
-                THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
-                    table->GetAtomicity());
-            }
         }
 
         auto* action = DoCreateTabletAction(

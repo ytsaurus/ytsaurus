@@ -575,7 +575,7 @@ private:
         if (tablet->SmoothMovementData().ShouldForwardMutation()) {
             TReqWriteRows forwardedRequest;
             DeserializeProtoWithEnvelope(&forwardedRequest, context->Request().Data);
-            ForwardWriteRowsMutation(tablet, transaction, std::move(forwardedRequest));
+            ForwardWriteRowsMutation(tablet, transaction, transactionId, std::move(forwardedRequest));
         }
     }
 
@@ -743,30 +743,39 @@ private:
         }
 
         if (tablet->SmoothMovementData().ShouldForwardMutation()) {
-            ForwardWriteRowsMutation(tablet, transaction, *request);
+            ForwardWriteRowsMutation(tablet, transaction, transactionId, *request);
         }
     }
 
     void ForwardWriteRowsMutation(
         TTablet* tablet,
         TTransaction* transaction,
+        TTransactionId transactionId,
         TReqWriteRows request)
     {
         YT_LOG_DEBUG("Forwarding writes to sibling servant (%v, TransactionId: %v)",
             tablet->GetLoggingTag(),
-            transaction->GetId());
-
-        YT_VERIFY(transaction);
+            transactionId);
 
         auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
+        auto atomicity = AtomicityFromTransactionId(transactionId);
 
-        const auto& transactionManager = Host_->GetTransactionManager();
-        transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
+        if (atomicity == EAtomicity::Full) {
+            YT_VERIFY(transaction);
+            YT_VERIFY(transaction->GetId() == transactionId);
+
+            const auto& transactionManager = Host_->GetTransactionManager();
+            transactionManager->RegisterExternalizerTablet(transaction, tablet->GetId(), token);
+        }
+
+        auto newTransactionType = atomicity == EAtomicity::Full
+            ? EObjectType::ExternalizedAtomicTabletTransaction
+            : EObjectType::ExternalizedNonAtomicTabletTransaction;
 
         ToProto(request.mutable_transaction_externalization_token(), token);
         ToProto(
             request.mutable_transaction_id(),
-            ReplaceTypeInId(transaction->GetId(), EObjectType::ExternalizedAtomicTabletTransaction));
+            ReplaceTypeInId(transactionId, newTransactionType));
         request.set_mount_revision(
             ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
 
