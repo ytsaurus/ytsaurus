@@ -3019,6 +3019,14 @@ def enable_tablet_cells_on_node(address, driver=None):
     print_debug(f"Tablet cells are enabled on node {address}")
 
 
+def enable_local_throttling():
+    update_nodes_dynamic_config({
+        "tablet_node": {
+            "enable_collocated_dat_node_throttling": True
+        }
+    })
+
+
 def wait_for_nodes(driver=None):
     print_debug("Waiting for nodes to become online...")
     wait(
