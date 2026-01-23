@@ -59,7 +59,6 @@ struct TRunnableContainerSpec
     std::vector<TString> CGroupControllers;
     std::vector<TDevice> Devices;
     std::optional<TRootFS> RootFS;
-    std::vector<TBind> Binds;
 
     //! Allowed places for creation of volumes and layers. "***" means any place.
     std::vector<TString> Places;
