@@ -827,8 +827,6 @@ private:
                         throw;
                     }
 
-                    // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
-                    // and unban remount.
                     auto serializedTableSettings = SerializeTableSettings(tableSettings);
                     Host_->AllocateAuxiliaryServant(tablet, cell, serializedTableSettings);
                     ChangeTabletActionState(

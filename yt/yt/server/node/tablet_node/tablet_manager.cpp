@@ -1475,9 +1475,7 @@ private:
         }
 
         // Validation against not implemented features.
-        if (tablet->IsPhysicallyLog() ||
-            tablet->IsReplicated())
-        {
+        if (tablet->IsReplicated()) {
             THROW_ERROR_EXCEPTION("Replicated tables are not supported");
         }
 
