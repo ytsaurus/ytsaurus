@@ -2,10 +2,11 @@
 #include "mlp_storage.h"
 
 #include <contrib/ydb/core/persqueue/common/key.h>
-#include <contrib/ydb/core/persqueue/public/mlp/mlp_message_attributes.h>
+#include <contrib/ydb/core/persqueue/public/constants.h>
 #include <contrib/ydb/core/protos/counters_pq.pb.h>
 #include <contrib/ydb/core/protos/grpc_pq_old.pb.h>
 #include <contrib/ydb/core/tablet/tablet_counters_protobuf.h>
+#include <contrib/ydb/library/persqueue/counter_time_keeper/counter_time_keeper.h>
 
 namespace NKikimr::NPQ::NMLP {
 
@@ -287,6 +288,7 @@ void TConsumerActor::HandleOnInit(TEvKeyValue::TEvResponse::TPtr& ev) {
             AFL_ENSURE(false)("c", record.GetCookie());
     }
 
+    Storage->InitMetrics();
     CommitIfNeeded();
 
     if (!FetchMessagesIfNeeded()) {
@@ -411,6 +413,8 @@ void TConsumerActor::Handle(TEvPipeCache::TEvDeliveryProblem::TPtr&) {
 }
 
 STFUNC(TConsumerActor::StateInit) {
+    NPersQueue::TCounterTimeKeeper<ui64> keeper(CPUUsageMetric);
+
     switch (ev->GetTypeRewrite()) {
         hFunc(TEvPQ::TEvMLPReadRequest, Queue);
         hFunc(TEvPQ::TEvMLPCommitRequest, Queue);
@@ -419,6 +423,7 @@ STFUNC(TConsumerActor::StateInit) {
         hFunc(TEvPQ::TEvMLPConsumerUpdateConfig, Handle);
         hFunc(TEvPQ::TEvEndOffsetChanged, HandleInit);
         hFunc(TEvPQ::TEvGetMLPConsumerStateRequest, Handle);
+        hFunc(TEvPQ::TEvMLPConsumerMonRequest, Handle);
         hFunc(TEvKeyValue::TEvResponse, HandleOnInit);
         hFunc(TEvPersQueue::TEvResponse, HandleOnInit);
         hFunc(TEvPQ::TEvError, Handle);
@@ -431,6 +436,8 @@ STFUNC(TConsumerActor::StateInit) {
 }
 
 STFUNC(TConsumerActor::StateWork) {
+    NPersQueue::TCounterTimeKeeper<ui64> keeper(CPUUsageMetric);
+
     switch (ev->GetTypeRewrite()) {
         hFunc(TEvPQ::TEvMLPReadRequest, Handle);
         hFunc(TEvPQ::TEvMLPCommitRequest, Handle);
@@ -439,6 +446,7 @@ STFUNC(TConsumerActor::StateWork) {
         hFunc(TEvPQ::TEvMLPConsumerUpdateConfig, Handle);
         hFunc(TEvPQ::TEvEndOffsetChanged, Handle);
         hFunc(TEvPQ::TEvGetMLPConsumerStateRequest, Handle);
+        hFunc(TEvPQ::TEvMLPConsumerMonRequest, Handle);
         hFunc(TEvKeyValue::TEvResponse, Handle);
         hFunc(TEvPQ::TEvProxyResponse, Handle);
         hFunc(TEvPersQueue::TEvResponse, Handle);
@@ -454,6 +462,8 @@ STFUNC(TConsumerActor::StateWork) {
 }
 
 STFUNC(TConsumerActor::StateWrite) {
+    NPersQueue::TCounterTimeKeeper<ui64> keeper(CPUUsageMetric);
+
     switch (ev->GetTypeRewrite()) {
         hFunc(TEvPQ::TEvMLPReadRequest, Queue);
         hFunc(TEvPQ::TEvMLPCommitRequest, Queue);
@@ -462,6 +472,7 @@ STFUNC(TConsumerActor::StateWrite) {
         hFunc(TEvPQ::TEvMLPConsumerUpdateConfig, Handle);
         hFunc(TEvPQ::TEvEndOffsetChanged, Handle);
         hFunc(TEvPQ::TEvGetMLPConsumerStateRequest, Handle);
+        hFunc(TEvPQ::TEvMLPConsumerMonRequest, Handle);
         hFunc(TEvKeyValue::TEvResponse, Handle);
         hFunc(TEvPQ::TEvProxyResponse, Handle);
         hFunc(TEvPersQueue::TEvResponse, Handle);
@@ -728,9 +739,9 @@ void TConsumerActor::Handle(TEvPersQueue::TEvResponse::TPtr& ev) {
         AFL_ENSURE(res)("o", result.GetOffset());
 
         for (auto& attr : *proto.MutableMessageMeta()) {
-            if (attr.key() == MESSAGE_KEY) {
+            if (attr.key() == MESSAGE_ATTRIBUTE_KEY) {
                 messageGroupId = std::move(*attr.mutable_value());
-            } else if (attr.key() == NMessageConsts::DelaySeconds) {
+            } else if (attr.key() == MESSAGE_ATTRIBUTE_DELAY_SECONDS) {
                 delaySeconds = std::stoul(attr.value());
             }
         }
@@ -855,6 +866,9 @@ void TConsumerActor::UpdateMetrics() {
     counters.SetDeletedByRetentionPolicy(metrics.TotalDeletedByRetentionMessageCount);
     counters.SetDeletedByDeadlinePolicy(metrics.TotalDeletedByDeadlinePolicyMessageCount);
     counters.SetDeletedByMovedToDLQ(metrics.TotalMovedToDLQMessageCount);
+
+    counters.SetCPUUsage(CPUUsageMetric);
+    CPUUsageMetric = 0;
 
     Send(PartitionActorId, new TEvPQ::TEvMLPConsumerState(std::move(counters)));
 }

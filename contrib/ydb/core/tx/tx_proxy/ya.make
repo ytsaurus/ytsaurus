@@ -41,6 +41,7 @@ PEERDIR(
     contrib/ydb/core/io_formats/arrow/scheme
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
+    contrib/ydb/core/security/sasl
     contrib/ydb/core/sys_view/common
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat

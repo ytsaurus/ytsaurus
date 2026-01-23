@@ -263,12 +263,15 @@ SRCS(
     schemeshard_domain_links.h
     schemeshard_effective_acl.cpp
     schemeshard_effective_acl.h
+    schemeshard_scheme_builders.cpp
+    schemeshard_scheme_builders.h
     schemeshard_export.cpp
     schemeshard_export__cancel.cpp
     schemeshard_export__create.cpp
     schemeshard_export__forget.cpp
     schemeshard_export__get.cpp
     schemeshard_export__list.cpp
+    schemeshard_export_helpers.cpp
     schemeshard_export_flow_proposals.cpp
     schemeshard_identificators.cpp
     schemeshard_impl.cpp
@@ -340,9 +343,11 @@ PEERDIR(
     library/cpp/html/pcdata
     library/cpp/json
     library/cpp/protobuf/json
+    library/cpp/regex/pcre
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/audit
     contrib/ydb/core/base
+    contrib/ydb/core/backup/regexp
     contrib/ydb/core/blob_depot
     contrib/ydb/core/blobstorage/base
     contrib/ydb/core/blockstore/core
