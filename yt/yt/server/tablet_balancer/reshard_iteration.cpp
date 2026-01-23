@@ -127,9 +127,6 @@ public:
             }
 
             if (!table->Sorted) {
-                YT_LOG_WARNING("Ordered table cannot be resharded (TableId: %v, TablePath: %v)",
-                    id,
-                    table->Path);
                 continue;
             }
 
@@ -371,9 +368,6 @@ public:
             }
 
             if (!table->Sorted) {
-                YT_LOG_WARNING("Ordered table cannot be resharded (TableId: %v, TablePath: %v)",
-                    id,
-                    table->Path);
                 continue;
             }
 
