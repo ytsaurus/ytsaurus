@@ -7,14 +7,11 @@
 
 #include <library/cpp/yt/memory/leaky_singleton.h>
 
-
-
-
+#include <library/cpp/yt/yson_string/string.h>
 
 namespace NYT::NTableClient::NTest::NRecords {
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 struct TSimpleMapping;
 struct TSimpleMappingPartial;
@@ -25,24 +22,26 @@ class TSimpleMappingDescriptor;
 
 struct TSimpleMappingIdMapping
 {
-const int KeyA;
-const int KeyB;
-const int KeyC;
-const int ValueA;
-const int ValueB;
-const int ValueC;
-explicit TSimpleMappingIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
+    const int KeyA;
+    const int KeyB;
+    const int KeyC;
+    const int ValueA;
+    const int ValueB;
+    const int ValueC;
+
+    explicit TSimpleMappingIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
 
 struct TSimpleMappingPartialIdMapping
 {
-const std::optional<int> KeyA;
-const std::optional<int> KeyB;
-const std::optional<int> KeyC;
-const std::optional<int> ValueA;
-const std::optional<int> ValueB;
-const std::optional<int> ValueC;
-explicit TSimpleMappingPartialIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
+    const std::optional<int> KeyA;
+    const std::optional<int> KeyB;
+    const std::optional<int> KeyC;
+    const std::optional<int> ValueA;
+    const std::optional<int> ValueB;
+    const std::optional<int> ValueC;
+
+    explicit TSimpleMappingPartialIdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
 
 class TSimpleMappingDescriptor
@@ -55,7 +54,8 @@ public:
     using TIdMapping = TSimpleMappingIdMapping;
     using TPartialIdMapping = TSimpleMappingPartialIdMapping;
     static constexpr int FieldCount = 6;
-static const TSimpleMappingDescriptor* Get();
+
+    static const TSimpleMappingDescriptor* Get();
 
     const NTableClient::TTableSchemaPtr& GetSchema() const override;
     const NTableClient::TNameTablePtr& GetNameTable() const override;
@@ -80,12 +80,11 @@ struct TSimpleMappingKey
 {
     using TRecordDescriptor = TSimpleMappingDescriptor;
 
-
     std::string KeyA{};
     std::string KeyB{};
     NYson::TYsonString KeyC{};
 
-bool operator==(const TSimpleMappingKey& rhs) const = default;
+    bool operator==(const TSimpleMappingKey& rhs) const = default;
 
     NYT::NTableClient::TLegacyKey ToKey(const NYT::NTableClient::TRowBufferPtr& rowBuffer) const;
     static TSimpleMappingKey FromKey(NYT::NTableClient::TLegacyKey key);
@@ -95,14 +94,12 @@ struct TSimpleMapping
 {
     using TRecordDescriptor = TSimpleMappingDescriptor;
 
-
-TSimpleMappingKey Key;
-
+    TSimpleMappingKey Key;
     std::string ValueA{};
     std::string ValueB{};
     NYson::TYsonString ValueC{};
 
-bool operator==(const TSimpleMapping& rhs) const = default;
+    bool operator==(const TSimpleMapping& rhs) const = default;
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
@@ -117,14 +114,12 @@ struct TSimpleMappingPartial
 {
     using TRecordDescriptor = TSimpleMappingDescriptor;
 
-
-TSimpleMappingKey Key;
-
+    TSimpleMappingKey Key;
     std::optional<std::string> ValueA{};
     std::optional<std::string> ValueB{};
     std::optional<NYson::TYsonString> ValueC{};
 
-bool operator==(const TSimpleMappingPartial& rhs) const = default;
+    bool operator==(const TSimpleMappingPartial& rhs) const = default;
 
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
@@ -134,7 +129,6 @@ bool operator==(const TSimpleMappingPartial& rhs) const = default;
         NYT::NTableClient::TUnversionedRow row,
         const TSimpleMappingPartialIdMapping& idMapping);
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
