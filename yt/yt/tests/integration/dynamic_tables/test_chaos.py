@@ -7186,3 +7186,65 @@ class TestChaosSmoothMovement(ChaosTestBase):
             h.wait_for_action()
 
         wait(lambda: are_items_equal(select_rows("* from [//tmp/t]"), rows))
+
+    @authors("ifsmirnov")
+    def test_move_queue(self):
+        chaos_cell_id = self._sync_create_chaos_bundle_and_cell()
+        sync_create_cells(3)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(chaos_cell_id, replicas)
+
+        rows = [{"key": i, "value": str(i)} for i in range(30)]
+        next_row_index = 0
+
+        def _insert():
+            nonlocal next_row_index
+
+            left = next_row_index
+            next_row_index += 1
+            right = next_row_index
+
+            for i in range(left, right):
+                tx = start_transaction(type="tablet")
+                insert_rows("//tmp/t1", [rows[i]], tx=tx)
+                commit_transaction(tx)
+                time.sleep(0.2)
+            wait(lambda: are_items_equal(select_rows("* from [//tmp/t1]"), rows[:right]))
+            wait(lambda: are_items_equal(select_rows("* from [//tmp/t2]"), rows[:right]))
+
+        ht1 = SmoothMovementHelper("//tmp/t1")
+        ht2 = SmoothMovementHelper("//tmp/t2")
+        hq1 = SmoothMovementHelper("//tmp/q1")
+        hq2 = SmoothMovementHelper("//tmp/q2")
+
+        hq1.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")  # q2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")  # q1
+        _insert()
+        hq2.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="sync")  # q1
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="async")  # q2
+        _insert()
+        ht1.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")  # t2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="async")  # t1
+        _insert()
+        ht2.start_forwarding_mutations()
+        _insert()
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, mode="sync")  # q2
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, mode="async")  # q1
+        _insert()
+        ht1.finish()
+        hq1.finish()
+        hq2.finish()
+        ht2.finish()
+        _insert()
