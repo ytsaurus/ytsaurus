@@ -82,6 +82,18 @@ TTabletCellBundlePtr TTabletCellBundle::DeepCopy(bool copyCells, bool copyTablet
     return bundle;
 }
 
+THashSet<TGroupName> TTabletCellBundle::GetBalancingGroups() const
+{
+    THashSet<TGroupName> groups;
+    for (const auto& [id, table] : Tables) {
+        if (auto groupName = table->GetBalancingGroup()) {
+            groups.insert(*groupName);
+        }
+    }
+
+    return groups;
+}
+
 void Deserialize(TTabletCellBundle::TNodeStatistics& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();

@@ -32,6 +32,8 @@ struct TTabletCellBundle final
     TTabletCellBundle(TString name);
 
     std::vector<TTabletCellPtr> GetAliveCells() const;
+    THashSet<TGroupName> GetBalancingGroups() const;
+
     TTabletCellBundlePtr DeepCopy(bool copyCells, bool copyTabletsAndStatistics) const;
 };
 

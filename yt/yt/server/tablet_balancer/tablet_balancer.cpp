@@ -71,6 +71,8 @@ public:
 
     bool IsBalancingAllowed(const TGlobalGroupTag& groupTag) const
     {
+        auto guard = ReaderGuard(Lock_);
+
         auto now = Now();
         if (now - InstanceStartTime_ < TimeoutOnStart_.load()) {
             return false;
@@ -82,12 +84,14 @@ public:
 
     void Start()
     {
+        auto guard = WriterGuard(Lock_);
         InstanceStartTime_ = Now();
         GroupToLastBalancingTime_.clear();
     }
 
     void UpdateBalancingTime(const TGlobalGroupTag& groupTag)
     {
+        auto guard = WriterGuard(Lock_);
         GroupToLastBalancingTime_[groupTag] = Now();
     }
 
@@ -98,6 +102,8 @@ public:
     }
 
 private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+
     std::atomic<TDuration> TimeoutOnStart_;
     std::atomic<TDuration> Timeout_;
     TInstant InstanceStartTime_;
@@ -146,14 +152,20 @@ private:
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
+    IThreadPoolPtr FetcherPool_;
     IThreadPoolPtr WorkerPool_;
     IThreadPoolPtr PivotPickerPool_;
 
     std::atomic<bool> IsActive_ = false;
 
     THashMap<std::string, IBundleStatePtr> Bundles_;
+    // Bundles with currently running balancing callback.
+    THashSet<std::string> BalancingBundles_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BundleErrorsLock_);
     mutable THashMap<std::string, TBundleErrors> BundleErrors_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IActionManagerPtr ActionManager_;
     IClusterStateProviderPtr ClusterStateProvider_;
@@ -171,24 +183,43 @@ private:
     TInstant FirstIterationStartTime_;
 
     i64 IterationIndex_;
+
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
-    mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> IterationProfilingTimers_;
+    mutable THashMap<std::string, TEventTimer> BundleIterationProfilingTimers_;
+    mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> GroupIterationProfilingTimers_;
 
     NProfiling::TCounter CancelledIterationDueToUnhealthyState_;
     THashMap<std::string, NProfiling::TCounter> CancelledBundleIterationDueToUnhealthyState_;
     NProfiling::TCounter PickPivotFailures_;
     THashMap<TGlobalGroupTag, TTableParameterizedMetricTrackerPtr> GroupToParameterizedMetricTracker_;
 
+    //! Thread affinity: Control.
     void BalancerIteration();
+    //! Thread affinity: Control.
     void TryBalancerIteration();
+
+    //! Thread affinity: any.
+    TBundleSnapshotPtr GetBundleSnapshot(
+        const std::string& bundleName,
+        const IBundleStatePtr& bundleState,
+        const THashSet<std::string>& allowedReplicaClusters) const;
+    //! Thread affinity: any.
     void BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot);
+    //! Thread affinity: Control.
+    void OnBundleBalancingFinished(const TError& error, const std::string& bundleName);
+
+    //! Thread affinity: Control.
     IListNodePtr FetchNodeStatistics() const;
 
+    //! Thread affinity: any.
     bool IsBalancingAllowed(const IBundleStatePtr& bundleState) const;
+    //! Takes writer guard on Lock_.
     bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
-    bool CanScheduleActionCreation(const TGlobalGroupTag& groupTag);
 
-    TEventTimer& GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const;
+    //! Takes writer guard on Lock_.
+    TEventTimer& GetProfilingTimer(const std::string& bundleName) const;
+    //! Takes writer guard on Lock_.
+    TEventTimer& GetGroupProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const;
 
     void BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
     void BalanceViaMove(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName);
@@ -210,38 +241,51 @@ private:
     void ExecuteReshardIteration(const IReshardIterationPtr& reshardIteration);
     void ExecuteMoveIteration(const IMoveIterationPtr& moveIteration);
 
-    THashSet<TGroupName> GetBalancingGroups(const TTabletCellBundlePtr& bundleState) const;
-
+    //! Thread affinity: Control.
     bool AreBundlesHealthy(int unhealthyBundleLimit) const;
+    //! Thread affinity: Control.
     bool IsBundleHealthy(const std::string& bundleName) const;
 
+    //! Thread affinity: Control.
     std::vector<std::string> UpdateBundleList();
 
+    //! Takes reader guard on Lock_.
     bool DidBundleBalancingTimeHappen(
         const TBundleTabletBalancerConfigPtr& config,
         const TGlobalGroupTag& groupTag,
         const TTimeFormula& groupSchedule) const;
+    //! Taking reader guard on Lock twice.
     bool IsBundleEligibleForBalancing(
         const TBundleTabletBalancerConfigPtr& config,
         const std::string& name) const;
+    //! Takes reader guard on Lock_.
     THashSet<TGroupName> GetGroupsForMoveBalancing(const std::string& bundleName) const;
+    //! Takes reader guard on Lock_.
     THashSet<TGroupName> GetGroupsForReshardBalancing(
         const std::string& bundleName,
         const TBundleTabletBalancerConfigPtr& config) const;
 
+    //! Thread affinity: any.
     TTimeFormula GetBundleSchedule(
         const TBundleTabletBalancerConfigPtr& config,
         const std::string& bundleName,
         const TTimeFormula& groupSchedule) const;
 
+    //! Taking reader guard on BundleErrorsLock.
     void BuildOrchid(IYsonConsumer* consumer) const;
 
+    //! Thread affinity: any.
     void SaveBundleError(std::deque<TError>* errors, TError error) const;
+    //! Taking writer guard on BundleErrorsLock.
     void SaveRetryableBundleError(const std::string& bundleName, TError error) const;
+    //! Taking writer guard on BundleErrorsLock.
     void SaveFatalBundleError(const std::string& bundleName, TError error) const;
+    //! Taking writer guard on BundleErrorsLock.
     void RemoveBundleErrorsByTtl(TDuration ttl) const;
+    //! Taking writer guard on BundleErrorsLock.
     void RemoveRetryableErrorsOnSuccessfulIteration(const std::string& bundleName) const;
 
+    //! Thread affinity: any.
     TFuture<std::vector<TLegacyOwningKey>> PickReshardPivotKeysIfNeeded(
         TReshardDescriptor* descriptor,
         const TTable* table,
@@ -250,13 +294,26 @@ private:
         std::optional<double> slicingAccuracy,
         bool enableVerboseLogging) const;
 
+    //! Thread affinity: any.
     std::vector<TReshardDescriptor> PickPivotsForDescriptors(
         TReshardDescriptorIt begin,
         TReshardDescriptorIt end,
         const IReshardIterationPtr& reshardIteration);
 
+    //! Takes writer guard on Lock_.
     TTableParameterizedMetricTrackerPtr GetParameterizedMetricTracker(const TGlobalGroupTag& groupTag);
+    //! Thread affinity: Control.
     void UpdateCancelledBundleIterationCounter(const std::string& bundleName);
+
+    //! Takes reader guard on Lock_.
+    bool IsPlanningToMoveOnNextIteration(const TGlobalGroupTag& groupTag) const;
+    //! Takes writer guard on Lock_.
+    void OnMoveIterationStarted(const TGlobalGroupTag& groupTag);
+    //! Takes writer guard on Lock_.
+    void ScheduleMoveIteration(const TGlobalGroupTag& groupTag);
+
+    //! Takes reader guard on Lock_.
+    TInstant GetPreviousIterationStartTime(const TGlobalGroupTag& groupTag) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,9 +329,12 @@ TTabletBalancer::TTabletBalancer(
         ControlInvoker_,
         BIND(&TTabletBalancer::TryBalancerIteration, MakeWeak(this)),
         Config_->Period))
+    , FetcherPool_(CreateThreadPool(
+        Config_->WorkerThreadPoolSize,
+        "Fetcher"))
     , WorkerPool_(CreateThreadPool(
         Config_->WorkerThreadPoolSize,
-        "TabletBalancer"))
+        "Balancer"))
     , PivotPickerPool_(CreateThreadPool(
         Config_->PivotPickerThreadPoolSize,
         "PivotKeysPicker"))
@@ -310,7 +370,15 @@ void TTabletBalancer::Start()
         YT_LOG_WARNING("Trying to start tablet balancer instance which is already active");
     }
 
-    GroupsToMoveOnNextIteration_.clear();
+    {
+        auto guard = WriterGuard(Lock_);
+        GroupsToMoveOnNextIteration_.clear();
+    }
+
+    YT_LOG_WARNING_IF(!BalancingBundles_.empty(),
+        "Some bundles still have balancing callbacks running from the previous leading iteration (Bundles: %v)",
+        BalancingBundles_);
+
     FirstIterationStartTime_ = TruncatedNow();
 
     ParameterizedBalancingScheduler_.Start();
@@ -347,6 +415,8 @@ void TTabletBalancer::Stop()
 
 IListNodePtr TTabletBalancer::FetchNodeStatistics() const
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     auto nodesOrError = WaitFor(ClusterStateProvider_->GetNodes());
 
     if (!nodesOrError.IsOK()) {
@@ -357,12 +427,96 @@ IListNodePtr TTabletBalancer::FetchNodeStatistics() const
     return ConvertTo<IListNodePtr>(nodesOrError.ValueOrThrow());
 }
 
+TBundleSnapshotPtr TTabletBalancer::GetBundleSnapshot(
+    const std::string& bundleName,
+    const IBundleStatePtr& bundleState,
+    const THashSet<std::string>& allowedReplicaClusters) const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("Started getting bundle snapshot (BundleName: %v)", bundleName);
+
+    auto bundleSnapshotOrError = WaitFor(bundleState->GetBundleSnapshot());
+
+    if (!bundleSnapshotOrError.IsOK()) {
+        YT_LOG_ERROR(bundleSnapshotOrError,
+            "Failed to get bundle state (BundleName: %v)",
+            bundleName);
+        SaveRetryableBundleError(bundleName, bundleSnapshotOrError);
+        bundleSnapshotOrError.ThrowOnError();
+    }
+
+    auto bundleSnapshotWithoutReplicaStatistics = bundleSnapshotOrError.ValueOrThrow();
+    RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
+
+    auto minFreshnessRequirement = std::make_tuple(
+        bundleSnapshotWithoutReplicaStatistics->StateFetchTime,
+        bundleSnapshotWithoutReplicaStatistics->StatisticsFetchTime,
+        bundleSnapshotWithoutReplicaStatistics->PerformanceCountersFetchTime);
+
+    auto bundleSnapshot = WaitFor(bundleState->GetBundleSnapshotWithReplicaBalancingStatistics(
+        minFreshnessRequirement,
+        GetGroupsForMoveBalancing(bundleName),
+        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig()),
+        allowedReplicaClusters))
+        .ValueOrThrow();
+
+    if (!bundleSnapshot->NonFatalError.IsOK()) {
+        YT_LOG_ERROR(bundleSnapshot->NonFatalError,
+            "Non-fatal error occurred when fetching bundle state (BundleName: %v)",
+            bundleName);
+        SaveRetryableBundleError(bundleName, bundleSnapshot->NonFatalError);
+    }
+
+    YT_LOG_INFO("Finished getting bundle snapshot (BundleName: %v)", bundleName);
+
+    return bundleSnapshot;
+}
+
+void TTabletBalancer::OnBundleBalancingFinished(const TError& error, const std::string& bundleName)
+{
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (!error.IsOK()) {
+        YT_LOG_ERROR(error,
+            "Bundle balancing iteration failed (BundleName: %v)",
+            bundleName);
+    }
+
+    EraseOrCrash(BalancingBundles_, bundleName);
+
+    if (!error.IsOK()) {
+        ActionManager_->CancelPendingActions(bundleName);
+        return;
+    }
+
+    if (!ActionManager_->HasPendingActions(bundleName)) {
+        return;
+    }
+
+    if (!IsBundleHealthy(bundleName)) {
+        YT_LOG_INFO("Canceling pending actions for bundle because a bundle with the same "
+            "name is unhealthy on a replica cluster (BundleName: %v)",
+            bundleName);
+        ActionManager_->CancelPendingActions(bundleName);
+        UpdateCancelledBundleIterationCounter(bundleName);
+        return;
+    }
+
+    ActionManager_->CreateActions(bundleName);
+}
+
 void TTabletBalancer::BalancerIteration()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!DynamicConfig_.Acquire()->Enable) {
         YT_LOG_INFO("Standalone tablet balancer is not enabled");
+        return;
+    }
+
+    if (!BalancingBundles_.empty()) {
+        YT_LOG_INFO("Previous iteration was not finished yet (IterationIndex: %v)", IterationIndex_ - 1);
         return;
     }
 
@@ -419,58 +573,25 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        YT_LOG_INFO("Started getting bundle snapshot (BundleName: %v)", bundleName);
+        InsertOrCrash(BalancingBundles_, bundleName);
 
-        auto bundleSnapshotOrError = WaitFor(bundle->GetBundleSnapshot());
+        YT_UNUSED_FUTURE(
+            BIND([=, this, this_ = MakeStrong(this)] (const std::string& bundleName, const IBundleStatePtr& bundle) {
+                TEventTimerGuard timer(GetProfilingTimer(bundleName));
 
-        if (!bundleSnapshotOrError.IsOK()) {
-            YT_LOG_ERROR(bundleSnapshotOrError, "Failed to get bundle state (BundleName: %v)", bundleName);
-            SaveRetryableBundleError(bundleName, bundleSnapshotOrError);
-            continue;
-        }
+                auto bundleSnapshot = GetBundleSnapshot(bundleName, bundle, allowedReplicaClusters);
+                YT_VERIFY(bundleSnapshot);
 
-        auto bundleSnapshotWithoutReplicaStatistics = bundleSnapshotOrError.ValueOrThrow();
-        RemoveRetryableErrorsOnSuccessfulIteration(bundleName);
-
-        auto minFreshnessRequirement = std::make_tuple(
-            bundleSnapshotWithoutReplicaStatistics->StateFetchTime,
-            bundleSnapshotWithoutReplicaStatistics->StatisticsFetchTime,
-            bundleSnapshotWithoutReplicaStatistics->PerformanceCountersFetchTime);
-
-        auto bundleSnapshot = WaitFor(bundle->GetBundleSnapshotWithReplicaBalancingStatistics(
-            minFreshnessRequirement,
-            GetGroupsForMoveBalancing(bundleName),
-            GetGroupsForReshardBalancing(bundleName, bundle->GetConfig()),
-            allowedReplicaClusters))
-            .ValueOrThrow();
-
-        if (!bundleSnapshot->NonFatalError.IsOK()) {
-            YT_LOG_ERROR(bundleSnapshot->NonFatalError,
-                "Non-fatal error occurred when fetching bundle state (BundleName: %v)",
-                bundleName);
-            SaveRetryableBundleError(bundleName, bundleSnapshot->NonFatalError);
-        }
-
-        YT_LOG_INFO("Finished getting bundle snapshot (BundleName: %v)", bundleName);
-
-        YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
-        BalanceBundle(bundleSnapshot);
-        YT_LOG_INFO("Bundle balancing iteration finished (BundleName: %v)", bundleName);
-
-        if (!ActionManager_->HasPendingActions(bundleName)) {
-            continue;
-        }
-
-        if (!IsBundleHealthy(bundleName)) {
-            YT_LOG_INFO("Canceling pending actions for bundle because a bundle with the same "
-                "name is unhealthy on a replica cluster (BundleName: %v)",
-                bundleName);
-            ActionManager_->CancelPendingActions(bundleName);
-            UpdateCancelledBundleIterationCounter(bundleName);
-            continue;
-        }
-
-        ActionManager_->CreateActions(bundleName);
+                YT_LOG_INFO("Bundle balancing iteration started (BundleName: %v)", bundleName);
+                BalanceBundle(bundleSnapshot);
+                YT_LOG_INFO("Bundle balancing iteration finished (BundleName: %v)", bundleName);
+            })
+            .AsyncVia(WorkerPool_->GetInvoker())
+            .Run(bundleName, bundle)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                OnBundleBalancingFinished(error, bundleName);
+            })
+            .AsyncVia(ControlInvoker_)));
     }
 
     ++IterationIndex_;
@@ -478,6 +599,8 @@ void TTabletBalancer::BalancerIteration()
 
 void TTabletBalancer::TryBalancerIteration()
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TabletBalancer"));
     YT_PROFILE_TIMING("/tablet_balancer/balancer_iteration_time") {
         try {
@@ -491,24 +614,25 @@ void TTabletBalancer::TryBalancerIteration()
 void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
 {
     const auto& bundleName = bundleSnapshot->Bundle->Name;
-    auto groups = GetBalancingGroups(bundleSnapshot->Bundle);
+    auto groups = bundleSnapshot->Bundle->GetBalancingGroups();
 
     for (const auto& groupName : groups) {
         const auto& groupConfig = GetOrCrash(bundleSnapshot->Bundle->Config->Groups, groupName);
         TGlobalGroupTag groupTag(bundleName, groupName);
 
-        if (auto it = GroupsToMoveOnNextIteration_.find(groupTag); it != GroupsToMoveOnNextIteration_.end()) {
+        if (IsPlanningToMoveOnNextIteration(groupTag)) {
             switch (groupConfig->Type) {
                 case EBalancingType::Legacy:
-                    GroupsToMoveOnNextIteration_.erase(it);
+                    OnMoveIterationStarted(groupTag);
                     BalanceViaMove(bundleSnapshot, groupName);
                     break;
 
                 case EBalancingType::Parameterized:
                     if (ParameterizedBalancingScheduler_.IsBalancingAllowed(groupTag)) {
-                        auto finishedWithoutRetryableError = TryBalanceViaMoveParameterized(bundleSnapshot, groupName);
-                        if (finishedWithoutRetryableError) {
-                            GroupsToMoveOnNextIteration_.erase(it);
+                        OnMoveIterationStarted(groupTag);
+                        auto finishedWithRetryableError = TryBalanceViaMoveParameterized(bundleSnapshot, groupName);
+                        if (finishedWithRetryableError) {
+                            ScheduleMoveIteration(groupTag);
                         }
                     } else {
                         YT_LOG_INFO("Skip parameterized balancing iteration due to "
@@ -520,13 +644,13 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
             }
         } else if (DidBundleBalancingTimeHappen(bundleSnapshot->Bundle->Config, groupTag, groupConfig->Schedule)) {
             if (groupConfig->Type == EBalancingType::Parameterized) {
-                auto finishedWithoutRetryableError = TryBalanceViaReshardParameterized(bundleSnapshot, groupName);
-                if (!finishedWithoutRetryableError) {
+                auto finishedWithRetryableError = TryBalanceViaReshardParameterized(bundleSnapshot, groupName);
+                if (finishedWithRetryableError) {
                     continue;
                 }
             }
 
-            GroupsToMoveOnNextIteration_.insert(std::move(groupTag));
+            ScheduleMoveIteration(std::move(groupTag));
             BalanceViaReshard(bundleSnapshot, groupName);
         } else {
             YT_LOG_INFO("Skip balancing iteration because the time has not yet come (BundleName: %v, Group: %v)",
@@ -569,36 +693,16 @@ bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGro
     return true;
 }
 
-bool TTabletBalancer::CanScheduleActionCreation(
-    const TGlobalGroupTag& groupTag)
-{
-    return ActionCountLimiter_.CanIncrease(groupTag);
-}
-
 bool TTabletBalancer::TryScheduleActionCreation(
     const TGlobalGroupTag& groupTag,
     const TActionDescriptor& descriptor)
 {
+    auto guard = WriterGuard(Lock_);
     auto increased = ActionCountLimiter_.TryIncrease(groupTag);
     if (increased) {
         ActionManager_->ScheduleActionCreation(groupTag.first, descriptor);
     }
     return increased;
-}
-
-THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TTabletCellBundlePtr& bundle) const
-{
-    THashSet<TGroupName> groups;
-    for (const auto& [id, table] : bundle->Tables) {
-        auto groupName = table->GetBalancingGroup();
-        if (!groupName) {
-            continue;
-        }
-
-        groups.insert(*groupName);
-    }
-
-    return groups;
 }
 
 IYPathServicePtr TTabletBalancer::GetOrchidService()
@@ -617,6 +721,8 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
 
 void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
 {
+    auto guard = Guard(BundleErrorsLock_);
+
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("config").Value(Config_)
@@ -671,6 +777,8 @@ void TTabletBalancer::OnDynamicConfigChanged(
 
 bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
     if (!unhealthyBundlesOrError.IsOK()) {
         YT_LOG_ERROR(unhealthyBundlesOrError, "Error occurred when fetching unhealthy bundles");
@@ -693,6 +801,8 @@ bool TTabletBalancer::AreBundlesHealthy(int unhealthyBundleLimit) const
 
 bool TTabletBalancer::IsBundleHealthy(const std::string& bundleName) const
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     auto unhealthyBundlesOrError = WaitFor(ClusterStateProvider_->GetUnhealthyBundles());
     if (!unhealthyBundlesOrError.IsOK()) {
         YT_LOG_ERROR(unhealthyBundlesOrError, "Error occurred when fetching unhealthy bundles");
@@ -713,6 +823,8 @@ bool TTabletBalancer::IsBundleHealthy(const std::string& bundleName) const
 
 std::vector<std::string> TTabletBalancer::UpdateBundleList()
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     auto bundleList = WaitFor(ClusterStateProvider_->GetBundles())
         .ValueOrThrow();
 
@@ -729,7 +841,7 @@ std::vector<std::string> TTabletBalancer::UpdateBundleList()
             CreateBundleState(
                 name,
                 Bootstrap_,
-                WorkerPool_->GetInvoker(),
+                FetcherPool_->GetInvoker(),
                 ControlInvoker_,
                 dynamicConfig->BundleStateProvider,
                 ClusterStateProvider_,
@@ -764,10 +876,10 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
     try {
         if (Config_->Period >= MinBalanceFrequency) {
             TInstant timePoint;
-            if (auto it = GroupPreviousIterationStartTime_.find(groupTag);
-                it != GroupPreviousIterationStartTime_.end())
+            if (auto previousIterationStartTime = GetPreviousIterationStartTime(groupTag);
+                previousIterationStartTime)
             {
-                timePoint = it->second + MinBalanceFrequency;
+                timePoint = previousIterationStartTime + MinBalanceFrequency;
             } else {
                 // First balance of this group in this instance
                 // so it's ok to balance if this time is satisfied by the formula.
@@ -832,9 +944,13 @@ bool TTabletBalancer::IsBundleEligibleForBalancing(
     const TBundleTabletBalancerConfigPtr& config,
     const std::string& name) const
 {
-    for (const auto& [bundleName, _] : GroupsToMoveOnNextIteration_) {
-        if (name == bundleName) {
-            return true;
+    {
+        // To prevent deadlock, because DidBundleBalancingTimeHappen takes ReaderLock as well.
+        auto guard = ReaderGuard(Lock_);
+        for (const auto& [bundleName, _] : GroupsToMoveOnNextIteration_) {
+            if (name == bundleName) {
+                return true;
+            }
         }
     }
 
@@ -848,12 +964,15 @@ bool TTabletBalancer::IsBundleEligibleForBalancing(
 
 THashSet<TGroupName> TTabletBalancer::GetGroupsForMoveBalancing(const std::string& bundleName) const
 {
+    auto guard = ReaderGuard(Lock_);
+
     THashSet<TGroupName> groupNames;
     for (const auto& [currentBundleName, groupName] : GroupsToMoveOnNextIteration_) {
         if (currentBundleName == bundleName) {
             EmplaceOrCrash(groupNames, groupName);
         }
     }
+
     return groupNames;
 }
 
@@ -956,7 +1075,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& b
                 "Parameterized move balancing for group %Qv failed",
                 groupName)
                 << ex);
-            return false;
+            return true;
         }
 
         SaveFatalBundleError(bundle->Name, TError(
@@ -966,7 +1085,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& b
             << ex);
     }
 
-    return true;
+    return false;
 }
 
 bool TTabletBalancer::TryBalanceViaReshardParameterized(
@@ -974,7 +1093,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
     const TGroupName& groupName)
 {
     const auto bundle = bundleSnapshot->Bundle;
-    TEventTimerGuard timer(GetProfilingTimer(
+    TEventTimerGuard timer(GetGroupProfilingTimer(
         {bundle->Name, groupName},
         EBalancingMode::ParameterizedReshard));
 
@@ -1000,7 +1119,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
                 "Parameterized move balancing for group %Qv failed",
                 groupName)
                 << ex);
-            return false;
+            return true;
         }
 
         SaveFatalBundleError(bundle->Name, TError(
@@ -1010,7 +1129,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
             << ex);
     }
 
-    return true;
+    return false;
 }
 
 void TTabletBalancer::BalanceViaMove(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
@@ -1168,7 +1287,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
     }
 
     auto groupTag = TGlobalGroupTag(moveIteration->GetBundleName(), moveIteration->GetGroupName());
-    TEventTimerGuard timer(GetProfilingTimer(
+    TEventTimerGuard timer(GetGroupProfilingTimer(
         groupTag,
         moveIteration->GetBalancingMode()));
 
@@ -1311,7 +1430,7 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
 
 void TTabletBalancer::BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot, const TGroupName& groupName)
 {
-    TEventTimerGuard timer(GetProfilingTimer(
+    TEventTimerGuard timer(GetGroupProfilingTimer(
         {bundleSnapshot->Bundle->Name, groupName},
         EBalancingMode::Reshard));
 
@@ -1323,12 +1442,14 @@ void TTabletBalancer::BalanceViaReshard(const TBundleSnapshotPtr& bundleSnapshot
 
 void TTabletBalancer::SaveFatalBundleError(const std::string& bundleName, TError error) const
 {
+    auto guard = Guard(BundleErrorsLock_);
     auto it = BundleErrors_.emplace(bundleName, TBundleErrors{}).first;
     SaveBundleError(&it->second.FatalErrors, std::move(error));
 }
 
 void TTabletBalancer::SaveRetryableBundleError(const std::string& bundleName, TError error) const
 {
+    auto guard = Guard(BundleErrorsLock_);
     auto it = BundleErrors_.emplace(bundleName, TBundleErrors{}).first;
     SaveBundleError(&it->second.RetryableErrors, std::move(error));
 }
@@ -1344,6 +1465,8 @@ void TTabletBalancer::SaveBundleError(std::deque<TError>* errors, TError error) 
 
 void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl) const
 {
+    auto guard = Guard(BundleErrorsLock_);
+
     auto currentTime = Now();
     THashSet<std::string> relevantBundles;
     for (auto& [bundleName, errors] : BundleErrors_) {
@@ -1366,6 +1489,8 @@ void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl) const
 
 void TTabletBalancer::RemoveRetryableErrorsOnSuccessfulIteration(const std::string& bundleName) const
 {
+    auto guard = Guard(BundleErrorsLock_);
+
     auto it = BundleErrors_.find(bundleName);
     if (it != BundleErrors_.end()) {
         it->second.RetryableErrors.clear();
@@ -1432,6 +1557,7 @@ TFuture<std::vector<TLegacyOwningKey>> TTabletBalancer::PickReshardPivotKeysIfNe
 TTableParameterizedMetricTrackerPtr TTabletBalancer::GetParameterizedMetricTracker(
     const TGlobalGroupTag& groupTag)
 {
+    auto guard = WriterGuard(Lock_);
     auto it = GroupToParameterizedMetricTracker_.find(groupTag);
     if (it == GroupToParameterizedMetricTracker_.end()) {
         auto profiler = TabletBalancerProfiler()
@@ -1451,15 +1577,29 @@ TTableParameterizedMetricTrackerPtr TTabletBalancer::GetParameterizedMetricTrack
     return it->second;
 }
 
-TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const
+TEventTimer& TTabletBalancer::GetProfilingTimer(const std::string& bundleName) const
 {
+    auto guard = WriterGuard(Lock_);
+    if (auto timersIt = BundleIterationProfilingTimers_.find(bundleName); timersIt != BundleIterationProfilingTimers_.end()) {
+        return timersIt->second;
+    }
+
+    return EmplaceOrCrash(BundleIterationProfilingTimers_, bundleName, TabletBalancerProfiler()
+        .WithTag("tablet_cell_bundle", bundleName)
+        .Timer("/bundle_iteration_time"))->second;
+}
+
+TEventTimer& TTabletBalancer::GetGroupProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const
+{
+    auto guard = WriterGuard(Lock_);
+
     THashMap<EBalancingMode, TEventTimer>* groupTimers;
-    auto timersIt = IterationProfilingTimers_.find(groupTag);
-    if (timersIt != IterationProfilingTimers_.end()) {
+    auto timersIt = GroupIterationProfilingTimers_.find(groupTag);
+    if (timersIt != GroupIterationProfilingTimers_.end()) {
         groupTimers = &timersIt->second;
     } else {
         groupTimers = &EmplaceOrCrash(
-            IterationProfilingTimers_,
+            GroupIterationProfilingTimers_,
             groupTag,
             THashMap<EBalancingMode, TEventTimer>())->second;
     }
@@ -1478,6 +1618,8 @@ TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag,
 
 void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& bundleName)
 {
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
     auto it = CancelledBundleIterationDueToUnhealthyState_.find(bundleName);
     if (it == CancelledBundleIterationDueToUnhealthyState_.end()) {
         it = EmplaceOrCrash(
@@ -1490,6 +1632,30 @@ void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& b
     }
 
     it->second.Increment(1);
+}
+
+bool TTabletBalancer::IsPlanningToMoveOnNextIteration(const TGlobalGroupTag& groupTag) const
+{
+    auto guard = ReaderGuard(Lock_);
+    return GroupsToMoveOnNextIteration_.contains(groupTag);
+}
+
+void TTabletBalancer::OnMoveIterationStarted(const TGlobalGroupTag& groupTag)
+{
+    auto guard = WriterGuard(Lock_);
+    GroupsToMoveOnNextIteration_.erase(groupTag);
+}
+
+void TTabletBalancer::ScheduleMoveIteration(const TGlobalGroupTag& groupTag)
+{
+    auto guard = WriterGuard(Lock_);
+    GroupsToMoveOnNextIteration_.insert(groupTag);
+}
+
+TInstant TTabletBalancer::GetPreviousIterationStartTime(const TGlobalGroupTag& groupTag) const
+{
+    auto guard = ReaderGuard(Lock_);
+    return GetOrDefault(GroupPreviousIterationStartTime_, groupTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

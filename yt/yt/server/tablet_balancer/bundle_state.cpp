@@ -2032,7 +2032,7 @@ void TBundleState::FetchReplicaModes(
     THashMap<TCellTagWithReplicaType, THashSet<TTableReplicaId>> cellTagToReplicaIds;
     THashMap<TTableReplicaId, TTableBase*> replicaIdToTable;
 
-    auto getCellTag = [&] (const auto& table) -> TCellTagWithReplicaType {
+    auto getCellTag = [&] (const auto& table, const auto& cluster) -> TCellTagWithReplicaType {
         auto type = TypeFromId(table->UpstreamReplicaId);
         switch (type) {
             case EObjectType::ChaosTableReplica:
@@ -2043,17 +2043,19 @@ void TBundleState::FetchReplicaModes(
 
             default:
                 YT_LOG_WARNING(
-                    "Upstream replica mode cannot be fetched since it has unexpected type (TableId: %v, UpstreamReplicaId: %v, Type: %v)",
+                    "Upstream replica mode cannot be fetched since it has unexpected type "
+                    "(TableId: %v, UpstreamReplicaId: %v, Type: %v, Cluster: %v)",
                     table->Id,
                     table->UpstreamReplicaId,
-                    type);
+                    type,
+                    cluster);
                 return {InvalidCellTag, type};
         }
     };
 
     for (const auto& tableId : majorTableIds) {
         const auto& table = GetOrCrash(bundleSnapshot->Bundle->Tables, tableId);
-        auto [cellTag, replicaType] = getCellTag(table);
+        auto [cellTag, replicaType] = getCellTag(table, SelfClusterName_);
         if (cellTag == InvalidCellTag) {
             continue;
         }
@@ -2070,7 +2072,7 @@ void TBundleState::FetchReplicaModes(
                 }
 
                 auto minorTable = GetOrCrash(bundleSnapshot->AlienTables, minorTableIdIt->second);
-                auto [cellTag, replicaType] = getCellTag(minorTable);
+                auto [cellTag, replicaType] = getCellTag(minorTable, cluster);
                 if (cellTag == InvalidCellTag) {
                     continue;
                 }

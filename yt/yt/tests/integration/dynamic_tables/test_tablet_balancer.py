@@ -146,6 +146,7 @@ class TestStandaloneTabletBalancerBase:
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
 
 
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
@@ -159,30 +160,25 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         sync_mount_table("//tmp/t2")
         wait(lambda: get("//tmp/t2/@tablet_count") == 1)
 
-    @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
         assert not get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
 
-    @authors("alexelexa")
     def test_standalone_tablet_balancer_on(self):
         assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
-    @authors("alexelexa")
     def test_non_existent_group_config(self):
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/group", "non-existent")
         sleep(1)
         assert get("//tmp/t/@tablet_balancer_config/group") == "non-existent"
 
-    @authors("alexelexa")
     def test_fetch_cell_only_from_secondary_in_multicell(self):
         self._apply_dynamic_config_patch({
             "fetch_tablet_cells_from_secondary_masters": True
         })
         self._test_simple_reshard()
 
-    @authors("alexelexa")
     def test_pick_pivot_keys_merge(self):
         self._apply_dynamic_config_patch({
             "pick_reshard_pivot_keys": True,
@@ -190,7 +186,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         self._test_simple_reshard()
 
-    @authors("alexelexa")
     @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
     @pytest.mark.parametrize("with_hunks", [True, False])
     def test_pick_pivot_keys_split(self, in_memory_mode, with_hunks):
@@ -204,7 +199,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             with_hunks=with_hunks,
             with_slicing=True)
 
-    @authors("alexelexa")
     def test_by_bundle_errors(self):
         instances = get("//sys/tablet_balancer/instances")
 
@@ -236,7 +230,6 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         wait(lambda: len(_get_last_iteration_instance_retryable_errors(instances)) == 0)
 
-    @authors("alexelexa")
     def test_move_table_between_bundles(self):
         create_tablet_cell_bundle("another")
         self._configure_bundle("default")
@@ -336,7 +329,27 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         set("//sys/tablet_balancer/config/enable_smooth_movement", False)
         assert _run_and_get_action()["kind"] == "move"
 
+    def test_many_bundles(self):
+        bundles = ["default", "another", "third", "fourth"]
 
+        create_tablet_cell_bundle("another")
+        create_tablet_cell_bundle("third")
+        create_tablet_cell_bundle("fourth")
+
+        for i, bundle in enumerate(bundles):
+            self._configure_bundle(bundle)
+            sync_create_cells(1, tablet_cell_bundle=bundle)
+            self._create_sorted_table(f"//tmp/t{i}", tablet_cell_bundle=bundle)
+
+        for index in range(len(bundles)):
+            sync_reshard_table(f"//tmp/t{index}", [[], [1]])
+            sync_mount_table(f"//tmp/t{index}")
+
+        for index in range(len(bundles)):
+            wait(lambda: get(f"//tmp/t{index}/@tablet_count") == 1)
+
+
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
     ENABLE_MULTIDAEMON = True
@@ -350,7 +363,6 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
             },
         })
 
-    @authors("alexelexa")
     def test_action_hard_limit(self):
         self._set_enable_tablet_balancer(False)
         self._apply_dynamic_config_patch({
@@ -397,6 +409,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
         })
 
 
+@authors("alexelexa")
 @pytest.mark.enabled_multidaemon
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
@@ -410,7 +423,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             },
         })
 
-    @authors("alexelexa")
     def test_auto_move(self):
         cells = sync_create_cells(2)
 
@@ -440,7 +452,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     def test_parameterized_by_default(self):
         cells = sync_create_cells(2)
 
@@ -473,7 +484,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     def test_config(self):
         cells = sync_create_cells(2)
 
@@ -503,7 +513,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         remove("//tmp/t/@tablet_balancer_config/enable_parameterized")
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -549,7 +558,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
 
-    @authors("alexelexa")
     @pytest.mark.parametrize("trigger_by", ["node", "cell"])
     def test_move_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
@@ -598,7 +606,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
         wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -642,7 +649,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         remove("//sys/tablet_balancer/config/pick_reshard_pivot_keys")
 
-    @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
         [
@@ -757,7 +763,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             tablets = get(table + "/@tablets")
             assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
-    @authors("alexelexa")
     def test_aliases(self):
         cells = sync_create_cells(2)
 
