@@ -1,0 +1,33 @@
+#include "actors.h"
+
+#include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
+#include <contrib/ydb/core/client/server/ic_nodes_cache_service.h>
+
+namespace NKafka {
+
+class TKafkaFindCoordinatorActor: public NActors::TActorBootstrapped<TKafkaFindCoordinatorActor> {
+public:
+    const std::unordered_set<ui8> SUPPORTED_KEY_TYPES = {0, 1}; // consumer, transaction
+
+    TKafkaFindCoordinatorActor(const TContext::TPtr context, const ui64 correlationId, const TMessagePtr<TFindCoordinatorRequestData>& message)
+        : Context(context)
+        , CorrelationId(correlationId)
+        , Message(message) {
+    }
+
+    void Bootstrap(const NActors::TActorContext& ctx);
+
+private:
+
+    void SendResponseOkAndDie(const TString& host, i32 port, ui64 nodeId, const NActors::TActorContext& ctx);
+    void SendResponseFailAndDie(EKafkaErrors error, const TString& message, const NActors::TActorContext& ctx);
+
+    TString LogPrefix();
+
+private:
+    const TContext::TPtr Context;
+    const ui64 CorrelationId;
+    const TMessagePtr<TFindCoordinatorRequestData> Message;
+};
+
+} // NKafka

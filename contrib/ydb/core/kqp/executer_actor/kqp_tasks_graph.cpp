@@ -318,6 +318,13 @@ void TKqpTasksGraph::BuildKqpTaskGraphResultChannels(const TKqpPhyTxHolder::TCon
 
         YQL_ENSURE(inputStageInfo.Tasks.size() == 1, "actual count: " << inputStageInfo.Tasks.size());
         auto originTaskId = inputStageInfo.Tasks[0];
+        auto& originTask = GetTask(originTaskId);
+        auto& taskOutput = originTask.Outputs[outputIdx];
+
+        if (result.GetCanSkipChannel()) {
+            taskOutput.Type = TTaskOutputType::Effects;
+            continue;
+        }
 
         auto& channel = AddChannel();
         channel.SrcTask = originTaskId;
@@ -326,9 +333,6 @@ void TKqpTasksGraph::BuildKqpTaskGraphResultChannels(const TKqpPhyTxHolder::TCon
         channel.DstInputIndex = i;
         channel.InMemory = true;
 
-        auto& originTask = GetTask(originTaskId);
-
-        auto& taskOutput = originTask.Outputs[outputIdx];
         taskOutput.Type = TTaskOutputType::Map;
         taskOutput.Channels.push_back(channel.Id);
 
@@ -500,7 +504,7 @@ void TKqpTasksGraph::BuildStreamLookupChannels(const TStageInfo& stageInfo, ui32
     settings->SetIsolationLevel(GetMeta().RequestIsolationLevel);
 
     if (streamLookup.GetIsTableImmutable()
-        && GetMeta().RequestIsolationLevel == NKikimrKqp::EIsolationLevel::ISOLATION_LEVEL_READ_STALE)
+        && GetMeta().RequestIsolationLevel == NKqpProto::EIsolationLevel::ISOLATION_LEVEL_READ_STALE)
     {
         settings->SetAllowUseFollowers(true);
         settings->SetIsTableImmutable(true);
@@ -1114,6 +1118,7 @@ void TKqpTasksGraph::FillChannelDesc(NDqProto::TChannel& channelDesc, const TCha
     if (channel.DstTask) {
         FillEndpointDesc(*channelDesc.MutableDstEndpoint(), GetTask(channel.DstTask));
     } else if (!resultChannelProxies.empty()) {
+        Y_ENSURE(GetMeta().DqChannelVersion <= 1u);
         auto it = resultChannelProxies.find(channel.Id);
         YQL_ENSURE(it != resultChannelProxies.end());
         ActorIdToProto(it->second, channelDesc.MutableDstEndpoint()->MutableActorId());
@@ -1473,7 +1478,7 @@ void TKqpTasksGraph::FillInputDesc(NYql::NDqProto::TTaskInput& inputDesc, const 
             enableMetering = true;
             YQL_ENSURE(input.Meta.StreamLookupSettings);
             bool isTableImmutable = input.Meta.StreamLookupSettings->GetIsTableImmutable() &&
-                GetMeta().RequestIsolationLevel == NKikimrKqp::EIsolationLevel::ISOLATION_LEVEL_READ_STALE;
+                GetMeta().RequestIsolationLevel == NKqpProto::EIsolationLevel::ISOLATION_LEVEL_READ_STALE;
 
             if (snapshot.IsValid() && !isTableImmutable) {
                 input.Meta.StreamLookupSettings->MutableSnapshot()->SetStep(snapshot.Step);
@@ -1488,8 +1493,12 @@ void TKqpTasksGraph::FillInputDesc(NYql::NDqProto::TTaskInput& inputDesc, const 
                 input.Meta.StreamLookupSettings->SetLockNodeId(GetMeta().LockNodeId);
             }
 
-            if (GetMeta().LockMode && !isTableImmutable) {
-                input.Meta.StreamLookupSettings->SetLockMode(*GetMeta().LockMode);
+            if (lockTxId && GetMeta().LockMode && !isTableImmutable) {
+                input.Meta.StreamLookupSettings->SetLockMode(
+                    // Unique Index needs read lock even in snapshot isolation mode.
+                    input.Meta.StreamLookupSettings->GetLookupStrategy() != NKqpProto::EStreamLookupStrategy::UNIQUE
+                        ? *GetMeta().LockMode
+                        : NKikimrDataEvents::OPTIMISTIC);
             }
 
             transformProto->MutableSettings()->PackFrom(*input.Meta.StreamLookupSettings);
@@ -2737,7 +2746,7 @@ TMaybe<size_t> TKqpTasksGraph::BuildScanTasksFromSource(TStageInfo& stageInfo, b
             settings->MutableSnapshot()->SetTxId(snapshot.TxId);
         }
 
-        if (GetMeta().RequestIsolationLevel == NKikimrKqp::ISOLATION_LEVEL_READ_UNCOMMITTED) {
+        if (GetMeta().RequestIsolationLevel == NKqpProto::ISOLATION_LEVEL_READ_UNCOMMITTED) {
             settings->SetAllowInconsistentReads(true);
         }
 
@@ -3116,6 +3125,7 @@ size_t TKqpTasksGraph::BuildAllTasks(std::optional<TLlvmSettings> llvmSettings,
             GetMeta().AllowWithSpilling |= stage.GetAllowWithSpilling();
             BuildKqpStageChannels(stageInfo, GetMeta().TxId, GetMeta().AllowWithSpilling, tx.Body->EnableShuffleElimination());
         }
+        GetMeta().DqChannelVersion = tx.Body->DqChannelVersion();
 
         // Not task-related
         BuildKqpTaskGraphResultChannels(tx.Body, txIdx);
@@ -3152,7 +3162,7 @@ TKqpTasksGraph::TKqpTasksGraph(
 {
     GetMeta().Arena = MakeIntrusive<NActors::TProtoArenaHolder>();
     GetMeta().Database = database;
-    GetMeta().RequestIsolationLevel = NKikimrKqp::EIsolationLevel::ISOLATION_LEVEL_SERIALIZABLE;
+    GetMeta().RequestIsolationLevel = NKqpProto::EIsolationLevel::ISOLATION_LEVEL_SERIALIZABLE;
 
     if (Transactions.empty()) {
         return;
@@ -3206,7 +3216,7 @@ std::vector<std::pair<ui64, i64>> TKqpTasksGraph::BuildInternalSinksPriorityOrde
         for (ui32 stageIdx = 0; stageIdx < tx.Body->StagesSize(); ++stageIdx) {
             const auto& stage = tx.Body->GetStages(stageIdx);
             auto& stageInfo = GetStageInfo(NYql::NDq::TStageId(txIdx, stageIdx));
-         
+
             if (stage.SinksSize() == 0) {
                 continue;
             }

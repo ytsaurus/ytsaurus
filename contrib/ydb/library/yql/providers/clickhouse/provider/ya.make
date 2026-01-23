@@ -1,0 +1,50 @@
+LIBRARY()
+
+SRCS(
+    yql_clickhouse_datasink.cpp
+    yql_clickhouse_datasink_execution.cpp
+    yql_clickhouse_datasink_type_ann.cpp
+    yql_clickhouse_datasource.cpp
+    yql_clickhouse_datasource_type_ann.cpp
+    yql_clickhouse_dq_integration.cpp
+    yql_clickhouse_io_discovery.cpp
+    yql_clickhouse_load_meta.cpp
+    yql_clickhouse_logical_opt.cpp
+    yql_clickhouse_mkql_compiler.cpp
+    yql_clickhouse_physical_opt.cpp
+    yql_clickhouse_provider.cpp
+    yql_clickhouse_provider.h
+    yql_clickhouse_provider_impl.h
+    yql_clickhouse_settings.cpp
+    yql_clickhouse_settings.h
+    yql_clickhouse_util.cpp
+    yql_clickhouse_util.h
+)
+
+YQL_LAST_ABI_VERSION()
+
+PEERDIR(
+    library/cpp/json
+    library/cpp/random_provider
+    library/cpp/time_provider
+    yql/essentials/ast
+    yql/essentials/minikql/comp_nodes
+    yql/essentials/core
+    yql/essentials/core/type_ann
+    contrib/ydb/library/yql/dq/expr_nodes
+    yql/essentials/core/dq_integration
+    contrib/ydb/library/yql/providers/common/db_id_async_resolver
+    contrib/ydb/library/yql/providers/clickhouse/expr_nodes
+    contrib/ydb/library/yql/providers/clickhouse/proto
+    yql/essentials/providers/common/config
+    yql/essentials/providers/common/dq
+    contrib/ydb/library/yql/providers/common/http_gateway
+    yql/essentials/providers/common/mkql
+    yql/essentials/providers/common/proto
+    yql/essentials/providers/common/provider
+    yql/essentials/providers/common/transform
+    contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/expr_nodes
+)
+
+END()

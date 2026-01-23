@@ -1,0 +1,65 @@
+LIBRARY(cli_utils)
+
+SRCS(
+    cli.cpp
+    cli.h
+    cli_actorsystem_perftest.cpp
+    cli_cmd_config.h
+    cli_cmd_config.cpp
+    cli_cmds.h
+    cli_cmds_admin.cpp
+    cli_cmds_bs.cpp
+    cli_cmds_cms.cpp
+    cli_cmds_config.cpp
+    cli_cmds_console.cpp
+    cli_cmds_validate_config.cpp
+    cli_cmds_debug.cpp
+    cli_cmds_disk.cpp
+    cli_cmds_genconfig.cpp
+    cli_cmds_node.cpp
+    cli_cmds_root.cpp
+    cli_cmds_server.cpp
+    cli_cmds_tablet.cpp
+    cli_cmds_tenant.cpp
+    cli_fakeinitshard.cpp
+    cli_persqueue.cpp
+    cli_persqueue_cluster_discovery.cpp
+    cli_persqueue_stress.cpp
+    cli_scheme_cache_append.cpp
+    cli_scheme_initroot.cpp
+    melancholic_gopher.cpp
+    melancholic_gopher.h
+)
+
+PEERDIR(
+    library/cpp/deprecated/enum_codegen
+    library/cpp/protobuf/json
+    library/cpp/yson
+    contrib/ydb/core/actorlib_impl
+    contrib/ydb/core/base
+    contrib/ydb/core/blobstorage/pdisk
+    contrib/ydb/core/blobstorage/pdisk/metadata
+    contrib/ydb/core/client/minikql_compile
+    contrib/ydb/core/client/scheme_cache_lib
+    contrib/ydb/core/config/init
+    contrib/ydb/core/config/validation
+    contrib/ydb/core/driver_lib/cli_base
+    contrib/ydb/core/engine
+    contrib/ydb/core/erasure
+    contrib/ydb/core/mind/bscontroller
+    contrib/ydb/core/protos
+    contrib/ydb/core/scheme
+    contrib/ydb/library/aclib
+    contrib/ydb/library/folder_service/proto
+    contrib/ydb/public/sdk/cpp/src/library/grpc/client
+    contrib/ydb/library/yaml_config
+    contrib/ydb/public/api/grpc
+    contrib/ydb/public/api/grpc/draft
+    contrib/ydb/public/lib/deprecated/client
+    contrib/ydb/public/sdk/cpp/src/client/driver
+    contrib/ydb/public/lib/ydb_cli/commands/ydb_discovery
+)
+
+YQL_LAST_ABI_VERSION()
+
+END()
