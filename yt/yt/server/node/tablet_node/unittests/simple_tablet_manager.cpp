@@ -91,7 +91,8 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
             /*serializationType*/ ETabletTransactionSerializationType::Coarse,
-            TInstant::Now());
+            /*mountTime*/ TInstant::Now(),
+            /*conflictHorizonTimestamp*/ MinTimestamp);
 
         TRawTableSettings rawSettings;
         rawSettings.CreateNewProvidedConfigs();

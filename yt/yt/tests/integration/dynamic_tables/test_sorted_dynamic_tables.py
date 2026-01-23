@@ -4,7 +4,7 @@ from yt_env_setup import parametrize_external
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists,
+    remove, exists, move, copy,
     create_tablet_cell_bundle, start_transaction, abort_transaction, commit_transaction, lock,
     insert_rows, select_rows, lookup_rows, delete_rows,
     lock_rows, alter_table, read_table, write_table, remount_table,
@@ -347,6 +347,36 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
+    @pytest.mark.parametrize("check_conflict_horizon", [True, False])
+    def test_conflict_with_conflict_horizon_timestamp(self, check_conflict_horizon):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "lock": "value_lock"}
+        ]
+
+        create_dynamic_table("//tmp/t", schema=schema)
+        set("//tmp/t/@mount_config/backing_store_retention_time", 0)
+        set("//tmp/t/@mount_config/check_conflict_horizon", check_conflict_horizon)
+        sync_mount_table("//tmp/t")
+
+        tx_to_conflict = start_transaction(type="tablet")
+
+        lock_tx = start_transaction(type="tablet")
+        lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type="exclusive", tx=lock_tx)
+        commit_transaction(lock_tx)
+
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx_to_conflict)
+        if check_conflict_horizon:
+            with raises_yt_error(yt_error_codes.CannotCheckConflictsAgainstChunkStore):
+                commit_transaction(tx_to_conflict)
+        else:
+            commit_transaction(tx_to_conflict)
+
+    @authors("ponasenko-rs")
     @pytest.mark.parametrize("lock_type", ["exclusive", "shared_write", "shared_strong"])
     def test_tablet_locks_persist_in_snapshots(self, lock_type):
         sync_create_cells(1)
@@ -358,8 +388,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         ]
 
         create_dynamic_table("//tmp/t", schema=schema, serialization_type="coarse")
-        # TODO(ponasenko-rs): Remove after YT-21404.
-        set("//tmp/t/@dynamic_store_auto_flush_period", None)
         sync_mount_table("//tmp/t")
 
         tx_to_conflict_after_recovery = start_transaction(type="tablet")
@@ -374,7 +402,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             commit_transaction(tx_to_conflict_before_recovery)
 
         build_snapshot(cell_id=cell_id)
-        snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
+        snapshots = ls(f"//sys/tablet_cells/{cell_id}/snapshots")
         assert len(snapshots) == 1
 
         with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
@@ -2065,6 +2093,87 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         rows = [{**row, "k3": yson.YsonEntity()} for row in rows]
         _check()
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("reshard_way", ["split", "merge"])
+    def test_conflict_horizon_timestamp_persistence_on_reshard(self, reshard_way):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        def _get_tablets_horizon_timestamps(expected_tablet_count):
+            tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+            assert len(tablet_ids) == expected_tablet_count
+            return [get(f"#{tablet_id}/@conflict_horizon_timestamp") for tablet_id in tablet_ids]
+
+        if reshard_way == "split":
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+            sync_unmount_table("//tmp/t")
+
+            expected_timestamp = _get_tablets_horizon_timestamps(expected_tablet_count=1)[0]
+
+            sync_reshard_table("//tmp/t", [[], [5]])
+
+            assert all(timestamp == expected_timestamp for timestamp in _get_tablets_horizon_timestamps(expected_tablet_count=2))
+        elif reshard_way == "merge":
+            sync_reshard_table("//tmp/t", [[], [5]])
+
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+            insert_rows("//tmp/t", [{"key": 10, "value": "b"}])
+            sync_unmount_table("//tmp/t")
+
+            max_timestamp = max(_get_tablets_horizon_timestamps(expected_tablet_count=2))
+
+            sync_reshard_table("//tmp/t", [[]])
+
+            assert _get_tablets_horizon_timestamps(expected_tablet_count=1)[0] == max_timestamp
+        else:
+            assert False
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("recreation_way", ["copy", "move"])
+    @pytest.mark.parametrize("unmount_way", ["unmount", "freeze"])
+    def test_conflict_horizon_timestamp_persistence_on_recreation(self, recreation_way, unmount_way):
+        if recreation_way == "move" and unmount_way == "freeze":
+            pytest.skip("unmount is required for move")
+
+        from_path = "//tmp/t"
+        to_path = "//t"
+
+        sync_create_cells(1)
+        self._create_simple_table(from_path)
+
+        def _get_horizon_timestamp(path: str) -> int:
+            tablet_ids = [tablet["tablet_id"] for tablet in get(f"{path}/@tablets")]
+            assert len(tablet_ids) == 1
+            return get(f"#{tablet_ids[0]}/@conflict_horizon_timestamp")
+
+        sync_mount_table(from_path)
+        insert_rows(from_path, [{"key": 1, "value": "a"}])
+
+        if unmount_way == "unmount":
+            sync_unmount_table(from_path)
+        elif unmount_way == "freeze":
+            sync_freeze_table(from_path)
+        else:
+            assert False
+
+        expected_timestamp = _get_horizon_timestamp(from_path)
+        assert expected_timestamp > 1  # MinTimestamp
+
+        # NB: cross-portal/sequoia paths.
+        if recreation_way == "copy":
+            copy(from_path, to_path)
+        elif recreation_way == "move":
+            move(from_path, to_path)
+        else:
+            assert False
+
+        assert _get_horizon_timestamp(to_path) == expected_timestamp
+
+        # NB: There is no cleanup for /.
+        remove("//t")
 
 
 @pytest.mark.enabled_multidaemon

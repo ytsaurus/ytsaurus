@@ -333,6 +333,10 @@ struct TCustomTableMountConfig
 
     bool ValidateRowIndexInChaosReplication;
 
+    // COMPAT(ponasenko-rs): Safety switch to be able to revert to pre-fix behaviour
+    // if there are too many unexpected conflicts.
+    bool CheckConflictHorizon;
+
     TTestingTableMountConfig Testing;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);

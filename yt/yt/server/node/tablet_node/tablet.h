@@ -626,6 +626,27 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    // ConflictHorizonTimestamp is a monotonic timestamp that accounts for versions that were present
+    // in the tablet's chunks, including would-be empty ones.
+    //
+    // An empty rowset can be produced without chunk creation, either on flush or on compaction.
+    // In both cases, some stores are removed with their row versions, without leaving a trace in the tablet's metadata.
+    //
+    // ConflictHorizonTimestamp is advanced every time a chunk store is added or an empty dynamic store is flushed.
+    //
+    // It is separated into persistent and transient parts to avoid lock conflicts while dynamic store is available as a backing one.
+    // The transient part is advanced every time a backing store (unleashed or ordinary) is removed.
+    //
+    // The transient part should never be greater than the persistent one.
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        PersistentConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(
+        NTransactionClient::TTimestamp,
+        TransientConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, LastDiscardStoresRevision);
@@ -719,7 +740,8 @@ public:
         TTimestamp retainedTimestamp,
         i64 cumulativeDataWeight,
         NTableClient::ETabletTransactionSerializationType serializationType,
-        TInstant mountTime);
+        TInstant mountTime,
+        TTimestamp conflictHorizonTimestamp);
 
     ETabletState GetPersistentState() const;
 
@@ -833,6 +855,11 @@ public:
     NHydra::TRevision GetActiveServantMountRevision() const;
 
     void UpdateUnflushedTimestamp() const;
+
+    void AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp);
+    void AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp);
+    // Advances the transient timestamp up to the persistent one.
+    void ResetTransientConflictHorizonTimestamp();
 
     // Returns |true| if tablet either participates in smooth movement and holds master avenue connection
     // or does not participate in it at all.

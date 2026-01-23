@@ -121,6 +121,7 @@ message TReplicatableTabletContent
     required int64 trimmed_row_count = 3;
     repeated TLockDescriptor locks = 4;
     optional uint64 retained_timestamp = 5;
+    optional uint64 conflict_horizon_timestamp = 13;
     optional int64 cumulative_data_weight = 6;
     required TTableSettings table_settings = 7;
     optional bytes custom_runtime_data = 8; // YSON-serialized

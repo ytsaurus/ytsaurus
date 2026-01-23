@@ -336,6 +336,18 @@ void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     YT_ABORT();
 }
 
+void TReplicatedStoreManager::AddUnleashedBackingStore(
+    TSortedDynamicStorePtr /*unleashedBackingStore*/)
+{
+    YT_ABORT();
+}
+
+void TReplicatedStoreManager::ReleaseUnleashedBackingStore(
+    TDynamicStoreId /*backingStoreId*/)
+{
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
