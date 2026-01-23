@@ -36,7 +36,7 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
         .Default();
     registrar.Parameter("default_yql_ui_version", &TThis::DefaultYqlUIVersion)
-        .Default();
+        .Default("2025.03");
     registrar.Parameter("allow_not_released_yql_versions", &TThis::AllowNotReleasedYqlVersions)
         .Default();
     registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
