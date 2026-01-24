@@ -164,6 +164,9 @@ struct ISortedStoreManager
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
         const TSharedRange<TLegacyKey>& keys) = 0;
+
+    virtual void AddUnleashedBackingStore(TSortedDynamicStorePtr unleashedBackingStore) = 0;
+    virtual void ReleaseUnleashedBackingStore(TDynamicStoreId backingStoreId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)

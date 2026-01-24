@@ -204,7 +204,8 @@ public:
             /*retainedTimestamp*/ NullTimestamp,
             /*cumulativeDataWeight*/ 0,
             /*serializationType*/ ETabletTransactionSerializationType::Coarse,
-            TInstant::Now());
+            /*mountTime*/ TInstant::Now(),
+            /*conflictHorizonTimestamp*/ MinTimestamp);
         Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());

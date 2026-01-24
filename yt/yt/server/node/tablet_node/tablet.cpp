@@ -811,7 +811,8 @@ TTablet::TTablet(
     TTimestamp retainedTimestamp,
     i64 cumulativeDataWeight,
     ETabletTransactionSerializationType serializationType,
-    TInstant mountTime)
+    TInstant mountTime,
+    TTimestamp conflictHorizonTimestamp)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , MountTime_(mountTime)
@@ -827,6 +828,8 @@ TTablet::TTablet(
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(settings.MountConfig->EnableLookupHashTable ? settings.MountConfig->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
+    , PersistentConflictHorizonTimestamp_(conflictHorizonTimestamp)
+    , TransientConflictHorizonTimestamp_(conflictHorizonTimestamp)
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , SerializationType_(serializationType)
     , Context_(context)
@@ -939,6 +942,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RuntimeData_->LastWriteTimestamp);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, PersistentConflictHorizonTimestamp_);
     Save(context, CumulativeDataWeight_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
@@ -1044,6 +1048,13 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->LastWriteTimestamp);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= ETabletReign::AddConflictHorizon) {
+        Load(context, PersistentConflictHorizonTimestamp_);
+        TransientConflictHorizonTimestamp_ = PersistentConflictHorizonTimestamp_;
+    }
+
     Load(context, CumulativeDataWeight_);
 
     for (auto& [_, replicaInfo] : Replicas_) {
@@ -2612,6 +2623,34 @@ void TTablet::UpdateUnflushedTimestamp() const
     RuntimeData_->UnflushedTimestamp = unflushedTimestamp;
 }
 
+void TTablet::AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp)
+{
+    YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
+
+    PersistentConflictHorizonTimestamp_ = std::max(PersistentConflictHorizonTimestamp_, timestamp);
+}
+
+void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp)
+{
+    YT_VERIFY(TransientConflictHorizonTimestamp_ <= PersistentConflictHorizonTimestamp_);
+
+    // NB: This verify assumes that store's max timestamp provided to PersistentConflictHorizonTimestamp_
+    // in the past by flusher cannot be exceeded until unleashed backing store is released.
+    YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
+        "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
+        "(NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
+        timestamp,
+        TransientConflictHorizonTimestamp_,
+        PersistentConflictHorizonTimestamp_);
+
+    TransientConflictHorizonTimestamp_ = std::max(TransientConflictHorizonTimestamp_, timestamp);
+}
+
+void TTablet::ResetTransientConflictHorizonTimestamp()
+{
+    AdvanceTransientConflictHorizonTimestamp(PersistentConflictHorizonTimestamp_);
+}
+
 bool TTablet::IsActiveServant() const
 {
     if (SmoothMovementData().GetRole() == ESmoothMovementRole::None) {
@@ -2644,6 +2683,10 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     auto* replicatableContent = request->mutable_replicatable_content();
     replicatableContent->set_trimmed_row_count(GetTrimmedRowCount());
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
+    if (IsPhysicallySorted()) {
+        replicatableContent->set_conflict_horizon_timestamp(PersistentConflictHorizonTimestamp_);
+    }
+
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
     if (CustomRuntimeData_) {
         replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
@@ -2734,6 +2777,12 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     const auto& replicatableContent = request->replicatable_content();
     SetTrimmedRowCount(replicatableContent.trimmed_row_count());
     RetainedTimestamp_ = replicatableContent.retained_timestamp();
+
+    if (replicatableContent.has_conflict_horizon_timestamp()) {
+        PersistentConflictHorizonTimestamp_ = replicatableContent.conflict_horizon_timestamp();
+        TransientConflictHorizonTimestamp_ = PersistentConflictHorizonTimestamp_;
+    }
+
     CumulativeDataWeight_ = replicatableContent.cumulative_data_weight();
 
     CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
@@ -3230,6 +3279,8 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
         .Item("overlapping_store_count").Value(GetOverlappingStoreCount())
         .Item("dynamic_store_count").Value(GetDynamicStoreCount())
         .Item("retained_timestamp").Value(GetRetainedTimestamp())
+        .Item("persistent_conflict_horizon_timestamp").Value(GetPersistentConflictHorizonTimestamp())
+        .Item("transient_conflict_horizon_timestamp").Value(GetTransientConflictHorizonTimestamp())
         .Item("last_periodic_rotation_time").Value(storeManager->GetLastPeriodicRotationTime())
         .Item("in_flight_user_mutation_count").Value(GetInFlightUserMutationCount())
         .Item("in_flight_replicator_mutation_count").Value(GetInFlightReplicatorMutationCount())

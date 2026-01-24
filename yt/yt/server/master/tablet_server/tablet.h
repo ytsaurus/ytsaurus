@@ -99,6 +99,15 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
 
+    // Timestamp used on tablet node to check conflicts with versions from removed stores.
+    // More in NTabletNode::TTablet.
+    // It is updated only on unmount/freeze, so for example it is not updated on tablet's chunks update when tablet is unmounted.
+    // As this timestamp stored on master only to persist value for unmounted tablets, the lack of updates does not cause any problems.
+    DEFINE_BYVAL_RW_PROPERTY(
+        NTransactionClient::TTimestamp,
+        ConflictHorizonTimestamp,
+        NTransactionClient::MinTimestamp);
+
     using TUnconfirmedDynamicTableLocksSet = THashSet<NTransactionClient::TTransactionId>;
     DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);
 

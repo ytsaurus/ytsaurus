@@ -1249,6 +1249,17 @@ private:
         auto retainedTimestamp = GET_FROM_REPLICATABLE(has_retained_timestamp)
             ? FromProto<TTimestamp>(GET_FROM_REPLICATABLE(retained_timestamp))
             : MinTimestamp;
+        auto conflictHorizonTimestamp = MinTimestamp;
+        // COMPAT(ponasenko-rs)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+            ETabletReign::AddConflictHorizon)
+        {
+            if (request->replicatable_content().has_conflict_horizon_timestamp()) {
+                conflictHorizonTimestamp = FromProto<TTimestamp>(
+                    request->replicatable_content().conflict_horizon_timestamp());
+            }
+        }
+
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMovementTarget = request->has_movement_source_cell_id();
@@ -1308,7 +1319,8 @@ private:
             retainedTimestamp,
             cumulativeDataWeight,
             serializationType,
-            mountTime);
+            mountTime,
+            conflictHorizonTimestamp);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
@@ -2134,6 +2146,16 @@ private:
                 }
                 response.set_mount_revision(ToProto(tablet->GetMountRevision()));
 
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    if (tablet->IsPhysicallySorted()) {
+                        response.set_conflict_horizon_timestamp(
+                            tablet->GetPersistentConflictHorizonTimestamp());
+                    }
+                }
+
                 // NB: Do not unregister master avenue since it still has pending messages.
                 // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
 
@@ -2200,6 +2222,17 @@ private:
                     ToProto(response.mutable_tablet_id(), tablet->GetId());
                     *response.mutable_mount_hint() = tablet->GetMountHint();
                     response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+
+                    // COMPAT(ponasenko-rs)
+                    if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                        ETabletReign::AddConflictHorizon)
+                    {
+                        if (tablet->IsPhysicallySorted()) {
+                            response.set_conflict_horizon_timestamp(
+                                tablet->GetPersistentConflictHorizonTimestamp());
+                        }
+                    }
+
                     PostMasterMessage(tablet, response);
                 }
 
@@ -2939,6 +2972,12 @@ private:
                     registerBackingStore(backingStore);
                 }
             }
+
+            if (request->has_unleashed_backing_store_id()) {
+                auto backingStoreId = FromProto<TStoreId>(request->unleashed_backing_store_id());
+                auto backingStore = tablet->GetStore(backingStoreId);
+                registerBackingStore(backingStore);
+            }
         }
 
         std::vector<TChunkId> compressionDictionaryIds;
@@ -3108,6 +3147,67 @@ private:
                         storeId,
                         ref,
                         hunkChunk->GetStoreRefCount());
+                }
+
+                if (store->IsSorted()) {
+                    // COMPAT(ponasenko-rs)
+                    if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                        ETabletReign::AddConflictHorizon)
+                    {
+                        auto storeTimestamp = store->GetMaxTimestamp();
+                        tablet->AdvancePersistentConflictHorizonTimestamp(storeTimestamp);
+
+                        if (!backingStoreId) {
+                            tablet->AdvanceTransientConflictHorizonTimestamp(storeTimestamp);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (request->has_unleashed_backing_store_id()) {
+            YT_VERIFY(request->has_conflict_horizon_timestamp());
+
+            YT_VERIFY(tablet->IsPhysicallySorted());
+
+            // COMPAT(ponasenko-rs)
+            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                ETabletReign::AddConflictHorizon)
+            {
+                tablet->AdvancePersistentConflictHorizonTimestamp(
+                    FromProto<TTimestamp>(request->conflict_horizon_timestamp()));
+            }
+
+            if (!IsRecovery() &&
+                IsBackingStoreRequired(tablet) &&
+                tablet->IsActiveServant())
+            {
+                auto backingStoreId = FromProto<TStoreId>(request->unleashed_backing_store_id());
+                const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
+
+                YT_VERIFY(request->conflict_horizon_timestamp() == backingStore->GetMaxTimestamp());
+
+                YT_LOG_DEBUG("Adding unleashed backing store (%v, BackingStoreId: %v, MaxTimestamp: %v)",
+                    tablet->GetLoggingTag(),
+                    backingStoreId,
+                    backingStore->GetMaxTimestamp());
+
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    AddUnleashedBackingStore(tablet, backingStore->AsSortedDynamic());
+                }
+            } else {
+                // NB: It is important to use conflict_horizon_timestamp instead of backingStore->GetMaxTimestamp()
+                // on non-active servant and for other cases it is also safe.
+
+                // COMPAT(ponasenko-rs)
+                if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                    ETabletReign::AddConflictHorizon)
+                {
+                    tablet->AdvanceTransientConflictHorizonTimestamp(
+                        FromProto<TTimestamp>(request->conflict_horizon_timestamp()));
                 }
             }
         }
@@ -4723,7 +4823,6 @@ private:
         tablet->SmoothMovementData().SetStageChangeScheduled(false);
     }
 
-
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         YT_VERIFY(!replicaInfo->GetReplicator());
@@ -4836,13 +4935,46 @@ private:
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
     }
 
+    void AddUnleashedBackingStore(TTablet* tablet, const TSortedDynamicStorePtr& backingStore)
+    {
+        tablet->GetStoreManager()->AsSorted()->AddUnleashedBackingStore(backingStore);
+
+        TDelayedExecutor::Submit(
+            // NB: Submit the callback via the epoch automaton invoker which is a different approach from the one in SetBackingStore.
+            // TSortedStoreManager::UnleashedBackingStores_ will be cleared on epoch end.
+            BIND(
+                &TTabletManager::ReleaseUnleashedBackingStoreWeak,
+                MakeWeak(this),
+                tablet->GetId(),
+                backingStore->GetId())
+                .Via(Slot_->GetEpochAutomatonInvoker()),
+            tablet->GetSettings().MountConfig->BackingStoreRetentionTime);
+    }
+
     void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto store = storeWeak.Lock()) {
             ReleaseBackingStore(store);
+
+            store->GetTablet()->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp());
         }
+    }
+
+    void ReleaseUnleashedBackingStoreWeak(TTabletId tabletId, TDynamicStoreId backingStoreToRemoveId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        // It is possible that at this point this tablet is a recreated c++ object after unmount and mount.
+        // Sorted store manager is ready for this.
+        // TODO(ponasenko-rs): Use TTablet::CancelableContext_ to simplify interface.
+        tablet->GetStoreManager()->AsSorted()->ReleaseUnleashedBackingStore(backingStoreToRemoveId);
     }
 
     void ValidateMemoryLimit(const std::optional<std::string>& poolTag) override

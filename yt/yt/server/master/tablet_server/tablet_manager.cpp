@@ -3329,6 +3329,10 @@ private:
             MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
             reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
+            if (table->IsPhysicallySorted()) {
+                reqReplicatable.set_conflict_horizon_timestamp(tablet->GetConflictHorizonTimestamp());
+            }
+
             if (!table->IsPhysicallySorted()) {
                 reqReplicatable.set_trimmed_row_count(tablet->GetTrimmedRowCount());
             }
@@ -4051,12 +4055,14 @@ private:
             newTabletCount,
             pivotKeys);
 
-        // Calculate retained and unflushed timestamp for removed tablets.
+        // Calculate retained, conflict horizon and unflushed timestamps for removed tablets.
         auto retainedTimestamp = MinTimestamp;
+        auto conflictHorizonTimestamp = MinTimestamp;
         auto unflushedTimestamp = MaxTimestamp;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = tablets[index]->As<TTablet>();
             retainedTimestamp = std::max(retainedTimestamp, tablet->GetRetainedTimestamp());
+            conflictHorizonTimestamp = std::max(conflictHorizonTimestamp, tablet->GetConflictHorizonTimestamp());
             unflushedTimestamp = std::min(unflushedTimestamp, tablet->NodeStatistics().unflushed_timestamp());
         }
 
@@ -4092,6 +4098,7 @@ private:
                 }
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
+            newTablet->SetConflictHorizonTimestamp(conflictHorizonTimestamp);
             newTablet->NodeStatistics().set_unflushed_timestamp(unflushedTimestamp);
             newTablets.push_back(newTablet);
 
@@ -5132,6 +5139,14 @@ private:
         }
 
         auto* typedTablet = tablet->As<TTablet>();
+
+        // COMPAT(ponasenko-rs): Assume physically sorted tablets always have has_conflict_horizon_timestamp
+        // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
+        if (response->has_conflict_horizon_timestamp()) {
+            YT_VERIFY(typedTablet->GetTable()->IsPhysicallySorted());
+            typedTablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+        }
+
         if (response->has_replication_progress()) {
             typedTablet->ReplicationProgress() = FromProto<TReplicationProgress>(response->replication_progress());
         }
@@ -5213,6 +5228,14 @@ private:
 
         servant->SetState(ETabletState::Frozen);
         tablet->SetState(ETabletState::Frozen);
+
+        // COMPAT(ponasenko-rs): Assume physically sorted tablets always have has_conflict_horizon_timestamp
+        // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
+        if (response->has_conflict_horizon_timestamp()) {
+            YT_VERIFY(table->IsPhysicallySorted());
+            tablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+        }
+
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
         UpdateTabletState(table);
     }

@@ -455,6 +455,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
         .Default(false);
 
+    registrar.Parameter("check_conflict_horizon", &TThis::CheckConflictHorizon)
+        .Default(true);
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 

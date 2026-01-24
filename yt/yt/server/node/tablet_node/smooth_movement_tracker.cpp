@@ -326,7 +326,7 @@ public:
         };
 
         validateProto(NProto::TReqMountTablet::GetDescriptor(),            31, 5);
-        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 12, 0);
+        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 13, 0);
         validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
         validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
         validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
@@ -549,6 +549,9 @@ private:
             masterEndpointId,
             mailboxCookie.FirstOutcomingMessageId,
             inFlightTime);
+
+        // NB: There are no backing stores on the target servant. To ensure that no conflicts are lost, sync the transient timestamp.
+        tablet->ResetTransientConflictHorizonTimestamp();
 
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));
