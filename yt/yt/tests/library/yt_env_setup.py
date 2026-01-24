@@ -2374,9 +2374,11 @@ class YTEnvSetup(object):
                     "nodes_freshness_time": 1000,
                     # This is intended to check the case where freshness time is less than period.
                     "unhealthy_bundles_freshness_time": 100,
+                    "banned_replicas_freshness_time": 400,
                     "bundles_fetch_period": 400,
                     "nodes_fetch_period": 10000,
                     "unhealthy_bundles_fetch_period": 300,
+                    "banned_replicas_fetch_period": 300,
                     "fetch_planner_period": 100,
                 },
                 "bundle_state_provider": {

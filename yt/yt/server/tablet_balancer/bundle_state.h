@@ -43,6 +43,7 @@ struct TBundleSnapshot final
     using TAlienTableTag = std::tuple<TString, NYPath::TYPath>;
     THashMap<TAlienTableTag, TTableId> AlienTablePaths;
     THashMap<TTableId, TAlienTablePtr> AlienTables;
+    THashSet<std::string> BannedReplicaClusters;
 
     TInstant StateFetchTime;
     TInstant StatisticsFetchTime;
@@ -61,7 +62,8 @@ struct IBundleState
         std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement,
         const THashSet<TGroupName>& groupsForMoveBalancing,
         const THashSet<TGroupName>& groupsForReshardBalancing,
-        const THashSet<std::string>& allowedReplicaClusters) = 0;
+        const THashSet<std::string>& allowedReplicaClusters,
+        const THashSet<std::string>& replicaClustersToIgnore) = 0;
 
     virtual void Start() = 0;
     virtual void Stop() = 0;

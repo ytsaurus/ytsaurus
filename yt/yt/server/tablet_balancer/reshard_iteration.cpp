@@ -486,6 +486,15 @@ private:
 
         THashMap<TTableId, TAlienTablePtr> alienTables;
         for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
+            if (BundleSnapshot_->BannedReplicaClusters.contains(cluster)) {
+                YT_LOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched "
+                    "(BundleName: %v, Group: %v, Cluster: %v)",
+                    BundleName_,
+                    GroupName_,
+                    cluster);
+                continue;
+            }
+
             for (const auto& minorTablePath : minorTablePaths) {
                 auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
                 THROW_ERROR_EXCEPTION_IF(it == BundleSnapshot_->AlienTablePaths.end(),

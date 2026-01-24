@@ -66,6 +66,7 @@ public:
     TFuture<IListNodePtr> GetBundles() override;
     TFuture<IListNodePtr> GetNodes() override;
     TFuture<THashMap<std::string, std::vector<std::string>>> GetUnhealthyBundles() override;
+    TFuture<THashSet<std::string>> GetBannedReplicasFromMetaCluster() override;
 
 private:
     IBootstrap* const Bootstrap_;
@@ -80,14 +81,17 @@ private:
     TInstant LastBundlesSuccessfulFetchTime_;
     TInstant LastNodesSuccessfulFetchTime_;
     TInstant LastUnhealthyBundlesSuccessfulFetchTime_;
+    TInstant LastBannedReplicasSuccessfulFetchTime_;
 
     IListNodePtr Bundles_;
     IListNodePtr Nodes_;
     THashMap<std::string, std::vector<std::string>> UnhealthyBundles_;
+    THashSet<std::string> BannedReplicasFromMetaCluster_;
 
     TFuture<IListNodePtr> BundlesFuture_;
     TFuture<IListNodePtr> NodesFuture_;
     TFuture<THashMap<std::string, std::vector<std::string>>> UnhealthyBundlesFuture_;
+    TFuture<THashSet<std::string>> BannedReplicasFuture_;
 
 private:
     void FetchState();
@@ -95,7 +99,8 @@ private:
     IListNodePtr FetchBundles();
     IListNodePtr FetchNodes();
     THashMap<std::string, std::vector<std::string>> TryFetchUnhealthyBundles();
-    THashMap<std::string, std::vector<std::string>> FetchUnhealthyBundles();
+    THashMap<std::string, std::vector<std::string>> FetchUnhealthyBundles() const;
+    THashSet<std::string> FetchBannedReplicasFromMetaCluster(const std::string& cluster);
 };
 
 TClusterStateProvider::TClusterStateProvider(
@@ -226,6 +231,37 @@ TFuture<THashMap<std::string, std::vector<std::string>>> TClusterStateProvider::
     return UnhealthyBundlesFuture_;
 }
 
+TFuture<THashSet<std::string>> TClusterStateProvider::GetBannedReplicasFromMetaCluster()
+{
+    auto config = Config_.Acquire();
+    if (config->MetaClusterForBannedReplicas.empty()) {
+        return MakeFuture(THashSet<std::string>{});
+    }
+
+    auto now = Now();
+    auto readerGuard = ReaderGuard(Lock_);
+    if (now <= LastBannedReplicasSuccessfulFetchTime_ + config->BannedReplicasFreshnessTime) {
+        return MakeFuture(BannedReplicasFromMetaCluster_);
+    }
+
+    if (!BannedReplicasFuture_) {
+        readerGuard.Release();
+        YT_LOG_DEBUG("Planning to fetch banned replica clusters due to a direct request");
+        auto writerGuard = WriterGuard(Lock_);
+        if (!BannedReplicasFuture_) {
+            BannedReplicasFuture_ = BIND(
+                &TClusterStateProvider::FetchBannedReplicasFromMetaCluster,
+                MakeStrong(this),
+                config->MetaClusterForBannedReplicas)
+                .AsyncVia(WorkerPool_->GetInvoker())
+                .Run();
+        }
+        return BannedReplicasFuture_;
+    }
+
+    return BannedReplicasFuture_;
+}
+
 void TClusterStateProvider::FetchState()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -267,6 +303,17 @@ void TClusterStateProvider::FetchState()
             .AsyncVia(WorkerPool_->GetInvoker())
             .Run();
     }
+
+    if (LastBannedReplicasSuccessfulFetchTime_ + config->BannedReplicasFetchPeriod < now &&
+        !BannedReplicasFuture_)
+    {
+        BannedReplicasFuture_ = BIND(
+            &TClusterStateProvider::FetchBannedReplicasFromMetaCluster,
+            MakeStrong(this),
+            config->MetaClusterForBannedReplicas)
+            .AsyncVia(WorkerPool_->GetInvoker())
+            .Run();
+    }
 }
 
 IListNodePtr TClusterStateProvider::FetchBundles()
@@ -292,7 +339,7 @@ IListNodePtr TClusterStateProvider::FetchBundles()
     auto guard = WriterGuard(Lock_);
     if (LastBundlesSuccessfulFetchTime_ < now) {
         LastBundlesSuccessfulFetchTime_ = now;
-        Bundles_ = bundleList;
+        Bundles_ = std::move(bundleList);
     }
 
     BundlesFuture_.Reset();
@@ -326,7 +373,7 @@ IListNodePtr TClusterStateProvider::FetchNodes()
     auto guard = WriterGuard(Lock_);
     if (LastNodesSuccessfulFetchTime_ < now) {
         LastNodesSuccessfulFetchTime_ = now;
-        Nodes_ = nodesList;
+        Nodes_ = std::move(nodesList);
     }
 
     NodesFuture_.Reset();
@@ -345,7 +392,7 @@ THashMap<std::string, std::vector<std::string>> TClusterStateProvider::TryFetchU
         auto guard = WriterGuard(Lock_);
         if (LastUnhealthyBundlesSuccessfulFetchTime_ < now) {
             LastUnhealthyBundlesSuccessfulFetchTime_ = now;
-            UnhealthyBundles_ = unhealthyBundles;
+            UnhealthyBundles_ = std::move(unhealthyBundles);
         }
 
         UnhealthyBundlesFuture_.Reset();
@@ -356,11 +403,11 @@ THashMap<std::string, std::vector<std::string>> TClusterStateProvider::TryFetchU
         YT_LOG_ERROR(ex, "Failed to fetch unhealthy bundles");
         auto guard = WriterGuard(Lock_);
         UnhealthyBundlesFuture_.Reset();
-        throw ex;
+        throw;
     }
 }
 
-THashMap<std::string, std::vector<std::string>> TClusterStateProvider::FetchUnhealthyBundles()
+THashMap<std::string, std::vector<std::string>> TClusterStateProvider::FetchUnhealthyBundles() const
 {
     auto config = Config_.Acquire();
     if (config->ClustersForBundleHealthCheck.empty()) {
@@ -399,6 +446,44 @@ THashMap<std::string, std::vector<std::string>> TClusterStateProvider::FetchUnhe
     }
 
     return unhealthyBundles;
+}
+
+THashSet<std::string> TClusterStateProvider::FetchBannedReplicasFromMetaCluster(
+    const std::string& cluster)
+{
+    try {
+        THashSet<std::string> bannedReplicaClusters;
+        YT_LOG_DEBUG("Started fetching banned replica clusters");
+
+        if (!cluster.empty()) {
+            const auto& clientDirectory = Bootstrap_->GetClientDirectory();
+            auto client = clientDirectory->GetClientOrThrow(cluster);
+            bannedReplicaClusters = GetBannedReplicaClusters(client);
+            YT_LOG_DEBUG_IF(
+                !bannedReplicaClusters.empty(),
+                "Fetched banned replica clusters (Clusters: %v, MetaCluster: %v)",
+                bannedReplicaClusters,
+                cluster);
+        }
+
+        auto now = Now();
+        auto guard = WriterGuard(Lock_);
+        if (LastBannedReplicasSuccessfulFetchTime_ < now) {
+            LastBannedReplicasSuccessfulFetchTime_ = now;
+            BannedReplicasFromMetaCluster_ = std::move(bannedReplicaClusters);
+        }
+
+        BannedReplicasFuture_.Reset();
+
+        YT_LOG_DEBUG("Finished fetching banned replica clusters");
+        return BannedReplicasFromMetaCluster_;
+
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to fetch banned replica clusters");
+        auto guard = WriterGuard(Lock_);
+        BannedReplicasFuture_.Reset();
+        throw;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -125,12 +125,17 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");
         }
 
-        config->BundleStateProvider->FetchTabletCellsFromSecondaryMasters = config->FetchTabletCellsFromSecondaryMasters;
-        config->BundleStateProvider->UseStatisticsReporter = config->UseStatisticsReporter;
-        config->BundleStateProvider->StatisticsTablePath = config->StatisticsTablePath;
+        auto updateIfEmpty = [] (auto* field, const auto& value) {
+            if (field->empty()) {
+                *field = value;
+            }
+        };
 
-        config->ClusterStateProvider->ClustersForBundleHealthCheck = config->ClustersForBundleHealthCheck;
-        config->ClusterStateProvider->MaxUnhealthyBundlesOnReplicaCluster = config->MaxUnhealthyBundlesOnReplicaCluster;
+        config->BundleStateProvider->UseStatisticsReporter |= config->UseStatisticsReporter;
+        config->BundleStateProvider->FetchTabletCellsFromSecondaryMasters |= config->FetchTabletCellsFromSecondaryMasters;
+        updateIfEmpty(&config->BundleStateProvider->StatisticsTablePath, config->StatisticsTablePath);
+
+        updateIfEmpty(&config->ClusterStateProvider->ClustersForBundleHealthCheck, config->ClustersForBundleHealthCheck);
     });
 }
 
@@ -157,8 +162,8 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
         .Default();
-    registrar.Parameter("max_unhealthy_bundles_on_replica_cluster", &TThis::MaxUnhealthyBundlesOnReplicaCluster)
-        .Default(5);
+    registrar.Parameter("meta_cluster_for_banned_replicas", &TThis::MetaClusterForBannedReplicas)
+        .Default();
 
     registrar.Parameter("fetch_planner_period", &TThis::FetchPlannerPeriod)
         .Default(TDuration::Seconds(5));
@@ -171,6 +176,8 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("unhealthy_bundles_freshness_time", &TThis::UnhealthyBundlesFreshnessTime)
         .Default(TDuration::Seconds(20));
+    registrar.Parameter("banned_replicas_freshness_time", &TThis::BannedReplicasFreshnessTime)
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("bundles_fetch_period", &TThis::BundlesFetchPeriod)
         .Default(TDuration::Seconds(10));
@@ -178,6 +185,8 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("unhealthy_bundles_fetch_period", &TThis::UnhealthyBundlesFetchPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("banned_replicas_fetch_period", &TThis::BannedReplicasFetchPeriod)
+        .Default(TDuration::Seconds(40));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

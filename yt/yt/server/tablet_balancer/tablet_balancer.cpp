@@ -454,11 +454,24 @@ TBundleSnapshotPtr TTabletBalancer::GetBundleSnapshot(
         bundleSnapshotWithoutReplicaStatistics->StatisticsFetchTime,
         bundleSnapshotWithoutReplicaStatistics->PerformanceCountersFetchTime);
 
+    auto bannedClustersOrError = WaitFor(ClusterStateProvider_->GetBannedReplicasFromMetaCluster());
+    if (!bannedClustersOrError.IsOK()) {
+        YT_LOG_ERROR(
+            bannedClustersOrError,
+            "Failed to get banned replicas from meta cluster (BundleName: %v, MetaCluster: %v)",
+            bundleName,
+            DynamicConfig_.Acquire()->ClusterStateProvider->MetaClusterForBannedReplicas);
+        SaveRetryableBundleError(bundleName, bannedClustersOrError);
+    }
+
+    auto bannedClusters = bannedClustersOrError.ValueOrDefault({});
+
     auto bundleSnapshot = WaitFor(bundleState->GetBundleSnapshotWithReplicaBalancingStatistics(
         minFreshnessRequirement,
         GetGroupsForMoveBalancing(bundleName),
         GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig()),
-        allowedReplicaClusters))
+        allowedReplicaClusters,
+        bannedClusters))
         .ValueOrThrow();
 
     if (!bundleSnapshot->NonFatalError.IsOK()) {

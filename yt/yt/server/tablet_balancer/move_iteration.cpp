@@ -415,7 +415,16 @@ public:
             YT_VERIFY(std::ssize(table->PivotKeys) == std::ssize(table->Tablets));
 
             for (const auto& [cluster, minorTablePaths] : table->GetReplicaBalancingMinorTables(SelfClusterName_)) {
-                // TODO(alexelexa): detect bunned or unavaliable clusters and skip it.
+                if (BundleSnapshot_->BannedReplicaClusters.contains(cluster)) {
+                    YT_LOG_DEBUG("Skipping cluster because statistics of the banned replica were not fetched "
+                        "(BundleName: %v, Group: %v, Cluster: %v)",
+                        BundleName_,
+                        GroupName_,
+                        cluster);
+                    continue;
+                }
+
+                // TODO(alexelexa): Detect unavaliable clusters and skip it.
 
                 for (const auto& minorTablePath : minorTablePaths) {
                     auto it = BundleSnapshot_->AlienTablePaths.find(TBundleSnapshot::TAlienTableTag(cluster, minorTablePath));
