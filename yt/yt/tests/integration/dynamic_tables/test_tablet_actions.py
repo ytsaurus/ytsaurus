@@ -1425,37 +1425,45 @@ class TabletBalancerBase(TabletActionsBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
+
         sleep(1)
         assert get("//tmp/t/@tablet_count") == 2
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer",
-            False,
-        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", False)
+
         self._wait_full_iteration()
+        if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            sleep(self._get_state_freshness_time())
+
         assert get("//tmp/t/@tablet_count") == 2
+
         remove("//tmp/t/@tablet_balancer_config/enable_auto_reshard")
-        sleep(1)
+        self._wait_full_iteration()
+        if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            sleep(self._get_state_freshness_time())
+
         assert get("//tmp/t/@tablet_count") == 2
-        set(
-            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer",
-            True,
-        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_tablet_size_balancer", True)
+
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
     @authors("ifsmirnov")
     def test_tablet_balancer_table_config(self):
         cells = sync_create_cells(2)
-        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
-        sync_reshard_table("//tmp/t", [[], [1]])
-        set(
-            "//tmp/t/@tablet_balancer_config",
-            {
+        self._create_sorted_table(
+            "//tmp/t",
+            pivot_keys=[[], [1]],
+            in_memory_mode="uncompressed",
+            tablet_balancer_config={
                 "enable_auto_reshard": False,
                 "enable_auto_tablet_move": False,
             },
         )
+
         sync_mount_table("//tmp/t", cell_id=cells[0])
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(2)])
         sync_flush_table("//tmp/t")
