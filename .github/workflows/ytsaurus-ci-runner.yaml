@@ -54,7 +54,13 @@ jobs:
             version_filter_json="$(jq -cn --arg k "$component" --arg v "$ver" '{($k): $v}')"
           fi
 
-          args+=( --version-filter "$version_filter_json" )
+          args=(
+            run-scenario
+            --scenario "${{ inputs.scenario }}"
+            --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}"
+            --cloud-function-token "${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}"
+            --version-filter "$version_filter_json"
+            --apply
+          )
 
           ./yt/admin/ytsaurus_ci/ytsaurus_ci "${args[@]}"
-
