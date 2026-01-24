@@ -90,10 +90,11 @@ public:
                     if (driverConfig->TvmService) {
                         tvmService = NAuth::CreateDynamicTvmService(driverConfig->TvmService);
                     }
+                    NNative::TConnectionOptions options;
+                    options.TvmService = std::move(tvmService);
                     connection = CreateConnection(
                         configNode,
-                        /*options*/ {},
-                        std::move(tvmService));
+                        std::move(options));
                     Connection_ = connection;
 
                     if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
