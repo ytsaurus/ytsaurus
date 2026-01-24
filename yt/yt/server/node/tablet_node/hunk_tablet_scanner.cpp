@@ -234,6 +234,11 @@ private:
         {
             std::vector<TStoreId> storeIdsToMarkSealable;
             for (const auto& store : Tablet_->PassiveStores()) {
+                // NB: Wait until store is closed, because sealing forcefully closes write sessions.
+                if (store->IsClosing()) {
+                    continue;
+                }
+
                 if (!store->GetMarkedSealable()) {
                     YT_LOG_DEBUG("Passive store is not marked as sealable; marking (StoreId: %v)",
                         store->GetId());

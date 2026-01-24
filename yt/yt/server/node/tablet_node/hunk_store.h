@@ -50,6 +50,8 @@ public:
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 
+    bool IsClosing() const;
+
 private:
     const THunkTablet* const Tablet_;
 
@@ -64,6 +66,8 @@ private:
 
     NJournalClient::IJournalHunkChunkWriterPtr Writer_;
     TFuture<void> WriterOpenedFuture_;
+
+    std::atomic<bool> Closing_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkStore)
