@@ -368,9 +368,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/json_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/json/json_writer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/bindings.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytalloc/statistics_producer.cpp
 )
 
 
