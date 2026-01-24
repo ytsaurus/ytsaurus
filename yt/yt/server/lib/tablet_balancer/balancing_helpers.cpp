@@ -64,11 +64,11 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet)
         : tablet->Statistics.UncompressedDataSize;
 }
 
-bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
+bool IsTabletReshardable(const TTabletPtr& tablet)
 {
     return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
-        (ignoreConfig || tablet->Table->TableConfig->EnableAutoReshard) &&
-        (ignoreConfig || tablet->Table->Bundle->Config->EnableTabletSizeBalancer) &&
+        tablet->Table->TableConfig->EnableAutoReshard &&
+        tablet->Table->Bundle->Config->EnableTabletSizeBalancer &&
         tablet->Table->Sorted;
 }
 
