@@ -77,7 +77,6 @@ target_link_libraries(yt-yt-core PUBLIC
   cpp-yt-string
   cpp-yt-yson
   cpp-yt-yson_string
-  cpp-ytalloc-api
   yt-yt-build
   isa-l_crc_yt_patch
   yt_proto-yt-core
@@ -415,7 +414,6 @@ target_link_libraries(yt-yt-core.global PUBLIC
   cpp-yt-string
   cpp-yt-yson
   cpp-yt-yson_string
-  cpp-ytalloc-api
   yt-yt-build
   isa-l_crc_yt_patch
   yt_proto-yt-core
