@@ -21,7 +21,8 @@ types:
         cpp_type: NYson::TYsonString
         column_name: key_c
         column_type_v3:
-          type_name: yson
+          type_name: list
+          item: string
         sort_order: Ascending
 
       - cpp_name: ValueA

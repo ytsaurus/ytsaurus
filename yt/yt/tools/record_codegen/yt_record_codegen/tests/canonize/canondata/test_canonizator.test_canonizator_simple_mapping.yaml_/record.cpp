@@ -79,7 +79,7 @@ TSimpleMappingDescriptor::TSimpleMappingDescriptor()
             ,
             TColumnSchema(
                 "key_c",
-                FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}"))
+                FromRecordCodegenTypeV3("{\"type_name\": \"list\", \"item\": \"string\"}"))
                 .SetSortOrder(ESortOrder::Ascending)
             ,
             TColumnSchema(
@@ -114,7 +114,7 @@ TSimpleMappingDescriptor::TSimpleMappingDescriptor()
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema(
                 "key_c",
-                FromRecordCodegenTypeV3("{\"type_name\": \"yson\"}"))
+                FromRecordCodegenTypeV3("{\"type_name\": \"list\", \"item\": \"string\"}"))
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema(
                 "value_a",
