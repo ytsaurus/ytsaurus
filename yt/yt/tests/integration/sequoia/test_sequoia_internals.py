@@ -592,7 +592,7 @@ class TestSequoiaInternals(YTEnvSetup):
         username = "JohnathanPicklehands"
         create_user(username)
         create("table", "//tmp/t")
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
@@ -623,7 +623,7 @@ class TestSequoiaInternals(YTEnvSetup):
         measure_read_time()
         sleep(1)
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 1)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 1)
         sleep(1)
 
         cypress_proxy_address = ls("//sys/cypress_proxies")[0]
@@ -642,7 +642,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         checker.join()
 
-        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/clusterwide", 100)
         sleep(1)
 
         assert measure_read_time() < 2

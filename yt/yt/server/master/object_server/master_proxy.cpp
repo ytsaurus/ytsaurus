@@ -328,13 +328,13 @@ private:
                 protoUser->set_banned(user->GetBanned());
 
                 auto limits = user->GetObjectServiceRequestLimits();
-                if (auto limit = limits->ReadRequestRateLimits->Default) {
+                if (auto limit = limits->ReadRequestRateLimits->GetClusterwide()) {
                     protoUser->set_read_request_rate_limit(*limit);
                 }
-                if (auto limit = limits->WriteRequestRateLimits->Default) {
+                if (auto limit = limits->WriteRequestRateLimits->GetClusterwide()) {
                     protoUser->set_write_request_rate_limit(*limit);
                 }
-                protoUser->set_request_queue_size_limit(limits->RequestQueueSizeLimits->Default);
+                protoUser->set_request_queue_size_limit(limits->RequestQueueSizeLimits->GetClusterwide());
             };
 
             for (auto [_, user] : securityManager->Users()) {
