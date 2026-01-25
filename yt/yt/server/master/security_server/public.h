@@ -65,8 +65,8 @@ using TAccountChunkMergerNodeTraversalsPtr = NObjectServer::TObjectPtr<T, TAccou
 
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 
-DECLARE_REFCOUNTED_STRUCT(TUserRequestLimitsOptions)
-DECLARE_REFCOUNTED_STRUCT(TUserQueueSizeLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
+DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TUserRequestLimitsConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserReadRequestComplexityLimitsOptions)
 DECLARE_REFCOUNTED_STRUCT(TSerializableUserRequestLimitsOptions)
