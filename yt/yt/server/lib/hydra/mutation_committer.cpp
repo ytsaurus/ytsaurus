@@ -205,7 +205,23 @@ void TCommitterBase::RegisterNextChangelog(int id, TFuture<IChangelogPtr> change
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    EmplaceOrCrash(NextChangelogs_, id, changelog);
+    auto [it, emplaced] = NextChangelogs_.emplace(id, changelog);
+
+    if (!emplaced) {
+        YT_LOG_INFO(
+            "Replacing existing registered changelog (ChangelogId: %v, IsReady: %v)",
+            id,
+            it->second.IsSet());
+
+        if (auto changelogResult = it->second.TryGet();
+            !changelogResult.has_value() || changelogResult->IsOK())
+        {
+            YT_LOG_ALERT_AND_THROW("Replacing valid registered changelog (ChangelogId: %v)", id);
+        }
+
+        it->second = std::move(changelog);
+    }
+
     YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
 }
 
