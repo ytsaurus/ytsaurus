@@ -16,7 +16,7 @@ TEST(TSimpleMappingTest, CheckConversion)
             .Key = {
                 .KeyA = "foo",
                 .KeyB = "bar",
-                .KeyC = NYson::TYsonString(TString("{foo=bar}")),
+                .KeyC = NYson::TYsonString(TString("[foo;bar]")),
             },
             .ValueA = "baz",
             .ValueB = "qux",
