@@ -139,6 +139,8 @@ public:
 
     TValue* Insert(const TKey& key, std::unique_ptr<TValue> valueHolder);
 
+    std::pair<TValue*, bool> TryInsert(const TKey& key, std::unique_ptr<TValue> valueHolder);
+
     bool TryRemove(const TKey& key);
     void Remove(const TKey& key);
 

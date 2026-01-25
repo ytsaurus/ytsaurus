@@ -219,6 +219,23 @@ TValue* TMutableEntityMap<TValue>::Insert(const TKey& key, std::unique_ptr<TValu
 }
 
 template <class TValue>
+std::pair<TValue*, bool> TMutableEntityMap<TValue>::TryInsert(const TKey& key, std::unique_ptr<TValue> valueHolder)
+{
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
+
+    auto* value = valueHolder.get();
+
+    if (auto [it, inserted] = this->Map_.emplace(key, value); inserted) {
+        valueHolder.release();
+        value->SetDynamicData(AllocateDynamicData());
+        return {value, true};
+    } else {
+        // NB: not releasing value from valueHolder.
+        return {it->second, false};
+    }
+}
+
+template <class TValue>
 void TMutableEntityMap<TValue>::Remove(const TKey& key)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
