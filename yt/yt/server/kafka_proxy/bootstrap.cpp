@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
+
 #include <yt/yt/client/kafka/packet.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -229,6 +231,10 @@ private:
             OrchidRoot_,
             "/dynamic_config_manager",
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/cluster_connection",
+            CreateVirtualNode(NativeConnection_->GetOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
@@ -275,6 +281,7 @@ private:
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
+        NativeConnection_->GetQueueConsumerRegistrationManager()->StartSync();
 
         CypressRegistrar_->Start();
     }

@@ -781,6 +781,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
                     )
                     assert effective_implementation == implementation
 
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    with get_ctx():
+                        effective_implementation = get(
+                            f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation",
+                            driver=driver
+                        )
+                        assert effective_implementation == implementation
+
             if cls.DRIVER_BACKEND == "native":
                 effective_implementation = get_connection_orchid_value("/queue_consumer_registration_manager/@queue_consumer_registration_manager_implementation", driver=driver)
                 assert effective_implementation == implementation, \
@@ -885,6 +894,15 @@ class QueueConsumerRegistrationManagerBase(YTEnvSetup):
                 unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
                 if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
                     return False
+
+            if exists("//sys/kafka_proxies", driver=driver):
+                for proxy in ls("//sys/kafka_proxies/instances", driver=driver):
+                    orchid_path = f"//sys/kafka_proxies/instances/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+                    orchid_value = get(orchid_path, driver=driver)
+                    effective_config = orchid_value["effective_config"]
+                    unrecognized_config_options = orchid_value.get("unrecognized_config_options", {})
+                    if not check_orchid_value(proxy, effective_config, unrecognized_config_options):
+                        return False
 
             if cls.DRIVER_BACKEND == "native":
                 orchid_value = get_connection_orchid_value("/queue_consumer_registration_manager", driver=driver)
