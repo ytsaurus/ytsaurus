@@ -220,6 +220,10 @@ NYTree::IMapNodePtr HideSecretParameters(const TString& commandName, NYTree::IMa
         secretParameters.push_back("/environment");
     }
 
+    if (commandName == "create") {
+        secretParameters.push_back("/attributes/value");
+    }
+
     bool needCleanup = false;
     for (const auto& ypath : secretParameters) {
         if (FindNodeByYPath(parameters, ypath)) {
