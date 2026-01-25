@@ -547,7 +547,12 @@ public:
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
-        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
+        // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
+        auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
+        if (!inserted) {
+            YT_LOG_ALERT("Skipped duplicate transaction start (TransactionId: %v)", transactionId);
+            return transaction;
+        }
 
         // Every active transaction has a fake reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
@@ -677,6 +682,7 @@ public:
                 if (!transaction->IsReplicatedToCell(cellTag)) {
                     alreadyReplicated = false;
                     transaction->ReplicatedToCellTags().push_back(cellTag);
+                    SortUnique(transaction->ReplicatedToCellTags());
                 }
             }
             if (alreadyReplicated) {
@@ -1104,6 +1110,7 @@ public:
                         continue;
                     }
                     currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
+                    SortUnique(currentTransaction->ReplicatedToCellTags());
                 }
 
                 transactionsToDstCells.back().second.push_back(dstCellTag);
