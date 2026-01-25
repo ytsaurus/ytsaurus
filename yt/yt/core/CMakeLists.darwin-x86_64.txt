@@ -131,6 +131,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_semaphore.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_stream_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/async_stream_pipe.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/bounded_concurrency_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/coroutine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/delayed_executor.cpp
@@ -154,12 +155,15 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/periodic_yielder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/pollable_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/prioritized_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/profiling_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/propagating_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/quantized_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduler_thread.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/serialized_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/single_queue_scheduler_thread.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_action_queue.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/suspendable_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/system_invokers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_affinity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool_detail.cpp
@@ -167,6 +171,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/throughput_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/two_level_fair_share_thread_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/watchdog_invoker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/retrying_periodic_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/scheduled_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
