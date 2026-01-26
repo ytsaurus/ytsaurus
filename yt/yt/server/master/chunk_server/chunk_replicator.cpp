@@ -1404,7 +1404,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     }
 }
 
-void TChunkReplicator::OnNodeDisposed(TNode* node)
+void TChunkReplicator::OnNodeDisposedOrRestarted(TNode* node)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 

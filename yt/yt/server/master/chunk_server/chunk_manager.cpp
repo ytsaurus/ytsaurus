@@ -2915,7 +2915,8 @@ private:
         ScheduleNodeRefresh(node);
     }
 
-    void ProcessNodeUnregisteredOrRestarted(TNode* node) {
+    void OnNodeUnregisteredOrRestarted(TNode* node)
+    {
         ChunkPlacement_->OnNodeUnregistered(node);
 
         YT_VERIFY(!node->ReportedDataNodeHeartbeat());
@@ -2927,26 +2928,62 @@ private:
         for (const auto& job : jobs) {
             AbortAndRemoveJob(job);
         }
-    }
 
-    void FinishNodeUnregisteredOrRestarted(TNode* node) {
+        ChunkReplicator_->OnNodeUnregistered(node);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         node->Reset(nodeTracker);
     }
 
     void OnNodeUnregistered(TNode* node)
     {
-        ProcessNodeUnregisteredOrRestarted(node);
-
-        ChunkReplicator_->OnNodeUnregistered(node);
-
-        FinishNodeUnregisteredOrRestarted(node);
+        OnNodeUnregisteredOrRestarted(node);
     }
 
     void OnNodeRestarted(TNode* node)
     {
-        ProcessNodeUnregisteredOrRestarted(node);
-        FinishNodeUnregisteredOrRestarted(node);
+        YT_VERIFY(HasMutationContext());
+
+        OnNodeUnregisteredOrRestarted(node);
+        for (auto location : node->ChunkLocations()) {
+            // All requests for the node are lost, so we should reset endorsements.
+            DiscardEndorsements(location);
+        }
+        ChunkReplicator_->OnNodeDisposedOrRestarted(node);
+        // Now the following fields should be reset:
+        // * All SessionHints
+        // * ChunkPushReplicationQueues
+        // * ChunkPullReplicationQueues
+        // * PushReplicationTargetNodeIds
+        // * LoadFactorIterators
+        // * AwaitingHeartbeatChunkIds
+        // * RemovalJobScheduledChunkIds
+        // For these chunks refresh will be scheduled and they will be removed from RemovalLockedChunkIds
+        // * location->ChunkRemovalQueue
+        // * location->ChunkSealQueue
+        // * location->ReplicaEndorsements
+
+        // We do not reset following fields:
+        // * ChunkLocations
+        // We need to keep all replicas and some other fields for them.
+        // * location->Replicas
+        // We will iterate over them during initial heartbeats and process removed and added ones.
+        // * Sequoia chunk_replicas and location_replicas
+        // We will iterate over them during initial heartbeats and process removed and added ones.
+        // * Sequoia unapproved_chunk_replicas
+        // These replicas will either appear during the initial heartbeat, or will be removed by ttl.
+        // * location->DestroyedReplicas
+        // This field is not reset only for optimization purpose.
+        // In initial heartbeat all destroyed replicas that are still stored on node will be processed in initial heartbeats.
+        // The replicas that are stored in master will be added to DestroyedReplicas.
+        // For Sequoia replicas, all dead Sequoia replicas should already be in purgatory and will be processed by it.
+        // Sequoia replicas that are already removed from Sequoia will be added to Sequoia and refresh queue and later will be processed by purgatory.
+        // * location->UnapprovedReplicas
+        // Some unapproved replicas may be already stored by node and will become approved in initial heartbeat.
+        // When node will send heartbeats, we will iterate through all stored on master unapproved replicas and remove expired ones.
+
+        // We also do not abort all jobs associated with node.
+        // All jobs that were scheduled before node restart will not appear in job heartbeat and will be aborted.
     }
 
     void OnNodeDecommissionChanged(TNode* node)
@@ -3014,7 +3051,7 @@ private:
 
         ChunkPlacement_->OnNodeDisposed(node);
 
-        ChunkReplicator_->OnNodeDisposed(node);
+        ChunkReplicator_->OnNodeDisposedOrRestarted(node);
     }
 
     void DisposeLocation(TChunkLocation* location) override
@@ -3739,19 +3776,6 @@ private:
 
         for (const auto& replica : location->Replicas()) {
             const auto* chunk = replica.GetPtr();
-            if (!IsObjectAlive(chunk)) {
-                // If the chunk is destroyed, all replicas for this chunk should be removed from location in TChunkManager::DestroyChunk.
-                YT_LOG_ALERT(
-                    "Restarted location has dead chunk replica (NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    location->GetUuid());
-                THROW_ERROR_EXCEPTION(
-                    "Restarted location has dead chunk replica")
-                    << TErrorAttribute("node_id", node->GetId())
-                    << TErrorAttribute("node_address", node->GetDefaultAddress())
-                    << TErrorAttribute("location_uuid", location->GetUuid());
-            }
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
                 continue;
             }
