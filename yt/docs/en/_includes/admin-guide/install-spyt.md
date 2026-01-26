@@ -13,6 +13,9 @@ spec:
     name:
       minisaurus
   image: ghcr.io/ytsaurus/spyt:{{spyt-version}}
+  sparkVersions:
+    - "3.5.7"
+    - "3.2.2"
 ```
 
 You can start the specification using `kubectl`:
