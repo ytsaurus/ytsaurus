@@ -1637,6 +1637,7 @@ class TestInferReadRange(ClickHouseTestBase):
             )
 
     @authors("buyval01")
+    @pytest.mark.timeout(0)
     def test_supported_ranges(self):
         create(
             "table",
@@ -1709,11 +1710,12 @@ class TestInferReadRange(ClickHouseTestBase):
                 2,
                 expected=[{"ts": "2025-01-01 12:21:00.000000"}, {"ts": "2025-03-03 12:23:00.000000"}]
             )
-            check(
-                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
-                2,
-                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
-            )
+
+            expected_result = [{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            check("ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("ts >= toDateTime('2025-07-07T00:00:00') AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+            check("toDateTime('2025-07-07T00:00:00') <= ts  AND ts <= toDateTime('2025-09-09T00:00:00')", 2, expected=expected_result)
+
             check("ts IN (toDateTime('2025-05-05T12:25:00'))", 1, expected=[{"ts": "2025-05-05 12:25:00.000000"}])
             check(
                 "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",

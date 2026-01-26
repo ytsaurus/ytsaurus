@@ -57,6 +57,18 @@ const std::unordered_map<std::string, EBinaryOp> BinaryOpNameToOpCode
     {"or", EBinaryOp::Or},
 };
 
+const std::unordered_map<EBinaryOp, EBinaryOp> BinaryOpToConversedOp
+{
+    {EBinaryOp::Equal, EBinaryOp::Equal},
+    {EBinaryOp::NotEqual, EBinaryOp::NotEqual},
+    {EBinaryOp::Less, EBinaryOp::Greater},
+    {EBinaryOp::LessOrEqual, EBinaryOp::GreaterOrEqual},
+    {EBinaryOp::Greater, EBinaryOp::Less},
+    {EBinaryOp::GreaterOrEqual, EBinaryOp::LessOrEqual},
+    {EBinaryOp::And, EBinaryOp::And},
+    {EBinaryOp::Or, EBinaryOp::Or},
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::DataTypePtr& targetDataType, const DB::QueryTreeNodePtr& node)
@@ -223,12 +235,15 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = std::move(expr);
                 }
-            } else if (BinaryOpNameToOpCode.contains(name)) {
+            } else if (auto it = BinaryOpNameToOpCode.find(name); it != BinaryOpNameToOpCode.end()) {
+                auto opCode = it->second;
+
                 auto lhsNode = arguments[0];
                 auto rhsNode = arguments[1];
 
                 if (rhsNode->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                     lhsNode.swap(rhsNode);
+                    opCode = BinaryOpToConversedOp.at(opCode);
                 }
 
                 DB::DataTypePtr desiredLhsDataType;
@@ -254,7 +269,7 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
                     result.emplace();
                     result->Expression = New<TBinaryOpExpression>(
                         EValueType::Boolean,
-                        BinaryOpNameToOpCode.at(name),
+                        opCode,
                         std::move(lhsExpr->Expression),
                         std::move(rhsExpr->Expression));
                 }
