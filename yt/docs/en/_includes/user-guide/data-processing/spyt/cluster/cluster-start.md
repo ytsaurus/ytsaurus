@@ -4,7 +4,7 @@ This section contains expanded instructions for starting a Spark cluster. Basic 
 
 {% note warning "Attention!" %}
 
-A started Spark cluster statically occupies the resources allocated to it. So, it is recommended that the cluster be started in a separate computational pool with guaranteed resources. It makes sense to use one cluster for the command, and recycle the resources among several users. It is recommended to use [direct submitting](../../../../../user-guide/data-processing/spyt/launch.md#submit) when it is not planned to run Spark tasks at a high intensity (less than one time in an hour).
+A started Spark cluster statically occupies the resources allocated to it. So, it is recommended that the cluster be started in a separate computational pool with guaranteed resources.  It makes sense to use one cluster for the command, and recycle the resources among several users.  We recommend [launching tasks directly](../../../../../user-guide/data-processing/spyt/launch.md#submit) if you do not plan to launch Spark tasks at a high intensity (more than once per hour).
 
 
 {% endnote %}
