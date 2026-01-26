@@ -233,7 +233,7 @@ def check_cell_health(instances, current_datetime, logger):
         logger.info("Multiple masters are missing for cell {}".format(instances))
         return CRIT
 
-    logging.info("Unknown bad state: leading={}, following={}, in_maintenance={} for cell {}".format(
+    logger.info("Unknown bad state: leading={}, following={}, in_maintenance={} for cell {}".format(
         leading, following, in_maintenance, instances))
     if current_datetime.hour >= 23 or current_datetime.hour <= 9:
         return WARN
