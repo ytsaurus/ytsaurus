@@ -931,11 +931,7 @@ void DumpCodecStatistics(
 
 bool IsAddressLocal(const std::string& address)
 {
-    // A little sanity check as it would be a weird situation.
-    YT_VERIFY(!IsAddressOffshore(GetLocalHostName()));
-
-    return !IsAddressOffshore(address) && GetServiceHostName(address) == GetLocalHostName();
-
+    return GetServiceHostName(address) == GetLocalHostName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

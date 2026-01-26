@@ -95,35 +95,62 @@ static const double MaxBackoffMultiplier = 1000.0;
 
 class TPeerId
 {
+public:
     TPeerId() = default;
 
-    explicit TPeerId(const std::string& address, int mediumIndex = GenericMediumIndex)
-        : Address(address)
+    TPeerId(TNodeId nodeId, int mediumIndex, std::optional<std::string> address = std::nullopt)
+        : IsOffshore(nodeId == OffshoreNodeId)
         , MediumIndex(mediumIndex)
+        , Address(std::move(address))
     {
+        // Non-offshore peer requires correct address.
+        YT_VERIFY(IsOffshore || address != std::nullopt);
+
         // Offshore peer requires correct medium index.
-        YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
+        YT_VERIFY(!IsOffshore || MediumIndex != GenericMediumIndex);
     }
 
-    bool IsOffshore() const
+    std::string GetPrintableAddress() const
     {
-        return IsAddressOffshore(Address);
+        // TODO(discuss in PR): I think this approach is cleaner than making Address non-optional
+        // and assigning this value - like that we keep the invariant that address is null if the
+        // peer is offshore. What do you
+        if (Address) {
+            return *Address;
+        }
+        return "generic-peer-address";
     }
 
     bool operator == (const TPeerId& other) const noexcept = default;
 
-    std::string Address;
+    bool IsOffshore;
     int MediumIndex;
+    std::optional<std::string> Address;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeerId& peerId, TStringBuf /*format*/)
 {
-    builder->AppendFormat("%v", peerId.Address);
+    if (!peerId.IsOffshore) {
+        builder->AppendFormat("%v", *peerId.Address);
+    } else {
+        builder->AppendString("generic-peer-adddress");
+    }
+
     if (peerId.MediumIndex == GenericMediumIndex) {
         builder->AppendString("@generic");
     } else {
         builder->AppendFormat("@%v", peerId.MediumIndex);
     }
+}
+
+void Serialize(const TPeerId& peerId, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("is_offshore").Value(peerId.IsOffshore)
+            .Item("medium_index").Value(peerId.MediumIndex)
+            .OptionalItem("address", peerId.Address)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,10 +166,13 @@ struct THash<NYT::NChunkClient::TPeerId>
 {
     size_t operator()(const NYT::NChunkClient::TPeerId& peerId) const
     {
-        return CombineHashes(
-            THash<std::string>()(peerId.Address),
-            THash<int>()(peerId.MediumIndex)
-        );
+        size_t result = CombineHashes(
+            THash<bool>()(peerId.IsOffshore),
+            THash<int>()(peerId.MediumIndex));
+        result = CombineHashes(
+            result,
+            THash<std::optional<std::string>>()(peerId.Address));
+        return result;
     }
 };
 
@@ -168,11 +198,6 @@ struct TPeer
     EPeerType Type;
     EAddressLocality Locality;
     std::optional<TInstant> NodeSuspicionMarkTime;
-
-    bool IsOffshore() const
-    {
-        return Id.IsOffshore();
-    }
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
@@ -213,7 +238,6 @@ struct IRequestBatcher
 
     struct TRequest
     {
-        std::string Address;
         IChannelPtr Channel;
         std::vector<int> BlockIndexes;
         TIntrusivePtr<TSessionBase> Session;
@@ -450,15 +474,22 @@ private:
         FreshSeedsRevision_ = seedReplicas.Revision;
 
         for (auto replica : seedReplicas.Replicas) {
-            const auto* nodeDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
+            auto nodeId = replica.GetNodeId();
+            if (nodeId == OffshoreNodeId) {
+                // Skipping offshore replicas as we do not ban them forever.
+                continue;
+            }
+
+            const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(nodeId);
             if (!nodeDescriptor) {
-                YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", replica.GetNodeId());
+                YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", nodeId);
                 continue;
             }
             if (auto address = nodeDescriptor->FindAddress(Networks_)) {
                 BannedForeverPeers_.erase(TPeerId{
-                    *address,
-                    replica.GetMediumIndex()
+                    nodeId,
+                    replica.GetMediumIndex(),
+                    *address
                 });
             }
         }
@@ -473,13 +504,17 @@ private:
             ++it->second;
         }
 
-        if (it->second > Config_->MaxBanCount) {
+        if (it->second > Config_->MaxBanCount && !peerId.IsOffshore) {
             BannedForeverPeers_.insert(peerId);
         }
     }
 
     void BanPeerForever(const TPeerId& peerId)
     {
+        if (peerId.IsOffshore) {
+            return;
+        }
+
         auto guard = Guard(PeersSpinLock_);
         BannedForeverPeers_.insert(peerId);
     }
@@ -815,7 +850,7 @@ protected:
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
         TChunkReplicaWithMedium replica,
-        const std::string& address,
+        std::optional<std::string> address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
         std::optional<TInstant> nodeSuspicionMarkTime)
@@ -826,22 +861,10 @@ protected:
         }
 
         TPeerId peerId{
-            address,
-            replica.GetMediumIndex()
+            replica.GetNodeId(),
+            replica.GetMediumIndex(),
+            std::move(address),
         };
-
-        std::optional<std::string> optionalAddress;
-        if (!peerId.IsOffshore()) {
-            auto optionalAddress = descriptor.FindAddress(Networks_);
-            if (!optionalAddress) {
-                YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
-                    descriptor,
-                    Networks_);
-                return false;
-            }
-        } else {
-            optionalAddress = address;
-        }
 
         TPeer peer{
             .Id = peerId,
@@ -907,7 +930,7 @@ protected:
             return nullptr;
         }
 
-        if (peerId.IsOffshore()) {
+        if (peerId.IsOffshore) {
             return reader->Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
         }
 
@@ -921,7 +944,7 @@ protected:
             }
 
             // TODO(akozhikhov): Don't catch here.
-            return channelFactory->CreateChannel(peerId.Address);
+            return channelFactory->CreateChannel(*peerId.Address);
         } catch (const std::exception& ex) {
             RegisterError(ex);
             BanPeer(peerId, false);
@@ -940,6 +963,7 @@ protected:
         }
 
         if (NodeStatusDirectory_ &&
+            !peer.Id.IsOffshore &&
             !peer.NodeSuspicionMarkTime &&
             NodeStatusDirectory_->ShouldMarkNodeSuspicious(rspOrError))
         {
@@ -949,7 +973,7 @@ protected:
                 rspOrError);
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
-                peer.Id.Address,
+                *peer.Id.Address,
                 /*suspicious*/ true,
                 std::nullopt);
         }
@@ -1003,7 +1027,7 @@ protected:
 
             if ((!filter || filter(topPeerId)) && !IsPeerBanned(topPeerId)) {
                 // Do not mix domestic and offshore peers in the result of this function.
-                if (!topPeerId.IsOffshore()) {
+                if (!topPeerId.IsOffshore) {
                     // If the peer isn't offshore, we can just add it.
                     candidates.push_back(top.Peer);
                 } else if (candidates.empty()) {
@@ -1149,14 +1173,22 @@ protected:
         std::vector<const TNodeDescriptor*> peerDescriptors;
         std::vector<TChunkReplicaWithMedium> replicas;
         std::vector<TNodeId> nodeIds;
-        std::vector<std::string> peerAddresses;
+        std::vector<std::optional<std::string>> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
         replicas.reserve(seedReplicas.size());
         nodeIds.reserve(seedReplicas.size());
         peerAddresses.reserve(seedReplicas.size());
 
         for (auto replica : seedReplicas) {
-            const auto* descriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, replica.GetNodeId());
+            if (replica.GetNodeId() == OffshoreNodeId) {
+                peerDescriptors.push_back(&NullNodeDescriptor());
+                replicas.push_back(replica);
+                nodeIds.push_back(replica.GetNodeId());
+                peerAddresses.push_back(std::nullopt);
+                continue;
+            }
+
+            const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!descriptor) {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNode,
@@ -1328,8 +1360,9 @@ protected:
 
     bool ShouldThrottle(const TPeerId& peerId, bool condition) const
     {
-        return condition &&
-            (ReaderConfig_->EnableLocalThrottling || !IsAddressLocal(peerId.Address));
+        return !peerId.IsOffshore &&
+            condition &&
+            (ReaderConfig_->EnableLocalThrottling || !IsAddressLocal(*peerId.Address));
     }
 
     bool IsCanceled() const
@@ -1766,11 +1799,13 @@ private:
         YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
 
         if (rspOrError.IsOK()) {
-            NodeStatusDirectory_->UpdateSuspicionMarkTime(
-                peer.Replica.GetNodeId(),
-                peer.Id.Address,
-                /*suspicious*/ false,
-                peer.NodeSuspicionMarkTime);
+            if (!peer.Id.IsOffshore) {
+                NodeStatusDirectory_->UpdateSuspicionMarkTime(
+                    peer.Replica.GetNodeId(),
+                    *peer.Id.Address,
+                    /*suspicious*/ false,
+                    peer.NodeSuspicionMarkTime);
+            }
             peer.NodeSuspicionMarkTime.reset();
 
             return {
@@ -1803,7 +1838,7 @@ private:
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
-        if (peer.IsOffshore()) {
+        if (peer.Id.IsOffshore) {
             // Method for probing offshore peers is not supported (yet), so we can
             // consider them always available.
             return MakeFuture(TPeerProbingResult{
@@ -1821,10 +1856,10 @@ private:
         }
         auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
             IRequestBatcher::TRequest{
-                .Address = peer.Id.Address,
                 .Channel = std::move(channel),
                 .BlockIndexes = blockIndexes,
                 .Session = MakeStrong(this),
+                .PrimaryPeer = peer
             });
 
         if (peer.NodeSuspicionMarkTime) {
@@ -2283,44 +2318,53 @@ private:
         for (const auto& peerDescriptor : peerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
             for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
-                auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
-                auto maybeSuggestedDescriptor = FindPotentiallyOffshoreNodeDescriptor(NodeDirectory_, peerNodeId);
-                if (!maybeSuggestedDescriptor) {
-                    YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorPeerId: %v)",
-                        peerNodeId,
-                        suggestorPeer.Id);
-                    continue;
-                }
+                const TNodeDescriptor* maybeSuggestedDescriptor;
+                std::optional<std::string> suggestedAddress;
 
-                if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
-                    if (AddPeer(
-                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
-                        *suggestedAddress,
-                        *maybeSuggestedDescriptor,
-                        EPeerType::Peer,
-                        /*nodeSuspicionMarkTime*/ std::nullopt))
-                    {
-                        addedNewPeers = true;
+                auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
+                if (peerNodeId != OffshoreNodeId) {
+                    maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
+                    if (!maybeSuggestedDescriptor) {
+                        YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorPeerId: %v)",
+                            peerNodeId,
+                            suggestorPeer.Id);
+                        continue;
                     }
 
-                    TPeerId suggestedPeerId(*suggestedAddress, suggestorPeer.Replica.GetMediumIndex());
-                    PeerBlocksMap_[suggestedPeerId].insert(blockIndex);
-                    YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedPeerId: %v, SuggestorPeerId: %v)",
-                        blockIndex,
-                        suggestedPeerId,
-                        suggestorPeer.Id);
-
-                    if (peerDescriptor.has_delivery_barrier()) {
-                        P2PDeliveryBarrier_[peerNodeId].emplace(
-                            blockIndex,
-                            peerDescriptor.delivery_barrier());
+                    suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_);
+                    if (!suggestedAddress) {
+                        YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
+                            "(SuggestedAddress: %v, Networks: %v, SuggestorPeerId: %v)",
+                            maybeSuggestedDescriptor->GetDefaultAddress(),
+                            Networks_,
+                            suggestorPeer.Id);
+                        continue;
                     }
                 } else {
-                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
-                        "(SuggestedAddress: %v, Networks: %v, SuggestorPeerId: %v)",
-                        maybeSuggestedDescriptor->GetDefaultAddress(),
-                        Networks_,
-                        suggestorPeer.Id);
+                    maybeSuggestedDescriptor = &NullNodeDescriptor();
+                }
+
+                if (AddPeer(
+                    TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
+                    std::move(suggestedAddress),
+                    *maybeSuggestedDescriptor,
+                    EPeerType::Peer,
+                    /*nodeSuspicionMarkTime*/ std::nullopt))
+                {
+                    addedNewPeers = true;
+                }
+
+                TPeerId suggestedPeerId(peerNodeId, suggestorPeer.Replica.GetMediumIndex(), *suggestedAddress);
+                PeerBlocksMap_[suggestedPeerId].insert(blockIndex);
+                YT_LOG_DEBUG("Block peer descriptor received (Block: %v, SuggestedPeerId: %v, SuggestorPeerId: %v)",
+                    blockIndex,
+                    suggestedPeerId,
+                    suggestorPeer.Id);
+
+                if (peerDescriptor.has_delivery_barrier()) {
+                    P2PDeliveryBarrier_[peerNodeId].emplace(
+                        blockIndex,
+                        peerDescriptor.delivery_barrier());
                 }
             }
         }
@@ -2761,7 +2805,6 @@ private:
 
         auto getBlockSetResponseFuture = RequestBatcher_->GetBlockSet(
             IRequestBatcher::TRequest{
-                .Address = primaryPeer.Id.Address,
                 .Channel = channel,
                 .BlockIndexes = blockIndexes,
                 .Session = MakeStrong(this),
@@ -4155,8 +4198,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    THashMap<std::string, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
-    THashMap<std::string, TNodeState<TGetBlocksResult>> GetBlocksStates_;
+    THashMap<TPeerId, TNodeState<TPeerResponsePtr>> ProbeBlocksStates_;
+    THashMap<TPeerId, TNodeState<TGetBlocksResult>> GetBlocksStates_;
 
     template <class TResponse>
     TRequestBatch<TResponse> BuildRequestBatch(const TRequest& request)
@@ -4179,7 +4222,7 @@ private:
     }
 
     template <class TResponse>
-    THashMap<std::string, TNodeState<TResponse>>& GetNodeStates()
+    THashMap<TPeerId, TNodeState<TResponse>>& GetNodeStates()
     {
         if constexpr (std::is_same_v<TResponse, TPeerResponsePtr>) {
             return ProbeBlocksStates_;
@@ -4310,7 +4353,7 @@ private:
     TFuture<TResponse> ExecuteRequest(const TRequest& request)
     {
         auto guard = Guard(Lock_);
-        auto& state = GetNodeStates<TResponse>()[request.Address];
+        auto& state = GetNodeStates<TResponse>()[request.PrimaryPeer.Id];
 
         YT_VERIFY(state.Current.RequestIsInitialized || !state.Next.RequestIsInitialized);
 
@@ -4334,8 +4377,8 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Start new batch request (Address: %v, RequestType: %v, Blocks: %v)",
-            request.Address,
+            "Start new batch request (PrimaryPeerId: %v, RequestType: %v, Blocks: %v)",
+            request.PrimaryPeer.Id,
             GetRequestLogName<TResponse>(),
             MakeCompactIntervalView(request.BlockIndexes));
 
@@ -4346,7 +4389,7 @@ private:
         requestFuture.Subscribe(BIND(
             &TRequestBatcher::OnBatchRequestFinished<TResponse>,
             MakeStrong(this),
-            request.Address)
+            request.PrimaryPeer.Id)
             .Via(batch.Session->SessionInvoker_));
 
         return batch;
@@ -4360,8 +4403,8 @@ private:
         YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
-            "Add blocks to next batch request (Address: %v, RequestType: %v, Blocks: %v)",
-            request.Address,
+            "Add blocks to next batch request (PrimaryPeerId: %v, RequestType: %v, Blocks: %v)",
+            request.PrimaryPeer.Id,
             GetRequestLogName<TResponse>(),
             MakeCompactIntervalView(request.BlockIndexes));
 
@@ -4398,19 +4441,19 @@ private:
 
     template <class TResponse>
     void OnBatchRequestFinished(
-        const std::string& address,
+        const TPeerId& peerId,
         const TError& /*error*/)
     {
         auto guard = Guard(Lock_);
-        auto& state = GetNodeStates<TResponse>()[address];
+        auto& state = GetNodeStates<TResponse>()[peerId];
 
         if (state.Next.RequestIsInitialized) {
             state.Current = std::move(state.Next);
             auto& nextBatch = state.Current;
 
             YT_LOG_DEBUG(
-                "Start next batch request (Address: %v, RequestType: %v, Blocks: %v, RequestCount: %v)",
-                address,
+                "Start next batch request (PeerId: %v, RequestType: %v, Blocks: %v, RequestCount: %v)",
+                peerId,
                 GetRequestLogName<TResponse>(),
                 MakeCompactIntervalView(nextBatch.BlockIds),
                 nextBatch.RequestCount);
@@ -4420,7 +4463,7 @@ private:
             requestFuture.Subscribe(BIND(
                 &TRequestBatcher::OnBatchRequestFinished<TResponse>,
                 MakeStrong(this),
-                address)
+                peerId)
                 .Via(nextBatch.Session->SessionInvoker_));
         } else {
             state.Current = {};

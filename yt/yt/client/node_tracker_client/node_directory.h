@@ -84,7 +84,6 @@ private:
 
 const std::string& NullNodeAddress();
 const TNodeDescriptor& NullNodeDescriptor();
-const TNodeDescriptor& OffshoreNodeDescriptor();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,14 +186,6 @@ private:
 };
 
 void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consumer);
-
-//! The methods below are created as an intermediate step towards a
-//! potential merge of offshore node fake descriptor into the node_directory. They must be
-//! used if the caller thinks the ID or the address belongs to the offshore node.
-const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id);
-const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectoryPtr& nodeDirectory, TNodeId id);
-const TNodeDescriptor* FindPotentiallyOffshoreNodeDescriptor(const TNodeDirectory& nodeDirectory, const std::string& address);
-const TNodeDescriptor& GetPotentiallyOffshoreNodeDescriptor(const TNodeDirectory& nodeDirectory, const std::string& address);
 
 DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 

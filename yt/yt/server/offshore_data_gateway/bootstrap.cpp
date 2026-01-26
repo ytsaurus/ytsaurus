@@ -167,6 +167,7 @@ private:
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->Start();
 
         BusServer_ = CreateBusServer(Config_->BusServer);
 
@@ -245,8 +246,6 @@ private:
         NativeConnection_->GetMediumDirectorySynchronizer()->Start();
 
         AlertManager_->Start();
-
-        DynamicConfigManager_->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
