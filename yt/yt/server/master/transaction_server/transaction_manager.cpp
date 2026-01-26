@@ -624,7 +624,13 @@ public:
         auto* user = securityManager->GetAuthenticatedUser();
         transaction->Acd().SetOwner(user);
 
-        objectManager->FillAttributes(transaction, attributes);
+        try {
+            objectManager->FillAttributes(transaction, attributes);
+        } catch (const std::exception& ex) {
+            FinishTransaction(transaction);
+
+            throw;
+        }
 
         if (!replicatedToCellTags.empty()) {
             // Never include native cell tag into ReplicatedToCellTags.

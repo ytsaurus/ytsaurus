@@ -678,6 +678,21 @@ class TestMasterTransactions(YTEnvSetup):
         rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
         assert rsp1 == rsp2
 
+    @authors("kvk1920")
+    def test_start_tx_failure(self):
+        set("//sys/@config/transaction_manager/transaction_finisher", {
+            "retries": {
+                "invocation_count": 2,
+                "min_backoff": 50,
+                "backoff_multiplier": 1.1,
+            },
+            "scan_period": 50,
+        })
+        with raises_yt_error("Builtin attribute \"type\" cannot be set"):
+            start_transaction(timeout=1000, attributes={"type": "tablet"})
+        # Should not crash or alert.
+        sleep(3.0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMulticell(TestMasterTransactions):
