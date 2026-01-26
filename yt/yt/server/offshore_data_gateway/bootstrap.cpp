@@ -55,7 +55,6 @@
 namespace NYT::NOffshoreDataGateway {
 
 using namespace NAdmin;
-using namespace NRpc;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NConcurrency;
@@ -69,7 +68,7 @@ using namespace NAlertManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = OffshoreDataGatewayLogger;
+constinit const auto Logger = OffshoreDataGatewayLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +97,7 @@ public:
         }
     }
 
-    TFuture<void> Run() final
+    TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
@@ -110,21 +109,21 @@ private:
     const INodePtr ConfigNode_;
     const IServiceLocatorPtr ServiceLocator_;
 
-    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const TActionQueuePtr ControlQueue_;
     const IInvokerPtr ControlInvoker_;
     const TOffshoreDataGatewayDynamicConfigPtr DynamicConfig_;
 
-    const NConcurrency::IThreadPoolPtr StorageThreadPool_;
+    const IThreadPoolPtr StorageThreadPool_;
 
-    TString InstanceId_;
+    std::string InstanceId_;
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
-    NYT::NBus::IBusServerPtr BusServer_;
+    NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
 
-    NApi::NNative::IConnectionPtr NativeConnection_;
-    NApi::NNative::IClientPtr NativeClient_;
+    NNative::IConnectionPtr NativeConnection_;
+    NNative::IClientPtr NativeClient_;
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
@@ -134,19 +133,22 @@ private:
 
     void DoRun()
     {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
         DoInitialize();
         DoStart();
     }
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Starting offshore data gateway process");
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         InstanceId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+        YT_LOG_INFO("Starting offshore data gateway process (InstanceId: %v)", InstanceId_);
 
-        NApi::NNative::TConnectionOptions connectionOptions;
+        NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-        NativeConnection_ = NApi::NNative::CreateConnection(
+        NativeConnection_ = NNative::CreateConnection(
             Config_->ClusterConnection,
             std::move(connectionOptions));
 
@@ -156,13 +158,9 @@ private:
             ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
             Logger());
 
-        NativeConnection_->GetClusterDirectorySynchronizer()->Start();
-        NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
-        NativeConnection_->GetMediumDirectorySynchronizer()->Start();
-
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
-        auto clientOptions = NNative::TClientOptions::FromUser(RootUserName);
+        auto clientOptions = NNative::TClientOptions::FromUser(NRpc::RootUserName);
         NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
@@ -177,8 +175,6 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         AlertManager_ = CreateAlertManager(OffshoreDataGatewayLogger(), TProfiler{}, ControlInvoker_);
-
-        DynamicConfigManager_->Start();
 
         {
             YT_LOG_INFO("Loading dynamic config for the first time");
@@ -234,7 +230,7 @@ private:
         RpcServer_->RegisterService(CreateOffshoreDataGatewayService(
             ControlInvoker_,
             StorageThreadPool_->GetInvoker(),
-            NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
+            NBus::TTcpDispatcher::Get()->GetXferPoller(),
             NativeAuthenticator_,
             NativeConnection_->GetMediumDirectory(),
             NativeConnection_->GetMediumDirectorySynchronizer()));
@@ -242,7 +238,15 @@ private:
 
     void DoStart()
     {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+        NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
+        NativeConnection_->GetMediumDirectorySynchronizer()->Start();
+
         AlertManager_->Start();
+
+        DynamicConfigManager_->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -287,6 +291,8 @@ private:
         const TOffshoreDataGatewayDynamicConfigPtr& oldConfig,
         const TOffshoreDataGatewayDynamicConfigPtr& newConfig)
     {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
         TSingletonManager::Reconfigure(newConfig);
 
         StorageThreadPool_->SetThreadCount(newConfig->StorageThreadCount);

@@ -68,31 +68,31 @@ public:
     }
 
 private:
-    IInvokerPtr StorageInvoker_;
-    IPollerPtr S3Poller_;
-    TMediumDirectoryPtr MediumDirectory_;
-    TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
+    const IInvokerPtr StorageInvoker_;
+    const IPollerPtr S3Poller_;
+    const TMediumDirectoryPtr MediumDirectory_;
+    const TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
-    template <typename RequestType>
+    template <typename TRequestType>
     IChunkReaderPtr CreateS3ReaderForRequest(
-        const RequestType& request,
+        const TRequestType& request,
         TS3ReaderConfigPtr s3ReaderConfig,
         TChunkId chunkId)
     {
-        // TODO(discuss in PR): this is an extremely questionable approach, which we'll need to
-        // discuss and fix. The problem appeared in tests, but I see it may appear in a real
-        // environment as well: if this code is reached a short time after medium creation, this
-        // new medium will not appear in the directory until it's synced, leading to an error.
-        // As a better approach we can invoke the NextSync after an unsuccessful attempt to get
-        // a medium by index, for instance.
-        WaitFor(MediumDirectorySynchronizer_->NextSync(true))
-            .ThrowOnError();
-
         auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
-        TS3MediumDescriptorPtr mediumDescriptor = MediumDirectory_
-            ->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex())
-            ->template As<TS3MediumDescriptor>();
 
+        auto genericMediumDescriptor = MediumDirectory_->FindByIndex(replicaWithMedium.GetMediumIndex());
+        if (!genericMediumDescriptor) {
+            // If this code is executed a short time after medium creation, this new medium will
+            // not appear in the directory until it's synced. That's why we issue another sync
+            // if failed to find a medium - maybe it will appear.
+            WaitFor(MediumDirectorySynchronizer_->NextSync(true))
+                .ThrowOnError();
+
+            genericMediumDescriptor = MediumDirectory_->GetByIndexOrThrow(replicaWithMedium.GetMediumIndex());
+        }
+
+        TS3MediumDescriptorPtr mediumDescriptor = genericMediumDescriptor->template As<TS3MediumDescriptor>();
         THROW_ERROR_EXCEPTION_IF(!mediumDescriptor, "Medium %v is not an S3 medium", replicaWithMedium.GetMediumIndex());
 
         // TODO(discuss in PR): We create the S3 credential provider from the medium as we store the access key ID
@@ -114,13 +114,13 @@ private:
         return CreateS3RegularChunkReader(
             std::move(s3Client),
             mediumDescriptor,
-            s3ReaderConfig,
+            std::move(s3ReaderConfig),
             chunkId);
     }
 
-    template <typename RequestsType>
+    template <typename TRequestsType>
     THashMap<TChunkId, IChunkReaderPtr> CreateS3ReadersForRequests(
-        const RequestsType& requests,
+        const TRequestsType& requests,
         TS3ReaderConfigPtr s3ReaderConfig)
     {
         THashMap<TChunkId, IChunkReaderPtr> readers;
@@ -132,24 +132,26 @@ private:
 
             readers[chunkId] = CreateS3ReaderForRequest(
                 request,
-                s3ReaderConfig,
+                std::move(s3ReaderConfig),
                 chunkId);
         }
 
         return readers;
     }
 
-    template <class RequestType>
+    template <class TRequestType>
     TFuture<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> GetChunkMetasForRequests(
-        const RepeatedPtrField<RequestType>& requests,
+        const RepeatedPtrField<TRequestType>& requests,
         THashMap<TChunkId, IChunkReaderPtr>& s3Readers)
     {
         std::vector<TFuture<TRefCountedChunkMetaPtr>> chunkMetaFutures;
+        chunkMetaFutures.reserve(requests.size());
+
         for (const auto& request : requests) {
             auto chunkId = FromProto<TChunkId>(request.chunk_id());
             chunkMetaFutures.push_back(s3Readers[chunkId]->GetMeta({}));
         }
-        return AllSet(chunkMetaFutures);
+        return AllSet(std::move(chunkMetaFutures));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)

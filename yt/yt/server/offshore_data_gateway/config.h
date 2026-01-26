@@ -32,7 +32,7 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    TString DynamicConfigPath;
+    NYPath::TYPath DynamicConfigPath;
 
     REGISTER_YSON_STRUCT(TOffshoreDataGatewayBootstrapConfig);
 

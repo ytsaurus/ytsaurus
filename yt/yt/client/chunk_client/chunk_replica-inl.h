@@ -75,7 +75,7 @@ Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
 
 Y_FORCE_INLINE void ToProto(NProto::TChunkReplicaSpec* protoReplica, TChunkReplicaWithMedium replica)
 {
-    protoReplica->set_value(replica.Value_);
+    protoReplica->set_encoded_chunk_replica_with_medium(replica.Value_);
 }
 
 Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
@@ -85,7 +85,7 @@ Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
 
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, NProto::TChunkReplicaSpec protoReplica)
 {
-    replica->Value_ = protoReplica.value();
+    replica->Value_ = protoReplica.encoded_chunk_replica_with_medium();
 }
 
 Y_FORCE_INLINE void ToProto(ui32* protoReplica, TChunkReplicaWithMedium replica)

@@ -61,10 +61,6 @@ using ::testing::SizeIs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// const auto Logger = CppTestsLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString GenerateRandomString(size_t size, TRandomGenerator* generator)
 {
     TString result;
@@ -107,7 +103,7 @@ protected:
     TChunkId ChunkId_;
     TS3MediumDescriptorPtr MediumDescriptor_;
 
-    NNative::IClientPtr NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
+    NNative::IClientPtr NativeClient_;
     IChunkReaderAllowingRepairPtr ReplicationReader_;
 
     void SetUpS3ClientAndMedium()
@@ -180,6 +176,7 @@ protected:
 
     void SetUpReplicationReader()
     {
+        NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
         ReplicationReader_ = CreateReplicationReader(
             New<TReplicationReaderConfig>(),
             New<TRemoteReaderOptions>(),

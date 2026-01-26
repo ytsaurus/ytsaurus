@@ -441,6 +441,7 @@ class YTEnvSetup(object):
         return cls.NUM_SECONDARY_MASTER_CELLS
 
     # To be redefined in successors
+    # TODO(pavel-bash): add modify_offshore_data_gateway_config when needed.
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
@@ -1202,6 +1203,7 @@ class YTEnvSetup(object):
         for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
             assert cell_tag in cell_tags
 
+    # TODO(pavel-bash): use the modify_offshore_data_gateway_config when implemented.
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         multidaemon_config = configs["multi"]

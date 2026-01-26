@@ -93,22 +93,15 @@ static const double MaxBackoffMultiplier = 1000.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPeerId
+class TPeerId
 {
     TPeerId() = default;
 
-    explicit TPeerId(const std::string& address)
-        : Address(address)
-        , MediumIndex(GenericMediumIndex)
-    {
-        // Offshore peer requires correct medium index.
-        YT_VERIFY(!IsOffshore());
-    }
-
-    TPeerId(const std::string& address, int mediumIndex)
+    explicit TPeerId(const std::string& address, int mediumIndex = GenericMediumIndex)
         : Address(address)
         , MediumIndex(mediumIndex)
     {
+        // Offshore peer requires correct medium index.
         YT_VERIFY(!IsOffshore() || MediumIndex != GenericMediumIndex);
     }
 
@@ -117,12 +110,7 @@ struct TPeerId
         return IsAddressOffshore(Address);
     }
 
-    bool operator == (const TPeerId& other) const noexcept
-    {
-        return
-            Address == other.Address &&
-            MediumIndex == other.MediumIndex;
-    }
+    bool operator == (const TPeerId& other) const noexcept = default;
 
     std::string Address;
     int MediumIndex;
@@ -1302,11 +1290,6 @@ protected:
             return {candidates.begin(), candidates.end()};
         }
 
-        // Offshore node does not participate in probing and selecting process with others.
-        YT_VERIFY(std::all_of(candidates.begin(), candidates.end(), [] (const auto& peer) {
-            return !peer.IsOffshore();
-        }));
-
         auto probingResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
         YT_VERIFY(probingResultsOrError.IsOK());
 
@@ -1328,11 +1311,6 @@ protected:
         if (candidates.size() <= 1) {
             return MakeFuture<TPeerList>({candidates.begin(), candidates.end()});
         }
-
-        // Offshore node does not participate in probing and selecting process with others.
-        YT_VERIFY(std::all_of(candidates.begin(), candidates.end(), [] (const auto& peer) {
-            return !peer.IsOffshore();
-        }));
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .AsUnique().Apply(BIND(

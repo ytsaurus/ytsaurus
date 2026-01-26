@@ -11,8 +11,8 @@ option go_package = "go.ytsaurus.tech/yt/go/proto/client/chunk_client";
 // Describes the replica of the chunk.
 message TChunkReplicaSpec
 {
-    // Encoded TChunkReplicaWithMedium.
-    required fixed64 value = 1;
+    // See TChunkReplicaWithMedium.
+    required fixed64 encoded_chunk_replica_with_medium = 1;
 }
 
 // Describes a portion of table chunk.
