@@ -754,11 +754,14 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
 
-    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
+    NApi::NNative::TConnectionOptions options;
+    options.CreateQueueConsumerRegistrationManager = Config_->StartQueueConsumerRegistrationManager;
+
+    auto connection = CreateNativeConnection(Config_->OriginalClusterConnection, std::move(options));
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
     if (Config_->StartQueueConsumerRegistrationManager) {
-        connection->GetQueueConsumerRegistrationManager()->StartSync();
+        connection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     }
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
@@ -1098,7 +1101,9 @@ TJobResult TJobProxy::RunJob()
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(
+    NApi::NNative::TConnectionCompoundConfigPtr config,
+    NApi::NNative::TConnectionOptions options) const
 {
     if (TvmBridge_ && config->Dynamic->TvmId) {
         YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
@@ -1109,7 +1114,6 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
         YT_LOG_DEBUG("Destination service id is ready");
     }
 
-    NNative::TConnectionOptions options;
     options.RetryRequestQueueSizeLimitExceeded = true;
 
     return NApi::NNative::CreateConnection(std::move(config), std::move(options));

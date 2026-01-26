@@ -11,6 +11,7 @@
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -113,7 +114,9 @@ struct IJobHost
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const = 0;
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(
+        NApi::NNative::TConnectionCompoundConfigPtr config,
+        NApi::NNative::TConnectionOptions options = {}) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

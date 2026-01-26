@@ -186,7 +186,9 @@ private:
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        NApi::NNative::TConnectionOptions connectionOptions;
+        connectionOptions.CreateQueueConsumerRegistrationManager = true;
+        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
         SetupClusterConnectionDynamicConfigUpdate(
             NativeConnection_,
@@ -281,7 +283,7 @@ private:
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
-        NativeConnection_->GetQueueConsumerRegistrationManager()->StartSync();
+        NativeConnection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
 
         CypressRegistrar_->Start();
     }
