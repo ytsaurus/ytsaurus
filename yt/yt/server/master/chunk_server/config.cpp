@@ -829,6 +829,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
+    // COMPAT(grphil)
+    registrar.Parameter("always_fetch_non_online_replicas", &TThis::AlwaysFetchNonOnlineReplicas)
+        .Default(true)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

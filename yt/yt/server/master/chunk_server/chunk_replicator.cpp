@@ -1406,6 +1406,29 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
 
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto unlockChunks = [&] (const auto& chunkIds) {
+        for (auto chunkId : chunkIds) {
+            EraseOrCrash(RemovalLockedChunkIds_, chunkId);
+
+            if (auto* chunk = chunkManager->FindChunk(chunkId); IsObjectAlive(chunk)) {
+                ScheduleChunkRefresh(chunk);
+            }
+
+            YT_LOG_DEBUG("Unlocked removing replicas for chunk on node unregistration"
+                " (ChunkId: %v, NodeAddress: %v)",
+                chunkId,
+                node->GetDefaultAddress());
+        }
+    };
+
+    unlockChunks(node->RemovalJobScheduledChunkIds());
+    node->RemovalJobScheduledChunkIds().clear();
+
+    unlockChunks(GetValues(node->AwaitingHeartbeatChunkIds()));
+    node->AwaitingHeartbeatChunkIds().clear();
+
     for (auto location : node->ChunkLocations()) {
         YT_VERIFY(location->ChunkSealQueue().empty());
         YT_VERIFY(location->ChunkRemovalQueue().empty());
@@ -1433,27 +1456,6 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             }
         }
     }
-
-    auto unlockChunks = [&] (const auto& chunkIds) {
-        for (auto chunkId : chunkIds) {
-            EraseOrCrash(RemovalLockedChunkIds_, chunkId);
-
-            if (auto* chunk = chunkManager->FindChunk(chunkId); IsObjectAlive(chunk)) {
-                ScheduleChunkRefresh(chunk);
-            }
-
-            YT_LOG_DEBUG("Unlocked removing replicas for chunk on node unregistration"
-                " (ChunkId: %v, NodeAddress: %v)",
-                chunkId,
-                node->GetDefaultAddress());
-        }
-    };
-
-    unlockChunks(node->RemovalJobScheduledChunkIds());
-    node->RemovalJobScheduledChunkIds().clear();
-
-    unlockChunks(GetValues(node->AwaitingHeartbeatChunkIds()));
-    node->AwaitingHeartbeatChunkIds().clear();
 }
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
