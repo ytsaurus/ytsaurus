@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          BUILD_TYPES='${{ inputs.build_types }}'
+          BUILD_TYPES='${{ needs.tag.build-types }}'
 
           has() {
             python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
