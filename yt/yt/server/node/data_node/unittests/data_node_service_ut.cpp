@@ -333,6 +333,20 @@ struct TCellDirectoryMock
 
     MOCK_METHOD(IChannelPtr, FindNakedMasterChannel, (EMasterChannelKind, TCellTag), (override));
     MOCK_METHOD(IChannelPtr, GetNakedMasterChannelOrThrow, (EMasterChannelKind, TCellTag), (override));
+
+    MOCK_METHOD(TSecondaryMasterConnectionConfigs, GetSecondaryMasterConnectionConfigs, (), (override));
+
+    MOCK_METHOD(
+        void,
+        ReconfigureMasterCellDirectory,
+        (const NCellMasterClient::TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs),
+        (override));
+
+    MOCK_METHOD(
+        bool,
+        ClusterMasterCompositionChanged,
+        (const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs, const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs),
+        (override));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
