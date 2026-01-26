@@ -94,7 +94,7 @@ public:
     //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, PreemptibleProgressStartTime);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, PreemptibleProgressStartTime);
 
 public:
     TAllocation(
