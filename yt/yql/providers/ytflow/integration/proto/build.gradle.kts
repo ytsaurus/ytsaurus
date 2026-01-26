@@ -35,6 +35,7 @@ protobuf {
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
         include("yt/yql/providers/ytflow/integration/proto/yt.proto")
+        include("yt/yql/providers/ytflow/integration/proto/solomon.proto")
     }
     into(buildProtoDir)
 }
