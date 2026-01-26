@@ -88,7 +88,7 @@ public:
     TRpcTestBase()
     { }
 
-    TRpcTestBase(bool useAuthenticator)
+    explicit TRpcTestBase(bool useAuthenticator)
         : UseAuthenticator_(useAuthenticator)
     { }
 
@@ -185,7 +185,6 @@ private:
     ITestServicePtr TestService_;
     bool UseAuthenticator_ = false;
 };
-
 
 template <class TImpl>
 class TRpcAuthenticatedTestBase
