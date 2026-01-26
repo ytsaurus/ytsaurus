@@ -107,7 +107,7 @@ public:
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
         // This one should not have Sequoia replicas.
-        const auto& replicas = Chunk_->StoredReplicas();
+        const auto& replicas = Chunk_->GetStoredReplicaList(/*includeOffline*/ false);
         builder.Add(replicas);
         for (auto replica : replicas) {
             if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
@@ -385,7 +385,7 @@ private:
     bool HasEnoughReplicas(TChunk* chunk)
     {
         // This one should not have Sequoia replicas.
-        return std::ssize(chunk->StoredReplicas()) >= chunk->GetReadQuorum();
+        return std::ssize(chunk->GetStoredReplicaList(/*includeOffline*/ false)) >= chunk->GetReadQuorum();
     }
 
     static bool IsFirstUnsealedInChunkList(TChunk* chunk)
@@ -689,7 +689,7 @@ private:
         // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
         // This one should not have Sequoia replicas.
-        if (std::ssize(chunk->StoredReplicas()) < chunk->GetReadQuorum()) {
+        if (std::ssize(chunk->GetStoredReplicaList(/*includeOffline*/ false)) < chunk->GetReadQuorum()) {
             return true;
         }
 
@@ -726,4 +726,3 @@ IChunkSealerPtr CreateChunkSealer(NCellMaster::TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-

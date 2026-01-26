@@ -796,6 +796,9 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
+    // COMPAT(grphil)
+    bool AlwaysFetchNonOnlineReplicas;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

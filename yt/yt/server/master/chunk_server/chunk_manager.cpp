@@ -1403,9 +1403,9 @@ public:
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
-        // Unregister chunk replicas from all known locations.
+        // Unregister chunk replicas from all known locations including non-online nodes.
         // Schedule removal jobs.
-        for (auto storedReplica : chunk->StoredReplicas()) {
+        for (auto storedReplica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
             auto* locationReplica = storedReplica.As<EStoredReplicaType::ChunkLocation>();
             if (!locationReplica) {
                 // TODO(cherepashka): handle this when offshore media will be supported.
@@ -3189,7 +3189,8 @@ private:
 
             auto* request = announcements->add_replica_announcement_requests();
             ToProto(request->mutable_chunk_id(), chunk->GetId());
-            ToProto(request->mutable_replicas(), chunk->StoredReplicas());
+            // We may have replicas from non-online nodes here.
+            ToProto(request->mutable_replicas(), chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
             request->set_confirmation_needed(confirmationNeeded);
 
             if (!clusterIsStableEnough) {
@@ -3368,7 +3369,8 @@ private:
     {
         TChunkLocation* locationWithMaxId = nullptr;
 
-        for (auto replica : chunk->StoredReplicas()) {
+        // We may have replicas from non-online nodes here.
+        for (auto replica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
             auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
             if (!locationReplica) {
                 continue;
@@ -5309,7 +5311,8 @@ private:
                 }
 
                 // TODO(aleksandra-zh): account for Sequoia replicas.
-                TotalReplicaCount_ += std::ssize(chunk->StoredReplicas());
+                // We may have replicas from non-online nodes here.
+                TotalReplicaCount_ += std::ssize(chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true));
 
                 runner.Add(chunk);
 
@@ -5319,7 +5322,8 @@ private:
             runner.Run([] (TChunk* chunk) {
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
-                for (auto replica : chunk->StoredReplicas()) {
+                // We may have replicas from non-online nodes here.
+                for (auto replica : chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true)) {
                     auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
                     if (!locationReplica) {
                         continue;

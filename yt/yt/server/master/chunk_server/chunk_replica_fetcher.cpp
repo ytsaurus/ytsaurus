@@ -238,13 +238,14 @@ public:
         auto validate = GetDynamicConfig()->ValidateSequoiaReplicasFetch;
         auto fetchReplicasFromSequoia = GetDynamicConfig()->FetchReplicasFromSequoia;
 
+        // COMPAT(grphil)
+        auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
+
         // Fastpath.
         if (!fetchReplicasFromSequoia || sequoiaChunkIds.empty()) {
             TChunkToStoredChunkReplicaList result;
             for (const auto& chunk : chunks) {
-                auto masterReplicas = chunk->StoredReplicas();
-                TStoredChunkReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
-                result.emplace(chunk->GetId(), replicaList);
+                result.emplace(chunk->GetId(), chunk->GetStoredReplicaList(includeNonOnlineReplicas));
             }
             return result;
         }
@@ -255,7 +256,7 @@ public:
         // If validation is disabled master replicas will be fetched below (in CombineReplicas).
         if (validate) {
             for (const auto& chunk : chunks) {
-                auto masterReplicas = chunk->StoredReplicas();
+                auto masterReplicas = chunk->GetStoredReplicaList(includeNonOnlineReplicas);
                 std::vector<TSequoiaChunkReplica> replicas;
                 std::vector<TSequoiaChunkReplica> unapprovedReplicas;
                 for (const auto& masterReplica : masterReplicas) {
@@ -278,7 +279,7 @@ public:
                     }
                 }
 
-                YT_LOG_TRACE("Fetched master replicas (ChunkId: %v, MasterReplicas: %v, UnapprovedMasterrReplicas: %v)",
+                YT_LOG_TRACE("Fetched master replicas (ChunkId: %v, MasterReplicas: %v, UnapprovedMasterReplicas: %v)",
                     chunk->GetId(),
                     replicas,
                     unapprovedReplicas);
@@ -322,7 +323,7 @@ public:
         }
 
         // This will fetch stored master replicas again.
-        return CombineReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
+        return CombineReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds, includeNonOnlineReplicas);
     }
 
     void ValidateSequoiaReplicaFetch(
@@ -431,7 +432,8 @@ public:
 
         THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>> result;
         for (const auto& chunk : chunks) {
-            auto masterReplicas = chunk->StoredReplicas();
+            // We may have non-online replicas here, they will be filtered in FilterAliveReplicas.
+            auto masterReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
             std::vector<TSequoiaChunkReplica> replicas;
             for (const auto& masterReplica : masterReplicas) {
                 TSequoiaChunkReplica replica;
@@ -676,6 +678,11 @@ private:
 
     TStoredChunkReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
     {
+        VerifyPersistentStateRead();
+
+        // COMPAT(grphil)
+        auto includeNonOnlineReplicas = GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager->AlwaysFetchNonOnlineReplicas;
+
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         TStoredChunkReplicaList aliveReplicas;
         for (const auto& replica : replicas) {
@@ -695,15 +702,25 @@ private:
                     locationIndex);
                 continue;
             }
+
+            if (!includeNonOnlineReplicas && node->GetLocalState() != ENodeState::Online) {
+                YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
+                    chunkId,
+                    node->GetDefaultAddress(),
+                    node->GetLocalState());
+                continue;
+            }
             aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(location, replica.ReplicaIndex, replica.ReplicaState));
         }
         return aliveReplicas;
     }
 
+    // COMPAT(grphil): includeNonOnlineReplicas
     TChunkToStoredChunkReplicaList CombineReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
-        const std::vector<TChunkId>& sequoiaChunkIds) const
+        const std::vector<TChunkId>& sequoiaChunkIds,
+        bool includeNonOnlineReplicas) const
     {
         VerifyPersistentStateRead();
 
@@ -719,9 +736,8 @@ private:
         }
 
         for (const auto& chunk : chunks) {
-            auto masterReplicas = chunk->StoredReplicas();
-            TStoredChunkReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
-            auto [it, inserted] = result.emplace(chunk->GetId(), replicaList);
+            auto filteredMasterReplicas = chunk->GetStoredReplicaList(includeNonOnlineReplicas);
+            auto [it, inserted] = result.emplace(chunk->GetId(), filteredMasterReplicas);
 
             if (inserted) {
                 continue;
@@ -732,7 +748,7 @@ private:
             }
 
             auto& replicas = it->second.Value();
-            replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
+            replicas.insert(replicas.end(), filteredMasterReplicas.begin(), filteredMasterReplicas.end());
 
             SortUniqueBy(replicas, [] (const auto& replica) {
                 auto replicaIndex = replica.GetReplicaIndex();
