@@ -198,6 +198,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddPerTabletConflictHorizonTimestamp)                         (3147))  // ponasenko-rs
     ((UserClusterwideRequestRateLimits)                             (3148))  // shakurov
     ((SortUniqueTxReplicatedToCellTags)                             (3149))  // shakurov
+    ((FixMirroredTransactionCreationFailure)                        (3150))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
