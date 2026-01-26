@@ -109,6 +109,8 @@ def get_dynamic_master_config():
             "enable_node_cpu_statistics": True,
             "forbid_maintenance_attribute_writes": False,
             "node_disposal_tick_period": 100,
+            "return_master_cells_connection_configs_on_node_registration": True,
+            "return_master_cells_connection_configs_on_node_heartbeat": True,
         },
 
         "object_manager": {

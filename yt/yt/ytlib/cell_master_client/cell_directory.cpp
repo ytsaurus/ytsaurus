@@ -121,7 +121,7 @@ public:
         return SecondaryMasterCellIds_;
     }
 
-    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs()
+    TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() override
     {
         auto guard = ReaderGuard(SpinLock_);
         return SecondaryMasterConnectionConfigs_;
@@ -298,7 +298,8 @@ public:
                 "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
                 oldSecondaryMasterCellTags,
                 newSecondaryMasterCellTags);
-            ReconfigureMasterCellDirectory(oldSecondaryMasterConnectionConfigs, newSecondaryMasterConnectionConfigs, newSecondaryMasterCellTags);
+
+            ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
         }
 
         if (oldSecondaryMasterCellTags.empty() &&
@@ -413,7 +414,7 @@ private:
 
     bool ClusterMasterCompositionChanged(
         const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) override
     {
         if (newSecondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
             return true;
@@ -432,39 +433,34 @@ private:
         return false;
     }
 
-    void ReconfigureMasterCellDirectory(
-        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs,
-        const TCellTagList& secondaryMasterCellTags)
+    struct TMasterCellDirectoryUpdate
     {
-        THashSet<TCellId> secondaryMasterCellIds;
-        secondaryMasterCellIds.reserve(secondaryMasterConnectionConfigs.size());
+        TSecondaryMasterConnectionConfigs NewSecondaryMastersConnectionConfigs;
+        TSecondaryMasterConnectionConfigs ChangedSecondaryMastersConnectionConfigs;
+        THashSet<NObjectClient::TCellTag> RemovedSecondaryMasterCellTags;
+    };
 
-        THashSet<TCellTag> newSecondaryMasterCellTags;
-        newSecondaryMasterCellTags.reserve(secondaryMasterConnectionConfigs.size());
+    TMasterCellDirectoryUpdate BuildMasterCellDirectoryUpdate(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
+
         TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
         newSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
 
-        THashSet<TCellTag> changedSecondaryMasterCellTags;
-        changedSecondaryMasterCellTags.reserve(secondaryMasterConnectionConfigs.size());
         TSecondaryMasterConnectionConfigs changedSecondaryMasterConfigs;
         changedSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
 
         for (const auto& [cellTag, secondaryMaster] : secondaryMasterConnectionConfigs) {
-            if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
+            if (!SecondaryMasterConnectionConfigs_.contains(cellTag)) {
                 EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(newSecondaryMasterCellTags, cellTag);
-                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
-                    cellTag);
-            } else if (const auto& oldAddresses = GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses;
+            } else if (const auto& oldAddresses = GetOrCrash(SecondaryMasterConnectionConfigs_, cellTag)->Addresses;
                 secondaryMaster->Addresses != oldAddresses)
             {
                 YT_LOG_INFO("Master cell peer addresses changed and will be merged (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
                     cellTag,
                     secondaryMaster->Addresses,
                     oldAddresses);
-
-                InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
 
                 std::optional<std::vector<std::string>> mergedAddresses;
                 if (oldAddresses) {
@@ -484,25 +480,41 @@ private:
                 auto it = EmplaceOrCrash(changedSecondaryMasterConfigs, cellTag, secondaryMaster);
                 it->second->Addresses = std::move(mergedAddresses);
             }
-            InsertOrCrash(secondaryMasterCellIds, secondaryMaster->CellId);
         }
 
         THashSet<TCellTag> removedSecondaryMasterCellTags;
-        removedSecondaryMasterCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
-        for (const auto& [cellTag, _] : oldSecondaryMasterConnectionConfigs) {
+        removedSecondaryMasterCellTags.reserve(SecondaryMasterConnectionConfigs_.size());
+        for (const auto& [cellTag, _] : SecondaryMasterConnectionConfigs_) {
             if (!secondaryMasterConnectionConfigs.contains(cellTag)) {
                 InsertOrCrash(removedSecondaryMasterCellTags, cellTag);
             }
         }
-        YT_LOG_ALERT_UNLESS(
-            removedSecondaryMasterCellTags.empty(),
-            "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryMasterCellTags);
 
+        return TMasterCellDirectoryUpdate{
+            .NewSecondaryMastersConnectionConfigs = std::move(newSecondaryMasterConfigs),
+            .ChangedSecondaryMastersConnectionConfigs = std::move(changedSecondaryMasterConfigs),
+            .RemovedSecondaryMasterCellTags = std::move(removedSecondaryMasterCellTags),
+        };
+    }
+
+    void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) override
+    {
         {
             auto connection = Owner_.Lock();
+            // NB: To prevent racy configs changes between different updates, we hold lock for both computation of the update and application of changes.
             auto guard = WriterGuard(SpinLock_);
-            for (const auto& [_, secondaryMaster] : newSecondaryMasterConfigs) {
+
+            auto [newSecondaryMasterConfigs, changedSecondaryMasterConfigs, removedSecondaryMasterCellTags] = BuildMasterCellDirectoryUpdate(secondaryMasterConnectionConfigs);
+
+            YT_LOG_ALERT_UNLESS(
+                removedSecondaryMasterCellTags.empty(),
+                "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
+                removedSecondaryMasterCellTags);
+
+            for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConfigs) {
+                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
+                    cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && connection) {
                     connection->GetCellDirectory()->ReconfigureCell(secondaryMaster);
@@ -517,20 +529,20 @@ private:
             }
 
             SecondaryMasterConnectionConfigs_ = secondaryMasterConnectionConfigs;
-            SecondaryMasterCellIds_ = std::move(secondaryMasterCellIds);
-            SecondaryMasterCellTags_ = secondaryMasterCellTags;
+            SecondaryMasterCellIds_ = GetMasterCellIds(secondaryMasterConnectionConfigs);
+            SecondaryMasterCellTags_ = GetMasterCellTags(secondaryMasterConnectionConfigs);
+
+            YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
+                "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
+                GetMasterCellTags(newSecondaryMasterConfigs),
+                GetMasterCellTags(changedSecondaryMasterConfigs),
+                removedSecondaryMasterCellTags);
+
+            CellDirectoryChanged_.Fire(
+                newSecondaryMasterConfigs,
+                changedSecondaryMasterConfigs,
+                removedSecondaryMasterCellTags);
         }
-
-        YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
-            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-            newSecondaryMasterCellTags,
-            changedSecondaryMasterCellTags,
-            removedSecondaryMasterCellTags);
-
-        CellDirectoryChanged_.Fire(
-            newSecondaryMasterConfigs,
-            changedSecondaryMasterConfigs,
-            removedSecondaryMasterCellTags);
     }
 
     [[noreturn]] void ThrowUnknownMasterCellTag(TCellTag cellTag) const
@@ -700,6 +712,23 @@ ICellDirectoryPtr CreateCellDirectory(
         std::move(channelFactory),
         std::move(connection),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
+{
+    auto cellTags = GetKeys(masterConnectionConfigs);
+    return TCellTagList(cellTags.begin(), cellTags.end());
+}
+
+THashSet<TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs)
+{
+    THashSet<TCellId> masterCellIds;
+    for (const auto& [_, config] : masterConnectionConfigs) {
+        InsertOrCrash(masterCellIds, config->CellId);
+    }
+    return masterCellIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

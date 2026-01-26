@@ -67,6 +67,18 @@ struct ICellDirectory
 
     //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
+
+    //! Returns secondary masters connection configuration.
+    virtual TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() = 0;
+
+    //! Reconfigures master connection directory.
+    virtual void ReconfigureMasterCellDirectory(
+        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs) = 0;
+
+    // TODO(cherepashka): make it static function or just separate from ICellDirectory.
+    virtual bool ClusterMasterCompositionChanged(
+        const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectory)
@@ -79,6 +91,12 @@ ICellDirectoryPtr CreateCellDirectory(
     NRpc::IChannelFactoryPtr channelFactory,
     TWeakPtr<NApi::NNative::IConnection> connection,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(cherepashka): move into helpers file.
+NObjectClient::TCellTagList GetMasterCellTags(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
+THashSet<NObjectClient::TCellId> GetMasterCellIds(const TSecondaryMasterConnectionConfigs& masterConnectionConfigs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

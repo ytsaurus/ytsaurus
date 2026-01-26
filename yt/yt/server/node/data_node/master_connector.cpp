@@ -144,9 +144,7 @@ public:
         clusterNodeMasterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         clusterNodeMasterConnector->SubscribeStartHeartbeats(BIND_NO_PROPAGATE(&TMasterConnector::OnStartHeartbeats, MakeWeak(this)));
         clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
-        Bootstrap_->SubscribeSecondaryMasterCellListChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this))
-                .Via(controlInvoker));
+        Bootstrap_->SubscribeSecondaryMasterCellListChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
