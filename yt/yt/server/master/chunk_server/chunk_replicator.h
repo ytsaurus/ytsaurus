@@ -68,7 +68,7 @@ public:
     void OnIncumbencyStarted(int shardIndex) override;
     void OnIncumbencyFinished(int shardIndex) override;
 
-    void OnNodeDisposed(TNode* node);
+    void OnNodeDisposedOrRestarted(TNode* node);
     void OnNodeUnregistered(TNode* node);
 
     // 'On all of the media' chunk states. E.g. LostChunks contain chunks that
