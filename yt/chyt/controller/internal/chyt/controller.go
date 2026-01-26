@@ -41,18 +41,19 @@ type ResourcesConfig struct {
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline and chyt binaries.
-	LocalBinariesDir          *string                 `yson:"local_binaries_dir"`
-	LogRotationMode           *LogRotationModeType    `yson:"log_rotation_mode"`
-	AddressResolver           map[string]any          `yson:"address_resolver"`
-	BusServer                 map[string]any          `yson:"bus_server"`
-	EnableYandexSpecificLinks *bool                   `yson:"enable_yandex_specific_links"`
-	ExportSystemLogTables     *bool                   `yson:"export_system_log_tables"`
-	EnableGeodata             *bool                   `yson:"enable_geodata"`
-	EnableRuntimeData         *bool                   `yson:"enable_runtime_data"`
-	ResourcesConfig           *ResourcesConfig        `yson:"resources_config"`
-	SecureVaultFiles          map[string]string       `yson:"secure_vault_files"`
-	DefaultSpeclet            *Speclet                `yson:"default_speclet"`
-	DefaultOpletHealth        *strawberry.OpletHealth `yson:"default_oplet_health"`
+	LocalBinariesDir           *string                 `yson:"local_binaries_dir"`
+	LogRotationMode            *LogRotationModeType    `yson:"log_rotation_mode"`
+	AddressResolver            map[string]any          `yson:"address_resolver"`
+	BusServer                  map[string]any          `yson:"bus_server"`
+	EnableYandexSpecificLinks  *bool                   `yson:"enable_yandex_specific_links"`
+	ExportSystemLogTables      *bool                   `yson:"export_system_log_tables"`
+	EnableGeodata              *bool                   `yson:"enable_geodata"`
+	EnableRuntimeData          *bool                   `yson:"enable_runtime_data"`
+	ResourcesConfig            *ResourcesConfig        `yson:"resources_config"`
+	SecureVaultFiles           map[string]string       `yson:"secure_vault_files"`
+	DefaultSpeclet             *Speclet                `yson:"default_speclet"`
+	SpecletConfigExclusionTree map[string]any          `yson:"speclet_config_exclusion_tree"`
+	DefaultOpletHealth         *strawberry.OpletHealth `yson:"default_oplet_health"`
 }
 
 type controllerSnapshot struct {
