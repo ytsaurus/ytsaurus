@@ -507,6 +507,13 @@ void TTabletBalancer::OnBundleBalancingFinished(const TError& error, const std::
         return;
     }
 
+    if (!IsActive_.load()) {
+        YT_LOG_DEBUG("Canceling iteration because tablet balancer instance is no longer active (BundleName: %v)",
+            bundleName);
+        ActionManager_->CancelPendingActions(bundleName);
+        return;
+    }
+
     if (!IsBundleHealthy(bundleName)) {
         YT_LOG_INFO("Canceling pending actions for bundle because a bundle with the same "
             "name is unhealthy on a replica cluster (BundleName: %v)",
