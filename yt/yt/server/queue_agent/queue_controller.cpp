@@ -550,7 +550,7 @@ private:
         auto startTime = TInstant::Now();
         auto previousQueueSnapshot = QueueSnapshot_.Acquire();
         auto passProfiler = PassProfiler_.Acquire();
-        if (!!previousQueueSnapshot) {
+        if (previousQueueSnapshot) {
             passProfiler->OnStart(previousQueueSnapshot->PassIndex + 1, startTime);
         }
 

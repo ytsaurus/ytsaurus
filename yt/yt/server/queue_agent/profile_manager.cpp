@@ -114,7 +114,7 @@ class TQueueProfileManager
     : public NDetail::TProfileManagerBase<TQueueSnapshotPtr>
 {
 public:
-    explicit TQueueProfileManager(
+    TQueueProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
         const TQueueTableRow& row,
@@ -215,7 +215,7 @@ public:
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
     std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
@@ -290,7 +290,7 @@ class TConsumerProfileManager
     : public NDetail::TProfileManagerBase<TConsumerSnapshotPtr>
 {
 public:
-    explicit TConsumerProfileManager(
+    TConsumerProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
         const TConsumerTableRow& row,
@@ -423,16 +423,17 @@ public:
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
 
     std::unique_ptr<TConsumerProfilingCounters> ConsumerProfilingCounters_;
 
-    struct PartitionProfiler {
+    struct TPartitionProfiler
+    {
         std::string CurrentQueueTag;
         std::vector<TConsumerPartitionProfilingCounters> Counters{};
     };
 
-    THashMap<TCrossClusterReference, PartitionProfiler> ConsumerPartitionProfilingCounters_;
+    THashMap<TCrossClusterReference, TPartitionProfiler> ConsumerPartitionProfilingCounters_;
 
     void EnsureCounters(const TConsumerSnapshotPtr& currentConsumerSnapshot)
     {
@@ -461,7 +462,7 @@ private:
         profiler = profiler.WithTags(tagSet);
 
         if (!ConsumerPartitionProfilingCounters_.contains(queueRef)) {
-            ConsumerPartitionProfilingCounters_[queueRef] = PartitionProfiler{
+            ConsumerPartitionProfilingCounters_[queueRef] = TPartitionProfiler{
                 .CurrentQueueTag = queueTag,
             };
         }
@@ -470,7 +471,7 @@ private:
 
         if (partitionProfiler.CurrentQueueTag != queueTag) {
             YT_LOG_DEBUG(
-                "Updating consumer partition counters (Queue: %v, Partitions: %v, queueTag: %v -> %v)",
+                "Updating consumer partition counters (Queue: %v, Partitions: %v, QueueTag: %v -> %v)",
                 queueRef,
                 subConsumerSnapshot->PartitionCount,
                 partitionProfiler.CurrentQueueTag,
