@@ -991,6 +991,8 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
                 typedOperands.back() = ApplyRewriters(typedOperands.back());
             }
 
+            subexpressionName = InferName(New<TFunctionExpression>(type, functionName, typedOperands));
+
             AggregateItems_->emplace_back(
                 typedOperands,
                 functionName,
