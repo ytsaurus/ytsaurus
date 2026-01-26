@@ -67,4 +67,4 @@ const NProfiling::TProfiler& TProfileManagerBase<TSnapshotPtr>::GetProfiler(EPro
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NQueueAgent::NDetail
+} // namespace NYT::NQueueAgent::NDetail

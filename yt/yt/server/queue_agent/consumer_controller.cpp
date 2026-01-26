@@ -625,7 +625,7 @@ private:
         auto startTime = TInstant::Now();
         auto previousConsumerSnapshot = ConsumerSnapshot_.Acquire();
         auto passProfiler = PassProfiler_.Acquire();
-        if (!!previousConsumerSnapshot) {
+        if (previousConsumerSnapshot) {
             passProfiler->OnStart(previousConsumerSnapshot->PassIndex + 1, startTime);
         }
 
