@@ -63,6 +63,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
         Bootstrap_->GetControlInvoker(),
         Logger()))
     , DisableJobsBackoffStrategy_(DynamicConfig_.Acquire()->DisableJobsBackoffStrategy)
+    , ResurrectionBackoffStrategy_(DynamicConfig_.Acquire()->ResurrectionBackoffStrategy)
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -233,9 +234,8 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     JobEnvironment_ = CreateJobEnvironment(
         StaticConfig_->JobEnvironment,
         Bootstrap_);
-    JobEnvironment_->OnDynamicConfigChanged(
-        Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager,
-        Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager);
+    const auto& dynamicConfig = Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager;
+    JobEnvironment_->OnDynamicConfigChanged(dynamicConfig, dynamicConfig);
 
     // Job environment must be initialized first, since it cleans up all the processes,
     // which may hold open descriptors to volumes, layers and files in sandboxes.
@@ -258,6 +258,10 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     }
 
     InitializeSlots();
+
+    if (dynamicConfig->ForceDisableJobEnvironment) {
+        JobEnvironment_->Disable(TError("Job environment disabled by force_disable_job_environment"));
+    }
 
     if (!JobEnvironment_->IsEnabled()) {
         auto error = TError("Job environment is disabled");
@@ -343,9 +347,15 @@ void TSlotManager::OnDynamicConfigChanged(
             this_ = MakeStrong(this)
         ] {
             DisableJobsBackoffStrategy_.UpdateOptions(newConfig->DisableJobsBackoffStrategy);
+            ResurrectionBackoffStrategy_.UpdateOptions(newConfig->ResurrectionBackoffStrategy);
             if (JobEnvironment_) {
                 try {
                     JobEnvironment_->OnDynamicConfigChanged(oldConfig, newConfig);
+                    if (newConfig->ForceDisableJobEnvironment) {
+                        JobEnvironment_->Disable(TError("Job environment disabled by force_disable_job_environment"));
+                    } else if (oldConfig->ForceDisableJobEnvironment && !JobEnvironment_->IsEnabled()) {
+                        EnqueueResurrectionBackoff();
+                    }
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(TError(ex));
                 }
@@ -701,6 +711,7 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
     }
 
     return {
+        .State = State_,
         .SlotCount = SlotCount_,
         .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
         .UsedIdleSlotCount = UsedIdleSlotCount_,
@@ -809,10 +820,33 @@ std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
     return Locations_;
 }
 
+void TSlotManager::EnqueueResurrectionBackoff()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (IsJobEnvironmentResurrectionEnabled() && ResurrectionBackoffStrategy_.Next()) {
+        YT_LOG_INFO("Enqueue job environment resurrection (Backoff: %v, InvocationIndex: %v, InvocationCount: %v)",
+            ResurrectionBackoffStrategy_.GetBackoff(),
+            ResurrectionBackoffStrategy_.GetInvocationIndex(),
+            ResurrectionBackoffStrategy_.GetInvocationCount());
+
+        TDelayedExecutor::Submit(
+            BIND([this, this_ = MakeStrong(this)] {
+                YT_UNUSED_FUTURE(InitializeEnvironment());
+            }),
+            ResurrectionBackoffStrategy_.GetBackoff(),
+            Bootstrap_->GetJobInvoker());
+    }
+}
+
 void TSlotManager::SetDisabledState()
 {
-    State_.store(ESlotManagerState::Disabled);
-    Disabled_.FireAndClear();
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (State_.exchange(ESlotManagerState::Disabled) != ESlotManagerState::Disabled) {
+        Disabled_.FireAndClear();
+        EnqueueResurrectionBackoff();
+    }
 }
 
 bool TSlotManager::Disable(TError error)
@@ -1093,6 +1127,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("state").Value(FormatEnum(slotManagerInfo.State))
             .Item("slot_count").Value(slotManagerInfo.SlotCount)
             .Item("free_slot_count").Value(slotManagerInfo.FreeSlotCount)
             .Item("used_idle_slot_count").Value(slotManagerInfo.UsedIdleSlotCount)
@@ -1193,6 +1228,7 @@ void TSlotManager::FinishInitialization(const TError& error)
 
     if (error.IsOK()) {
         YT_LOG_INFO("Slot manager async initialization finished");
+        ResurrectionBackoffStrategy_.Restart();
         State_.store(ESlotManagerState::Initialized);
     } else {
         auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Initialization failed")
