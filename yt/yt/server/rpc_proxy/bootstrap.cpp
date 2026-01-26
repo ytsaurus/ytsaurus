@@ -169,6 +169,7 @@ void TBootstrap::DoInitialize()
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    connectionOptions.CreateQueueConsumerRegistrationManager = true;
     Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         std::move(connectionOptions),
@@ -177,7 +178,7 @@ void TBootstrap::DoInitialize()
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     Connection_->GetNodeDirectorySynchronizer()->Start();
-    Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);

@@ -174,7 +174,7 @@ public:
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByObjectIdOrThrow, (NChaosClient::TChaosObjectId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
-    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
+    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManagerOrThrow, (), (const, override));
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
