@@ -132,6 +132,7 @@ class LocalYtConfig(object):
     tablet_balancer_count = attr.ib(0)
     cypress_proxy_count = attr.ib(0)
     replicated_table_tracker_count = attr.ib(0)
+    offshore_data_gateway_count = attr.ib(0)
 
     """Start options"""
     defer_node_start = attr.ib(False)
