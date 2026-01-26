@@ -84,6 +84,9 @@ jobs:
             elif [[ $GITHUB_REF =~ "query-tracker" ]];
             then
               IMAGE_TAG=dev-${GITHUB_REF#refs/*/query-tracker/}
+            elif [[ $GITHUB_REF =~ "chyt" ]];
+            then
+              IMAGE_TAG=dev-${GITHUB_REF#refs/*/chyt/}
             else
               IMAGE_TAG=dev-test
             fi
@@ -196,6 +199,22 @@ jobs:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
+
+  create-task-for-ytsaurus-ci:
+    name: Make task for YTsaurus CI
+    if: ${{ startsWith(github.ref_name, 'stable/')
+          || startsWith(github.ref_name, 'query-tracker/')
+          || startsWith(github.ref_name, 'chyt/') }}
+    needs:
+      - docker-ya-make
+    uses: ./.github/workflows/ytsaurus-ci-runner.yaml
+    with:
+      scenario: release-tests
+      ref_name: ${{ github.ref_name }}
+      image_tag: ${{ needs.docker-ya-make.outputs.image-tag }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
 
   check:
     name: Check

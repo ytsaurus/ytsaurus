@@ -1,0 +1,16 @@
+main:
+  source: dev
+  constraints:
+    operator: main
+23.1:
+  source: test
+  constraints:
+    operator: "0.0.1 && main"
+25.2:
+  source: test
+  constraints:
+    operator: ">=0.25.0"
+25.3:
+  source: test
+  constraints:
+    operator: ">=0.26.0"
