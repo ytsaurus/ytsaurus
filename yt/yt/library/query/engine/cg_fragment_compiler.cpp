@@ -3029,10 +3029,8 @@ size_t MakeCodegenMultiJoinOp(
 
                     const auto& equations = parameters[index].Equations;
                     for (size_t column = 0; column < equations.size(); ++column) {
-                        if (!equations[column].second) {
-                            auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
-                            joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
-                        }
+                        auto joinKeyValue = CodegenFragment(rowBuilder, equations[column]);
+                        joinKeyValue.StoreToValues(rowBuilder, keyValues, column);
                     }
 
                     TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
@@ -3041,15 +3039,6 @@ size_t MakeCodegenMultiJoinOp(
                         keyValues,
                         rowBuilder.ExpressionClosurePtr,
                     });
-
-                    for (size_t column = 0; column < equations.size(); ++column) {
-                        if (equations[column].second) {
-                            auto evaluatedColumn = CodegenFragment(
-                                evaluatedColumnsBuilder,
-                                equations[column].first);
-                            evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyValues, column);
-                        }
-                    }
                 }
 
                 Value* primaryValuesPtrRef = builder->ViaClosure(primaryValuesPtr);

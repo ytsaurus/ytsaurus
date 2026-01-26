@@ -239,7 +239,7 @@ size_t MakeCodegenFilterFinalizedOp(
 
 struct TSingleJoinCGParameters
 {
-    std::vector<std::pair<size_t, bool>> Equations;
+    std::vector<size_t> Equations;
     size_t CommonKeyPrefix;
     size_t ForeignKeyPrefix;
     std::vector<EValueType> LookupKeyTypes;

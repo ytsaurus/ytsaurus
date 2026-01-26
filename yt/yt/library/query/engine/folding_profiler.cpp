@@ -2496,21 +2496,14 @@ void TQueryProfiler::Profile(
 
             int equationCount = joinClause->SelfEquations.size();
 
-            std::vector<std::pair<size_t, bool>> selfKeys(equationCount);
+            std::vector<size_t> selfKeys(equationCount);
             std::vector<EValueType> lookupKeyTypes(equationCount);
             for (int index = 0; index < equationCount; ++index) {
-                const auto& [expression, evaluated] = joinClause->SelfEquations[index];
-                const auto& expressionSchema = evaluated ? joinClause->Schema.Original : schema;
-
-                selfKeys[index] = {
-                    TExpressionProfiler::Profile(
-                        expression,
-                        expressionSchema,
-                        &equationFragments,
-                        evaluated),
-                    evaluated,
-                };
-                lookupKeyTypes[index] = expression->GetWireType();
+                selfKeys[index] = TExpressionProfiler::Profile(
+                    joinClause->SelfEquations[index],
+                    schema,
+                    &equationFragments);
+                lookupKeyTypes[index] = joinClause->SelfEquations[index]->GetWireType();
             }
 
             TSingleJoinCGParameters codegenParameters{

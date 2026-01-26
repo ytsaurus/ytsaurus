@@ -716,7 +716,7 @@ TJoinClausePtr BuildJoinClause(
         .Mapping = &joinClause->Schema.Mapping,
     });
 
-    std::vector<TSelfEquation> selfEquations;
+    std::vector<TConstExpressionPtr> selfEquations;
     selfEquations.reserve(tableJoin.Fields.size() + tableJoin.Lhs.size());
     std::vector<TConstExpressionPtr> foreignEquations;
     foreignEquations.reserve(tableJoin.Fields.size() + tableJoin.Rhs.size());
@@ -750,18 +750,12 @@ TJoinClausePtr BuildJoinClause(
                 << TErrorAttribute("foreign_type", foreignColumnType);
         }
 
-        selfEquations.push_back({
-            .Expression = New<TReferenceExpression>(selfColumnType, columnName),
-            .Evaluated = false,
-        });
+        selfEquations.push_back(New<TReferenceExpression>(selfColumnType, columnName));
         foreignEquations.push_back(New<TReferenceExpression>(foreignColumnType, columnName));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
-        selfEquations.push_back({
-            .Expression = ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)),
-            .Evaluated = false,
-        });
+        selfEquations.push_back(ApplyRewriters(builder->BuildTypedExpression(argument, ComparableTypes)));
     }
     for (const auto& argument : tableJoin.Rhs) {
         foreignEquations.push_back(ApplyRewriters(foreignBuilder->BuildTypedExpression(argument, ComparableTypes)));
@@ -776,11 +770,11 @@ TJoinClausePtr BuildJoinClause(
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
-        if (selfEquations[index].Expression->GetWireType() != foreignEquations[index]->GetWireType()) {
+        if (selfEquations[index]->GetWireType() != foreignEquations[index]->GetWireType()) {
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
-                InferName(selfEquations[index].Expression),
+                InferName(selfEquations[index]),
                 InferName(foreignEquations[index]))
-                << TErrorAttribute("self_type", selfEquations[index].Expression->LogicalType)
+                << TErrorAttribute("self_type", selfEquations[index]->LogicalType)
                 << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
         }
     }
@@ -788,7 +782,7 @@ TJoinClausePtr BuildJoinClause(
     // If possible, use ranges, rearrange equations according to foreign key columns, enriching with evaluated columns
     size_t commonKeyPrefix = 0;
     size_t foreignKeyPrefix = 0;
-    std::vector<TSelfEquation> keySelfEquations;
+    std::vector<TConstExpressionPtr> keySelfEquations;
     std::vector<TConstExpressionPtr> keyForeignEquations;
     THashSet<int> usedForKeyPrefixEquations;
 
@@ -850,10 +844,7 @@ TJoinClausePtr BuildJoinClause(
             // Register foreign evaluated column in the effective schema.
             foreignBuilder->ResolveColumn(foreignKeyColumnReference);
 
-            keySelfEquations.push_back({
-                .Expression = std::move(matchingSelfExpression),
-                .Evaluated = false,
-            });
+            keySelfEquations.push_back(std::move(matchingSelfExpression));
             keyForeignEquations.push_back(New<TReferenceExpression>(
                 foreignKeyColumn.LogicalType(),
                 aliasedForeignKeyColumnName));
@@ -864,7 +855,7 @@ TJoinClausePtr BuildJoinClause(
         if (commonKeyPrefix == foreignKeyPrefix &&
             static_cast<int>(commonKeyPrefix) < tableSchema->GetKeyColumnCount())
         {
-            if (auto* reference = keySelfEquations.back().Expression->As<TReferenceExpression>()) {
+            if (auto* reference = keySelfEquations.back()->As<TReferenceExpression>()) {
                 auto aliasedName = NAst::InferColumnName(NAst::TReference(
                     tableSchema->Columns()[commonKeyPrefix].Name(),
                     tableAlias));
