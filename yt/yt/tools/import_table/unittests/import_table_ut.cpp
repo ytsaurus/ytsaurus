@@ -597,12 +597,9 @@ private:
         TestUrl = Format("http://localhost:%v", TestPort);
         Poller = CreateThreadPoolPoller(4, "HttpTest");
 
-        auto serverConfig = New<NHttps::TServerConfig>();
-        serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
-        serverConfig->Credentials->PrivateKey = CreateTestKeyBlob("key.pem");
-        serverConfig->Credentials->CertificateChain = CreateTestKeyBlob("cert.pem");
+        auto serverConfig = New<NHttp::TServerConfig>();
         SetupServer(serverConfig);
-        Server = NHttps::CreateServer(serverConfig, Poller);
+        Server = NHttp::CreateServer(serverConfig, Poller);
 
         auto path = NYT::Format("/api/datasets/%v/parquet/%v/%v", Dataset, "default", Split);
         auto parquetFilesUrls = Generator->GenerateFileNames();
