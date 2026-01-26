@@ -3932,6 +3932,31 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TrickyAggregateResolve)
+{
+    auto split = MakeSplit({});
+
+    TSource source;
+    for (int i = 0; i < 100; i++) {
+        source.push_back("");
+    }
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Uint64},
+        {"y", EValueType::Double}
+    });
+
+    auto result = YsonToRows({
+        "x=100u;y=100.0"
+    }, resultSplit);
+
+    Evaluate(
+        "sum(1u) as x, double(sum(0)) + sum(1u) as y from [//t] group by 1",
+        split,
+        source,
+        ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, ComplexWithAliases)
 {
     auto split = MakeSplit({
