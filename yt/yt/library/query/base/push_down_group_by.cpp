@@ -246,8 +246,8 @@ std::string MakeDebugString(const TJoinClause& joinClause)
         joinClause.SelfJoinedColumns,
         joinClause.ForeignJoinedColumns,
         InferName(joinClause.Predicate),
-        MakeFormattableView(joinClause.SelfEquations, [] (TStringBuilderBase* builder, const TSelfEquation& lhs) {
-            builder->AppendString(InferName(lhs.Expression));
+        MakeFormattableView(joinClause.SelfEquations, [] (TStringBuilderBase* builder, const TConstExpressionPtr& lhs) {
+            builder->AppendString(InferName(lhs));
         }),
         MakeFormattableView(joinClause.ForeignEquations, [] (TStringBuilderBase* builder, const TConstExpressionPtr& rhs) {
             builder->AppendString(InferName(rhs));
