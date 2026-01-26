@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((UserClusterwideRequestRateLimits)                             (3148))  // shakurov
     ((SortUniqueTxReplicatedToCellTags)                             (3149))  // shakurov
     ((FixMirroredTransactionCreationFailure)                        (3150))  // kvk1920
+    ((SafeRemovalJobScheduling)                                     (3151))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

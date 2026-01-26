@@ -370,7 +370,8 @@ private:
                     break;
                 }
 
-                auto storedReplicas = chunk->StoredReplicas();
+                // We may have replicas from non-online nodes here.
+                auto storedReplicas = chunk->GetStoredReplicaList(/*includeNonOnlineReplicas*/ true);
                 TStoredChunkReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
                 BuildYsonReplicas(
                     consumer,

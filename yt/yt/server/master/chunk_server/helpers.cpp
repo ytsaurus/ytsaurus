@@ -1229,7 +1229,7 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* ch
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : chunk->GetStoredReplicaList(/*includeOffline*/ false)) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
             continue;
