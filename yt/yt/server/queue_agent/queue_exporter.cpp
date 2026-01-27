@@ -1,5 +1,7 @@
 #include "queue_exporter.h"
 
+#include "helpers.h"
+#include "pass_profiler.h"
 #include "private.h"
 #include "queue_export_manager.h"
 
@@ -1050,6 +1052,7 @@ public:
         IQueueExportManagerPtr queueExportManager,
         IAlertCollectorPtr alertCollector,
         const TProfiler& queueProfiler,
+        const TProfiler& queuePassProfiler,
         const TLogger& logger)
         : ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
@@ -1060,7 +1063,8 @@ public:
         , Invoker_(std::move(invoker))
         , QueueExportManager_(std::move(queueExportManager))
         , AlertCollector_(std::move(alertCollector))
-        , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
+        , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler))
+        , PassProfiler_(queuePassProfiler)
         , Executor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND_NO_PROPAGATE(
@@ -1171,9 +1175,12 @@ private:
     const IQueueExportManagerPtr QueueExportManager_;
     const IAlertCollectorPtr AlertCollector_;
     const TQueueExportProfilingCountersPtr ProfilingCounters_;
+    const TPassProfiler PassProfiler_;
     const TPeriodicExecutorPtr Executor_;
 
     const TLogger Logger;
+
+    i64 PassIndex_ = -1;
 
     //! Pass that is executed regularly to check whether an export can be started.
     //!
@@ -1187,15 +1194,21 @@ private:
     {
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueExporterPass"));
 
-        auto now = TInstant::Now();
+        auto startTime = TInstant::Now();
 
         auto exportConfig = GetExportConfig();
-        auto exportUnixTs = GetExportUnixTsRange(now, exportConfig).first;
+        auto exportUnixTs = GetExportUnixTsRange(startTime, exportConfig).first;
 
         if (exportUnixTs <= LastSuccessfulExportUnixTs_.load()) {
             // Too early to run new export task.
             return;
         }
+        ++PassIndex_;
+        PassProfiler_.OnStart(PassIndex_, startTime);
+
+        auto finalizePass = Finally([&] {
+            PassProfiler_.OnFinish(TInstant::Now() - startTime);
+        });
 
         TError passError;
 
@@ -1348,6 +1361,7 @@ IQueueExporterPtr CreateQueueExporter(
     IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
     const TProfiler& queueProfiler,
+    const TProfiler& queuePassProfiler,
     const TLogger& logger)
 {
     auto exporter =  New<TQueueExporter>(
@@ -1359,7 +1373,12 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(invoker),
         std::move(queueExportManager),
         std::move(alertCollector),
-        queueProfiler,
+        queueProfiler
+            .WithPrefix("/static_export")
+            .WithTag("export_name", exportName),
+        queuePassProfiler
+            .WithPrefix("/static_export")
+            .WithTag("export_name", exportName),
         logger);
     exporter->Initialize();
 

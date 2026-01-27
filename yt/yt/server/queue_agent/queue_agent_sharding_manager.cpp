@@ -1,5 +1,7 @@
 #include "queue_agent_sharding_manager.h"
+
 #include "config.h"
+#include "pass_profiler.h"
 
 #include <yt/yt/ytlib/discovery_client/helpers.h>
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
@@ -28,6 +30,7 @@ using namespace NTracing;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +54,8 @@ public:
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
         std::string queueAgentStage,
-        TYPath dynamicStateRoot)
+        TYPath dynamicStateRoot,
+        TProfiler profiler)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
         , Client_(std::move(client))
         , ControlInvoker_(std::move(controlInvoker))
@@ -65,6 +69,7 @@ public:
             ControlInvoker_,
             BIND(&TQueueAgentShardingManager::Pass, MakeWeak(this)),
             DynamicConfig_.Acquire()->PassPeriod))
+        , PassProfiler_(profiler.WithPrefix("/queue_agent_sharding_manager"))
         , OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgentShardingManager::BuildOrchid, MakeWeak(this)))
             ->Via(ControlInvoker_))
         , SyncBannedQueueAgentInstancesFrequency_(CalculateSyncBannedQueueAgentInstancesFrequency(*DynamicConfig_.Acquire()))
@@ -110,6 +115,7 @@ private:
     const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
     const TPeriodicExecutorPtr PassExecutor_;
+    const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
     std::atomic<bool> Active_ = false;
@@ -141,6 +147,7 @@ private:
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
+        PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
         try {
             GuardedPass();
@@ -153,9 +160,11 @@ private:
                 "Error performing queue agent manager pass",
                 /*tags*/ {},
                 ex));
+            PassProfiler_.OnError();
         }
 
         AlertCollector_->PublishAlerts();
+        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
     }
 
     //! Uses FarmFingerprint as a deterministic (both platform and time-agnostic) hash.
@@ -382,7 +391,8 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
     std::string queueAgentStage,
-    TYPath dynamicStateRoot)
+    TYPath dynamicStateRoot,
+    TProfiler profiler)
 {
     return New<TQueueAgentShardingManager>(
         std::move(controlInvoker),
@@ -392,7 +402,8 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
         std::move(memberClient),
         std::move(discoveryClient),
         std::move(queueAgentStage),
-        std::move(dynamicStateRoot));
+        std::move(dynamicStateRoot),
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,10 +3,11 @@
 #include "config.h"
 #include "consumer_controller.h"
 #include "helpers.h"
-#include "snapshot.h"
 #include "object.h"
+#include "pass_profiler.h"
 #include "queue_controller.h"
 #include "queue_export_manager.h"
+#include "snapshot.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -222,6 +223,7 @@ TQueueAgent::TQueueAgent(
         ControlInvoker_,
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
+    , PassProfiler_(QueueAgentProfiler())
     , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
     , QueueExportManager_(CreateQueueExportManager(
@@ -475,6 +477,7 @@ void TQueueAgent::Pass()
 
     PassInstant_ = TInstant::Now();
     ++PassIndex_;
+    PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
 
@@ -485,6 +488,7 @@ void TQueueAgent::Pass()
     YT_LOG_INFO("Pass started");
     auto finalizePass = Finally([&] {
         AlertCollector_->PublishAlerts();
+        PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
         YT_LOG_INFO("Pass finished");
     });
 
@@ -510,6 +514,7 @@ void TQueueAgent::Pass()
             "Error while reading dynamic state",
             /*tags*/ {},
             error));
+        PassProfiler_.OnError();
         return;
     }
     auto queueRows = asyncQueueRows.GetUnique().Value();

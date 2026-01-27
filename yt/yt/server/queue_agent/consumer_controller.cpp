@@ -4,6 +4,7 @@
 #include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
+#include "pass_profiler.h"
 #include "profile_manager.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -14,6 +15,8 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 #include <yt/yt/client/queue_client/helpers.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -44,6 +47,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NProfiling;
 
 using namespace std::placeholders;
 
@@ -60,7 +64,8 @@ public:
         TLogger logger,
         TQueueAgentClientDirectoryPtr clientDirectory,
         const IObjectStore* store,
-        std::vector<bool> isVerboseLoggingQueue)
+        std::vector<bool> isVerboseLoggingQueue,
+        TInstant passInstant)
         : Row_(std::move(row))
         , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
@@ -69,12 +74,13 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , Store_(store)
         , IsVerboseLoggingQueue_(std::move(isVerboseLoggingQueue))
+        , PassInstant_(passInstant)
     { }
 
     TConsumerSnapshotPtr Build()
     {
         ConsumerSnapshot_->PassIndex = PreviousConsumerSnapshot_->PassIndex + 1;
-        ConsumerSnapshot_->PassInstant = TInstant::Now();
+        ConsumerSnapshot_->PassInstant = PassInstant_;
         ConsumerSnapshot_->Row = Row_;
         ConsumerSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
@@ -115,6 +121,7 @@ private:
     const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const IObjectStore* Store_;
     const std::vector<bool> IsVerboseLoggingQueue_;
+    const TInstant PassInstant_;
 
     IClientPtr Client_;
     IConsumerClientPtr ConsumerClient_;
@@ -484,6 +491,7 @@ public:
         const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
         const IObjectStore* store,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
+        const TProfiler& profiler,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
@@ -499,12 +507,8 @@ public:
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
             dynamicConfig->PassPeriod))
-        , ProfileManager_(CreateConsumerProfileManager(
-            QueueAgentProfilerGlobal()
-                .WithRequiredTag("consumer_path", TrimProfilingTagValue(ConsumerRef_.Path))
-                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster)
-                .WithTag("consumer_tag", row.QueueConsumerProfilingTag.value_or(NoneProfilingTag)),
-            Logger))
+        , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, row, leading))
+        , PassProfiler_(ProfileManager_->GetPassProfiler().WithPrefix("/controller"))
     {
         // Prepare initial erroneous snapshot.
         auto consumerSnapshot = New<TConsumerSnapshot>();
@@ -604,11 +608,18 @@ private:
 
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
+
     const IConsumerProfileManagerPtr ProfileManager_;
+    const TPassProfiler PassProfiler_;
 
     void Pass()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+        auto startTime = TInstant::Now();
+        auto previousConsumerSnapshot = ConsumerSnapshot_.Acquire();
+        if (!!previousConsumerSnapshot) {
+            PassProfiler_.OnStart(previousConsumerSnapshot->PassIndex + 1, startTime);
+        }
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("ConsumerControllerPass"));
 
@@ -656,19 +667,21 @@ private:
         auto nextConsumerSnapshot = New<TConsumerSnapshotBuildSession>(
             ConsumerRow_.Load(),
             ReplicatedTableMappingRow_.Load(),
-            /*previousConsumerSnapshot*/ ConsumerSnapshot_.Acquire(),
+            previousConsumerSnapshot,
             std::move(registrations),
             Logger,
             ClientDirectory_,
             ObjectStore_,
-            std::move(isVerboseLoggingQueue))
+            std::move(isVerboseLoggingQueue),
+            startTime)
             ->Build();
-        auto previousConsumerSnapshot = ConsumerSnapshot_.Exchange(nextConsumerSnapshot);
+        ConsumerSnapshot_.Store(nextConsumerSnapshot);
 
         YT_LOG_INFO("Consumer snapshot updated");
 
         auto finalizePass = Finally([&] {
             YT_LOG_INFO("Consumer controller pass finished");
+            PassProfiler_.OnFinish(TInstant::Now() - startTime);
         });
 
         if (nextConsumerSnapshot->Banned) {
@@ -708,6 +721,7 @@ bool UpdateConsumerController(
         replicatedTableMappingRow,
         store,
         dynamicConfig,
+        QueueAgentProfiler(),
         std::move(clientDirectory),
         std::move(invoker));
     newController->Initialize();
