@@ -2778,7 +2778,7 @@ def add_flow_set_pipeline_spec_parser(add_parser):
                         help="Set spec even if pipeline is paused")
     parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_spec_parser(add_parser):
@@ -2809,7 +2809,7 @@ def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
-                        help="new spec attribute value")
+                        help="New spec attribute value; if it is not set, it will be read from stdin")
 
 
 def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
@@ -2910,9 +2910,9 @@ def add_flow_execute_parser(add_parser):
                         help="Execute YT Flow specific command")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_hybrid_argument(parser, "flow_command", group_required=True,
-                        help="name of the command to execute")
+                        help="Name of the command to execute; use command 'list' to list all available commands")
     add_hybrid_argument(parser, "flow_argument", group_required=False,
-                        help="argument of the command (optional)")
+                        help="Argument of the command (optional)")
     add_structured_format_argument(parser, "--input-format")
     add_structured_format_argument(parser, "--output-format")
 
