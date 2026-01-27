@@ -1968,6 +1968,10 @@ def master_exit_read_only(**kwargs):
     return execute_command("master_exit_read_only", kwargs)
 
 
+def reset_dynamically_propagated_master_cells(**kwargs):
+    return execute_command("reset_dynamically_propagated_master_cells", kwargs)
+
+
 def discombobulate_nonvoting_peers(cell_id, **kwargs):
     kwargs["cell_id"] = cell_id
     return execute_command("discombobulate_nonvoting_peers", kwargs)

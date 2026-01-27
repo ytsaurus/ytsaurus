@@ -736,6 +736,9 @@ public: \
     IMPLEMENT_METHOD(void, MasterExitReadOnly, (
         const TMasterExitReadOnlyOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, ResetDynamicallyPropagatedMasterCells, (
+        const TResetDynamicallyPropagatedMasterCellsOptions& options),
+        (options))
     IMPLEMENT_METHOD(void, DiscombobulateNonvotingPeers, (
         NObjectClient::TCellId cellId,
         const TDiscombobulateNonvotingPeersOptions& options),

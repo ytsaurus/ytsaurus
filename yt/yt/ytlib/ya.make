@@ -105,6 +105,8 @@ SRCS(
     cell_master_client/config.cpp
     cell_master_client/protobuf_helpers.cpp
 
+    cell_master_client/proto/cell_master_service.proto
+
     cellar_client/proto/tablet_cell_service.proto
 
     cellar_node_tracker_client/proto/cellar_node_tracker_service.proto

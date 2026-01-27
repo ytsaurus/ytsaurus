@@ -2144,7 +2144,9 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                         medium->AsDomestic(),
                         nodeId,
                         replicas);
-
+                    YT_LOG_TRACE("Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
+                        chunkIdWithIndex,
+                        misscheduleReason);
                     if (misscheduleReason == EMisscheduleReason::None) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
@@ -2452,6 +2454,8 @@ void TChunkReplicator::RefreshChunk(
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto wasLostVital = LostVitalChunks_.contains(chunk);
+
+    YT_LOG_TRACE("Refreshing chunk (ChunkId: %v)", chunkId);
 
     chunk->OnRefresh();
 

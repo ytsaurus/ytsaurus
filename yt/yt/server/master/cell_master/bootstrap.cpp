@@ -12,6 +12,7 @@
 #include "multicell_statistics_collector.h"
 #include "response_keeper_manager.h"
 #include "world_initializer.h"
+#include "cell_master_service.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_service.h>
@@ -1115,6 +1116,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
     RpcServer_->RegisterService(CreateReplicatedTableTrackerService(this, rttInvoker));
+    RpcServer_->RegisterService(CreateCellMasterService(this));
 
     // Register the coverage service for instrumented binaries.
 #ifdef __AFL_COMPILER

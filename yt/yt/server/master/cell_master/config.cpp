@@ -163,8 +163,6 @@ void TTestConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
         .Default();
-    registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
-        .Default();
     registrar.Parameter("allow_master_cell_with_empty_role", &TThis::AllowMasterCellWithEmptyRole)
         .Default(false);
 
@@ -201,6 +199,7 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sync_hive_clocks_period", &TThis::SyncHiveClocksPeriod)
         .Default(TDuration::Seconds(10));
+
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 

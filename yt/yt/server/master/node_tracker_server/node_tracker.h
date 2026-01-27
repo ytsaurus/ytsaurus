@@ -297,6 +297,9 @@ public:
 
     virtual void CheckNodeOnline(TNode* node) = 0;
 
+    virtual void ValidateAllMasterCellsAreReliable() const = 0;
+    virtual void ResetCellAggregatedStateReliabilities() = 0;
+
 private:
     friend class TNodeTypeHandler;
     friend class THostTypeHandler;
