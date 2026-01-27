@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          BUILD_TYPES='${{ needs.tag.build-types }}'
+          BUILD_TYPES='${{ needs.tag.outputs.build-types }}'
 
           has() {
             python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
@@ -161,6 +161,10 @@ jobs:
 
           echo "release=$(has release)" >> "$GITHUB_OUTPUT"
           echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
 
       - name: Docker Pull And Push (release)
         if: ${{ steps.types.outputs.release == 'true' }}
