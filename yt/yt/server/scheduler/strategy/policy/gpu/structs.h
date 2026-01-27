@@ -184,6 +184,8 @@ struct TGpuModuleStatistics final
     int FullHostModuleBoundOperations;
 };
 
+void Serialize(const TGpuModuleStatistics& node, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGpuPlanUpdateStatistics final

@@ -3,6 +3,7 @@
 #include "private.h"
 #include "assignment_plan_update.h"
 #include "persistent_state.h"
+#include "helpers.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
@@ -340,6 +341,12 @@ public:
 
         EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("type").Value(operation->GetType())
+            .Item("gang").Value(operation->IsGang())
+            .Item("specified_scheduling_modules").Value(operation->SpecifiedSchedulingModules());
+
         YT_LOG_DEBUG("Operation registered (OperationId: %v, OperationType: %v, Gang: %v, SpecifiedSchedulingModules: %v)",
             operation->GetId(),
             operation->GetType(),
@@ -374,6 +381,9 @@ public:
             "Node unregistered");
 
         DisabledOperations_.erase(it);
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
+            .Item("operation_id").Value(element->GetOperationId());
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
     }
@@ -739,6 +749,7 @@ private:
             Logger);
         updateExecutor.Run();
 
+        LogSnapshotEvent();
         ProfileAssignmentPlanUpdating();
         UpdatePersistentState();
     }
@@ -1037,6 +1048,33 @@ private:
 
         std::ranges::for_each(DisabledOperations_, updateOperationPersistentState);
         std::ranges::for_each(EnabledOperations_, updateOperationPersistentState);
+    }
+
+    void LogSnapshotEvent() const
+    {
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::ModulesInfo)
+            .Item("modules").DoMapFor(Statistics_->ModuleStatistics, [] (TFluentMap fluent, const auto& item) {
+                const auto& [module, moduleStatistic] = item;
+                fluent.Item(module).Value(moduleStatistic);
+            });
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::NodesInfo)
+            .Item("nodes").DoMapFor(Nodes_, [] (TFluentMap fluent, const auto& item) {
+                const auto& [_, node] = item;
+                fluent.Item(node->Address()).Value(node);
+            });
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationsInfo)
+            .Item("operations").DoMap([&] (TFluentMap fluent) {
+                for (const auto& [operationId, operation] : EnabledOperations_) {
+                    fluent
+                        .Item(ToString(operationId)).Value(operation);
+                }
+                for (const auto& [operationId, operation] : DisabledOperations_) {
+                    fluent
+                        .Item(ToString(operationId)).Value(operation);
+                }
+            });
     }
 
     void ProfileAssignmentPlanUpdating()

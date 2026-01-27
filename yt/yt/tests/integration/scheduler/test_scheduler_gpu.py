@@ -11,7 +11,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
-    update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
+    update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set
 )
 
 from yt_scheduler_helpers import (
@@ -20,7 +20,7 @@ from yt_scheduler_helpers import (
 )
 
 from yt_helpers import (
-    profiler_factory,
+    write_log_barrier, read_structured_log, profiler_factory
 )
 
 
@@ -887,6 +887,72 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         wait(lambda: assigned_gpu_counter.get() == 0)
         wait(lambda: module_bound_counter.get() == 0)
         wait(lambda: module_unreserved_counter.get() == 2)
+
+    @authors("yaishenka")
+    def test_gpu_structured_event_log(self):
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        wait_for_operations_in_orchid(operation_count=1)
+        wait_for_assignments_in_orchid(op, 1, exactly=True)
+
+        time.sleep(5)
+
+        to_barrier = write_log_barrier(scheduler_address)
+        structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
+                                             row_filter=lambda e: "event_type" in e)
+
+        assignment_log_found = False
+        modules_log_found = False
+        operation_log_found = False
+        for event in structured_log:
+            if event["category"] != "SchedulerGpuStructuredLog":
+                continue
+            if event["event_type"] == "operations_info":
+                if op.id not in event["operations"]:
+                    continue
+                operation_log = event["operations"][op.id]
+                if not operation_log["enabled"]:
+                    continue
+                if not operation_log["assignments"]:
+                    continue
+                operation_log_found = True
+                check_operation(
+                    operation=operation_log,
+                    is_gang=False,
+                    group_name="task",
+                    allocation_count=1,
+                    min_needed_gpu_per_allocation=8,
+                    assigned_gpu_usage=8,
+                    assignment_count=1,
+                    enabled=True,
+                )
+                assignment = operation_log["assignments"][0]
+                check_assignment(
+                    assignment=assignment,
+                    operation_id=op.id,
+                    group_name="task",
+                    gpu_usage=8,
+                    preemptible=False
+                )
+            if event["event_type"] == "modules_info":
+                if "SAS" not in event["modules"]:
+                    continue
+                if not event["modules"]["SAS"]["node_count"] == 2:
+                    continue
+                modules_log_found = True
+            if event["event_type"] == "assignment_added":
+                assert event["operation_id"] == op.id
+                assignment_log_found = True
+
+        assert assignment_log_found
+        assert modules_log_found
+        assert operation_log_found
 
 ##################################################################
 
