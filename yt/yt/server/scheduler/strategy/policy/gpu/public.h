@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_STRUCT(TAssignment)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TNode)
 
+DECLARE_REFCOUNTED_STRUCT(TGpuPlanUpdateStatistics)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

@@ -19,6 +19,10 @@ from yt_scheduler_helpers import (
     scheduler_orchid_operation_path,
 )
 
+from yt_helpers import (
+    profiler_factory,
+)
+
 
 ##################################################################
 
@@ -833,6 +837,56 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="gpu") + "/starvation_status") == "starving")
 
         wait(lambda: get_operation_from_orchid(op)["starving"])
+
+    @authors("yaishenka")
+    def test_profiling(self):
+        wait(lambda: exists(scheduler_new_orchid_pool_tree_path("gpu") + "/gpu_assignment_plan"))
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu"})
+        prefix = "scheduler/gpu_policy"
+
+        assignments_counter = profiler.gauge(prefix + "/assignments_count")
+        planned_assignments_counter = profiler.counter(prefix + "/planned_assignments_count")
+        preempted_assignments_counter = profiler.counter(prefix + "/planned_assignments_count")
+        enabled_operations_counter = profiler.gauge(prefix + "/enabled_operations_count")
+        full_host_module_bound_operations_counter = profiler.gauge(prefix + "/full_host_module_bound_operations_count")
+        assigned_gpu_counter = profiler.gauge(prefix + "/assigned_gpu_count")
+
+        module_bound_counter = profiler.gauge(prefix + "/module/full_host_module_bound_operations_count", fixed_tags={"module": "SAS"})
+        module_total_counter = profiler.gauge(prefix + "/module/total_nodes_count", fixed_tags={"module": "SAS"})
+        module_unreserved_counter = profiler.gauge(prefix + "/module/unreserved_nodes_count", fixed_tags={"module": "SAS"})
+
+        wait(lambda: assignments_counter.get() == 0)
+        wait(lambda: planned_assignments_counter.get() == 0)
+        wait(lambda: preempted_assignments_counter.get() == 0)
+        wait(lambda: enabled_operations_counter.get() == 0)
+        wait(lambda: full_host_module_bound_operations_counter.get() == 0)
+        wait(lambda: assigned_gpu_counter.get() == 0)
+        wait(lambda: module_bound_counter.get() == 0)
+        wait(lambda: module_total_counter.get() == 2)
+        wait(lambda: module_unreserved_counter.get() == 2)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        wait(lambda: assignments_counter.get() == 1)
+        wait(lambda: planned_assignments_counter.get() == 1)
+        wait(lambda: enabled_operations_counter.get() == 1)
+        wait(lambda: full_host_module_bound_operations_counter.get() == 1)
+        wait(lambda: assigned_gpu_counter.get() == 8)
+        wait(lambda: module_bound_counter.get() == 1)
+        wait(lambda: module_unreserved_counter.get() == 1)
+
+        op.abort()
+
+        wait(lambda: assignments_counter.get() == 0)
+        wait(lambda: preempted_assignments_counter.get() == 1)
+        wait(lambda: enabled_operations_counter.get() == 0)
+        wait(lambda: full_host_module_bound_operations_counter.get() == 0)
+        wait(lambda: assigned_gpu_counter.get() == 0)
+        wait(lambda: module_bound_counter.get() == 0)
+        wait(lambda: module_unreserved_counter.get() == 2)
 
 ##################################################################
 

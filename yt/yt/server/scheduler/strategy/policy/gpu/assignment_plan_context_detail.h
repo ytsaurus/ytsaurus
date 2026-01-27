@@ -8,7 +8,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAssignmentPlanContextBase
-    : public IAssignmentPlanContext
+    : public IAssignmentPlanUpdateContext
 {
 public:
     explicit TAssignmentPlanContextBase(NLogging::TLogger logger);
