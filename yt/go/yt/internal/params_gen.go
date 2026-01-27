@@ -1139,6 +1139,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("cursor_time")
 		w.Any(o.Cursor)
 	}
+	if o.CursorDirection != nil {
+		w.MapKeyString("cursor_direction")
+		w.Any(o.CursorDirection)
+	}
 	if o.User != nil {
 		w.MapKeyString("user")
 		w.Any(o.User)
@@ -1171,6 +1175,10 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 		w.MapKeyString("include_archive")
 		w.Any(o.IncludeArchive)
 	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
@@ -1188,6 +1196,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.Cursor != nil {
 		fields = append(fields, log.Any("cursor_time", o.Cursor))
+	}
+	if o.CursorDirection != nil {
+		fields = append(fields, log.Any("cursor_direction", o.CursorDirection))
 	}
 	if o.User != nil {
 		fields = append(fields, log.Any("user", o.User))
@@ -1212,6 +1223,9 @@ func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
 	}
 	if o.IncludeArchive != nil {
 		fields = append(fields, log.Any("include_archive", o.IncludeArchive))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
 	}
 	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
 	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)

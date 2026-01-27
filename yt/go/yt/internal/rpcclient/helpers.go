@@ -1390,3 +1390,17 @@ func (w *multiLookupRespWrapper) GetSubresponses() []ProtoMultiLookupSubresp {
 	}
 	return result
 }
+
+func convertOperationSortDirection(direction *yt.OperationSortDirection) *rpc_proxy.EOperationSortDirection {
+	if direction == nil {
+		return nil
+	}
+	switch *direction {
+	case yt.SortDirectionPast:
+		return rpc_proxy.EOperationSortDirection_OSD_PAST.Enum()
+	case yt.SortDirectionFuture:
+		return rpc_proxy.EOperationSortDirection_OSD_FUTURE.Enum()
+	default:
+		return rpc_proxy.EOperationSortDirection_OSD_NONE.Enum()
+	}
+}

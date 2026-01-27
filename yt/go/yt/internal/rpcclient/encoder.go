@@ -2087,7 +2087,7 @@ func (e *Encoder) ListOperations(
 		FromTime:               convertTime(opts.FromTime),
 		ToTime:                 convertTime(opts.ToTime),
 		CursorTime:             convertTime(opts.Cursor),
-		CursorDirection:        nil, // todo
+		CursorDirection:        convertOperationSortDirection(opts.CursorDirection),
 		UserFilter:             opts.User,
 		StateFilter:            opState,
 		TypeFilter:             opType,
@@ -2095,11 +2095,11 @@ func (e *Encoder) ListOperations(
 		Pool:                   opts.Pool,
 		PoolTree:               opts.PoolTree,
 		IncludeArchive:         opts.IncludeArchive,
-		IncludeCounters:        nil,   // todo
-		Limit:                  limit, // todo
-		Attributes:             nil,   // todo
-		AccessFilter:           nil,   // todo
-		ArchiveFetchingTimeout: nil,   // todo
+		IncludeCounters:        nil, // todo
+		Limit:                  limit,
+		Attributes:             convertAttributeFilter(opts.Attributes),
+		AccessFilter:           nil, // todo
+		ArchiveFetchingTimeout: nil, // todo
 		MasterReadOptions:      convertMasterReadOptions(opts.MasterReadOptions),
 	}
 
