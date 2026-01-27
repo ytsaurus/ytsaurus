@@ -84,6 +84,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/alert_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/bootstrap.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_master_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp

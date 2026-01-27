@@ -116,6 +116,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto
@@ -665,6 +666,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cell_master_client/proto/cell_master_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h

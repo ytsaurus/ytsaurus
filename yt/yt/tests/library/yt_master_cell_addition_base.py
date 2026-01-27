@@ -18,7 +18,8 @@ from yt_commands import (
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    print_debug, decommission_node, write_table, add_maintenance, remove_maintenance)
+    print_debug, decommission_node, write_table, add_maintenance, remove_maintenance, get_singular_chunk_id,
+    reset_dynamically_propagated_master_cells)
 
 from yt_helpers import master_exit_read_only_sync, wait_no_peers_in_read_only
 from yt.test_helpers import assert_items_equal
@@ -41,8 +42,6 @@ class MasterCellAdditionBase(YTEnvSetup):
     DEFER_CONTROLLER_AGENT_START = True
     DEFER_CHAOS_NODE_START = True
     # NB: It is impossible to defer start cypress proxies, since some setup handlers rely on their availability.
-
-    NUM_SECONDARY_MASTER_CELLS = 3
 
     PRIMARY_CLUSTER_INDEX = 0
 
@@ -134,21 +133,25 @@ class MasterCellAdditionBase(YTEnvSetup):
             if cls.get_param("NUM_CHAOS_NODES", cluster_index) != 0:
                 env.start_chaos_nodes()
 
-    def teardown_method(self, method):
-        def check_reliability_status(node, dynamically_discovered_master=None):
+    def _reset_dynamically_propagated_master_cells(self):
+        def check_reliability_status(node):
+            if get(f"//sys/cluster_nodes/{node}/@state") == "offline":
+                return True
+
             reliabilities = get(f"//sys/cluster_nodes/{node}/@master_cells_reliabilities")
             for master in reliabilities.keys():
-                if dynamically_discovered_master is not None and master == dynamically_discovered_master:
-                    if reliabilities[master] != "dynamically_discovered":
-                        return False
-                elif reliabilities[master] != "statically_known":
+                if reliabilities[master] == "during_propagation":
                     return False
             return True
 
         nodes = ls("//sys/cluster_nodes")
         for node in nodes:
-            wait(lambda:  check_reliability_status(node, "13"))
+            wait(lambda: check_reliability_status(node))
 
+        reset_dynamically_propagated_master_cells()
+
+    def teardown_method(self, method):
+        self._reset_dynamically_propagated_master_cells()
         super(MasterCellAdditionBase, self).teardown_method(method)
 
     @classmethod
@@ -301,9 +304,10 @@ class MasterCellAdditionBase(YTEnvSetup):
         set("//sys/@cluster_connection", cluster_connection_config)
 
     @classmethod
-    def _build_readonly_snapshot(cls):
+    def _build_master_snapshots(cls, set_read_only):
+        # No build_master_snapshots in rpc proxies, may be do something with it.
         for cell_id in cls.CELL_IDS:
-            build_snapshot(cell_id=cell_id, set_read_only=True)
+            build_snapshot(cell_id=cell_id, set_read_only=set_read_only)
 
     @classmethod
     def _master_exit_readonly(cls):
@@ -367,7 +371,8 @@ class MasterCellAdditionBase(YTEnvSetup):
             cls.Env.kill_cypress_proxies()
             drivers = cls._kill_drivers()
 
-            cls._build_readonly_snapshot()
+            cls._build_master_snapshots(set_read_only=True)
+
             cls.Env.kill_all_masters()
 
             # Patch static configs for all components.
@@ -437,7 +442,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             # Restart drivers to apply new master cells configuration.
             cls._kill_drivers()
 
-            cls._build_readonly_snapshot()
+            cls._build_master_snapshots(set_read_only=True)
 
             with Restarter(cls.Env, MASTERS_SERVICE, sync=False):
                 for i in range(len(cls.PATCHED_CONFIGS)):
@@ -499,11 +504,12 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         type(self)._enable_last_cell(downtime)
 
-        with raises_yt_error("not discovered by all nodes"):
+        set("//sys/@config/bebebe", "bububu")
+
+        with raises_yt_error("Attempted to set master cell roles"):
             set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
-        # Make the new master cell "reliable" for other master cells.
-        set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
+        self._reset_dynamically_propagated_master_cells()
         set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
         self.run_checkers_iteration(checker_state_list, True)
@@ -524,6 +530,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
+    NUM_MASTERS = 3
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
@@ -822,8 +829,8 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         yield
 
-        # Make the new master cell "reliable" for other master cells.
-        set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
+        self._reset_dynamically_propagated_master_cells()
+
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
         create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
@@ -860,6 +867,41 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
             "12": "online",
             "13": "online",
         })
+
+    def check_restart_with_snapshot(self):
+        yield
+
+        index = None
+        for i, master in enumerate(ls("//sys/secondary_masters/13")):
+            if get(f"//sys/secondary_masters/13/{master}/orchid/monitoring/hydra/active_follower"):
+                index = i
+                break
+
+        assert index is not None
+        self._build_master_snapshots(set_read_only=False)
+        cell_index = self.Env.yt_config.secondary_cell_count + 1
+        self.Env.kill_masters_at_cells(cell_indexes=[cell_index], indexes=[index])
+        self._build_master_snapshots(set_read_only=False)
+
+    def check_chunks(self):
+        yield
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
+        write_table("//tmp/t", [{"x": 1}])
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 3)
+        stored_replicas = sorted(get("//sys/chunks/{}/@stored_replicas".format(chunk_id)))
+
+        set("//sys/@config/chunk_manager/max_misscheduled_replication_jobs_per_heartbeat", 0)
+        set("//sys/@config/chunk_manager/max_misscheduled_removal_jobs_per_heartbeat", 0)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: len(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == 3)
+        wait(lambda: sorted(get("//sys/chunks/{}/@stored_replicas".format(chunk_id))) == stored_replicas)
 
 
 class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):

@@ -803,6 +803,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExitReadOnly);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MasterExitReadOnly);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DiscombobulateNonvotingPeers);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResetDynamicallyPropagatedMasterCells);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendCoordinator);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeCoordinator);
@@ -1145,6 +1146,7 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(BuildSnapshot));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ExitReadOnly));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
+    registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(ResetDynamicallyPropagatedMasterCells));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(DiscombobulateNonvotingPeers));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(GCCollect));
     registerMethod(EMultiproxyMethodKind::ExplicitlyDisabled, RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
@@ -5593,6 +5595,21 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, DiscombobulateNonvotingPeers)
         context,
         [=] {
             return client->DiscombobulateNonvotingPeers(cellId, options);
+        });
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, ResetDynamicallyPropagatedMasterCells)
+{
+    TResetDynamicallyPropagatedMasterCellsOptions options;
+    SetTimeoutOptions(&options, context.Get());
+
+    context->SetRequestInfo();
+
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+    ExecuteCall(
+        context,
+        [=] {
+            return client->ResetDynamicallyPropagatedMasterCells(options);
         });
 }
 

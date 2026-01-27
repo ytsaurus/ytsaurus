@@ -8,6 +8,7 @@ SRCS(
     cell_master/alert_manager.cpp
     cell_master/automaton.cpp
     cell_master/bootstrap.cpp
+    cell_master/cell_master_service.cpp
     cell_master/cell_statistics.cpp
     cell_master/config_manager.cpp
     cell_master/config.cpp
