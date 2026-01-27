@@ -363,7 +363,7 @@ struct TCompressionDictionaryCacheKey
     // This field is used for proper column id mapping in case of schema alteration.
     TObjectId SchemaId;
 
-    bool operator == (const TCompressionDictionaryCacheKey& other) const
+    bool operator==(const TCompressionDictionaryCacheKey& other) const
     {
         return
             ChunkId == other.ChunkId &&

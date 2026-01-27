@@ -93,7 +93,7 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, Rank);
 }
 
-bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
+bool TChunkTreeStatistics::operator==(const TChunkTreeStatistics& other) const
 {
     return
         RowCount == other.RowCount &&

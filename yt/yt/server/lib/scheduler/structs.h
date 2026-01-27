@@ -142,9 +142,9 @@ struct TCompositeNeededResources
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/);
 
-TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
-TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
-TCompositeNeededResources operator - (const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator+(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator-(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs);
+TCompositeNeededResources operator-(const TCompositeNeededResources& rhs);
 
 TString FormatResources(const TCompositeNeededResources& resources);
 

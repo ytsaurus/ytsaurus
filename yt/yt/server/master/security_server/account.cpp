@@ -69,35 +69,35 @@ void Serialize(const TAccountStatistics& statistics, IYsonConsumer* consumer, co
         .EndMap();
 }
 
-TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs)
+TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     lhs.ResourceUsage += rhs.ResourceUsage;
     lhs.CommittedResourceUsage += rhs.CommittedResourceUsage;
     return lhs;
 }
 
-TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStatistics& rhs)
+TAccountStatistics operator+(const TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs)
+TAccountStatistics& operator-=(TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     lhs.ResourceUsage -= rhs.ResourceUsage;
     lhs.CommittedResourceUsage -= rhs.CommittedResourceUsage;
     return lhs;
 }
 
-TAccountStatistics operator - (const TAccountStatistics& lhs, const TAccountStatistics& rhs)
+TAccountStatistics operator-(const TAccountStatistics& lhs, const TAccountStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-TAccountStatistics operator - (const TAccountStatistics& accountStatistics)
+TAccountStatistics operator-(const TAccountStatistics& accountStatistics)
 {
     return TAccountStatistics(-accountStatistics.ResourceUsage, -accountStatistics.CommittedResourceUsage);
 }

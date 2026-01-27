@@ -77,14 +77,14 @@ struct TDiskRequest
         , MediumIndex(mediumIndex)
     { }
 
-    auto operator <=>(const TDiskRequest& other) const = default;
+    auto operator<=>(const TDiskRequest& other) const = default;
 
-    TDiskRequest operator +(const TDiskRequest& other) const
+    TDiskRequest operator+(const TDiskRequest& other) const
     {
         return TDiskRequest{DiskSpace + other.DiskSpace, MediumIndex};
     }
 
-    TDiskRequest operator *(auto multiplier) const
+    TDiskRequest operator*(auto multiplier) const
     {
         return TDiskRequest{DiskSpace * multiplier, MediumIndex};
     }

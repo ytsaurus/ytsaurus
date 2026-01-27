@@ -16,7 +16,7 @@ struct TVersionedChunkMetaCacheKey
     int TableSchemaKeyColumnCount;
     bool PreparedColumnarMeta;
 
-    bool operator ==(const TVersionedChunkMetaCacheKey& other) const;
+    bool operator==(const TVersionedChunkMetaCacheKey& other) const;
 
     operator size_t() const;
 };

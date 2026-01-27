@@ -31,10 +31,10 @@ struct TTimer:
     TTimer(TTimer&&) = default;
     TTimer(const TTimer&) = default;
     TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId& callbackId, const TTimestamp& timestamp, const TUserData& userData);
-    TTimer& operator = (TTimer&&) = default;
+    TTimer& operator=(TTimer&&) = default;
 
-    bool operator == (const TTimer& other) const noexcept;
-    bool operator < (const TTimer& other) const noexcept;
+    bool operator==(const TTimer& other) const noexcept;
+    bool operator<(const TTimer& other) const noexcept;
 
     struct TKeyHasher
     {

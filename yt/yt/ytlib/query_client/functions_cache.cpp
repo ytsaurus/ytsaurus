@@ -164,7 +164,7 @@ TExternalFunction::operator size_t() const
     return result;
 }
 
-bool TExternalFunction::operator == (const TExternalFunction& /*other*/) const = default;
+bool TExternalFunction::operator==(const TExternalFunction& /*other*/) const = default;
 
 void FormatValue(TStringBuilderBase* builder, const TExternalFunction& value, TStringBuf /*spec*/)
 {
@@ -1080,7 +1080,7 @@ struct TFunctionImplKey
     operator size_t() const;
 
     // Comparer.
-    bool operator == (const TFunctionImplKey& other) const;
+    bool operator==(const TFunctionImplKey& other) const;
 };
 
 TFunctionImplKey::operator size_t() const
@@ -1095,7 +1095,7 @@ TFunctionImplKey::operator size_t() const
     return result;
 }
 
-bool TFunctionImplKey::operator == (const TFunctionImplKey& other) const
+bool TFunctionImplKey::operator==(const TFunctionImplKey& other) const
 {
     if (ChunkSpecs.size() != other.ChunkSpecs.size())
         return false;

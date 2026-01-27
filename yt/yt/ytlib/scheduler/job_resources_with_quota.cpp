@@ -44,7 +44,7 @@ TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace)
     return result;
 }
 
-TDiskQuota  operator - (const TDiskQuota& quota)
+TDiskQuota  operator-(const TDiskQuota& quota)
 {
     TDiskQuota result;
     if (quota.DiskSpaceWithoutMedium) {
@@ -56,7 +56,7 @@ TDiskQuota  operator - (const TDiskQuota& quota)
     return result;
 }
 
-TDiskQuota  operator + (const TDiskQuota& lhs, const TDiskQuota& rhs)
+TDiskQuota  operator+(const TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     TDiskQuota result;
     result.DiskSpaceWithoutMedium = lhs.DiskSpaceWithoutMedium.value_or(0) + rhs.DiskSpaceWithoutMedium.value_or(0);
@@ -72,13 +72,13 @@ TDiskQuota  operator + (const TDiskQuota& lhs, const TDiskQuota& rhs)
     return result;
 }
 
-TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs)
+TDiskQuota& operator+=(TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     lhs = lhs + rhs;
     return lhs;
 }
 
-TDiskQuota  operator - (const TDiskQuota& lhs, const TDiskQuota& rhs)
+TDiskQuota  operator-(const TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     TDiskQuota result;
     result.DiskSpaceWithoutMedium = lhs.DiskSpaceWithoutMedium.value_or(0) - rhs.DiskSpaceWithoutMedium.value_or(0);
@@ -94,13 +94,13 @@ TDiskQuota  operator - (const TDiskQuota& lhs, const TDiskQuota& rhs)
     return result;
 }
 
-TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs)
+TDiskQuota& operator-=(TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     lhs = lhs - rhs;
     return lhs;
 }
 
-bool operator == (const TDiskQuota& lhs, const TDiskQuota& rhs)
+bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     if (lhs.DiskSpacePerMedium.size() != rhs.DiskSpacePerMedium.size()) {
         return false;
@@ -176,27 +176,27 @@ void TJobResourcesWithQuota::Persist(const TStreamPersistenceContext& context)
     Persist(context, DiskQuota_);
 }
 
-TJobResourcesWithQuota  operator + (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+TJobResourcesWithQuota  operator+(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {
     TJobResourcesWithQuota result = lhs.ToJobResources() + rhs.ToJobResources();
     result.DiskQuota() = lhs.DiskQuota() + rhs.DiskQuota();
     return result;
 }
 
-TJobResourcesWithQuota& operator += (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+TJobResourcesWithQuota& operator+=(TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {
     lhs = lhs + rhs;
     return lhs;
 }
 
-TJobResourcesWithQuota  operator - (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+TJobResourcesWithQuota  operator-(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {
     TJobResourcesWithQuota result = lhs.ToJobResources() - rhs.ToJobResources();
     result.DiskQuota() = lhs.DiskQuota() - rhs.DiskQuota();
     return result;
 }
 
-TJobResourcesWithQuota& operator -= (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
+TJobResourcesWithQuota& operator-=(TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {
     lhs = lhs - rhs;
     return lhs;

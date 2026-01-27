@@ -438,7 +438,7 @@ private:
                 .Via(CheckerInvoker_));
         }
 
-        bool operator == (const TReplica& other) const
+        bool operator==(const TReplica& other) const
         {
             return Id_ == other.Id_
                 && ClusterName_ == other.ClusterName_

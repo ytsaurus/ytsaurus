@@ -169,7 +169,7 @@ public:
     TChunkReadGuard(TChunkReadGuard&& other) = default;
     ~TChunkReadGuard();
 
-    TChunkReadGuard& operator = (TChunkReadGuard&& other) = default;
+    TChunkReadGuard& operator=(TChunkReadGuard&& other) = default;
 
     explicit operator bool() const;
 
@@ -193,7 +193,7 @@ public:
     TChunkUpdateGuard(TChunkUpdateGuard&& other) = default;
     ~TChunkUpdateGuard();
 
-    TChunkUpdateGuard& operator = (TChunkUpdateGuard&& other) = default;
+    TChunkUpdateGuard& operator=(TChunkUpdateGuard&& other) = default;
 
     explicit operator bool() const;
 

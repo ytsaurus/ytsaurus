@@ -213,7 +213,7 @@ public:
     i64 ChunkHostCellMasterMemory = 0;
     NSecurityServer::TDetailedMasterMemory DetailedMasterMemory;
 
-    TResourceUsage& operator += (const TResourceUsage& other)
+    TResourceUsage& operator+=(const TResourceUsage& other)
     {
         NodeCount += other.NodeCount;
         ChunkCount += other.ChunkCount;

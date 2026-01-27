@@ -23,7 +23,7 @@ struct TRichTransactionId
 
     TClusterName Cluster;
 
-    std::strong_ordering operator <=>(const TRichTransactionId& other) const = default;
+    std::strong_ordering operator<=>(const TRichTransactionId& other) const = default;
 };
 
 TRichTransactionId MakeRichTransactionId(NTransactionClient::TTransactionId id);

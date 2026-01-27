@@ -182,7 +182,7 @@ public:
         return Header_ != nullptr;
     }
 
-    bool operator == (TEditList<T> other) const
+    bool operator==(TEditList<T> other) const
     {
         return Header_ == other.Header_;
     }
@@ -261,12 +261,12 @@ public:
     }
 
 
-    const T& operator[] (int index) const
+    const T& operator[](int index) const
     {
         return Begin()[index];
     }
 
-    T& operator[] (int index)
+    T& operator[](int index)
     {
         return Begin()[index];
     }
@@ -494,7 +494,7 @@ public:
     }
 
 
-    bool operator == (TSortedDynamicRow other) const
+    bool operator==(TSortedDynamicRow other) const
     {
         return Header_ == other.Header_;
     }
@@ -548,7 +548,7 @@ struct TDynamicRowRef
     }
 
 
-    bool operator == (const TDynamicRowRef& other) const
+    bool operator==(const TDynamicRowRef& other) const
     {
         return
             Store == other.Store &&

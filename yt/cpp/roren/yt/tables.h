@@ -41,7 +41,7 @@ public:
     {
         TOperationNode* Operation = nullptr;
         ssize_t Index = 0;
-        bool operator == (const TInputFor& other) const = default;
+        bool operator==(const TInputFor& other) const = default;
     };
     std::vector<TInputFor> InputFor;
 

@@ -27,7 +27,7 @@ struct TPartRange
     explicit operator bool() const;
 };
 
-bool operator == (const TPartRange& lhs, const TPartRange& rhs);
+bool operator==(const TPartRange& lhs, const TPartRange& rhs);
 
 TPartRange Intersection(const TPartRange& lhs, const TPartRange& rhs);
 

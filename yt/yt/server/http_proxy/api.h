@@ -32,7 +32,7 @@ class TSemaphoreGuard
 {
 public:
     TSemaphoreGuard(TSemaphoreGuard&&) = default;
-    TSemaphoreGuard& operator = (TSemaphoreGuard&&) = default;
+    TSemaphoreGuard& operator=(TSemaphoreGuard&&) = default;
 
     TSemaphoreGuard(TApi* api, const TUserCommandPair& key);
     ~TSemaphoreGuard();

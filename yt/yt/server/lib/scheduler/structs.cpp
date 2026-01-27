@@ -239,12 +239,12 @@ void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& n
         neededResources.ResourcesByPoolTreeId);
 }
 
-TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
+TCompositeNeededResources operator-(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
 {
     return lhs + (-rhs);
 }
 
-TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
+TCompositeNeededResources operator+(const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
 {
     TCompositeNeededResources result;
     result.DefaultResources = lhs.DefaultResources + rhs.DefaultResources;
@@ -266,7 +266,7 @@ TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, cons
     return result;
 }
 
-TCompositeNeededResources operator - (const TCompositeNeededResources& resources)
+TCompositeNeededResources operator-(const TCompositeNeededResources& resources)
 {
     TCompositeNeededResources result;
     result.DefaultResources = -resources.DefaultResources;

@@ -27,7 +27,7 @@ struct TArtifactKey
     operator size_t() const;
 
     // Comparer.
-    bool operator == (const TArtifactKey& other) const;
+    bool operator==(const TArtifactKey& other) const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf spec);

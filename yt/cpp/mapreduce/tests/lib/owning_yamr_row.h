@@ -19,7 +19,7 @@ struct TOwningYaMRRow {
     TOwningYaMRRow(TString key, TString subKey, TString value);
 };
 
-bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
+bool operator==(const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -261,7 +261,7 @@ TJobResources FromNodeResources(const NNodeTrackerClient::NProto::TNodeResources
     return result;
 }
 
-TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator+(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name + rhs.Name;
@@ -271,7 +271,7 @@ TJobResources operator + (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator+=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name + rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -280,7 +280,7 @@ TJobResources& operator += (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
+TJobResources operator-(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name - rhs.Name;
@@ -290,7 +290,7 @@ TJobResources operator - (const TJobResources& lhs, const TJobResources& rhs)
     return result;
 }
 
-TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
+TJobResources& operator-=(TJobResources& lhs, const TJobResources& rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name - rhs.Name;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -299,7 +299,7 @@ TJobResources& operator -= (TJobResources& lhs, const TJobResources& rhs)
     return lhs;
 }
 
-TJobResources operator * (const TJobResources& lhs, i64 rhs)
+TJobResources operator*(const TJobResources& lhs, i64 rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = lhs.Name * rhs;
@@ -309,7 +309,7 @@ TJobResources operator * (const TJobResources& lhs, i64 rhs)
     return result;
 }
 
-TJobResources operator * (const TJobResources& lhs, double rhs)
+TJobResources operator*(const TJobResources& lhs, double rhs)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
@@ -319,7 +319,7 @@ TJobResources operator * (const TJobResources& lhs, double rhs)
     return result;
 }
 
-TJobResources& operator *= (TJobResources& lhs, i64 rhs)
+TJobResources& operator*=(TJobResources& lhs, i64 rhs)
 {
     #define XX(name, Name) lhs.Name = lhs.Name * rhs;
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -328,7 +328,7 @@ TJobResources& operator *= (TJobResources& lhs, i64 rhs)
     return lhs;
 }
 
-TJobResources& operator *= (TJobResources& lhs, double rhs)
+TJobResources& operator*=(TJobResources& lhs, double rhs)
 {
     #define XX(name, Name) lhs.Name = static_cast<decltype(lhs.Name)>(lhs.Name * rhs + static_cast<decltype(lhs.Name * rhs)>(0.5));
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -337,7 +337,7 @@ TJobResources& operator *= (TJobResources& lhs, double rhs)
     return lhs;
 }
 
-TJobResources  operator - (const TJobResources& resources)
+TJobResources  operator-(const TJobResources& resources)
 {
     TJobResources result;
     #define XX(name, Name) result.Name = -resources.Name;
@@ -347,7 +347,7 @@ TJobResources  operator - (const TJobResources& resources)
     return result;
 }
 
-bool operator == (const TJobResources& lhs, const TJobResources& rhs)
+bool operator==(const TJobResources& lhs, const TJobResources& rhs)
 {
     return
         #define XX(name, Name) lhs.Name == rhs.Name &&

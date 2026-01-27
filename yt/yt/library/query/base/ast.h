@@ -54,16 +54,16 @@ struct TWhenThenExpression
 };
 using TWhenThenExpressionList = std::vector<TWhenThenExpression>;
 
-bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs);
+bool operator==(const TIdentifierList& lhs, const TIdentifierList& rhs);
 
-bool operator == (const TExpressionList& lhs, const TExpressionList& rhs);
+bool operator==(const TExpressionList& lhs, const TExpressionList& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNullLiteralValue
 { };
 
-bool operator == (TNullLiteralValue, TNullLiteralValue);
+bool operator==(TNullLiteralValue, TNullLiteralValue);
 
 using TLiteralValue = std::variant<
     TNullLiteralValue,
@@ -111,7 +111,7 @@ struct TColumnReference
         , TableName(tableName)
     { }
 
-    bool operator == (const TColumnReference& other) const = default;
+    bool operator==(const TColumnReference& other) const = default;
 };
 
 struct TColumnReferenceHasher
@@ -138,7 +138,7 @@ struct TCompositeTypeMemberAccessor
 
     bool IsEmpty() const;
 
-    bool operator == (const TCompositeTypeMemberAccessor& other) const = default;
+    bool operator==(const TCompositeTypeMemberAccessor& other) const = default;
 };
 
 struct TReference
@@ -156,7 +156,7 @@ struct TReference
         , CompositeTypeAccessor(compositeTypeAccessor)
     { }
 
-    bool operator == (const TReference& other) const = default;
+    bool operator==(const TReference& other) const = default;
 };
 
 struct TReferenceHasher
@@ -202,7 +202,7 @@ TExpressionList MakeExpression(TObjectsHolder* holder, TArgs&& ... args)
     return TExpressionList(1, holder->Register(new T(std::forward<TArgs>(args)...)));
 }
 
-bool operator == (const TExpression& lhs, const TExpression& rhs);
+bool operator==(const TExpression& lhs, const TExpression& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,7 +431,7 @@ struct TTableHint
     bool RequireSyncReplica;
     bool PushDownGroupBy;
 
-    bool operator == (const TTableHint& other) const = default;
+    bool operator==(const TTableHint& other) const = default;
 
     REGISTER_YSON_STRUCT(TTableHint);
 
@@ -460,7 +460,7 @@ struct TTableDescriptor
     { }
 };
 
-bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
+bool operator==(const TTableDescriptor& lhs, const TTableDescriptor& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,7 +500,7 @@ struct TJoin
     { }
 };
 
-bool operator == (const TJoin& lhs, const TJoin& rhs);
+bool operator==(const TJoin& lhs, const TJoin& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

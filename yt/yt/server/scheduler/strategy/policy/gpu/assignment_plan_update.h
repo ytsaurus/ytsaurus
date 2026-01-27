@@ -51,7 +51,7 @@ struct TOperationModuleBindingOutcome
     const std::vector<TOperation*> OperationsToEvict;
 };
 
-bool operator <(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
+bool operator<(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutcome& outcome, TStringBuf spec);
 

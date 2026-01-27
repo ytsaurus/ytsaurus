@@ -93,7 +93,7 @@ TOverrunTableWriteBufferMemoryInfo::TOverrunTableWriteBufferMemoryInfo(
     , ReservedMemoryForJobProxyWithEstimatedBuffer_(reservedMemoryForJobProxyWithEstimatedBuffer)
 { }
 
-std::strong_ordering TOverrunTableWriteBufferMemoryInfo::operator <=> (const TOverrunTableWriteBufferMemoryInfo& other) const
+std::strong_ordering TOverrunTableWriteBufferMemoryInfo::operator<=>(const TOverrunTableWriteBufferMemoryInfo& other) const
 {
     auto relativeDifference = GetRelativeDifference();
     auto otherRelativeDifference = other.GetRelativeDifference();

@@ -139,7 +139,7 @@ struct THeapItem
     }
 };
 
-bool operator < (const THeapItem& lhs, const THeapItem& rhs)
+bool operator<(const THeapItem& lhs, const THeapItem& rhs)
 {
     return lhs.Bucket->ExcessTime < rhs.Bucket->ExcessTime;
 }

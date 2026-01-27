@@ -1508,7 +1508,7 @@ TStickyGroupSizeCache::TKey::operator size_t() const
     return result;
 }
 
-bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
+bool TStickyGroupSizeCache::TKey::operator==(const TKey& other) const
 {
     return
         Key == other.Key &&

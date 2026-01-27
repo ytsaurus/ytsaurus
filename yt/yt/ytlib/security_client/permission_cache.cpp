@@ -49,7 +49,7 @@ TPermissionKey::operator size_t() const
     return result;
 }
 
-bool TPermissionKey::operator == (const TPermissionKey& other) const
+bool TPermissionKey::operator==(const TPermissionKey& other) const
 {
     return
         Path == other.Path &&

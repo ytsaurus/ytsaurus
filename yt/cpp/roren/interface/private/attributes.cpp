@@ -4,7 +4,7 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAttributeSetter TAttributeSetter::operator >> (const TAttributeSetter& other) const
+TAttributeSetter TAttributeSetter::operator>>(const TAttributeSetter& other) const
 {
     TAttributeSetter result(other);
     MergeAttributes(result, *this);

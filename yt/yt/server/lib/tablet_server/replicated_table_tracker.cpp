@@ -431,7 +431,7 @@ struct TBundleHealthKey
     std::string ClusterKey;
     std::string BundleName;
 
-    bool operator == (const TBundleHealthKey& other) const
+    bool operator==(const TBundleHealthKey& other) const
     {
         return ClusterKey == other.ClusterKey &&
             BundleName == other.BundleName;
@@ -1393,7 +1393,7 @@ private:
             TTableId TableId;
             ETableReplicaContentType ContentType;
 
-            bool operator == (const TReplicaFamily& other) const
+            bool operator==(const TReplicaFamily& other) const
             {
                 return TableId == other.TableId && ContentType == other.ContentType;
             }

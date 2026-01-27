@@ -199,7 +199,7 @@ TOwningYaMRRow::operator TYaMRRow() const
     return {Key, SubKey, Value};
 }
 
-bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
+bool operator==(const TOwningYaMRRow& row1, const TOwningYaMRRow& row2) {
     return row1.Key == row2.Key
         && row1.SubKey == row2.SubKey
         && row1.Value == row2.Value;

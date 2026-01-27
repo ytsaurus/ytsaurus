@@ -16,7 +16,7 @@ bool TOneShotFlag::Get() const noexcept
     return Flag_.value();
 }
 
-void TOneShotFlag::operator = (bool value) noexcept
+void TOneShotFlag::operator=(bool value) noexcept
 {
     Set(value);
 }
