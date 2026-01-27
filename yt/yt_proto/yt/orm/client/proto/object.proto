@@ -209,7 +209,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 58.
+// Next field number 59.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -324,6 +324,14 @@ message TObjectTypeOption
 
     // Attributes allowed to update when object is finalizing.
     repeated string update_allowed_while_finalizing = 57;
+
+    // When an object is removed, keep it in the object table for a while, in which case
+    // non-empty non-zero value of removal_time column actually marks the object as removed.
+    // Object-specific *_pending_removals table holds the keys of removed objects and is used
+    // to sweep the removed objects from the object table after a period of time set by
+    // "removed_objects_grace_timeout" object manager config option.
+    // If true, mode can be overridden with "remove_mode" object manager config option.
+    optional bool enable_asynchronous_removals = 58;
 }
 
 message TIndexKeyPart
@@ -441,7 +449,7 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30057.
+// Next field 30058.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -511,10 +519,12 @@ extend google.protobuf.FileOptions
     // Default policy is CRP_CLEAR.
     optional ECascadingRemovalPolicy generated_backref_removal_policy = 30048;
 
-    // Whether to create and use by default pending_removals table for object deletion.
-    // If true, mode can be overridden with remove_mode option in object manager.
-    optional bool enable_asynchronous_removals = 30033 [default = true];
-    // Only actual with `enable_asynchronous_removals=false` option.
+    // Enable asynchronous removals for all object types (see respective object type option for details).
+    optional bool enable_asynchronous_removals = 30033;
+    // Enable asynchronous removals for all object types. A global pending_removals table
+    // will be used for objects without enable_asynchronous_removals option.
+    optional bool enable_communal_asynchronous_removals = 30057 [default = true];
+    // For compatibility, keep removal_time column even when asynchronous removals are off.
     optional bool keep_removal_time = 30049;
 
     optional bool enable_finalizers = 30030;
