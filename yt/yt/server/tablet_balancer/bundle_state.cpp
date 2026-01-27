@@ -1131,7 +1131,13 @@ void TBundleState::FetchReplicaModes(
                     continue;
                 }
 
-                auto minorTable = GetOrCrash(TableRegistry_->AlienTables(), minorTableIdIt->second);
+                auto minorTableIt = TableRegistry_->AlienTables().find(minorTableIdIt->second);
+                if (minorTableIt == TableRegistry_->AlienTables().end()) {
+                    // Alien table attributes or statistics was not fetched successfully.
+                    continue;
+                }
+
+                const auto& minorTable = minorTableIt->second;
                 auto [cellTag, replicaType] = getCellTag(minorTable);
                 if (cellTag == InvalidCellTag) {
                     continue;

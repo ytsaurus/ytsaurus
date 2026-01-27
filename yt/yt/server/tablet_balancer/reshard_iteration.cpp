@@ -497,7 +497,16 @@ private:
                     "Not all tables was resolved. Table id for table %v was not found. Check that table path is correct",
                     minorTablePath);
 
-                auto minorTable = GetOrCrash(tableRegistry->AlienTables(), it->second);
+                auto minorTableIt = tableRegistry->AlienTables().find(it->second);
+                if (minorTableIt == tableRegistry->AlienTables().end()) {
+                    YT_LOG_DEBUG("Alien table attributes or statistics was not fetched successfully "
+                        "(MajorTableId: %v, MinorTableId: %v)",
+                        table->Id,
+                        it->second);
+                    return TReferenceTableSearchResponse{.AreAllReplicasValid = false};
+                }
+
+                const auto& minorTable = minorTableIt->second;
                 EmplaceOrCrash(alienTables, minorTable->Id, minorTable);
 
                 if (!minorTable->ReplicaMode) {

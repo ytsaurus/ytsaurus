@@ -365,6 +365,15 @@ public:
                         "Check that table path is correct",
                         minorTablePath,
                         cluster);
+
+                    auto tableIt = tableRegistry->AlienTables().find(it->second);
+                    if (tableIt == tableRegistry->AlienTables().end()) {
+                        THROW_ERROR_EXCEPTION(
+                            "Not all statistics was fetched successfully. Attributes or statistics of table %v on cluster %Qv was not found",
+                            minorTablePath,
+                            cluster)
+                            << TErrorAttribute("table_id", it->second);
+                    }
                 }
             }
         }
