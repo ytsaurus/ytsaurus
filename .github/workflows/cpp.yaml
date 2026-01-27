@@ -97,7 +97,7 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
             echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"

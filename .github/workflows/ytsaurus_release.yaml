@@ -83,7 +83,7 @@ jobs:
           echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
             echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
@@ -123,7 +123,7 @@ jobs:
   release:
     name: Release Test
     needs:
-      - start-vm 
+      - start-vm
       - build
       - tag
     if: ${{ needs.tag.outputs.release-type == 'test' }}
@@ -153,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          BUILD_TYPES='${{ inputs.build_types }}'
+          BUILD_TYPES='${{ needs.tag.outputs.build-types }}'
 
           has() {
             python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
@@ -162,6 +162,10 @@ jobs:
 
           echo "release=$(has release)" >> "$GITHUB_OUTPUT"
           echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
 
       - name: Docker Pull And Push (release)
         if: ${{ steps.types.outputs.release == 'true' }}
