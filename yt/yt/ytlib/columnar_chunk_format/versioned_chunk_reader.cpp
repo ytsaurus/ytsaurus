@@ -161,14 +161,14 @@ std::vector<TSpanMatching> BuildReadWindows(
         const int CommonKeyPrefix;
         const int KeyColumnCount;
 
-        bool operator() (const TRowRange* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TRowRange* itemIt, const TLegacyKey* shardIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyBoundRef(itemIt->second, true, KeyColumnCount));
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TRowRange* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TRowRange* itemIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
@@ -207,14 +207,14 @@ std::vector<TSpanMatching> BuildReadWindows(
     {
         const int CommonKeyPrefix;
 
-        bool operator() (const TItem* itemIt, const TLegacyKey* shardIt) const
+        bool operator()(const TItem* itemIt, const TLegacyKey* shardIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
                 ToKeyRef(*itemIt)) >= 0;
         }
 
-        bool operator() (const TLegacyKey* shardIt, const TItem* itemIt) const
+        bool operator()(const TLegacyKey* shardIt, const TItem* itemIt) const
         {
             return CompareWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),

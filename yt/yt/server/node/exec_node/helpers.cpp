@@ -325,7 +325,7 @@ void TControllerAgentAffiliationInfo::ResetControllerAgent()
 
 } // namespace NYT::NExecNode
 
-size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator () (
+size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator()(
     const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const
 {
     return MultiHash(descriptor.Address, descriptor.IncarnationId);

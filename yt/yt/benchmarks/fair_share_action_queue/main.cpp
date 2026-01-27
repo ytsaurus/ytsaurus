@@ -122,7 +122,7 @@ struct TThreadHistogram
 
 struct TThreadHistogramToListNode
 {
-    auto operator() (TThreadHistogram* histogram) const
+    auto operator()(TThreadHistogram* histogram) const
     {
         return &histogram->LinkedListNode;
     }

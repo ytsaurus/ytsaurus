@@ -38,22 +38,22 @@ struct TTimer:
 
     struct TKeyHasher
     {
-        size_t operator () (const TKey& key) const;
+        size_t operator()(const TKey& key) const;
     };
 
     struct TValueHasher
     {
-        size_t operator () (const TValue& value) const;
+        size_t operator()(const TValue& value) const;
     };
 
     struct THasher
     {
-        size_t operator () (const TTimer& timer) const;
+        size_t operator()(const TTimer& timer) const;
     };
 
     struct TKeyEqual
     {
-        bool operator () (const TTimer::TKey& a, const TTimer::TKey& b);
+        bool operator()(const TTimer::TKey& a, const TTimer::TKey& b);
     };
 };  // TTimerData
 

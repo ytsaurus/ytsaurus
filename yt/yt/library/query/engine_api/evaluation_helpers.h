@@ -59,7 +59,7 @@ public:
     // Intentionally implicit.
     TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> hasher);
 
-    ui64 operator () (const TPIValue* row) const;
+    ui64 operator()(const TPIValue* row) const;
 
 private:
     NWebAssembly::TCompartmentFunction<THasherFunction> Hasher_;
@@ -80,7 +80,7 @@ public:
     // Intentionally implicit.
     TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction> comparer);
 
-    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const;
+    bool operator()(const TPIValue* lhs, const TPIValue* rhs) const;
 
 private:
     NWebAssembly::TCompartmentFunction<TComparerFunction> Comparer_;

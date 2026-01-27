@@ -116,12 +116,12 @@ struct TColumnReference
 
 struct TColumnReferenceHasher
 {
-    size_t operator() (const TColumnReference& reference) const;
+    size_t operator()(const TColumnReference& reference) const;
 };
 
 struct TColumnReferenceEqComparer
 {
-    bool operator() (const TColumnReference& lhs, const TColumnReference& rhs) const;
+    bool operator()(const TColumnReference& lhs, const TColumnReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,12 +161,12 @@ struct TReference
 
 struct TReferenceHasher
 {
-    size_t operator() (const TReference& reference) const;
+    size_t operator()(const TReference& reference) const;
 };
 
 struct TReferenceEqComparer
 {
-    bool operator() (const TReference& lhs, const TReference& rhs) const;
+    bool operator()(const TReference& lhs, const TReference& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

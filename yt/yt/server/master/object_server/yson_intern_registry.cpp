@@ -35,14 +35,14 @@ private:
 
     struct THash
     {
-        size_t operator() (const TInternedYsonStringData* value) const;
-        size_t operator() (TStringBuf data) const;
+        size_t operator()(const TInternedYsonStringData* value) const;
+        size_t operator()(TStringBuf data) const;
     };
 
     struct TEqual
     {
-        bool operator() (const TInternedYsonStringData* lhs, const TInternedYsonStringData* rhs) const;
-        bool operator() (const TInternedYsonStringData* lhs, TStringBuf rhs) const;
+        bool operator()(const TInternedYsonStringData* lhs, const TInternedYsonStringData* rhs) const;
+        bool operator()(const TInternedYsonStringData* lhs, TStringBuf rhs) const;
     };
 
     using TInternedSet = THashSet<TInternedYsonStringData*, THash, TEqual>;
@@ -128,22 +128,22 @@ private:
     }
 };
 
-size_t TYsonInternRegistry::THash::operator() (const TInternedYsonStringData* value) const
+size_t TYsonInternRegistry::THash::operator()(const TInternedYsonStringData* value) const
 {
     return ::THash<TStringBuf>()(value->ToStringBuf());
 }
 
-size_t TYsonInternRegistry::THash::operator() (TStringBuf data) const
+size_t TYsonInternRegistry::THash::operator()(TStringBuf data) const
 {
     return ::THash<TStringBuf>()(data);
 }
 
-bool TYsonInternRegistry::TEqual::operator() (const TInternedYsonStringData* lhs, const TInternedYsonStringData* rhs) const
+bool TYsonInternRegistry::TEqual::operator()(const TInternedYsonStringData* lhs, const TInternedYsonStringData* rhs) const
 {
     return lhs->ToStringBuf() == rhs->ToStringBuf();
 }
 
-bool TYsonInternRegistry::TEqual::operator() (const TInternedYsonStringData* lhs, TStringBuf rhs) const
+bool TYsonInternRegistry::TEqual::operator()(const TInternedYsonStringData* lhs, TStringBuf rhs) const
 {
     return lhs->ToStringBuf() == rhs;
 }

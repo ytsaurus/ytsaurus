@@ -32,13 +32,13 @@ private:
     //! Hasher for proto class TTableSchemaInternal.
     struct THashInternal
     {
-        inline size_t operator() (const TTableSchemaInternal& tableSchema) const;
+        inline size_t operator()(const TTableSchemaInternal& tableSchema) const;
     };
 
     //! Equality predicate for proto class TTableSchemaInternal.
     struct TEqualsInternal
     {
-        inline bool operator() (const TTableSchemaInternal& lhs, const TTableSchemaInternal& rhs) const;
+        inline bool operator()(const TTableSchemaInternal& lhs, const TTableSchemaInternal& rhs) const;
     };
 
     //! Mapping from known table schemas to ids and two its reverses (to the internal

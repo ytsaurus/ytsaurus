@@ -19,7 +19,7 @@ TGroupHasher::TGroupHasher(NWebAssembly::TCompartmentFunction<THasherFunction> h
     : Hasher_(hasher)
 { }
 
-ui64 TGroupHasher::operator () (const TPIValue* row) const
+ui64 TGroupHasher::operator()(const TPIValue* row) const
 {
     return Hasher_(row);
 }
@@ -39,7 +39,7 @@ TRowComparer::TRowComparer(NWebAssembly::TCompartmentFunction<TComparerFunction>
     : Comparer_(comparer)
 { }
 
-bool TRowComparer::operator () (const TPIValue* lhs, const TPIValue* rhs) const
+bool TRowComparer::operator()(const TPIValue* lhs, const TPIValue* rhs) const
 {
     return (lhs == rhs) ||
         (!IsSentinel(lhs) && !IsSentinel(rhs) && Comparer_(lhs, rhs));

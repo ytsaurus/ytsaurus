@@ -273,7 +273,7 @@ using TAllocationWithPreemptionInfoSetMap = THashMap<int, TAllocationWithPreempt
 template <>
 struct THash<NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo>
 {
-    inline size_t operator ()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
+    inline size_t operator()(const NYT::NScheduler::NStrategy::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
     {
         return THash<NYT::NScheduler::TAllocationPtr>()(allocationInfo.Allocation);
     }

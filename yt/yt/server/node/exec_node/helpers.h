@@ -93,7 +93,7 @@ void SetNodeInfoToRequest(
 template <>
 struct THash<NYT::NExecNode::TControllerAgentDescriptor>
 {
-    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
+    size_t operator()(const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
 };
 
 #define HELPERS_INL_H_

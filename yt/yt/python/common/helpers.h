@@ -111,7 +111,7 @@ bool WaitForSettingFuture(TFuture<void> future);
 
 struct TPyObjectDeleter
 {
-    void operator() (PyObject* object) const
+    void operator()(PyObject* object) const
     {
         Py_XDECREF(object);
     }

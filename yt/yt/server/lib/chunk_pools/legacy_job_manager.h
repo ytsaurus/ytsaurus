@@ -133,7 +133,7 @@ private:
     public:
         explicit TStripeListComparator(TLegacyJobManager* owner);
 
-        bool operator ()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
+        bool operator()(IChunkPoolOutput::TCookie lhs, IChunkPoolOutput::TCookie rhs) const;
     private:
         TLegacyJobManager* Owner_;
     };
