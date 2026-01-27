@@ -47,3 +47,4 @@ pragma FilterPushdownOverJoinOptionalSide;
 pragma yt.TableContentMinAvgChunkSize="0";
 pragma yt.TemporaryCompressionCodec="zstd_1";
 pragma yt.IntermediateReplicationFactor="1";
+pragma yt.MaxJobCount="200";
