@@ -264,4 +264,16 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_count").Value(statistic.TotalNodes)
+            .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
+            .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
