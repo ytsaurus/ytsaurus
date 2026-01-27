@@ -365,17 +365,17 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         }
     });
     registrar.Postprocessor([] (TThis* config) {
-        auto setCancelFiberOnConnectionClose = [&] (NHttp::TServerConfig* serverConfig) {
-            if (serverConfig != nullptr && !serverConfig->CancelFiberOnConnectionClose) {
+        auto setCancelFiberOnConnectionClose = [&] (const auto& serverConfig) {
+            if (serverConfig && !serverConfig->CancelFiberOnConnectionClose) {
                 serverConfig->CancelFiberOnConnectionClose = config->CancelFiberOnConnectionClose;
             }
         };
-        setCancelFiberOnConnectionClose(config->HttpServer.Get());
-        setCancelFiberOnConnectionClose(config->HttpsServer.Get());
-        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer.Get());
-        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer.Get());
-        setCancelFiberOnConnectionClose(config->ChytHttpServer.Get());
-        setCancelFiberOnConnectionClose(config->ChytHttpsServer.Get());
+        setCancelFiberOnConnectionClose(config->HttpServer);
+        setCancelFiberOnConnectionClose(config->HttpsServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpServer);
+        setCancelFiberOnConnectionClose(config->TvmOnlyHttpsServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpServer);
+        setCancelFiberOnConnectionClose(config->ChytHttpsServer);
     });
 }
 
