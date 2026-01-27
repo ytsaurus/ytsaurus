@@ -20,7 +20,7 @@ type ExecuteBatchOptions struct {
 
 // BatchSubrequest is a subrequest used in Client.ExecuteBatch.
 type BatchSubrequest struct {
-	Commmand   string         `yson:"command"`
+	Command    string         `yson:"command"`
 	Parameters map[string]any `yson:"parameters"`
 	Input      any            `yson:"input,omitempty"`
 }
