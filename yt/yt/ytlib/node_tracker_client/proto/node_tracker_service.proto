@@ -2,6 +2,9 @@ package NYT.NNodeTrackerClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
+
+import "yt_proto/yt/client/cell_master/proto/cell_directory.proto";
+
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt/ytlib/chunk_client/proto/heartbeat.proto";
 import "yt/ytlib/chunk_client/proto/location_indexes.proto";
@@ -51,6 +54,7 @@ message TRspRegisterNode
 {
     required uint32 node_id = 1;
     repeated string tags = 3;
+    repeated NCellMasterClient.NProto.TCellDirectoryItem secondary_masters_configs = 4;
 
     extensions 100 to max;
     reserved 2;
@@ -103,6 +107,8 @@ message TRspHeartbeat
     optional TNodeResourceLimitsOverrides resource_limits_overrides = 4;
 
     optional bool decommissioned = 5;
+
+    repeated NCellMasterClient.NProto.TCellDirectoryItem secondary_masters_configs = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

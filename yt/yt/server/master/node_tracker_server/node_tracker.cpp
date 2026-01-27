@@ -52,9 +52,12 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
+
+#include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/cellar_node_tracker_service.pb.h>
 
@@ -1143,6 +1146,20 @@ private:
         }
     }
 
+    void FillSecondaryMastersConnectionConfigs(auto* rspSecondaryMasterConnectionConfigs)
+    {
+        VerifyAutomatonThreadAffinity();
+
+        YT_VERIFY(HasMutationContext());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& masterCellConnectionConfigs = multicellManager->GetMasterCellConnectionConfigs();
+        for (const auto& secondaryMasterConfig : masterCellConnectionConfigs->SecondaryMasters) {
+            auto* protoSecondaryMasterConfig = rspSecondaryMasterConnectionConfigs->Add();
+            NCellMasterClient::ToProto(protoSecondaryMasterConfig, secondaryMasterConfig);
+        }
+    }
+
     void EnsureNodeObjectCreated(const TNodeObjectCreationOptions& options)
     {
         YT_VERIFY(HasMutationContext());
@@ -1461,6 +1478,11 @@ private:
         response->set_node_id(ToProto(node->GetId()));
 
         FillResponseNodeTags(response->mutable_tags(), node->Tags());
+
+        auto dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeRegistration) {
+            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
+        }
 
         if (context) {
             context->SetResponseInfo("NodeId: %v",
@@ -1849,6 +1871,11 @@ private:
 
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
         response->set_decommissioned(node->IsDecommissioned());
+
+        auto dynamicConfig = GetDynamicConfig();
+        if (dynamicConfig->ReturnMasterCellsConnectionConfigsOnNodeHeartbeat) {
+            FillSecondaryMastersConnectionConfigs(response->mutable_secondary_masters_configs());
+        }
 
         node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }

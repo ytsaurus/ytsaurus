@@ -857,7 +857,8 @@ private:
 
         // Cycles are fine for bootstrap.
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this)));
+            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this))
+            .Via(GetControlInvoker()));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -1667,16 +1668,28 @@ private:
     }
 
     void OnMasterCellDirectoryChanged(
-        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& potentiallyNewSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_ALERT_UNLESS(
             removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryMasterCellTags);
+
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
+        {
+            // NB: Attempt to update masters configuration with same diff could happen, so filter out already appended masters.
+            // If "new" masters connection configuration change, further updates will change it too.
+            auto guard = ReaderGuard(SecondaryMasterConnectionLock_);
+            for (const auto& [cellTag, masterConfig] : potentiallyNewSecondaryMasterConfigs) {
+                if (!SecondaryMasterConnectionConfigs_.contains(cellTag)) {
+                    EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, masterConfig);
+                }
+            }
+        }
 
         const auto& hiveCellDirectory = Connection_->GetCellDirectory();
 

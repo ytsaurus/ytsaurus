@@ -573,6 +573,8 @@ private:
     void OnSecondaryMasterCellListChanged(
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         BuildJobProxyConfigTemplate(newSecondaryMasterConfigs);
     }
 
@@ -627,6 +629,8 @@ private:
             NbdThreadPool_->SetThreadCount(newConfig->ExecNode->Nbd->Server->ThreadCount);
         }
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
