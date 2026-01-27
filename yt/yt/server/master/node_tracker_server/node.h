@@ -157,6 +157,8 @@ public:
     bool ReportedCellarNodeHeartbeat() const;
     bool ReportedTabletNodeHeartbeat() const;
 
+    void ValidateAllMasterCellsAreReliable() const;
+
     void ValidateRegistered() const;
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TClusterNodeStatistics, ClusterNodeStatistics);
