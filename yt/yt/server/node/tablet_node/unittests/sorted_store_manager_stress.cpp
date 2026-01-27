@@ -72,7 +72,7 @@ public:
         std::optional<int> Y;
         std::optional<int> Z;
 
-        bool operator == (const TRow& other) const
+        bool operator==(const TRow& other) const
         {
             return
                 Key == other.Key &&

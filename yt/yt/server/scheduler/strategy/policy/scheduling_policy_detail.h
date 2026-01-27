@@ -260,7 +260,7 @@ struct TAllocationWithPreemptionInfo
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
     TPoolTreeOperationElement* OperationElement;
 
-    bool operator ==(const TAllocationWithPreemptionInfo& other) const = default;
+    bool operator==(const TAllocationWithPreemptionInfo& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*spec*/);

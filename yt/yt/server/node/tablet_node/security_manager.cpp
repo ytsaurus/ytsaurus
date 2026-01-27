@@ -47,7 +47,7 @@ struct TResourceLimitsKey
     }
 
     // Comparer.
-    bool operator == (const TResourceLimitsKey& other) const
+    bool operator==(const TResourceLimitsKey& other) const
     {
         return
             Account == other.Account &&

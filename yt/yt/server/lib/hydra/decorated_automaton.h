@@ -128,7 +128,7 @@ public:
     TSystemLockGuard(TSystemLockGuard&& other);
     ~TSystemLockGuard();
 
-    TSystemLockGuard& operator = (TSystemLockGuard&& other);
+    TSystemLockGuard& operator=(TSystemLockGuard&& other);
 
     void Release();
 
@@ -152,7 +152,7 @@ public:
     TUserLockGuard(TUserLockGuard&& other);
     ~TUserLockGuard();
 
-    TUserLockGuard& operator = (TUserLockGuard&& other);
+    TUserLockGuard& operator=(TUserLockGuard&& other);
 
     void Release();
 

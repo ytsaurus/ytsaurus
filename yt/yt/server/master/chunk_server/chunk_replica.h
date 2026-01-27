@@ -61,9 +61,9 @@ public:
     size_t GetHash() const;
 
     bool operator==(TAugmentedPtr other) const;
-    bool operator< (TAugmentedPtr other) const;
+    bool operator<(TAugmentedPtr other) const;
     bool operator<=(TAugmentedPtr other) const;
-    bool operator> (TAugmentedPtr other) const;
+    bool operator>(TAugmentedPtr other) const;
     bool operator>=(TAugmentedPtr other) const;
 
     template <class C>

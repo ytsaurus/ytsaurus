@@ -17,17 +17,17 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TDetailedMasterMemory::operator[] (EMasterMemoryType type) const
+i64 TDetailedMasterMemory::operator[](EMasterMemoryType type) const
 {
     return DetailedMasterMemory_[type];
 }
 
-i64& TDetailedMasterMemory::operator[] (EMasterMemoryType type)
+i64& TDetailedMasterMemory::operator[](EMasterMemoryType type)
 {
     return DetailedMasterMemory_[type];
 }
 
-TDetailedMasterMemory& TDetailedMasterMemory::operator += (const TDetailedMasterMemory& other)
+TDetailedMasterMemory& TDetailedMasterMemory::operator+=(const TDetailedMasterMemory& other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
         DetailedMasterMemory_[type] += other[type];
@@ -35,14 +35,14 @@ TDetailedMasterMemory& TDetailedMasterMemory::operator += (const TDetailedMaster
     return *this;
 }
 
-TDetailedMasterMemory TDetailedMasterMemory::operator + (const TDetailedMasterMemory& other) const
+TDetailedMasterMemory TDetailedMasterMemory::operator+(const TDetailedMasterMemory& other) const
 {
     auto result = *this;
     result += other;
     return result;
 }
 
-TDetailedMasterMemory& TDetailedMasterMemory::operator -= (const TDetailedMasterMemory& other)
+TDetailedMasterMemory& TDetailedMasterMemory::operator-=(const TDetailedMasterMemory& other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
         DetailedMasterMemory_[type] -= other[type];
@@ -50,14 +50,14 @@ TDetailedMasterMemory& TDetailedMasterMemory::operator -= (const TDetailedMaster
     return *this;
 }
 
-TDetailedMasterMemory TDetailedMasterMemory::operator - (const TDetailedMasterMemory& other) const
+TDetailedMasterMemory TDetailedMasterMemory::operator-(const TDetailedMasterMemory& other) const
 {
     auto result = *this;
     result -= other;
     return result;
 }
 
-TDetailedMasterMemory& TDetailedMasterMemory::operator *= (i64 other)
+TDetailedMasterMemory& TDetailedMasterMemory::operator*=(i64 other)
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
         DetailedMasterMemory_[type] *= other;
@@ -65,21 +65,21 @@ TDetailedMasterMemory& TDetailedMasterMemory::operator *= (i64 other)
     return *this;
 }
 
-TDetailedMasterMemory TDetailedMasterMemory::operator * (i64 other) const
+TDetailedMasterMemory TDetailedMasterMemory::operator*(i64 other) const
 {
     auto result = *this;
     result *= other;
     return result;
 }
 
-TDetailedMasterMemory TDetailedMasterMemory::operator - () const
+TDetailedMasterMemory TDetailedMasterMemory::operator-() const
 {
     auto result = *this;
     result *= -1;
     return result;
 }
 
-bool TDetailedMasterMemory::operator == (const TDetailedMasterMemory& other) const
+bool TDetailedMasterMemory::operator==(const TDetailedMasterMemory& other) const
 {
     for (auto type : TEnumTraits<EMasterMemoryType>::GetDomainValues()) {
         if (DetailedMasterMemory_[type] != other[type]) {

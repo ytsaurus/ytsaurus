@@ -29,12 +29,12 @@ size_t TTypeSet::GetSize() const
     return result;
 }
 
-TTypeSet operator | (const TTypeSet& lhs, const TTypeSet& rhs)
+TTypeSet operator|(const TTypeSet& lhs, const TTypeSet& rhs)
 {
     return TTypeSet(lhs.Value_ | rhs.Value_);
 }
 
-TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs)
+TTypeSet operator&(const TTypeSet& lhs, const TTypeSet& rhs)
 {
     return TTypeSet(lhs.Value_ & rhs.Value_);
 }

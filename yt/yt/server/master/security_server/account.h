@@ -39,9 +39,9 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     const NCellMaster::TBootstrap* bootstrap);
 
-TAccountStatistics& operator += (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator+=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
-TAccountStatistics& operator -= (TAccountStatistics& lhs, const TAccountStatistics& rhs);
+TAccountStatistics& operator-=(TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator -  (const TAccountStatistics& lhs, const TAccountStatistics& rhs);
 TAccountStatistics  operator -  (const TAccountStatistics& accountStatistics);
 

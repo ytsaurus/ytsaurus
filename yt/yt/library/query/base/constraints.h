@@ -28,11 +28,11 @@ extern TValueBound MaxBound;
 
 constexpr ui32 SentinelColumnId = std::numeric_limits<ui32>::max();
 
-bool operator < (const TValueBound& lhs, const TValueBound& rhs);
+bool operator<(const TValueBound& lhs, const TValueBound& rhs);
 
-bool operator <= (const TValueBound& lhs, const TValueBound& rhs);
+bool operator<=(const TValueBound& lhs, const TValueBound& rhs);
 
-bool operator == (const TValueBound& lhs, const TValueBound& rhs);
+bool operator==(const TValueBound& lhs, const TValueBound& rhs);
 
 bool TestValue(TValue value, const TValueBound& lower, const TValueBound& upper);
 

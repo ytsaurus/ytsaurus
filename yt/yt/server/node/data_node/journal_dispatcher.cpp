@@ -46,7 +46,7 @@ struct TCachedChangelogKey
     }
 
     // Comparer.
-    bool operator == (const TCachedChangelogKey& other) const
+    bool operator==(const TCachedChangelogKey& other) const
     {
         return
             Location == other.Location &&

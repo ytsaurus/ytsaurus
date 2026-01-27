@@ -31,7 +31,7 @@ struct TMemoryDigest
     i64 BackingUsage = 0;
     i64 Limit = 0;
 
-    TMemoryDigest& operator += (const TMemoryDigest& other)
+    TMemoryDigest& operator+=(const TMemoryDigest& other)
     {
         TotalUsage += other.TotalUsage;
         PassiveUsage += other.PassiveUsage;

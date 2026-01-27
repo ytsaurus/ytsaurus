@@ -144,7 +144,7 @@ TArtifactKey::operator size_t() const
     return result;
 }
 
-bool TArtifactKey::operator == (const TArtifactKey& other) const
+bool TArtifactKey::operator==(const TArtifactKey& other) const
 {
     if (data_source().type() != other.data_source().type())
         return false;

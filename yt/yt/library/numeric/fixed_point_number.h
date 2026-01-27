@@ -39,70 +39,70 @@ public:
     Underlying GetUnderlyingValue() const;
     void SetUnderlyingValue(Underlying value);
 
-    TFixedPointNumber& operator += (const TFixedPointNumber& rhs);
-    TFixedPointNumber& operator -= (const TFixedPointNumber& rhs);
+    TFixedPointNumber& operator+=(const TFixedPointNumber& rhs);
+    TFixedPointNumber& operator-=(const TFixedPointNumber& rhs);
 
     template <typename T>
-    TFixedPointNumber& operator *= (const T& value);
+    TFixedPointNumber& operator*=(const T& value);
 
-    TFixedPointNumber& operator *= (const double& value);
+    TFixedPointNumber& operator*=(const double& value);
 
     template <typename T>
-    TFixedPointNumber& operator /= (const T& value);
+    TFixedPointNumber& operator/=(const T& value);
 
-    friend TFixedPointNumber operator + (TFixedPointNumber lhs, const TFixedPointNumber& rhs)
+    friend TFixedPointNumber operator+(TFixedPointNumber lhs, const TFixedPointNumber& rhs)
     {
         lhs += rhs;
         return lhs;
     }
 
-    friend TFixedPointNumber operator - (TFixedPointNumber lhs, const TFixedPointNumber& rhs)
+    friend TFixedPointNumber operator-(TFixedPointNumber lhs, const TFixedPointNumber& rhs)
     {
         lhs -= rhs;
         return lhs;
     }
 
     template <typename T>
-    friend TFixedPointNumber operator * (TFixedPointNumber lhs, T value)
+    friend TFixedPointNumber operator*(TFixedPointNumber lhs, T value)
     {
         lhs *= value;
         return lhs;
     }
 
     template <typename T>
-    friend TFixedPointNumber operator / (TFixedPointNumber lhs, T value)
+    friend TFixedPointNumber operator/(TFixedPointNumber lhs, T value)
     {
         lhs /= value;
         return lhs;
     }
 
-    friend TFixedPointNumber operator - (TFixedPointNumber lhs)
+    friend TFixedPointNumber operator-(TFixedPointNumber lhs)
     {
         lhs.Value_ = -lhs.Value_;
         return lhs;
     }
 
-    friend bool operator == (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
+    friend bool operator==(const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ == rhs.Value_;
     }
 
-    friend bool operator < (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
+    friend bool operator<(const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ < rhs.Value_;
     }
 
-    friend bool operator <= (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
+    friend bool operator<=(const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ <= rhs.Value_;
     }
 
-    friend bool operator > (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
+    friend bool operator>(const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ > rhs.Value_;
     }
 
-    friend bool operator >= (const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
+    friend bool operator>=(const TFixedPointNumber& lhs, const TFixedPointNumber& rhs)
     {
         return lhs.Value_ >= rhs.Value_;
     }

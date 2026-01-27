@@ -24,7 +24,7 @@ static constexpr auto StatisticsCollectionPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool THedgingUnit::operator == (const THedgingUnit& other) const
+bool THedgingUnit::operator==(const THedgingUnit& other) const
 {
     return
         UserTag == other.UserTag &&

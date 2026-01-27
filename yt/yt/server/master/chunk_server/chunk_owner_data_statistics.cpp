@@ -18,7 +18,7 @@ bool TChunkOwnerDataStatistics::IsDataWeightValid() const
     return DataWeight != -1;
 }
 
-TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOwnerDataStatistics& other)
+TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+=(const TChunkOwnerDataStatistics& other)
 {
     UncompressedDataSize += other.UncompressedDataSize;
     CompressedDataSize += other.CompressedDataSize;
@@ -36,7 +36,7 @@ TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOw
     return *this;
 }
 
-TChunkOwnerDataStatistics TChunkOwnerDataStatistics::operator+ (const TChunkOwnerDataStatistics& other) const
+TChunkOwnerDataStatistics TChunkOwnerDataStatistics::operator+(const TChunkOwnerDataStatistics& other) const
 {
     auto result = *this;
     result += other;
@@ -96,7 +96,7 @@ void TChunkOwnerDataStatistics::Load(TMaterializeNodeContext& context)
 }
 
 
-bool TChunkOwnerDataStatistics::operator== (const TChunkOwnerDataStatistics& other) const
+bool TChunkOwnerDataStatistics::operator==(const TChunkOwnerDataStatistics& other) const
 {
     return
         UncompressedDataSize == other.UncompressedDataSize &&

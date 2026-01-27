@@ -71,7 +71,7 @@ struct TExternalFunction
     const std::string Name;
 
     operator size_t() const;
-    bool operator == (const TExternalFunction& other) const;
+    bool operator==(const TExternalFunction& other) const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TExternalFunction& /*val*/, TStringBuf /*spec*/);

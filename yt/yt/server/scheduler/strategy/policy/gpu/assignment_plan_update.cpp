@@ -71,7 +71,7 @@ void Serialize(const TModuleState& state, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator <(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs)
+bool operator<(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs)
 {
     if (lhs.TotalEvictionPenalty != rhs.TotalEvictionPenalty) {
         return lhs.TotalEvictionPenalty < rhs.TotalEvictionPenalty;

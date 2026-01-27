@@ -207,7 +207,7 @@ public:
         TSharedRefArray Message;
 
         operator size_t() const;
-        bool operator == (const TKey& other) const;
+        bool operator==(const TKey& other) const;
     };
 
     TStickyGroupSizeCache(

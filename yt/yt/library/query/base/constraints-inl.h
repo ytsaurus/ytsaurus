@@ -8,17 +8,17 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool operator < (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator<(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) < std::tie(rhs.Value, rhs.Flag);
 }
 
-inline bool operator <= (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator<=(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) <= std::tie(rhs.Value, rhs.Flag);
 }
 
-inline bool operator == (const TValueBound& lhs, const TValueBound& rhs)
+inline bool operator==(const TValueBound& lhs, const TValueBound& rhs)
 {
     return std::tie(lhs.Value, lhs.Flag) == std::tie(rhs.Value, rhs.Flag);
 }

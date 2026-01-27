@@ -64,7 +64,7 @@ TResourceVolume Min(const TResourceVolume& lhs, const TResourceVolume& rhs)
     return result;
 }
 
-bool operator == (const TResourceVolume& lhs, const TResourceVolume& rhs)
+bool operator==(const TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     return
     #define XX(name, Name) lhs.Get##Name() == rhs.Get##Name() &&
@@ -73,7 +73,7 @@ bool operator == (const TResourceVolume& lhs, const TResourceVolume& rhs)
     true;
 }
 
-TResourceVolume& operator += (TResourceVolume& lhs, const TResourceVolume& rhs)
+TResourceVolume& operator+=(TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() + rhs.Get##Name());
     ITERATE_JOB_RESOURCES(XX)
@@ -81,7 +81,7 @@ TResourceVolume& operator += (TResourceVolume& lhs, const TResourceVolume& rhs)
     return lhs;
 }
 
-TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs)
+TResourceVolume& operator-=(TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() - rhs.Get##Name());
     ITERATE_JOB_RESOURCES(XX)
@@ -89,7 +89,7 @@ TResourceVolume& operator -= (TResourceVolume& lhs, const TResourceVolume& rhs)
     return lhs;
 }
 
-TResourceVolume& operator *= (TResourceVolume& lhs, double rhs)
+TResourceVolume& operator*=(TResourceVolume& lhs, double rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() * rhs);
     ITERATE_JOB_RESOURCES(XX)
@@ -97,7 +97,7 @@ TResourceVolume& operator *= (TResourceVolume& lhs, double rhs)
     return lhs;
 }
 
-TResourceVolume& operator /= (TResourceVolume& lhs, double rhs)
+TResourceVolume& operator/=(TResourceVolume& lhs, double rhs)
 {
     #define XX(name, Name) lhs.Set##Name(lhs.Get##Name() / rhs);
     ITERATE_JOB_RESOURCES(XX)
@@ -105,28 +105,28 @@ TResourceVolume& operator /= (TResourceVolume& lhs, double rhs)
     return lhs;
 }
 
-TResourceVolume operator + (const TResourceVolume& lhs, const TResourceVolume& rhs)
+TResourceVolume operator+(const TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     TResourceVolume result = lhs;
     result += rhs;
     return result;
 }
 
-TResourceVolume operator - (const TResourceVolume& lhs, const TResourceVolume& rhs)
+TResourceVolume operator-(const TResourceVolume& lhs, const TResourceVolume& rhs)
 {
     TResourceVolume result = lhs;
     result -= rhs;
     return result;
 }
 
-TResourceVolume operator * (const TResourceVolume& lhs, double rhs)
+TResourceVolume operator*(const TResourceVolume& lhs, double rhs)
 {
     TResourceVolume result = lhs;
     result *= rhs;
     return result;
 }
 
-TResourceVolume operator / (const TResourceVolume& lhs, double rhs)
+TResourceVolume operator/(const TResourceVolume& lhs, double rhs)
 {
     TResourceVolume result = lhs;
     result /= rhs;

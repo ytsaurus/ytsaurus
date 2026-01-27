@@ -112,13 +112,13 @@ public:
     }
 
     template <class TTransform>
-    TTransform operator >> (TTransform transform) const
+    TTransform operator>>(TTransform transform) const
     {
         MergeAttributes(transform, *this);
         return transform;
     }
 
-    TAttributeSetter operator >> (const TAttributeSetter& other) const;
+    TAttributeSetter operator>>(const TAttributeSetter& other) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

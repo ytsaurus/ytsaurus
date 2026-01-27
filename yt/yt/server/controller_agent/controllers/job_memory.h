@@ -39,7 +39,7 @@ public:
     i64 GetReservedMemoryForJobProxyWithEstimatedBuffer() const;
     double GetRelativeDifference() const;
 
-    std::strong_ordering operator <=> (const TOverrunTableWriteBufferMemoryInfo& other) const;
+    std::strong_ordering operator<=>(const TOverrunTableWriteBufferMemoryInfo& other) const;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 

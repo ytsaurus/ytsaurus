@@ -28,13 +28,13 @@ const T* TMemoryHolder<T>::GetData() const
 }
 
 template <class T>
-T& TMemoryHolder<T>::operator[] (size_t index)
+T& TMemoryHolder<T>::operator[](size_t index)
 {
     return GetData()[index];
 }
 
 template <class T>
-const T& TMemoryHolder<T>::operator[] (size_t index) const
+const T& TMemoryHolder<T>::operator[](size_t index) const
 {
     return GetData()[index];
 }

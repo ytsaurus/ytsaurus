@@ -78,10 +78,10 @@ struct TYsonParserAdapter
         {
         public:
             Iterator(const NYTree::IListNodePtr & list_node, size_t index) : ListNode_(list_node), Index_(index) {}
-            Element operator *() const { return ListNode_->FindChild(Index_); }
-            Iterator & operator ++() { ++Index_; return *this; }
-            Iterator operator ++(int) { auto res = *this; ++Index_; return res; }
-            friend bool operator ==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.ListNode_ == right.ListNode_); }
+            Element operator*() const { return ListNode_->FindChild(Index_); }
+            Iterator & operator++() { ++Index_; return *this; }
+            Iterator operator++(int) { auto res = *this; ++Index_; return res; }
+            friend bool operator==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.ListNode_ == right.ListNode_); }
         private:
             NYTree::IListNodePtr ListNode_;
             size_t Index_ = 0;
@@ -91,7 +91,7 @@ struct TYsonParserAdapter
         Iterator begin() const { return {ListNode_, 0}; }
         Iterator end() const { return {ListNode_, size()}; }
         size_t size() const { return ListNode_->GetChildCount(); }
-        Element operator [](size_t index) const { return ListNode_->FindChild(index); }
+        Element operator[](size_t index) const { return ListNode_->FindChild(index); }
 
     private:
         NYTree::IListNodePtr ListNode_;
@@ -107,10 +107,10 @@ struct TYsonParserAdapter
         {
         public:
             Iterator(const std::shared_ptr<std::vector<std::pair<std::string, NYTree::INodePtr>>>& key_value_pairs, size_t index) : KeyValuePairs_(key_value_pairs), Index_(index) {}
-            KeyValuePair operator *() const { return (*KeyValuePairs_)[Index_]; }
-            Iterator & operator ++() { ++Index_; return *this; }
-            Iterator operator ++(int) { auto res = *this; ++Index_; return res; }
-            friend bool operator ==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.KeyValuePairs_ == right.KeyValuePairs_); }
+            KeyValuePair operator*() const { return (*KeyValuePairs_)[Index_]; }
+            Iterator & operator++() { ++Index_; return *this; }
+            Iterator operator++(int) { auto res = *this; ++Index_; return res; }
+            friend bool operator==(const Iterator & left, const Iterator & right) { return (left.Index_ == right.Index_) && (left.KeyValuePairs_ == right.KeyValuePairs_); }
         private:
             // Children of the parent's map node.
             // We store it here to lock the order and to return std::string_view on keys in some methods.

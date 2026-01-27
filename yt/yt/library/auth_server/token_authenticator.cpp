@@ -290,7 +290,7 @@ struct TTokenAuthenticatorCacheKey
         return MultiHash(Token, UserIPFactor);
     }
 
-    bool operator == (const TTokenAuthenticatorCacheKey&) const = default;
+    bool operator==(const TTokenAuthenticatorCacheKey&) const = default;
 };
 
 class TCachingTokenAuthenticator

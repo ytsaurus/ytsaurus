@@ -23,8 +23,8 @@ struct TNodeMovePenalty
     double RegularPenalty = 0.0;
 };
 
-bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
-TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
+bool operator<(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
+TNodeMovePenalty& operator+=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*spec*/);
 

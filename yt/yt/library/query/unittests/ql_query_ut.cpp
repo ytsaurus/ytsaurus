@@ -9011,12 +9011,12 @@ protected:
     {
         TIntValue a, b, c;
 
-        bool operator< (const TPrimaryKey& other) const
+        bool operator<(const TPrimaryKey& other) const
         {
             return std::tie(a, b, c) < std::tie(other.a, other.b, other.c);
         }
 
-        bool operator== (const TPrimaryKey& other) const
+        bool operator==(const TPrimaryKey& other) const
         {
             return std::tie(a, b, c) == std::tie(other.a, other.b, other.c);
         }
@@ -9036,12 +9036,12 @@ protected:
     {
         TIntValue d, e;
 
-        bool operator< (const TSecondaryKey& other) const
+        bool operator<(const TSecondaryKey& other) const
         {
             return std::tie(d, e) < std::tie(other.d, other.e);
         }
 
-        bool operator== (const TSecondaryKey& other) const
+        bool operator==(const TSecondaryKey& other) const
         {
             return std::tie(d, e) == std::tie(other.d, other.e);
         }
@@ -9061,12 +9061,12 @@ protected:
     {
         TIntValue x, y, z;
 
-        bool operator< (const TGroupKey& other) const
+        bool operator<(const TGroupKey& other) const
         {
             return std::tie(x, y, z) < std::tie(other.x, other.y, other.z);
         }
 
-        bool operator== (const TGroupKey& other) const
+        bool operator==(const TGroupKey& other) const
         {
             return std::tie(x, y, z) == std::tie(other.x, other.y, other.z);
         }
@@ -9076,7 +9076,7 @@ protected:
     {
         TIntValue count, sumv, sumw;
 
-        void operator+= (const TAggregates& other)
+        void operator+=(const TAggregates& other)
         {
             count += other.count;
             sumv += other.sumv;

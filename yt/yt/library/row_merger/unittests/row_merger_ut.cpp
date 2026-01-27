@@ -38,7 +38,7 @@ struct TIdentityComparableVersionedRow
     TVersionedRow Row;
 };
 
-bool operator == (TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
+bool operator==(TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
 {
     return TBitwiseVersionedRowEqual()(lhs.Row, rhs.Row);
 }

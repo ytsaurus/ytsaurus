@@ -74,7 +74,7 @@ void SortByPenalty(TNodeWithMovePenaltyList& nodeWithPenaltyList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
+bool operator<(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
 {
     if (lhs.PriorityPenalty != rhs.PriorityPenalty) {
         return lhs.PriorityPenalty < rhs.PriorityPenalty;
@@ -82,7 +82,7 @@ bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
     return lhs.RegularPenalty < rhs.RegularPenalty;
 }
 
-TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
+TNodeMovePenalty& operator+=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs)
 {
     lhs.PriorityPenalty += rhs.PriorityPenalty;
     lhs.RegularPenalty += rhs.RegularPenalty;

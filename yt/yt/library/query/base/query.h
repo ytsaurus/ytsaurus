@@ -228,7 +228,7 @@ struct TCompositeMemberAccessorPath
     void AppendTupleItem(TTupleItemIndexAccessor index);
     void Reserve(int length);
 
-    bool operator == (const TCompositeMemberAccessorPath& other) const = default;
+    bool operator==(const TCompositeMemberAccessorPath& other) const = default;
 };
 
 struct TCompositeMemberAccessorExpression

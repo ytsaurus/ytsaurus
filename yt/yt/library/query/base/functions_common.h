@@ -99,8 +99,8 @@ public:
         }
     }
 
-    friend TTypeSet operator | (const TTypeSet& lhs, const TTypeSet& rhs);
-    friend TTypeSet operator & (const TTypeSet& lhs, const TTypeSet& rhs);
+    friend TTypeSet operator|(const TTypeSet& lhs, const TTypeSet& rhs);
+    friend TTypeSet operator&(const TTypeSet& lhs, const TTypeSet& rhs);
 
 private:
     ui64 Value_ = 0;

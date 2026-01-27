@@ -91,7 +91,7 @@ void FormatValue(TStringBuilderBase* builder, const TCompositePendingJobCount& a
     }
 }
 
-bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+bool operator==(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     if (lhs.DefaultCount != rhs.DefaultCount) {
         return false;
@@ -113,7 +113,7 @@ bool operator == (const TCompositePendingJobCount& lhs, const TCompositePendingJ
     return true;
 }
 
-TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+TCompositePendingJobCount operator+(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     TCompositePendingJobCount result;
     result.DefaultCount = lhs.DefaultCount + rhs.DefaultCount;
@@ -135,7 +135,7 @@ TCompositePendingJobCount operator + (const TCompositePendingJobCount& lhs, cons
     return result;
 }
 
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
+TCompositePendingJobCount operator-(const TCompositePendingJobCount& count)
 {
     TCompositePendingJobCount result;
     result.DefaultCount = -count.DefaultCount;
@@ -146,7 +146,7 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& count)
     return result;
 }
 
-TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
+TCompositePendingJobCount operator-(const TCompositePendingJobCount& lhs, const TCompositePendingJobCount& rhs)
 {
     return lhs + (-rhs);
 }
