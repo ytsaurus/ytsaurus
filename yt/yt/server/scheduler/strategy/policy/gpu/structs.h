@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
@@ -172,6 +174,34 @@ using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
 void Serialize(const TNode& node, NYson::IYsonConsumer* consumer);
 
 DEFINE_REFCOUNTED_TYPE(TNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuModuleStatistics final
+{
+    int TotalNodes;
+    int UnreservedNodes;
+    int FullHostModuleBoundOperations;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuPlanUpdateStatistics final
+{
+    NProfiling::TWallTimer Timer;
+
+    TDuration UpdatingOperationResourcesDuration;
+    TDuration FullHostPlanningDuration;
+    TDuration ReguralPlanningDuration;
+    TDuration ExtraPlanningDuration;
+
+    int PlannedAssignments = 0;
+    int PreemptedAssignments = 0;
+
+    THashMap<std::string, TGpuModuleStatistics> ModuleStatistics;
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuPlanUpdateStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

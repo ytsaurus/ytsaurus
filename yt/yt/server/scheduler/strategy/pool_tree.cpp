@@ -302,7 +302,8 @@ public:
             MakeWeak(this),
             StrategyHost_,
             TreeId_,
-            Config_))
+            Config_,
+            Profiler_.WithPrefix("/gpu_policy")))
         , ProfileManager_(New<TPoolTreeProfileManager>(
             Profiler_,
             Config_->SparsifyFairShareProfiling,
