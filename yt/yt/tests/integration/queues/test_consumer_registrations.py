@@ -1372,7 +1372,10 @@ class TestConsumerRegistrationsImplementationSwitch(ReplicatedObjectBase, TestQu
         else:
             raise ValueError(f"Invalid table type: {table_type}")
 
-        register_queue_consumer(f"{self.QUEUE_CLUSTER}:{self.QUEUE_PATH}", f"{self.CONSUMER_CLUSTER}:{self.CONSUMER_PATH}", vital=True)
+        if table_type == "table":
+            register_queue_consumer(f"{self.QUEUE_CLUSTER}:{self.QUEUE_PATH}", f"{self.CONSUMER_CLUSTER}:{self.CONSUMER_PATH}", vital=True)
+        else:
+            register_queue_consumer(f"{self.RT_METACLUSTER}:{self.QUEUE_PATH}-rt", f"{self.RT_METACLUSTER}:{self.CONSUMER_PATH}-rt", vital=True)
 
     def _setup_consumer_registration_simple(self):
         for queue_path in [self.QUEUE_PATH, self.UNREGISTERED_QUEUE_PATH]:
