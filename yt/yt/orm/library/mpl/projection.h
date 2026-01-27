@@ -10,7 +10,7 @@ template <class TProjected, TProjected Constant>
 struct TConstantProjection
 {
     template <class TValue>
-    TProjected operator() (const TValue&)
+    TProjected operator()(const TValue&)
     {
         return Constant;
     }
@@ -21,7 +21,7 @@ struct TConstantProjection
 template <class TValue, std::invocable<TValue> TProj>
 struct TByProjectionComparator
 {
-    bool operator() (const TValue& lhs, const TValue& rhs) const {
+    bool operator()(const TValue& lhs, const TValue& rhs) const {
         TProj proj;
         return std::invoke(proj, lhs) < std::invoke(proj, rhs);
     }

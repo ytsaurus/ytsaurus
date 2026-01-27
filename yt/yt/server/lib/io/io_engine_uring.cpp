@@ -250,7 +250,7 @@ struct TUringRequest
 {
     struct TRequestToNode
     {
-        TIntrusiveLinkedListNode<TUringRequest>* operator() (TUringRequest* request) const {
+        TIntrusiveLinkedListNode<TUringRequest>* operator()(TUringRequest* request) const {
             return request;
         }
     };

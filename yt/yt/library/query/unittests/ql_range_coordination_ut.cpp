@@ -354,13 +354,13 @@ TEST(TestHelpersTest, SplitByPivots)
     struct TPredicate
     {
         // itemIt PRECEDES shardIt
-        bool operator() (TItemIt itemIt, TShardIt shardIt) const
+        bool operator()(TItemIt itemIt, TShardIt shardIt) const
         {
             return itemIt->second <= *shardIt;
         }
 
         // itemIt FOLLOWS shardIt
-        bool operator() (TShardIt shardIt, TItemIt itemIt) const
+        bool operator()(TShardIt shardIt, TItemIt itemIt) const
         {
             return *shardIt <= itemIt->first;
         }

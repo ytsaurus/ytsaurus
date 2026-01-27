@@ -204,7 +204,7 @@ constinit const auto Logger = ChunkServerLogger;
 
 struct TChunkToLinkedListNode
 {
-    auto operator() (TChunk* chunk) const
+    auto operator()(TChunk* chunk) const
     {
         return &chunk->GetDynamicData()->LinkedListNode;
     }

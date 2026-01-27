@@ -1221,13 +1221,13 @@ private:
             struct TPredicate
             {
                 // itemIt PRECEDES partitionIt
-                bool operator() (TRangeIt itemIt, TPartitionIt partitionIt) const
+                bool operator()(TRangeIt itemIt, TPartitionIt partitionIt) const
                 {
                     return itemIt->second <= (*partitionIt)->NextPivotKey;
                 }
 
                 // itemIt FOLLOWS partitionIt
-                bool operator() (TPartitionIt partitionIt, TRangeIt itemIt) const
+                bool operator()(TPartitionIt partitionIt, TRangeIt itemIt) const
                 {
                     return (*partitionIt)->NextPivotKey <= itemIt->first;
                 }
@@ -1246,13 +1246,13 @@ private:
                 struct TPredicate
                 {
                     // itemIt PRECEDES shardIt
-                    bool operator() (const TRowRange* itemIt, const TKeyRef* shardIt) const
+                    bool operator()(const TRowRange* itemIt, const TKeyRef* shardIt) const
                     {
                         return CompareValueRanges(ToKeyRef(itemIt->second), *shardIt) <= 0;
                     }
 
                     // itemIt FOLLOWS shardIt
-                    bool operator() (const TKeyRef* shardIt, const TRowRange* itemIt) const
+                    bool operator()(const TKeyRef* shardIt, const TRowRange* itemIt) const
                     {
                         return CompareValueRanges(*shardIt, ToKeyRef(itemIt->first)) <= 0;
                     }
