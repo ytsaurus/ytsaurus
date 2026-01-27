@@ -8,20 +8,44 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.1.2**" %}
+
+**Release date:** 2026-01-27
+
+
+**Features**
+- [experimental] Allow handling YQL queries in separate processes
+
+**Fixes**
+- Fixed lang version list in UI
+
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later, UI [3.3.1](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.3.1) and later.
+
+
+{% endcut %}
+
+
 {% cut "**0.1.1**" %}
 
 **Release date:** 2025-12-18
 
 
+This is an alpha release, please update to [0.1.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fquery-tracker%2F0.1.2) or later
+
 **Features**
 - Support YQL language versioning
-- Support insert into dyntable
 - Support Spark Connect (SPYT Connect)
-- [experimental] Allow handling YQL queries in separate processes
+- New possibilities for processing partitioned tables in YQL 
 
 **Fixes**
-- Fixed running big queries by compressing 'progress' column
+- Fix running big queries by compressing 'progress' column
+- Fix possible network socket stall (between QT and YQL agent) on YQL query abortion.
 
+**Known bugs**
+- Incorrect lang versions in UI
+
+**NB!** Аvailable only with proxy version [25.2.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.2.2) and later
 
 {% endcut %}
 
