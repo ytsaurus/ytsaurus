@@ -483,6 +483,8 @@ items:
             href: admin-guide/install-tutorial.md
           - name: Микросервисы
             href: admin-guide/install-ytmsvc.md
+          - name: Мониторинг
+            href: admin-guide/install-monitoring.md
       - name: Подготовка спецификации {{product-name}}
         items:
           - name: Описание

@@ -471,6 +471,8 @@ items:
              href: admin-guide/install-tutorial.md
            - name: Microservices
              href: admin-guide/install-ytmsvc.md
+           - name: Monitoring
+             href: admin-guide/install-monitoring.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
