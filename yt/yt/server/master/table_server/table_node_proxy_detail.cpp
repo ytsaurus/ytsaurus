@@ -1130,8 +1130,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                                 .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
                                     fluent.Item("predicate").Value(*secondaryIndex->Predicate());
                                 })
-                                .DoIf(secondaryIndex->UnfoldedColumn().has_value(), [&] (TFluentMap fluent) {
-                                    fluent.Item("unfolded_column").Value(*secondaryIndex->UnfoldedColumn());
+                                .DoIf(secondaryIndex->UnfoldedColumns().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("unfolded_columns").DoMap([&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("table_column").Value(secondaryIndex->UnfoldedColumns()->TableColumn)
+                                            .Item("index_column").Value(secondaryIndex->UnfoldedColumns()->IndexColumn);
+                                    });
                                 })
                                 .DoIf(secondaryIndex->EvaluatedColumnsSchema().operator bool(), [&] (TFluentMap fluent) {
                                     fluent.Item("evaluated_columns_schema").Value(*secondaryIndex->EvaluatedColumnsSchema());
@@ -2139,8 +2143,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& predicate = index->Predicate()) {
             ToProto(protoIndexInfo->mutable_predicate(), *predicate);
         }
-        if (const auto& unfoldedColumn = index->UnfoldedColumn()) {
-            ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
+        if (const auto& unfoldedColumns = index->UnfoldedColumns()) {
+            auto* protoUnfoldedColumns = protoIndexInfo->mutable_unfolded_columns();
+            ToProto(protoUnfoldedColumns->mutable_index_column(), unfoldedColumns->IndexColumn);
+            ToProto(protoUnfoldedColumns->mutable_table_column(), unfoldedColumns->TableColumn);
         }
         protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
         if (const auto& evaluatedColumnsSchema = index->EvaluatedColumnsSchema()) {
@@ -2445,7 +2451,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
         if (table->IsDynamic()) {
             if (auto index = table->GetIndexTo()) {
-                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
                 auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
@@ -2453,11 +2459,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     *newTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumn());
+                    index->UnfoldedColumns());
             }
 
             for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                auto* indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
                 auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
@@ -2465,7 +2471,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     *indexTableSchema,
                     index->Predicate(),
                     index->EvaluatedColumnsSchema(),
-                    index->UnfoldedColumn());
+                    index->UnfoldedColumns());
             }
         }
 

@@ -593,7 +593,7 @@
     XX(UncompressedDataSize, uncompressed_data_size) \
     XX(UnconfirmedDynamicTableLocks, unconfirmed_dynamic_table_locks) \
     XX(UnflushedTimestamp, unflushed_timestamp) \
-    XX(UnfoldedColumn, unfolded_column) \
+    XX(UnfoldedColumns, unfolded_columns) \
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \
