@@ -72,6 +72,7 @@ using namespace NProto;
 using namespace NSecurityServer;
 using namespace NQueryClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
@@ -889,7 +890,7 @@ public:
         TTableId tableId,
         TTableId indexTableId,
         std::optional<std::string> predicate,
-        std::optional<std::string> unfoldedColumnName,
+        std::optional<TUnfoldedColumns> unfoldedColumns,
         TTableSchemaPtr evaluatedColumnsSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -980,7 +981,7 @@ public:
                 *indexTableSchema,
                 predicate,
                 evaluatedColumnsSchema,
-                unfoldedColumnName);
+                unfoldedColumns);
 
             if (evaluatedColumnsSchema) {
                 for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
@@ -1005,7 +1006,7 @@ public:
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
         secondaryIndex->Predicate() = std::move(predicate);
-        secondaryIndex->UnfoldedColumn() = std::move(unfoldedColumnName);
+        secondaryIndex->UnfoldedColumns() = std::move(unfoldedColumns);
         secondaryIndex->EvaluatedColumnsSchema() = std::move(evaluatedColumnsSchema);
 
         if (table->IsNative()) {

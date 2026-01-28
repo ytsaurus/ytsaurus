@@ -458,7 +458,7 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
             table_schema=kind_and_schemas[1],
             index_schema=kind_and_schemas[3],
             kind=kind_and_schemas[0],
-            **({"unfolded_column": "value"} if kind_and_schemas[0] == "unfolding" else {}))
+            **({"unfolded_index_column": "value", "unfolded_table_column": "value"} if kind_and_schemas[0] == "unfolding" else {}))
 
         with raises_yt_error():
             alter_table("//tmp/table", schema=kind_and_schemas[2])
@@ -654,12 +654,16 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
-            unfolded_column="value",
+            unfolded_table_column="value",
+            unfolded_index_column="value",
         )
 
         index_table_path = self._get_index_path()
 
-        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["unfolded_column"] == "value"
+        assert get("//tmp/table/@secondary_indices")[secondary_index_id]["unfolded_columns"] == {
+            "table_column": "value",
+            "index_column": "value",
+        }
 
         # Avoid "twin nulls" problem.
         format = yson.YsonString(b"yson")
@@ -764,7 +768,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             }},
         ]
         index_schema = [
-            {"name": "tokens", "type": "string", "sort_order": "ascending"},
+            {"name": "token", "type": "string", "sort_order": "ascending"},
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "count", "type": "int64", "aggregate": "sum"}
         ]
@@ -773,7 +777,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             index_schema=index_schema,
             kind="unfolding",
             mount=True,
-            unfolded_column="tokens",
+            unfolded_index_column="token",
+            unfolded_table_column="tokens",
             evaluated_columns_schema=[{"name": "count", "type": "int64", "expression": "1"}]
         )
 
@@ -794,10 +799,13 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
         index_table_path = self._get_index_path()
 
+        print("FDDAFDS", select_rows("* from [//tmp/table]"))
+        print("DFAFDSF", select_rows(f"* from [{index_table_path}]"))
+
         # lines with token eu
         query = f"""
             key from [//tmp/table] with index [{index_table_path}] I
-            where tokens in ("eu") group by key
+            where I.token in ("eu") group by key
         """
         rows = select_rows(query)
         assert builtins.set([3, 4, 5]) == builtins.set([row["key"] for row in rows])
@@ -806,13 +814,13 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         # lines with tokens starting with ma
         query = f"""
             key from [//tmp/table] with index [{index_table_path}] AS Unfolded
-            where is_prefix("ma", Unfolded.tokens) group by key
+            where is_prefix("ma", Unfolded.token) group by key
         """
         rows = select_rows(query)
         assert builtins.set([3, 4, 7, 8]) == builtins.set([row["key"] for row in rows])
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
 
-        query = f"[count] as c from [{index_table_path}] where key = 9 and tokens = 'АБЫР'"
+        query = f"[count] as c from [{index_table_path}] where key = 9 and token = 'АБЫР'"
         assert select_rows(query)[0]["c"] == 15
 
         insert_rows("//tmp/table", [
@@ -1020,7 +1028,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             index_schema=UNFOLDING_INDEX_SCHEMA,
             kind="unfolding",
             mount=True,
-            unfolded_column="value",
+            unfolded_index_column="value",
+            unfolded_table_column="value",
         )
 
         # Avoid "twin nulls" problem.
@@ -1105,7 +1114,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             table_schema=table_schema,
             index_schema=index_table_schema,
             kind="unfolding",
-            unfolded_column="value",
+            unfolded_index_column="value",
+            unfolded_table_column="value",
             mount=True)
         self._insert_rows([{"key": 1, "value": [3]}])
         self._expect_from_index([{"key": 1, "value": 3, EMPTY_COLUMN_NAME: None}])
