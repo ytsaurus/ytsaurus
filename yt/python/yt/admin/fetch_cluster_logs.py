@@ -137,7 +137,7 @@ def get_filepaths(kube_namespace: str, component_name: str, component_group_inde
 
     cmd = (
         f"kubectl exec -c ytserver -n {kube_namespace} {podname} "
-        f"-- /bin/bash -lc \"stat -c '%F|%Y|%n' {logs_dir}/*\""
+        f"-- /bin/bash -lc \"stat -c '%F|%y|%w|%n' {logs_dir}/*\""
     )
 
     stat_result = subprocess.check_output(cmd, shell=True, text=True)
@@ -146,16 +146,21 @@ def get_filepaths(kube_namespace: str, component_name: str, component_group_inde
 
     for line in stat_result.strip().split("\n"):
         parts = line.split("|")
-        if len(parts) != 3:
+        if len(parts) != 4:
             continue
-        file_type = parts[0].lower()
+        file_type = parts[0]
         mod_ts_str = parts[1]
-        filepath = parts[2]
-        if "directory" in file_type:
+        birth_ts_str = parts[2]
+        filepath = parts[3]
+        if file_type.lower() != "regular file":
             continue
 
-        modification_ts = datetime.fromtimestamp(float(mod_ts_str), tz=timezone.utc)
-        creation_ts = modification_ts
+        modification_ts = date_parser.parse(mod_ts_str)
+
+        if birth_ts_str == "-":
+            creation_ts = modification_ts
+        else:
+            creation_ts = date_parser.parse(birth_ts_str)
 
         if check_timestamp(from_timestamp, to_timestamp, modification_ts, creation_ts):
             filepaths.append(filepath)
