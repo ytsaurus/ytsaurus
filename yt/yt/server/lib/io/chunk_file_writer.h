@@ -174,12 +174,9 @@ private:
     const IIOEnginePtr IOEngine_;
     const TString FileName_;
     const bool SyncOnClose_;
-<<<<<<< HEAD
     const bool UseDirectIO_;
-=======
     const TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
     const NLogging::TLogger Logger;
->>>>>>> 6fb4267b47e (S3 regular chunk reader & writer: v1)
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
