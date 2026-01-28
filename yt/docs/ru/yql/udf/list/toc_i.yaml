@@ -22,6 +22,7 @@ items:
 - { name: Protobuf,               href: protobuf.md                                                 }
 - { name: Re2,                    href: re2.md                                                      }
 - { name: SearchEngine,           href: searchengine.md,             when: audience == "internal"   }
+- { name: SimplePg,               href: simple_pg.md,                          }
 - { name: Streaming,              href: streaming.md                                                }
 - { name: String,                 href: string.md                                                   }
 - { name: Unicode,                href: unicode.md                                                  }
