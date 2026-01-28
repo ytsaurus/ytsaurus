@@ -608,7 +608,7 @@ public:
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
-        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks = TDuration::Seconds(1);
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TDuration::Seconds(1);
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;

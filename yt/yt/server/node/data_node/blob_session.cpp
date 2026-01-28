@@ -784,11 +784,10 @@ TFuture<void> TBlobSession::PreparePutBlocks(
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
-    if (auto sleepBeforePerformPutBlocks =
-        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks;
-        sleepBeforePerformPutBlocks.has_value()) {
-            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", sleepBeforePerformPutBlocks.value());
-            TDelayedExecutor::WaitForDuration(sleepBeforePerformPutBlocks.value());
+    if (auto delay =
+        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks) {
+            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", delay.value());
+            TDelayedExecutor::WaitForDuration(delay.value());
     }
 
     const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
