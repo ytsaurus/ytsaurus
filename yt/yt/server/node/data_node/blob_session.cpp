@@ -658,7 +658,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                         return NIO::TIOCounters{};
                     }).AsyncVia(SessionInvoker_));
             } else {
-                YT_UNUSED_FUTURE(allPrecedingBlocksReceivedFuture.Apply(BIND([this, this_ = MakeStrong(this),
+                allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
                     fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
                         if (error.IsOK()) {
                             DoPerformPutBlocks(std::move(fairShareQueueSlot));
@@ -666,7 +666,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                             YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
                             Cancel(error);
                         }
-                    }).AsyncVia(SessionInvoker_)));
+                    }).Via(SessionInvoker_));
                 return MakeFuture(NIO::TIOCounters{});
             }
         }));
