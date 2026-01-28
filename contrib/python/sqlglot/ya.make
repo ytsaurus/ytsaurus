@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(28.5.0)
+VERSION(28.6.0)
 
 LICENSE(MIT)
 
@@ -92,8 +92,10 @@ PY_SRCS(
     sqlglot/typing/__init__.py
     sqlglot/typing/bigquery.py
     sqlglot/typing/hive.py
+    sqlglot/typing/mysql.py
     sqlglot/typing/presto.py
     sqlglot/typing/snowflake.py
+    sqlglot/typing/spark.py
     sqlglot/typing/spark2.py
     sqlglot/typing/tsql.py
 )

@@ -32,7 +32,7 @@ from sqlglot.dialects.dialect import (
     groupconcat_sql,
 )
 from sqlglot.generator import unsupported_args
-from sqlglot.helper import find_new_name, flatten, is_float, is_int, seq_get
+from sqlglot.helper import find_new_name, flatten, is_date_unit, is_int, seq_get
 from sqlglot.optimizer.scope import build_scope, find_all_in_scope
 from sqlglot.tokens import TokenType
 from sqlglot.typing.snowflake import EXPRESSION_METADATA
@@ -77,6 +77,15 @@ def _build_approx_top_k(args: t.List) -> exp.ApproxTopK:
     return exp.ApproxTopK.from_arg_list(args)
 
 
+def _build_date_from_parts(args: t.List) -> exp.DateFromParts:
+    return exp.DateFromParts(
+        year=seq_get(args, 0),
+        month=seq_get(args, 1),
+        day=seq_get(args, 2),
+        allow_overflow=True,
+    )
+
+
 def _build_datetime(
     name: str, kind: exp.DataType.Type, safe: bool = False
 ) -> t.Callable[[t.List], exp.Func]:
@@ -87,7 +96,7 @@ def _build_datetime(
         int_value = value is not None and is_int(value.name)
         int_scale_or_fmt = scale_or_fmt is not None and scale_or_fmt.is_int
 
-        if isinstance(value, exp.Literal) or (value and scale_or_fmt):
+        if isinstance(value, (exp.Literal, exp.Neg)) or (value and scale_or_fmt):
             # Converts calls like `TO_TIME('01:02:03')` into casts
             if len(args) == 1 and value.is_string and not int_value:
                 return (
@@ -99,17 +108,26 @@ def _build_datetime(
             # Handles `TO_TIMESTAMP(str, fmt)` and `TO_TIMESTAMP(num, scale)` as special
             # cases so we can transpile them, since they're relatively common
             if kind in TIMESTAMP_TYPES:
-                if not safe and (int_value or int_scale_or_fmt):
+                if not safe and (int_scale_or_fmt or (int_value and scale_or_fmt is None)):
                     # TRY_TO_TIMESTAMP('integer') is not parsed into exp.UnixToTime as
-                    # it's not easily transpilable
-                    return exp.UnixToTime(this=value, scale=scale_or_fmt)
-                if not int_scale_or_fmt and not is_float(value.name):
-                    expr = build_formatted_time(exp.StrToTime, "snowflake")(args)
-                    expr.set("safe", safe)
-                    expr.set("target_type", exp.DataType.build(kind, dialect="snowflake"))
-                    return expr
+                    # it's not easily transpilable. Also, numeric-looking strings with
+                    # format strings (e.g., TO_TIMESTAMP('20240115', 'YYYYMMDD')) should
+                    # use StrToTime, not UnixToTime.
+                    unix_expr = exp.UnixToTime(this=value, scale=scale_or_fmt)
+                    unix_expr.set("target_type", exp.DataType.build(kind, dialect="snowflake"))
+                    return unix_expr
+                if scale_or_fmt and not int_scale_or_fmt:
+                    # Format string provided (e.g., 'YYYY-MM-DD'), use StrToTime
+                    strtotime_expr = build_formatted_time(exp.StrToTime, "snowflake")(args)
+                    strtotime_expr.set("safe", safe)
+                    strtotime_expr.set("target_type", exp.DataType.build(kind, dialect="snowflake"))
+                    return strtotime_expr
 
-        if kind in (exp.DataType.Type.DATE, exp.DataType.Type.TIME) and not int_value:
+        # Handle DATE/TIME with format strings - allow int_value if a format string is provided
+        has_format_string = scale_or_fmt and not int_scale_or_fmt
+        if kind in (exp.DataType.Type.DATE, exp.DataType.Type.TIME) and (
+            not int_value or has_format_string
+        ):
             klass = exp.TsOrDsToDate if kind == exp.DataType.Type.DATE else exp.TsOrDsToTime
             formatted_exp = build_formatted_time(klass, "snowflake")(args)
             formatted_exp.set("safe", safe)
@@ -135,7 +153,10 @@ def _build_object_construct(args: t.List) -> t.Union[exp.StarMap, exp.Struct]:
 
 def _build_datediff(args: t.List) -> exp.DateDiff:
     return exp.DateDiff(
-        this=seq_get(args, 2), expression=seq_get(args, 1), unit=map_date_part(seq_get(args, 0))
+        this=seq_get(args, 2),
+        expression=seq_get(args, 1),
+        unit=map_date_part(seq_get(args, 0)),
+        date_part_boundary=True,
     )
 
 
@@ -160,7 +181,13 @@ def _build_bitwise(expr_type: t.Type[B], name: str) -> t.Callable[[t.List], B | 
                 )
             return exp.Anonymous(this=name, expressions=args)
 
-        return binary_from_function(expr_type)(args)
+        result = binary_from_function(expr_type)(args)
+
+        # Snowflake specifies INT128 for bitwise shifts
+        if expr_type in (exp.BitwiseLeftShift, exp.BitwiseRightShift):
+            result.set("requires_int128", True)
+
+        return result
 
     return _builder
 
@@ -242,7 +269,13 @@ def _show_parser(*args: t.Any, **kwargs: t.Any) -> t.Callable[[Snowflake.Parser]
 
 def _date_trunc_to_time(args: t.List) -> exp.DateTrunc | exp.TimestampTrunc:
     trunc = date_trunc_to_time(args)
-    trunc.set("unit", map_date_part(trunc.args["unit"]))
+    unit = map_date_part(trunc.args["unit"])
+    trunc.set("unit", unit)
+    is_time_input = trunc.this.is_type(exp.DataType.Type.TIME, exp.DataType.Type.TIMETZ)
+    if (isinstance(trunc, exp.TimestampTrunc) and is_date_unit(unit) or is_time_input) or (
+        isinstance(trunc, exp.DateTrunc) and not is_date_unit(unit)
+    ):
+        trunc.set("input_type_preserved", True)
     return trunc
 
 
@@ -629,6 +662,7 @@ class Snowflake(Dialect):
     ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = False
     TRY_CAST_REQUIRES_STRING = True
     SUPPORTS_ALIAS_REFS_IN_JOIN_CONDITIONS = True
+    LEAST_GREATEST_IGNORES_NULLS = False
 
     EXPRESSION_METADATA = EXPRESSION_METADATA.copy()
 
@@ -660,6 +694,12 @@ class Snowflake(Dialect):
         "ss": "%S",
         "FF6": "%f",
         "ff6": "%f",
+        # Seems like Snowflake treats AM/PM in the format string as equivalent,
+        # only the time (stamp) value's AM/PM affects the output
+        "AM": "%p",
+        "am": "%p",
+        "PM": "%p",
+        "pm": "%p",
     }
 
     DATE_PART_MAPPING = {
@@ -701,6 +741,11 @@ class Snowflake(Dialect):
 
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
+            "ADD_MONTHS": lambda args: exp.AddMonths(
+                this=seq_get(args, 0),
+                expression=seq_get(args, 1),
+                preserve_end_of_month=True,
+            ),
             "APPROX_PERCENTILE": exp.ApproxQuantile.from_arg_list,
             "APPROX_TOP_K": _build_approx_top_k,
             "ARRAY_CONSTRUCT": lambda args: exp.Array(expressions=args),
@@ -740,10 +785,18 @@ class Snowflake(Dialect):
             "BIT_XORAGG": exp.BitwiseXorAgg.from_arg_list,
             "BITMAP_OR_AGG": exp.BitmapOrAgg.from_arg_list,
             "BOOLXOR": _build_bitwise(exp.Xor, "BOOLXOR"),
+            "CORR": lambda args: exp.Corr(
+                this=seq_get(args, 0),
+                expression=seq_get(args, 1),
+                null_on_zero_variance=True,
+            ),
             "DATE": _build_datetime("DATE", exp.DataType.Type.DATE),
+            "DATEFROMPARTS": _build_date_from_parts,
+            "DATE_FROM_PARTS": _build_date_from_parts,
             "DATE_TRUNC": _date_trunc_to_time,
             "DATEADD": _build_date_time_add(exp.DateAdd),
             "DATEDIFF": _build_datediff,
+            "DAYNAME": lambda args: exp.Dayname(this=seq_get(args, 0), abbreviated=True),
             "DAYOFWEEKISO": exp.DayOfWeekIso.from_arg_list,
             "DIV0": _build_if_from_div0,
             "DIV0NULL": _build_if_from_div0null,
@@ -758,19 +811,28 @@ class Snowflake(Dialect):
                 expression=dialect.to_json_path(seq_get(args, 1)),
                 requires_json=True,
             ),
+            "GREATEST_IGNORE_NULLS": lambda args: exp.Greatest(
+                this=seq_get(args, 0), expressions=args[1:], ignore_nulls=True
+            ),
+            "LEAST_IGNORE_NULLS": lambda args: exp.Least(
+                this=seq_get(args, 0), expressions=args[1:], ignore_nulls=True
+            ),
             "HEX_DECODE_BINARY": exp.Unhex.from_arg_list,
             "IFF": exp.If.from_arg_list,
             "MD5_HEX": exp.MD5.from_arg_list,
             "MD5_BINARY": exp.MD5Digest.from_arg_list,
             "MD5_NUMBER_LOWER64": exp.MD5NumberLower64.from_arg_list,
             "MD5_NUMBER_UPPER64": exp.MD5NumberUpper64.from_arg_list,
+            "MONTHNAME": lambda args: exp.Monthname(this=seq_get(args, 0), abbreviated=True),
             "LAST_DAY": lambda args: exp.LastDay(
                 this=seq_get(args, 0), unit=map_date_part(seq_get(args, 1))
             ),
             "LEN": lambda args: exp.Length(this=seq_get(args, 0), binary=True),
             "LENGTH": lambda args: exp.Length(this=seq_get(args, 0), binary=True),
+            "LOCALTIMESTAMP": exp.CurrentTimestamp.from_arg_list,
             "NULLIFZERO": _build_if_from_nullifzero,
             "OBJECT_CONSTRUCT": _build_object_construct,
+            "OBJECT_KEYS": exp.JSONKeys.from_arg_list,
             "OCTET_LENGTH": exp.ByteLength.from_arg_list,
             "PARSE_URL": lambda args: exp.ParseUrl(
                 this=seq_get(args, 0), permissive=seq_get(args, 1)
@@ -787,6 +849,7 @@ class Snowflake(Dialect):
             "SHA2_BINARY": exp.SHA2Digest.from_arg_list,
             "SHA2_HEX": exp.SHA2.from_arg_list,
             "SQUARE": lambda args: exp.Pow(this=seq_get(args, 0), expression=exp.Literal.number(2)),
+            "STDDEV_SAMP": exp.Stddev.from_arg_list,
             "STRTOK": _build_strtok,
             "SYSDATE": lambda args: exp.CurrentTimestamp(this=seq_get(args, 0), sysdate=True),
             "TABLE": lambda args: exp.TableFromRows(this=seq_get(args, 0)),
@@ -798,6 +861,22 @@ class Snowflake(Dialect):
             "TIMESTAMP_FROM_PARTS": _build_timestamp_from_parts,
             "TIMESTAMPNTZFROMPARTS": _build_timestamp_from_parts,
             "TIMESTAMP_NTZ_FROM_PARTS": _build_timestamp_from_parts,
+            "TRY_DECRYPT": lambda args: exp.Decrypt(
+                this=seq_get(args, 0),
+                passphrase=seq_get(args, 1),
+                aad=seq_get(args, 2),
+                encryption_method=seq_get(args, 3),
+                safe=True,
+            ),
+            "TRY_DECRYPT_RAW": lambda args: exp.DecryptRaw(
+                this=seq_get(args, 0),
+                key=seq_get(args, 1),
+                iv=seq_get(args, 2),
+                aad=seq_get(args, 3),
+                encryption_method=seq_get(args, 4),
+                aead=seq_get(args, 5),
+                safe=True,
+            ),
             "TRY_PARSE_JSON": lambda args: exp.ParseJSON(this=seq_get(args, 0), safe=True),
             "TRY_TO_BINARY": lambda args: exp.ToBinary(
                 this=seq_get(args, 0), format=seq_get(args, 1), safe=True
@@ -816,6 +895,15 @@ class Snowflake(Dialect):
             "TRY_TO_TIME": _build_datetime("TRY_TO_TIME", exp.DataType.Type.TIME, safe=True),
             "TRY_TO_TIMESTAMP": _build_datetime(
                 "TRY_TO_TIMESTAMP", exp.DataType.Type.TIMESTAMP, safe=True
+            ),
+            "TRY_TO_TIMESTAMP_LTZ": _build_datetime(
+                "TRY_TO_TIMESTAMP_LTZ", exp.DataType.Type.TIMESTAMPLTZ, safe=True
+            ),
+            "TRY_TO_TIMESTAMP_NTZ": _build_datetime(
+                "TRY_TO_TIMESTAMP_NTZ", exp.DataType.Type.TIMESTAMPNTZ, safe=True
+            ),
+            "TRY_TO_TIMESTAMP_TZ": _build_datetime(
+                "TRY_TO_TIMESTAMP_TZ", exp.DataType.Type.TIMESTAMPTZ, safe=True
             ),
             "TO_CHAR": build_timetostr_or_tochar,
             "TO_DATE": _build_datetime("TO_DATE", exp.DataType.Type.DATE),
@@ -1430,11 +1518,30 @@ class Snowflake(Dialect):
             exp.CurrentTimestamp: lambda self, e: self.func("SYSDATE")
             if e.args.get("sysdate")
             else self.function_fallback_sql(e),
+            exp.Localtimestamp: lambda self, e: self.func("CURRENT_TIMESTAMP", e.this)
+            if e.this
+            else "CURRENT_TIMESTAMP",
             exp.DateAdd: date_delta_sql("DATEADD"),
             exp.DateDiff: date_delta_sql("DATEDIFF"),
             exp.DatetimeAdd: date_delta_sql("TIMESTAMPADD"),
             exp.DatetimeDiff: timestampdiff_sql,
             exp.DateStrToDate: datestrtodate_sql,
+            exp.Decrypt: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}DECRYPT",
+                e.this,
+                e.args.get("passphrase"),
+                e.args.get("aad"),
+                e.args.get("encryption_method"),
+            ),
+            exp.DecryptRaw: lambda self, e: self.func(
+                f"{'TRY_' if e.args.get('safe') else ''}DECRYPT_RAW",
+                e.this,
+                e.args.get("key"),
+                e.args.get("iv"),
+                e.args.get("aad"),
+                e.args.get("encryption_method"),
+                e.args.get("aead"),
+            ),
             exp.DayOfMonth: rename_func("DAYOFMONTH"),
             exp.DayOfWeek: rename_func("DAYOFWEEK"),
             exp.DayOfWeekIso: rename_func("DAYOFWEEKISO"),
@@ -1461,6 +1568,7 @@ class Snowflake(Dialect):
             exp.JSONExtractScalar: lambda self, e: self.func(
                 "JSON_EXTRACT_PATH_TEXT", e.this, e.expression
             ),
+            exp.JSONKeys: rename_func("OBJECT_KEYS"),
             exp.JSONObject: lambda self, e: self.func("OBJECT_CONSTRUCT_KEEP_NULL", *e.expressions),
             exp.JSONPathRoot: lambda *_: "",
             exp.JSONValueArray: _json_extract_value_array_sql,
@@ -1566,7 +1674,7 @@ class Snowflake(Dialect):
                 f"{'TRY_' if e.args.get('safe') else ''}TO_TIME", e.this, self.format_time(e)
             ),
             exp.Unhex: rename_func("HEX_DECODE_BINARY"),
-            exp.UnixToTime: rename_func("TO_TIMESTAMP"),
+            exp.UnixToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, e.args.get("scale")),
             exp.Uuid: rename_func("UUID_STRING"),
             exp.VarMap: lambda self, e: var_map_sql(self, e, "OBJECT_CONSTRUCT"),
             exp.Booland: rename_func("BOOLAND"),
@@ -1706,6 +1814,14 @@ class Snowflake(Dialect):
                 return self.func("LN", expression.this)
 
             return super().log_sql(expression)
+
+        def greatest_sql(self, expression: exp.Greatest) -> str:
+            name = "GREATEST_IGNORE_NULLS" if expression.args.get("ignore_nulls") else "GREATEST"
+            return self.func(name, expression.this, *expression.expressions)
+
+        def least_sql(self, expression: exp.Least) -> str:
+            name = "LEAST_IGNORE_NULLS" if expression.args.get("ignore_nulls") else "LEAST"
+            return self.func(name, expression.this, *expression.expressions)
 
         def unnest_sql(self, expression: exp.Unnest) -> str:
             unnest_alias = expression.args.get("alias")
