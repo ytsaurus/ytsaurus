@@ -16,7 +16,7 @@ namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCoordinatorStatus
+struct TSequencerStatus
 {
     bool CloseDemanded = false;
     int WrittenBlockCount = 0;
@@ -24,12 +24,12 @@ struct TCoordinatorStatus
     std::vector<NTableClient::NProto::TDataBlockMeta> DataBlockMetas;
 };
 
-void ToProto(NDistributedChunkSessionClient::NProto::TRspPingSession* proto, const TCoordinatorStatus& status);
+void ToProto(NDistributedChunkSessionClient::NProto::TRspPingSession* proto, const TSequencerStatus& status);
 
 /*!
  *  \note Thread affinity: any
  */
-struct IDistributedChunkSessionCoordinator
+struct IDistributedChunkSessionSequencer
     : virtual public TRefCounted
 {
     // Returns future that is set when the session is finished.
@@ -40,7 +40,7 @@ struct IDistributedChunkSessionCoordinator
         std::vector<NTableClient::NProto::TDataBlockMeta> blockMetas,
         NChunkClient::NProto::TMiscExt blocksMiscMeta) = 0;
 
-    virtual TFuture<TCoordinatorStatus> UpdateStatus(int acknowledgedBlockCount) = 0;
+    virtual TFuture<TSequencerStatus> UpdateStatus(int acknowledgedBlockCount) = 0;
 
     // Each pending SendBlocks call can be in one of three states:
     // 1. WaitingDataNodesRequest - waiting to send blocks to data nodes.
@@ -54,11 +54,11 @@ struct IDistributedChunkSessionCoordinator
     virtual TFuture<void> Close(bool force = false) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionCoordinator)
+DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionSequencer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDistributedChunkSessionCoordinatorPtr CreateDistributedChunkSessionCoordinator(
+IDistributedChunkSessionSequencerPtr CreateDistributedChunkSessionSequencer(
     TDistributedChunkSessionServiceConfigPtr config,
     NChunkClient::TSessionId sessionId,
     std::vector<NNodeTrackerClient::TNodeDescriptor> targets,

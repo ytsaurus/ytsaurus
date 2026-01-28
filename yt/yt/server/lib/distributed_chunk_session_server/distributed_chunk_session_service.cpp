@@ -1,7 +1,7 @@
 #include "distributed_chunk_session_service.h"
 
-#include "distributed_chunk_session_coordinator.h"
 #include "distributed_chunk_session_manager.h"
+#include "distributed_chunk_session_sequencer.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_service_proxy.h>
@@ -79,9 +79,9 @@ private:
             request->acknowledged_block_count());
 
         DistributedChunkSessionManager_->RenewSessionLease(sessionId);
-        auto coordinator = DistributedChunkSessionManager_->GetCoordinatorOrThrow(sessionId);
+        auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        auto status = WaitFor(coordinator->UpdateStatus(request->acknowledged_block_count()))
+        auto status = WaitFor(sequencer->UpdateStatus(request->acknowledged_block_count()))
             .ValueOrThrow();
 
         ToProto(response, status);
@@ -108,7 +108,7 @@ private:
             blocks.emplace_back(request->Attachments()[index]);
         }
 
-        auto session = DistributedChunkSessionManager_->GetCoordinatorOrThrow(sessionId);
+        auto session = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
         context->ReplyFrom(session->SendBlocks(
             std::move(blocks),
@@ -124,7 +124,7 @@ private:
             "SessionId: %v",
             sessionId);
 
-        auto session = DistributedChunkSessionManager_->GetCoordinatorOrThrow(sessionId);
+        auto session = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
         context->ReplyFrom(session->Close(/*force*/ true));
     }
