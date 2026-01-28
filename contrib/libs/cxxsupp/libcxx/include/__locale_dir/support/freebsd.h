@@ -1,5 +1,4 @@
-// -*- C++ -*-
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,20 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP_CCOMPLEX
-#define _LIBCPP_CCOMPLEX
+#ifndef _LIBCPP___LOCALE_DIR_SUPPORT_FREEBSD_H
+#define _LIBCPP___LOCALE_DIR_SUPPORT_FREEBSD_H
 
-/*
-    ccomplex synopsis
-
-#include <complex>
-
-*/
-
-#include <complex>
+#include <__config>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
-#endif // _LIBCPP_CCOMPLEX
+#include <__locale_dir/support/bsd_like.h>
+
+#endif // _LIBCPP___LOCALE_DIR_SUPPORT_FREEBSD_H
