@@ -165,16 +165,10 @@ TChunkFileWriter::TChunkFileWriter(
     : IOEngine_(std::move(ioEngine))
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
-<<<<<<< HEAD
     , UseDirectIO_(useDirectIO)
-{
-    BlocksExt_.set_sync_on_close(SyncOnClose_);
-}
-=======
     , PhysicalChunkLayoutWriter_(New<TPhysicalChunkLayoutWriter>(chunkId, syncOnClose))
     , Logger(IOLogger())
 { }
->>>>>>> 6fb4267b47e (S3 regular chunk reader & writer: v1)
 
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
 {
