@@ -164,6 +164,10 @@ public:
     //! Returns registered chunks per location. Empty locations are omitted.
     TPerLocationChunkMap GetPerLocationChunks();
 
+    // Same as above, but the caller must hold lock.
+    TPerLocationChunkMap GetPerLocationChunksUnsafe(
+        NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> guard);
+
     //! Iterates over all registered chunks and checks that their cell tags are from existing master cell tags.
     /*!
      *  \note
@@ -211,6 +215,8 @@ public:
         const TSessionOptions& options);
 
     bool ShouldPublishDisabledLocations();
+
+    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> AcquireChunkMapReaderLock();
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
