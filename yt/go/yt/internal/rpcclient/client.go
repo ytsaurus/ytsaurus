@@ -201,6 +201,11 @@ func (c *client) doMultiLookup(
 	}()
 
 	for i, subresponse := range rsp.GetSubresponses() {
+		if subresponse.GetError() != nil {
+			readers[i] = newErrorTableReader(subresponse.GetError())
+			continue
+		}
+
 		attachmentCount := int(subresponse.GetAttachmentCount())
 		subAttachments := rspAttachments[attachmentOffset : attachmentOffset+attachmentCount]
 		attachmentOffset += attachmentCount

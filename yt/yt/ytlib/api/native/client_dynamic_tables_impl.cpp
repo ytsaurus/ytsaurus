@@ -1002,8 +1002,26 @@ std::vector<TUnversionedLookupRowsResult> TClient::DoMultiLookupRows(
             .Run());
     }
 
-    return WaitFor(AllSucceeded(std::move(asyncResults)))
-        .ValueOrThrow();
+    if (options.AllowFailure) {
+        auto resultsOrErrors = WaitFor(AllSet(std::move(asyncResults)))
+            .ValueOrThrow();
+
+        std::vector<TUnversionedLookupRowsResult> results;
+        results.reserve(subrequests.size());
+        for (auto& resultOrError : resultsOrErrors) {
+            if (resultOrError.IsOK()) {
+                results.push_back(std::move(resultOrError.Value()));
+            } else {
+                results.push_back(TUnversionedLookupRowsResult{
+                    .Error = std::move(resultOrError),
+                });
+            }
+        }
+        return results;
+    } else {
+        return WaitFor(AllSucceeded(std::move(asyncResults)))
+            .ValueOrThrow();
+    }
 }
 
 template <class IRowset, class TRow>
