@@ -6,6 +6,7 @@ PY_SRCS(
 
 PEERDIR(
     contrib/python/python-dateutil
+    yt/python/yt/admin
 )
 
 END()

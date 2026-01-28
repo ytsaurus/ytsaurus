@@ -34,6 +34,12 @@ except ImportError:
     HAS_IDM_CLI_HELPERS = False
 
 try:
+    from yt.admin import add_admin_parsers
+    HAS_YTSAURUS_ADMIN = True
+except ImportError:
+    HAS_YTSAURUS_ADMIN = False
+
+try:
     from yt.packages.six import PY3, iteritems
     from yt.packages.six.moves import builtins, map as imap, zip_longest as izip_longest
 except ImportError:
@@ -2550,6 +2556,9 @@ def add_admin_parser(root_subparsers):
 
     # switch leader
     add_switch_leader_parser(admin_subparsers)
+
+    if HAS_YTSAURUS_ADMIN:
+        add_admin_parsers(admin_subparsers)
 
 
 def add_dirtable_parser(root_subparsers):
