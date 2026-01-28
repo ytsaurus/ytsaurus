@@ -32,7 +32,10 @@ struct ICellDirectory
         const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
     DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
 
-    virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;
+    virtual void Update(
+        const NCellMasterClient::NProto::TCellDirectory& protoDirectory,
+        // NB: Used for testing purposes only.
+        bool duplicate) = 0;
     virtual void UpdateDefault() = 0;
 
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;

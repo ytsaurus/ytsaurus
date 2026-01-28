@@ -312,7 +312,7 @@ struct TCellDirectoryMock
 {
     DEFINE_SIGNAL_OVERRIDE(TCellReconfigurationSignature, CellDirectoryChanged);
 
-    MOCK_METHOD(void, Update, (const NCellMasterClient::NProto::TCellDirectory& protoDirectory), (override));
+    MOCK_METHOD(void, Update, (const NCellMasterClient::NProto::TCellDirectory& protoDirectory, bool duplicate), (override));
     MOCK_METHOD(void, UpdateDefault, (), (override));
 
     MOCK_METHOD(TCellId, GetPrimaryMasterCellId, (), (override));
