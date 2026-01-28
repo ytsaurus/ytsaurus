@@ -33,6 +33,7 @@ enum class TYtTableIntent: ui32 {
     SymlinkCreate = 1 << 8, // CREATE SYMLINK destination: lock the link path itself, not its target.
     Referenced  = 1 << 9, // CREATE SYMLINK target: lock it to protect from removal; combined with Read for metadata loading.
     SymlinkDrop = 1 << 10, // DROP SYMLINK operand: lock the link itself, not its target.
+    Alter       = 1 << 11,
 };
 
 Y_DECLARE_FLAGS(TYtTableIntents, TYtTableIntent);
