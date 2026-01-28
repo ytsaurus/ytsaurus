@@ -142,7 +142,9 @@ $ yt create document //sys/controller_agents/config --attributes '{value={}}'
 ------
 #### **Q: При чтении из динтаблицы получаю ошибку 'Timestamp ... is less than tablet ... retained timestamp'** {#retained-timestamp}
 
-**A:** Ошибка возникает, когда запрашиваются данные, которые могли быть удалены компакшном. Проверьте, что `min_data_ttl` у таблицы больше ожидаемого времени жизни пользовательских транзакций. Подробнее про настройки компакшна см. в разделе [Удаление старых данных](../../user-guide/dynamic-tables/sorted-dynamic-tables#remove_old_data).
+**A:** Ошибка возникает при запросе данных, потенциально удалённых компакшном. Проверьте, что `min_data_ttl` у таблицы больше ожидаемого времени жизни пользовательских транзакций. 
+
+Подробнее про настройки компакшна см. в разделе [Удаление старых данных](../../user-guide/dynamic-tables/sorted-dynamic-tables#remove_old_data).
 
 ------
 #### **Q: При попытке выполнить remote copy получаю ошибку 'Chunk view cannot be copied to remote cluster'** {#chunk-view-cannot-be-remote-copied}

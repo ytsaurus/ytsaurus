@@ -140,6 +140,15 @@ In some scenarios, weakening [guarantees](../../user-guide/dynamic-tables/transa
 2. It must be a working replica. If the client has recently got an error from a replica, next time it will try to access a different replica. The replicas you cannot read data from are listed in the `banned_replicas` attribute of the error in question.
 
 ---
+#### **Q: When reading from a dynamic table, I get the error 'Timestamp ... is less than tablet ... retained timestamp'** {#retained-timestamp}
+
+**A:** The error occurs when requesting data that may have been deleted by compaction. Check that the `min_data_ttl` of the table is bigger than the expected lifespan of user transactions.
+
+For more information about compaction settings, see the section [Deleting old data](../../user-guide/dynamic-tables/sorted-dynamic-tables#remove_old_data).
+
+---
+
+---
 #### **Q: When attempting to execute RemoteCopy, I get the "Chunk view cannot be copied to remote cluster" error.** {#chunk-view-cannot-be-remote-copied}
 
 **A:** To ensure cost efficiency, some operations on a dynamic table, such as resharding, may create chunk views — wrappers for chunks. Currently, RemoteCopy can only copy regular chunks, not chunk views.
