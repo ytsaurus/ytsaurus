@@ -106,6 +106,7 @@ public:
         AddHandler({TYtTouch::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleTouch));
         AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateTable));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
+        AddHandler({TYtAlterTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleAlterTable));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateView));
         AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDrop));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCommit));
@@ -1941,6 +1942,147 @@ private:
         }
 
         input->SetTypeAnn(create.World().Ref().GetTypeAnn());
+        return TStatus::Ok;
+    }
+
+    TStatus HandleAlterTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+        if (!EnsureArgsCount(*input, 5U, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateOpBase(input, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto table = input->ChildPtr(TYtAlterTable::idx_Table);
+        if (!EnsureCallable(*table, ctx)) {
+            return TStatus::Error;
+        }
+        if (!table->IsCallable(TYtTable::CallableName())) {
+            ctx.AddError(TIssue(ctx.GetPosition(table->Pos()), TStringBuilder() << "Expected " << TYtTable::CallableName()
+            << " callable, but got " << table->Content()));
+            return TStatus::Error;
+        }
+
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtAlterTable::idx_DataSink)), TYtTable(table), ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto actions = input->ChildPtr(TYtAlterTable::idx_Actions);
+        if (!EnsureTuple(*actions, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto settings = input->Child(TYtAlterTable::idx_Settings);
+        if (!EnsureTuple(*settings, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateSettings(*settings, EYtSettingType::Initial, ctx))
+        {
+            return TStatus::Error;
+        }
+
+        const TYtAlterTable alter(input);
+        if (!TYtTableInfo::HasSubstAnonymousLabel(alter.Table())) {
+            const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
+
+            TExprNode::TPtr newTable;
+            if (const auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
+                if (TStatus::Error != status.Level && newTable != table) {
+                    output = ctx.ChangeChild(*input, TYtCreateTable::idx_Table, std::move(newTable));
+                }
+                return status.Combine(TStatus::Repeat);
+            }
+
+//            const bool initial = NYql::HasSetting(alter.Settings().Ref(), EYtSettingType::Initial);
+            const TYtTableInfo tableInfo(alter.Table());
+            YQL_ENSURE(tableInfo.Meta);
+            if (!tableInfo.Meta->DoesExist) {
+                ctx.AddError(TIssue(ctx.GetPosition(alter.Table().Pos()), TStringBuilder() <<
+                "Table" << ' ' << tableInfo.Name.Quote() << " does not exists."));
+                return TStatus::Error;
+            }
+
+
+            if (const auto commitEpoch = tableInfo.CommitEpoch) {
+                auto& next = State_->TablesData->GetOrAddTable(alter.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+                if (!next.Meta) {
+                    next.Meta = MakeIntrusive<TYtTableMetaInfo>();
+                    next.Meta->DoesExist = true;
+                }
+
+                auto items = tableInfo.RowSpec->GetType()->GetItems();
+                std::unordered_set<std::string_view> old(items.size()), changes;
+                std::for_each(items.cbegin(), items.cend(), [&old](const TItemExprType* item) { old.emplace(item->GetName()); });
+
+                for (auto i = 0U; i < alter.Actions().Size(); ++i) {
+                    if (const auto& name = alter.Actions().Item(i).Name().Value(); name == "addColumns") {
+                        const auto& list = alter.Actions().Item(i).Value().Cast<TExprList>();
+                        for (auto j = 0U; j < list.Size(); ++j) {
+                            const auto& item = list.Item(j).Cast<TExprList>();
+                            if (item.Size() != 4U) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Pos()), "Invalid column description."));
+                                return TStatus::Error;
+                            }
+                            const auto& column = item.Item(0U).Cast<TCoAtom>().Value();
+                            if (old.contains(column)) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(0U).Pos()),
+                                    TStringBuilder() << "Column '" << column << "' already exists."));
+                                return TStatus::Error;
+                            }
+                            if (const auto& constraints = item.Item(2U).Maybe<TCoNameValueTuple>();
+                                !constraints || constraints.Cast().Name().Value() != "columnConstrains" || !constraints.Cast().Value().Maybe<TCoNameValueTupleList>()) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(2U).Pos()), "Invalid column constraints description."));
+                                return TStatus::Error;
+                            } else if (!constraints.Cast().Value().Cast<TCoNameValueTupleList>().Empty()) {
+                                ctx.AddError(TIssue(ctx.GetPosition(constraints.Cast().Value().Cast().Pos()), "Additional contrains for columns isn't supported."));
+                                return TStatus::Error;
+                            }
+                            const auto type = item.Item(1U).Ref().GetTypeAnn()->Cast<TTypeExprType>()->GetType();
+                            if (!(EnsurePersistableType(item.Item(1U).Pos(), *type, ctx) && EnsureOptionalType(item.Item(1U).Pos(), *type, ctx))) {
+                                return TStatus::Error;
+                            }
+                            if (!changes.emplace(column).second) {
+                                ctx.AddError(TIssue(ctx.GetPosition(item.Item(0U).Pos()),
+                                    TStringBuilder() << "Duplicate action for column: " << column));
+                                return TStatus::Error;
+                            }
+                            items.emplace_back(ctx.MakeType<TItemExprType>(column, type));
+                        }
+                    } else if (name == "dropColumns") {
+                        const auto& list = alter.Actions().Item(i).Value().Cast<TCoAtomList>();
+                        for (auto j = 0U; j < list.Size(); ++j) {
+                            const auto& column = list.Item(j).Value();
+                            if (!old.contains(column)) {
+                                ctx.AddError(TIssue(ctx.GetPosition(list.Item(j).Pos()),
+                                    TStringBuilder() << "Column '" << column << "' does not exists."));
+                                return TStatus::Error;
+                            }
+                            if (!changes.emplace(column).second) {
+                                ctx.AddError(TIssue(ctx.GetPosition(list.Item(j).Pos()),
+                                    TStringBuilder() << "Duplicate action for column: " << column));
+                                return TStatus::Error;
+                            }
+                            items.erase(std::remove_if(items.begin(), items.end(), [&column](const TItemExprType* item) { return item->GetName() == column; }), items.end());
+                        }
+                    } else {
+                        ctx.AddError(TIssue(ctx.GetPosition(alter.Actions().Item(i).Name().Pos()),
+                            TStringBuilder() << "Unsupported ALTER TABLE action: " << name));
+                        return TStatus::Error;
+                    }
+                }
+
+                const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
+                next.RowType = rowType;
+                next.IsReplaced = true;
+
+                const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+                next.RowSpec = outTable.RowSpec;
+            }
+        }
+
+        input->SetTypeAnn(alter.World().Ref().GetTypeAnn());
         return TStatus::Ok;
     }
 

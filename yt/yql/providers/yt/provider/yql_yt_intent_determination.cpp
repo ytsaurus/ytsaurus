@@ -130,6 +130,9 @@ public:
                 case EYtWriteMode::CreateObjectIfNotExists:
                     tableDesc.Intents |= TYtTableIntent::Create | TYtTableIntent::View;
                     break;
+                case EYtWriteMode::Alter:
+                    tableDesc.Intents |= TYtTableIntent::Alter;
+                    break;
                 default:
                     ctx.AddError(TIssue(ctx.GetPosition(mode->Child(1)->Pos()), TStringBuilder() << "Unsupported "
                         << TYtWrite::CallableName() << " mode: " << mode->Child(1)->Content()));

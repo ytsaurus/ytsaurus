@@ -630,11 +630,6 @@ bool TSqlQuery::Statement(TVector<TNodePtr>& blocks, const TRule_sql_stmt_core& 
                 return false;
             }
 
-            if (tr.Service == YtProviderName) {
-                Error() << "ALTER TABLE is not supported for " << tr.Service << " provider.";
-                return false;
-            }
-
             TAlterTableParameters params;
             if (isTablestore) {
                 params.TableType = ETableType::TableStore;

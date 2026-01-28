@@ -420,6 +420,15 @@
             ]
         },
         {
+            "Name": "TYtAlterTable",
+            "Base": "TYtIsolatedOpBase",
+            "Match": {"Type": "Callable", "Name": "YtAlterTable!"},
+            "Children": [
+                {"Index": 3, "Name": "Actions", "Type": "TCoNameValueTupleList"},
+                {"Index": 4, "Name": "Settings", "Type": "TCoNameValueTupleList"}
+            ]
+        },
+        {
             "Name": "TYtCreateView",
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtCreateView!"},

@@ -29,6 +29,7 @@ enum class TYtTableIntent: ui32 {
     Drop        = 1 << 5,
     Flush       = 1 << 6, // Untransactional write
     Replace     = 1 << 7,
+    Alter       = 1 << 8,
 };
 
 Y_DECLARE_FLAGS(TYtTableIntents, TYtTableIntent);
