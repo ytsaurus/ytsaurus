@@ -508,6 +508,10 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
         yt_env_init_operations_archive.create_tables_latest_version(client)
 
     if yt_config.wait_tablet_cell_initialization or yt_config.queue_agent_count > 0:
+        # COMPAT(apachee): Temporary workaround until YT-26157 is resolved.
+        if client.exists("//sys/users/root/@allow_create_secondary_indices"):
+            client.set("//sys/users/root/@allow_create_secondary_indices", True)
+
         create_queue_agent_state_tables(client)
 
     logger.info("World initialization for local cluster completed")

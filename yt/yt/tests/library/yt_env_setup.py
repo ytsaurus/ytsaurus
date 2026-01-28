@@ -866,6 +866,11 @@ class YTEnvSetup(object):
             cls.teardown_class()
             raise
 
+        # COMPAT(apachee): Temporary workaround until YT-26157 is present in all yt packages used for tests,
+        # yt flow tests in particular (they use ytflow_latest package and rely on YTEnvSetup).
+        if cls.get_param("NUM_QUEUE_AGENTS", 0) > 0 and yt_commands.exists("//sys/users/root/@allow_create_secondary_indices"):
+            yt_commands.set("//sys/users/root/@allow_create_secondary_indices", True)
+
     @classmethod
     def _cypress_proxies_properly_supported(cls):
         # COMPAT(kvk1920)
