@@ -188,6 +188,12 @@ bool TChunkLocation::RemoveDestroyedReplica(const TChunkIdWithIndex& replica)
     return destroyedReplicas.erase(replica) > 0;
 }
 
+bool TChunkLocation::HasDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica)
+{
+    auto shardId = GetChunkShardIndex(replica.Id);
+    return DestroyedReplicas_[shardId].contains(replica);
+}
+
 void TChunkLocation::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
     YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
