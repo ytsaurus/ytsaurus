@@ -841,7 +841,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (location->GetMediumDescriptor().Index != sessionId.MediumIndex) {
+        if (location->GetMediumDescriptor()->GetIndex() != sessionId.MediumIndex) {
             continue;
         }
 
@@ -988,26 +988,6 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     return {location, std::move(lockedChunkGuard)};
 }
 
-<<<<<<< HEAD
-=======
-bool TChunkStore::CanStartNewSession(
-    const TStoreLocationPtr& location,
-    int mediumIndex)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (!location->IsWritable()) {
-        return false;
-    }
-
-    if (location->GetMediumDescriptor()->GetIndex() != mediumIndex) {
-        return false;
-    }
-
-    return true;
-}
-
->>>>>>> 6fb4267b47e (S3 regular chunk reader & writer: v1)
 IChunkPtr TChunkStore::CreateFromDescriptor(
     const TStoreLocationPtr& location,
     const TChunkDescriptor& descriptor)
