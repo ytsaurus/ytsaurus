@@ -443,7 +443,7 @@ public:
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
         bool PreallocateDiskSpace = false;
-        bool UseDirectIo = false;
+        bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
     };
 
@@ -610,7 +610,7 @@ public:
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks = TDuration::Seconds(1);
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
-        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIo = TestParams_.UseDirectIo;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
@@ -1017,7 +1017,7 @@ public:
                 .WriteThreadCount = 4,
                 .UseProbePutBlocks = GetParam().UseProbePutBlocks,
                 .PreallocateDiskSpace = GetParam().PreallocateDiskSpace,
-                .UseDirectIo = GetParam().UseDirectIo,
+                .UseDirectIO = GetParam().UseDirectIo,
             })
     { }
 };
@@ -1337,7 +1337,7 @@ TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
     }
 }
 
-TEST_P(TWriteTest, WriteTest)
+TEST_P(TWriteTest, RandomWrite)
 {
     auto testCase = GetParam();
 
