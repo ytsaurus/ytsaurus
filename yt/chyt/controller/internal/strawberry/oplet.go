@@ -1187,6 +1187,13 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error
 		return err
 	}
 
+	if !reflect.DeepEqual(oplet.getOpACL(), oplet.persistentState.YTOpACL) {
+		err := oplet.systemClient.SetNode(ctx, oplet.cypressNode.Attr("acl"), oplet.acl, nil)
+		if err != nil {
+			oplet.l.Error("error updating strawberry acl", log.Error(err))
+		}
+	}
+
 	oplet.l.Info("operation parameters updated")
 
 	oplet.persistentState.YTOpACL = opACL
