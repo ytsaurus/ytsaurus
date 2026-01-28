@@ -221,7 +221,7 @@ def fetch_table_attributes(path: str) -> typing.Dict[str, typing.Any]:
     logger.info("Lightweight attributes fetched")
     for attribute in heavy_attributes:
         logger.info(f'Fetching heavy attribute "{attribute}" of table {path}')
-        result |= {attribute: yt.get(f"{path}/@{attribute}")}
+        result.update({attribute: yt.get(f"{path}/@{attribute}")})
 
     return {path: result}
 
@@ -229,7 +229,7 @@ def fetch_table_attributes(path: str) -> typing.Dict[str, typing.Any]:
 def fetch_tables(**kwargs) -> typing.Dict[str, typing.Any]:
     result = {}
     for path in kwargs.get("path", []):
-        result |= fetch_table_attributes(path)
+        result.update(fetch_table_attributes(path))
     return result
 
 
