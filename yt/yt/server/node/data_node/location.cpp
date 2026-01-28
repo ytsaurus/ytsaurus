@@ -2016,27 +2016,31 @@ TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const
     return IOStatisticsProvider_->Get();
 }
 
-bool TStoreLocation::IsWritable() const
+TError TStoreLocation::CheckWritable() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
-        return false;
+        return TError("Location is disabled");
     }
 
     if (IsFull()) {
-        return false;
+        return TError("Location is full");
     }
 
     if (IsSick()) {
-        return false;
+        return TError("Location is sick");
     }
 
-    if (GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write) > GetWriteThrottlingLimit()) {
-        return false;
+    auto memoryUsage = GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write);
+    auto memoryLimit = GetWriteThrottlingLimit();
+    if (memoryUsage > memoryLimit) {
+        return TError("Location is throttling due to IO writer queue memory limit violation")
+            << TErrorAttribute("memory_usage", memoryUsage)
+            << TErrorAttribute("memory_limit", memoryLimit);
     }
 
-    return true;
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

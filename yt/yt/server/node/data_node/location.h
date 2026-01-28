@@ -463,8 +463,8 @@ public:
     //! Returns various IO related statistics.
     TIOStatistics GetIOStatistics() const;
 
-    //! Returns |true| if the location accepts new writes.
-    bool IsWritable() const;
+    //! Returns OK error if the location ready to accept new writes otherwise returns the error with reason.
+    TError CheckWritable() const;
 
     //! Marks the location as disabled by attempting to create a lock file and marking assigned chunks
     //! as unavailable.

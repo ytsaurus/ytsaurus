@@ -1453,7 +1453,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (!location->IsWritable()) {
+        if (auto error = location->CheckWritable(); !error.IsOK()) {
             return false;
         }
 
