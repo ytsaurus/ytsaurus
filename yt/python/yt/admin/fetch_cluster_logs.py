@@ -1,6 +1,6 @@
 import yt.logger as logger
 
-from datetime import datetime
+from datetime import datetime, timezone
 from dateutil import parser as date_parser
 
 import argparse
@@ -135,23 +135,27 @@ def get_podname(component_name: str, component_group_index: int, spec: typing.Di
 def get_filepaths(kube_namespace: str, component_name: str, component_group_index: int, exec_node_slot_index: typing.Optional[int], from_timestamp: typing.Optional[str], to_timestamp: typing.Optional[str], spec: typing.Dict, podname: str) -> typing.List[str]:
     logs_dir = get_logs_dir(spec, component_name, component_group_index, exec_node_slot_index)
 
-    stat_result = subprocess.check_output(
-        f"kubectl exec -c ytserver -n {kube_namespace} -ti {podname} -- /bin/bash -lc \"stat -c '%n %w %y' {logs_dir}/*\"",
-        shell=True,
-        text=True)
+    cmd = (
+        f"kubectl exec -c ytserver -n {kube_namespace} {podname} "
+        f"-- /bin/bash -lc \"stat -c '%F|%Y|%n' {logs_dir}/*\""
+    )
+
+    stat_result = subprocess.check_output(cmd, shell=True, text=True)
 
     filepaths = []
 
-    for line in stat_result.split("\n"):
-        parts = line.split(" ")
-        if len(parts) < 7:
+    for line in stat_result.strip().split("\n"):
+        parts = line.split("|")
+        if len(parts) != 3:
             continue
-        filepath = parts[0]
-        creation_ts_str = f"{parts[1]}T{parts[2]}{parts[3]}"
-        modification_ts_str = f"{parts[4]}T{parts[5]}{parts[6]}"
+        file_type = parts[0].lower()
+        mod_ts_str = parts[1]
+        filepath = parts[2]
+        if "directory" in file_type:
+            continue
 
-        modification_ts = date_parser.parse(modification_ts_str)
-        creation_ts = date_parser.parse(creation_ts_str)
+        modification_ts = datetime.fromtimestamp(float(mod_ts_str), tz=timezone.utc)
+        creation_ts = modification_ts
 
         if check_timestamp(from_timestamp, to_timestamp, modification_ts, creation_ts):
             filepaths.append(filepath)
@@ -182,8 +186,7 @@ def copy_files(kube_namespace: str, current_timestamp: str, podname: str, filepa
     for filepath in filepaths:
         filename = filepath.split("/")[-1]
         subprocess.check_output(
-            ["kubectl", "cp", "-c", "ytserver", f"{kube_namespace}/{podname}:{filepath}", f"{tmp_dir}/{filename}"],
-            stdout=subprocess.DEVNULL)
+            ["kubectl", "cp", "-c", "ytserver", f"{kube_namespace}/{podname}:{filepath}", f"{tmp_dir}/{filename}"])
 
     return finish_output(tmp_dir)
 
