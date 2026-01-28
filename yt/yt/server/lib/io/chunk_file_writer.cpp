@@ -53,11 +53,11 @@ TChunkFileWriter::TChunkFileWriter(
 
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
 {
+    auto flags = FileMode;
     if (UseDirectIO_) {
-        return FileMode | DirectAligned;
-    } else {
-        return FileMode;
+        flags |= DirectAligned;
     }
+    return flags;
 }
 
 void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
