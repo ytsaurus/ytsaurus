@@ -989,9 +989,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                         YT_LOG_ALERT(
                             "Long live read session ("
                             "ChunkId: %v, FutureCount: %v, "
-                            "DiskPromise: %v, DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
+                            "DiskPromise: %v, DiskPromiseIsSet: %v, DiskPromiseIsCanceled: %v, "
                             "EntryCount: %v, BlocksExtLoaded: %v, "
-                            "SessionPromiseCanceled: %v, Finished: %v, "
+                            "SessionPromiseIsCanceled: %v, Finished: %v, "
                             "ReadLockCounter: %v)",
                             chunkId,
                             session->Futures.size(),
