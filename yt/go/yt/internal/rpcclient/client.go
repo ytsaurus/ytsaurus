@@ -201,7 +201,6 @@ func (c *client) doMultiLookup(
 	}()
 
 	for i, subresponse := range rsp.GetSubresponses() {
-		// Check if this subrequest failed (when AllowFailure is enabled)
 		if subresponse.GetError() != nil {
 			readers[i] = newErrorTableReader(subresponse.GetError())
 			continue
