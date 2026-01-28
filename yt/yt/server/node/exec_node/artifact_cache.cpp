@@ -5,6 +5,8 @@
 #include "master_connector.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/io/chunk_physical_layout_writer.h>
+#include <yt/yt/server/lib/s3/chunk_writer.h>
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
@@ -190,7 +192,7 @@ class TErrorInterceptingChunkWriter
     : public IChunkWriter
 {
 public:
-    TErrorInterceptingChunkWriter(TCacheLocationPtr location, TIntrusivePtr<TChunkFileWriter> underlying)
+    TErrorInterceptingChunkWriter(TCacheLocationPtr location, NIO::IWrapperFairShareChunkWriterPtr underlying)
         : Location_(std::move(location))
         , Underlying_(std::move(underlying))
     { }
@@ -210,7 +212,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) override
     {
-        return Underlying_->WriteBlock(options, workloadDescriptor, block, {});
+        return Underlying_->WriteBlock(options, workloadDescriptor, block);
     }
 
     bool WriteBlocks(
@@ -218,7 +220,7 @@ public:
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        return Underlying_->WriteBlocks(options, workloadDescriptor, blocks, {});
+        return Underlying_->WriteBlocks(options, workloadDescriptor, blocks);
     }
 
     TFuture<void> GetReadyEvent() override
@@ -268,7 +270,7 @@ public:
 
 private:
     const TCacheLocationPtr Location_;
-    const TIntrusivePtr<TChunkFileWriter> Underlying_;
+    const NIO::IWrapperFairShareChunkWriterPtr Underlying_;
 
     TFuture<void> Check(TFuture<void> result)
     {
@@ -1055,13 +1057,13 @@ private:
                 std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = New<TChunkFileWriter>(
+            auto chunkWriter = NIO::CreateChunkFileWriter(
                 location->GetIOEngine(),
                 chunkId,
                 fileName,
                 /*syncOnClose*/ false);
 
-            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
+            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, std::move(chunkWriter));
 
             IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
@@ -1164,7 +1166,8 @@ private:
 
             YT_LOG_INFO("Chunk is downloaded into cache");
 
-            TChunkDescriptor descriptor(chunkId, chunkWriter->GetChunkInfo().disk_space());
+            // TChunkDescriptor descriptor(chunkId, chunkWriter->GetChunkInfo().disk_space());
+            TChunkDescriptor descriptor(chunkId, 0);
             auto chunk = CreateArtifact(location,  key, descriptor, std::move(chunkMeta), std::move(lockedChunkGuard));
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {

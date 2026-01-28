@@ -4,9 +4,14 @@
 #include "config.h"
 
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/io/chunk_physical_layout_writer.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -195,7 +200,7 @@ public:
     }
 
     //! Session must be started before calling Add.
-    bool Add(const std::vector<TSharedRef>& data)
+    bool Add(std::vector<TSharedRef> data) // todo: remove const ref
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -212,7 +217,7 @@ public:
         auto size = GetByteSize(data);
         UploadWindowSemaphore_->Acquire(size);
 
-        BufferedData_.insert(BufferedData_.end(), data.begin(), data.end());
+        BufferedData_.insert(BufferedData_.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
         BufferedDataSize_ += size;
 
         GuardedSchedulePartUploadIfNeeded();
@@ -301,6 +306,7 @@ private:
         return State_;
     }
 
+    // todo: compare and swap
     bool TryExchangeState(ES3UploadSessionState expected, ES3UploadSessionState desired)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -639,7 +645,7 @@ using TS3ChunkMetaUploadSessionPtr = TIntrusivePtr<TS3SimpleUploadSession>;
 ////////////////////////////////////////////////////////////////////////////
 
 class TS3Writer
-    : public IChunkWriter
+    : public NIO::IPhysicalLayerWriter
 {
 public:
     TS3Writer(
@@ -649,7 +655,6 @@ public:
         TSessionId sessionId)
         : Client_(std::move(client))
         , SessionId_(sessionId)
-        , PhysicalChunkLayoutWriter_(New<NIO::TPhysicalChunkLayoutWriter>(SessionId_.ChunkId))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
@@ -675,21 +680,13 @@ public:
         return ChunkUploadSession_->Start();
     }
 
-    bool WriteBlock(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TBlock& block) override
-    {
-        return WriteBlocks(options, workloadDescriptor, {block});
-    }
-
     bool WriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const std::vector<TBlock>& blocks) override
+        TWriteRequest request,
+        TFairShareSlotId /*fairShareSlotId*/) override
     {
-        auto writeRequest = PhysicalChunkLayoutWriter_->AddBlocks(blocks);
-        return ChunkUploadSession_->Add(writeRequest.Buffers);
+        return ChunkUploadSession_->Add(std::move(request.Buffers));
     }
 
     TFuture<void> GetReadyEvent() override
@@ -700,29 +697,17 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> /*truncateBlockCount*/) override
+        const TSharedMutableRef& chunkMetaBlob,
+        TFairShareSlotId /*fairShareSlotId*/,
+        i64 /*dataSize*/,
+        i64 /*metadataSize*/) override
     {
-        // Journal chunks are not supported.
-        YT_VERIFY(chunkMeta);
-
-        // Some uploads may still be running, but no more blocks can be added, so we can safely
-        // finalize the meta in parallel with the completion of the chunk upload itself.
-        auto chunkMetaBlob = PhysicalChunkLayoutWriter_->Close(chunkMeta);
-
         auto closeFutures = std::vector{
             ChunkUploadSession_->Complete(),
             ChunkMetaUploadSession_->Upload(std::move(chunkMetaBlob)),
         };
 
         return AllSucceeded(std::move(closeFutures));
-    }
-
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return PhysicalChunkLayoutWriter_->GetChunkInfo();
     }
 
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
@@ -753,6 +738,11 @@ public:
     TChunkId GetChunkId() const override
     {
         return SessionId_.ChunkId;
+    }
+
+    const TString& GetFileName() const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     NErasure::ECodec GetErasureCodecId() const override
@@ -794,7 +784,6 @@ public:
 private:
     const IClientPtr Client_;
     const TSessionId SessionId_;
-    const NIO::TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
 
     const NLogging::TLogger Logger;
 
@@ -804,20 +793,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////
 
-IChunkWriterPtr CreateS3RegularChunkWriter(
+NIO::IWrapperFairShareChunkWriterPtr CreateS3RegularChunkWriter(
     IClientPtr client,
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3WriterConfigPtr config,
+    // syncOnClose
     TSessionId sessionId)
 {
     YT_VERIFY(IsRegularChunkId(sessionId.ChunkId));
     YT_VERIFY(sessionId.MediumIndex == mediumDescriptor->GetIndex());
 
-    return New<TS3Writer>(
-        std::move(client),
-        std::move(mediumDescriptor),
-        std::move(config),
-        sessionId);
+    return NIO::CreateChunkLayoutWriterAdapter(
+        New<TS3Writer>(
+            std::move(client),
+            std::move(mediumDescriptor),
+            std::move(config),
+            sessionId),
+        TDispatcher::Get()->GetWriterInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////

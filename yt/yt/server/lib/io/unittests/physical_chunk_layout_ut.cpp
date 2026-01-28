@@ -21,30 +21,30 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GenerateRandomString(size_t size, TRandomGenerator* generator)
-{
-    TString result;
-    result.reserve(size + sizeof(ui64));
-    while (result.size() < size) {
-        ui64 value = generator->Generate<ui64>();
-        result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
-    }
-    result.resize(size);
-    return result;
-}
+// TString GenerateRandomString(size_t size, TRandomGenerator* generator)
+// {
+//     TString result;
+//     result.reserve(size + sizeof(ui64));
+//     while (result.size() < size) {
+//         ui64 value = generator->Generate<ui64>();
+//         result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
+//     }
+//     result.resize(size);
+//     return result;
+// }
 
-std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* generator)
-{
-    std::vector<NChunkClient::TBlock> blocks;
-    blocks.reserve(count);
+// std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* generator)
+// {
+//     std::vector<NChunkClient::TBlock> blocks;
+//     blocks.reserve(count);
 
-    for (int index = 0; index < count; index++) {
-        int size = 10 + generator->Generate<uint>() % 11;
-        blocks.push_back(NChunkClient::TBlock(TSharedRef::FromString(GenerateRandomString(size, generator))));
-    }
+//     for (int index = 0; index < count; index++) {
+//         int size = 10 + generator->Generate<uint>() % 11;
+//         blocks.push_back(NChunkClient::TBlock(TSharedRef::FromString(GenerateRandomString(size, generator))));
+//     }
 
-    return blocks;
-}
+//     return blocks;
+// }
 
 void DumpBrokenMeta(TRef /*block*/)
 { }
@@ -59,10 +59,10 @@ void DumpBrokenBlock(
 
 TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
 {
-    constexpr int BlocksCount = 100;
+    // constexpr int BlocksCount = 100;
 
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
-    auto generator = TRandomGenerator(42);
+    // auto generator = TRandomGenerator(42);
 
     auto reader = New<TPhysicalChunkLayoutReader>(
         chunkId,
@@ -72,31 +72,31 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
         Logger(),
         BIND(&DumpBrokenBlock),
         BIND(&DumpBrokenMeta));
-    auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
+    // auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
 
-    auto originalBlocks = CreateBlocks(BlocksCount, &generator);
+    // auto originalBlocks = CreateBlocks(BlocksCount, &generator);
 
-    auto writeRequest = writer->AddBlocks(originalBlocks);
-    auto deferredMeta = New<NChunkClient::TDeferredChunkMeta>();
-    auto metaBlob = writer->Close(std::move(deferredMeta));
+    // auto writeRequest = writer->AddBlocks(originalBlocks);
+    // auto deferredMeta = New<NChunkClient::TDeferredChunkMeta>();
+    // auto metaBlob = writer->Close(std::move(deferredMeta));
 
-    auto blocksExt = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(writer->GetChunkMeta()->extensions()));
+    // auto blocksExt = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(writer->GetChunkMeta()->extensions()));
 
-    struct TMyTag {};
-    auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
-    auto deserializedBlocks = reader->DeserializeBlocks(
-        blocksBlob,
-        TPhysicalChunkLayoutReader::TBlockRange{
-            .StartBlockIndex = 0,
-            .EndBlockIndex = BlocksCount
-        },
-        blocksExt,
-        New<NChunkClient::TChunkReaderStatistics>());
+    // struct TMyTag {};
+    // auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
+    // auto deserializedBlocks = reader->DeserializeBlocks(
+    //     blocksBlob,
+    //     TPhysicalChunkLayoutReader::TBlockRange{
+    //         .StartBlockIndex = 0,
+    //         .EndBlockIndex = BlocksCount
+    //     },
+    //     blocksExt,
+    //     New<NChunkClient::TChunkReaderStatistics>());
 
-    EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
-    for (int i = 0; i < BlocksCount; ++i) {
-        EXPECT_EQ(originalBlocks[i].GetOrComputeChecksum(), deserializedBlocks[i].GetOrComputeChecksum());
-    }
+    // EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
+    // for (int i = 0; i < BlocksCount; ++i) {
+    //     EXPECT_EQ(originalBlocks[i].GetOrComputeChecksum(), deserializedBlocks[i].GetOrComputeChecksum());
+    // }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

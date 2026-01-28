@@ -124,6 +124,7 @@ DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutReader)
 
 ////////////////////////////////////////////////////////////////////////////
 
+// TODO(cherepashka): move the implementation away from the header file.
 class TChunkFileReader
     : public virtual TRefCounted
 {

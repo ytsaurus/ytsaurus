@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_physical_layout_writer.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
@@ -18,61 +19,6 @@
 
 namespace NYT::NIO {
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! The purpose of this class is to isolate all preparation logic related to the physical
-//! layout of a chunk file and chunk meta contents. It acts as a guarantee that different
-//! chunk writers produce binary identical chunk and chunk meta files independent of the
-//! underlying storage medium (file, S3).
-class TPhysicalChunkLayoutWriter
-    : public virtual TRefCounted
-{
-public:
-    TPhysicalChunkLayoutWriter(NChunkClient::TChunkId chunkId, bool syncOnClose = true);
-
-    //! Write-related methods.
-
-    struct TWriteRequest
-    {
-        i64 StartOffset = 0;
-        i64 EndOffset = 0;
-        std::vector<TSharedRef> Buffers;
-    };
-    TWriteRequest AddBlocks(const std::vector<NChunkClient::TBlock>& blocks);
-
-    TSharedMutableRef Close(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
-
-    TSharedMutableRef PrepareChunkMetaBlob();
-
-    void UpdateChunkInfoDiskSpace();
-    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
-
-    void UpdateDataSize(i64 dataSizeDelta);
-
-    i64 GetDataSize() const;
-    i64 GetMetaDataSize() const;
-
-    NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
-
-    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-
-    NChunkClient::TChunkId GetChunkId() const;
-
-protected:
-    const NChunkClient::TChunkId ChunkId_;
-    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
-    const NLogging::TLogger Logger;
-
-    NChunkClient::NProto::TChunkInfo ChunkInfo_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
-
-    i64 DataSize_ = 0;
-    i64 MetaDataSize_ = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutWriter)
-
 ////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EFileWriterState,
@@ -87,62 +33,41 @@ DEFINE_ENUM(EFileWriterState,
     (Failed)
 );
 
+// TODO(cherepashka): move the implementation away from the header file.
 class TChunkFileWriter
-    : public NChunkClient::IChunkWriter
+    : public IPhysicalLayerWriter
 {
 public:
     TChunkFileWriter(
         IIOEnginePtr ioEngine,
+        IInvokerPtr invoker,
         NChunkClient::TChunkId chunkId,
         TString fileName,
         bool syncOnClose = true,
         bool useDirectIO = false);
 
-    // IChunkWriter implementation.
     TFuture<void> Open() override;
 
     TFuture<void> PreallocateDiskSpace(
         const TWorkloadDescriptor& workloadDescriptor,
-        i64 spaceSize);
-
-    bool WriteBlock(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TBlock& block) override;
-
-    bool WriteBlock(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TBlock& block,
-        TFairShareSlotId fairShareSlotId);
+        i64 spaceSize) override;
 
     bool WriteBlocks(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const std::vector<NChunkClient::TBlock>& blocks) override;
-
-    bool WriteBlocks(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const std::vector<NChunkClient::TBlock>& blocks,
-        TFairShareSlotId fairShareSlotId);
+        TWriteRequest request,
+        TFairShareSlotId fairShareSlotId) override;
 
     TFuture<void> GetReadyEvent() override;
 
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        std::optional<int> truncateBlocks) override;
-
-    TFuture<void> Close(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
+        const TSharedMutableRef& chunkMetaBlob,
         TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlocks);
+        i64 dataSize,
+        i64 metadataSize) override;
 
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
     NChunkClient::TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override;
 
@@ -152,20 +77,8 @@ public:
 
     bool IsCloseDemanded() const override;
 
-    //! Returns the chunk meta.
-    /*!
-     *  The writer must be already closed.
-     */
-    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
-
     //! Returns the name of the file passed to the writer upon construction.
-    const TString& GetFileName() const;
-
-    //! Returns the total data size accumulated so far.
-    /*!
-     *  Can be called at any time.
-     */
-    i64 GetDataSize() const;
+    const TString& GetFileName() const override;
 
     //! Aborts the writer and removes temporary files.
     TFuture<void> Cancel() override;
@@ -173,10 +86,11 @@ public:
 private:
     const IIOEnginePtr IOEngine_;
     const TString FileName_;
+    const NChunkClient::TChunkId ChunkId_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
-    const TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
     const NLogging::TLogger Logger;
+    const IInvokerPtr Invoker_;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
@@ -196,6 +110,15 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFileWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IWrapperFairShareChunkWriterPtr CreateChunkFileWriter(
+    IIOEnginePtr ioEngine,
+    NChunkClient::TChunkId chunkId,
+    TString fileName,
+    bool syncOnClose = true,
+    bool useDirectIO = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

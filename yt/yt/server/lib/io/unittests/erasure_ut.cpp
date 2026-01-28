@@ -253,7 +253,7 @@ public:
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            writers.push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
+            writers.push_back(CreateChunkFileWriter(ioEngine, NullChunkId, filename));
         }
 
         auto meta = New<TDeferredChunkMeta>();
@@ -301,7 +301,7 @@ public:
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             if (repairWriters && erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
-                repairWriters->push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
+                repairWriters->push_back(CreateChunkFileWriter(ioEngine, NullChunkId, filename));
             }
             if (repairReaders && repairIndicesSet.find(i) != repairIndicesSet.end()) {
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
@@ -359,7 +359,7 @@ public:
         *writerFactory = [=] (int index) {
             YT_VERIFY(parts[index] == ETestPartInfo::Erased);
             auto filename = "part" + ToString(index + 1);
-            return New<TChunkFileWriter>(ioEngine, NullChunkId, filename);
+            return CreateChunkFileWriter(ioEngine, NullChunkId, filename);
         };
     }
 
