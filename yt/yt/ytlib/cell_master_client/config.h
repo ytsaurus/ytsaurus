@@ -49,6 +49,9 @@ struct TCellDirectorySynchronizerConfig
     TDuration ExpireAfterSuccessfulUpdateTime;
     TDuration ExpireAfterFailedUpdateTime;
 
+    //! For tests only.
+    bool DuplicateDirectoryUpdate;
+
     REGISTER_YSON_STRUCT(TCellDirectorySynchronizerConfig);
 
     static void Register(TRegistrar registrar);

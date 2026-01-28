@@ -238,7 +238,7 @@ public:
         return ReplaceCellTagInId(GetPrimaryMasterCellId(), cellTag);
     }
 
-    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) override
+    void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory, bool duplicate) override
     {
         THashMap<TCellTag, EMasterCellRoles> cellTagToRoles;
         cellTagToRoles.reserve(protoDirectory.items_size());
@@ -300,6 +300,11 @@ public:
                 newSecondaryMasterCellTags);
 
             ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
+
+            // Should be no-op.
+            if (duplicate) {
+                ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
+            }
         }
 
         if (oldSecondaryMasterCellTags.empty() &&

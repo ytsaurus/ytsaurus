@@ -46,25 +46,68 @@ class MasterCellAdditionBase(YTEnvSetup):
     PRIMARY_CLUSTER_INDEX = 0
 
     REMOVE_LAST_MASTER_BEFORE_START = True
+    NUM_SECONDARY_MASTER_CELLS = 3
 
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "master_cell_directory_synchronizer": {
-                "sync_period": 10000,  # 10 sec
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-            },
+    CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE = {
+        "master_cell_directory_synchronizer": {
+            "sync_period": 10000,  # 10 sec
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "duplicate_directory_update": True,
         },
     }
 
+    # NB: Patch cluster connection for all possibly known services.
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_CHAOS_NODE_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
     DELTA_HTTP_PROXY_CONFIG = {
-        "cluster_connection": {
-            "master_cell_directory_synchronizer": {
-                "sync_period": 10000,  # 10 sec
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-            },
-        },
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_KAFKA_PROXY_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_RPC_DRIVER_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_TABLET_BALANCER_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
+    }
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
     }
 
     DELTA_NODE_CONFIG = {
@@ -74,6 +117,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             "sync_directories_on_connect": False,
         },
         "sync_directories_on_connect": False,
+        "cluster_connection": CLUSTER_CONNECTION_WITH_MASTER_CELL_DIRECTORY_OVERRIDE,
     }
 
     DELTA_MASTER_CONFIG = {
@@ -88,6 +132,15 @@ class MasterCellAdditionBase(YTEnvSetup):
             "testing": {
                 "allow_master_cell_with_empty_role": True,
             },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "master_cell_directory_synchronizer": {
+            "sync_period": 10000,  # 10 sec
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "duplicate_directory_update": True,
         },
     }
 
