@@ -252,6 +252,7 @@ TTraceContext::TTraceContext(
     , LeakDeadline_(StartTime_ + NDetail::TraceContextDefaultLeakDurationThreshold.load(std::memory_order::relaxed))
     , Baggage_(ParentContext_ ? ParentContext_->GetBaggage() : TYsonString{})
 {
+    YT_VERIFY(TraceId_ != InvalidTraceId && SpanId_ != InvalidSpanId);
     if (ParentContext_) {
         ParentContext_->CheckForLeak(StartTime_);
     }
@@ -662,6 +663,10 @@ TTraceContextPtr TTraceContext::NewChildFromSpan(
     std::optional<std::string> endpoint,
     TYsonString baggage)
 {
+    if (parentSpanContext.TraceId == InvalidTraceId) {
+        return nullptr;
+    }
+
     auto result = New<TTraceContext>(
         parentSpanContext,
         spanName);
