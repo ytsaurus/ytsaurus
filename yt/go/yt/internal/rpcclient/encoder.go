@@ -645,6 +645,7 @@ func (e *Encoder) MultiLookupRows(
 		ReplicaConsistency: convertReplicaConsistency(opts.ReplicaConsistency),
 		TabletReadOptions:  convertTabletReadOptions(opts.TabletReadOptions),
 		MultiplexingBand:   convertMultiplexingBandOptions(opts.MultiplexingBandOptions),
+		AllowFailure:       opts.AllowFailure,
 	}
 
 	call := e.newCall(MethodMultiLookup, NewMultiLookupRequest(req), attachments)

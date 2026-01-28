@@ -5,12 +5,14 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/wire"
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
 var _ yt.TableReader = (*tableReader)(nil)
+var _ yt.TableReader = (*errorTableReader)(nil)
 
 type tableReader struct {
 	rows  []wire.Row
@@ -91,6 +93,32 @@ func (r *tableReader) Err() error {
 
 func (r *tableReader) Close() error {
 	return r.err
+}
+
+type errorTableReader struct {
+	err error
+}
+
+func newErrorTableReader(protoErr *misc.TError) *errorTableReader {
+	return &errorTableReader{
+		err: misc.NewErrorFromProto(protoErr),
+	}
+}
+
+func (r *errorTableReader) Scan(value any) error {
+	return r.err
+}
+
+func (r *errorTableReader) Next() bool {
+	return false
+}
+
+func (r *errorTableReader) Err() error {
+	return r.err
+}
+
+func (r *errorTableReader) Close() error {
+	return nil
 }
 
 func zeroInitialize(v any) {

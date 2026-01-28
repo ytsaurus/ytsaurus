@@ -10,6 +10,7 @@ import (
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
@@ -43,6 +44,7 @@ type ProtoMultiLookupSubresp interface {
 	ProtoRowset
 
 	GetAttachmentCount() int32
+	GetError() *misc.TError
 }
 
 type ProtoRowset interface {

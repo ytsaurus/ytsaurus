@@ -1300,6 +1300,7 @@ type MultiplexingBandOptions struct {
 }
 
 type MultiLookupRowsOptions struct {
+	AllowFailure       *bool
 	Timestamp          *Timestamp
 	RetentionTimestamp *Timestamp
 	ReplicaConsistency *ReplicaConsistency
