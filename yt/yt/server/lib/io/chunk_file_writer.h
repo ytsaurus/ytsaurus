@@ -37,6 +37,7 @@ public:
         i64 StartOffset = 0;
         i64 EndOffset = 0;
         std::vector<TSharedRef> Buffers;
+        i64 BlockCount = 0;
     };
     TWriteRequest AddBlocks(const std::vector<NChunkClient::TBlock>& blocks);
 

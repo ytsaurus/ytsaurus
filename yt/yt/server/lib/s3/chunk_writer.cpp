@@ -5,8 +5,11 @@
 
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -195,7 +198,7 @@ public:
     }
 
     //! Session must be started before calling Add.
-    bool Add(const std::vector<TSharedRef>& data)
+    bool Add(const std::vector<TSharedRef>& data) // todo: remove const ref
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -639,7 +642,7 @@ using TS3ChunkMetaUploadSessionPtr = TIntrusivePtr<TS3SimpleUploadSession>;
 ////////////////////////////////////////////////////////////////////////////
 
 class TS3Writer
-    : public IChunkWriter
+    : public IPhysicalChunkWriter
 {
 public:
     TS3Writer(
@@ -649,7 +652,6 @@ public:
         TSessionId sessionId)
         : Client_(std::move(client))
         , SessionId_(sessionId)
-        , PhysicalChunkLayoutWriter_(New<NIO::TPhysicalChunkLayoutWriter>(SessionId_.ChunkId))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
@@ -675,21 +677,12 @@ public:
         return ChunkUploadSession_->Start();
     }
 
-    bool WriteBlock(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        const TWorkloadDescriptor& workloadDescriptor,
-        const TBlock& block) override
-    {
-        return WriteBlocks(options, workloadDescriptor, {block});
-    }
-
     bool WriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const std::vector<TBlock>& blocks) override
+        TWriteRequest request) override
     {
-        auto writeRequest = PhysicalChunkLayoutWriter_->AddBlocks(blocks);
-        return ChunkUploadSession_->Add(writeRequest.Buffers);
+        return ChunkUploadSession_->Add(request.Buffers);
     }
 
     TFuture<void> GetReadyEvent() override
@@ -700,29 +693,15 @@ public:
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
-        const TDeferredChunkMetaPtr& chunkMeta,
+        const TSharedMutableRef& chunkMetaBlob,
         std::optional<int> /*truncateBlockCount*/) override
     {
-        // Journal chunks are not supported.
-        YT_VERIFY(chunkMeta);
-
-        // Some uploads may still be running, but no more blocks can be added, so we can safely
-        // finalize the meta in parallel with the completion of the chunk upload itself.
-        auto chunkMetaBlob = PhysicalChunkLayoutWriter_->Close(chunkMeta);
-
         auto closeFutures = std::vector{
             ChunkUploadSession_->Complete(),
             ChunkMetaUploadSession_->Upload(std::move(chunkMetaBlob)),
         };
 
         return AllSucceeded(std::move(closeFutures));
-    }
-
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return PhysicalChunkLayoutWriter_->GetChunkInfo();
     }
 
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
@@ -794,7 +773,6 @@ public:
 private:
     const IClientPtr Client_;
     const TSessionId SessionId_;
-    const NIO::TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
 
     const NLogging::TLogger Logger;
 
@@ -803,6 +781,164 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TWrapperChunkWriter::Open()
+    {
+        // TODO(achulkov2): [PForReview] Log some more information here.
+        // YT_LOG_INFO("Offshore S3 writer opened");
+
+        // return ChunkUploadSession_->Start();
+        return UnderlyingWriter_->Open();
+    }
+
+    bool TWrapperChunkWriter::WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block)
+    {
+        return WriteBlocks(options, workloadDescriptor, {block});
+    }
+
+    bool TWrapperChunkWriter::WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks)
+    {
+        IPhysicalChunkWriter::TWriteRequest request;
+
+        request.StartOffset = DataSize_;
+        request.EndOffset = request.StartOffset;
+        request.BlockCount = blocks.size();
+
+        request.Buffers.reserve(blocks.size());
+
+        for (const auto& block : blocks) {
+            auto error = block.CheckChecksum();
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Block checksum mismatch during file writing");
+
+            auto* blockInfo = BlocksExt_.add_blocks();
+            blockInfo->set_offset(request.EndOffset);
+            blockInfo->set_size(ToProto<i64>(block.Size()));
+            blockInfo->set_checksum(block.GetOrComputeChecksum());
+
+            request.EndOffset += block.Size();
+            request.Buffers.push_back(block.Data);
+        }
+
+        DataSize_ = request.EndOffset;
+        return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, request);
+    }
+
+    TFuture<void> TWrapperChunkWriter::GetReadyEvent()
+    {
+        return UnderlyingWriter_->GetReadyEvent();
+    }
+
+    TSharedMutableRef TWrapperChunkWriter::PrepareChunkMetaBlob()
+{
+    auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
+
+    TChunkMetaHeader_2 header;
+    header.Signature = header.ExpectedSignature;
+    header.Checksum = GetChecksum(metaData);
+    header.ChunkId = GetChunkId();
+
+    MetaDataSize_ = metaData.Size() + sizeof(header);
+
+    struct TMetaBufferTag
+    { };
+
+    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
+    ::memcpy(buffer.Begin(), &header, sizeof(header));
+    ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
+
+    return buffer;
+}
+
+void TWrapperChunkWriter::UpdateChunkInfoDiskSpace()
+{
+    ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
+}
+
+void TWrapperChunkWriter::FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta)
+{
+    if (!chunkMeta->IsFinalized()) {
+        auto& mapping = chunkMeta->BlockIndexMapping();
+        mapping = std::vector<int>(BlocksExt_.blocks().size());
+        std::iota(mapping->begin(), mapping->end(), 0);
+        chunkMeta->Finalize();
+    }
+
+    ChunkMeta_->CopyFrom(*chunkMeta);
+    SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+}
+
+    TFuture<void> TWrapperChunkWriter::Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount)
+    {
+        // Journal chunks are not supported.
+        YT_VERIFY(chunkMeta);
+
+        // Some uploads may still be running, but no more blocks can be added, so we can safely
+        // finalize the meta in parallel with the completion of the chunk upload itself.
+        FinalizeChunkMeta(std::move(chunkMeta));
+
+        auto chunkMetaBlob = PrepareChunkMetaBlob();
+        UpdateChunkInfoDiskSpace();
+
+        return UnderlyingWriter_->Close(options, workloadDescriptor, chunkMetaBlob, truncateBlockCount);
+    }
+
+    const NChunkClient::NProto::TChunkInfo& TWrapperChunkWriter::GetChunkInfo() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        // YT_VERIFY(State_.load() == EState::Closed);
+
+        return ChunkInfo_;
+    }
+
+    const NChunkClient::NProto::TDataStatistics& TWrapperChunkWriter::GetDataStatistics() const
+    {
+        return UnderlyingWriter_->GetDataStatistics();
+    }
+
+    TWrittenChunkReplicasInfo TWrapperChunkWriter::GetWrittenChunkReplicasInfo() const
+    {
+        return UnderlyingWriter_->GetWrittenChunkReplicasInfo();
+    }
+
+    TChunkId TWrapperChunkWriter::GetChunkId() const
+    {
+        return UnderlyingWriter_->GetChunkId();
+    }
+
+    NErasure::ECodec TWrapperChunkWriter::GetErasureCodecId() const
+    {
+        return UnderlyingWriter_->GetErasureCodecId();
+    }
+
+    bool TWrapperChunkWriter::IsCloseDemanded() const
+    {
+        return UnderlyingWriter_->IsCloseDemanded();
+    }
+
+    // TODO(achulkov2): [PLater] Cancellation was written by me before I realized that it should be implemented much later.
+    // So, for now, it is left in a conserved state, and will be finished up at a later time.
+    TFuture<void> TWrapperChunkWriter::Cancel()
+    {
+        return UnderlyingWriter_->Cancel();
+    }
+
+
 
 IChunkWriterPtr CreateS3RegularChunkWriter(
     IClientPtr client,
@@ -813,13 +949,17 @@ IChunkWriterPtr CreateS3RegularChunkWriter(
     YT_VERIFY(IsRegularChunkId(sessionId.ChunkId));
     YT_VERIFY(sessionId.MediumIndex == mediumDescriptor->GetIndex());
 
-    return New<TS3Writer>(
+    return CreateChunkLayoutWriterAdapter(New<TS3Writer>(
         std::move(client),
         std::move(mediumDescriptor),
         std::move(config),
-        sessionId);
+        sessionId));
 }
 
+NChunkClient::IChunkWriterPtr CreateChunkLayoutWriterAdapter(IPhysicalChunkWriterPtr underlying)
+{
+    return New<TWrapperChunkWriter>(std::move(underlying));
+}
 ////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NS3
