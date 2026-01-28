@@ -16,11 +16,11 @@ namespace NYT::NDistributedChunkSessionServer {
 struct IDistributedChunkSessionManager
     : virtual public TRefCounted
 {
-    virtual IDistributedChunkSessionCoordinatorPtr FindCoordinator(NChunkClient::TSessionId sessionId) const = 0;
+    virtual IDistributedChunkSessionSequencerPtr FindSequencer(NChunkClient::TSessionId sessionId) const = 0;
 
-    virtual IDistributedChunkSessionCoordinatorPtr GetCoordinatorOrThrow(NChunkClient::TSessionId sessionId) const = 0;
+    virtual IDistributedChunkSessionSequencerPtr GetSequencerOrThrow(NChunkClient::TSessionId sessionId) const = 0;
 
-    virtual IDistributedChunkSessionCoordinatorPtr StartSession(
+    virtual IDistributedChunkSessionSequencerPtr StartSession(
         NChunkClient::TSessionId sessionId,
         std::vector<NNodeTrackerClient::TNodeDescriptor> targets) = 0;
 

@@ -1,7 +1,7 @@
 #include "distributed_chunk_session_manager.h"
 
 #include "config.h"
-#include "distributed_chunk_session_coordinator.h"
+#include "distributed_chunk_session_sequencer.h"
 #include "private.h"
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -36,32 +36,32 @@ public:
         , Connection_(std::move(connection))
     { }
 
-    IDistributedChunkSessionCoordinatorPtr FindCoordinator(TSessionId sessionId) const final
+    IDistributedChunkSessionSequencerPtr FindSequencer(TSessionId sessionId) const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = ReaderGuard(CoordinatorMapLock_);
-        const auto* coordinator = DoFindCoordinatorGuarded(sessionId);
-        return coordinator ? coordinator->first : nullptr;
+        auto guard = ReaderGuard(SequencerMapLock_);
+        const auto* sequencer = DoFindSequencerGuarded(sessionId);
+        return sequencer ? sequencer->first : nullptr;
     }
 
-    IDistributedChunkSessionCoordinatorPtr GetCoordinatorOrThrow(TSessionId sessionId) const final
+    IDistributedChunkSessionSequencerPtr GetSequencerOrThrow(TSessionId sessionId) const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = ReaderGuard(CoordinatorMapLock_);
-        return DoGetCoordinatorOrThrow(sessionId)->first;
+        auto guard = ReaderGuard(SequencerMapLock_);
+        return DoGetSequencerOrThrow(sessionId)->first;
     }
 
-    IDistributedChunkSessionCoordinatorPtr StartSession(
+    IDistributedChunkSessionSequencerPtr StartSession(
         TSessionId sessionId,
         std::vector<TNodeDescriptor> targets) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto guard = WriterGuard(CoordinatorMapLock_);
+        auto guard = WriterGuard(SequencerMapLock_);
 
-        if (Coordinators_.contains(sessionId)) {
+        if (Sequencers_.contains(sessionId)) {
             guard.Release();
 
             THROW_ERROR_EXCEPTION(
@@ -72,10 +72,10 @@ public:
 
         auto lease = TLeaseManager::CreateLease(
             Config_->SessionTimeout,
-            BIND_NO_PROPAGATE(&TDistributedChunkSessionManager::OnCoordinatorLeaseExpired, MakeStrong(this), sessionId)
+            BIND_NO_PROPAGATE(&TDistributedChunkSessionManager::OnSequencerLeaseExpired, MakeStrong(this), sessionId)
                 .Via(Invoker_));
 
-        auto session = CreateDistributedChunkSessionCoordinator(
+        auto session = CreateDistributedChunkSessionSequencer(
             Config_,
             sessionId,
             std::move(targets),
@@ -83,12 +83,12 @@ public:
             Connection_);
 
         session->StartSession().Subscribe(BIND_NO_PROPAGATE(
-            &TDistributedChunkSessionManager::OnCoordinatorFinished,
+            &TDistributedChunkSessionManager::OnSequencerFinished,
             MakeStrong(this),
             sessionId));
 
-        EmplaceOrCrash(Coordinators_, sessionId, std::pair(session, std::move(lease)));
-        YT_LOG_INFO("Coordinator started (SessionId: %v)", sessionId);
+        EmplaceOrCrash(Sequencers_, sessionId, std::pair(session, std::move(lease)));
+        YT_LOG_INFO("Sequencer started (SessionId: %v)", sessionId);
 
         return session;
     }
@@ -99,8 +99,8 @@ public:
 
         TLease lease;
         {
-            auto guard = ReaderGuard(CoordinatorMapLock_);
-            lease = DoGetCoordinatorOrThrow(sessionId)->second;
+            auto guard = ReaderGuard(SequencerMapLock_);
+            lease = DoGetSequencerOrThrow(sessionId)->second;
         }
 
         TLeaseManager::RenewLease(std::move(lease));
@@ -111,59 +111,59 @@ private:
     const IInvokerPtr Invoker_;
     const IConnectionPtr Connection_;
 
-    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CoordinatorMapLock_);
-    THashMap<TSessionId, std::pair<IDistributedChunkSessionCoordinatorPtr, TLease>> Coordinators_;
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, SequencerMapLock_);
+    THashMap<TSessionId, std::pair<IDistributedChunkSessionSequencerPtr, TLease>> Sequencers_;
 
-    const std::pair<IDistributedChunkSessionCoordinatorPtr, TLease>* DoFindCoordinatorGuarded(TSessionId sessionId) const
+    const std::pair<IDistributedChunkSessionSequencerPtr, TLease>* DoFindSequencerGuarded(TSessionId sessionId) const
     {
-        YT_ASSERT_SPINLOCK_AFFINITY(CoordinatorMapLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(SequencerMapLock_);
 
-        auto it = Coordinators_.find(sessionId);
-        return it == Coordinators_.end() ? nullptr : &it->second;
+        auto it = Sequencers_.find(sessionId);
+        return it == Sequencers_.end() ? nullptr : &it->second;
     }
 
-    const std::pair<IDistributedChunkSessionCoordinatorPtr, TLease>* DoGetCoordinatorOrThrow(TSessionId sessionId) const
+    const std::pair<IDistributedChunkSessionSequencerPtr, TLease>* DoGetSequencerOrThrow(TSessionId sessionId) const
     {
-        YT_ASSERT_SPINLOCK_AFFINITY(CoordinatorMapLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(SequencerMapLock_);
 
-        const auto* coordinator = DoFindCoordinatorGuarded(sessionId);
-        if (!coordinator) {
+        const auto* sequencer = DoFindSequencerGuarded(sessionId);
+        if (!sequencer) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchSession,
                 "Chunk write session %v is invalid or expired",
                 sessionId);
         }
-        return coordinator;
+        return sequencer;
     }
 
-    void OnCoordinatorLeaseExpired(TSessionId sessionId) const
+    void OnSequencerLeaseExpired(TSessionId sessionId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto coordinator = FindCoordinator(sessionId);
-        if (!coordinator) {
+        auto sequencer = FindSequencer(sessionId);
+        if (!sequencer) {
             return;
         }
-        YT_LOG_INFO("Coordinator lease expired, closing (SessionId: %v)", sessionId);
-        coordinator->Close(/*force*/ true).Subscribe(BIND([sessionId] (const TError& error) {
-            YT_LOG_INFO(error, "Coordinator session has been closed (SessionId: %v)", sessionId);
+        YT_LOG_INFO("Sequencer lease expired, closing (SessionId: %v)", sessionId);
+        sequencer->Close(/*force*/ true).Subscribe(BIND([sessionId] (const TError& error) {
+            YT_LOG_INFO(error, "Sequencer session has been closed (SessionId: %v)", sessionId);
         }));
     }
 
-    void OnCoordinatorFinished(TSessionId sessionId, const TError& error)
+    void OnSequencerFinished(TSessionId sessionId, const TError& error)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_INFO(error, "Coordinator finished (SessionId: %v)", sessionId);
+        YT_LOG_INFO(error, "Sequencer finished (SessionId: %v)", sessionId);
 
-        IDistributedChunkSessionCoordinatorPtr coordinator;
+        IDistributedChunkSessionSequencerPtr sequencer;
         {
-            auto guard = WriterGuard(CoordinatorMapLock_);
-            auto it = Coordinators_.find(sessionId);
-            if (it != Coordinators_.end()) {
+            auto guard = WriterGuard(SequencerMapLock_);
+            auto it = Sequencers_.find(sessionId);
+            if (it != Sequencers_.end()) {
                 // Prevent destruction under lock.
-                coordinator = std::move(it->second.first);
-                Coordinators_.erase(it);
+                sequencer = std::move(it->second.first);
+                Sequencers_.erase(it);
             }
         }
     }

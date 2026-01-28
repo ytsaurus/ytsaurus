@@ -7,7 +7,7 @@ namespace NYT::NDistributedChunkSessionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionManager);
-DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionCoordinator);
+DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionSequencer);
 
 DECLARE_REFCOUNTED_STRUCT(TDistributedChunkSessionServiceConfig);
 
