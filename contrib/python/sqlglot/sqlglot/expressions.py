@@ -2134,6 +2134,11 @@ class ComputedColumnConstraint(ColumnConstraintKind):
     arg_types = {"this": True, "persisted": False, "not_null": False, "data_type": False}
 
 
+# https://docs.oracle.com/en/database/other-databases/timesten/22.1/plsql-developer/examples-using-input-and-output-parameters-and-bind-variables.html#GUID-4B20426E-F93F-4835-88CB-6A79829A8D7F
+class InOutColumnConstraint(ColumnConstraintKind):
+    arg_types = {"input_": False, "output": False}
+
+
 class Constraint(Expression):
     arg_types = {"this": True, "expressions": True}
 
@@ -2481,6 +2486,7 @@ class OnConflict(Expression):
         "expressions": False,
         "action": False,
         "conflict_keys": False,
+        "index_predicate": False,
         "constraint": False,
         "where": False,
     }
@@ -5143,7 +5149,7 @@ class BitwiseAnd(Binary):
 
 
 class BitwiseLeftShift(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "requires_int128": False}
 
 
 class BitwiseOr(Binary):
@@ -5151,7 +5157,7 @@ class BitwiseOr(Binary):
 
 
 class BitwiseRightShift(Binary):
-    pass
+    arg_types = {"this": True, "expression": True, "requires_int128": False}
 
 
 class BitwiseXor(Binary):
@@ -5310,6 +5316,12 @@ class SimilarTo(Binary, Predicate):
 
 
 class Sub(Binary):
+    pass
+
+
+# https://www.postgresql.org/docs/current/functions-range.html
+# Represents range adjacency operator: -|-
+class Adjacent(Binary):
     pass
 
 
@@ -6041,6 +6053,14 @@ class ArrayAny(Func):
     arg_types = {"this": True, "expression": True}
 
 
+class ArrayAppend(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class ArrayPrepend(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class ArrayConcat(Func):
     _sql_names = ["ARRAY_CONCAT", "ARRAY_CAT"]
     arg_types = {"this": True, "expressions": False}
@@ -6410,6 +6430,10 @@ class Localtimestamp(Func):
     arg_types = {"this": False}
 
 
+class Systimestamp(Func):
+    arg_types = {"this": False}
+
+
 class CurrentTimestamp(Func):
     arg_types = {"this": False, "sysdate": False}
 
@@ -6495,7 +6519,7 @@ class DateDiff(Func, TimeUnit):
 
 
 class DateTrunc(Func):
-    arg_types = {"unit": True, "this": True, "zone": False}
+    arg_types = {"unit": True, "this": True, "zone": False, "input_type_preserved": False}
 
     def __init__(self, **args):
         # Across most dialects it's safe to unabbreviate the unit (e.g. 'Q' -> 'QUARTER') except Oracle
@@ -6563,6 +6587,10 @@ class DayOfYear(Func):
     _sql_names = ["DAY_OF_YEAR", "DAYOFYEAR"]
 
 
+class Dayname(Func):
+    arg_types = {"this": True, "abbreviated": False}
+
+
 class ToDays(Func):
     pass
 
@@ -6587,6 +6615,7 @@ class MakeInterval(Func):
     arg_types = {
         "year": False,
         "month": False,
+        "week": False,
         "day": False,
         "hour": False,
         "minute": False,
@@ -6650,7 +6679,7 @@ class TimestampDiff(Func, TimeUnit):
 
 
 class TimestampTrunc(Func, TimeUnit):
-    arg_types = {"this": True, "unit": True, "zone": False}
+    arg_types = {"this": True, "unit": True, "zone": False, "input_type_preserved": False}
 
 
 class TimeSlice(Func, TimeUnit):
@@ -6675,7 +6704,7 @@ class TimeTrunc(Func, TimeUnit):
 
 class DateFromParts(Func):
     _sql_names = ["DATE_FROM_PARTS", "DATEFROMPARTS"]
-    arg_types = {"year": True, "month": False, "day": False}
+    arg_types = {"year": True, "month": False, "day": False, "allow_overflow": False}
 
 
 class TimeFromParts(Func):
@@ -6721,6 +6750,30 @@ class DecodeCase(Func):
     is_var_len_args = True
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/decrypt
+class Decrypt(Func):
+    arg_types = {
+        "this": True,
+        "passphrase": True,
+        "aad": False,
+        "encryption_method": False,
+        "safe": False,
+    }
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/decrypt_raw
+class DecryptRaw(Func):
+    arg_types = {
+        "this": True,
+        "key": True,
+        "iv": True,
+        "aad": False,
+        "encryption_method": False,
+        "aead": False,
+        "safe": False,
+    }
+
+
 class DenseRank(AggFunc):
     arg_types = {"expressions": False}
     is_var_len_args = True
@@ -6732,6 +6785,16 @@ class DiToDate(Func):
 
 class Encode(Func):
     arg_types = {"this": True, "charset": True}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/encrypt
+class Encrypt(Func):
+    arg_types = {"this": True, "passphrase": True, "aad": False, "encryption_method": False}
+
+
+# https://docs.snowflake.com/en/sql-reference/functions/encrypt_raw
+class EncryptRaw(Func):
+    arg_types = {"this": True, "key": True, "iv": True, "aad": False, "encryption_method": False}
 
 
 class EqualNull(Func):
@@ -6882,21 +6945,13 @@ class GetExtract(Func):
 
 
 class Getbit(Func):
-    arg_types = {"this": True, "expression": True}
+    _sql_names = ["GETBIT", "GET_BIT"]
+    # zero_is_msb means the most significant bit is indexed 0
+    arg_types = {"this": True, "expression": True, "zero_is_msb": False}
 
 
 class Greatest(Func):
-    arg_types = {"this": True, "expressions": False, "null_if_any_null": False}
-    is_var_len_args = True
-
-
-class GreatestIgnoreNulls(Func):
-    arg_types = {"expressions": True}
-    is_var_len_args = True
-
-
-class LeastIgnoreNulls(Func):
-    arg_types = {"expressions": True}
+    arg_types = {"this": True, "expressions": False, "ignore_nulls": True}
     is_var_len_args = True
 
 
@@ -6966,6 +7021,7 @@ class Or(Connector, Func):
 
 class Xor(Connector, Func):
     arg_types = {"this": False, "expression": False, "expressions": False}
+    is_var_len_args = True
 
 
 class If(Func):
@@ -7067,6 +7123,12 @@ class FormatJson(Expression):
 class Format(Func):
     arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
+
+
+class JSONKeys(Func):
+    arg_types = {"this": True, "expression": False, "expressions": False}
+    is_var_len_args = True
+    _sql_names = ["JSON_KEYS"]
 
 
 class JSONKeyValue(Expression):
@@ -7364,7 +7426,7 @@ class ParseDatetime(Func):
 
 
 class Least(Func):
-    arg_types = {"this": True, "expressions": False, "null_if_any_null": False}
+    arg_types = {"this": True, "expressions": False, "ignore_nulls": True}
     is_var_len_args = True
 
 
@@ -7447,6 +7509,36 @@ class MapFromEntries(Func):
     pass
 
 
+class MapCat(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class MapContainsKey(Func):
+    arg_types = {"this": True, "key": True}
+
+
+class MapDelete(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+class MapInsert(Func):
+    arg_types = {"this": True, "key": False, "value": True, "update_flag": False}
+
+
+class MapKeys(Func):
+    pass
+
+
+class MapPick(Func):
+    arg_types = {"this": True, "expressions": True}
+    is_var_len_args = True
+
+
+class MapSize(Func):
+    pass
+
+
 # https://learn.microsoft.com/en-us/sql/t-sql/language-elements/scope-resolution-operator-transact-sql?view=sql-server-ver16
 class ScopeResolution(Expression):
     arg_types = {"this": False, "expression": True}
@@ -7492,7 +7584,11 @@ class MD5(Func):
 
 
 # Represents the variant of the MD5 function that returns a binary value
+# Var len args due to Exasol:
+# https://docs.exasol.com/db/latest/sql_references/functions/alphabeticallistfunctions/hashtype_md5.htm
 class MD5Digest(Func):
+    arg_types = {"this": True, "expressions": False}
+    is_var_len_args = True
     _sql_names = ["MD5_DIGEST"]
 
 
@@ -7524,11 +7620,11 @@ class Month(Func):
 
 
 class Monthname(Func):
-    pass
+    arg_types = {"this": True, "abbreviated": False}
 
 
 class AddMonths(Func):
-    arg_types = {"this": True, "expression": True}
+    arg_types = {"this": True, "expression": True, "preserve_end_of_month": False}
 
 
 class Nvl2(Func):
@@ -7976,7 +8072,7 @@ class StrToTime(Func):
 
 
 # Spark allows unix_timestamp()
-# https://spark.apache.org/docs/3.1.3/api/python/reference/api/pyspark.sql.functions.unix_timestamp.html
+# https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.unix_timestamp.html
 class StrToUnix(Func):
     arg_types = {"this": False, "format": False}
 
@@ -8150,6 +8246,7 @@ class UnixToTime(Func):
         "hours": False,
         "minutes": False,
         "format": False,
+        "target_type": False,
     }
 
     SECONDS = Literal.number(0)
@@ -8226,7 +8323,10 @@ class Upper(Func):
 
 
 class Corr(Binary, AggFunc):
-    pass
+    # Correlation divides by variance(column). If a column has 0 variance, the denominator
+    # is 0 - some dialects return NaN (DuckDB) while others return NULL (Snowflake).
+    # `null_on_zero_variance` is set to True at parse time for dialects that return NULL.
+    arg_types = {"this": True, "expression": True, "null_on_zero_variance": False}
 
 
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/CUME_DIST.html
@@ -8243,20 +8343,30 @@ class VariancePop(AggFunc):
     _sql_names = ["VARIANCE_POP", "VAR_POP"]
 
 
+class Kurtosis(AggFunc):
+    pass
+
+
 class Skewness(AggFunc):
     pass
 
 
 class WidthBucket(Func):
-    arg_types = {"this": True, "min_value": True, "max_value": True, "num_buckets": True}
+    arg_types = {
+        "this": True,
+        "min_value": False,
+        "max_value": False,
+        "num_buckets": False,
+        "threshold": False,
+    }
 
 
-class CovarSamp(Binary, AggFunc):
-    pass
+class CovarSamp(AggFunc):
+    arg_types = {"this": True, "expression": True}
 
 
-class CovarPop(Binary, AggFunc):
-    pass
+class CovarPop(AggFunc):
+    arg_types = {"this": True, "expression": True}
 
 
 class Week(Func):
@@ -8273,7 +8383,7 @@ class NextDay(Func):
 
 class XMLElement(Func):
     _sql_names = ["XMLELEMENT"]
-    arg_types = {"this": True, "expressions": False}
+    arg_types = {"this": True, "expressions": False, "evalname": False}
 
 
 class XMLGet(Func):
