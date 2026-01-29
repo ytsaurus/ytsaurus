@@ -93,6 +93,7 @@ public:
                 TYtCopy::CallableName(),
                 TYtMerge::CallableName(),
                 TYtMapReduce::CallableName(),
+                TYtAlter::CallableName(),
             },
             RequireForTransientOp(),
             Hndl(&TYtDataSinkExecTransformer::HandleOutputOp<true>)
@@ -101,7 +102,6 @@ public:
             {
                 TYtFill::CallableName(),
                 TYtTouch::CallableName(),
-                TYtAlter::CallableName(),
             },
             RequireFirst(),
             Hndl(&TYtDataSinkExecTransformer::HandleOutputOp<true>)
@@ -177,7 +177,6 @@ private:
     using TLaunchOpResult = std::variant<TFuture<IYtGateway::TRunResult>, TStatusCallbackPair>;
     TLaunchOpResult LaunchOutputOp(TString& operationHash, const TExprNode::TPtr& input, TExprContext& ctx) {
         TYtOutputOpBase op(input);
-
         if (auto opInput = op.Maybe<TYtTransientOpBase>().Input()) {
             bool error = false;
             for (auto section: opInput.Cast()) {
