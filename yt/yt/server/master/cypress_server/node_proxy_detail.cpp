@@ -2352,7 +2352,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             &keyToChildMapStorage);
 
         auto* currentCompositeNode = currentNode->As<TCompositeCypressNode>();
-        auto childInheritedAttributes = currentCompositeNode->MaybePatchInheritableAttributes(inheritedAttributes);
+        auto childInheritedAttributes = currentCompositeNode->MaybePatchInheritableAttributes(
+            inheritedAttributes,
+            ENodeMaterializationReason::Copy);
 
         for (const auto& [key, trunkChild] : keyToChildMap) {
             auto* child = cypressManager->GetVersionedNode(trunkChild, node->GetTransaction());
