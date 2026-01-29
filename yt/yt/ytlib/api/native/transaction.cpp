@@ -1839,7 +1839,7 @@ private:
 
         CheckReadPermission(consumerPath.GetPath(), tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
 
-        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManagerOrThrow()->GetRegistrationOrThrow(queuePath, consumerPath);
 
         auto queueClient = GetClient();
         if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {

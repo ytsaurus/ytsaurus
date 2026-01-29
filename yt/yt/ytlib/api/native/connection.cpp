@@ -308,12 +308,14 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
-            config->QueueAgent->QueueConsumerRegistrationManager,
-            this,
-            GetInvoker(),
-            Profiler_.WithPrefix("/queue_consumer_registration_manager"),
-            Logger);
+        if (Options_.CreateQueueConsumerRegistrationManager) {
+            QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
+                config->QueueAgent->QueueConsumerRegistrationManager,
+                this,
+                GetInvoker(),
+                Profiler_.WithPrefix("/queue_consumer_registration_manager"),
+                Logger);
+        }
 
         PermissionCache_ = New<TPermissionCache>(
             config->PermissionCache,
@@ -341,6 +343,11 @@ public:
                     }
                     return GetDummySignatureGenerator();
                 }));
+
+        // NB(apachee): We only use queue consumer registration manager from the bootstrapped connection (exception are multi proxies).
+        // TODO(apachee): Fix this for multi proxies.
+        clusterDirectoryOptions.CreateQueueConsumerRegistrationManager = false;
+
         ClusterDirectory_ = New<TClusterDirectory>(std::move(clusterDirectoryOptions));
         ClusterDirectorySynchronizer_ = CreateClusterDirectorySynchronizer(
             config->ClusterDirectorySynchronizer,
@@ -729,8 +736,11 @@ public:
         return it->second;
     }
 
-    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
+        if (!QueueConsumerRegistrationManager_) {
+            THROW_ERROR_EXCEPTION("Queue consumer registration manager is not configured for this connection");
+        }
         return QueueConsumerRegistrationManager_;
     }
 
@@ -931,8 +941,10 @@ public:
     {
         Terminated_ = true;
 
-        QueueConsumerRegistrationManager_->Clear();
-        QueueConsumerRegistrationManager_->StopSync();
+        if (QueueConsumerRegistrationManager_) {
+            QueueConsumerRegistrationManager_->Clear();
+            QueueConsumerRegistrationManager_->StopSync();
+        }
 
         ClusterDirectory_->Clear();
         ClusterDirectoryOverride_.Store(nullptr);
@@ -1157,7 +1169,14 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do([this] (TFluentAny fluent) {
+                    if (!QueueConsumerRegistrationManager_) {
+                        fluent.Entity();
+                        return;
+                    }
+
+                    QueueConsumerRegistrationManager_->BuildOrchid(fluent);
+                })
             .EndMap();
     }
 

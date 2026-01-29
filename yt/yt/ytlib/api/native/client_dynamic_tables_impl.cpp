@@ -2964,7 +2964,7 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
         options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
     }
 
-    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManagerOrThrow()->GetRegistrationOrThrow(queuePath, consumerPath);
 
     IClientPtr queueClusterClient = MakeStrong(this);
     if (auto queueCluster = queuePath.GetCluster()) {
@@ -3040,7 +3040,7 @@ void TClient::DoRegisterQueueConsumer(
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital, options.Partitions);
 
     YT_LOG_DEBUG(
@@ -3088,7 +3088,7 @@ void TClient::DoUnregisterQueueConsumer(
             .ThrowOnError();
     }
 
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     registrationCache->UnregisterQueueConsumer(queuePath, consumerPath);
 
     YT_LOG_DEBUG("Unregistered queue consumer (Queue: %v, Consumer: %v)", queuePath, consumerPath);
@@ -3099,7 +3099,7 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     const std::optional<TRichYPath>& consumerPath,
     const TListQueueConsumerRegistrationsOptions& /*options*/)
 {
-    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManagerOrThrow();
     auto registrations = registrationCache->ListRegistrations(queuePath, consumerPath);
 
     std::vector<TListQueueConsumerRegistrationsResult> result;

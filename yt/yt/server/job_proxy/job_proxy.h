@@ -85,7 +85,9 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
-    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const override;
+    NApi::NNative::IConnectionPtr CreateNativeConnection(
+        NApi::NNative::TConnectionCompoundConfigPtr config,
+        NApi::NNative::TConnectionOptions options = {}) const override;
 
     TDuration GetSpentCpuTime() const;
 

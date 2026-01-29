@@ -92,6 +92,7 @@ public:
                     }
                     NNative::TConnectionOptions options;
                     options.TvmService = std::move(tvmService);
+                    options.CreateQueueConsumerRegistrationManager = driverConfig->StartQueueConsumerRegistrationManager;
                     connection = CreateConnection(
                         configNode,
                         std::move(options));
@@ -112,7 +113,7 @@ public:
 
                         nativeConnection->GetClusterDirectorySynchronizer()->Start();
                         if (driverConfig->StartQueueConsumerRegistrationManager) {
-                            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
+                            nativeConnection->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
                         }
                     }
 

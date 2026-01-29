@@ -153,6 +153,7 @@ void TBootstrap::DoInitialize()
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    connectionOptions.CreateQueueConsumerRegistrationManager = true;
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
@@ -175,7 +176,7 @@ void TBootstrap::DoInitialize()
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     Connection_->GetNodeDirectorySynchronizer()->Start();
-    Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetQueueConsumerRegistrationManagerOrThrow()->StartSync();
     Connection_->GetMasterCellDirectorySynchronizer()->Start();
     SetupClients();
 

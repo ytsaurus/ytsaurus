@@ -126,7 +126,7 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const = 0;
 
@@ -244,6 +244,10 @@ struct TConnectionOptions
 
     //! If set, used as connection's signature generator instead of dummy.
     NSignature::ISignatureGeneratorPtr SignatureGenerator;
+
+    //! If true, creates a queue consumer registration manager for this connection.
+    //! Otherwise, it is null and #GetQueueConsumerRegistrationManagerOrThrow throws.
+    bool CreateQueueConsumerRegistrationManager = false;
 
     EChaosResidencyCacheType ChaosResidencyCacheMode = EChaosResidencyCacheType::Client;
 

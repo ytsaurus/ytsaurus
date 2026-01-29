@@ -203,7 +203,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManagerOrThrow() const override
     {
         YT_UNIMPLEMENTED();
     }
