@@ -16,6 +16,7 @@ SRCS(
     chunk_file_reader.cpp
     chunk_file_reader_adapter.cpp
     chunk_file_writer.cpp
+    chunk_physical_layout_writer.cpp
     helpers.cpp
     read_request_combiner.cpp
     dynamic_io_engine.cpp
