@@ -316,6 +316,10 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(danilalexeev): YT-23781.
     bool EnablePerLocationFullHeartbeats;
 
+    bool EnableValidationFullHeartbeats;
+    TDuration ValidationFullHeartbeatPeriod;
+    TDuration ValidationFullHeartbeatSplay;
+
     // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
 

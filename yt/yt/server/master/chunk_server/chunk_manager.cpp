@@ -3295,6 +3295,11 @@ private:
         // We've checked everything in TDataNodeTracker::HydraProcessLocationFullHeartbeat.
         auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
 
+        if (request->is_validation()) {
+            ValidateLocationNonSequoiaReplicasEqual(node, location, request->chunks());
+            return;
+        }
+
         std::vector<TChunk*> announceReplicaRequests;
         if (location->GetState() == EChunkLocationState::Restarted) {
             announceReplicaRequests = ProcessRestartedLocationNonSequoiaReplicas(node, location, request->chunks());
@@ -3765,13 +3770,19 @@ private:
         }
     }
 
-    std::vector<TChunk*> ProcessRestartedLocationNonSequoiaReplicas(
+    struct TSymmetricDifference
+    {
+        std::vector<const TChunkAddInfo*> AddedReplicas;
+        THashSet<TChunkIdWithIndex> ReplicasToRemove;
+    };
+
+    TSymmetricDifference ComputeLocationNonSequoiaReplicasDifference(
         TNode* node,
         TChunkLocation* location,
-        const auto& chunks)
+        const auto& chunks,
+        bool validation)
     {
         THashSet<TChunkIdWithIndex> existingReplicas;
-
         existingReplicas.reserve(location->Replicas().size());
 
         for (const auto& replica : location->Replicas()) {
@@ -3779,54 +3790,75 @@ private:
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
                 continue;
             }
+
+            if (auto replicaWithoutState = TChunkPtrWithReplicaIndex(replica);
+                validation && location->HasUnapprovedReplica(replicaWithoutState))
+            {
+                continue;
+            }
+
             existingReplicas.emplace(chunk->GetId(), replica.GetReplicaIndex());
         }
 
-        std::vector<TChunk*> announceReplicaRequests;
+        TSymmetricDifference result;
 
         for (const auto& chunkInfo : chunks) {
             auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
             if (chunkInfo.caused_by_medium_change()) {
                 YT_LOG_ALERT(
-                    "Chunk is added after node restart caused by medium change (NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    "Chunk is added after node restart caused by medium change "
+                    "(NodeId: %v, NodeAddress: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     chunkIdWithIndex.Id,
-                    chunkIdWithIndex.ReplicaIndex);
+                    chunkIdWithIndex.ReplicaIndex,
+                    validation);
                 continue;
             }
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndex.Id)) {
-                YT_LOG_ALERT(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeId: %v, NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                YT_LOG_ALERT_AND_THROW(
+                    "Processing Sequoia replica in non-Sequoia way "
+                    "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     location->GetUuid(),
                     chunkIdWithIndex.Id,
-                    chunkIdWithIndex.ReplicaIndex);
-                THROW_ERROR_EXCEPTION(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way")
-                    << TErrorAttribute("node_id", node->GetId())
-                    << TErrorAttribute("node_address", node->GetDefaultAddress())
-                    << TErrorAttribute("location_uuid", location->GetUuid())
-                    << TErrorAttribute("chunk_id", chunkIdWithIndex.Id)
-                    << TErrorAttribute("replica_index", chunkIdWithIndex.ReplicaIndex);
+                    chunkIdWithIndex.ReplicaIndex,
+                    validation);
             }
 
             if (!existingReplicas.contains(chunkIdWithIndex)) {
-                YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo.location_index()) == location->GetIndex());
-                if (auto* chunk = ProcessAddedChunk(
-                    node,
-                    location,
-                    chunkInfo,
-                    false))
-                {
-                    if (chunk->IsBlob()) {
-                        announceReplicaRequests.push_back(chunk);
-                    }
-                }
+                result.AddedReplicas.push_back(&chunkInfo);
             } else {
                 existingReplicas.erase(chunkIdWithIndex);
+            }
+        }
+
+        result.ReplicasToRemove = std::move(existingReplicas);
+        return result;
+    }
+
+    std::vector<TChunk*> ProcessRestartedLocationNonSequoiaReplicas(
+        TNode* node,
+        TChunkLocation* location,
+        const auto& chunks)
+    {
+        auto difference = ComputeLocationNonSequoiaReplicasDifference(node, location, chunks, /*validation*/ false);
+
+        std::vector<TChunk*> announceReplicaRequests;
+
+        for (const auto* chunkInfo : difference.AddedReplicas) {
+            YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo->location_index()) == location->GetIndex());
+            if (auto* chunk = ProcessAddedChunk(
+                node,
+                location,
+                *chunkInfo,
+                /*incremental*/ false))
+            {
+                if (chunk->IsBlob()) {
+                    announceReplicaRequests.push_back(chunk);
+                }
             }
         }
 
@@ -3852,7 +3884,7 @@ private:
                 }
             }
 
-            if (existingReplicas.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {
+            if (difference.ReplicasToRemove.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {
                 replicasToRemove.emplace_back(replica);
             }
         }
@@ -3961,6 +3993,46 @@ private:
                 }
             }
         }
+    }
+
+    void ValidateLocationNonSequoiaReplicasEqual(
+        TNode* node,
+        TChunkLocation* location,
+        const auto& chunks)
+    {
+        auto difference = ComputeLocationNonSequoiaReplicasDifference(
+            node,
+            location,
+            chunks,
+            /*validation*/ true);
+
+        std::vector<TChunkIdWithIndex> masterMissingReplicas;
+        for (const auto* chunkInfo : difference.AddedReplicas) {
+            auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo->chunk_id()));
+            if (!location->HasDestroyedReplica(chunkIdWithIndex)) {
+                masterMissingReplicas.push_back(chunkIdWithIndex);
+            }
+        }
+
+        std::vector<TChunkIdWithIndex> masterRedundantReplicas;
+        for (const auto& chunkIdWithIndex : difference.ReplicasToRemove) {
+        if (!location->ChunkRemovalQueue().contains(chunkIdWithIndex)) {
+                masterRedundantReplicas.push_back(chunkIdWithIndex);
+            }
+        }
+
+        YT_LOG_ALERT_AND_THROW_IF(
+            !masterMissingReplicas.empty() || !masterRedundantReplicas.empty(),
+            "Master state is inconsistent for data node location "
+            "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, MissingChunkCount: %v, RedundantChunkCount: %v, "
+            "MissingChunkIdsSample: %v, RedundantChunkIdsSample: %v)",
+            node->GetId(),
+            node->GetDefaultAddress(),
+            location->GetUuid(),
+            masterMissingReplicas.size(),
+            masterRedundantReplicas.size(),
+            MakeShrunkFormattableView(masterMissingReplicas, TDefaultFormatter(), /*limit*/ 10),
+            MakeShrunkFormattableView(masterRedundantReplicas, TDefaultFormatter(), /*limit*/ 10));
     }
 
     void UpdateChunkRemovalLockedMap(TNode* node, THeartbeatSequenceNumber heartbeatSequenceNumber)

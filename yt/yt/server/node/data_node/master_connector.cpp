@@ -90,6 +90,8 @@ DEFINE_ENUM(EMasterConnectorState,
     (Registered)
     // Registered and reported the full heartbeat.
     (Online)
+    // Master requested reporting full heartbeat for state validation.
+    (Validation)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +135,6 @@ public:
 
         TMasterHeartbeatReporterBase::Initialize();
 
-        const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
             InitPerCellData(cellTag, Bootstrap_->GetMasterAddressesOrThrow(cellTag));
@@ -150,15 +151,9 @@ public:
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
-        chunkStore->SubscribeChunkAdded(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this))
-                .Via(controlInvoker));
-        chunkStore->SubscribeChunkRemoved(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
-                .Via(controlInvoker));
-        chunkStore->SubscribeChunkMediumChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
-                .Via(controlInvoker));
+        chunkStore->SubscribeChunkAdded(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
+        chunkStore->SubscribeChunkRemoved(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkRemoved, MakeWeak(this)));
+        chunkStore->SubscribeChunkMediumChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this)));
 
         Reconfigure(GetDynamicConfig()->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
@@ -487,6 +482,14 @@ public:
         }
     }
 
+    void OnValidationFullHeartbeatSessionFailed(TCellTag cellTag, TError error)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_WARNING(error, "Error during validation full data node heartbeat session (CellTag: %v)",
+            cellTag);
+    }
+
     void OnIncrementalHeartbeatSucceeded(
         TCellTag cellTag,
         const TRspIncrementalHeartbeat& response)
@@ -555,6 +558,19 @@ public:
             const auto& sessionManager = Bootstrap_->GetSessionManager();
             sessionManager->SetDisableWriteSessions(response.disable_write_sessions() || Bootstrap_->IsDecommissioned());
         }
+
+        if (response.schedule_validation_full_heartbeat_session()) {
+            delta->State = EMasterConnectorState::Validation;
+        }
+    }
+
+    void OnValidationFullHeartbeatSessionSucceeded(TCellTag cellTag)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto* delta = GetChunksDelta(cellTag);
+        YT_VERIFY(delta->State == EMasterConnectorState::Validation);
+        delta->State = EMasterConnectorState::Online;
     }
 
     EMasterConnectorState GetMasterConnectorState(TCellTag cellTag)
@@ -641,6 +657,8 @@ protected:
             return MakeFuture(TError("Node disconnected"));
         }
 
+        FlushDeltaChanges();
+
         THeartbeatRspFuture variantResult;
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
@@ -669,6 +687,13 @@ protected:
                 return future.AsVoid();
             }
 
+            case EMasterConnectorState::Validation: {
+                auto future = ScheduleValidationFullHeartbeatSession(cellTag);
+                variantResult = future;
+                EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
+                return future.AsVoid();
+            }
+
             default: {
                 YT_LOG_WARNING("Skip heartbeat report to master, since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
@@ -682,6 +707,8 @@ protected:
     void OnHeartbeatSucceeded(TCellTag cellTag) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        FlushDeltaChanges();
 
         auto state = GetMemorizedMasterConnectorState(cellTag);
         switch (state) {
@@ -706,6 +733,13 @@ protected:
                 break;
             }
 
+            case EMasterConnectorState::Validation: {
+                auto rspOrError = GetHeartbeatResponseOrError<void>(cellTag);
+                YT_VERIFY(rspOrError.IsOK());
+                OnValidationFullHeartbeatSessionSucceeded(cellTag);
+                break;
+            }
+
             default: {
                 YT_LOG_WARNING("Skip processing successful heartbeat since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
@@ -719,6 +753,8 @@ protected:
     void OnHeartbeatFailed(TCellTag cellTag) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        FlushDeltaChanges();
 
         auto state = GetMemorizedMasterConnectorState(cellTag);
         switch (state) {
@@ -740,6 +776,13 @@ protected:
                 auto rspOrError = GetHeartbeatResponseOrError<TDataNodeRspIncrementalHeartbeat>(cellTag);
                 YT_VERIFY(!rspOrError.IsOK());
                 OnIncrementalHeartbeatFailed(cellTag, rspOrError);
+                break;
+            }
+
+            case EMasterConnectorState::Validation: {
+                auto rspOrError = GetHeartbeatResponseOrError<void>(cellTag);
+                YT_VERIFY(!rspOrError.IsOK());
+                OnValidationFullHeartbeatSessionFailed(cellTag, rspOrError);
                 break;
             }
 
@@ -768,9 +811,26 @@ private:
         TFuture<TFullHeartbeatSessionResult>,
         // COMPAT(danilalexeev): YT-23781.
         TFuture<TDataNodeRspFullHeartbeat>,
-        TFuture<TDataNodeRspIncrementalHeartbeat>>;
+        TFuture<TDataNodeRspIncrementalHeartbeat>,
+        TFuture<void>>;
     THashMap<TCellTag, THeartbeatRspFuture> CellTagToVariantHeartbeatRspFuture_;
     THashMap<TCellTag, EMasterConnectorState> CellTagToMasterConnectorState_;
+
+    enum class EDeltaChangeTag
+    {
+        Added,
+        Removed,
+        MediumChanged,
+    };
+
+    struct TDeltaChangePayload
+    {
+        EDeltaChangeTag Tag;
+        IChunkPtr Chunk;
+        std::optional<int> MediumIndex;
+    };
+
+    TMpscStack<TDeltaChangePayload> PendingDeltaChanges_;
 
     struct TChunksDelta
     {
@@ -1211,15 +1271,9 @@ private:
         return req->Invoke();
     }
 
-    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(TCellTag cellTag)
+    IChannelPtr CreateFullHeartbeatSessionMasterChannel(TCellTag cellTag)
     {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        auto nodeId = Bootstrap_->GetNodeId();
-
-        ClearChunksDeltaForCell(cellTag);
-
-        auto masterChannel = CreateRetryingChannel(
+        return CreateRetryingChannel(
             GetDynamicConfig()->FullHeartbeatSessionRetryingChannel,
             Bootstrap_->GetMasterChannel(cellTag),
             BIND([cellTag, Logger = this->Logger] (const TError& error) -> bool {
@@ -1232,35 +1286,62 @@ private:
                 }
                 return false;
             }));
+    }
+
+    std::vector<TDataNodeTrackerServiceProxy::TReqLocationFullHeartbeatPtr> BuildLocationFullHeartbeatRequests(
+        TDataNodeTrackerServiceProxy proxy,
+        TNodeId nodeId,
+        TCellTag cellTag,
+        bool validation,
+        const TChunkStore::TPerLocationChunkMap& locationChunks)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        std::vector<TDataNodeTrackerServiceProxy::TReqLocationFullHeartbeatPtr> requests;
+        for (const auto& [location, chunks] : locationChunks) {
+            if (SkipLocationInHeartbeat(location) || (
+                chunks.empty() && (
+                    SkipLocationInStatistics(location) ||
+                    GetNodeDynamicConfig()->TestingOptions->IgnoreEmptyLocationsInFullHeartbeats)))
+            {
+                continue;
+            }
+
+            auto request = BuildLocationFullHeartbeatRequest(proxy, location, chunks, nodeId, cellTag);
+            request->set_is_validation(validation);
+            requests.push_back(std::move(request));
+        }
+        return requests;
+    }
+
+    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(TCellTag cellTag)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto nodeId = Bootstrap_->GetNodeId();
+
+        ClearChunksDeltaForCell(cellTag);
+
+        auto masterChannel = CreateFullHeartbeatSessionMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
         proxy.SetDefaultTimeout(GetDynamicConfig()->LocationFullHeartbeatTimeout);
 
-        auto buildLocationHeartbeatRequests = BIND([=, this, this_ = MakeStrong(this)] {
-            const auto& chunkStore = Bootstrap_->GetChunkStore();
-            std::vector<TDataNodeTrackerServiceProxy::TReqLocationFullHeartbeatPtr> requests;
-            for (const auto& [location, chunks] : chunkStore->GetPerLocationChunks()) {
-                if (SkipLocationInHeartbeat(location) || (
-                    chunks.empty() && (
-                        SkipLocationInStatistics(location) ||
-                        GetNodeDynamicConfig()->TestingOptions->IgnoreEmptyLocationsInFullHeartbeats)))
-                {
-                    continue;
-                }
-
-                auto request = BuildLocationFullHeartbeatRequest(proxy, location, chunks, nodeId, cellTag);
-                requests.push_back(std::move(request));
-            }
-            return requests;
-        });
-
         // Full heartbeat construction can take a while; offload it to the RPC Heavy thread pool.
-        auto heartbeatRequests = WaitFor(buildLocationHeartbeatRequests
-            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-            .Run())
+        auto heartbeatRequests = WaitFor(
+            BIND([=, this, this_ = MakeStrong(this)] {
+                return BuildLocationFullHeartbeatRequests(
+                    proxy,
+                    nodeId,
+                    cellTag,
+                    /*validation*/ false,
+                    Bootstrap_->GetChunkStore()->GetPerLocationChunks());
+            })
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run())
             .ValueOrThrow();
 
         // On the other hand, finalize request construction is lightweight.
-        auto finalizeRequest = BuildFinalizeFullHeartbeatSessionRequest(proxy, nodeId);
+        auto finalizeRequest = BuildFinalizeFullHeartbeatSessionRequest(std::move(proxy), nodeId);
 
         BeforeFullHeartbeatInvoke();
 
@@ -1282,8 +1363,9 @@ private:
         }
 
         return AllSet(std::move(futures))
+            .AsUnique()
             .Apply(BIND([=, finalizeRequest = std::move(finalizeRequest), this, this_ = MakeStrong(this)] (
-                std::vector<TErrorOr<TDataNodeTrackerServiceProxy::TRspLocationFullHeartbeatPtr>> allSetResult)
+                std::vector<TErrorOr<TDataNodeTrackerServiceProxy::TRspLocationFullHeartbeatPtr>>&& allSetResult)
             {
                 TFullHeartbeatSessionResult result;
                 result.LocationResponses.reserve(allSetResult.size());
@@ -1299,6 +1381,64 @@ private:
                     .ValueOrThrow();
                 return result;
             }).AsyncVia(Bootstrap_->GetControlInvoker()));
+    }
+
+    TFuture<void> ScheduleValidationFullHeartbeatSession(TCellTag cellTag)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto nodeId = Bootstrap_->GetNodeId();
+
+        auto masterChannel = CreateFullHeartbeatSessionMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->LocationFullHeartbeatTimeout);
+
+        auto guard = Bootstrap_->GetChunkStore()->AcquireChunkMapReaderLock();
+
+        // Synchronize delta changes with a chunk store scan.
+        FlushDeltaChanges();
+
+        auto locationChunks = Bootstrap_
+            ->GetChunkStore()
+            ->GetPerLocationChunksUnsafe(std::move(guard));
+
+        // Context switch is not allowed, as it may break synchronization.
+        auto heartbeatRequests = BuildLocationFullHeartbeatRequests(
+            std::move(proxy),
+            nodeId,
+            cellTag,
+            /*validation*/ true,
+           locationChunks);
+
+        return InvokeIncrementalHeartbeatRequest(cellTag)
+            .AsUnique()
+            .Apply(BIND([=, heartbeatRequests = std::move(heartbeatRequests), this, this_ = MakeStrong(this)] (
+                TErrorOr<TDataNodeRspIncrementalHeartbeat>&& result)
+                {
+                    FlushDeltaChanges();
+
+                    if (result.IsOK()) {
+                        OnIncrementalHeartbeatSucceeded(cellTag, *result.Value());
+                    } else {
+                        OnIncrementalHeartbeatFailed(cellTag, result);
+                        THROW_ERROR(result);
+                    }
+
+                    std::vector<TFuture<TDataNodeTrackerServiceProxy::TRspLocationFullHeartbeatPtr>> futures;
+                    futures.reserve(heartbeatRequests.size());
+                    for (const auto& request : heartbeatRequests) {
+                        auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
+                        YT_LOG_INFO("Sending validation full heartbeat to master (CellTag: %v, LocationUuid: %v)",
+                            cellTag,
+                            locationUuid);
+
+                        futures.push_back(request->Invoke());
+                    }
+
+                    return AllSucceeded(std::move(futures))
+                        .AsVoid();
+                })
+                .AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
@@ -1588,6 +1728,17 @@ private:
 
     void OnChunkAdded(const IChunkPtr& chunk)
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto payload = TDeltaChangePayload{
+            .Tag = EDeltaChangeTag::Added,
+            .Chunk = chunk,
+        };
+        PendingDeltaChanges_.Enqueue(std::move(payload));
+    }
+
+    void RegisterChunkAdded(const IChunkPtr& chunk)
+    {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IsArtifactChunkId(chunk->GetId())) {
@@ -1612,6 +1763,17 @@ private:
 
     void OnChunkRemoved(const IChunkPtr& chunk)
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto payload = TDeltaChangePayload{
+            .Tag = EDeltaChangeTag::Removed,
+            .Chunk = chunk,
+        };
+        PendingDeltaChanges_.Enqueue(std::move(payload));
+    }
+
+    void RegisterChunkRemoved(const IChunkPtr& chunk)
+    {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IsArtifactChunkId(chunk->GetId())) {
@@ -1630,8 +1792,20 @@ private:
             chunk->GetLocation()->GetId());
     }
 
-    // TODO(kvk1920): Do not send every replica.
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto payload = TDeltaChangePayload{
+            .Tag = EDeltaChangeTag::MediumChanged,
+            .Chunk = chunk,
+            .MediumIndex = mediumIndex,
+        };
+        PendingDeltaChanges_.Enqueue(std::move(payload));
+    }
+
+    // TODO(kvk1920): Do not send every replica.
+    void RegisterChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         auto* delta = FindChunksDelta(chunk->GetId());
@@ -1642,6 +1816,24 @@ private:
             return;
         }
         delta->ChangedMediumSinceLastSuccess.emplace(chunk, mediumIndex);
+    }
+
+    void FlushDeltaChanges()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        PendingDeltaChanges_.DequeueAll(
+            /*reverse*/ true,
+            [&] (TDeltaChangePayload& payload) {
+                switch (payload.Tag) {
+                    case EDeltaChangeTag::Added:
+                        return RegisterChunkAdded(payload.Chunk);
+                    case EDeltaChangeTag::Removed:
+                        return RegisterChunkRemoved(payload.Chunk);
+                    case EDeltaChangeTag::MediumChanged:
+                        return RegisterChunkMediumChanged(payload.Chunk, *payload.MediumIndex);
+                }
+            });
     }
 
     void ProcessHeartbeatResponseMediaInfo(const auto& response)

@@ -202,6 +202,7 @@ DEFINE_ENUM(EMasterReign,
     ((SafeRemovalJobScheduling)                                     (3151))  // grphil
     ((ReturnSecondaryMastersCellConfigAsResponseForNodeHeartbeat)   (3152))  // cherepashka
     ((FixDynamicallyPropagatedMastersCellTags)                      (3153))  // aleksandra-zh
+    ((DataNodeValidationFullHeartbeats)                             (3154))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
