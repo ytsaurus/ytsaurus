@@ -102,6 +102,7 @@ public:
             {
                 TYtFill::CallableName(),
                 TYtTouch::CallableName(),
+                TYtAlter::CallableName(),
             },
             RequireFirst(),
             Hndl(&TYtDataSinkExecTransformer::HandleOutputOp<true>)

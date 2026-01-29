@@ -40,7 +40,7 @@ Y_DECLARE_FLAGS(TYtTableIntents, TYtTableIntent);
 Y_DECLARE_OPERATORS_FOR_FLAGS(TYtTableIntents);
 
 inline bool HasReadIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Read | TYtTableIntent::View);
+    return intents & (TYtTableIntent::Read | TYtTableIntent::View | TYtTableIntent::Alter);
 }
 
 inline bool HasSymlinkIntents(TYtTableIntents intents) {
@@ -48,11 +48,11 @@ inline bool HasSymlinkIntents(TYtTableIntents intents) {
 }
 
 inline bool HasModifyIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Override | TYtTableIntent::Append | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace);
+    return intents & (TYtTableIntent::Override | TYtTableIntent::Append | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace | TYtTableIntent::Alter);
 }
 
 inline bool HasExclusiveModifyIntents(TYtTableIntents intents) {
-    return intents & (TYtTableIntent::Override | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace);
+    return intents & (TYtTableIntent::Override | TYtTableIntent::Drop | TYtTableIntent::Flush | TYtTableIntent::Create | TYtTableIntent::Replace | TYtTableIntent::Alter);
 }
 
 struct TYtViewDescription {

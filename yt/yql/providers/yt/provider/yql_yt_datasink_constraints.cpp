@@ -38,6 +38,7 @@ public:
         AddHandler({TYtCreateSymlink::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleCreateSymlink));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtDropSymlink::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
+        AddHandler({TYtAlterTable::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtCreateView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TYtDropView::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleDefault));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleCommit));
