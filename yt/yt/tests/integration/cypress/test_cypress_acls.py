@@ -847,6 +847,7 @@ class TestCypressAcls(CheckPermissionBase):
             "acl": [make_ace("allow", "u1", "read")]
         })
         set("//sys/users/u1/@name", "u2")
+        wait(lambda: get("//tmp/d/@acl/0/subjects/0") == "u2")
         assert get("//tmp/d", authenticated_user="u2") == {}
 
     @authors("babenko", "ignat")
