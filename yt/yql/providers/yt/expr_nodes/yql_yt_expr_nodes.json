@@ -516,7 +516,7 @@
         },
         {
             "Name": "TYtAlter",
-            "Base": "TYtOutputOpBase",
+            "Base": "TYtTransientOpBase",
             "Match": {"Type": "Callable", "Name": "YtAlter!"}
         },
         {
