@@ -60,7 +60,7 @@ public:
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) override
     {
-        CheckQueryOptions(options);
+        CheckQueryOptions(query, options);
 
         auto queryFingerprint = InferName(query, {.OmitValues = true});
 
@@ -211,10 +211,25 @@ private:
         return cachedQueryImage->Image.Instantiate();
     }
 
-    static void CheckQueryOptions(const TQueryBaseOptions& options)
+    static void CheckQueryOptions(const TConstBaseQueryPtr& query, const TQueryBaseOptions& options)
     {
         THROW_ERROR_EXCEPTION_IF(options.InputRowLimit < 0, "Negative input row limit is forbidden");
         THROW_ERROR_EXCEPTION_IF(options.OutputRowLimit < 0, "Negative output row limit is forbidden");
+
+        if (query->Offset < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
+                << TErrorAttribute("offset", query->Offset);
+        }
+
+        if (query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
+                << TErrorAttribute("limit", query->Limit);
+        }
+
+        if (query->Offset + query->Limit < 0) {
+            THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
+                << TErrorAttribute("offset_limit_sum", query->Offset + query->Limit);
+        }
     }
 };
 
