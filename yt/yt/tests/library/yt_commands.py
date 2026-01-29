@@ -3679,11 +3679,6 @@ def get_nodes_with_flavor(flavor):
     cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
     nodes = []
     for node in cluster_nodes:
-        # COMPAT(gritukan)
-        if "flavors" not in node.attributes:
-            nodes.append(str(node))
-            continue
-
         if flavor in node.attributes["flavors"]:
             nodes.append(str(node))
     return nodes
