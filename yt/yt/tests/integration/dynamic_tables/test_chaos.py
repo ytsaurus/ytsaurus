@@ -4894,6 +4894,13 @@ class TestChaosSpecial(ChaosTestBase):
         "31": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
     @authors("ashishkin")
     def test_chaos_table_remove_column(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
@@ -5756,6 +5763,13 @@ class TestChaosMetaCluster(ChaosTestBase):
             area="beta")
 
         return [default_cell_id, beta_cell_id]
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
     @authors("babenko")
     def test_meta_cluster(self):
@@ -7007,6 +7021,13 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         },
     }
 
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
     @authors("osidorkin")
     def test_move_chaos_replicas_through_portal(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -7102,6 +7123,13 @@ class TestChaosSmoothMovement(ChaosTestBase):
             },
         },
     }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("queue_at_the_same_cell", [True, False])
