@@ -46,7 +46,7 @@ using TLookupSignature = TFuture<TSharedRange<NTableClient::TUnversionedRow>>(
     NYPath::TYPath path,
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TLegacyKey> keys,
-    TLookupRowsOptions options);
+    const TLookupRowsOptions& options);
 
 ISecondaryIndexModifierPtr CreateSecondaryIndexModifier(
     std::function<TLookupSignature> lookuper,

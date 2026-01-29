@@ -47,10 +47,13 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     **{
         expr_type: {"returns": exp.DataType.Type.BOOLEAN}
         for expr_type in {
+            exp.All,
+            exp.Any,
             exp.Between,
             exp.Boolean,
             exp.Contains,
             exp.EndsWith,
+            exp.Exists,
             exp.In,
             exp.LogicalAnd,
             exp.LogicalOr,
@@ -141,6 +144,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
         expr_type: {"returns": exp.DataType.Type.TIME}
         for expr_type in {
             exp.CurrentTime,
+            exp.Localtime,
             exp.Time,
             exp.TimeAdd,
             exp.TimeSub,
@@ -200,6 +204,7 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
             exp.UnixToStr,
             exp.UnixToTimeStr,
             exp.Upper,
+            exp.RawString,
         }
     },
     **{
@@ -269,7 +274,11 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     exp.Array: {"annotator": lambda self, e: self._annotate_by_args(e, "expressions", array=True)},
     exp.ArrayAgg: {"annotator": lambda self, e: self._annotate_by_args(e, "this", array=True)},
     exp.Bracket: {"annotator": lambda self, e: self._annotate_bracket(e)},
-    exp.Case: {"annotator": lambda self, e: self._annotate_by_args(e, "default", "ifs")},
+    exp.Case: {
+        "annotator": lambda self, e: self._annotate_by_args(
+            e, *[if_expr.args["true"] for if_expr in e.args["ifs"]], "default"
+        )
+    },
     exp.Count: {
         "annotator": lambda self, e: self._set_type(
             e, exp.DataType.Type.BIGINT if e.args.get("big_int") else exp.DataType.Type.INT
@@ -286,6 +295,12 @@ EXPRESSION_METADATA: ExpressionMetadataType = {
     exp.Dot: {"annotator": lambda self, e: self._annotate_dot(e)},
     exp.Explode: {"annotator": lambda self, e: self._annotate_explode(e)},
     exp.Extract: {"annotator": lambda self, e: self._annotate_extract(e)},
+    exp.HexString: {
+        "annotator": lambda self, e: self._set_type(
+            e,
+            exp.DataType.Type.BIGINT if e.args.get("is_integer") else exp.DataType.Type.BINARY,
+        )
+    },
     exp.GenerateSeries: {
         "annotator": lambda self, e: self._annotate_by_args(e, "start", "end", "step", array=True)
     },

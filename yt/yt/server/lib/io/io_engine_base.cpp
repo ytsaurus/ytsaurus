@@ -482,10 +482,10 @@ TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
             hugePageBlob = hugePageBlobReservingResult.Value();
         } else {
             YT_LOG_DEBUG(hugePageBlobReservingResult, "Failed to reserve huge page blob");
-            return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, { .InitializeStorage = false }, {});
+            return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
         }
     } else {
-        return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, { .InitializeStorage = false }, {});
+        return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
     }
     return hugePageBlob;
 }

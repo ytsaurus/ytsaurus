@@ -87,6 +87,7 @@ class TokenType(AutoName):
     DAMP = auto()
     AMP_LT = auto()
     AMP_GT = auto()
+    ADJACENT = auto()
     XOR = auto()
     DSTAR = auto()
     QMARK_AMP = auto()
@@ -207,6 +208,7 @@ class TokenType(AutoName):
     LINESTRING = auto()
     LOCALTIME = auto()
     LOCALTIMESTAMP = auto()
+    SYSTIMESTAMP = auto()
     MULTILINESTRING = auto()
     POLYGON = auto()
     MULTIPOLYGON = auto()
@@ -370,6 +372,7 @@ class TokenType(AutoName):
     ORDER_SIBLINGS_BY = auto()
     ORDERED = auto()
     ORDINALITY = auto()
+    OUT = auto()
     OUTER = auto()
     OVER = auto()
     OVERLAPS = auto()
@@ -714,6 +717,8 @@ class Tokenizer(metaclass=_Tokenizer):
         **{f"{{{{{postfix}": TokenType.BLOCK_START for postfix in ("+", "-")},
         **{f"{prefix}}}}}": TokenType.BLOCK_END for prefix in ("+", "-")},
         HINT_START: TokenType.HINT,
+        "&<": TokenType.AMP_LT,
+        "&>": TokenType.AMP_GT,
         "==": TokenType.EQ,
         "::": TokenType.DCOLON,
         "?::": TokenType.QDCOLON,
@@ -737,6 +742,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "~~": TokenType.LIKE,
         "~~*": TokenType.ILIKE,
         "~*": TokenType.IRLIKE,
+        "-|-": TokenType.ADJACENT,
         "ALL": TokenType.ALL,
         "AND": TokenType.AND,
         "ANTI": TokenType.ANTI,
@@ -837,6 +843,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "XOR": TokenType.XOR,
         "ORDER BY": TokenType.ORDER_BY,
         "ORDINALITY": TokenType.ORDINALITY,
+        "OUT": TokenType.OUT,
         "OUTER": TokenType.OUTER,
         "OVER": TokenType.OVER,
         "OVERLAPS": TokenType.OVERLAPS,
@@ -850,6 +857,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "PRAGMA": TokenType.PRAGMA,
         "PRIMARY KEY": TokenType.PRIMARY_KEY,
         "PROCEDURE": TokenType.PROCEDURE,
+        "OPERATOR": TokenType.OPERATOR,
         "QUALIFY": TokenType.QUALIFY,
         "RANGE": TokenType.RANGE,
         "RECURSIVE": TokenType.RECURSIVE,
@@ -1363,8 +1371,12 @@ class Tokenizer(metaclass=_Tokenizer):
                 decimal = True
                 self._advance()
             elif self._peek in ("-", "+") and scientific == 1:
-                scientific += 1
-                self._advance()
+                # Only consume +/- if followed by a digit
+                if self._current + 1 < self.size and self.sql[self._current + 1].isdigit():
+                    scientific += 1
+                    self._advance()
+                else:
+                    return self._add(TokenType.NUMBER)
             elif self._peek.upper() == "E" and not scientific:
                 scientific += 1
                 self._advance()

@@ -183,6 +183,9 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
     @authors("grphil")
     def test_empty_locations_are_reported(self):
+        # COPMAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", False)
+
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
@@ -228,6 +231,9 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_interrupt_full_heartbeat_session(self):
+        # COPMAT(danilalexeev): YT-23781. Remove this once location fhb are enabled by default.
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_validation_full_heartbeats", False)
+
         self.create_chunk_on_every_medium()
 
         nodes = ls("//sys/cluster_nodes")

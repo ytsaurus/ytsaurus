@@ -260,6 +260,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, NextValidationFullHeartbeatTime);
+
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
     DEFINE_BYVAL_RW_PROPERTY(ECellAggregatedStateReliability, LastCellAggregatedStateReliability, ECellAggregatedStateReliability::Unknown);
 

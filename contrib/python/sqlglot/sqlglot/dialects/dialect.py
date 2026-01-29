@@ -27,6 +27,8 @@ from sqlglot.tokens import Token, Tokenizer, TokenType
 from sqlglot.trie import new_trie
 from sqlglot.typing import EXPRESSION_METADATA
 
+from importlib.metadata import entry_points
+
 DATE_ADD_OR_DIFF = t.Union[
     exp.DateAdd,
     exp.DateDiff,
@@ -65,6 +67,8 @@ UNESCAPED_SEQUENCES = {
     "\\v": "\v",
     "\\\\": "\\",
 }
+
+PLUGIN_GROUP_NAME = "sqlglot.dialects"
 
 
 class Dialects(str, Enum):
@@ -153,12 +157,54 @@ class _Dialect(type):
         if isinstance(key, Dialects):
             key = key.value
 
-        # This import will lead to a new dialect being loaded, and hence, registered.
-        # We check that the key is an actual sqlglot module to avoid blindly importing
-        # files. Custom user dialects need to be imported at the top-level package, in
-        # order for them to be registered as soon as possible.
+        # 1. Try standard sqlglot modules first
         if key in DIALECT_MODULE_NAMES:
+            module = importlib.import_module(f"sqlglot.dialects.{key}")
+            # If module was already imported, the class may not be in _classes
+            # Find and register the dialect class from the module
+            if key not in cls._classes:
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name, None)
+                    if (
+                        isinstance(attr, type)
+                        and issubclass(attr, Dialect)
+                        and attr.__name__.lower() == key
+                    ):
+                        cls._classes[key] = attr
+                        break
+            return
+
+        # 2. Try entry points (for plugins)
+        try:
+            all_eps = entry_points()
+            # Python 3.10+ has select() method, older versions use dict-like access
+            if hasattr(all_eps, "select"):
+                eps = all_eps.select(group=PLUGIN_GROUP_NAME, name=key)
+            else:
+                # For older Python versions, entry_points() returns a dict-like object
+                group_eps = all_eps.get(PLUGIN_GROUP_NAME, [])  # type: ignore
+                eps = [ep for ep in group_eps if ep.name == key]  # type: ignore
+
+            for entry_point in eps:
+                dialect_class = entry_point.load()
+                # Verify it's a Dialect subclass
+                # issubclass() returns False if not a subclass, TypeError only if not a class at all
+                if isinstance(dialect_class, type) and issubclass(dialect_class, Dialect):
+                    # Register the dialect using the entry point name (key)
+                    # The metaclass may have registered it by class name, but we need it by entry point name
+                    if key not in cls._classes:
+                        cls._classes[key] = dialect_class
+                    return
+        except ImportError:
+            # entry_point.load() failed (bad plugin - module/class doesn't exist)
+            pass
+
+        # 3. Try direct import (for backward compatibility)
+        # This allows namespace packages or explicit imports to work
+        try:
             importlib.import_module(f"sqlglot.dialects.{key}")
+        except ImportError:
+            pass
 
     @classmethod
     def __getitem__(cls, key: str) -> t.Type[Dialect]:
@@ -741,6 +787,18 @@ class Dialect(metaclass=_Dialect):
     For example, in BigQuery the default type of the NULL value is INT64.
     """
 
+    LEAST_GREATEST_IGNORES_NULLS = True
+    """
+    Whether LEAST/GREATEST functions ignore NULL values, e.g:
+    - BigQuery, Snowflake, MySQL, Presto/Trino: LEAST(1, NULL, 2) -> NULL
+    - Spark, Postgres, DuckDB, TSQL: LEAST(1, NULL, 2) -> 1
+    """
+
+    PRIORITIZE_NON_LITERAL_TYPES = False
+    """
+    Whether to prioritize non-literal types over literals during type annotation.
+    """
+
     # --- Autofilled ---
 
     tokenizer_class = Tokenizer
@@ -935,7 +993,9 @@ class Dialect(metaclass=_Dialect):
 
             result = cls.get(dialect_name.strip())
             if not result:
-                suggest_closest_match_and_fail("dialect", dialect_name, list(DIALECT_MODULE_NAMES))
+                # Include both built-in dialects and any loaded dialects for better error messages
+                all_dialects = set(DIALECT_MODULE_NAMES) | set(cls._classes.keys())
+                suggest_closest_match_and_fail("dialect", dialect_name, all_dialects)
 
             assert result is not None
             return result(**kwargs)
@@ -2207,3 +2267,24 @@ def regexp_replace_global_modifier(expression: exp.RegexpReplace) -> exp.Express
             modifiers = exp.Literal.string(value + "g")
 
     return modifiers
+
+
+def getbit_sql(self: Generator, expression: exp.Getbit) -> str:
+    """
+    Generates SQL for Getbit according to DuckDB and Postgres, transpiling it if either:
+
+    1. The zero index corresponds to the least-significant bit
+    2. The input type is an integer value
+    """
+    value = expression.this
+    position = expression.expression
+
+    if not expression.args.get("zero_is_msb") and expression.is_type(
+        *exp.DataType.SIGNED_INTEGER_TYPES, *exp.DataType.UNSIGNED_INTEGER_TYPES
+    ):
+        # Use bitwise operations: (value >> position) & 1
+        shifted = exp.BitwiseRightShift(this=value, expression=position)
+        masked = exp.BitwiseAnd(this=shifted, expression=exp.Literal.number(1))
+        return self.sql(masked)
+
+    return self.func("GET_BIT", value, position)

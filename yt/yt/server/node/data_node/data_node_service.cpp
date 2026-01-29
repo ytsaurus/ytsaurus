@@ -306,7 +306,7 @@ private:
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
         options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
         options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
-        options.UseDirectIo = GetDynamicConfig()->UseDirectIo && request->use_direct_io();
+        options.UseDirectIo = GetDynamicConfig()->UseDirectIO && request->use_direct_io();
 
         context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
             "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v, UseDirectIo: %v",

@@ -275,11 +275,11 @@ void TChunkStore::RegisterNewChunk(
 
         // NB: This is multimap.
         ChunkMap_.emplace(chunk->GetId(), entry);
+
+        OnChunkRegistered(chunk);
     }
 
     lockedChunkGuard.Release();
-
-    OnChunkRegistered(chunk);
 }
 
 TChunkStore::TChunkEntry TChunkStore::DoFindExistingChunk(const IChunkPtr& chunk) const
@@ -497,9 +497,8 @@ void TChunkStore::FinishChunkRegistration(const IChunkPtr& chunk)
     {
         auto guard = WriterGuard(ChunkMapLock_);
         ChunkMap_.emplace(chunk->GetId(), chunkEntry);
+        OnChunkRegistered(chunk);
     }
-
-    OnChunkRegistered(chunk);
 }
 
 void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex)
@@ -520,6 +519,7 @@ void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int ol
 void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     auto diskSpace = chunk->GetInfo().disk_space();
 
@@ -583,11 +583,11 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
         }
 
         newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
+
+        location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
+
+        ChunkAdded_.Fire(chunk);
     }
-
-    location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
-
-    ChunkAdded_.Fire(chunk);
 }
 
 void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
@@ -612,16 +612,17 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         if (!chunkEntry.Chunk) {
             return;
         }
-    }
 
-    location->UpdateChunkCount(-1);
-    location->UpdateUsedSpace(-chunkEntry.DiskSpace);
+        location->UpdateChunkCount(-1);
+        location->UpdateUsedSpace(-chunkEntry.DiskSpace);
+
+        ChunkRemoved_.Fire(chunk);
+    }
 
     YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),
         location->GetId());
 
-    ChunkRemoved_.Fire(chunk);
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
@@ -675,7 +676,12 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
     YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v)",
         chunkId,
         location->GetId());
-    ChunkRemoved_.Fire(chunk);
+
+    {
+        auto guard = ReaderGuard(ChunkMapLock_);
+        ChunkRemoved_.Fire(chunk);
+    }
+
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
 
@@ -761,7 +767,15 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
 
 TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
 {
+    auto guard = ReaderGuard(ChunkMapLock_);
+    return GetPerLocationChunksUnsafe(std::move(guard));
+}
+
+TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunksUnsafe(
+    NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> /*guard*/)
+{
     YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
 
     // TODO(danilalexeev): Initialize once for class instance.
     THashMap<TChunkLocationUuid, TStoreLocationPtr> locations;
@@ -773,7 +787,6 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
         EmplaceOrCrash(result, location, std::vector<IChunkPtr>());
     }
 
-    auto guard = ReaderGuard(ChunkMapLock_);
     for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
         const auto& chunk = chunkEntry.Chunk;
         const auto& location = GetOrCrash(locations, chunk->GetLocation()->GetUuid());
@@ -1094,6 +1107,13 @@ bool TChunkStore::ShouldSkipWriteThrottlingLocations()
     return DynamicConfig_
         ? DynamicConfig_->SkipWriteThrottlingLocations.value_or(Config_->SkipWriteThrottlingLocations)
         : Config_->SkipWriteThrottlingLocations;
+}
+
+NThreading::TReaderGuard<NThreading::TReaderWriterSpinLock> TChunkStore::AcquireChunkMapReaderLock()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return ReaderGuard(ChunkMapLock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

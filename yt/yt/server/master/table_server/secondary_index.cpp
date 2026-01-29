@@ -2,14 +2,13 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/server/master/cell_master/serialize.h>
-
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
+using namespace NTabletClient;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +33,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, Kind_);
     Save(context, ExternalCellTag_);
     Save(context, Predicate_);
-    Save(context, UnfoldedColumn_);
+    Save(context, UnfoldedColumns_);
     Save(context, TableToIndexCorrespondence_);
     TNullableIntrusivePtrSerializer<>::Save(context, EvaluatedColumnsSchema_);
 }
@@ -49,7 +48,19 @@ void TSecondaryIndex::Load(TLoadContext& context)
     Load(context, Kind_);
     Load(context, ExternalCellTag_);
     Load(context, Predicate_);
-    Load(context, UnfoldedColumn_);
+
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedNames) {
+        Load(context, UnfoldedColumns_);
+    } else {
+        if (auto unfoldedColumn = Load<std::optional<std::string>>(context)) {
+            UnfoldedColumns_ = TUnfoldedColumns{
+                .TableColumn = *unfoldedColumn,
+                .IndexColumn = *unfoldedColumn,
+            };
+        }
+    }
+
     Load(context, TableToIndexCorrespondence_);
 
     // COMPAT(sabdenovch)

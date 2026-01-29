@@ -312,12 +312,24 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
         .Default(false);
+    registrar.Parameter("enable_validation_full_heartbeats", &TThis::EnableValidationFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("validation_full_heartbeat_period", &TThis::ValidationFullHeartbeatPeriod)
+        .Default(TDuration::Days(1));
+    registrar.Parameter("validation_full_heartbeat_splay", &TThis::ValidationFullHeartbeatSplay)
+        .Default(TDuration::Hours(4));
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
         .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
+            THROW_ERROR_EXCEPTION("Validation full heartbeats require location full heartbeats to be enabled");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

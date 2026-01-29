@@ -537,7 +537,7 @@ struct TDataNodeTestingOptions
     // Stop trash scanning at initialization
     std::optional<bool> EnableTrashScanningBarrier;
 
-    std::optional<TDuration> SleepBeforePerformPutBlocks;
+    std::optional<TDuration> DelayBeforePerformPutBlocks;
 
     //! TChunkLocation::CheckWriteThrottling/TChunkLocation::CheckReadThrottling always return throttled.
     bool AlwaysThrottleLocation;
@@ -1104,7 +1104,7 @@ struct TDataNodeDynamicConfig
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
-    bool UseDirectIo;
+    bool UseDirectIO;
 
     bool WaitPrecedingBlocksReceived;
 

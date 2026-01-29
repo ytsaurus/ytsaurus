@@ -540,7 +540,7 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default();
 
-    registrar.Parameter("sleep_before_perform_put_blocks", &TThis::SleepBeforePerformPutBlocks)
+    registrar.Parameter("delay_before_perform_put_blocks", &TThis::DelayBeforePerformPutBlocks)
         .Default();
 
     registrar.Parameter("always_throttle_location", &TThis::AlwaysThrottleLocation)
@@ -1101,7 +1101,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
         .Default(false);
 
-    registrar.Parameter("use_direct_io", &TThis::UseDirectIo)
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(false);
 
     registrar.Parameter("wait_preceding_blocks_received", &TThis::WaitPrecedingBlocksReceived)

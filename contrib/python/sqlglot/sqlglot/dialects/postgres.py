@@ -13,6 +13,7 @@ from sqlglot.dialects.dialect import (
     datestrtodate_sql,
     build_formatted_time,
     filter_array_using_unnest,
+    getbit_sql,
     inline_array_sql,
     json_extract_segments,
     json_path_key_only_name,
@@ -358,8 +359,6 @@ class Postgres(Dialect):
             "<@": TokenType.LT_AT,
             "?&": TokenType.QMARK_AMP,
             "?|": TokenType.QMARK_PIPE,
-            "&<": TokenType.AMP_LT,
-            "&>": TokenType.AMP_GT,
             "#-": TokenType.HASH_DASH,
             "|/": TokenType.PIPE_SLASH,
             "||/": TokenType.DPIPE_SLASH,
@@ -376,7 +375,7 @@ class Postgres(Dialect):
             "NAME": TokenType.NAME,
             "OID": TokenType.OBJECT_IDENTIFIER,
             "ONLY": TokenType.ONLY,
-            "OPERATOR": TokenType.OPERATOR,
+            "POINT": TokenType.POINT,
             "REFRESH": TokenType.COMMAND,
             "REINDEX": TokenType.COMMAND,
             "RESET": TokenType.COMMAND,
@@ -424,6 +423,9 @@ class Postgres(Dialect):
 
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
+            "ARRAY_PREPEND": lambda args: exp.ArrayPrepend(
+                this=seq_get(args, 1), expression=seq_get(args, 0)
+            ),
             "BIT_AND": exp.BitwiseAndAgg.from_arg_list,
             "BIT_OR": exp.BitwiseOrAgg.from_arg_list,
             "BIT_XOR": exp.BitwiseXorAgg.from_arg_list,
@@ -432,6 +434,9 @@ class Postgres(Dialect):
                 binary_from_function(exp.IntDiv)(args), exp.DataType.Type.DECIMAL
             ),
             "GENERATE_SERIES": _build_generate_series,
+            "GET_BIT": lambda args: exp.Getbit(
+                this=seq_get(args, 0), expression=seq_get(args, 1), zero_is_msb=True
+            ),
             "JSON_EXTRACT_PATH": build_json_extract_path(exp.JSONExtract),
             "JSON_EXTRACT_PATH_TEXT": build_json_extract_path(exp.JSONExtractScalar),
             "LENGTH": lambda args: exp.Length(this=seq_get(args, 0), encoding=seq_get(args, 1)),
@@ -449,6 +454,11 @@ class Postgres(Dialect):
             "LEVENSHTEIN_LESS_EQUAL": _build_levenshtein_less_equal,
             "JSON_OBJECT_AGG": lambda args: exp.JSONObjectAgg(expressions=args),
             "JSONB_OBJECT_AGG": exp.JSONBObjectAgg.from_arg_list,
+            "WIDTH_BUCKET": lambda args: exp.WidthBucket(
+                this=seq_get(args, 0), threshold=seq_get(args, 1)
+            )
+            if len(args) == 2
+            else exp.WidthBucket.from_arg_list(args),
         }
 
         NO_PAREN_FUNCTIONS = {
@@ -479,12 +489,9 @@ class Postgres(Dialect):
         RANGE_PARSERS = {
             **parser.Parser.RANGE_PARSERS,
             TokenType.DAMP: binary_range_parser(exp.ArrayOverlaps),
-            TokenType.AMP_LT: binary_range_parser(exp.ExtendsLeft),
-            TokenType.AMP_GT: binary_range_parser(exp.ExtendsRight),
             TokenType.DAT: lambda self, this: self.expression(
                 exp.MatchAgainst, this=self._parse_bitwise(), expressions=[this]
             ),
-            TokenType.OPERATOR: lambda self, this: self._parse_operator(this),
         }
 
         STATEMENT_PARSERS = {
@@ -516,29 +523,6 @@ class Postgres(Dialect):
             )
             self._match_text_seq("S")
             return self.expression(exp.Placeholder, this=this)
-
-        def _parse_operator(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
-            while True:
-                if not self._match(TokenType.L_PAREN):
-                    break
-
-                op = ""
-                while self._curr and not self._match(TokenType.R_PAREN):
-                    op += self._curr.text
-                    self._advance()
-
-                this = self.expression(
-                    exp.Operator,
-                    comments=self._prev_comments,
-                    this=this,
-                    operator=op,
-                    expression=self._parse_bitwise(),
-                )
-
-                if not self._match(TokenType.OPERATOR):
-                    break
-
-            return this
 
         def _parse_date_part(self) -> exp.Expression:
             part = self._parse_type()
@@ -636,6 +620,7 @@ class Postgres(Dialect):
             exp.AnyValue: _versioned_anyvalue_sql,
             exp.ArrayConcat: lambda self, e: self.arrayconcat_sql(e, name="ARRAY_CAT"),
             exp.ArrayFilter: filter_array_using_unnest,
+            exp.ArrayPrepend: lambda self, e: self.func("ARRAY_PREPEND", e.expression, e.this),
             exp.BitwiseAndAgg: rename_func("BIT_AND"),
             exp.BitwiseOrAgg: rename_func("BIT_OR"),
             exp.BitwiseXor: lambda self, e: self.binary(e, "#"),
@@ -650,6 +635,7 @@ class Postgres(Dialect):
             exp.DateSub: _date_add_sql("-"),
             exp.Explode: rename_func("UNNEST"),
             exp.ExplodingGenerateSeries: rename_func("GENERATE_SERIES"),
+            exp.Getbit: getbit_sql,
             exp.GroupConcat: lambda self, e: groupconcat_sql(
                 self, e, func_name="STRING_AGG", within_group=False
             ),
@@ -714,7 +700,9 @@ class Postgres(Dialect):
             exp.TimestampTrunc: timestamptrunc_sql(zone=True),
             exp.TimeStrToTime: timestrtotime_sql,
             exp.TimeToStr: lambda self, e: self.func("TO_CHAR", e.this, self.format_time(e)),
-            exp.ToChar: lambda self, e: self.function_fallback_sql(e),
+            exp.ToChar: lambda self, e: self.function_fallback_sql(e)
+            if e.args.get("format")
+            else self.tochar_sql(e),
             exp.Trim: trim_sql,
             exp.TryCast: no_trycast_sql,
             exp.TsOrDsAdd: _date_add_sql("+"),

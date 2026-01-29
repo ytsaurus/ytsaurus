@@ -117,6 +117,16 @@ With default settings, at least one value (the last one) is always stored, along
 
 By using the listed parameters, flexible storage policies can be built. For example, `min_data_versions = 0`, `max_data_versions = 1`, `min_data_ttl = 0`, and `max_data_ttl = 86400000 (1 day)` allow any data older than one day to be deleted, saving only one version from the last day.
 
+{% note warning %}
+
+The `min_data_ttl` parameter defines an interval when the data existence is guaranteed. 
+
+It is important that all timestamp-based readings fall within the interval when all data is available: `[now() - min_data_ttl, now()]`. This applies to both: readings with an explicitly specified `timestamp` and readings within a transaction where the transaction start time is used as the timestamp.
+
+If the timestamp is **older** than `now() - min_data_ttl`, the success of the reading is **not guaranteed**. In particular, if a table has `min_data_ttl = 0`, it is recommended to read from it only with `sync_last_committed` or `async_last_committed`.
+
+{% endnote %}
+
 {% note info "Note" %}
 
 The specified parameters enable the system to delete data, but do not force it to. Combining chunks and deleting data is a background operation.

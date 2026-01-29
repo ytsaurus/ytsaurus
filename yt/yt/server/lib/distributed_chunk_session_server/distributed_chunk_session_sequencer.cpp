@@ -1,4 +1,4 @@
-#include "distributed_chunk_session_coordinator.h"
+#include "distributed_chunk_session_sequencer.h"
 
 #include "config.h"
 #include "private.h"
@@ -31,7 +31,7 @@ using NTableClient::NProto::TDataBlockMeta;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDistributedChunkSessionCoordinatorState,
+DEFINE_ENUM(EDistributedChunkSessionSequencerState,
     (Created)
     (Running)
     (Closed)
@@ -39,11 +39,11 @@ DEFINE_ENUM(EDistributedChunkSessionCoordinatorState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedChunkSessionCoordinator
-    : public IDistributedChunkSessionCoordinator
+class TDistributedChunkSessionSequencer
+    : public IDistributedChunkSessionSequencer
 {
 public:
-    TDistributedChunkSessionCoordinator(
+    TDistributedChunkSessionSequencer(
         TDistributedChunkSessionServiceConfigPtr config,
         TSessionId sessionId,
         std::vector<TNodeDescriptor> targets,
@@ -71,7 +71,7 @@ public:
     TFuture<void> StartSession() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_VERIFY(State_.exchange(EDistributedChunkSessionCoordinatorState::Running) == EDistributedChunkSessionCoordinatorState::Created);
+        YT_VERIFY(State_.exchange(EDistributedChunkSessionSequencerState::Running) == EDistributedChunkSessionSequencerState::Created);
 
         YT_LOG_INFO("Starting distributed chunk write session (SessionId: %v)", SessionId_);
 
@@ -92,10 +92,10 @@ public:
         TMiscExt blocksMiscMeta) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_VERIFY(State_ >= EDistributedChunkSessionCoordinatorState::Running);
+        YT_VERIFY(State_ >= EDistributedChunkSessionSequencerState::Running);
 
         return BIND(
-            &TDistributedChunkSessionCoordinator::DoSendBlocks,
+            &TDistributedChunkSessionSequencer::DoSendBlocks,
             MakeStrong(this),
             Passed(std::move(blocks)),
             Passed(std::move(blockMetas)),
@@ -104,13 +104,13 @@ public:
             .Run();
     }
 
-    TFuture<TCoordinatorStatus> UpdateStatus(int acknowledgedBlockCount) final
+    TFuture<TSequencerStatus> UpdateStatus(int acknowledgedBlockCount) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_VERIFY(State_ >= EDistributedChunkSessionCoordinatorState::Running);
+        YT_VERIFY(State_ >= EDistributedChunkSessionSequencerState::Running);
 
         return BIND(
-            &TDistributedChunkSessionCoordinator::DoUpdateStatus,
+            &TDistributedChunkSessionSequencer::DoUpdateStatus,
             MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
             .Run(acknowledgedBlockCount);
@@ -121,13 +121,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(
-            &TDistributedChunkSessionCoordinator::DoClose,
+            &TDistributedChunkSessionSequencer::DoClose,
             MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
             .Run(force);
     }
 
-    ~TDistributedChunkSessionCoordinator()
+    ~TDistributedChunkSessionSequencer()
     {
         // Every SendBlocks takes strong ref so it is not possible for any
         // of the queues to be non-empty in the destructor.
@@ -188,7 +188,7 @@ private:
 
     std::vector<TNode> Nodes_;
 
-    std::atomic<EDistributedChunkSessionCoordinatorState> State_ = EDistributedChunkSessionCoordinatorState::Created;
+    std::atomic<EDistributedChunkSessionSequencerState> State_ = EDistributedChunkSessionSequencerState::Created;
 
     int NextBlockIndex_ = 0;
 
@@ -211,9 +211,9 @@ private:
         TMiscExt blocksMiscMeta)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-        YT_VERIFY(State_ != EDistributedChunkSessionCoordinatorState::Created);
+        YT_VERIFY(State_ != EDistributedChunkSessionSequencerState::Created);
         YT_VERIFY(blocks.size() == blockMetas.size());
-        THROW_ERROR_EXCEPTION_IF(State_ != EDistributedChunkSessionCoordinatorState::Running, MakeSessionClosedError());
+        THROW_ERROR_EXCEPTION_IF(State_ != EDistributedChunkSessionSequencerState::Running, MakeSessionClosedError());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -238,7 +238,7 @@ private:
             // It is essential that ProcessQueue and DoSendBlocks be executed
             // within SerializedInvoker_ for Close() to work correctly.
             QueueHasBeenProcessed_ = BIND(
-                &TDistributedChunkSessionCoordinator::ProcessQueue,
+                &TDistributedChunkSessionSequencer::ProcessQueue,
                 MakeStrong(this))
                 .AsyncVia(SerializedInvoker_)
                 .Run();
@@ -257,7 +257,7 @@ private:
             try {
                 SendBlocksOnNodes(blocksToSend.get());
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Coordinator failed to send blocks (BlockIndexBegin: %v, BlockIndexEnd: %v)",
+                YT_LOG_DEBUG(ex, "Sequencer failed to send blocks (BlockIndexBegin: %v, BlockIndexEnd: %v)",
                     blocksToSend->BlockIndexBegin,
                     blocksToSend->BlockIndexEnd);
                 DoClose(/*force*/ false);
@@ -346,14 +346,14 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        YT_LOG_INFO("Closing coordinator (Force: %v, PendingSendQueueSize: %v, PendingAckQueueSize: %v)",
+        YT_LOG_INFO("Closing sequencer (Force: %v, PendingSendQueueSize: %v, PendingAckQueueSize: %v)",
             force,
             PendingSendQueue_.size(),
             PendingAckQueue_.size());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        State_ = EDistributedChunkSessionCoordinatorState::Closed;
+        State_ = EDistributedChunkSessionSequencerState::Closed;
         CloseRequestedPromise_.TrySet();
 
         while (!PendingSendQueue_.empty()) {
@@ -373,10 +373,10 @@ private:
         }
     }
 
-    TCoordinatorStatus DoUpdateStatus(int acknowledgedBlockCount)
+    TSequencerStatus DoUpdateStatus(int acknowledgedBlockCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
-        YT_LOG_DEBUG("Updating coordinator status (AcknowledgedBlockCount: %v, CloseRequested: %v, WrittenBlockCount: %v)",
+        YT_LOG_DEBUG("Updating sequencer status (AcknowledgedBlockCount: %v, CloseRequested: %v, WrittenBlockCount: %v)",
              acknowledgedBlockCount,
              CloseRequestedPromise_.IsSet(),
              WrittenBlockCount_);
@@ -403,7 +403,7 @@ private:
             blockMetas.push_back(DataBlocksMeta_[index]);
         }
 
-        return TCoordinatorStatus{
+        return TSequencerStatus{
             .CloseDemanded = CloseRequestedPromise_.IsSet(),
             .WrittenBlockCount = WrittenBlockCount_,
             .ChunkMiscMeta = ChunkMiscMeta_,
@@ -420,7 +420,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(TRspPingSession* proto, const TCoordinatorStatus& status)
+void ToProto(TRspPingSession* proto, const TSequencerStatus& status)
 {
     proto->set_close_demanded(status.CloseDemanded);
     proto->set_written_block_count(status.WrittenBlockCount);
@@ -430,14 +430,14 @@ void ToProto(TRspPingSession* proto, const TCoordinatorStatus& status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDistributedChunkSessionCoordinatorPtr CreateDistributedChunkSessionCoordinator(
+IDistributedChunkSessionSequencerPtr CreateDistributedChunkSessionSequencer(
     TDistributedChunkSessionServiceConfigPtr config,
     TSessionId sessionId,
     std::vector<TNodeDescriptor> targets,
     IInvokerPtr invoker,
     IConnectionPtr connection)
 {
-    return New<TDistributedChunkSessionCoordinator>(
+    return New<TDistributedChunkSessionSequencer>(
         std::move(config),
         sessionId,
         std::move(targets),

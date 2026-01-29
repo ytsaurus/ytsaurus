@@ -112,6 +112,7 @@ class Generator(metaclass=_Generator):
 
     TRANSFORMS: t.Dict[t.Type[exp.Expression], t.Callable[..., str]] = {
         **JSON_PATH_PART_TRANSFORMS,
+        exp.Adjacent: lambda self, e: self.binary(e, "-|-"),
         exp.AllowedValuesProperty: lambda self,
         e: f"ALLOWED_VALUES {self.expressions(e, flat=True)}",
         exp.AnalyzeColumns: lambda self, e: self.sql(e, "this"),
@@ -513,6 +514,11 @@ class Generator(metaclass=_Generator):
 
     # Whether to include the VARIABLE keyword for SET assignments
     SET_ASSIGNMENT_REQUIRES_VARIABLE_KEYWORD = False
+
+    # Whether FROM is supported in UPDATE statements or if joins must be generated instead, e.g:
+    # Supported (Postgres, Doris etc): UPDATE t1 SET t1.a = t2.b FROM t2
+    # Unsupported (MySQL, SingleStore): UPDATE t1 JOIN t2 ON TRUE SET t1.a = t2.b
+    UPDATE_STATEMENT_SUPPORTS_FROM = True
 
     TYPE_MAPPING = {
         exp.DataType.Type.DATETIME2: "TIMESTAMP",
@@ -1152,6 +1158,19 @@ class Generator(metaclass=_Generator):
         options = f" {options}" if options else ""
         return f"UNIQUE{nulls_sql}{this}{index_type}{on_conflict}{options}"
 
+    def inoutcolumnconstraint_sql(self, expression: exp.InOutColumnConstraint) -> str:
+        input_ = expression.args.get("input_")
+        output = expression.args.get("output")
+
+        if input_ and output:
+            return "IN OUT"
+        if input_:
+            return "IN"
+        if output:
+            return "OUT"
+
+        return ""
+
     def createable_sql(self, expression: exp.Create, locations: t.DefaultDict) -> str:
         return self.sql(expression, "this")
 
@@ -1455,7 +1474,15 @@ class Generator(metaclass=_Generator):
     def datatype_sql(self, expression: exp.DataType) -> str:
         nested = ""
         values = ""
-        interior = self.expressions(expression, flat=True)
+
+        expr_nested = expression.args.get("nested")
+        interior = (
+            self.expressions(
+                expression, dynamic=True, new_line=True, skip_first=True, skip_last=True
+            )
+            if expr_nested and self.pretty
+            else self.expressions(expression, flat=True)
+        )
 
         type_value = expression.this
         if type_value in self.UNSUPPORTED_TYPES:
@@ -1473,7 +1500,7 @@ class Generator(metaclass=_Generator):
             )
 
         if interior:
-            if expression.args.get("nested"):
+            if expr_nested:
                 nested = f"{self.STRUCT_DELIMITER[0]}{interior}{self.STRUCT_DELIMITER[1]}"
                 if expression.args.get("values") is not None:
                     delimiters = ("[", "]") if type_value == exp.DataType.Type.ARRAY else ("(", ")")
@@ -2019,7 +2046,12 @@ class Generator(metaclass=_Generator):
         constraint = f" ON CONSTRAINT {constraint}" if constraint else ""
 
         conflict_keys = self.expressions(expression, key="conflict_keys", flat=True)
-        conflict_keys = f"({conflict_keys}) " if conflict_keys else " "
+        if conflict_keys:
+            conflict_keys = f"({conflict_keys})"
+
+        index_predicate = self.sql(expression, "index_predicate")
+        conflict_keys = f"{conflict_keys}{index_predicate} "
+
         action = self.sql(expression, "action")
 
         expressions = self.expressions(expression, flat=True)
@@ -2222,10 +2254,42 @@ class Generator(metaclass=_Generator):
     def tuple_sql(self, expression: exp.Tuple) -> str:
         return f"({self.expressions(expression, dynamic=True, new_line=True, skip_first=True, skip_last=True)})"
 
+    def _update_from_joins_sql(self, expression: exp.Update) -> t.Tuple[str, str]:
+        """
+        Returns (join_sql, from_sql) for UPDATE statements.
+        - join_sql: placed after UPDATE table, before SET
+        - from_sql: placed after SET clause (standard position)
+        Dialects like MySQL need to convert FROM to JOIN syntax.
+        """
+        if self.UPDATE_STATEMENT_SUPPORTS_FROM or not (from_expr := expression.args.get("from_")):
+            return ("", self.sql(expression, "from_"))
+
+        # Qualify unqualified columns in SET clause with the target table
+        # MySQL requires qualified column names in multi-table UPDATE to avoid ambiguity
+        target_table = expression.this
+        if isinstance(target_table, exp.Table):
+            target_name = exp.to_identifier(target_table.alias_or_name)
+            for eq in expression.expressions:
+                col = eq.this
+                if isinstance(col, exp.Column) and not col.table:
+                    col.set("table", target_name)
+
+        table = from_expr.this
+        if nested_joins := table.args.get("joins", []):
+            table.set("joins", None)
+
+        join_sql = self.sql(exp.Join(this=table, on=exp.true()))
+        for nested in nested_joins:
+            if not nested.args.get("on") and not nested.args.get("using"):
+                nested.set("on", exp.true())
+            join_sql += self.sql(nested)
+
+        return (join_sql, "")
+
     def update_sql(self, expression: exp.Update) -> str:
         this = self.sql(expression, "this")
+        join_sql, from_sql = self._update_from_joins_sql(expression)
         set_sql = self.expressions(expression, flat=True)
-        from_sql = self.sql(expression, "from_")
         where_sql = self.sql(expression, "where")
         returning = self.sql(expression, "returning")
         order = self.sql(expression, "order")
@@ -2236,7 +2300,7 @@ class Generator(metaclass=_Generator):
             expression_sql = f"{returning}{from_sql}{where_sql}"
         options = self.expressions(expression, key="options")
         options = f" OPTION({options})" if options else ""
-        sql = f"UPDATE {this} SET {set_sql}{expression_sql}{order}{limit}{options}"
+        sql = f"UPDATE {this}{join_sql} SET {set_sql}{expression_sql}{order}{limit}{options}"
         return self.prepend_ctes(expression, sql)
 
     def values_sql(self, expression: exp.Values, values_as_table: bool = True) -> str:
@@ -4933,30 +4997,49 @@ class Generator(metaclass=_Generator):
 
         return self.func("JSON_EXISTS", this, path)
 
-    def arrayagg_sql(self, expression: exp.ArrayAgg) -> str:
-        array_agg = self.function_fallback_sql(expression)
+    def _add_arrayagg_null_filter(
+        self,
+        array_agg_sql: str,
+        array_agg_expr: exp.ArrayAgg,
+        column_expr: exp.Expression,
+    ) -> str:
+        """
+        Add NULL filter to ARRAY_AGG if dialect requires it.
 
+        Args:
+            array_agg_sql: The generated ARRAY_AGG SQL string
+            array_agg_expr: The ArrayAgg expression node
+            column_expr: The column/expression to filter (before ORDER BY wrapping)
+
+        Returns:
+            SQL string with FILTER clause added if needed
+        """
         # Add a NULL FILTER on the column to mimic the results going from a dialect that excludes nulls
         # on ARRAY_AGG (e.g Spark) to one that doesn't (e.g. DuckDB)
-        if self.dialect.ARRAY_AGG_INCLUDES_NULLS and expression.args.get("nulls_excluded"):
-            parent = expression.parent
-            if isinstance(parent, exp.Filter):
-                parent_cond = parent.expression.this
-                parent_cond.replace(parent_cond.and_(expression.this.is_(exp.null()).not_()))
-            else:
-                this = expression.this
-                # Do not add the filter if the input is not a column (e.g. literal, struct etc)
-                if this.find(exp.Column):
-                    # DISTINCT is already present in the agg function, do not propagate it to FILTER as well
-                    this_sql = (
-                        self.expressions(this)
-                        if isinstance(this, exp.Distinct)
-                        else self.sql(expression, "this")
-                    )
+        if not (
+            self.dialect.ARRAY_AGG_INCLUDES_NULLS and array_agg_expr.args.get("nulls_excluded")
+        ):
+            return array_agg_sql
 
-                    array_agg = f"{array_agg} FILTER(WHERE {this_sql} IS NOT NULL)"
+        parent = array_agg_expr.parent
+        if isinstance(parent, exp.Filter):
+            parent_cond = parent.expression.this
+            parent_cond.replace(parent_cond.and_(column_expr.is_(exp.null()).not_()))
+        elif column_expr.find(exp.Column):
+            # Do not add the filter if the input is not a column (e.g. literal, struct etc)
+            # DISTINCT is already present in the agg function, do not propagate it to FILTER as well
+            this_sql = (
+                self.expressions(column_expr)
+                if isinstance(column_expr, exp.Distinct)
+                else self.sql(column_expr)
+            )
+            array_agg_sql = f"{array_agg_sql} FILTER(WHERE {this_sql} IS NOT NULL)"
 
-        return array_agg
+        return array_agg_sql
+
+    def arrayagg_sql(self, expression: exp.ArrayAgg) -> str:
+        array_agg = self.function_fallback_sql(expression)
+        return self._add_arrayagg_null_filter(array_agg, expression, expression.this)
 
     def slice_sql(self, expression: exp.Slice) -> str:
         step = self.sql(expression, "step")
@@ -5158,7 +5241,8 @@ class Generator(metaclass=_Generator):
         return include
 
     def xmlelement_sql(self, expression: exp.XMLElement) -> str:
-        name = f"NAME {self.sql(expression, 'this')}"
+        prefix = "EVALNAME" if expression.args.get("evalname") else "NAME"
+        name = f"{prefix} {self.sql(expression, 'this')}"
         return self.func("XMLELEMENT", name, *expression.expressions)
 
     def xmlkeyvalueoption_sql(self, expression: exp.XMLKeyValueOption) -> str:
@@ -5471,3 +5555,9 @@ class Generator(metaclass=_Generator):
             return "WEEK"
 
         return self.func("WEEK", expression.this)
+
+    def chr_sql(self, expression: exp.Chr, name: str = "CHR") -> str:
+        this = self.expressions(expression)
+        charset = self.sql(expression, "charset")
+        using = f" USING {charset}" if charset else ""
+        return self.func(name, this + using)

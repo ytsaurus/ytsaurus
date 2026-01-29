@@ -93,6 +93,7 @@ public:
 
     bool AddDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica);
     bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica);
+    bool HasDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica);
     void ClearDestroyedReplicas();
 
     i64 GetDestroyedReplicasCount() const;

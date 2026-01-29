@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "master_table_schema.h"
+#include "secondary_index.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -165,7 +166,7 @@ struct ITableManager
         TTableId table,
         TTableId secondaryIndex,
         std::optional<std::string> predicate,
-        std::optional<std::string> unfoldedColumnName,
+        std::optional<NTabletClient::TUnfoldedColumns> unfoldedColumns,
         NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.

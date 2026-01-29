@@ -267,6 +267,7 @@ class Presto(Dialect):
     TABLESAMPLE_SIZE_IS_PERCENT = True
     LOG_BASE_FIRST: t.Optional[bool] = None
     SUPPORTS_VALUES_DEFAULT = False
+    LEAST_GREATEST_IGNORES_NULLS = False
 
     TIME_MAPPING = MySQL.TIME_MAPPING
 
@@ -373,6 +374,7 @@ class Presto(Dialect):
             "MD5": exp.MD5Digest.from_arg_list,
             "SHA256": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(256)),
             "SHA512": lambda args: exp.SHA2(this=seq_get(args, 0), length=exp.Literal.number(512)),
+            "WEEK": exp.WeekOfYear.from_arg_list,
         }
 
         FUNCTION_PARSERS = parser.Parser.FUNCTION_PARSERS.copy()

@@ -685,6 +685,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ConsistentReplicaPlacementTokenCount_);
     Save(context, NextDisposedLocationIndex_);
     Save(context, LastGossipState_);
+    Save(context, NextValidationFullHeartbeatTime_);
 }
 
 namespace {
@@ -741,6 +742,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::DataNodeValidationFullHeartbeats) {
+        Load(context, NextValidationFullHeartbeatTime_);
+    }
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();

@@ -2822,6 +2822,71 @@ Example:
 PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"{{pool-tree}}" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
 ```
 
+### patch_operation_spec { #patch_operation_spec }
+
+Command properties: **Mutating**, **Lightweight**.
+
+Semantics:
+
+- Update the specification of a running operation.
+
+Parameters:
+
+| **Parameter**                    | **Required** | **Description**                                              |
+| -------------------------------- | ------------ | ------------------------------------------------------------ |
+| `operation_id (operation_alias)` | Yes          | Operation ID.                                                |
+| `patches`                        | Yes          | List of patches to apply to the operation specification.     |
+
+Patch format:
+
+| **Parameter** | **Required** | **Description**                                              |
+| ------------- | ------------ | ------------------------------------------------------------ |
+| `path`        | Yes          | Path to the parameter in the operation specification in [YPath](../../user-guide/storage/ypath.md) format. |
+| `value`       | Yes          | New value for the parameter.                                 |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `null`.
+
+Modifiable parameters:
+
+| **Parameter**                    | **Description**                                              | **Comment** |
+| -------------------------------- | ------------------------------------------------------------ | ----------- |
+| `/max_failed_job_count`          | Number of failed jobs after which the operation is considered failed. | |
+| `/tasks/<task_name>/job_count`   | Number of jobs for task `<task_name>` in Vanilla operations. | Cannot be modified for gang operations or operations with `fail_on_job_restart`. |
+
+Notes:
+
+- This command allows you to modify individual parameters of an operation specification on the fly, without needing to restart the operation.
+- Patches are applied atomically: either all patches from the list are applied, or none.
+- Changing specification parameters may cause running jobs to be aborted if the desired job count is less than the current count.
+
+Example:
+
+```bash
+PARAMETERS {
+    "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4";
+    "patches" = [
+        {
+            "path" = "/max_failed_job_count";
+            "value" = 15;
+        };
+        {
+            "path" = "/tasks/worker/job_count";
+            "value" = 10;
+        };
+        {
+            "path" = "/tasks/coordinator/job_count";
+            "value" = 5;
+        };
+    ]
+}
+```
+
 ### check_operation_permission { #check_operation_permission }
 
 Command properties: **Idempotent**, **Lightweight**.

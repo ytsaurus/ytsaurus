@@ -658,7 +658,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                         return NIO::TIOCounters{};
                     }).AsyncVia(SessionInvoker_));
             } else {
-                YT_UNUSED_FUTURE(allPrecedingBlocksReceivedFuture.Apply(BIND([this, this_ = MakeStrong(this),
+                allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
                     fairShareQueueSlot = std::move(fairShareQueueSlot), precedingBlockReceivedFutures = std::move(precedingBlockReceivedFutures)] (const TError& error) mutable {
                         if (error.IsOK()) {
                             DoPerformPutBlocks(std::move(fairShareQueueSlot));
@@ -666,7 +666,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                             YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
                             Cancel(error);
                         }
-                    }).AsyncVia(SessionInvoker_)));
+                    }).Via(SessionInvoker_));
                 return MakeFuture(NIO::TIOCounters{});
             }
         }));
@@ -784,11 +784,10 @@ TFuture<void> TBlobSession::PreparePutBlocks(
         MakeCompactIntervalView(receivedBlockIndexes),
         totalSize);
 
-    if (auto sleepBeforePerformPutBlocks =
-        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->SleepBeforePerformPutBlocks;
-        sleepBeforePerformPutBlocks.has_value()) {
-            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", sleepBeforePerformPutBlocks.value());
-            TDelayedExecutor::WaitForDuration(sleepBeforePerformPutBlocks.value());
+    if (auto delay =
+        Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks) {
+            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", delay.value());
+            TDelayedExecutor::WaitForDuration(delay.value());
     }
 
     const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);

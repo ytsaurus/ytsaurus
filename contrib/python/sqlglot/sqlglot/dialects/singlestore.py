@@ -82,6 +82,7 @@ class SingleStore(MySQL):
             "::$": TokenType.DCOLONDOLLAR,
             "::%": TokenType.DCOLONPERCENT,
             "::?": TokenType.DCOLONQMARK,
+            "RECORD": TokenType.STRUCT,
         }
 
     class Parser(MySQL.Parser):
@@ -175,6 +176,10 @@ class SingleStore(MySQL):
                 this=seq_get(args, 1),
                 expression=seq_get(args, 0),
                 json_type="JSON",
+            ),
+            "JSON_KEYS": lambda args: exp.JSONKeys(
+                this=seq_get(args, 0),
+                expressions=args[1:],
             ),
             "JSON_PRETTY": exp.JSONFormat.from_arg_list,
             "JSON_BUILD_ARRAY": lambda args: exp.JSONArray(expressions=args),
@@ -328,6 +333,7 @@ class SingleStore(MySQL):
         SUPPORTS_UESCAPE = False
         NULL_ORDERING_SUPPORTED = True
         MATCH_AGAINST_TABLE_PREFIX = "TABLE "
+        STRUCT_DELIMITER = ("(", ")")
 
         @staticmethod
         def _unicode_substitute(m: re.Match[str]) -> str:
@@ -497,7 +503,6 @@ class SingleStore(MySQL):
             ),
             exp.IsAscii: lambda self, e: f"({self.sql(e, 'this')} RLIKE '^[\x00-\x7f]*$')",
             exp.MD5Digest: lambda self, e: self.func("UNHEX", self.func("MD5", e.this)),
-            exp.Chr: rename_func("CHAR"),
             exp.Contains: rename_func("INSTR"),
             exp.RegexpExtractAll: unsupported_args("position", "occurrence", "group")(
                 lambda self, e: self.func(
@@ -613,7 +618,6 @@ class SingleStore(MySQL):
             exp.DataType.Type.SERIAL,
             exp.DataType.Type.SMALLSERIAL,
             exp.DataType.Type.SMALLMONEY,
-            exp.DataType.Type.STRUCT,
             exp.DataType.Type.SUPER,
             exp.DataType.Type.TIMETZ,
             exp.DataType.Type.TIMESTAMPNTZ,
@@ -654,6 +658,7 @@ class SingleStore(MySQL):
             exp.DataType.Type.LINESTRING: "GEOGRAPHY",
             exp.DataType.Type.POLYGON: "GEOGRAPHY",
             exp.DataType.Type.MULTIPOLYGON: "GEOGRAPHY",
+            exp.DataType.Type.STRUCT: "RECORD",
             exp.DataType.Type.JSONB: "BSON",
             exp.DataType.Type.TIMESTAMP: "TIMESTAMP",
             exp.DataType.Type.TIMESTAMP_S: "TIMESTAMP",
@@ -1760,8 +1765,13 @@ class SingleStore(MySQL):
                 self.func("TO_JSON", expression.this),
             )
 
-        @unsupported_args("kind", "nested", "values")
+        @unsupported_args("kind", "values")
         def datatype_sql(self, expression: exp.DataType) -> str:
+            if expression.args.get("nested") and not expression.is_type(exp.DataType.Type.STRUCT):
+                self.unsupported(
+                    f"Argument 'nested' is not supported for representation of '{expression.this.value}' in SingleStore"
+                )
+
             if expression.is_type(exp.DataType.Type.VARBINARY) and not expression.expressions:
                 # `VARBINARY` must always have a size - if it doesn't, we always generate `BLOB`
                 return "BLOB"
