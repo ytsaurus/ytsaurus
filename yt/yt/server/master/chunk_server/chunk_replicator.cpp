@@ -2872,6 +2872,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         return;
     }
 
+    if (!chunk->IsConfirmed()) {
+        return;
+    }
+
     // Slow path.
     auto adjustedDelay = delay
         ? std::make_optional(DurationToCpuDuration(*delay))
