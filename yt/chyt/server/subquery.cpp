@@ -296,6 +296,7 @@ private:
 
             auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
                 if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
+                    YT_LOG_DEBUG("a-dyu log f");
                     return false;
                 }
                 return !GetRangeMask(
@@ -329,8 +330,9 @@ private:
         const auto& stripeListStatistics = ResultStripeList_->GetAggregateStatistics();
 
         YT_LOG_INFO(
-            "Input fetched (StripeListStatistics: %v)",
-            stripeListStatistics);
+            "Input fetched (StripeListStatistics: %v, totalFilteredRowCount: %v)",
+            stripeListStatistics,
+            totalFilteredRowCount);
 
         if (totalFilteredRowCount > 0) {
             IndexStats_.push_back(CreateKeyConditionIndexStat(

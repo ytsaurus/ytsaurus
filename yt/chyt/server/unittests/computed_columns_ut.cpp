@@ -137,8 +137,8 @@ INSTANTIATE_TEST_SUITE_P(
                 TColumnSchema("key2", EValueType::Uint64)
             }),
             "(key1, key2) = (5, 10) OR tuple(20, 42) = tuple(key2, key1)",
-            "(((key1, key2) = (5, 10)) AND ((key1, key2, computed_key) IN tuple((5, 10, 20)))) OR (((20, 42) = (key2, key1)) AND ((key1, key2, computed_key) IN tuple((42, 20, 104))))",
-            "(((key1, key2) = (5, 10)) AND ((key1 = 5) AND (key2 = 10) AND (computed_key = 20))) OR (((20, 42) = (key2, key1)) AND ((key1 = 42) AND (key2 = 20) AND (computed_key = 104)))"),
+            "(((key1, key2) = _CAST((5, 10), 'Tuple(UInt8, UInt8)')) AND ((key1, key2, computed_key) IN tuple((5, 10, 20)))) OR (((20, 42) = (key2, key1)) AND ((key1, key2, computed_key) IN tuple((42, 20, 104))))",
+            "(((key1, key2) = _CAST((5, 10), 'Tuple(UInt8, UInt8)')) AND ((key1 = 5) AND (key2 = 10) AND (computed_key = 20))) OR (((20, 42) = (key2, key1)) AND ((key1 = 42) AND (key2 = 20) AND (computed_key = 104)))"),
         std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Uint64, ESortOrder::Ascending)
@@ -185,8 +185,8 @@ INSTANTIATE_TEST_SUITE_P(
                 TColumnSchema("value", EValueType::String),
             }),
             "(key, value) = (4, 'xyz')",
-            "((key, value) = (4, 'xyz')) AND ((key, computed_key) IN tuple((4, 8)))",
-            "((key, value) = (4, 'xyz')) AND ((key = 4) AND (computed_key = 8))"),
+            "((key, value) = _CAST((4, 'xyz'), 'Tuple(UInt8, String)')) AND ((key, computed_key) IN tuple((4, 8)))",
+            "((key, value) = _CAST((4, 'xyz'), 'Tuple(UInt8, String)')) AND ((key = 4) AND (computed_key = 8))"),
         std::tuple(
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
@@ -196,7 +196,17 @@ INSTANTIATE_TEST_SUITE_P(
             }),
             "((key, value) IN ((4, 'xyz'), (5, 'asd')))",
             "((key, value) IN ((4, 'xyz'), (5, 'asd'))) AND ((key, computed_key) IN ((4, 8), (5, 10)))",
-            "((key, value) IN ((4, 'xyz'), (5, 'asd'))) AND (((key = 4) AND (computed_key = 8)) OR ((key = 5) AND (computed_key = 10)))")
+            "((key, value) IN ((4, 'xyz'), (5, 'asd'))) AND (((key = 4) AND (computed_key = 8)) OR ((key = 5) AND (computed_key = 10)))"),
+        std::tuple(
+            New<TTableSchema>(std::vector<TColumnSchema>{
+                TColumnSchema("computed_key", EValueType::Int64, ESortOrder::Ascending)
+                    .SetExpression("2 * key"),
+                TColumnSchema("key", EValueType::Int64),
+                TColumnSchema("value", EValueType::String),
+            }),
+            "((key, value) IN (4, 'xyz'))",
+            "((key, value) IN (4, 'xyz')) AND ((key, computed_key) IN tuple((4, 8)))",
+            "((key, value) IN (4, 'xyz')) AND ((key = 4) AND (computed_key = 8))")
         ));
 
 ////////////////////////////////////////////////////////////////////////////////
