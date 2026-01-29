@@ -3525,7 +3525,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        export_period_seconds = 5
+        export_period_seconds = 1
         set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
@@ -3539,27 +3539,31 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         insert_rows(queue_path, [{"data": "sample"}] * 2)
         self._flush_table(queue_path)
 
-        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
-        self._sleep_until_next_export_instant(export_period_seconds)
-
-        alerts = queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts()
-        alerts.assert_matching(
+        wait(lambda: queue_agent_orchid.get_queue_orchid(f"primary:{queue_path}").get_alerts().check_matching(
             "queue_agent_queue_controller_static_export_failed",
             text=f"Cannot take lock for attribute \"queue_static_exporter\" of node {export_dir} since this attribute is locked by concurrent transaction",
             attributes={"export_name": "default"}
-        )
+        ), ignore_exceptions=True)
 
         assert len(ls(export_dir)) == 0
 
+        expected_table_count = 1
         if should_export_second_table:
-            insert_rows(queue_path, [{"data": "second sample"}] * 2)
-            self._flush_table(queue_path)
+            for i in range(15):
+                time.sleep(1)
+                insert_rows(queue_path, [{"data": "second sample"}] * 2)
+                self._flush_table(queue_path)
 
-        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
-        self._sleep_until_next_export_instant(export_period_seconds)
+                chunk_ids = get(f"{queue_path}/@chunk_ids")
+                export_unix_tses = builtins.set((get(f"#{chunk_id}/@max_timestamp") >> 30) // export_period_seconds * export_period_seconds for chunk_id in chunk_ids)
+                print_debug(f"{export_unix_tses=}")
+                assert len(export_unix_tses) > 0
+                if len(export_unix_tses) > 1:
+                    assert len(export_unix_tses) == 2
+                    expected_table_count = len(export_unix_tses)
+                    break
 
         abort_transaction(tx)
-        expected_table_count = 2 if should_export_second_table else 1
 
         def check_table_count(actual_table_count):
             assert expected_table_count > 0
