@@ -6052,6 +6052,7 @@ private:
 
     void OnSequoiaChunkRefresh()
     {
+        YT_LOG_DEBUG("Sequoia chunk refresh iteration started");
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (!config->Enable || !config->EnableSequoiaChunkRefresh) {
             return;
@@ -6089,6 +6090,14 @@ private:
                     return;
                 }
 
+                const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+                // We should have state not older than the state at which chunks were added to refresh queue.
+                auto leaderSyncResult = WaitFor(hydraManager->SyncWithLeader());
+                if (!leaderSyncResult.IsOK()) {
+                    YT_LOG_WARNING(leaderSyncResult, "Error syncing with leader");
+                    return;
+                }
+
                 const auto& results = allSetResult.Value();
                 std::vector<TChunkId> chunkIdsToRefresh;
                 THashMap<int, i64> indexToTrimmedRowCount;
@@ -6111,6 +6120,10 @@ private:
                 SortUnique(chunkIdsToRefresh);
 
                 auto refreshChunks = BIND([chunkIdsToRefresh = std::move(chunkIdsToRefresh), this, this_ = MakeStrong(this)] {
+                    if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActive()) {
+                        THROW_ERROR_EXCEPTION("Hydra is not active");
+                    }
+
                     NProto::TReqTopUpSequoiaChunkPurgatory topUpSequoiaChunkPurgatoryRequest;
 
                     for (auto chunkId : chunkIdsToRefresh) {
