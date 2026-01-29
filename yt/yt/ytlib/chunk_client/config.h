@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/erasure/public.h>
 
+#include <yt/yt/library/s3/config.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,6 +250,25 @@ struct TChunkTeleporterConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TS3MediumConfig
+    : public NS3::TS3ConnectionConfig
+{
+    //! Name of the bucket to use.
+    std::string Bucket;
+
+    //! Credentials.
+    std::string AccessKeyId;
+    std::string SecretAccessKey;
+
+    REGISTER_YSON_STRUCT(TS3MediumConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
