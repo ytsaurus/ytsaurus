@@ -64,7 +64,7 @@ chyt:
     release:
       repo: ytsaurus
       container: chyt-nightly
-      image_tag: '^stable-dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
+      image_tag: '^dev-(?P<version>{{ version }})-\d{4}-\d{2}-\d{2}-(?P<commit_hash>\w+)-relwithdebinfo$'
 spyt:
   requirements: configs/compat-spyt.yaml
   origins:
