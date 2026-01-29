@@ -203,6 +203,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReturnSecondaryMastersCellConfigAsResponseForNodeHeartbeat)   (3152))  // cherepashka
     ((FixDynamicallyPropagatedMastersCellTags)                      (3153))  // aleksandra-zh
     ((DataNodeValidationFullHeartbeats)                             (3154))  // danilalexeev
+    ((FillAttributesOnNativeCellDuringMaterialization)              (3155))  // h0pless
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
     ((SecondaryIndexUnfoldedNames)                                  (3201))  // sabdenovch
