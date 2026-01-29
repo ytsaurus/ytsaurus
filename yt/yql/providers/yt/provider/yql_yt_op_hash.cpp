@@ -39,6 +39,7 @@ TYtNodeHashCalculator::TYtNodeHashCalculator(const TYtState::TPtr& state, const 
     Hashers[TYtMapReduce::CallableName()] = opHasher;
     Hashers[TYtCopy::CallableName()] = opHasher;
     Hashers[TYtTouch::CallableName()] = opHasher;
+    Hashers[TYtAlter::CallableName()] = opHasher;
     Hashers[TYtDqProcessWrite::CallableName()] = [this] (const TExprNode& node, TArgIndex& argIndex, ui32 frameLevel) {
         if (const auto flags = TYtDqProcessWrite(&node).Flags()) {
             // Only for hybrid for now.

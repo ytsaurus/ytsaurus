@@ -54,6 +54,7 @@ SRCS(
     yql_yt_ytflow_optimize.cpp
 
     phy_opt/yql_yt_phy_opt.cpp
+    phy_opt/yql_yt_phy_opt_alter.cpp
     phy_opt/yql_yt_phy_opt_content.cpp
     phy_opt/yql_yt_phy_opt_create.cpp
     phy_opt/yql_yt_phy_opt_fuse.cpp

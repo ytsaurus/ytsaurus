@@ -493,6 +493,11 @@
             "Match": {"Type": "Callable", "Name": "YtMerge!"}
         },
         {
+            "Name": "TYtAlter",
+            "Base": "TYtOutputOpBase",
+            "Match": {"Type": "Callable", "Name": "YtAlter!"}
+        },
+        {
             "Name": "TYtEquiJoin",
             "Base": "TYtTransientOpBase",
             "Match": {"Type": "Callable", "Name": "YtEquiJoin!"},

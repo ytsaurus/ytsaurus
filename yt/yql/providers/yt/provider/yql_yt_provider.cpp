@@ -537,6 +537,7 @@ struct TYtDataSinkFunctions {
         Names.insert(TYtSort::CallableName());
         Names.insert(TYtCopy::CallableName());
         Names.insert(TYtMerge::CallableName());
+        Names.insert(TYtAlter::CallableName());
         Names.insert(TYtMap::CallableName());
         Names.insert(TYtReduce::CallableName());
         Names.insert(TYtMapReduce::CallableName());
@@ -545,6 +546,7 @@ struct TYtDataSinkFunctions {
         Names.insert(TYtTouch::CallableName());
         Names.insert(TYtCreateTable::CallableName());
         Names.insert(TYtDropTable::CallableName());
+        Names.insert(TYtAlterTable::CallableName());
         Names.insert(TYtCreateView::CallableName());
         Names.insert(TYtDropView::CallableName());
         Names.insert(TCoCommit::CallableName());

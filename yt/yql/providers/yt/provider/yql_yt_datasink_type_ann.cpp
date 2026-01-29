@@ -98,6 +98,7 @@ public:
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleSort));
         AddHandler({TYtCopy::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCopy));
         AddHandler({TYtMerge::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMerge));
+        AddHandler({TYtAlter::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleAlter));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMap));
         AddHandler({TYtReduce::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleReduce));
         AddHandler({TYtMapReduce::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleMapReduce));
@@ -1186,6 +1187,22 @@ private:
         }
 
         input->SetTypeAnn(MakeOutputOperationType(merge, ctx));
+        return TStatus::Ok;
+    }
+
+    TStatus HandleAlter(const TExprNode::TPtr& input, TExprNode::TPtr&, TExprContext& ctx) {
+        if (!EnsureArgsCount(*input, 3U, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateOutputOpBase(input, ctx, true)) {
+            return TStatus::Error;
+        }
+
+        const TYtAlter alter(input);
+        const TYqlRowSpecInfo outRowSpec(alter.Output().Item(0).RowSpec());
+
+        input->SetTypeAnn(MakeOutputOperationType(alter, ctx));
         return TStatus::Ok;
     }
 
