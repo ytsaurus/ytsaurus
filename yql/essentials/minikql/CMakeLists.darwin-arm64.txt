@@ -111,6 +111,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_alloc.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_core_win_frames_collector.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_core_win_frames_collector_test_helper.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_core_window_frames_collector_params_deserializer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_mem_info.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_numeric_cast.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_safe_arithmetic_ops.h
@@ -118,5 +119,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_stats_registry.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_type_helper.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_window_comparator_bounds.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_window_defs.h
 )
 
