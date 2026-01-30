@@ -28,10 +28,9 @@ def _build_percentile_sensor(sensor, percentiles=[99.9, 99, 95, 90, 75, 50]):
     sensor = sensor.hidden(True)
     sensors.append(sensor)
 
-    for percentile in percentiles:
-        sensors.append(MonitoringExpr(MonitoringExpr.NodeType.Terminal, sensor.get_tags()[SystemFields.Name]) \
-            .name(str(percentile))                                                                            \
-            .series_percentile(percentile))
+    sensors.append(MonitoringExpr(MonitoringExpr.NodeType.Terminal, sensor.get_tags()[SystemFields.Name]) \
+        .name(str(percentiles))                                                                            \
+        .series_percentile(percentiles))
 
     return MultiSensor(*sensors)
 
