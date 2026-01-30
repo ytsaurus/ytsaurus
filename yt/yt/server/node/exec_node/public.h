@@ -87,6 +87,8 @@ struct TUserSandboxOptions
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
     bool EnableRootVolumeDiskQuota = false;
+    // COMPAT(yuryalekseev): This is to enable the actual root volume disk quota until YT-25942 is done.
+    bool EnableDiskQuota = true;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
