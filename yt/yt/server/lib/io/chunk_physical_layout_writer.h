@@ -9,7 +9,7 @@ namespace NYT::NIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 // IPhysicalLayerWriter
-struct IIPhysicalLayerWriter
+struct IPhysicalLayerWriter
     : public virtual TRefCounted
 {
     virtual TFuture<void> Open() = 0;
@@ -56,7 +56,7 @@ struct IIPhysicalLayerWriter
         i64 spaceSize) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IIPhysicalLayerWriter)
+DEFINE_REFCOUNTED_TYPE(IPhysicalLayerWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +85,7 @@ struct IWrapperFairShareChunkWriter
     virtual const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const = 0;
 
     //! Returns the name of the file passed to the writer upon construction.
+    // TODO: NOT APLICABLE TO S3
     virtual const TString& GetFileName() const = 0;
 
     //! Returns the total data size accumulated so far.
@@ -93,7 +94,7 @@ struct IWrapperFairShareChunkWriter
      */
     virtual i64 GetDataSize() const = 0;
 
-
+    // TODO: NOT APLICABLE TO S3
     virtual TFuture<void> PreallocateDiskSpace(
         const TWorkloadDescriptor& workloadDescriptor,
         i64 spaceSize) = 0;
@@ -104,7 +105,10 @@ DEFINE_REFCOUNTED_TYPE(IWrapperFairShareChunkWriter);
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: virtual destructors!
-IWrapperFairShareChunkWriterPtr CreateChunkLayoutWriterAdapter(IIPhysicalLayerWriterPtr underlying, bool syncOnClose = true);
+IWrapperFairShareChunkWriterPtr CreateChunkLayoutWriterAdapter(
+    IPhysicalLayerWriterPtr underlying,
+    IInvokerPtr invoker,
+    bool syncOnClose = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

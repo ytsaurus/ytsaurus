@@ -37,6 +37,7 @@ static constexpr auto FileMode =
 
 TChunkFileWriter::TChunkFileWriter(
     IIOEnginePtr ioEngine,
+    IInvokerPtr invoker,
     TChunkId chunkId,
     TString fileName,
     bool syncOnClose,
@@ -47,6 +48,7 @@ TChunkFileWriter::TChunkFileWriter(
     , SyncOnClose_(syncOnClose)
     , UseDirectIO_(useDirectIO)
     , Logger(IOLogger())
+    , Invoker_(std::move(invoker))
 { }
 
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
@@ -78,7 +80,7 @@ void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
     TDelayedExecutor::Submit(
         BIND(&TChunkFileWriter::TryLockDataFile, MakeStrong(this), promise),
         TDuration::MilliSeconds(10),
-        IOEngine_->GetAuxPoolInvoker());
+        Invoker_);
 }
 
 void TChunkFileWriter::SetFailed(const TError& error)
@@ -125,7 +127,7 @@ TFuture<void> TChunkFileWriter::Open()
             auto promise = NewPromise<void>();
             TryLockDataFile(promise);
             return promise.ToFuture();
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+        }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -228,7 +230,7 @@ bool TChunkFileWriter::WriteBlocks(
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
             State_.store(EState::Ready);
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
+        }).AsyncVia(Invoker_));
 
     return false;
 }
@@ -294,7 +296,7 @@ TFuture<void> TChunkFileWriter::Close(
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
             return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, GetFileMode()});
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+        }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
@@ -326,7 +328,7 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+                }).AsyncVia(Invoker_))
                 .Apply(BIND(&IIOEngine::Close,
                     IOEngine_,
                     TCloseRequest{
@@ -334,11 +336,11 @@ TFuture<void> TChunkFileWriter::Close(
                         metadataSize,
                         SyncOnClose_
                     },
-                    workloadDescriptor.Category).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+                    workloadDescriptor.Category).AsyncVia(Invoker_))
                 .Apply(BIND([chunkWriterStatistics] (const TCloseResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+                }).AsyncVia(Invoker_));
+        }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this),
@@ -359,8 +361,8 @@ TFuture<void> TChunkFileWriter::Close(
                     chunkWriterStatistics = std::move(chunkWriterStatistics)
                 ] (const TFlushDirectoryResponse& rsp) {
                     chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+                }).AsyncVia(Invoker_));
+        }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
             this_ = MakeStrong(this)
@@ -376,7 +378,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             // PhysicalChunkLayoutWriter_->UpdateChunkInfoDiskSpace();
             State_.store(EState::Closed);
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
+        }).AsyncVia(Invoker_));
 }
 
 // i64 TChunkFileWriter::GetDataSize() const
@@ -413,7 +415,7 @@ TFuture<void> TChunkFileWriter::Cancel()
 
             State_.store(EState::Aborted);
         })
-        .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+        .AsyncVia(Invoker_)
         .Run();
 }
 
@@ -467,8 +469,10 @@ IWrapperFairShareChunkWriterPtr CreateChunkFileWriter(
     bool syncOnClose,
     bool useDirectIO)
 {
+    auto invoker = ioEngine->GetAuxPoolInvoker();
     return CreateChunkLayoutWriterAdapter(
-        New<TChunkFileWriter>(std::move(ioEngine), chunkId, std::move(fileName), syncOnClose, useDirectIO),
+        New<TChunkFileWriter>(std::move(ioEngine), invoker, chunkId, std::move(fileName), syncOnClose, useDirectIO),
+        invoker,
         syncOnClose);
 }
 

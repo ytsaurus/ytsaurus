@@ -35,11 +35,12 @@ DEFINE_ENUM(EFileWriterState,
 
 // TODO(cherepashka): move the implementation away from the header file.
 class TChunkFileWriter
-    : public IIPhysicalLayerWriter
+    : public IPhysicalLayerWriter
 {
 public:
     TChunkFileWriter(
         IIOEnginePtr ioEngine,
+        IInvokerPtr invoker,
         NChunkClient::TChunkId chunkId,
         TString fileName,
         bool syncOnClose = true,
@@ -89,6 +90,7 @@ private:
     const bool SyncOnClose_;
     const bool UseDirectIO_;
     const NLogging::TLogger Logger;
+    const IInvokerPtr Invoker_;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;

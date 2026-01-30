@@ -200,7 +200,7 @@ public:
     }
 
     //! Session must be started before calling Add.
-    bool Add(const std::vector<TSharedRef>& data) // todo: remove const ref
+    bool Add(std::vector<TSharedRef> data) // todo: remove const ref
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -217,7 +217,7 @@ public:
         auto size = GetByteSize(data);
         UploadWindowSemaphore_->Acquire(size);
 
-        BufferedData_.insert(BufferedData_.end(), data.begin(), data.end());
+        BufferedData_.insert(BufferedData_.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
         BufferedDataSize_ += size;
 
         GuardedSchedulePartUploadIfNeeded();
@@ -306,6 +306,7 @@ private:
         return State_;
     }
 
+    // todo: compare and swap
     bool TryExchangeState(ES3UploadSessionState expected, ES3UploadSessionState desired)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -644,7 +645,7 @@ using TS3ChunkMetaUploadSessionPtr = TIntrusivePtr<TS3SimpleUploadSession>;
 ////////////////////////////////////////////////////////////////////////////
 
 class TS3Writer
-    : public NIO::IPhysicalChunkWriter
+    : public NIO::IPhysicalLayerWriter
 {
 public:
     TS3Writer(
@@ -685,7 +686,7 @@ public:
         TWriteRequest request,
         TFairShareSlotId /*fairShareSlotId*/) override
     {
-        return ChunkUploadSession_->Add(request.Buffers);
+        return ChunkUploadSession_->Add(std::move(request.Buffers));
     }
 
     TFuture<void> GetReadyEvent() override
@@ -802,11 +803,13 @@ NIO::IWrapperFairShareChunkWriterPtr CreateS3RegularChunkWriter(
     YT_VERIFY(IsRegularChunkId(sessionId.ChunkId));
     YT_VERIFY(sessionId.MediumIndex == mediumDescriptor->GetIndex());
 
-    return NIO::CreateChunkLayoutWriterAdapter(New<TS3Writer>(
-        std::move(client),
-        std::move(mediumDescriptor),
-        std::move(config),
-        sessionId));
+    return NIO::CreateChunkLayoutWriterAdapter(
+        New<TS3Writer>(
+            std::move(client),
+            std::move(mediumDescriptor),
+            std::move(config),
+            sessionId),
+        TDispatcher::Get()->GetWriterInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////
