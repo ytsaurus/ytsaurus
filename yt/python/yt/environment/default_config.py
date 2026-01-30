@@ -77,7 +77,6 @@ def get_master_config():
 
 
 # COMPAT(koloshmet) cypress_manager/enable_preserve_acl_during_move
-# COMPAT(grphil) chunk_manager/always_fetch_non_online_replicas
 def get_dynamic_master_config():
     return {
         "chunk_manager": {
@@ -88,7 +87,6 @@ def get_dynamic_master_config():
             "removal_job_schedule_delay": 0,
             "replicator_enabled_check_period": 1000,
             "enable_chunk_schemas": True,
-            "always_fetch_non_online_replicas": False,
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
