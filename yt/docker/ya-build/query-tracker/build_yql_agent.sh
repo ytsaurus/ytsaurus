@@ -105,7 +105,7 @@ if [ "$build_python_udfs" == "yes" ]; then
     --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
-    ghcr.io/ytsaurus/build-env:latest \
+    ghcr.io/ilyaibraev/build-env:protoc3.20.1 \
     /bin/bash -c \
     "/ytsaurus/yt/docker/ya-build/query-tracker/build_system_python_udfs.sh"
 fi

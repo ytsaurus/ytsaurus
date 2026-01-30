@@ -4,9 +4,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG GO_VERSION=1.23.2
 ARG NODE_VERSION=16.20.1
-ARG PROTOC_VERSION=22.5
+ARG PROTOC_VERSION=3.20.1
 ARG CCACHE_VERSION=4.8.2
-ARG PYTHON_VERSION=3.11.4
+ARG PYTHON38_VERSION=3.8.19
+ARG PYTHON39_VERSION=3.9.19
+ARG PYTHON310_VERSION=3.10.14
+ARG PYTHON311_VERSION=3.11.4
+ARG PYTHON312_VERSION=3.12.3
 ARG CONAN_VERSION=2.4.1
 ARG PYYAML_VERSION=6.0.1
 ARG WHEEL_VERSION=0.41.3
@@ -37,7 +41,8 @@ RUN apt-get update && \
         libncursesw5-dev \
         xz-utils \
         tk-dev \
-        liblzma-dev
+        liblzma-dev \
+        libffi-dev
 
 RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add && \
@@ -56,20 +61,25 @@ RUN curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dear
     apt-get update && \
     apt-get install -y cmake
 
+RUN add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update && \
+    apt-get install -y git
+
 ENV GOPATH=/opt/go
 ENV PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
 RUN wget "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" && \
     tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz" && \
     rm "go${GO_VERSION}.linux-amd64.tar.gz"
 
-RUN wget "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz" && \
-    tar xzf "Python-${PYTHON_VERSION}.tgz" && \
-    cd "Python-${PYTHON_VERSION}" && \
-    ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+RUN wget "https://www.python.org/ftp/python/${PYTHON311_VERSION}/Python-${PYTHON311_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON311_VERSION}.tgz" && \
+    cd "Python-${PYTHON311_VERSION}" && \
+    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
-    rm -rf "Python-${PYTHON_VERSION}" "Python-${PYTHON_VERSION}.tgz"
+    rm -rf "Python-${PYTHON311_VERSION}" "Python-${PYTHON311_VERSION}.tgz"
 
 RUN python3.11 -m ensurepip && \
     python3.11 -m pip install --no-cache-dir --ignore-installed \
@@ -89,9 +99,45 @@ RUN python3.11 -m venv /root/venv_for_github_actions && \
         ytsaurus-client \
         ytsaurus-yson
 
-RUN add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y python3.8-dev python3.9-dev python3.10-dev python3.12-dev
+RUN wget "https://www.python.org/ftp/python/${PYTHON38_VERSION}/Python-${PYTHON38_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON38_VERSION}.tgz" && \
+    cd "Python-${PYTHON38_VERSION}" && \
+    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    cd .. && \
+    rm -rf "Python-${PYTHON38_VERSION}" "Python-${PYTHON38_VERSION}.tgz"
+
+RUN wget "https://www.python.org/ftp/python/${PYTHON39_VERSION}/Python-${PYTHON39_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON39_VERSION}.tgz" && \
+    cd "Python-${PYTHON39_VERSION}" && \
+    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    cd .. && \
+    rm -rf "Python-${PYTHON39_VERSION}" "Python-${PYTHON39_VERSION}.tgz"
+
+RUN wget "https://www.python.org/ftp/python/${PYTHON310_VERSION}/Python-${PYTHON310_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON310_VERSION}.tgz" && \
+    cd "Python-${PYTHON310_VERSION}" && \
+    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    cd .. && \
+    rm -rf "Python-${PYTHON310_VERSION}" "Python-${PYTHON310_VERSION}.tgz"
+
+RUN wget "https://www.python.org/ftp/python/${PYTHON312_VERSION}/Python-${PYTHON312_VERSION}.tgz" && \
+    tar xzf "Python-${PYTHON312_VERSION}.tgz" && \
+    cd "Python-${PYTHON312_VERSION}" && \
+    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    cd .. && \
+    rm -rf "Python-${PYTHON312_VERSION}" "Python-${PYTHON312_VERSION}.tgz"
 
 RUN wget "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" && \
     unzip "protoc-${PROTOC_VERSION}-linux-x86_64.zip" -d /usr/local && \
@@ -103,10 +149,6 @@ RUN wget "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/
     make install && \
     cd .. && \
     rm -rf "ccache-${CCACHE_VERSION}-linux-x86_64" "ccache-${CCACHE_VERSION}-linux-x86_64.tar.xz"
-
-RUN add-apt-repository -y ppa:git-core/ppa && \
-    apt-get update && \
-    apt-get install -y git
 
 RUN rm -rf /var/lib/apt/lists/*
 

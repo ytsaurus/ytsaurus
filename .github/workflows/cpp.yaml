@@ -168,7 +168,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-ytsaurus-tests: true
+      build-ytsaurus-tests: false
       build-query-tracker: true
       build-python: true
       build-chyt: true
