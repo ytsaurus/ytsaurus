@@ -337,6 +337,21 @@ char * ColumnTuple::serializeValueIntoMemory(size_t n, char * memory) const
     return memory;
 }
 
+std::optional<size_t> ColumnTuple::getSerializedValueSize(size_t n) const
+{
+    size_t res = 0;
+    for (const auto & column : columns)
+    {
+        auto element_size = column->getSerializedValueSize(n);
+        if (!element_size)
+            return std::nullopt;
+        res += *element_size;
+    }
+
+    return res;
+}
+
+
 const char * ColumnTuple::deserializeAndInsertFromArena(const char * pos)
 {
     ++column_length;
@@ -834,6 +849,18 @@ void ColumnTuple::takeDynamicStructureFromSourceColumns(const Columns & source_c
         columns[i]->takeDynamicStructureFromSourceColumns(nested_source_columns[i]);
 }
 
+void ColumnTuple::takeDynamicStructureFromColumn(const ColumnPtr & source_column)
+{
+    const auto & source_elements = assert_cast<const ColumnTuple &>(*source_column).getColumns();
+    for (size_t i = 0; i != columns.size(); ++i)
+        columns[i]->takeDynamicStructureFromColumn(source_elements[i]);
+}
+
+void ColumnTuple::fixDynamicStructure()
+{
+    for (auto & column : columns)
+        column->fixDynamicStructure();
+}
 
 ColumnPtr ColumnTuple::compress(bool force_compression) const
 {
