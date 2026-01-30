@@ -650,6 +650,9 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->MaterializeNode(context, this, sourceNodeId);
 
+        const auto& handler = cypressManager->GetHandler(TypeFromId(sourceNodeId));
+        handler->FillAttributes(clonedTrunkNode, inheritedAttributes, nullptr);
+
         auto* clonedNode = cypressManager->LockNode(
             clonedTrunkNode,
             Transaction_,

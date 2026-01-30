@@ -1,5 +1,5 @@
 # orm/descriptor_props.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1001,7 +1001,7 @@ class SynonymProperty(DescriptorProperty[_T]):
             if isinstance(attr, attributes.QueryableAttribute):
                 return attr.comparator
             elif isinstance(attr, SQLORMOperations):
-                # assocaition proxy comes here
+                # association proxy comes here
                 return attr
 
             raise sa_exc.InvalidRequestError(

@@ -10,7 +10,6 @@ pragma config.flags(
     "EmitPruneKeys",
     "FilterPushdownEnableMultiusage",
     "PushdownComplexFiltersOverAggregate",
-    "ExtractCommonPredicatesFromLogicalOps",
     "PullUpExtendOverEquiJoin",
     "DisableEmitSkipNullOnPushDown",
     "DropAnyOverEquiJoinInputs",

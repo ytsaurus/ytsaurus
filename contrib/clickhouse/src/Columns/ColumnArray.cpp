@@ -260,6 +260,25 @@ char * ColumnArray::serializeValueIntoMemory(size_t n, char * memory) const
     return memory;
 }
 
+std::optional<size_t> ColumnArray::getSerializedValueSize(size_t n) const
+{
+    const auto & offsets_data = getOffsets();
+
+    size_t pos = offsets_data[n - 1];
+    size_t end = offsets_data[n];
+
+    size_t res = sizeof(offsets_data[0]);
+    for (; pos < end; ++pos)
+    {
+        auto element_size = getData().getSerializedValueSize(pos);
+        if (!element_size)
+            return std::nullopt;
+        res += *element_size;
+    }
+
+    return res;
+}
+
 
 const char * ColumnArray::deserializeAndInsertFromArena(const char * pos)
 {
@@ -1373,6 +1392,11 @@ void ColumnArray::takeDynamicStructureFromSourceColumns(const Columns & source_c
         nested_source_columns.push_back(assert_cast<const ColumnArray &>(*source_column).getDataPtr());
 
     data->takeDynamicStructureFromSourceColumns(nested_source_columns);
+}
+
+void ColumnArray::takeDynamicStructureFromColumn(const ColumnPtr & source_column)
+{
+    data->takeDynamicStructureFromColumn(assert_cast<const ColumnArray &>(*source_column).getDataPtr());
 }
 
 }

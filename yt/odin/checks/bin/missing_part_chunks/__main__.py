@@ -3,6 +3,9 @@ from yt_odin_checks.lib.virtual_chunk_map_helpers import check_virtual_map_age
 
 from datetime import timedelta
 
+DEFAULT_MAX_AGE = timedelta(hours=4)
+DEFAULT_CHUNK_COUNT_THRESHOLD = 1000000
+
 
 def run_check(yt_client, logger, options, states):
     messages = {}
@@ -13,11 +16,12 @@ def run_check(yt_client, logger, options, states):
         else:
             return states.UNKNOWN_STATE
 
-    max_age = timedelta(minutes=options["max_age_minutes"])
+    max_age = options.get("max_age_minutes", DEFAULT_MAX_AGE)
+    chunk_count_threshold = options.get("chunk_count_threshold", DEFAULT_CHUNK_COUNT_THRESHOLD)
 
     if any([message["age"] is not None and message["age"] >= max_age for message in messages.values()]):
         return states.UNAVAILABLE_STATE, messages
-    elif any([message["count"] is not None and message["count"] >= options["chunk_count_threshold"] for message in messages.values()]):
+    elif any([message["count"] is not None and message["count"] >= chunk_count_threshold for message in messages.values()]):
         return states.PARTIALLY_AVAILABLE_STATE, messages
     else:
         return states.FULLY_AVAILABLE_STATE

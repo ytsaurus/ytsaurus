@@ -317,8 +317,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
 class TestReplicatedTableIOTracking(TestDynamicTableIOTrackingBase, TestReplicatedDynamicTablesBase):
     def setup_method(self, method):
-        super(TestReplicatedDynamicTablesBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestReplicatedTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_replication(self):
@@ -362,8 +361,7 @@ class TestChaosTableIOTracking(TestDynamicTableIOTrackingBase, ChaosTestBase):
     }
 
     def setup_method(self, method):
-        super(ChaosTestBase, self).setup_method(method)
-        super(TestDynamicTableIOTrackingBase, self).setup_method(method)
+        super(TestChaosTableIOTracking, self).setup_method(method)
 
     @authors("tea-mur")
     def test_pull(self):

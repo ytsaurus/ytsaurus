@@ -893,7 +893,13 @@ void TWebAssemblyCompartment::ApplyDataRelocationsAndCallConstructors(Runtime::I
         if (auto* function = getTypedInstanceExport(instance, name, signature)) {
             auto arguments = std::array<IR::UntaggedValue, 0>{};
             SaveAndRestoreCompartment(this, [&] {
-                Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                try {
+                    Runtime::invokeFunction(Context_, function, signature, arguments.data(), {});
+                } catch (WAVM::Runtime::Exception* ex) {
+                    auto description = WAVM::Runtime::describeException(ex);
+                    WAVM::Runtime::destroyException(ex);
+                    THROW_ERROR_EXCEPTION("WAVM Runtime Exception: %Qv", description);
+                }
             });
         }
     };

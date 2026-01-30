@@ -195,7 +195,12 @@ class TestSmoothMovement(SmoothMovementBase):
     @authors("ponasenko-rs")
     def test_basic_conflict_horizon_timestamp_propagation(self):
         sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "backing_store_retention_time": 5000,
+            },
+        )
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -211,6 +216,9 @@ class TestSmoothMovement(SmoothMovementBase):
         assert_items_equal(expected_rows, select_rows("* from [//tmp/t]"))
 
         self._sync_move_tablet(tablet_id)
+
+        # Wait until backing store is released.
+        time.sleep(5)
 
         sync_unmount_table("//tmp/t")
 

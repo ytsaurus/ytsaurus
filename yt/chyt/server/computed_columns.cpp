@@ -190,7 +190,7 @@ public:
         // key in (4, 5) -> ... AND ((key, computed_key) in ((4, f(4)), (5, f(5)))).
         // (key, smth) == (4, 'x') -> ... AND ((key, computed_key) in ((4, f(4)))).
         if (node->getNodeType() == DB::QueryTreeNodeType::FUNCTION) {
-            auto functionAst = node->toAST({.add_cast_for_constants = false})->as<DB::ASTFunction&>();
+            auto functionAst = node->toAST()->as<DB::ASTFunction&>();
             if (auto rewrittenNode = TryRewrite(functionAst)) {
                 node = rewrittenNode;
                 return;
@@ -519,9 +519,10 @@ private:
                 for (const auto& constField : constFields) {
                     if (DB::Tuple tuple; constField.tryGet<DB::Tuple>(tuple)) {
                         possibleTuples.emplace_back(tuple);
-                    } else {
-                        return nullptr;
                     }
+                }
+                if (possibleTuples.empty()) {
+                    possibleTuples.emplace_back(constFields);
                 }
             } else {
                 possibleTuples = Transpose(constFields);

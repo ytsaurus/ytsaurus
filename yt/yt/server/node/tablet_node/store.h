@@ -91,6 +91,7 @@ struct IStore
 
     virtual TStoreId GetId() const = 0;
     virtual TTablet* GetTablet() const = 0;
+    virtual TTabletId GetTabletId() const = 0;
 
     virtual i64 GetDataWeight() const = 0;
     virtual i64 GetCompressedDataSize() const = 0;

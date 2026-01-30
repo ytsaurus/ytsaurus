@@ -24,8 +24,9 @@ SRCS(
     GLOBAL yson_to_json.cpp
     unescaped_yson.cpp
     GLOBAL ypath.cpp
-    GLOBAL yson_extract.cpp
+    GLOBAL yson_functions.cpp
     yson_parser_adapter.cpp
+    yson_extract_tree.cpp
 )
 
 END()

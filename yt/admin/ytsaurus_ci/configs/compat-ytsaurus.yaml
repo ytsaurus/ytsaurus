@@ -34,3 +34,10 @@ main:
     query_tracker: ">=0.0.11"
     strawberry: 0.0.15
     chyt: ">=2.17.4"
+25.4:
+  <<: *ytsaurus_24_2_0
+  constraints:
+    operator: ">=0.27.0 && main"
+    query_tracker: ">=0.0.11"
+    strawberry: "0.0.15"
+    chyt: ">=2.17.4"
