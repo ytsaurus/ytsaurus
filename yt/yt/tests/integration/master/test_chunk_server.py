@@ -489,7 +489,7 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("grphil")
     def test_fetch_only_online_replicas(self):
-        assert not get("//sys/@config/chunk_manager/always_fetch_non_online_replicas")
+        set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
 
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
@@ -986,6 +986,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "pending_restart_lease_timeout": 100000
             },
         })
+        set("//sys/@config/chunk_manager/always_fetch_non_online_replicas", False)
         self._wait_for_profiler_ready()
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
