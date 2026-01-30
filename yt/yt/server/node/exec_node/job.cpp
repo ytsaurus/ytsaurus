@@ -511,7 +511,16 @@ void TJob::Start() noexcept
     }
 
     if (auto slot = GetUserSlot()) {
-        slot->ValidateEnabled();
+        try {
+            slot->ValidateEnabled();
+        } catch (const std::exception& ex) {
+            auto error = TError("Can not start job")
+                << TErrorAttribute("abort_reason", EAbortReason::UserSlotDisabled)
+                << ex;
+            YT_LOG_WARNING(error);
+            Abort(std::move(error));
+            return;
+        }
     }
 
     YT_VERIFY(!std::exchange(Started_, true));
