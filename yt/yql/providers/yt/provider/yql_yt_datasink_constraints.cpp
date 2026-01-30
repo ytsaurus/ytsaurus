@@ -28,6 +28,7 @@ public:
         AddHandler({TYtSort::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtCopy::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtMerge::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
+        AddHandler({TYtAlter::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleTransientOp));
         AddHandler({TYtMap::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtMap::idx_Mapper, TYtMap::idx_Mapper>));
         AddHandler({TYtReduce::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtReduce::idx_Reducer, TYtReduce::idx_Reducer>));
         AddHandler({TYtMapReduce::CallableName()}, Hndl(&TYtDataSinkConstraintTransformer::HandleUserJobOp<TYtMapReduce::idx_Mapper, TYtMapReduce::idx_Reducer>));

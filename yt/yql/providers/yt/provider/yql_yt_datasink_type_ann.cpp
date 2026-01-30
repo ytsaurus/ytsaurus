@@ -1006,6 +1006,46 @@ private:
         return TStatus::Ok;
     }
 
+    bool ValidateGroup(const TYtTransientOpBase& op, TExprContext& ctx) {
+        TStringBuf outGroup;
+        if (auto setting = NYql::GetSetting(op.Output().Item(0).Settings().Ref(), EYtSettingType::ColumnGroups)) {
+            outGroup = setting->Tail().Content();
+        }
+
+        bool diffGroups = false;
+        const auto& path = op.Input().Item(0).Paths().Item(0);
+        if (const auto table = path.Table().Maybe<TYtTable>()) {
+            if (const auto tableDesc = State_->TablesData->FindTable(op.DataSink().Cluster().StringValue(), TString{TYtTableInfo::GetTableLabel(table.Cast())}, TEpochInfo::Parse(table.Cast().Epoch().Ref()))) {
+                diffGroups = tableDesc->ColumnGroupSpecAlts.empty() != outGroup.empty() || (!outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.contains(outGroup));
+                if (diffGroups && !outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.empty()) {
+                    TString expanded;
+                    if (ExpandDefaultColumnGroup(outGroup, *GetSeqItemType(*op.Output().Item(0).Ref().GetTypeAnn()).Cast<TStructExprType>(), expanded)) {
+                        diffGroups = !tableDesc->ColumnGroupSpecAlts.contains(expanded);
+                    }
+                }
+            }
+        } else if (const auto out = path.Table().Maybe<TYtOutput>()) {
+            TStringBuf inGroup;
+            if (const auto setting = NYql::GetSetting(GetOutputOp(out.Cast()).Output().Item(FromString<ui32>(out.Cast().OutIndex().Value())).Settings().Ref(), EYtSettingType::ColumnGroups)) {
+                inGroup = setting->Tail().Content();
+            }
+            diffGroups = inGroup != outGroup;
+        } else if (const auto outTable = path.Table().Maybe<TYtOutTable>()) {
+            TStringBuf inGroup;
+            if (const auto setting = NYql::GetSetting(outTable.Cast().Settings().Ref(), EYtSettingType::ColumnGroups)) {
+                inGroup = setting->Tail().Content();
+            }
+            diffGroups = inGroup != outGroup;
+        }
+
+        if (diffGroups) {
+            ctx.AddError(TIssue(ctx.GetPosition(op.Output().Item(0).Settings().Pos()), TStringBuilder() << op.Ref().Content()
+            << " has input/output tables with different " << EYtSettingType::ColumnGroups << " values"));
+            return false;
+        }
+        return true;
+    }
+
     TStatus HandleCopy(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
         if (!EnsureArgsCount(*input, 5, ctx)) {
             return TStatus::Error;
@@ -1077,40 +1117,7 @@ private:
             return TStatus::Error;
         }
 
-        TStringBuf outGroup;
-        if (auto setting = NYql::GetSetting(copy.Output().Item(0).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-            outGroup = setting->Tail().Content();
-        }
-
-        bool diffGroups = false;
-        const auto& path = copy.Input().Item(0).Paths().Item(0);
-        if (auto table = path.Table().Maybe<TYtTable>()) {
-            if (auto tableDesc = State_->TablesData->FindTable(copy.DataSink().Cluster().StringValue(), TString{TYtTableInfo::GetTableLabel(table.Cast())}, TEpochInfo::Parse(table.Cast().Epoch().Ref()))) {
-                diffGroups = tableDesc->ColumnGroupSpecAlts.empty() != outGroup.empty() || (!outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.contains(outGroup));
-                if (diffGroups && !outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.empty()) {
-                    TString expanded;
-                    if (ExpandDefaultColumnGroup(outGroup, *GetSeqItemType(*copy.Output().Item(0).Ref().GetTypeAnn()).Cast<TStructExprType>(), expanded)) {
-                        diffGroups = !tableDesc->ColumnGroupSpecAlts.contains(expanded);
-                    }
-                }
-            }
-        } else if (auto out = path.Table().Maybe<TYtOutput>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(GetOutputOp(out.Cast()).Output().Item(FromString<ui32>(out.Cast().OutIndex().Value())).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        } else if (auto outTable = path.Table().Maybe<TYtOutTable>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(outTable.Cast().Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        }
-
-        if (diffGroups) {
-            ctx.AddError(TIssue(ctx.GetPosition(copy.Output().Item(0).Settings().Pos()), TStringBuilder() << TYtCopy::CallableName()
-                << " has input/output tables with different " << EYtSettingType::ColumnGroups << " values"));
+        if (!ValidateGroup(copy, ctx)) {
             return TStatus::Error;
         }
 
@@ -1202,8 +1209,8 @@ private:
         const TYtAlter alter(input);
         const TYqlRowSpecInfo outRowSpec(alter.Output().Item(0).RowSpec());
 
-        for (TYtSection section: alter.Input()) {
-            for (TYtPath path: section.Paths()) {
+        for (const auto section: alter.Input()) {
+            for (const auto path: section.Paths()) {
                 if (!path.Ranges().Maybe<TCoVoid>()) {
                     ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName() << " cannot be used with range selection"));
                     return TStatus::Error;
@@ -1227,11 +1234,6 @@ private:
                     << " cannot be applied to tables with QB2 premapper, inferred, yamred_dsv, or non-strict schemas"));
                     return TStatus::Error;
                 }
-                if (tableInfo->RowSpec && tableInfo->RowSpec->GetNativeYtTypeFlags() != outRowSpec.GetNativeYtTypeFlags()) {
-                    ctx.AddError(TIssue(ctx.GetPosition(path.Pos()), TStringBuilder() << TYtAlter::CallableName()
-                    << " has different input/output native YT types"));
-                    return TStatus::Error;
-                }
             }
         }
 
@@ -1247,40 +1249,7 @@ private:
             return TStatus::Error;
         }
 
-        TStringBuf outGroup;
-        if (auto setting = NYql::GetSetting(alter.Output().Item(0).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-            outGroup = setting->Tail().Content();
-        }
-
-        bool diffGroups = false;
-        const auto& path = alter.Input().Item(0).Paths().Item(0);
-        if (auto table = path.Table().Maybe<TYtTable>()) {
-            if (auto tableDesc = State_->TablesData->FindTable(alter.DataSink().Cluster().StringValue(), TString{TYtTableInfo::GetTableLabel(table.Cast())}, TEpochInfo::Parse(table.Cast().Epoch().Ref()))) {
-                diffGroups = tableDesc->ColumnGroupSpecAlts.empty() != outGroup.empty() || (!outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.contains(outGroup));
-                if (diffGroups && !outGroup.empty() && !tableDesc->ColumnGroupSpecAlts.empty()) {
-                    TString expanded;
-                    if (ExpandDefaultColumnGroup(outGroup, *GetSeqItemType(*alter.Output().Item(0).Ref().GetTypeAnn()).Cast<TStructExprType>(), expanded)) {
-                        diffGroups = !tableDesc->ColumnGroupSpecAlts.contains(expanded);
-                    }
-                }
-            }
-        } else if (auto out = path.Table().Maybe<TYtOutput>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(GetOutputOp(out.Cast()).Output().Item(FromString<ui32>(out.Cast().OutIndex().Value())).Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        } else if (auto outTable = path.Table().Maybe<TYtOutTable>()) {
-            TStringBuf inGroup;
-            if (auto setting = NYql::GetSetting(outTable.Cast().Settings().Ref(), EYtSettingType::ColumnGroups)) {
-                inGroup = setting->Tail().Content();
-            }
-            diffGroups = inGroup != outGroup;
-        }
-
-        if (diffGroups) {
-            ctx.AddError(TIssue(ctx.GetPosition(alter.Output().Item(0).Settings().Pos()), TStringBuilder() << TYtAlter::CallableName()
-            << " has input/output tables with different " << EYtSettingType::ColumnGroups << " values"));
+        if (!ValidateGroup(alter, ctx)) {
             return TStatus::Error;
         }
 
