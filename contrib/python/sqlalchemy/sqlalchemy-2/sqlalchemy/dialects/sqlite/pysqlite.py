@@ -1,5 +1,5 @@
 # dialects/sqlite/pysqlite.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -257,7 +257,7 @@ parameter::
 
 It's been observed that the :class:`.NullPool` implementation incurs an
 extremely small performance overhead for repeated checkouts due to the lack of
-connection re-use implemented by :class:`.QueuePool`.  However, it still
+connection reuse implemented by :class:`.QueuePool`.  However, it still
 may be beneficial to use this class if the application is experiencing
 issues with files being locked.
 

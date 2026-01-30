@@ -1,5 +1,5 @@
 # dialects/mysql/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1182,6 +1182,7 @@ if TYPE_CHECKING:
     from ...sql.functions import random
     from ...sql.functions import rollup
     from ...sql.functions import sysdate
+    from ...sql.schema import IdentityOptions
     from ...sql.schema import Sequence as Sequence_SchemaItem
     from ...sql.type_api import TypeEngine
     from ...sql.visitors import ExternallyTraversible
@@ -1358,10 +1359,10 @@ class MySQLCompiler(compiler.SQLCompiler):
     def visit_aggregate_strings_func(
         self, fn: aggregate_strings, **kw: Any
     ) -> str:
-        expr, delimeter = (
+        expr, delimiter = (
             elem._compiler_dispatch(self, **kw) for elem in fn.clauses
         )
-        return f"group_concat({expr} SEPARATOR {delimeter})"
+        return f"group_concat({expr} SEPARATOR {delimiter})"
 
     def visit_sequence(self, sequence: sa_schema.Sequence, **kw: Any) -> str:
         return "nextval(%s)" % self.preparer.format_sequence(sequence)
@@ -2329,6 +2330,15 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
             self.preparer.format_column(create.element),
             self.get_column_specification(create.element),
         )
+
+    def get_identity_options(self, identity_options: IdentityOptions) -> str:
+        """mariadb-specific sequence option; this will move to a
+        mariadb-specific module in 2.1
+
+        """
+        text = super().get_identity_options(identity_options)
+        text = text.replace("NO CYCLE", "NOCYCLE")
+        return text
 
 
 class MySQLTypeCompiler(compiler.GenericTypeCompiler):

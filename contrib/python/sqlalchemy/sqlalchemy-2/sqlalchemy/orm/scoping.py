@@ -1,5 +1,5 @@
 # orm/scoping.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -548,7 +548,7 @@ class scoped_session(Generic[_S]):
             :meth:`_orm.Session.close` and :meth:`_orm.Session.reset`.
 
             :meth:`_orm.Session.close` - a similar method will additionally
-            prevent re-use of the Session when the parameter
+            prevent reuse of the Session when the parameter
             :paramref:`_orm.Session.close_resets_only` is set to ``False``.
 
         """  # noqa: E501

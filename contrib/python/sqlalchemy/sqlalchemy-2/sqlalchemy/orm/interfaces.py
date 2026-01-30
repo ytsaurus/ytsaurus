@@ -1,5 +1,5 @@
 # orm/interfaces.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -175,7 +175,7 @@ class _IntrospectsAnnotations:
         extracted_mapped_annotation: Optional[_AnnotationScanType],
         is_dataclass_field: bool,
     ) -> None:
-        """Perform class-specific initializaton at early declarative scanning
+        """Perform class-specific initialization at early declarative scanning
         time.
 
         .. versionadded:: 2.0
