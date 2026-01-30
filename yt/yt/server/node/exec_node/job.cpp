@@ -21,6 +21,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
+#include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
@@ -3418,6 +3419,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
     options.EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
