@@ -41,8 +41,7 @@ RUN apt-get update && \
         libncursesw5-dev \
         xz-utils \
         tk-dev \
-        liblzma-dev \
-        libffi-dev
+        liblzma-dev
 
 RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add && \
@@ -74,8 +73,8 @@ RUN wget "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" && \
 RUN wget "https://www.python.org/ftp/python/${PYTHON311_VERSION}/Python-${PYTHON311_VERSION}.tgz" && \
     tar xzf "Python-${PYTHON311_VERSION}.tgz" && \
     cd "Python-${PYTHON311_VERSION}" && \
-    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
-    ./configure && \
+    # ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure --prefix=/usr --enable-shared && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
@@ -102,8 +101,8 @@ RUN python3.11 -m venv /root/venv_for_github_actions && \
 RUN wget "https://www.python.org/ftp/python/${PYTHON38_VERSION}/Python-${PYTHON38_VERSION}.tgz" && \
     tar xzf "Python-${PYTHON38_VERSION}.tgz" && \
     cd "Python-${PYTHON38_VERSION}" && \
-    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
-    ./configure && \
+    # ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure --prefix=/usr --enable-shared && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
@@ -112,8 +111,8 @@ RUN wget "https://www.python.org/ftp/python/${PYTHON38_VERSION}/Python-${PYTHON3
 RUN wget "https://www.python.org/ftp/python/${PYTHON39_VERSION}/Python-${PYTHON39_VERSION}.tgz" && \
     tar xzf "Python-${PYTHON39_VERSION}.tgz" && \
     cd "Python-${PYTHON39_VERSION}" && \
-    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
-    ./configure && \
+    # ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure --prefix=/usr --enable-shared && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
@@ -122,8 +121,8 @@ RUN wget "https://www.python.org/ftp/python/${PYTHON39_VERSION}/Python-${PYTHON3
 RUN wget "https://www.python.org/ftp/python/${PYTHON310_VERSION}/Python-${PYTHON310_VERSION}.tgz" && \
     tar xzf "Python-${PYTHON310_VERSION}.tgz" && \
     cd "Python-${PYTHON310_VERSION}" && \
-    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
-    ./configure && \
+    # ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure --prefix=/usr --enable-shared && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
@@ -132,8 +131,8 @@ RUN wget "https://www.python.org/ftp/python/${PYTHON310_VERSION}/Python-${PYTHON
 RUN wget "https://www.python.org/ftp/python/${PYTHON312_VERSION}/Python-${PYTHON312_VERSION}.tgz" && \
     tar xzf "Python-${PYTHON312_VERSION}.tgz" && \
     cd "Python-${PYTHON312_VERSION}" && \
-    # ./configure --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
-    ./configure && \
+    # ./configure --prefix=/usr --enable-optimizations --with-lto --with-computed-gotos --with-system-ffi --enable-shared && \
+    ./configure --prefix=/usr --enable-shared && \
     make -j "$(nproc)" && \
     make altinstall && \
     cd .. && \
