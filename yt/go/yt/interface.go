@@ -713,6 +713,7 @@ type OperationStatus struct {
 	Result            *OperationResult           `yson:"result"`
 	Type              OperationType              `yson:"type"`
 	BriefProgress     OperationBriefProgress     `yson:"brief_progress"`
+	Progress          yson.RawValue              `yson:"progress"`
 	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
