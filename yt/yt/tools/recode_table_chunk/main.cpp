@@ -87,7 +87,7 @@ private:
     IChunkReaderPtr ChunkReader_;
     TChunkWriterOptionsPtr TableWriterOptions_;
     TChunkWriterConfigPtr TableWriterConfig_;
-    TChunkFileWriterPtr ChunkWriter_;
+    IWrapperFairShareChunkWriterPtr ChunkWriter_;
 
 
     void DumpStatistics(const TRefCountedChunkMetaPtr& chunkMeta)
@@ -132,7 +132,7 @@ private:
         DumpStatistics(InputChunkMeta_);
         Cout << Endl;
 
-        ChunkWriter_ = New<TChunkFileWriter>(
+        ChunkWriter_ = CreateChunkFileWriter(
             ioEngine,
             ChunkReader_->GetChunkId(),
             OutputFile_);
