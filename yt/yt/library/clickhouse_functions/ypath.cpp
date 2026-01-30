@@ -1,5 +1,6 @@
 #include "yson_parser_adapter.h"
 #include "unescaped_yson.h"
+#include "yson_extract_tree.h"
 
 #include <yt/yt/core/yson/string.h>
 
@@ -567,7 +568,7 @@ public:
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        auto extractTree = buildJSONExtractTree<TYsonParserAdapter>(returnType, nullptr /*source_for_exception_message*/);
+        auto extractor = CreateYsonTreeNodeExtractor(returnType);
 
         auto columnTo = returnType->createColumn();
         columnTo->reserve(inputRowCount);
@@ -603,14 +604,17 @@ public:
             }
 
             std::string errorStub;
-            if (!subNode || !extractTree->insertResultToColumn(*columnTo, subNode, {}, {}, errorStub)) {
-                if constexpr (Strict) {
-                    THROW_ERROR_EXCEPTION("Error converting extracted value")
-                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                        << TErrorAttribute("path", TStringBuf(path.data, path.size));
-                } else {
-                    // Just ignore errors.
-                    columnTo->insertDefault();
+            if (subNode) {
+                auto error = extractor->ExtractNodeToColumn(*columnTo, subNode, {}, {});
+                if (!error.IsOK()) {
+                    if constexpr (Strict) {
+                        THROW_ERROR_EXCEPTION("Error converting extracted value")
+                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
+                            << TErrorAttribute("path", TStringBuf(path.data, path.size));
+                    } else {
+                        // Just ignore errors.
+                        columnTo->insertDefault();
+                    }
                 }
             }
         }

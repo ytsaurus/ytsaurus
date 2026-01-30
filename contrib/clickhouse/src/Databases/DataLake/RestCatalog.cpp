@@ -84,6 +84,19 @@ std::string correctAPIURI(const std::string & uri)
     return std::filesystem::path(uri) / "v1";
 }
 
+String encodeNamespaceForURI(const String & namespace_name)
+{
+    String encoded;
+    for (const auto & ch : namespace_name)
+    {
+        if (ch == '.')
+            encoded += "%1F";
+        else
+            encoded.push_back(ch);
+    }
+    return encoded;
+}
+
 }
 
 std::string RestCatalog::Config::toString() const
@@ -133,7 +146,7 @@ RestCatalog::Config RestCatalog::loadConfig()
     std::string json_str;
     readJSONObjectPossiblyInvalid(json_str, *buf);
 
-    LOG_TEST(log, "Received catalog configuration settings: {}", json_str);
+    LOG_DEBUG(log, "Received catalog configuration settings: {}", json_str);
 
     DBPoco::JSON::Parser parser;
     DBPoco::Dynamic::Var json = parser.parse(json_str);
@@ -147,7 +160,7 @@ RestCatalog::Config RestCatalog::loadConfig()
     auto overrides_object = object->get("overrides").extract<DBPoco::JSON::Object::Ptr>();
     parseCatalogConfigurationSettings(overrides_object, result);
 
-    LOG_TEST(log, "Parsed catalog configuration settings: {}", result.toString());
+    LOG_DEBUG(log, "Parsed catalog configuration settings: {}", result.toString());
     return result;
 }
 
@@ -283,7 +296,7 @@ DB::ReadWriteBufferFromHTTPPtr RestCatalog::createReadBuffer(
             .create(credentials);
     };
 
-    LOG_TEST(log, "Requesting: {}", url.toString());
+    LOG_DEBUG(log, "Requesting: {}", url.toString());
 
     try
     {
@@ -401,7 +414,7 @@ RestCatalog::Namespaces RestCatalog::getNamespaces(const std::string & base_name
     {
         auto buf = createReadBuffer(config.prefix / NAMESPACES_ENDPOINT, params);
         auto namespaces = parseNamespaces(*buf, base_namespace);
-        LOG_TEST(log, "Loaded {} namespaces in base namespace {}", namespaces.size(), base_namespace);
+        LOG_DEBUG(log, "Loaded {} namespaces in base namespace {}", namespaces.size(), base_namespace);
         return namespaces;
     }
     catch (const DB::HTTPException & e)
@@ -429,7 +442,7 @@ RestCatalog::Namespaces RestCatalog::parseNamespaces(DB::ReadBuffer & buf, const
     String json_str;
     readJSONObjectPossiblyInvalid(json_str, buf);
 
-    LOG_TEST(log, "Received response: {}", json_str);
+    LOG_DEBUG(log, "Received response: {}", json_str);
 
     try
     {
@@ -468,7 +481,8 @@ RestCatalog::Namespaces RestCatalog::parseNamespaces(DB::ReadBuffer & buf, const
 
 DB::Names RestCatalog::getTables(const std::string & base_namespace, size_t limit) const
 {
-    const std::string endpoint = std::filesystem::path(NAMESPACES_ENDPOINT) / base_namespace / "tables";
+    auto encoded_namespace = encodeNamespaceForURI(base_namespace);
+    const std::string endpoint = std::filesystem::path(NAMESPACES_ENDPOINT) / encoded_namespace / "tables";
 
     auto buf = createReadBuffer(config.prefix / endpoint);
     return parseTables(*buf, base_namespace, limit);
@@ -548,7 +562,7 @@ bool RestCatalog::getTableMetadataImpl(
     const std::string & table_name,
     TableMetadata & result) const
 {
-    LOG_TEST(log, "Checking table {} in namespace {}", table_name, namespace_name);
+    LOG_DEBUG(log, "Checking table {} in namespace {}", table_name, namespace_name);
 
     DB::HTTPHeaderEntries headers;
     if (result.requiresCredentials())
@@ -562,12 +576,12 @@ bool RestCatalog::getTableMetadataImpl(
         headers.emplace_back("X-Iceberg-Access-Delegation", "vended-credentials");
     }
 
-    const std::string endpoint = std::filesystem::path(NAMESPACES_ENDPOINT) / namespace_name / "tables" / table_name;
+    const std::string endpoint = std::filesystem::path(NAMESPACES_ENDPOINT) / encodeNamespaceForURI(namespace_name) / "tables" / table_name;
     auto buf = createReadBuffer(config.prefix / endpoint, /* params */{}, headers);
 
     if (buf->eof())
     {
-        LOG_TEST(log, "Table doesn't exist (endpoint: {})", endpoint);
+        LOG_DEBUG(log, "Table doesn't exist (endpoint: {})", endpoint);
         return false;
     }
 
@@ -577,7 +591,7 @@ bool RestCatalog::getTableMetadataImpl(
 #ifdef DEBUG_OR_SANITIZER_BUILD
     /// This log message might contain credentials,
     /// so log it only for debugging.
-    LOG_TEST(log, "Received metadata for table {}: {}", table_name, json_str);
+    LOG_DEBUG(log, "Received metadata for table {}: {}", table_name, json_str);
 #endif
 
     DBPoco::JSON::Parser parser;
@@ -595,7 +609,7 @@ bool RestCatalog::getTableMetadataImpl(
         {
             location = metadata_object->get("location").extract<String>();
             result.setLocation(location);
-            LOG_TEST(log, "Location for table {}: {}", table_name, location);
+            LOG_DEBUG(log, "Location for table {}: {}", table_name, location);
         }
         else
         {

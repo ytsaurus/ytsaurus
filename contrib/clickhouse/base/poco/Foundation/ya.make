@@ -13,7 +13,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(25.3.6.56)
+VERSION(25.3.13.19)
 
 PEERDIR(
     contrib/libs/double-conversion

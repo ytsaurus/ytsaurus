@@ -71,6 +71,7 @@ public:
 private:
     LoggerPtr log;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
+    KeeperContextPtr keeper_context;
     DBPoco::Timespan operation_timeout;
     DBPoco::Timespan min_session_timeout;
     DBPoco::Timespan max_session_timeout;
