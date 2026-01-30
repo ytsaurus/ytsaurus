@@ -1,5 +1,5 @@
 # orm/_orm_constructors.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -2317,7 +2317,7 @@ def clear_mappers() -> None:
     are never discarded independently of their class.  If a mapped class
     itself is garbage collected, its mapper is automatically disposed of as
     well. As such, :func:`.clear_mappers` is only for usage in test suites
-    that re-use the same classes with different mappings, which is itself an
+    that reuse the same classes with different mappings, which is itself an
     extremely rare use case - the only such use case is in fact SQLAlchemy's
     own test suite, and possibly the test suites of other ORM extension
     libraries which intend to test various combinations of mapper construction

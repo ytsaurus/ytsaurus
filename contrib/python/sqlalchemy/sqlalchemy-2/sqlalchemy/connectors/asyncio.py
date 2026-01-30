@@ -1,5 +1,5 @@
 # connectors/asyncio.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -270,7 +270,7 @@ class AsyncAdapt_dbapi_cursor:
             )
 
     def setinputsizes(self, *inputsizes: Any) -> None:
-        # NOTE: this is overrridden in aioodbc due to
+        # NOTE: this is overridden in aioodbc due to
         # see https://github.com/aio-libs/aioodbc/issues/451
         # right now
 

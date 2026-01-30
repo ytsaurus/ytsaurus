@@ -1,5 +1,5 @@
 # sql/compiler.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -113,6 +113,7 @@ if typing.TYPE_CHECKING:
     from .schema import Column
     from .schema import Constraint
     from .schema import ForeignKeyConstraint
+    from .schema import IdentityOptions
     from .schema import Index
     from .schema import PrimaryKeyConstraint
     from .schema import Table
@@ -4644,7 +4645,7 @@ class SQLCompiler(Compiled):
                 )
             elif (
                 # general class of expressions that don't have a SQL-column
-                # addressible name.  includes scalar selects, bind parameters,
+                # addressable name.  includes scalar selects, bind parameters,
                 # SQL functions, others
                 not isinstance(column, elements.NamedColumn)
                 # deeper check that indicates there's no natural "name" to
@@ -5889,7 +5890,7 @@ class SQLCompiler(Compiled):
         # likely the least amount of callcounts, though looks clumsy
         if self.positional and visiting_cte is None:
             # if we are inside a CTE, don't count parameters
-            # here since they wont be for insertmanyvalues. keep
+            # here since they won't be for insertmanyvalues. keep
             # visited_bindparam at None so no counting happens.
             # see #9173
             visited_bindparam = []
@@ -5936,7 +5937,7 @@ class SQLCompiler(Compiled):
                 self.implicit_returning or insert_stmt._returning
             ) and insert_stmt._sort_by_parameter_order:
                 raise exc.CompileError(
-                    "RETURNING cannot be determinstically sorted when "
+                    "RETURNING cannot be deterministically sorted when "
                     "using an INSERT which includes multi-row values()."
                 )
             crud_params_single = crud_params_struct.single_params
@@ -6983,7 +6984,7 @@ class DDLCompiler(Compiled):
     def visit_drop_constraint_comment(self, drop, **kw):
         raise exc.UnsupportedCompilationError(self, type(drop))
 
-    def get_identity_options(self, identity_options):
+    def get_identity_options(self, identity_options: IdentityOptions) -> str:
         text = []
         if identity_options.increment is not None:
             text.append("INCREMENT BY %d" % identity_options.increment)

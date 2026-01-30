@@ -1,5 +1,5 @@
 # sql/lambdas.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1201,7 +1201,7 @@ class AnalyzedFunction:
         """Run the tracker-generated expression through coercion rules.
 
         After the user-defined lambda has been invoked to produce a statement
-        for re-use, run it through coercion rules to both check that it's the
+        for reuse, run it through coercion rules to both check that it's the
         correct type of object and also to coerce it to its useful form.
 
         """

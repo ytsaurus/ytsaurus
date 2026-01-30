@@ -1,5 +1,5 @@
 # dialects/postgresql/base.py
-# Copyright (C) 2005-2025 the SQLAlchemy authors and contributors
+# Copyright (C) 2005-2026 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
 #
 # This module is part of SQLAlchemy and is released under
@@ -1672,6 +1672,7 @@ from ...sql import coercions
 from ...sql import compiler
 from ...sql import elements
 from ...sql import expression
+from ...sql import functions
 from ...sql import roles
 from ...sql import sqltypes
 from ...sql import util as sql_util
@@ -1946,10 +1947,14 @@ class PGCompiler(compiler.SQLCompiler):
             and isinstance(binary.left.type, _json.JSONB)
             and self.dialect._supports_jsonb_subscripting
         ):
+            left = binary.left
+            if isinstance(left, (functions.FunctionElement, elements.Cast)):
+                left = elements.Grouping(left)
+
             # for pg14+JSONB use subscript notation: col['key'] instead
             # of col -> 'key'
             return "%s[%s]" % (
-                self.process(binary.left, **kw),
+                self.process(left, **kw),
                 self.process(binary.right, **kw),
             )
         else:
@@ -3028,8 +3033,8 @@ class PGInspector(reflection.Inspector):
             * nullable - Indicates if this domain can be ``NULL``.
             * default - The default value of the domain or ``None`` if the
               domain has no default.
-            * constraints - A list of dict wit the constraint defined by this
-              domain. Each element constaints two keys: ``name`` of the
+            * constraints - A list of dict with the constraint defined by this
+              domain. Each element contains two keys: ``name`` of the
               constraint and ``check`` with the constraint text.
 
         :param schema: schema name.  If None, the default schema
@@ -4134,7 +4139,7 @@ class PGDialect(default.DefaultDialect):
             if isinstance(coltype, DOMAIN):
                 if not default:
                     # domain can override the default value but
-                    # cant set it to None
+                    # can't set it to None
                     if coltype.default is not None:
                         default = coltype.default
 
@@ -4287,7 +4292,7 @@ class PGDialect(default.DefaultDialect):
                 # a sequential scan of pg_attribute.
                 # The condition in the con_sq subquery is not actually needed
                 # in pg15, but it may be needed in older versions. Keeping it
-                # does not seems to have any inpact in any case.
+                # does not seems to have any impact in any case.
                 con_sq.c.conrelid.in_(bindparam("oids"))
             )
             .subquery("attr")
@@ -4494,7 +4499,7 @@ class PGDialect(default.DefaultDialect):
     @util.memoized_property
     def _fk_regex_pattern(self):
         # optionally quoted token
-        qtoken = '(?:"[^"]+"|[A-Za-z0-9_]+?)'
+        qtoken = r'(?:"[^"]+"|[\w]+?)'
 
         # https://www.postgresql.org/docs/current/static/sql-createtable.html
         return re.compile(
@@ -4964,7 +4969,7 @@ class PGDialect(default.DefaultDialect):
         default = ReflectionDefaults.unique_constraints
         for table_name, cols, con_name, comment, options in result:
             # ensure a list is created for each table. leave it empty if
-            # the table has no unique cosntraint
+            # the table has no unique constraint
             if con_name is None:
                 uniques[(schema, table_name)] = default()
                 continue
