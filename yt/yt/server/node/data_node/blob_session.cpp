@@ -233,9 +233,7 @@ private:
 
     TFuture<void> DoPreallocateDiskSpace(i64 cumulativeBlockSize)
     {
-        // return Writer_->PreallocateDiskSpace(Options_.WorkloadDescriptor, cumulativeBlockSize);
-        Y_UNUSED(cumulativeBlockSize);
-        return TFuture<void>();
+        return Writer_->PreallocateDiskSpace(Options_.WorkloadDescriptor, cumulativeBlockSize);
     }
 
     TFuture<void> DoWriteBlocks(

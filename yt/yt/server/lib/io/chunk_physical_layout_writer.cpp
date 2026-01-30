@@ -25,7 +25,7 @@ class TWrapperChunkWriter
     : public IWrapperFairShareChunkWriter
 {
 public:
-    TWrapperChunkWriter(IPhysicalChunkWriterPtr underlyingWriter, bool syncOnClose)
+    TWrapperChunkWriter(IIPhysicalLayerWriterPtr underlyingWriter, bool syncOnClose)
         : UnderlyingWriter_(std::move(underlyingWriter))
     {
         BlocksExt_.set_sync_on_close(syncOnClose);
@@ -34,10 +34,6 @@ public:
     // IChunkWriter implementation.
     TFuture<void> Open() override
     {
-        // TODO(achulkov2): [PForReview] Log some more information here.
-        // YT_LOG_INFO("Offshore S3 writer opened");
-
-        // return ChunkUploadSession_->Start();
         return UnderlyingWriter_->Open();
     }
 
@@ -56,6 +52,7 @@ public:
     {
         return WriteBlocks(options, workloadDescriptor, blocks, {});
     }
+
     bool WriteBlocks(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
@@ -75,6 +72,7 @@ public:
     {
         return Close(options, workloadDescriptor, chunkMeta, {}, truncateBlockCount);
     }
+
     TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
@@ -94,6 +92,7 @@ public:
     {
         return UnderlyingWriter_->GetDataStatistics();
     }
+
     NChunkClient::TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
         return UnderlyingWriter_->GetWrittenChunkReplicasInfo();
@@ -130,14 +129,20 @@ public:
         return UnderlyingWriter_->IsCloseDemanded();
     }
 
-    //! Aborts the writer and removes temporary files.
     TFuture<void> Cancel() override
     {
         return UnderlyingWriter_->Cancel();
     }
 
+    TFuture<void> PreallocateDiskSpace(
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 spaceSize) override
+    {
+        return UnderlyingWriter_->PreallocateDiskSpace(workloadDescriptor, spaceSize);
+    }
+
 private:
-    const IPhysicalChunkWriterPtr UnderlyingWriter_;
+    const IIPhysicalLayerWriterPtr UnderlyingWriter_;
 
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     const NLogging::TLogger Logger;
@@ -149,11 +154,44 @@ private:
     i64 MetaDataSize_ = 0;
     // TODO: add state
 
-    void UpdateChunkInfoDiskSpace();
+    void UpdateChunkInfoDiskSpace()
+    {
+        ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
+    }
 
-    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta)
+    {
+        if (!chunkMeta->IsFinalized()) {
+            auto& mapping = chunkMeta->BlockIndexMapping();
+            mapping = std::vector<int>(BlocksExt_.blocks().size());
+            std::iota(mapping->begin(), mapping->end(), 0);
+            chunkMeta->Finalize();
+        }
 
-    TSharedMutableRef PrepareChunkMetaBlob();
+        ChunkMeta_->CopyFrom(*chunkMeta);
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
+    }
+
+    TSharedMutableRef PrepareChunkMetaBlob()
+    {
+        auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
+
+        TChunkMetaHeader_2 header;
+        header.Signature = header.ExpectedSignature;
+        header.Checksum = GetChecksum(metaData);
+        header.ChunkId = GetChunkId();
+
+        MetaDataSize_ = metaData.Size() + sizeof(header);
+
+        struct TMetaBufferTag
+        { };
+
+        auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
+        ::memcpy(buffer.Begin(), &header, sizeof(header));
+        ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
+
+        return buffer;
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TWrapperChunkWriter)
@@ -165,7 +203,7 @@ bool TWrapperChunkWriter::WriteBlocks(
     const std::vector<NChunkClient::TBlock>& blocks,
     TFairShareSlotId fairShareSlotId)
 {
-    IPhysicalChunkWriter::TWriteRequest request;
+    IIPhysicalLayerWriter::TWriteRequest request;
 
     request.StartOffset = DataSize_;
     request.EndOffset = request.StartOffset;
@@ -191,45 +229,6 @@ bool TWrapperChunkWriter::WriteBlocks(
 
     DataSize_ = request.EndOffset;
     return UnderlyingWriter_->WriteBlocks(options, workloadDescriptor, request, fairShareSlotId);
-}
-
-TSharedMutableRef TWrapperChunkWriter::PrepareChunkMetaBlob()
-{
-    auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
-
-    TChunkMetaHeader_2 header;
-    header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(metaData);
-    header.ChunkId = GetChunkId();
-
-    MetaDataSize_ = metaData.Size() + sizeof(header);
-
-    struct TMetaBufferTag
-    { };
-
-    auto buffer = TSharedMutableRef::Allocate<TMetaBufferTag>(MetaDataSize_, {.InitializeStorage = false});
-    ::memcpy(buffer.Begin(), &header, sizeof(header));
-    ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
-
-    return buffer;
-}
-
-void TWrapperChunkWriter::UpdateChunkInfoDiskSpace()
-{
-    ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
-}
-
-void TWrapperChunkWriter::FinalizeChunkMeta(TDeferredChunkMetaPtr chunkMeta)
-{
-    if (!chunkMeta->IsFinalized()) {
-        auto& mapping = chunkMeta->BlockIndexMapping();
-        mapping = std::vector<int>(BlocksExt_.blocks().size());
-        std::iota(mapping->begin(), mapping->end(), 0);
-        chunkMeta->Finalize();
-    }
-
-    ChunkMeta_->CopyFrom(*chunkMeta);
-    SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 }
 
 TFuture<void> TWrapperChunkWriter::Close(
@@ -271,7 +270,7 @@ TFuture<void> TWrapperChunkWriter::Close(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IWrapperFairShareChunkWriterPtr CreateChunkLayoutWriterAdapter(IPhysicalChunkWriterPtr underlying, bool syncOnClose)
+IWrapperFairShareChunkWriterPtr CreateChunkLayoutWriterAdapter(IIPhysicalLayerWriterPtr underlying, bool syncOnClose)
 {
     return New<TWrapperChunkWriter>(std::move(underlying), syncOnClose);
 }

@@ -306,8 +306,6 @@ TFuture<void> TChunkFileWriter::Close(
         ] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
-            // auto buffer = PhysicalChunkLayoutWriter_->PrepareChunkMetaBlob();
-
             return
                 IOEngine_->Write({
                     chunkMetaFile,
@@ -320,9 +318,10 @@ TFuture<void> TChunkFileWriter::Close(
                 .Apply(BIND([
                     // this,
                     this_ = MakeStrong(this),
-                    chunkWriterStatistics
+                    chunkWriterStatistics,
+                    metadataSize
                 ] (const TWriteResponse& rsp) {
-                    // YT_VERIFY(PhysicalChunkLayoutWriter_->GetMetaDataSize() == rsp.WrittenBytes);
+                    YT_VERIFY(metadataSize == rsp.WrittenBytes);
 
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
