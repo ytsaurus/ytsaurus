@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/check-old-protoc-and-inst-py
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
