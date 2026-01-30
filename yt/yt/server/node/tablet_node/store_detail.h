@@ -41,6 +41,7 @@ public:
     // IStore implementation.
     TStoreId GetId() const override;
     TTablet* GetTablet() const override;
+    TTabletId GetTabletId() const override;
 
     bool IsEmpty() const override;
 
@@ -58,8 +59,6 @@ public:
     void BuildOrchidYson(bool opaque, NYTree::TFluentAny fluent) override final;
 
     const NLogging::TLogger& GetLogger() const;
-
-    TTabletId GetTabletId() const;
 
 protected:
     const TStoreId StoreId_;

@@ -4958,7 +4958,9 @@ private:
         if (auto store = storeWeak.Lock()) {
             ReleaseBackingStore(store);
 
-            store->GetTablet()->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp());
+            if (auto* tablet = FindTablet(store->GetTabletId())) {
+                tablet->AdvanceTransientConflictHorizonTimestamp(store->GetMaxTimestamp());
+            }
         }
     }
 
