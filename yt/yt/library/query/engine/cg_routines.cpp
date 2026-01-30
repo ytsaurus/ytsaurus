@@ -3326,6 +3326,11 @@ ui64 HyperLogLogGetFingerprint(TValue* value)
     return NTableClient::GetFarmFingerprint(valueAtHost);
 }
 
+ui64 UniqGetFingerprint(TValue* valueBegin, int valueCount)
+{
+    return GetFarmFingerprint(valueBegin, valueBegin + valueCount);
+}
+
 DEFINE_HLL(7)
 DEFINE_HLL(8)
 DEFINE_HLL(9)
@@ -4731,6 +4736,7 @@ REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
+REGISTER_ROUTINE(UniqGetFingerprint);
 // COMPAT(dtorilov): Remove after 25.4.
 // COMPAT BEGIN {
 REGISTER_ROUTINE(HyperLogLogAllocate);

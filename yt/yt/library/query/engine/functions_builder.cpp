@@ -67,13 +67,19 @@ public:
         TStringBuf implementationFile) override
     {
         TypeInferrersBuilder_->RegisterFunction(
-            functionName, typeParameterConstraints,
-            argumentTypes, repeatedArgType, resultType,
+            functionName,
+            typeParameterConstraints,
+            argumentTypes,
+            repeatedArgType,
+            resultType,
             implementationFile);
 
         FunctionProfilersBuilder_->RegisterFunction(
-            functionName, typeParameterConstraints,
-            argumentTypes, repeatedArgType, resultType,
+            functionName,
+            typeParameterConstraints,
+            argumentTypes,
+            repeatedArgType,
+            resultType,
             implementationFile);
     }
 
@@ -83,19 +89,29 @@ public:
         std::vector<TType> argumentTypes,
         TType resultType,
         TType stateType,
+        TType repeatedArgType,
         TStringBuf implementationFile,
-        ECallingConvention callingConvention,
         bool isFirst) override
     {
         TypeInferrersBuilder_->RegisterAggregate(
-            aggregateName, typeParameterConstraints,
-            argumentTypes, resultType, stateType,
-            implementationFile, callingConvention, isFirst);
+            aggregateName,
+            typeParameterConstraints,
+            argumentTypes,
+            resultType,
+            stateType,
+            repeatedArgType,
+            implementationFile,
+            isFirst);
 
         FunctionProfilersBuilder_->RegisterAggregate(
-            aggregateName, typeParameterConstraints,
-            std::move(argumentTypes), resultType, stateType,
-            implementationFile, callingConvention, isFirst);
+            aggregateName,
+            std::move(typeParameterConstraints),
+            std::move(argumentTypes),
+            std::move(resultType),
+            std::move(stateType),
+            std::move(repeatedArgType),
+            implementationFile,
+            isFirst);
     }
 
 private:

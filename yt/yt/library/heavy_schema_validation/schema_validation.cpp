@@ -293,14 +293,8 @@ static void ValidateAggregatedColumns(const TTableSchema& schema)
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
             if (typeInferrer->IsAggregate()) {
-                std::vector<TTypeSet> typeConstraints;
-                std::vector<int> argumentIndexes;
-
-                auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
-                    &typeConstraints,
-                    &argumentIndexes,
-                    aggregateName);
-                auto& resultConstraint = typeConstraints[resultIndex];
+                auto constraints = typeInferrer->GetNormalizedConstraints(aggregateName);
+                auto& resultConstraint = constraints.TypeConstraints[constraints.ReturnType];
 
                 if (!resultConstraint.Get(elementType)) {
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type set %Qlv differs from column %v type %Qlv",

@@ -190,14 +190,19 @@ public:
     TExternalAggregateCodegen(
         const std::string& aggregateName,
         const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef>& implementationFiles,
-        ECallingConvention callingConvention,
+        int repeatedArgIndex,
+        TType repeatedArgType,
         bool isFirst,
         TSharedRef fingerprint)
         : AggregateName_(aggregateName)
         , ImplementationFiles_(implementationFiles)
-        , CallingConvention_(GetCallingConvention(callingConvention))
+        , CallingConvention_(GetCallingConvention(ECallingConvention::UnversionedValue))
+        , UpdateCallingConvention_(GetCallingConvention(
+            ECallingConvention::UnversionedValue,
+            repeatedArgIndex,
+            std::move(repeatedArgType)))
         , IsFirst_(isFirst)
-        , Fingerprint_(fingerprint)
+        , Fingerprint_(std::move(fingerprint))
     { }
 
     TCodegenAggregate Profile(
@@ -216,6 +221,7 @@ private:
     const std::string AggregateName_;
     const TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> ImplementationFiles_;
     const ICallingConventionPtr CallingConvention_;
+    const ICallingConventionPtr UpdateCallingConvention_;
     const bool IsFirst_;
     const TSharedRef Fingerprint_;
 };

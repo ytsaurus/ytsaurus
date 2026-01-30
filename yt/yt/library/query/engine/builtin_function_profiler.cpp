@@ -1715,16 +1715,21 @@ public:
     void RegisterAggregate(
         const std::string& aggregateName,
         std::unordered_map<TTypeParameter, TUnionType> /*typeParameterConstraints*/,
-        std::vector<TType> /*argumentTypes*/,
+        std::vector<TType> argumentTypes,
         TType /*resultType*/,
         TType /*stateType*/,
+        TType repeatedArgType,
         TStringBuf implementationFile,
-        ECallingConvention callingConvention,
         bool isFirst) override
     {
         if (AggregateProfilers_) {
             AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
-                aggregateName, GetUdfBytecode(implementationFile), callingConvention, isFirst, TSharedRef()));
+                aggregateName,
+                GetUdfBytecode(implementationFile),
+                1 + argumentTypes.size(), // +1 due to state
+                std::move(repeatedArgType),
+                isFirst,
+                TSharedRef()));
         }
     }
 
@@ -1826,7 +1831,8 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
     result->emplace("array_agg", New<TExternalAggregateCodegen>(
         "array_agg",
         GetUdfBytecode("array_agg"),
-        ECallingConvention::UnversionedValue,
+        -1,
+        EValueType::Null,
         false,
         TSharedRef()));
 
