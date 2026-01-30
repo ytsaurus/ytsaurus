@@ -2658,11 +2658,11 @@ class TestQuery(DynamicTablesBase):
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
 
         assert select_rows("""
-            cardinality_merge(Subquery_2.x) AS c
+            uniq_merge(Subquery_2.x) AS c
             FROM (
-                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                SELECT uniq_merge_state(Subquery_1.y) AS x
                 FROM (
-                    SELECT cardinality_state(k_2) as y, g
+                    SELECT uniq_state(k_2) as y, g
                     FROM `//tmp/t`
                     GROUP BY k_1 as g
                 ) AS Subquery_1

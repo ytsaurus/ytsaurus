@@ -8603,6 +8603,37 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, UniqAggregate)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    int value = 0;
+    std::vector<TSource> sources(4);
+    for (auto& source : sources) {
+        source.reserve(20000);
+        for (int j = 0; j < 20000; j++) {
+            source.push_back("a=" + std::to_string(value++));
+        }
+    }
+
+    auto resultSplit = MakeSplit({
+        {"stable_cardinality", EValueType::Uint64},
+    });
+
+    auto result = YsonToRows({
+        "stable_cardinality=80176u"
+    }, resultSplit);
+
+    EvaluateCoordinatedGroupByImpl(
+        "uniq(a) as stable_cardinality from [//t] group by 1",
+        split,
+        sources,
+        ResultMatcher(result),
+        EExecutionBackend::Native);
+}
+
 TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
 {
     auto split = MakeSplit({
