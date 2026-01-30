@@ -162,6 +162,12 @@ struct TSlotManagerDynamicConfig
 
     TConstantBackoffOptions DisableJobsBackoffStrategy;
 
+    //! Backoff strategy for automatic job environment resurrection.
+    TExponentialBackoffOptions ResurrectionBackoffStrategy;
+
+    //! Force disable job environment for checking resurrection.
+    bool ForceDisableJobEnvironment;
+
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
 
