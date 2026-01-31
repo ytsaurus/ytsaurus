@@ -424,7 +424,7 @@ protected:
 
     int PartitionTreeDepth_ = 0;
 
-    // Expected number of partitions before merging.
+    // Expected number of final partitions before merging.
     // Actual count (UnorderedFinalPartitions_.size()) may be lower when merging is enabled.
     int ExpectedPartitionCount_ = 0;
 
@@ -1890,9 +1890,10 @@ protected:
             return;
         }
 
-        YT_VERIFY(std::ranges::all_of(physicalPartitionIndices, [&] (int physicalPartitionIndex) {
-            return intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
-        }));
+        for (int physicalPartitionIndex : physicalPartitionIndices) {
+            bool wasInserted = intermediatePartition->DispatchedPhysicalPartitions().insert(physicalPartitionIndex).second;
+            YT_VERIFY(wasInserted);
+        }
 
         auto finalPartition = New<TFinalPartition>(
             PartitionTreeDepth_,
@@ -4700,6 +4701,8 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
+        // TODO(apollo1321): Current memory estimation is not correct for multilevel shuffle.
+        // It should account for the number of output partitions for a given job.
         i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * ExpectedPartitionCount_;
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig_->TableWriter->BlockSize * ExpectedPartitionCount_,
