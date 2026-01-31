@@ -348,11 +348,7 @@ private:
 
             req->set_location_uuids_supported(true);
 
-            for (const auto& replica : replicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+            ToProto(req->mutable_replicas(), replicas);
 
             if (SchemaId_ != NullTableSchemaId) {
                 ToProto(req->mutable_schema_id(), SchemaId_);

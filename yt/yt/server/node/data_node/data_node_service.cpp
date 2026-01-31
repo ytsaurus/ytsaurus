@@ -326,6 +326,7 @@ private:
         auto session = sessionManager->StartSession(sessionId, options);
         response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
         ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
+        response->set_location_index(ToProto<ui32>(session->GetStoreLocation()->GetIndex()));
         context->ReplyFrom(session->Start());
     }
 
