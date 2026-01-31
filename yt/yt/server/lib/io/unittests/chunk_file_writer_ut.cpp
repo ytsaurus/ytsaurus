@@ -52,11 +52,11 @@ protected:
         return NIO::CreateIOEngine(type, config);
     }
 
-    static TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
+    static IWrapperFairShareChunkWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
     {
         auto fileName = GenerateRandomFileName("TChunkFileWriterTest");
 
-        return New<TChunkFileWriter>(CreateIOEngine(), TGuid::Create(), fileName);
+        return CreateChunkFileWriter(CreateIOEngine(), TGuid::Create(), fileName);
     }
 
     void SetUp() override
@@ -68,12 +68,12 @@ protected:
         }
     }
 
-    std::unique_ptr<TFile> OpenDataFile(const TChunkFileWriterPtr& writer)
+    std::unique_ptr<TFile> OpenDataFile(const IWrapperFairShareChunkWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName(), RdOnly);
     }
 
-    static std::unique_ptr<TFile> OpenTempDataFile(const TChunkFileWriterPtr& writer)
+    static std::unique_ptr<TFile> OpenTempDataFile(const IWrapperFairShareChunkWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName() + NFS::TempFileSuffix, RdOnly);
     }
@@ -94,13 +94,13 @@ protected:
         EXPECT_EQ(0, ::memcmp(block.Data.Begin(), data.Begin(), data.Size()));
     }
 
-    void WriteBlock(const TChunkFileWriterPtr& writer, const TBlock& block)
+    void WriteBlock(const IWrapperFairShareChunkWriterPtr& writer, const TBlock& block)
     {
-        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block, {}));
+        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
-    void WriteBlocks(const TChunkFileWriterPtr& writer, const std::vector<TBlock>& blocks)
+    void WriteBlocks(const IWrapperFairShareChunkWriterPtr& writer, const std::vector<TBlock>& blocks)
     {
         EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
