@@ -718,6 +718,8 @@ public:
                 future = DoCopy(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtMerge>()) {
                 future = DoMerge(op.Cast(), execCtx);
+            } else if (auto op = opBase.Maybe<TYtAlter>()) {
+                future = DoAlter(op.Cast(), execCtx);
             } else if (auto op = opBase.Maybe<TYtMap>()) {
                 future = DoMap(op.Cast(), execCtx, ctx);
             } else if (auto op = opBase.Maybe<TYtReduce>()) {
@@ -3773,6 +3775,33 @@ private:
         });
     }
 
+    TFuture<void> DoAlter(TYtAlter, const TExecContext<TRunOptions>::TPtr& execCtx) {
+        YQL_ENSURE(execCtx->InputTables_.size() == 1);
+        YQL_ENSURE(execCtx->OutTables_.size() == 1);
+        auto future = execCtx->Session_->Queue_->Async([execCtx]() {
+            YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
+            const auto entry = execCtx->GetEntry();
+            execCtx->QueryCacheItem.Destroy();
+            auto& out = execCtx->OutTables_.front();
+            entry->DeleteAtFinalize(out.Path);
+            entry->CreateDefaultTmpFolder();
+            CreateParents({out.Path}, entry->CacheTx);
+            entry->Tx->Copy(execCtx->InputTables_.front().Name, out.Path, TCopyOptions().Force(true));
+        });
+
+        return future.Apply([execCtx](const TFuture<void>& f) {
+            f.GetValue();
+            return execCtx->Session_->Queue_->Async([execCtx]() {
+                YQL_LOG_CTX_ROOT_SESSION_SCOPE(execCtx->LogCtx_);
+                const auto entry = execCtx->GetEntry();
+                auto& out = execCtx->OutTables_.front();
+                const auto nativeYtTypeCompatibility = execCtx->Options_.Config()->NativeYtTypeCompatibility.Get(execCtx->Cluster_).GetOrElse(NTCF_LEGACY);
+                const auto schema = RowSpecToYTSchema(out.Spec[YqlRowSpecAttribute], nativeYtTypeCompatibility);
+                entry->Tx->AlterTable(out.Path, TAlterTableOptions().Schema(schema));
+            });
+        });
+    }
+
     static TFuture<void> ExecMap(
         TIntrusivePtr<TYqlUserJob> job,
         bool ordered,
@@ -5970,6 +5999,8 @@ private:
         } else if (op.Maybe<TYtCopy>()) {
             return TOperationProgress::EOpBlockStatus::None;
         } else if (op.Maybe<TYtMerge>()) {
+            return TOperationProgress::EOpBlockStatus::None;
+        } else if (op.Maybe<TYtAlter>()) {
             return TOperationProgress::EOpBlockStatus::None;
         } else if (op.Maybe<TYtTouch>()) {
             return TOperationProgress::EOpBlockStatus::None;
