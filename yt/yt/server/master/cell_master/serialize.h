@@ -204,9 +204,11 @@ DEFINE_ENUM(EMasterReign,
     ((FixDynamicallyPropagatedMastersCellTags)                      (3153))  // aleksandra-zh
     ((DataNodeValidationFullHeartbeats)                             (3154))  // danilalexeev
     ((FillAttributesOnNativeCellDuringMaterialization)              (3155))  // h0pless
+    ((LocationIndiciesInChunkConfirmation)                          (3156))  // cherepashka
     // 26.1 starts here.
     ((Start_26_1)                                                   (3200))  // community bot
     ((SecondaryIndexUnfoldedNames)                                  (3201))  // sabdenovch
+    ((LocationIndiciesInChunkConfirmation_26_1)                     (3202))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -325,6 +325,15 @@ struct TDynamicDataNodeTrackerConfig
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
+    // COMPAT(cherepashka)
+    bool EnableLocationIndexesInChunkConfirmation;
+
+    // COMPAT(cherepashka)
+    bool UseLocationIndexesToSearchLocationOnConfirmation;
+
+    // COMPAT(cherepashka)
+    bool CheckLocationConvergenceByIndexAndUuidOnConfirmation;
+
     bool VerifyAllLocationsAreReportedInFullHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);

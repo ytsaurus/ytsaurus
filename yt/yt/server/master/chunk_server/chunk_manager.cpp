@@ -2738,24 +2738,85 @@ private:
         TNode* node,
         const TChunkReplicaWithLocation& replica)
     {
-        auto locationUuid = replica.GetChunkLocationUuid();
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        auto dataNodeTrackerDynamicConfig = GetDynamicConfig()->DataNodeTracker;
+        auto shouldUseLocationIndicies = dataNodeTrackerDynamicConfig->UseLocationIndexesToSearchLocationOnConfirmation;
 
-        if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
-            YT_LOG_ALERT(
-                "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v, NodeAddress: %v)",
-                chunkId,
-                node->GetId(),
-                node->GetDefaultAddress());
-            return nullptr;
+        auto locationIndex = replica.GetChunkLocationIndex();
+        // COMPAT(cherepashka)
+        auto locationUuid = replica.GetChunkLocationUuid();
+        // NB: Use optional to differ existing null location case from unknown location.
+        std::optional<TChunkLocation*> locationByIndex;
+        std::optional<TChunkLocation*> locationByUuid;
+        if (shouldUseLocationIndicies) {
+            if (locationIndex != InvalidChunkLocationIndex) {
+                locationByIndex = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            } else {
+                YT_LOG_ALERT(
+                    "Chunk confirmation request does not have location index (ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    locationUuid);
+            }
+        }
+        // Fallback: will find location via uuid if location by index was not found or if flag to use location indices is disabled.
+        if (!shouldUseLocationIndicies || !locationByIndex.has_value()) {
+            if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
+                YT_LOG_ALERT(
+                    "Chunk confirmation request does not have location UUID (ChunkId: %v, NodeId: %v, NodeAddress: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+                if (IsObjectAlive(locationByUuid.value())) {
+                    YT_LOG_ALERT_IF(shouldUseLocationIndicies,
+                        "Failed to find location via index, but succeeded to find via uuid "
+                        "(LocationIndex: %v, LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                        replica.GetChunkLocationIndex(),
+                        locationUuid,
+                        node->GetId(),
+                        node->GetDefaultAddress());
+                }
+            }
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+        if (dataNodeTrackerDynamicConfig->CheckLocationConvergenceByIndexAndUuidOnConfirmation) {
+            if (!locationByIndex.has_value()) {
+                locationByIndex = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
+            }
+            if (!locationByUuid.has_value()) {
+                locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+            }
+
+            YT_LOG_ALERT_IF(locationByIndex.value() != locationByUuid.value(),
+                "UUID and index for the same location points to different locations "
+                "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationByIndexId: %v, LocationIndex: %v, LocationByUuidId: %v, LocationUuid: %v)",
+                chunkId,
+                node->GetId(),
+                node->GetDefaultAddress(),
+                locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId,
+                locationIndex,
+                locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId,
+                locationUuid);
+        }
+
+        TChunkLocation* location = nullptr;
+        // NB: All checks and alerts were performed above.
+        // If location indices in confirmation are enabled and we found corresponding location, then will use it, otherwise will use one that was found via uuid.
+        if (shouldUseLocationIndicies && locationByIndex.has_value() && locationByIndex.value()) {
+            location = locationByIndex.value();
+        } else if (locationByUuid.has_value()) {
+            location = locationByUuid.value();
+        }
+
         if (IsObjectAlive(location)) {
             if (location->GetNode() == nullptr) {
                 YT_LOG_ALERT(
                     "Chunk location without a node encountered "
-                    "(LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                    "(LocationIndex: %v, LocationUuid: %v, NodeId: %v, NodeAddress: %v)",
+                    locationIndex,
                     locationUuid,
                     node->GetId(),
                     node->GetDefaultAddress());
@@ -2766,11 +2827,12 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Chunk confirmation request has invalid location UUID "
-            "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationUuid: %v)",
+            "Chunk confirmation request has invalid location index or UUID "
+            "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationIndex: %v, LocationUuid: %v)",
             chunkId,
             node->GetId(),
             node->GetDefaultAddress(),
+            locationIndex,
             locationUuid);
 
         return nullptr;
@@ -3079,9 +3141,10 @@ private:
 
             auto chunkId = chunk->GetId();
             if (approved && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-                YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
+                YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                     chunkId,
-                    location->GetUuid());
+                    location->GetUuid(),
+                    location->GetIndex());
             }
 
             if (chunk->IsBlob()) {
@@ -3095,9 +3158,10 @@ private:
                 if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
                     YT_LOG_INFO(
                         "Removing destroyed Sequoia replica in a non-Sequoia way "
-                        "(ChunkId: %v, LocationUuid: %v)",
+                        "(ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                         chunkId,
-                        location->GetUuid());
+                        location->GetUuid(),
+                        location->GetIndex());
                 }
             }
         }
@@ -3455,10 +3519,11 @@ private:
         ++EndorsementCount_;
 
         YT_LOG_TRACE(
-            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v)",
+            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v, LocationIndex: %v)",
             chunk->GetId(),
             locationWithMaxId->GetNode()->GetDefaultAddress(),
-            locationWithMaxId->GetUuid());
+            locationWithMaxId->GetUuid(),
+            locationWithMaxId->GetIndex());
     }
 
     void RemoveEndorsement(TChunk* chunk, TChunkLocation* location)
@@ -3529,7 +3594,7 @@ private:
         auto requests = std::exchange(WaitingConfirmRequests_, std::vector<TReqConfirmChunk*>());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        // TODO: support location indexes for confirm and remove this.
+        // COMPAT(cherepashka): remove this after 25.4.
         THashMap<TChunkId, std::vector<TChunkReplicaWithLocationIndex>> sequoiaChunkReplicas;
         for (const auto& request : requests) {
             auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -3537,20 +3602,31 @@ private:
             for (const auto& protoReplica : request->replicas()) {
                 auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
                 auto nodeId = replica.GetNodeId();
-                auto* node = nodeTracker->FindNode(nodeId);
-                if (!IsObjectAlive(node)) {
-                    continue;
-                }
+                auto locationIndex = replica.GetChunkLocationIndex();
+                auto enableLocationIndexesInChunkConfirmation = GetDynamicConfig()->DataNodeTracker->EnableLocationIndexesInChunkConfirmation;
+                if (!enableLocationIndexesInChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                    YT_LOG_ALERT_IF(enableLocationIndexesInChunkConfirmation,
+                        "Sequoia chunk replica confirmation is missing location index "
+                        "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
+                        chunkId,
+                        replica.GetChunkLocationUuid(),
+                        nodeId);
+                    auto* node = nodeTracker->FindNode(nodeId);
+                    if (!IsObjectAlive(node)) {
+                        continue;
+                    }
 
-                auto* location = FindLocationOnConfirmation(chunkId, node, replica);
-                if (!IsObjectAlive(location)) {
-                    continue;
+                    auto* location = FindLocationOnConfirmation(chunkId, node, replica);
+                    if (!IsObjectAlive(location)) {
+                        continue;
+                    }
+                    locationIndex = location->GetIndex();
                 }
 
                 TChunkReplicaWithLocationIndex replicaWithLocationIndex(
                     nodeId,
                     replica.GetReplicaIndex(),
-                    location->GetIndex());
+                    locationIndex);
                 sequoiaChunkReplicas[chunkId].push_back(replicaWithLocationIndex);
             }
         }
@@ -3571,7 +3647,7 @@ private:
                 try {
                     // TODO: validate requests are the same for the same chunks.
                     // sequoiaChunkReplicas might actually contain replicas from separate confirm requests,
-                    // I hope they are the same and am okay with this for now.
+                    // I hope they are the same and I am okay with this for now.
                     SortUniqueBy(requests, [] (const auto* request) {
                         return FromProto<TChunkId>(request->chunk_id());
                     });
@@ -3661,20 +3737,31 @@ private:
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
-            auto* node = nodeTracker->FindNode(nodeId);
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
+            auto locationIndex = replica.GetChunkLocationIndex();
+            auto enableLocationIndexesInChunkConfirmation = GetDynamicConfig()->DataNodeTracker->EnableLocationIndexesInChunkConfirmation;
+            if (!enableLocationIndexesInChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                YT_LOG_ALERT_IF(enableLocationIndexesInChunkConfirmation,
+                    "Received Sequoia chunk replica confirmation request without location index "
+                    "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
+                    chunkId,
+                    replica.GetChunkLocationUuid(),
+                    nodeId);
+                auto* node = nodeTracker->FindNode(nodeId);
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
 
-            auto* location = FindLocationOnConfirmation(chunkId, node, replica);
-            if (!location) {
-                continue;
+                auto* location = FindLocationOnConfirmation(chunkId, node, replica);
+                if (!location) {
+                    continue;
+                }
+                locationIndex = location->GetIndex();
             }
 
             TChunkReplicaWithLocationIndex replicaWithLocationIndex(
                 nodeId,
                 replica.GetReplicaIndex(),
-                location->GetIndex());
+                locationIndex);
             sequoiaReplicas.push_back(replicaWithLocationIndex);
         }
 
@@ -3821,10 +3908,11 @@ private:
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndex.Id)) {
                 YT_LOG_ALERT_AND_THROW(
                     "Processing Sequoia replica in non-Sequoia way "
-                    "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
+                    "(NodeId: %v, NodeAddress: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v, ReplicaIndex: %v, Validation: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     location->GetUuid(),
+                    location->GetIndex(),
                     chunkIdWithIndex.Id,
                     chunkIdWithIndex.ReplicaIndex,
                     validation);
@@ -3878,9 +3966,10 @@ private:
                     continue;
                 } else {
                     YT_LOG_ALERT(
-                        "Removing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                        "Removing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v, ReplicaIndex: %v)",
                         node->GetDefaultAddress(),
                         location->GetUuid(),
+                        location->GetIndex(),
                         chunk->GetId(),
                         replica.GetReplicaIndex());
                 }
@@ -3915,9 +4004,10 @@ private:
 
         auto chunkId = chunk->GetId();
         if (approved && ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-            YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v)",
+            YT_LOG_ALERT("Removing Sequoia replica in a non-Sequoia way (ChunkId: %v, LocationUuid: %v, LocationIndex: %v)",
                 chunkId,
-                location->GetUuid());
+                location->GetUuid(),
+                location->GetIndex());
         }
 
         if (chunk->IsBlob()) {
@@ -6310,7 +6400,7 @@ private:
             if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                 ++DestroyedReplicaCount_;
             } else {
-                YT_LOG_TRACE("Replica is already present in destroyed set (LocationUuid: %v, ChunkId: %v)",
+                YT_LOG_TRACE("Replica is already present in destroyed set (LocationIndex: %v, ChunkId: %v)",
                     locationIndex,
                     replica.ChunkId);
             }

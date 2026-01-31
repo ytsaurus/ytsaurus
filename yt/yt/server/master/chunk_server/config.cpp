@@ -322,12 +322,31 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
+    registrar.Parameter("enable_location_indexes_in_chunk_confirmation", &TThis::EnableLocationIndexesInChunkConfirmation)
+        .Default(false);
+    registrar.Parameter("use_location_indexes_to_search_location_on_confirmation", &TThis::UseLocationIndexesToSearchLocationOnConfirmation)
+        .Default(false);
+    registrar.Parameter("check_location_convergence_by_index_and_uuid_on_confirmation", &TThis::CheckLocationConvergenceByIndexAndUuidOnConfirmation)
+        .Default(false);
     registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
-            THROW_ERROR_EXCEPTION("Validation full heartbeats require location full heartbeats to be enabled");
+            THROW_ERROR_EXCEPTION("Validation full heartbeats requires location full heartbeats to be enabled");
+        }
+
+        if (!config->EnableLocationIndexesInDataNodeHeartbeats) {
+            if (config->EnableLocationIndexesInChunkConfirmation) {
+                THROW_ERROR_EXCEPTION("Location indices in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
+            if (config->UseLocationIndexesToSearchLocationOnConfirmation) {
+                THROW_ERROR_EXCEPTION("Usage of location indices to search location in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
+
+            if (config->CheckLocationConvergenceByIndexAndUuidOnConfirmation) {
+                THROW_ERROR_EXCEPTION("Location convergence by index and uuid check in chunk confirmation requires location indices in data node heartbeats to be enabled");
+            }
         }
     });
 }
