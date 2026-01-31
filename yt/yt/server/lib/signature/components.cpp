@@ -35,7 +35,9 @@ TSignatureComponents::TSignatureComponents(
     IInvokerPtr rotateInvoker)
     : OwnerId_(std::move(ownerId))
     , Client_(connection->CreateNativeClient(
-        TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
+        config->UseRootUser
+            ? TClientOptions::Root()
+            : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
