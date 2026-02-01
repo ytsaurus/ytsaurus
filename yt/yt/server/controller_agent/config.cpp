@@ -1420,6 +1420,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
         .DefaultNew();
 
+    registrar.Parameter("fail_operations_in_empty_trees", &TThis::FailOperationsInEmptyTrees)
+        .Default(true);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 
