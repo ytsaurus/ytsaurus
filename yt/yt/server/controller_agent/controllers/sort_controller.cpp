@@ -535,7 +535,7 @@ protected:
                 DataBalancer_ = New<TDataBalancer>(
                     Controller_->Options_->DataBalancer,
                     totalDataWeight,
-                    Controller_->GetOnlineExecNodeDescriptors(),
+                    Controller_->GetOnlineSuitableExecNodeDescriptors(),
                     Logger);
             }
 
@@ -593,7 +593,7 @@ protected:
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineExecNodeDescriptors());
+                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineSuitableExecNodeDescriptors());
             }
         }
 
@@ -2174,7 +2174,7 @@ protected:
 
         YT_LOG_DEBUG("Examining online nodes");
 
-        const auto& nodeDescriptors = GetOnlineExecNodeDescriptors();
+        const auto& nodeDescriptors = GetOnlineSuitableExecNodeDescriptors();
         TJobResources maxResourceLimits;
         double maxIOWeight = 0;
         for (const auto& [nodeId, descriptor] : nodeDescriptors) {
@@ -3106,7 +3106,7 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->DataBalancer_) {
-            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineExecNodeDescriptors());
+            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineSuitableExecNodeDescriptors());
         }
     });
 }
