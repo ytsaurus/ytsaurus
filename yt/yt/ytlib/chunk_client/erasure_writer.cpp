@@ -308,9 +308,10 @@ public:
             YT_VERIFY(replicas.size() == 1);
             result.Replicas.emplace_back(
                 replicas[0].GetNodeId(),
-                i,
+                /*replicaIndex*/ i,
                 replicas[0].GetMediumIndex(),
-                replicas[0].GetChunkLocationUuid());
+                replicas[0].GetChunkLocationUuid(),
+                replicas[0].GetChunkLocationIndex());
         }
         return result;
     }

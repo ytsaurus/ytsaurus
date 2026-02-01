@@ -2933,7 +2933,8 @@ private:
                 replica.GetNodeId(),
                 replicaIndex,
                 replica.GetMediumIndex(),
-                replica.GetChunkLocationUuid());
+                replica.GetChunkLocationUuid(),
+                replica.GetChunkLocationIndex());
         }
 
         const auto& client = Bootstrap_->GetClient();
@@ -2959,13 +2960,12 @@ private:
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
+        bool useLocationIndicies = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
+            return replica.GetChunkLocationIndex() != InvalidChunkLocationIndex;
+        });
 
-        if (useLocationUuids) {
-            for (const auto& replica : writtenReplicas) {
-                auto* replicaInfo = req->add_replicas();
-                replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
-                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
-            }
+        if (useLocationUuids || useLocationIndicies) {
+            ToProto(req->mutable_replicas(), writtenReplicas);
         }
 
         auto rspOrError = WaitFor(req->Invoke());

@@ -139,6 +139,7 @@ private:
         TPeriodicExecutorPtr PingExecutor;
 
         TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
+        TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
         bool IsFlushing = false;
 
@@ -311,6 +312,9 @@ private:
             if (rsp->has_location_uuid()) {
                 node->TargetLocationUuid = FromProto<TChunkLocationUuid>(rspOrError.Value()->location_uuid());
             }
+            if (rsp->has_location_index()) {
+                node->TargetLocationIndex = FromProto<TChunkLocationIndex>(rspOrError.Value()->location_index());
+            }
 
             node->PingExecutor = New<TPeriodicExecutor>(
                 Invoker_,
@@ -318,9 +322,10 @@ private:
                 Config_->NodePingPeriod);
             node->PingExecutor->Start();
 
-            YT_LOG_DEBUG("Chunk session started at node (Address: %v, TargetLocationUuid: %v)",
+            YT_LOG_DEBUG("Chunk session started at node (Address: %v, TargetLocationUuid: %v, TargetLocationIndex: %v)",
                 node->Descriptor.GetDefaultAddress(),
-                node->TargetLocationUuid);
+                node->TargetLocationUuid,
+                node->TargetLocationIndex);
         } else {
             auto error = TError("Failed to start chunk session at %v",
                 node->Descriptor.GetDefaultAddress())
@@ -354,6 +359,7 @@ private:
             auto* replicaInfo = req->add_replicas();
             replicaInfo->set_replica(ToProto(replicas[index]));
             ToProto(replicaInfo->mutable_location_uuid(), Nodes_[index]->TargetLocationUuid);
+            replicaInfo->set_location_index(ToProto<ui32>(Nodes_[index]->TargetLocationIndex));
         }
 
         auto* meta = req->mutable_chunk_meta();
