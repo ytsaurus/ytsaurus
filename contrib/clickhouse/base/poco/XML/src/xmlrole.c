@@ -42,11 +42,10 @@
 
 #include <stddef.h>
 
-#ifdef EXPAT_WIN32
-#error #include "winconfig.h"
+#ifdef _WIN32
+#  error #include "winconfig.h"
 #endif
 
-#include "DBPoco/XML/expat_external.h"
 #include "internal.h"
 #include "xmlrole.h"
 #include "ascii.h"
