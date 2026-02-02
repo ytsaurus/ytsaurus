@@ -959,10 +959,12 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.skip(reason="Flaky profiling tests")
-    def test_hunks_profiling_flush(self):
+    @pytest.mark.parametrize("enable_hunk_columnar_profiling", [False, True])
+    def test_hunks_profiling_flush(self, enable_hunk_columnar_profiling):
         sync_create_cells(1)
         self._create_table()
-        set("//tmp/t/@enable_hunk_columnar_profiling", True)
+        if enable_hunk_columnar_profiling:
+            set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
         chunk_data_weight = self._init_tablet_sensor(
@@ -974,14 +976,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "chunk_writer/hunks/data_weight",
             tags={"method": "store_flush"})
 
-        inline_hunk_value_count = self._init_tablet_sensor(
-            "//tmp/t",
-            "chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "store_flush"})
-        ref_hunk_value_count = self._init_tablet_sensor(
-            "//tmp/t",
-            "chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "store_flush"})
+        if enable_hunk_columnar_profiling:
+            inline_hunk_value_count = self._init_tablet_sensor(
+                "//tmp/t",
+                "chunk_writer/hunks/inline_value_count",
+                tags={"column": "value", "method": "store_flush"})
+            ref_hunk_value_count = self._init_tablet_sensor(
+                "//tmp/t",
+                "chunk_writer/hunks/ref_value_count",
+                tags={"column": "value", "method": "store_flush"})
 
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
@@ -992,8 +995,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: chunk_data_weight.get_delta() > 0)
         wait(lambda: hunk_chunk_data_weight.get_delta() > 0)
 
-        wait(lambda: inline_hunk_value_count.get_delta() == 10)
-        wait(lambda: ref_hunk_value_count.get_delta() == 5)
+        if enable_hunk_columnar_profiling:
+            wait(lambda: inline_hunk_value_count.get_delta() == 10)
+            wait(lambda: ref_hunk_value_count.get_delta() == 5)
 
     @authors("akozhikhov")
     @pytest.mark.skip(reason="Flaky profiling tests")

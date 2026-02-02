@@ -205,6 +205,10 @@ void TChunkReaderStatisticsCounters::Increment(
     const TChunkReaderStatisticsPtr& chunkReaderStatistics,
     bool failed)
 {
+    if (!chunkReaderStatistics) {
+        return;
+    }
+
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
     DataBlocksReadFromDisk_.Increment(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
     DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
