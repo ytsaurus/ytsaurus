@@ -259,9 +259,6 @@ class TQueryVisitorForDefinedAlwaysFalse
     : public TBaseAstVisitor<bool, TQueryVisitorForDefinedAlwaysFalse>
 {
 public:
-    TQueryVisitorForDefinedAlwaysFalse()
-    { }
-
     bool Run(const TExpressionPtr expression)
     {
         return Visit(expression);
