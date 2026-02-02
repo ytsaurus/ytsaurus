@@ -67,6 +67,7 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NConcurrency::TFlsSlot<TCellId> HiveMutationSenderId;
+static NConcurrency::TFlsSlot<TReign> HiveMutationSenderReign;
 
 bool IsHiveMutation()
 {
@@ -78,27 +79,39 @@ TCellId GetHiveMutationSenderId()
     return *HiveMutationSenderId;
 }
 
-THiveMutationGuard::THiveMutationGuard(TCellId senderId)
+TReign GetHiveMutationSenderReign()
+{
+    return *HiveMutationSenderReign;
+}
+
+THiveMutationGuard::THiveMutationGuard(TCellId senderId, TReign senderReign)
 {
     YT_VERIFY(!*HiveMutationSenderId);
+    YT_VERIFY(!*HiveMutationSenderReign);
     *HiveMutationSenderId = senderId;
+    *HiveMutationSenderReign = senderReign;
 }
 
 THiveMutationGuard::~THiveMutationGuard()
 {
     *HiveMutationSenderId = {};
+    *HiveMutationSenderReign = {};
 }
 
 TInverseHiveMutationGuard::TInverseHiveMutationGuard()
     : SenderId_(*HiveMutationSenderId)
+    , SenderReign_(*HiveMutationSenderReign)
 {
     YT_VERIFY(SenderId_);
+    // NB: Reign may be zero.
     *HiveMutationSenderId = {};
+    *HiveMutationSenderReign = 0;
 }
 
 TInverseHiveMutationGuard::~TInverseHiveMutationGuard()
 {
     *HiveMutationSenderId = SenderId_;
+    *HiveMutationSenderReign = SenderReign_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1032,9 +1045,22 @@ private:
         auto* mutationContext = TryGetCurrentMutationContext();
 
         auto logicalTime = LamportClock_->GetTime();
+        TReign reign = 0;
         if (mutationContext) {
             logicalTime = LamportClock_->Tick();
             mutationContext->CombineStateHash(message->Type, message->Data);
+
+            // COMPAT(ifsmirnov): ReignInHiveMessages.
+            reign = mutationContext->Request().Reign;
+            constexpr TReign ChaosReignBase = 300000;
+            constexpr TReign ChaosReignReignInHiveMessages = 300304;
+            constexpr TReign TabletReignBase = 100000;
+            constexpr TReign TabletReignReignInHiveMessages = 101408;
+            if (ChaosReignBase < reign && reign < ChaosReignReignInHiveMessages) {
+                reign = 0;
+            } else if (TabletReignBase < reign && reign < TabletReignReignInHiveMessages) {
+                reign = 0;
+            }
         }
 
         for (auto mailboxHandle : mailboxes) {
@@ -1043,6 +1069,7 @@ private:
                 .SerializedMessage = message,
                 .TraceContext = traceContext,
                 .Time = logicalTime,
+                .Reign = reign,
             });
 
             if (mutationContext) {
@@ -1917,6 +1944,7 @@ private:
                         Config_->SendTracingBaggage);
                 }
                 protoMessage->set_logical_time(message.Time.Underlying());
+                protoMessage->set_reign(message.Reign);
             }
         };
 
@@ -2253,10 +2281,11 @@ private:
 
         auto* mutationContext = GetCurrentMutationContext();
         YT_LOG_DEBUG("Applying reliable incoming message (%v, "
-            "MessageId: %v, MutationType: %v, LogicalTime: %v, SequenceNumber: %v)",
+            "MessageId: %v, MutationType: %v, SenderReign: %v, LogicalTime: %v, SequenceNumber: %v)",
             FormatIncomingMailboxEndpoints(mailbox->GetEndpointId()),
             messageId,
             message.type(),
+            message.reign(),
             logicalTime,
             mutationContext->GetSequenceNumber());
 
@@ -2303,7 +2332,7 @@ private:
         TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        THiveMutationGuard hiveMutationGuard(endpointId);
+        THiveMutationGuard hiveMutationGuard(endpointId, message.reign());
 
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
@@ -2512,12 +2541,13 @@ private:
         return version == 5 ||
             version == 6 || // COMPAT(ifsmirnov): Avenues.
             version == 7 ||
+            version == 8 || // COMPAT(ifsmirnov): Message reign.
             false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 7;
+        return 8;
     }
 
     void Clear() override
