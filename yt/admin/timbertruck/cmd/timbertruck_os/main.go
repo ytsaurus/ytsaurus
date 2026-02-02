@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/app"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
@@ -37,6 +38,12 @@ type JSONLogConfig struct {
 	//
 	// Default value is 16777216 (16 MiB).
 	QueueBatchSize int `yaml:"queue_batch_size"`
+
+	// QueueBatchFlushTimeout defines maximum time to keep a partially filled buffer before flushing.
+	// If 0, flush only when buffer reaches QueueBatchSize or on file completion.
+	//
+	// Default value is 0 (disabled).
+	QueueBatchFlushTimeout time.Duration `yaml:"queue_batch_flush_timeout"`
 
 	// TextFileLineLimit specifies the maximum allowed length of a line in the text file.
 	// Lines longer than this value will be truncated.
@@ -131,8 +138,9 @@ func main() {
 			}
 			p, err = ytlog.NewJSONLogPipeline(task, output, ytlog.JSONLogPipelineOptions{
 				BaseLogPipelineOptions: ytlog.BaseLogPipelineOptions{
-					QueueBatchSize:    jsonLogConfig.QueueBatchSize,
-					TextFileLineLimit: jsonLogConfig.TextFileLineLimit,
+					QueueBatchSize:         jsonLogConfig.QueueBatchSize,
+					QueueBatchFlushTimeout: jsonLogConfig.QueueBatchFlushTimeout,
+					TextFileLineLimit:      jsonLogConfig.TextFileLineLimit,
 				}})
 			return
 		})
