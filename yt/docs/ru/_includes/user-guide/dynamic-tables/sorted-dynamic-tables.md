@@ -253,13 +253,17 @@ Lookup cache представляет собой построчный LRU кеш
 ### Метрики для диагностики работы lookup cache.
 
 При эффективной работе кеша должно снижаться чтение блоков с диска/из кеша блоков.
+Также при включении cache ожидаемо должен падать `unmerged_row_count`, но может вырасти `unmerged_data_weight / unmerged_row_count` (количество данных на строчку), так как для заполнения кеша читаются все версии и все колонки.
+Чтение всех версий почти не влияет на производительность (блоков данных читается столько же и обрабатывается такой же объем данных).
+Чтение всех колонок увеличивает количество читаемых блоков.
+Таким образом, если в запросах читается только небольшая часть (по количеству или объему данных) колонок таблицы, то несмотря на эффективное попадание запросов в кеш, объем читаемых блоков или `unmerged_data_weight` может либо сократиться гораздо меньше, чем `unmerged_row_count`, либо даже вырасти.
 
 Общие метрики lookup:
 
 Метрики чтения с диска и передачи по сети:
 - `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_disk.rate`
--`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
--`yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
+- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_read_from_cache.rate`
+- `yt.tablet_node.lookup.chunk_reader_statistics.data_bytes_transmitted.rate`
 
 В случае использования ханков ещё метрики:
 - `yt.tablet_node.lookup.hunks.chunk_reader_statistics.data_bytes_read_from_disk.rate`
