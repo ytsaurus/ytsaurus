@@ -10,6 +10,9 @@
 #include <yt/yt/client/signature/dynamic.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -28,10 +31,13 @@ using namespace NThreading;
 TSignatureComponents::TSignatureComponents(
     const TSignatureComponentsConfigPtr& config,
     TOwnerId ownerId,
-    IClientPtr client,
+    const IConnectionPtr& connection,
     IInvokerPtr rotateInvoker)
     : OwnerId_(std::move(ownerId))
-    , Client_(std::move(client))
+    , Client_(connection->CreateNativeClient(
+        config->UseRootUser
+            ? TClientOptions::Root()
+            : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)

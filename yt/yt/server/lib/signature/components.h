@@ -17,7 +17,7 @@ public:
     TSignatureComponents(
         const TSignatureComponentsConfigPtr& config,
         TOwnerId ownerId,
-        NApi::NNative::IClientPtr client,
+        const NApi::NNative::IConnectionPtr& connection,
         IInvokerPtr rotateInvoker);
 
     TFuture<void> StartRotation();
