@@ -2897,6 +2897,11 @@ public:
                 .NodeId = object->GetId(),
             });
         }
+        auto lastRecordSequenceNumber = queueManager->GetLastRecordSequenceNumber(EGroundUpdateQueue::Sequoia);
+        auto* node = object->As<TCypressNode>();
+        // No need to update parent here as ACLs don't affect parents in any way.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->UpdateGroundUpdateQueueManagerSequenceNumber(node, lastRecordSequenceNumber);
 
         YT_LOG_DEBUG("Scheduled ACLs table update (ObjectId: %v)",
             object->GetId());

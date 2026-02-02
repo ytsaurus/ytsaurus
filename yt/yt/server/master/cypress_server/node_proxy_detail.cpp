@@ -3302,10 +3302,13 @@ void TNontemplateCompositeCypressNodeProxyBase::AttachChild(TCypressNode* child)
 
 void TNontemplateCompositeCypressNodeProxyBase::DetachChild(TCypressNode* child)
 {
-    DetachChildFromNode(TrunkNode_->As<TCompositeCypressNode>(), child);
     if (GetThisImpl()->GetReachable()) {
+        // It is important child has a parent when becoming unreachable for proper Sequoia syncs.
+        // It is pretty fragile but I like it more than other options, it also makes sense to
+        // set unreachable and remove parent in order opposite to AttachChild.
         SetUnreachableSubtreeNodes(child);
     }
+    DetachChildFromNode(TrunkNode_->As<TCompositeCypressNode>(), child);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

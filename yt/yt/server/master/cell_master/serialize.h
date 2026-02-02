@@ -205,6 +205,7 @@ DEFINE_ENUM(EMasterReign,
     ((DataNodeValidationFullHeartbeats)                             (3154))  // danilalexeev
     ((FillAttributesOnNativeCellDuringMaterialization)              (3155))  // h0pless
     ((LocationIndiciesInChunkConfirmation)                          (3156))  // cherepashka
+    ((KulenovClock)                                                 (3157))  // aleksandra-zh
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

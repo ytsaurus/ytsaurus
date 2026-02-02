@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -189,6 +191,13 @@ public:
         queueState.Records.push_back(std::move(record));
     }
 
+    i64 GetLastRecordSequenceNumber(EGroundUpdateQueue queue) const override
+    {
+        const auto& queueState = QueueStates_[queue];
+        // Turns into -1 if no records were ever enqueued, seems OK.
+        return queueState.NextRecordSequenceNumber - 1;
+    }
+
     TFuture<void> Sync(EGroundUpdateQueue queue) override
     {
         auto& queueState = QueueStates_[queue];
@@ -293,6 +302,12 @@ private:
             startSequenceNumber,
             endSequenceNumber,
             recordCount);
+
+        // I don't like it here.
+        if (queue == EGroundUpdateQueue::Sequoia) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->DrainGroundUpdateQueueManagerSequenceNumber(endSequenceNumber);
+        }
     }
 
     void HydraAbortFlushTableUpdateQueue(
