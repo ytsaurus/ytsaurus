@@ -2271,6 +2271,12 @@ class YTEnvSetup(object):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         config.setdefault("chunk_service", {})
+
+        # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
+        if cls.combined_envs[cluster_index].yt_config.enable_multidaemon:
+            config["chunk_manager"]["data_node_tracker"]["enable_location_indexes_in_chunk_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
+            config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
         return config
 
     def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
