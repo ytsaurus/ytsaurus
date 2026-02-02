@@ -203,7 +203,7 @@ void TBootstrap::DoInitialize()
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
         std::move(ownerId),
-        RootClient_,
+        Connection_,
         GetControlInvoker());
 
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());

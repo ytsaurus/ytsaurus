@@ -247,7 +247,7 @@ void TBootstrap::DoInitialize()
     SignatureComponents_ = New<TSignatureComponents>(
         Config_->SignatureComponents,
         std::move(ownerId),
-        DynamicPointerCast<NNative::IClient>(RootClient_),
+        Connection_,
         GetControlInvoker());
     Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 

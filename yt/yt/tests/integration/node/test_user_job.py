@@ -4916,3 +4916,23 @@ class TestClosingStdoutPorto(TestClosingStdoutSimple):
 
 class TestClosingStdoutCri(TestClosingStdoutSimple):
     JOB_ENVIRONMENT_TYPE = "cri"
+
+
+@pytest.mark.enabled_multidaemon
+class TestDeletingConfigFile(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pavook")
+    def test_executor_config_gets_truncated(self):
+        op = run_test_vanilla(
+            command=with_breakpoint("echo \"$HOME\" >&2; BREAKPOINT"),
+        )
+
+        job_id = wait_breakpoint()[0]
+        sandbox_path = op.read_stderr(job_id).decode("utf-8").strip()
+        slot_path = os.path.dirname(sandbox_path)
+        print_debug(f"Looking for config files in {slot_path}...")
+        with open(os.path.join(slot_path, "executor_config.yson")) as f:
+            assert len(f.read()) == 0
