@@ -3,7 +3,7 @@ PY3TEST()
 PEERDIR(
     contrib/python/APScheduler
     contrib/python/gevent
-    contrib/python/pymongo
+    contrib/deprecated/python/pymongo
     contrib/python/kazoo
     contrib/python/redis
     contrib/python/sqlalchemy/sqlalchemy-2
