@@ -76,7 +76,8 @@ public:
 
         return BIND(&TJournalChunkWriter::DoClose, MakeStrong(this))
             .AsyncVia(Invoker_)
-            .Run();
+            .Run()
+            .ToUncancelable();
     }
 
     TFuture<void> WriteRecord(TSharedRef record) override
@@ -190,7 +191,8 @@ private:
 
     i64 NextRecordIndex_ = 0;
 
-    bool Closed_ = false;
+    TPromise<void> ClosingPromise_;
+
 
     void DoOpen()
     {
@@ -426,7 +428,7 @@ private:
             return MakeFuture<void>(Error_);
         }
 
-        if (Closed_) {
+        if (ClosingPromise_) {
             auto error = TError("Journal chunk writer was closed");
             return MakeFuture<void>(error);
         }
@@ -442,13 +444,17 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        if (std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount) {
+        if (!Error_.IsOK()) {
+            return;
+        }
+
+        if (Config_->MaxBatchDelay == TDuration::Zero() ||
+            std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount)
+        {
             DoFlushNodes();
         }
 
-        if (Config_->MaxBatchDelay == TDuration::Zero()) {
-            DoFlushNodes();
-        } else if (!CurrentRecordsFlushCookie_) {
+        if (Config_->MaxBatchDelay != TDuration::Zero() && !CurrentRecordsFlushCookie_) {
             CurrentRecordsFlushCookie_ = TDelayedExecutor::Submit(
                 BIND(&TJournalChunkWriter::DoFlushNodes, MakeWeak(this))
                     .Via(Invoker_),
@@ -459,6 +465,10 @@ private:
     void DoFlushNodes()
     {
         TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
+
+        if (!Error_.IsOK()) {
+            return;
+        }
 
         for (const auto& node : Nodes_) {
             MaybeFlushNode(node);
@@ -579,6 +589,10 @@ private:
                 YT_VERIFY(recordIndex == FirstPendingRecordIndex_);
                 ++FirstPendingRecordIndex_;
                 PendingRecords_.pop_front();
+
+                if (PendingRecords_.empty() && ClosingPromise_) {
+                    ClosingPromise_.TrySet();
+                }
             }
         }
 
@@ -609,15 +623,21 @@ private:
         }
     }
 
-    void OnFailed(const TError& error)
+    void OnFailed(const TError& innerError)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_INFO(error, "Journal chunk writer failed");
+        auto error = TError("Journal chunk writer failed")
+            << innerError;
+        YT_LOG_ERROR(error);
         Error_ = error;
 
         for (const auto& record : PendingRecords_) {
             record->QuorumFlushedPromise.TrySet(error);
+        }
+
+        if (ClosingPromise_) {
+            ClosingPromise_.TrySet(error);
         }
 
         OnWriterFinished();
@@ -632,13 +652,47 @@ private:
         }
     }
 
-    void DoClose()
+    TFuture<void> DoClose()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        if (!Error_.IsOK()) {
+            return VoidFuture;
+        }
+
         YT_LOG_DEBUG("Closing journal chunk writer");
 
-        OnWriterFinished();
+        ClosingPromise_ = NewPromise<void>();
+        if (PendingRecords_.empty()) {
+            ClosingPromise_.TrySet();
+        }
+
+        DoFlushNodes();
+
+        std::vector<TFuture<void>> quorumFlushFutures;
+        quorumFlushFutures.reserve(PendingRecords_.size());
+        for (const auto& record : PendingRecords_) {
+            quorumFlushFutures.push_back(record->QuorumFlushedPromise);
+        }
+
+        return AllSucceeded(std::move(quorumFlushFutures)).Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this)
+        ] {
+            YT_LOG_DEBUG("Will gracefully wait before finalizing journal chunk writer close (MaxWaitPeriod: %v)",
+                Config_->ChunkCloseGracePeriod);
+
+            // NB: We wait for the grace period to let replicas remaining after quorum flush
+            // to finish as well so subsequent seal will not trigger undesireable recovery.
+            return ClosingPromise_.ToFuture()
+                .WithTimeout(Config_->ChunkCloseGracePeriod)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
+                    OnWriterFinished();
+                })
+                .AsyncVia(Invoker_));
+        })
+            .AsyncVia(Invoker_));
     }
 
     void OnWriterFinished()
@@ -651,6 +705,8 @@ private:
                 node->PingExecutor.Reset();
             }
         }
+
+        TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
 
         YT_LOG_DEBUG("Journal chunk writer finished");
     }
