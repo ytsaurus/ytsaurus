@@ -127,6 +127,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("signature_components", &TThis::SignatureComponents)
         .DefaultNew();
 
+    registrar.Parameter("pool_weight_cache", &TThis::PoolWeightCache)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });
@@ -206,6 +209,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .Default();
+
+    registrar.Parameter("worker_pool_weight_overrides", &TThis::WorkerPoolWeightOverrides)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

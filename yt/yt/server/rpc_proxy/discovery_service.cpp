@@ -93,7 +93,7 @@ public:
         IInvokerPtr workerInvoker,
         const NNodeTrackerClient::TAddressMap& localAddresses)
         : TServiceBase(
-            workerInvoker,
+            std::move(workerInvoker),
             GetDescriptor(),
             RpcProxyLogger())
         , Config_(std::move(config))
