@@ -7,7 +7,7 @@ VERSION(3.13.0)
 LICENSE(Apache-2.0)
 
 ADDINCL(
-    contrib/python/pymongo/py3/bson
+    contrib/deprecated/python/pymongo/bson
 )
 
 NO_COMPILER_WARNINGS()
@@ -123,7 +123,7 @@ PY_SRCS(
 )
 
 RESOURCE_FILES(
-    PREFIX contrib/python/pymongo/py3/
+    PREFIX contrib/deprecated/python/pymongo/
     .dist-info/METADATA
     .dist-info/top_level.txt
 )
