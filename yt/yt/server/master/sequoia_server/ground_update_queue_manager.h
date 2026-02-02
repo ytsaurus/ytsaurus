@@ -30,6 +30,8 @@ struct IGroundUpdateQueueManager
         NTableClient::TUnversionedOwningRow row,
         EGroundUpdateAction action) = 0;
 
+    virtual i64 GetLastRecordSequenceNumber(NSequoiaClient::EGroundUpdateQueue queue) const = 0;
+
     virtual TFuture<void> Sync(
         NSequoiaClient::EGroundUpdateQueue queue) = 0;
 };
