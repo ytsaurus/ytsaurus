@@ -1592,6 +1592,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
             ]
             assert read_table("//tmp/t1") == read_table("//tmp/t2")
 
+    DATE_MAX = 49673
+    DATETIME_MAX = DATE_MAX * 86400
+    TIMESTAMP_MAX = DATETIME_MAX * 1000000
+    INTERVAL_MAX = TIMESTAMP_MAX
+    INTERVAL_MIN = -TIMESTAMP_MAX
+    DATE32_MAX = 53375808
+    DATE32_MIN = -DATE32_MAX - 1
+    DATETIME64_MAX = DATE32_MAX * 86400
+    DATETIME64_MIN = DATE32_MIN * 86400
+    TIMESTAMP64_MAX = DATETIME64_MAX * 1000000
+    TIMESTAMP64_MIN = DATETIME64_MIN * 1000000
+    INTERVAL64_MAX = TIMESTAMP64_MAX - TIMESTAMP64_MIN + 1
+    INTERVAL64_MIN = -INTERVAL64_MAX
+
     @authors("buyval01")
     def test_date_types_bounds(self):
         types = [
@@ -1611,25 +1625,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "schema": [{"name": type, "type": type} for type in types],
             }
         )
-
-        # Types bounds from code
-        date_max = 49673
-        datetime_max = date_max * 86400
-        timestamp_max = datetime_max * 1000000
-        interval_max = timestamp_max
-        interval_min = -timestamp_max
-        date32_max = 53375808
-        date32_min = -date32_max - 1
-        datetime64_max = date32_max * 86400
-        datetime64_min = date32_min * 86400
-        timestamp64_max = datetime64_max * 1000000
-        timestamp64_min = datetime64_min * 1000000
-        interval64_max = timestamp64_max - timestamp64_min + 1
-        interval64_min = -interval64_max
-        # correct borders according to valid rages
-        date32_min -= 1
-        datetime64_min -= 1
-        timestamp64_min -= 1
 
         with Clique(1) as clique:
             query = "insert into `//tmp/t`({}) values ({})"
@@ -1651,58 +1646,158 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique.make_query('truncate table  `//tmp/t`')
 
             # Date in CH and YT is unsigned, so it has only upper bound
-            expect_error("date", date_max)
+            expect_error("date", self.DATE_MAX)
 
             # The CH Data32 type has narrower value bounds than YT.
             # Anything outside these bounds is rounded up to them
-            expect_value_shrink("date32", date32_min)
-            expect_value_shrink("date32", date32_max)
+            expect_value_shrink("date32", self.DATE32_MIN - 1)
+            expect_value_shrink("date32", self.DATE32_MAX)
 
             # Datetime in CH and YT is unsigned, so it has only upper bound
-            expect_error("datetime", datetime_max)
+            expect_error("datetime", self.DATETIME_MAX)
 
-            expect_error("datetime64", datetime64_min)
-            expect_error("datetime64", datetime64_max)
+            expect_error("datetime64", self.DATETIME64_MIN - 1)
+            expect_error("datetime64", self.DATETIME64_MAX)
 
             # YT timestamp is unsigned, but corresponding CH type is signed
             expect_error("timestamp", -1)
-            expect_error("timestamp", timestamp_max)
+            expect_error("timestamp", self.TIMESTAMP_MAX)
 
-            expect_error("timestamp64", timestamp64_min)
-            expect_error("timestamp64", timestamp64_max)
+            expect_error("timestamp64", self.TIMESTAMP64_MIN - 1)
+            expect_error("timestamp64", self.TIMESTAMP64_MAX)
 
-            expect_error("interval", interval_min)
-            expect_error("interval", interval_max)
+            expect_error("interval", self.INTERVAL_MIN)
+            expect_error("interval", self.INTERVAL_MAX)
 
-            expect_error("interval64", interval64_min)
-            expect_error("interval64", interval64_max)
+            expect_error("interval64", self.INTERVAL64_MIN)
+            expect_error("interval64", self.INTERVAL64_MAX)
 
             # Сheck that inserting values that satisfy the boundary does not cause errors
             query = "insert into `//tmp/t` values ({})"
             # min values
             clique.make_query(query.format(', '.join(map(str, [
                 0,
-                date32_min + 1,
+                self.DATE32_MIN,
                 0,
-                datetime64_min + 1,
+                self.DATETIME64_MIN,
                 0,
-                timestamp64_min + 1,
-                interval_min + 1,
-                interval64_min + 1,
+                self.TIMESTAMP64_MIN,
+                self.INTERVAL_MIN + 1,
+                self.INTERVAL64_MIN + 1,
             ]))))
             # max values
             clique.make_query(query.format(', '.join(map(str, [
-                date_max - 1,
-                date32_max - 1,
-                datetime_max - 1,
-                datetime64_max - 1,
-                timestamp_max - 1,
-                timestamp64_max - 1,
-                interval_max - 1,
-                interval64_max - 1,
+                self.DATE_MAX - 1,
+                self.DATE32_MAX - 1,
+                self.DATETIME_MAX - 1,
+                self.DATETIME64_MAX - 1,
+                self.TIMESTAMP_MAX - 1,
+                self.TIMESTAMP64_MAX - 1,
+                self.INTERVAL_MAX - 1,
+                self.INTERVAL64_MAX - 1,
             ]))))
             query = "select * from '//tmp/t'"
             assert clique.make_query_and_validate_read_row_count(query, exact=2)
+
+    @authors("a-dyu")
+    def test_tz_dates(self):
+        types = [
+            {
+                "name": "TzDate",
+                "bytes": 2,
+                "min": 0,
+                "max": self.DATE_MAX - 1},
+            {
+                "name": "TzDatetime",
+                "bytes": 4,
+                "min": 0,
+                "max": self.DATETIME_MAX - 1,
+            },
+            {
+                "name": "TzTimestamp",
+                "bytes": 8,
+                "min": 0,
+                "max": self.TIMESTAMP_MAX - 1,
+            },
+            {
+                "name": "TzDate32",
+                "bytes": 4,
+                "min": -25567,
+                "max": 47482,
+            },
+            {
+                "name": "TzDatetime64",
+                "bytes": 8,
+                "min": self.DATETIME64_MIN,
+                "max": self.DATETIME64_MAX - 1,
+            },
+            {
+                "name": "TzTimestamp64",
+                "bytes": 8,
+                "min": self.TIMESTAMP64_MIN,
+                "max": self.TIMESTAMP64_MAX - 1,
+            },
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [{"name": t["name"], "type": t["name"]} for t in types],
+                "optimize_for": "lookup",
+            },
+        )
+
+        def timestamp_to_tz(timestamp, zone, t):
+            raw_bytes = timestamp.to_bytes(t["bytes"], byteorder="big", signed=t["min"] < 0)
+            if t["min"] < 0:
+                first_byte = raw_bytes[0] ^ 0x80
+                return bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
+            else:
+                return raw_bytes + zone.encode("ascii")
+
+        arr = []
+        arr.append({t["name"]: timestamp_to_tz(t["min"], "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(1, "Europe/Moscow", t) for t in types})
+        arr.append({t["name"]: timestamp_to_tz(t["max"], "Europe/Moscow", t) for t in types})
+
+        expected = [
+            {
+                "TzDate": "1970-01-01",
+                "TzDatetime": "1970-01-01 03:00:00",
+                "TzTimestamp": "1970-01-01 03:00:00.000000",
+                "TzDate32": "1900-01-01",
+                "TzDatetime64": "1900-01-01 00:00:00",
+                "TzTimestamp64": "1900-01-01 00:00:00.000000",
+            },
+            {
+                "TzDate": "1970-01-02",
+                "TzDatetime": "1970-01-01 03:00:01",
+                "TzTimestamp": "1970-01-01 03:00:00.000001",
+                "TzDate32": "1970-01-02",
+                "TzDatetime64": "1970-01-01 03:00:01",
+                "TzTimestamp64": "1970-01-01 03:00:00.000001",
+            },
+            {
+                "TzDate": "2105-12-31",
+                "TzDate32": "2100-01-01",
+                "TzDatetime": "2106-01-01 02:59:59",
+                "TzDatetime64": "2299-12-31 23:59:59",
+                "TzTimestamp": "2106-01-01 02:59:59.999999",
+                "TzTimestamp64": "2299-12-31 23:59:59.999999",
+            },
+        ]
+
+        write_table("//tmp/t", arr)
+        with Clique(1) as clique:
+            assert clique.make_query("select * from `//tmp/t`") == expected
+
+            clique.make_query("insert into `<append=%false>//tmp/t` select * from `//tmp/t`")
+
+            assert clique.make_query("select * from `//tmp/t`") == expected
+
+            clique.make_query("create table `//tmp/t1` engine=YtTable() as select * from `//tmp/t`")
+
+            assert clique.make_query("select * from `//tmp/t1`") == expected
 
     @authors("dakovalkov")
     def test_yson_extract(self):
