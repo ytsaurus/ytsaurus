@@ -1521,7 +1521,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
                 .TargetPath = NFS::CombinePaths(
                     slotPath,
                     ExecutorConfigFileName),
-                .ReadOnly = false,
+                .ReadOnly = true,
             });
         }
 
