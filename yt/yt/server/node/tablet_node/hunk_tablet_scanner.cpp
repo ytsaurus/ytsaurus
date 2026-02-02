@@ -353,7 +353,7 @@ private:
                 }
             }
 
-            auto error = TError("Transaction commit wait failed")
+            auto error = TError("Hunk tablet scanner transaction commit wait failed")
                 << TErrorAttribute("transaction_id", transaction->GetId());
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
