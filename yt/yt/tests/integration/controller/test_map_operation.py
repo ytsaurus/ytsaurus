@@ -2515,6 +2515,63 @@ print(json.dumps(input))
 
         assert first_read <= first_written <= chunk_reader_spent_time
 
+    @authors("coteeq")
+    def test_writer_timing_statistics(self):
+        skip_if_component_old(self.Env, (26, 1), "node")
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out0", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out1", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+        create("table", "//tmp/t_out2", attributes={"chunk_writer": {"tesing_delay_before_chunk_close": 100}})
+
+        write_table("//tmp/t1", [{"key": i, "value": "val_{i}"} for i in range(10000)])
+        op = map(
+            in_=["//tmp/t1"],
+            out=["//tmp/t_out0", "//tmp/t_out1", "//tmp/t_out2"],
+            command="sleep 1 && tee /proc/self/fd/4 | (sleep 1 && cat)",
+            spec={
+                "job_io": {
+                    # Try really hard to write as slow as possible
+                    "table_writer": {
+                        "block_size": 1,
+                        "desired_chunk_size": 1,
+                    }
+                }
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+        chunk_count = len(get("//tmp/t_out0/@chunk_ids"))
+
+        assert op.get_job_count("completed") == 1
+        job_time_ms = extract_statistic_v2(statistics, "time.exec")
+
+        eps_ms = 20
+
+        def assert_total_time(total_time):
+            assert abs(job_time_ms - total_time) < 100
+
+        for table_index in [0, 1]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time > eps_ms
+            assert write_time > eps_ms
+            assert close_time >= 100 * chunk_count
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
+        for table_index in [2]:
+            wait_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.wait_time")
+            write_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.write_time")
+            idle_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.idle_time")
+            close_time = extract_statistic_v2(statistics, f"chunk_writer_statistics.{table_index}.close_time")
+
+            assert wait_time == 0
+            assert write_time == 0
+            assert 100 <= close_time < 100 + eps_ms  # tesing_delay_before_chunk_close + eps.
+            assert_total_time(idle_time + wait_time + write_time + close_time)
+
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
         skip_if_component_old(self.Env, (25, 2), "controller-agent")

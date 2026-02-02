@@ -337,6 +337,9 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         // skipped |InputTimeToFirstWrittenBatch| entirely :/.
         result.LatencyStatistics.OutputTimeToFirstReadBatch.push_back(
             Writer_->GetTimeToFirstBatch());
+
+        result.WriterTimingStatistics.push_back(
+            Writer_->GetTimingStatistics());
     }
 
     return result;

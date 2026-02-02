@@ -1368,6 +1368,21 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
                 "/latency/output/total/min_time_to_first_read_batch"_SP,
                 minOutputTimeToFirstBatch);
         }
+
+        for (const auto& [index, timingStatistics] : SEnumerate(extendedStatistics.WriterTimingStatistics)) {
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "write_time"_L,
+                timingStatistics.WriteTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "wait_time"_L,
+                timingStatistics.WaitTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "idle_time"_L,
+                timingStatistics.IdleTime);
+            statistics.AddSample(
+                "/chunk_writer_statistics"_SP / TStatisticPathLiteral(ToString(index)) / "close_time"_L,
+                timingStatistics.CloseTime);
+        }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
