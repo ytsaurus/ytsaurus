@@ -321,6 +321,7 @@ void DetachChildFromNode(
     TCompositeCypressNode* /*trunkParent*/,
     TCypressNode* child)
 {
+    // Use DropParent or remove it.
     child->SetParent(nullptr);
 }
 
