@@ -6,9 +6,12 @@
 
 namespace NYT::NHiveServer {
 
+using namespace NHydra;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NConcurrency::TFlsSlot<TCellId> HiveMutationSenderId;
+static NConcurrency::TFlsSlot<TReign> HiveMutationSenderReign;
 
 bool IsHiveMutation()
 {
@@ -20,27 +23,39 @@ TCellId GetHiveMutationSenderId()
     return *HiveMutationSenderId;
 }
 
-THiveMutationGuard::THiveMutationGuard(TCellId senderId)
+TReign GetHiveMutationSenderReign()
+{
+    return *HiveMutationSenderReign;
+}
+
+THiveMutationGuard::THiveMutationGuard(TCellId senderId, TReign senderReign)
 {
     YT_VERIFY(!*HiveMutationSenderId);
+    YT_VERIFY(!*HiveMutationSenderReign);
     *HiveMutationSenderId = senderId;
+    *HiveMutationSenderReign = senderReign;
 }
 
 THiveMutationGuard::~THiveMutationGuard()
 {
     *HiveMutationSenderId = {};
+    *HiveMutationSenderReign = {};
 }
 
 TInverseHiveMutationGuard::TInverseHiveMutationGuard()
     : SenderId_(*HiveMutationSenderId)
+    , SenderReign_(*HiveMutationSenderReign)
 {
     YT_VERIFY(SenderId_);
+    // NB: Reign may be zero.
     *HiveMutationSenderId = {};
+    *HiveMutationSenderReign = 0;
 }
 
 TInverseHiveMutationGuard::~TInverseHiveMutationGuard()
 {
     *HiveMutationSenderId = SenderId_;
+    *HiveMutationSenderReign = SenderReign_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

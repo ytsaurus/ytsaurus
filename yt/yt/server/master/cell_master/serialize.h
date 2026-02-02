@@ -206,6 +206,7 @@ DEFINE_ENUM(EMasterReign,
     ((FillAttributesOnNativeCellDuringMaterialization)              (3155))  // h0pless
     ((LocationIndiciesInChunkConfirmation)                          (3156))  // cherepashka
     ((KulenovClock)                                                 (3157))  // aleksandra-zh
+    ((ReignInHiveMessages_25_4)                                     (3158))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
