@@ -13,7 +13,7 @@ struct TOutcomingMessage
     TSerializedMessagePtr SerializedMessage;
     NTracing::TTraceContextPtr TraceContext;
     TLogicalTime Time;
-    NHydra::TReign Reign;
+    NHydra::TReign Reign = 0;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
