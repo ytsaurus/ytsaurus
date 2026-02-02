@@ -23,6 +23,7 @@ IF (NOT OPENSOURCE)
         jobtruck
         libs
         luigi
+        queue_agent
         scheduler_codicils
         sevenpct
         shiva2
