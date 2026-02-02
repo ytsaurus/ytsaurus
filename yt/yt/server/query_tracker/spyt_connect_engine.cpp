@@ -238,6 +238,7 @@ private:
         command.AppendFormat(" --conf spark.driver.extraJavaOptions='-Djava.net.preferIPv6Addresses=%v'", Config_->PreferIpv6);
         command.AppendFormat(" --conf spark.connect.grpc.binding.port=%v", Config_->GrpcPort);
         command.AppendFormat(" --conf spark.ytsaurus.connect.token.refresh.period=%vs", Config_->RefreshTokenPeriod.Seconds());
+        command.AppendString(" --conf spark.ytsaurus.arrow.stringToBinary=true");
         for (auto confEntry : Settings_->SparkConf) {
             command.AppendFormat(" --conf %v=%v", confEntry.first, confEntry.second);
         }
