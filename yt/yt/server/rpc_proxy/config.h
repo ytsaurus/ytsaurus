@@ -159,6 +159,8 @@ struct TProxyBootstrapConfig
 
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
+    TAsyncExpiringCacheConfigPtr PoolWeightCache;
+
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
@@ -200,6 +202,8 @@ struct TProxyDynamicConfig
     NSignature::TSignatureComponentsConfigPtr SignatureComponents;
 
     std::optional<NCellMasterClient::TCellDirectorySynchronizerConfigPtr> MasterCellDirectorySynchronizer;
+
+    THashMap<std::string, double> WorkerPoolWeightOverrides;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
