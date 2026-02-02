@@ -34,43 +34,41 @@ protected:
 
 TEST_F(TRowsDigestBuilderTest, EqualRowsProduceSameDigest)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
-    computer1.ProcessRow(BuildRow(
-        MakeUnversionedInt64Value(42, GetColumnId("column_a"))
-    ));
-    computer2.ProcessRow(BuildRow(
-        MakeUnversionedInt64Value(42, GetColumnId("column_a"))
-    ));
+    digestBuilder1.ProcessRow(BuildRow(
+        MakeUnversionedInt64Value(42, GetColumnId("column_a"))));
+    digestBuilder2.ProcessRow(BuildRow(
+        MakeUnversionedInt64Value(42, GetColumnId("column_a"))));
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, DifferentValuesProduceDifferentDigests)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedInt64Value(42, GetColumnId("column_a")));
     auto row2 = BuildRow(MakeUnversionedInt64Value(43, GetColumnId("column_a")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, ColumnOrderDoesNotMatter)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(
         MakeUnversionedInt64Value(1, GetColumnId("a")),
@@ -82,28 +80,28 @@ TEST_F(TRowsDigestBuilderTest, ColumnOrderDoesNotMatter)
         MakeUnversionedInt64Value(1, GetColumnId("a")),
         MakeUnversionedUint64Value(2, GetColumnId("b")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, DifferentColumnNamesProduceDifferentDigests)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedInt64Value(42, GetColumnId("a")));
     auto row2 = BuildRow(MakeUnversionedInt64Value(42, GetColumnId("b")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
@@ -113,8 +111,8 @@ TEST_F(TRowsDigestBuilderTest, DifferentNameTablesWithSameColumnNames)
     auto nameTable1 = New<TNameTable>();
     auto nameTable2 = New<TNameTable>();
 
-    TRowsDigestBuilder computer1(nameTable1);
-    TRowsDigestBuilder computer2(nameTable2);
+    TRowsDigestBuilder digestBuilder1(nameTable1);
+    TRowsDigestBuilder digestBuilder2(nameTable2);
 
     // Register columns in different order in each name table.
     // In nameTable1: "a" gets ID 0, "b" gets ID 1.
@@ -133,11 +131,11 @@ TEST_F(TRowsDigestBuilderTest, DifferentNameTablesWithSameColumnNames)
         MakeUnversionedInt64Value(1, id2_a),
         MakeUnversionedInt64Value(2, id2_b));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     // Digests should be equal because column names are the same.
     EXPECT_EQ(digest1, digest2);
@@ -145,43 +143,43 @@ TEST_F(TRowsDigestBuilderTest, DifferentNameTablesWithSameColumnNames)
 
 TEST_F(TRowsDigestBuilderTest, MultipleRowsAccumulate)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedInt64Value(1, GetColumnId("a")));
     auto row2 = BuildRow(MakeUnversionedInt64Value(2, GetColumnId("a")));
 
-    computer1.ProcessRow(row1);
-    computer1.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder1.ProcessRow(row2);
 
     auto row3 = BuildRow(MakeUnversionedInt64Value(1, GetColumnId("a")));
     auto row4 = BuildRow(MakeUnversionedInt64Value(2, GetColumnId("a")));
 
-    computer2.ProcessRow(row3);
-    computer2.ProcessRow(row4);
+    digestBuilder2.ProcessRow(row3);
+    digestBuilder2.ProcessRow(row4);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, RowOrderMatters)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedInt64Value(1, GetColumnId("a")));
     auto row2 = BuildRow(MakeUnversionedInt64Value(2, GetColumnId("a")));
 
-    computer1.ProcessRow(row1);
-    computer1.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder1.ProcessRow(row2);
 
-    computer2.ProcessRow(row2);
-    computer2.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
+    digestBuilder2.ProcessRow(row1);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
@@ -199,8 +197,8 @@ TEST_F(TRowsDigestBuilderTest, DifferentValueTypes)
     nameTable2->GetIdOrRegisterName("string_col");
     nameTable2->GetIdOrRegisterName("int_col");
 
-    TRowsDigestBuilder computer1(nameTable1);
-    TRowsDigestBuilder computer2(nameTable2);
+    TRowsDigestBuilder digestBuilder1(nameTable1);
+    TRowsDigestBuilder digestBuilder2(nameTable2);
 
     auto row1 = BuildRow(
         MakeUnversionedInt64Value(42, nameTable1->GetIdOrRegisterName("int_col")),
@@ -212,8 +210,8 @@ TEST_F(TRowsDigestBuilderTest, DifferentValueTypes)
         MakeUnversionedNullValue(nameTable1->GetIdOrRegisterName("null_col")),
         MakeUnversionedAnyValue("{key=value}", nameTable1->GetIdOrRegisterName("any_col")));
 
-    computer1.ProcessRow(row1);
-    auto digest1 = computer1.GetDigest();
+    digestBuilder1.ProcessRow(row1);
+    auto digest1 = digestBuilder1.GetDigest();
 
     auto row2 = BuildRow(
         MakeUnversionedNullValue(nameTable2->GetIdOrRegisterName("null_col")),
@@ -225,33 +223,33 @@ TEST_F(TRowsDigestBuilderTest, DifferentValueTypes)
         MakeUnversionedInt64Value(42, nameTable2->GetIdOrRegisterName("int_col")),
         MakeUnversionedAnyValue("{key=value}", nameTable2->GetIdOrRegisterName("any_col")));
 
-    computer2.ProcessRow(row2);
-    auto digest2 = computer2.GetDigest();
+    digestBuilder2.ProcessRow(row2);
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, ValueTypeMatters)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedInt64Value(42, GetColumnId("col")));
     auto row2 = BuildRow(MakeUnversionedUint64Value(42, GetColumnId("col")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, DifferentColumnCount)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(
         MakeUnversionedInt64Value(1, GetColumnId("a")),
@@ -266,22 +264,22 @@ TEST_F(TRowsDigestBuilderTest, DifferentColumnCount)
         MakeUnversionedInt64Value(4, GetColumnId("b")),
         MakeUnversionedInt64Value(5, GetColumnId("c")));
 
-    computer1.ProcessRow(row1);
-    computer1.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder1.ProcessRow(row2);
 
-    computer2.ProcessRow(row1);
-    computer2.ProcessRow(row3);
+    digestBuilder2.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row3);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, CompositeAndAnyValueTypes)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     // First row with Composite and Any types.
     auto row1 = BuildRow(
@@ -293,28 +291,28 @@ TEST_F(TRowsDigestBuilderTest, CompositeAndAnyValueTypes)
         MakeUnversionedCompositeValue("[1;2;3]", GetColumnId("composite_col")),
         MakeUnversionedAnyValue("{key=value}", GetColumnId("any_col")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, StringContentMatters)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedStringValue("test", GetColumnId("col")));
     auto row2 = BuildRow(MakeUnversionedStringValue("test1", GetColumnId("col")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_NE(digest1, digest2);
 }
@@ -323,8 +321,8 @@ TEST_F(TRowsDigestBuilderTest, ManyRowsWithDynamicColumns)
 {
     auto nameTable1 = New<TNameTable>();
     auto nameTable2 = New<TNameTable>();
-    TRowsDigestBuilder computer1(nameTable1);
-    TRowsDigestBuilder computer2(nameTable2);
+    TRowsDigestBuilder digestBuilder1(nameTable1);
+    TRowsDigestBuilder digestBuilder2(nameTable2);
 
     // Process 10 rows, each adding a new column.
     for (int i = 0; i < 10; ++i) {
@@ -363,68 +361,68 @@ TEST_F(TRowsDigestBuilderTest, ManyRowsWithDynamicColumns)
         }
         auto row2 = builder2.FinishRow();
 
-        computer1.ProcessRow(row1);
-        computer2.ProcessRow(row2);
+        digestBuilder1.ProcessRow(row1);
+        digestBuilder2.ProcessRow(row2);
     }
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 }
 
 TEST_F(TRowsDigestBuilderTest, LongStringValues)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     std::string longString(1000, 'a');
 
     auto row1 = BuildRow(MakeUnversionedStringValue(longString, GetColumnId("col")));
     auto row2 = BuildRow(MakeUnversionedStringValue(longString, GetColumnId("col")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 
-    TRowsDigestBuilder computer3(NameTable_);
+    TRowsDigestBuilder digestBuilder3(NameTable_);
     std::string longString2(1000, 'a');
     longString2[999] = 'b';
 
     auto row3 = BuildRow(MakeUnversionedStringValue(longString2, GetColumnId("col")));
 
-    computer3.ProcessRow(row3);
-    auto digest3 = computer3.GetDigest();
+    digestBuilder3.ProcessRow(row3);
+    auto digest3 = digestBuilder3.GetDigest();
 
     EXPECT_NE(digest1, digest3);
 }
 
 TEST_F(TRowsDigestBuilderTest, EmptyStringValues)
 {
-    TRowsDigestBuilder computer1(NameTable_);
-    TRowsDigestBuilder computer2(NameTable_);
+    TRowsDigestBuilder digestBuilder1(NameTable_);
+    TRowsDigestBuilder digestBuilder2(NameTable_);
 
     auto row1 = BuildRow(MakeUnversionedStringValue("", GetColumnId("col")));
     auto row2 = BuildRow(MakeUnversionedStringValue("", GetColumnId("col")));
 
-    computer1.ProcessRow(row1);
-    computer2.ProcessRow(row2);
+    digestBuilder1.ProcessRow(row1);
+    digestBuilder2.ProcessRow(row2);
 
-    auto digest1 = computer1.GetDigest();
-    auto digest2 = computer2.GetDigest();
+    auto digest1 = digestBuilder1.GetDigest();
+    auto digest2 = digestBuilder2.GetDigest();
 
     EXPECT_EQ(digest1, digest2);
 
-    TRowsDigestBuilder computer3(NameTable_);
+    TRowsDigestBuilder digestBuilder3(NameTable_);
 
     auto row3 = BuildRow(MakeUnversionedNullValue(GetColumnId("col")));
 
-    computer3.ProcessRow(row3);
-    auto digest3 = computer3.GetDigest();
+    digestBuilder3.ProcessRow(row3);
+    auto digest3 = digestBuilder3.GetDigest();
 
     EXPECT_NE(digest1, digest3);
 }
@@ -432,14 +430,14 @@ TEST_F(TRowsDigestBuilderTest, EmptyStringValues)
 TEST_F(TRowsDigestBuilderTest, NullValuesWithRandomData)
 {
     auto computeDigest = [&] () {
-        TRowsDigestBuilder computer(NameTable_);
+        TRowsDigestBuilder digestBuilder(NameTable_);
 
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedNullValue(GetColumnId("col")));
         builder.BeginValues()->Data.Uint64 = Ui64Distribution_(Gen_);
-        computer.ProcessRow(builder.FinishRow());
+        digestBuilder.ProcessRow(builder.FinishRow());
 
-        return computer.GetDigest();
+        return digestBuilder.GetDigest();
     };
 
     EXPECT_EQ(computeDigest(), computeDigest());
@@ -448,15 +446,15 @@ TEST_F(TRowsDigestBuilderTest, NullValuesWithRandomData)
 TEST_F(TRowsDigestBuilderTest, BoolValuesWithRandomData)
 {
     auto computeDigest = [&] (bool value) {
-        TRowsDigestBuilder computer(NameTable_);
+        TRowsDigestBuilder digestBuilder(NameTable_);
 
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedBooleanValue(false, GetColumnId("col")));
         builder.BeginValues()->Data.Uint64 = Ui64Distribution_(Gen_);
         builder.BeginValues()->Data.Boolean = value;
-        computer.ProcessRow(builder.FinishRow());
+        digestBuilder.ProcessRow(builder.FinishRow());
 
-        return computer.GetDigest();
+        return digestBuilder.GetDigest();
     };
 
     EXPECT_EQ(computeDigest(false), computeDigest(false));
