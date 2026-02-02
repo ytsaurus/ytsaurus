@@ -111,9 +111,6 @@ void TSignatureComponentsConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("generation", &TThis::Generation)
         .Optional();
-
-    registrar.Parameter("use_root_user", &TThis::UseRootUser)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

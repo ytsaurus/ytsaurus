@@ -190,7 +190,7 @@ public:
         SignatureComponents_ = New<TSignatureComponents>(
             GetConfig()->ExecNode->SignatureComponents,
             std::move(ownerId),
-            GetConnection(),
+            GetClient(),
             GetControlInvoker());
 
         // NB(psushin): initialize chunk cache first because slot manager (and root
