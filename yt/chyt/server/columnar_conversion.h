@@ -26,6 +26,10 @@ DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
 DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
     NTableClient::ESimpleLogicalValueType type);
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumn(
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    NTableClient::ESimpleLogicalValueType type);
 DB::MutableColumnPtr ConvertNullYTColumnToCHColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& ytColumn);
 DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(

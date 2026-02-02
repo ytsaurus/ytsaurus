@@ -3,6 +3,7 @@
 #include "config.h"
 #include "columnar_conversion.h"
 #include "custom_data_types.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -365,6 +366,13 @@ public:
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             YT_VERIFY(ysonItem.GetType() == EYsonItemType::EntityValue);
             Data_->insertDefault();
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::TzDate ||
+            LogicalType == ESimpleLogicalValueType::TzDatetime ||
+            LogicalType == ESimpleLogicalValueType::TzTimestamp ||
+            LogicalType == ESimpleLogicalValueType::TzDate32 ||
+            LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
+            LogicalType == ESimpleLogicalValueType::TzTimestamp64) {
+            Data_->insertValue(GetTimestampFromTzString<LogicalType>(ysonItem.UncheckedAsString()));
         } else {
             YT_ABORT();
         }
@@ -422,6 +430,13 @@ public:
                     Data_->insertData(value.Data.String, value.Length);
                 } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
                     Data_->insertDefault();
+                } else if constexpr (LogicalType == ESimpleLogicalValueType::TzDate ||
+                    LogicalType == ESimpleLogicalValueType::TzDatetime ||
+                    LogicalType == ESimpleLogicalValueType::TzTimestamp ||
+                    LogicalType == ESimpleLogicalValueType::TzDate32 ||
+                    LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
+                    LogicalType == ESimpleLogicalValueType::TzTimestamp64) {
+                    Data_->insertValue(GetTimestampFromTzString<LogicalType>(std::string_view(value.Data.String, value.Length)));
                 } else {
                     YT_ABORT();
                 }
@@ -464,6 +479,14 @@ public:
             ReplaceColumnTypeChecked<DB::MutableColumnPtr>(Column_, ConvertStringLikeYTColumnToCHColumn(column, filterHint));
         } else if constexpr (LogicalType == ESimpleLogicalValueType::Void) {
             // AssumeNothingColumn()->insertDefault(column);
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::TzDate ||
+            LogicalType == ESimpleLogicalValueType::TzDatetime ||
+            LogicalType == ESimpleLogicalValueType::TzTimestamp ||
+            LogicalType == ESimpleLogicalValueType::TzDate32 ||
+            LogicalType == ESimpleLogicalValueType::TzDatetime64 ||
+            LogicalType == ESimpleLogicalValueType::TzTimestamp64)
+        {
+            ReplaceColumnTypeChecked(Column_, ConvertTzYTColumnToCHColumn(column, filterHint, LogicalType));
         } else {
             YT_ABORT();
         }
@@ -1218,8 +1241,8 @@ private:
         IConverterPtr converter;
         switch (valueType) {
             #define CASE(caseValueType, TColumn, dataType)                                       \
-                case caseValueType:                                                                        \
-                    converter = std::make_unique<TSimpleValueConverter<caseValueType, TColumn>>( \
+                case ESimpleLogicalValueType::caseValueType:                                                                        \
+                    converter = std::make_unique<TSimpleValueConverter<ESimpleLogicalValueType::caseValueType, TColumn>>( \
                         descriptor,                                                                        \
                         dataType);                                                                         \
                     break;
@@ -1227,35 +1250,49 @@ private:
             #define CASE_SIMPLE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
             #define CASE_NUMERIC(caseValueType, TCppType, dataType) CASE(caseValueType, DB::ColumnVector<TCppType>, dataType)
 
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Uint64, ui64)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int8, DB::Int8)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int16, i16)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int32, i32)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Int64, i64)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Float, float)
-            CASE_SIMPLE_NUMERIC(ESimpleLogicalValueType::Double, double)
+            CASE_SIMPLE_NUMERIC(Uint8, DB::UInt8)
+            CASE_SIMPLE_NUMERIC(Uint16, ui16)
+            CASE_SIMPLE_NUMERIC(Uint32, ui32)
+            CASE_SIMPLE_NUMERIC(Uint64, ui64)
+            CASE_SIMPLE_NUMERIC(Int8, DB::Int8)
+            CASE_SIMPLE_NUMERIC(Int16, i16)
+            CASE_SIMPLE_NUMERIC(Int32, i32)
+            CASE_SIMPLE_NUMERIC(Int64, i64)
+            CASE_SIMPLE_NUMERIC(Float, float)
+            CASE_SIMPLE_NUMERIC(Double, double)
             // YT Interval logical type stores microseconds between two timestamps
-            CASE_NUMERIC(ESimpleLogicalValueType::Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
-            CASE_NUMERIC(ESimpleLogicalValueType::Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
-            CASE_NUMERIC(ESimpleLogicalValueType::Boolean, DB::UInt8, GetDataTypeBoolean())
+            CASE_NUMERIC(Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
+            CASE_NUMERIC(Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
+            CASE_NUMERIC(Boolean, DB::UInt8, GetDataTypeBoolean())
             // TODO(max42): specify timezone explicitly here.
-            CASE_NUMERIC(ESimpleLogicalValueType::Date, ui16, std::make_shared<DB::DataTypeDate>())
-            CASE_NUMERIC(ESimpleLogicalValueType::Date32, i32, std::make_shared<DB::DataTypeDate32>())
-            CASE_NUMERIC(ESimpleLogicalValueType::Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
+            CASE_NUMERIC(Date, ui16, std::make_shared<DB::DataTypeDate>())
+            CASE_NUMERIC(Date32, i32, std::make_shared<DB::DataTypeDate32>())
+            CASE_NUMERIC(Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
             // YT DateTime64 logical type stores timestamp in seconds so scale of underlying Decimal is equal to 0
-            CASE(ESimpleLogicalValueType::Datetime64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(0))
+            CASE(Datetime64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(0))
             // YT Timestamp64 logical type stores timestamp in microseconds so scale of underlying Decimal is equal to 6
-            CASE(ESimpleLogicalValueType::Timestamp64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(6))
-            CASE(ESimpleLogicalValueType::String, DB::ColumnString, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Utf8, DB::ColumnString,  std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Void, DB::ColumnNothing,  std::make_shared<DB::DataTypeNothing>())
+            CASE(Timestamp64, DB::ColumnDecimal<DB::DateTime64>, std::make_shared<DB::DataTypeDateTime64>(6))
+            CASE(String, DB::ColumnString, std::make_shared<DB::DataTypeString>())
+            CASE(Utf8, DB::ColumnString,  std::make_shared<DB::DataTypeString>())
+            CASE(Void, DB::ColumnNothing,  std::make_shared<DB::DataTypeNothing>())
+
+            #define CASE_TZ(caseValueType, TColumn) CASE(caseValueType, TColumn, GetDataType##caseValueType())
+            #define CASE_TZ_NUMERIC(caseValueType) CASE_TZ(caseValueType, DB::ColumnVector<TTzIntegerType<ESimpleLogicalValueType::caseValueType>>)
+            #define CASE_TZ_DECIMAL(caseValueType) CASE_TZ(caseValueType, DB::ColumnDecimal<DB::DateTime64>)
+
+            CASE_TZ_NUMERIC(TzDate)
+            CASE_TZ_NUMERIC(TzDatetime)
+            CASE_TZ_DECIMAL(TzTimestamp)
+            CASE_TZ_NUMERIC(TzDate32)
+            CASE_TZ_DECIMAL(TzDatetime64)
+            CASE_TZ_DECIMAL(TzTimestamp64)
 
             #undef CASE
             #undef CASE_SIMPLE_NUMERIC
             #undef CASE_NUMERIC
+            #undef CASE_TZ
+            #undef CASE_TZ_NUMERIC
+            #undef CASE_TZ_DECIMAL
 
             case ESimpleLogicalValueType::Timestamp: {
                 DB::DataTypePtr dataType;

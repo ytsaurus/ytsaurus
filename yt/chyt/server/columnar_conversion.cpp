@@ -1,6 +1,7 @@
 #include "columnar_conversion.h"
 
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -8,12 +9,14 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/library/clickhouse_functions/unescaped_yson.h>
+#include <yt/yt/library/tz_types/tz_types.h>
 
 #include <Columns/ColumnDecimal.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnNothing.h>
+#include <Columns/ColumnsDateTime.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -562,6 +565,135 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
     return chColumn;
 }
 
+template <ESimpleLogicalValueType LogicalType, class TColumn, class... Args>
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    Args&&... args)
+{
+    auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
+
+    YT_LOG_TRACE("Converting tz column (Count: %v, Dictionary: %v, Rle: %v)",
+        ytColumn.ValueCount,
+        static_cast<bool>(dictionaryIndexes),
+        static_cast<bool>(rleIndexes));
+
+    YT_VERIFY(ytValueColumn->Values);
+    YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
+    YT_VERIFY(ytValueColumn->Values->BaseValue == 0);
+    YT_VERIFY(ytValueColumn->Values->ZigZagEncoded);
+    YT_VERIFY(ytValueColumn->Strings);
+    YT_VERIFY(ytValueColumn->Strings->AvgLength);
+
+    auto ytOffsets = ytValueColumn->GetTypedValues<ui32>();
+    const auto* ytChars = ytValueColumn->Strings->Data.Begin();
+
+    YT_VERIFY(ytValueColumn->Strings->AvgLength);
+    auto avgLength = *ytValueColumn->Strings->AvgLength;
+
+    auto chColumn = TColumn::create(ytColumn.ValueCount, std::forward<Args>(args)...);
+
+    auto* currentOutput = chColumn->getData().data();
+
+    using dateInt = TTzIntegerType<LogicalType>;
+
+    auto consumer = [&] (dateInt timestamp) {
+        *currentOutput++ = timestamp;
+    };
+
+    if (filterHint) {
+        int rowIndex = 0;
+        DecodeRawVector<dateInt>(
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            dictionaryIndexes,
+            rleIndexes,
+            [&] (i64 index) {
+                    if (filterHint[rowIndex]) {
+                        auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+                        return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+                    } else {
+                        return static_cast<TTzIntegerType<LogicalType>>(0);
+                    }
+                },
+            [&] (auto timestamp) {
+                if (filterHint[rowIndex++]) {
+                    consumer(timestamp);
+                } else {
+                    consumer(0);
+                }
+            });
+    } else if (dictionaryIndexes) {
+        constexpr int SmallDictionaryFactor = 3;
+        if (static_cast<i64>(ytOffsets.Size()) * SmallDictionaryFactor < ytColumn.ValueCount) {
+            YT_LOG_TRACE("Converting tz date column with small dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
+                ytColumn.ValueCount,
+                ytOffsets.size(),
+                static_cast<bool>(rleIndexes));
+
+            std::vector<const char*> ytStrings(ytOffsets.size());
+            std::vector<i32> ytStringLengths(ytOffsets.size());
+            DecodeStringPointersAndLengths(
+                ytOffsets,
+                avgLength,
+                ytValueColumn->Strings->Data,
+                TMutableRange(ytStrings),
+                TMutableRange(ytStringLengths));
+
+            auto stringsFetcher = [&] (i64 index) {
+                return GetTimestampFromTzString<LogicalType>(std::string_view(ytStrings[index], ytStringLengths[index]));
+            };
+
+            DecodeRawVector<dateInt>(
+                ytColumn.StartIndex,
+                ytColumn.StartIndex + ytColumn.ValueCount,
+                dictionaryIndexes,
+                rleIndexes,
+                stringsFetcher,
+                consumer);
+        } else {
+            YT_LOG_TRACE("Converting tz column with large dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
+                ytColumn.ValueCount,
+                ytOffsets.size(),
+                static_cast<bool>(rleIndexes));
+
+            DecodeRawVector<dateInt>(
+                ytColumn.StartIndex,
+                ytColumn.StartIndex + ytColumn.ValueCount,
+                dictionaryIndexes,
+                rleIndexes,
+                [&] (i64 index) {
+                    auto [startOffset, endOffset] = DecodeStringRange(ytOffsets, avgLength, index);
+                    return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, endOffset - startOffset));
+                },
+                consumer);
+        }
+    } else {
+        YT_LOG_TRACE("Converting tz column without dictionary (Count: %v, Rle: %v)",
+            ytColumn.ValueCount,
+            static_cast<bool>(rleIndexes));
+
+        i64 avgLengthTimesIndex = ytValueColumn->StartIndex * avgLength;
+        i64 currentOffset = DecodeStringOffset(ytOffsets, avgLength, ytValueColumn->StartIndex);
+        DecodeRawVector<dateInt>(
+            ytColumn.StartIndex,
+            ytColumn.StartIndex + ytColumn.ValueCount,
+            {},
+            rleIndexes,
+            [&] (i64 index) {
+                auto startOffset = currentOffset;
+                avgLengthTimesIndex += avgLength;
+                auto endOffset = avgLengthTimesIndex + ZigZagDecode64(ytOffsets[index]);
+                i32 length = endOffset - startOffset;
+                currentOffset = endOffset;
+                return GetTimestampFromTzString<LogicalType>(std::string_view(ytChars + startOffset, length));
+            },
+            consumer);
+    }
+
+    return chColumn;
+}
+
 } // namespace
 
 DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
@@ -718,6 +850,39 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
             YT_ABORT();
     }
 }
+
+DB::MutableColumnPtr ConvertTzYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    TRange<DB::UInt8> filterHint,
+    NTableClient::ESimpleLogicalValueType type)
+{
+    switch(type) {
+        #define XX(ytType, columnType, ...) \
+                case ESimpleLogicalValueType::ytType: { \
+                    return ConvertTzYTColumnToCHColumnImpl<ESimpleLogicalValueType::ytType, columnType>(__VA_ARGS__); \
+                }
+        #define XX_ARGS ytColumn, filterHint
+        #define XX_VECTOR_COLUMN(ytType, chType) XX(ytType, DB::ColumnVector<chType>, XX_ARGS)
+        #define XX_DECIMAL_COLUMN(ytType, decimalScale) XX(ytType, DB::ColumnDecimal<DB::DateTime64>, XX_ARGS, decimalScale)
+
+        XX_VECTOR_COLUMN(TzDate,        UInt16)
+        XX_VECTOR_COLUMN(TzDate32,      Int32)
+        XX_VECTOR_COLUMN(TzDatetime,    UInt32)
+
+        XX_DECIMAL_COLUMN(TzDatetime64, 0)
+        XX_DECIMAL_COLUMN(TzTimestamp, 6)
+        XX_DECIMAL_COLUMN(TzTimestamp64, 6)
+
+        #undef XX
+        #undef XX_ARGS
+        #undef XX_VECTOR_COLUMN
+        #undef XX_DECIMAL_COLUMN
+
+        default:
+            YT_ABORT();
+    }
+}
+
 
 DB::ColumnString::MutablePtr ConvertCHColumnToAny(
     const DB::IColumn& column,

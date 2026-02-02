@@ -16,4 +16,15 @@ DB::DataTypePtr GetDataTypeTimestamp();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RegisterTzDataTypes();
+
+DB::DataTypePtr GetDataTypeTzDate();
+DB::DataTypePtr GetDataTypeTzDatetime();
+DB::DataTypePtr GetDataTypeTzTimestamp();
+DB::DataTypePtr GetDataTypeTzDate32();
+DB::DataTypePtr GetDataTypeTzDatetime64();
+DB::DataTypePtr GetDataTypeTzTimestamp64();
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer

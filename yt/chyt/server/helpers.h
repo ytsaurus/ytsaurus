@@ -6,11 +6,14 @@
 
 #include <yt/chyt/server/protos/clickhouse_service.pb.h>
 
+#include <yt/yt/library/tz_types/tz_types.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 
@@ -23,6 +26,14 @@
 #include <Storages/ColumnsDescription.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<NYT::NTableClient::ESimpleLogicalValueType LogicalType>
+using TTzIntegerType = NYT::NTableClient::TUnderlyingTimestampIntegerType<NYT::NTableClient::TUnderlyingTzType<LogicalType>>;
+
+template<NTableClient::ESimpleLogicalValueType LogicalType>
+TTzIntegerType<LogicalType> GetTimestampFromTzString(std::string_view tzString);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,3 +150,7 @@ void PrintTo(const Field& field, ::std::ostream* os);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

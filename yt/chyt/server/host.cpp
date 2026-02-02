@@ -1099,6 +1099,7 @@ private:
             SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
         RegisterDataTypeTimestamp();
+        RegisterTzDataTypes();
     }
 };
 
