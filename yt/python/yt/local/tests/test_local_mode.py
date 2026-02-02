@@ -140,8 +140,7 @@ def _get_id(test_name):
     return test_name + "_" + "".join(random.choice(collection) for _ in range(5))
 
 
-# COMPAT/TODO(cherepashka): YT-27231 return enable_multidaemon: True once location indices will be enabled by default.
-@pytest.mark.parametrize("enable_multidaemon", [False])
+@pytest.mark.parametrize("enable_multidaemon", [False, True])
 class TestLocalMode(object):
     @classmethod
     def setup_class(cls):
