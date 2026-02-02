@@ -229,6 +229,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             attributes.update({"store_rotation_period": 10000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 10000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
         return create("hunk_storage", name, attributes=attributes)
 
     def _get_hunk_table_schema(self, schema, max_inline_hunk_size):

@@ -1526,7 +1526,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table(enable_dynamic_store_read=True)
 
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
@@ -1611,7 +1613,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         tablet_id = tablets[tablet_index]["tablet_id"]
         get("//sys/tablets/{}/orchid".format(tablet_id))
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_flush_inline(self, optimize_for):
         sync_create_cells(1)
@@ -1639,13 +1641,15 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_flush_to_hunk_chunk(self, optimize_for):
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
 
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
 
@@ -1686,7 +1690,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("enable_dynamic_store_read", [True, False])
     def test_journal_hunk_chunk_parents(self, optimize_for, enable_dynamic_store_read):
@@ -1699,6 +1703,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 20000,
             "store_removal_grace_period": 4000,
+            "scan_backoff_period": 1000,
         })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
@@ -1760,6 +1765,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 2000,
             "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
         })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
@@ -1785,7 +1791,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: not exists("#{}".format(hunk_chunk_id)))
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_restart_preserves_locks(self, optimize_for):
         sync_create_cells(1)
@@ -1793,6 +1799,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
         })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
@@ -1856,6 +1863,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 2000,
             "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
             "read_quorum": 4,
             "write_quorum": 5,
             "erasure_codec": "reed_solomon_3_3",
@@ -1898,6 +1906,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 2000,
             "store_removal_grace_period": 100,
+            "scan_backoff_period": 1000,
             "read_quorum": 4,
             "write_quorum": 5,
             "erasure_codec": "reed_solomon_3_3",
@@ -1947,7 +1956,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_remove_cell_with_attached_hunk_storage(self):
         cell_id = sync_create_cells(1)[0]
 
-        create("hunk_storage", "//tmp/h")
+        create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
 
         sync_mount_table("//tmp/h")
 
@@ -1970,7 +1981,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_table()
 
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         sync_mount_table("//tmp/h")
@@ -1996,7 +2009,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         self._create_table()
         sync_reshard_table("//tmp/t", 5)
 
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         sync_mount_table("//tmp/h")
@@ -2100,13 +2115,16 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         if hunk_erasure_codec != "none":
             hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+                "scan_backoff_period": 1000,
                 "read_quorum": 4,
                 "write_quorum": 5,
                 "erasure_codec": "reed_solomon_3_3",
                 "replication_factor": 1,
             })
         else:
-            hunk_storage_id = create("hunk_storage", "//tmp/h")
+            hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+                "scan_backoff_period": 1000,
+            })
 
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
         sync_mount_table("//tmp/h")
@@ -2206,7 +2224,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_seal_after_queue_copy(self):
         sync_create_cells(1)
         self._create_table(path="//tmp/t")
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         sync_mount_table("//tmp/h")
@@ -2243,7 +2263,9 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_seal_after_queue_branch(self):
         sync_create_cells(1)
         self._create_table(path="//tmp/t")
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
         set("//tmp/t/@hunk_storage_id", hunk_storage_id)
 
         sync_mount_table("//tmp/h")
@@ -2465,7 +2487,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
             self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 3, "data_parts_only": False},
             "default": {"replication_factor": 5, "data_parts_only": True}}
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
     def test_hunk_media_attributes_inherited(self, init_table):
         init_table = getattr(self, init_table)
@@ -2485,7 +2507,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
         assert get("//tmp/b/@hunk_media") == hunk_media
 
-    @authors("aleksandra-zh")
+    @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
     def test_hunk_media_attributes_survive_restart(self, init_table):
         init_table = getattr(self, init_table)
@@ -3862,7 +3884,10 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     def test_remove_cell_with_attached_hunk_storage(self):
         cell_id = sync_create_cells(1)[0]
 
-        create("hunk_storage", "//tmp/h", attributes={"external_cell_tag": 11})
+        create("hunk_storage", "//tmp/h", attributes={
+            "external_cell_tag": 11,
+            "scan_backoff_period": 1000,
+        })
 
         sync_mount_table("//tmp/h")
 
@@ -3941,6 +3966,8 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         hunk_storage_attrs_copy = hunk_storage_attrs.copy()
         if "store_rotation_period" not in hunk_storage_attrs_copy:
             hunk_storage_attrs_copy["store_rotation_period"] = 1000
+        if "scan_backoff_period" not in hunk_storage_attrs_copy:
+            hunk_storage_attrs_copy["scan_backoff_period"] = 1000
         if self.is_multicell():
             if "external_cell_tag" not in hunk_storage_attrs_copy and hunk_storage_attrs_copy.get("external", True):
                 external_cell_tag = get("//tmp/t/@external_cell_tag")
@@ -3952,7 +3979,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
 
         if do_alter:
             sync_unmount_table("//tmp/t")

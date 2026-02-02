@@ -6269,7 +6269,10 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         hunk_storage_attrs["external_cell_tag"] = queue_external_cell_tag
         if "store_rotation_period" not in hunk_storage_attrs:
             hunk_storage_attrs["store_rotation_period"] = 2000
+        if "store_removal_grace_period" not in hunk_storage_attrs:
             hunk_storage_attrs["store_removal_grace_period"] = 4000
+        if "scan_backoff_period" not in hunk_storage_attrs:
+            hunk_storage_attrs["scan_backoff_period"] = 1000
 
         hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attrs)
         set("//tmp/q/@hunk_storage_id", hunk_storage_id)

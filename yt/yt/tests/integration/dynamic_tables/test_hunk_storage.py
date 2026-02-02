@@ -42,6 +42,8 @@ class TestHunkStorage(YTEnvSetup):
             attributes.update({"store_rotation_period": 2000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 4000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
 
         return create("hunk_storage", name, attributes=attributes)
 
@@ -609,6 +611,8 @@ class TestHunkStoragePortal(YTEnvSetup):
             attributes.update({"store_rotation_period": 2000})
         if "store_removal_grace_period" not in attributes:
             attributes.update({"store_removal_grace_period": 4000})
+        if "scan_backoff_period" not in attributes:
+            attributes.update({"scan_backoff_period": 1000})
 
         return create("hunk_storage", name, attributes=attributes)
 
