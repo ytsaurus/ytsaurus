@@ -158,10 +158,11 @@ struct TBundleStateProviderConfig
     TDuration StateFreshnessTime;
     TDuration StatisticsFreshnessTime;
     TDuration PerformanceCountersFreshnessTime;
+    TDuration ConfigFreshnessTime;
 
-    TDuration StateFetchPeriod;
-    TDuration StatisticsFetchPeriod;
-    TDuration PerformanceCountersFetchPeriod;
+    std::optional<TDuration> StateFetchPeriod;
+    std::optional<TDuration> StatisticsFetchPeriod;
+    std::optional<TDuration> PerformanceCountersFetchPeriod;
 
     bool CheckInvariants;
 

@@ -469,7 +469,7 @@ TBundleSnapshotPtr TTabletBalancer::GetBundleSnapshot(
     auto bundleSnapshot = WaitFor(bundleState->GetBundleSnapshotWithReplicaBalancingStatistics(
         minFreshnessRequirement,
         GetGroupsForMoveBalancing(bundleName),
-        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig()),
+        GetGroupsForReshardBalancing(bundleName, bundleState->GetConfig(/*allowStale*/ true).Get().Value()),
         allowedReplicaClusters,
         bannedClusters))
         .ValueOrThrow();
@@ -563,14 +563,17 @@ void TTabletBalancer::BalancerIteration()
     allowedReplicaClusters.insert(Bootstrap_->GetClusterName());
 
     for (auto& [bundleName, bundle] : Bundles_) {
-        if (!bundle->GetConfig()) {
+        auto configOrError = WaitFor(bundle->GetConfig(/*allowStale*/ false));
+        if (!configOrError.IsOK() || !configOrError.Value()) {
             YT_LOG_ERROR(
+                configOrError,
                 "Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
 
             SaveRetryableBundleError(bundleName, TError(
                 NTabletBalancer::EErrorCode::IncorrectConfig,
-                "Bundle has unparsable tablet balancer config"));
+                "Bundle has unparsable tablet balancer config")
+                << configOrError);
             continue;
         }
 
@@ -586,7 +589,7 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        if (!IsBundleEligibleForBalancing(bundle->GetConfig(), bundleName)) {
+        if (!IsBundleEligibleForBalancing(bundle->GetConfig(/*allowStale*/ true).Get().Value(), bundleName)) {
             YT_LOG_INFO("Skip fetching for bundle since balancing is not planned "
                 "at this iteration according to the schedule (BundleName: %v)",
                 bundleName);
@@ -688,7 +691,7 @@ bool TTabletBalancer::IsBalancingAllowed(const IBundleStatePtr& bundleState) con
     return dynamicConfig->Enable &&
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (dynamicConfig->EnableEverywhere ||
-         bundleState->GetConfig()->EnableStandaloneTabletBalancer);
+         bundleState->GetConfig(/*allowStale*/ true).Get().Value()->EnableStandaloneTabletBalancer);
 }
 
 bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
