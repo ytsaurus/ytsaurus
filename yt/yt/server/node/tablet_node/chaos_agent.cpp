@@ -556,8 +556,7 @@ bool AdvanceTabletReplicationProgress(
                 localTransaction,
                 "advance_replication_progress");
         },
-        tablet
-    );
+        tablet);
 
     {
         NProto::TReqAdvanceReplicationProgress req;

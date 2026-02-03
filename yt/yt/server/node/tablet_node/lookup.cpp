@@ -134,6 +134,19 @@ EPerformanceCountedRequestType GetRequestTypeFromQueryKind(EInitialQueryKind que
 class TAdapterBase
 {
 protected:
+    TDataStatistics DataStatistics_;
+    TCodecStatistics DecompressionStatistics_;
+    TDuration ResponseCompressionTime_;
+    TDuration HunksDecodingTime_;
+    int FoundRowCount_ = 0;
+    int FoundDataWeight_ = 0;
+
+    TSharedRange<TUnversionedRow> LookupKeys_;
+    int KeyIndex_ = 0;
+
+    TRowHeavyHittersPtr WeightedLookupHeavyHitters_;
+    std::vector<std::pair<TUnversionedOwningRow, double>> WeightedLookupKeys_;
+
     void OnRowWritten(i64 dataWeight)
     {
         FoundDataWeight_ += dataWeight;
@@ -149,19 +162,6 @@ protected:
                 TInstant::Now());
         }
     }
-
-    TDataStatistics DataStatistics_;
-    TCodecStatistics DecompressionStatistics_;
-    TDuration ResponseCompressionTime_;
-    TDuration HunksDecodingTime_;
-    int FoundRowCount_ = 0;
-    int FoundDataWeight_ = 0;
-
-    TSharedRange<TUnversionedRow> LookupKeys_;
-    int KeyIndex_ = 0;
-
-    TRowHeavyHittersPtr WeightedLookupHeavyHitters_;
-    std::vector<std::pair<TUnversionedOwningRow, double>> WeightedLookupKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

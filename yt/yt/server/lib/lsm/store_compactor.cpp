@@ -50,11 +50,11 @@ public:
         CurrentTime_ = state.CurrentTime;
 
         TDuration newWindow = state.TabletNodeConfig->BackgroundTaskHistoryWindow;
-        StartedTasksSummary_.CompactionHistory().UpdateWindow(newWindow);
-        StartedTasksSummary_.PartitioningHistory().UpdateWindow(newWindow);
+        StartedTasksSummary_.CompactionHistory.UpdateWindow(newWindow);
+        StartedTasksSummary_.PartitioningHistory.UpdateWindow(newWindow);
 
-        StartedTasksSummary_.CompactionHistory().RegisterTasks(state.CompactionTasks, CurrentTime_);
-        StartedTasksSummary_.PartitioningHistory().RegisterTasks(state.PartitioningTasks, CurrentTime_);
+        StartedTasksSummary_.CompactionHistory.RegisterTasks(state.CompactionTasks, CurrentTime_);
+        StartedTasksSummary_.PartitioningHistory.RegisterTasks(state.PartitioningTasks, CurrentTime_);
 
         SchedulingModeLatch_.Compaction = AdvanceSchedulingModeLatch(SchedulingModeLatch_.Compaction, ssize(state.CompactionTasks));
         SchedulingModeLatch_.Partitioning = AdvanceSchedulingModeLatch(SchedulingModeLatch_.Partitioning, ssize(state.PartitioningTasks));
@@ -94,11 +94,11 @@ public:
 
         batch.Compactions = OrderRequests(
             batch.Compactions,
-            StartedTasksSummary_.CompactionHistory(),
+            StartedTasksSummary_.CompactionHistory,
             SchedulingModeLatch_.Compaction);
         batch.Partitionings = OrderRequests(
             batch.Partitionings,
-            StartedTasksSummary_.PartitioningHistory(),
+            StartedTasksSummary_.PartitioningHistory,
             SchedulingModeLatch_.Partitioning);
         return batch;
     }
