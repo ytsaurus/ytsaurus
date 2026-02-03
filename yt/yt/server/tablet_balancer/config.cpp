@@ -209,13 +209,15 @@ void TBundleStateProviderConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("performance_counters_freshness_time", &TThis::PerformanceCountersFreshnessTime)
         .Default(TDuration::Seconds(20));
+    registrar.Parameter("config_freshness_time", &TThis::ConfigFreshnessTime)
+        .Default(TDuration::Minutes(1));
 
     registrar.Parameter("state_fetch_period", &TThis::StateFetchPeriod)
-        .Default(TDuration::Seconds(30));
+        .Default();
     registrar.Parameter("statistics_fetch_period", &TThis::StatisticsFetchPeriod)
-        .Default(TDuration::Seconds(20));
+        .Default();
     registrar.Parameter("performance_counters_fetch_period", &TThis::PerformanceCountersFetchPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default();
 
     registrar.Parameter("chunk_invariants", &TThis::CheckInvariants)
         .Default(true);
