@@ -233,13 +233,6 @@ public:
                 return GetStripeList(cookie);
             });
 
-            for (const auto& stripe : GetStripeList(cookie)->Stripes()) {
-                // TODO(apollo1321): Chunk stripe list aggregate statistics should be updated.
-                if (stripe->IsForeign()) {
-                    stripe->DataSlices().clear();
-                }
-            }
-
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
