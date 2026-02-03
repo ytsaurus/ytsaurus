@@ -1,4 +1,5 @@
 #include <yt/microservices/id_to_path_mapping/id_to_path_updater/lib/id_to_path_updater.h>
+#include <yt/microservices/id_to_path_mapping/id_to_path_updater/lib/pipeline.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
 
@@ -29,36 +30,21 @@ static const auto OutputSchema = TTableSchema()
     .AddColumn(TColumnSchema().Name("path").Type(VT_STRING))
     .UniqueKeys(true);
 
-void ConstructPipeline(NRoren::TPipeline& pipeline, const TString& inputTable, const TString& outputTable, TString forceCluster, THashSet<TString> clusterFilter)
+void ConstructPipeline(NRoren::TPipeline& pipeline, const TString& inputTable, const TString& outputTable, TString forceCluster, THashSet<std::string> allowClusters)
 {
-    auto parsed = pipeline | NRoren::YtRead<TNode>(inputTable)
-        | NRoren::ParDo([](const TNode& input, NRoren::TOutput<NJson::TJsonValue>& output) {
-                auto lines = input["value"].AsString() | std::views::split('\n');
-                for (const auto& line : lines) {
-                    try {
-                        TMemoryInput memoryInput(TStringBuf(line.begin(), line.end()));
-                        output.Add(NJson::ReadJsonTree(&memoryInput));
-                    } catch (const std::exception& ex) {
-                        YT_LOG_WARNING("Cannot parse json value: %v", ex.what());
-                    }
-                }
-        })
-        | MakeUpdateItem(std::move(forceCluster));
+    auto input = pipeline | NRoren::YtRead<TNode>(inputTable)
+        | NRoren::ParDo([](const TNode& input, NRoren::TOutput<std::string>& output) {
+            auto lines = input["value"].AsString() | std::views::split('\n');
+            for (const auto& line : lines) {
+                output.Add(std::string(line.begin(), line.end()));
+            }
+        });
 
-    NRoren::TPCollection<TIdToPathRow> filtered = parsed;
-    if (clusterFilter.empty()) {
-        // No filter
-    } else {
-        filtered = parsed | FilterClusters(std::move(clusterFilter));
-    }
+    auto filtered = ApplyMapper(input, std::move(forceCluster), std::move(allowClusters));
 
-    filtered
-        | NRoren::ParDo([](TIdToPathRow&& row, NRoren::TOutput<NRoren::TKV<TString, TIdToPathRow>>& output){
-            output.Add({row.GetCluster() + row.GetNodeId(), std::move(row)});
-        })
-        | LogOnceInAWhile("intermediate proto")
+    filtered | LogOnceInAWhile("intermediate proto")
         | NRoren::GroupByKey()
-        | NRoren::ParDo([](const NRoren::TKV<TString, NRoren::TInputPtr<TIdToPathRow>>& input, NRoren::TOutput<TIdToPathRow>& output) {
+        | NRoren::ParDo([](const NRoren::TKV<ui64, NRoren::TInputPtr<TIdToPathRow>>& input, NRoren::TOutput<TIdToPathRow>& output) {
             for (const auto& row : input.Value()) {
                 output.Add(row);
                 return; // just send one row
@@ -113,7 +99,7 @@ void MarkTablesAsProcessed(const IClientPtr& client, const std::vector<TString>&
     }
 }
 
-void Process(TString cluster, TString tmpPath, std::vector<TString> inputTables, TString outputTable, TString forceCluster, THashSet<TString> clusterFilter)
+void Process(TString cluster, TString tmpPath, std::vector<TString> inputTables, TString outputTable, TString forceCluster, THashSet<std::string> allowClusters)
 {
     NRoren::TYtPipelineConfig config;
     config.SetCluster(cluster);
@@ -129,7 +115,7 @@ void Process(TString cluster, TString tmpPath, std::vector<TString> inputTables,
     }
 
     MergeToStaticTable(client, inputTables, staticInputTable.Name());
-    ConstructPipeline(pipeline, staticInputTable.Name(), staticOutputTable.Name(), std::move(forceCluster), std::move(clusterFilter));
+    ConstructPipeline(pipeline, staticInputTable.Name(), staticOutputTable.Name(), std::move(forceCluster), std::move(allowClusters));
     pipeline.Run();
     MergeToDynTable(client, staticOutputTable.Name(), outputTable);
     MarkTablesAsProcessed(client, inputTables);
@@ -180,7 +166,7 @@ int main(int argc, const char** argv)
     TString outputTable;
     TString forceCluster;
     TString tokenEnvVariable;
-    THashSet<TString> clusterFilter;
+    THashSet<std::string> allowClusters;
 
     auto opts = NLastGetopt::TOpts::Default();
     opts.AddLongOption("cluster", "YT cluster").StoreResult(&cluster).Required();
@@ -190,7 +176,7 @@ int main(int argc, const char** argv)
     opts.AddLongOption("force-cluster", "Force cluster name for all rows").StoreResult(&forceCluster);
     opts.AddLongOption("token-env-variable", "Environment variable that specifies the token used when accessing YT")
         .StoreResult(&tokenEnvVariable).DefaultValue("YT_ID_TO_PATH_TOKEN");
-    opts.AddLongOption("cluster-filter", "Cluster to process").InsertTo(&clusterFilter);
+    opts.AddLongOption("allow-clusters", "Process only clusters in set").InsertTo(&allowClusters);
     NLastGetopt::TOptsParseResult res(&opts, argc, argv);
 
     TConfig::Get()->Token = LoadIdToPathToken(std::move(tokenEnvVariable));
@@ -202,6 +188,6 @@ int main(int argc, const char** argv)
     }
     YT_LOG_INFO("Processing input tables (InputTableCount: %v)", inputTables.size());
 
-    Process(std::move(cluster), std::move(tmpPath), std::move(inputTables), std::move(outputTable), std::move(forceCluster), std::move(clusterFilter));
+    Process(std::move(cluster), std::move(tmpPath), std::move(inputTables), std::move(outputTable), std::move(forceCluster), std::move(allowClusters));
     return EXIT_SUCCESS;
 }
