@@ -380,6 +380,9 @@ void EmitFunctionContext::emit()
 				emitLiteralIptr(offsetof(Runtime::Function, code), moduleContext.iptrType))});
 	}
 
+	emitRuntimeIntrinsic(
+		"checkCallStackDepth", FunctionType({}, {}, IR::CallingConvention::intrinsic), {});
+
 	// Decode the WebAssembly opcodes and emit LLVM IR for them.
 	OperatorDecoderStream decoder(functionDef.code);
 	UnreachableOpVisitor unreachableOpVisitor(*this);
