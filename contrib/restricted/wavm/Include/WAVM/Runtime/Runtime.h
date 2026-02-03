@@ -546,6 +546,10 @@ namespace WAVM { namespace Runtime {
 	// Creates a new context, initializing its mutable global state from the given context.
 	WAVM_API Context* cloneContext(const Context* context, Compartment* newCompartment);
 
+	// Sets a callback to check call stack depth. The callback is invoked on function entry.
+	// Since stacks are user-provided, user must provide their own callback to check stack depth.
+	WAVM_API void setCheckStackDepthCallback(Context* context, void (*callback)());
+
 	//
 	// Foreign objects
 	//

@@ -1001,11 +1001,26 @@ Runtime::ModuleRef LoadBuiltinUdfs()
     return LoadModuleFromBytecode(bytecode.Data);
 }
 
+namespace {
+
+void CheckStackDepth()
+{
+    static const int MinimumStackFreeSpace = 8_KB;
+
+    if (!NConcurrency::CheckFreeStackSpace(MinimumStackFreeSpace)) {
+        THROW_ERROR_EXCEPTION("Expression depth causes stack overflow");
+    }
+}
+
+} // namespace
+
 std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
     compartment->Compartment_ = Runtime::createCompartment();
     compartment->Context_ = Runtime::createContext(compartment->Compartment_);
+    Runtime::setCheckStackDepthCallback(compartment->Context_, CheckStackDepth);
+
     compartment->MemoryLayoutData_ = BuildMemoryLayoutData(compartment->Compartment_);
 
     if (image == EKnownImage::MinimalRuntime) {
