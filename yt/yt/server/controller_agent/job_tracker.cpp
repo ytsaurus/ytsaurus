@@ -2638,7 +2638,7 @@ void TJobTracker::DoRevive(
 
     for (auto& allocationInfo : allocations) {
         auto nodeId = NodeIdFromAllocationId(allocationInfo.AllocationId);
-        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /* comesFromRevival */ true).Jobs;
+        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /*comesFromRevival*/ true).Jobs;
 
         auto allocationIt = EmplaceOrCrash(
             nodeJobs.Allocations,
