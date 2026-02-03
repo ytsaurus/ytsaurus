@@ -47,7 +47,7 @@ class TQueryCorpusReporter
 public:
     explicit TQueryCorpusReporter(NApi::NNative::IClientPtr client)
         : Client_(std::move(client))
-        , ActionQueue_(New<TActionQueue>("QLCorpusReporter"))
+        , ActionQueue_(New<TActionQueue>("QLCorpusReport"))
         , Executor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             BIND(&TQueryCorpusReporter::ReportStatistics, MakeWeak(this))))
