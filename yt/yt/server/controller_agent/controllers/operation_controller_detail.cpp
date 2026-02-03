@@ -9403,7 +9403,9 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::TryAcquireMoni
 {
     auto it = MonitoringDescriptorPool_.begin();
     // This is a temporary solution. Should be removed after the logic of MonitoringDescriptor and OperationController is separated
-    for (; it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying(); ++it) { }
+    while (it != MonitoringDescriptorPool_.end() && it->Guid == OperationId_.Underlying()) {
+        ++it;
+    }
     YT_VERIFY(it != MonitoringDescriptorPool_.end());
     auto foundDescriptor = *it;
     MonitoringDescriptorPool_.erase(it);

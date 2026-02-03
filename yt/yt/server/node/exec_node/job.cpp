@@ -1749,12 +1749,12 @@ void TJob::TryReportStatistics()
     }
 }
 
-void TJob::AbortJobAfterInterruptionCallFailed(const std::exception& ex)
+void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 {
     if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
             << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << ex;
+            << internalError;
         Abort(std::move(error));
     }
 }
@@ -1865,8 +1865,9 @@ void TJob::DoInterrupt(
     } catch (const std::exception& ex) {
         YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
 
+        TError error(ex);
         TDelayedExecutor::Submit(
-            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), ex)
+            BIND(&TJob::AbortJobAfterInterruptionCallFailed, MakeWeak(this), error)
                 .Via(Invoker_),
             CommonConfig_->JobFinishTimeoutAfterInterruptionCallFailed);
     }

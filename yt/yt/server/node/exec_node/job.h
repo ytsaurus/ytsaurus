@@ -223,7 +223,7 @@ public:
 
     void SetHasJobTrace(bool value);
 
-    void AbortJobAfterInterruptionCallFailed(const std::exception& ex);
+    void AbortJobAfterInterruptionCallFailed(TError internalError);
 
     void DoInterrupt(
         TDuration timeout,
