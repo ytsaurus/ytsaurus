@@ -24,7 +24,7 @@ bool IsInsideJob() {
 }
 
 void ReportAndSleep(const TString& msg) {
-    Cerr << "An abnormal situation found, so consider opening a bug report to YQL (st/YQLSUPPORT)" << Endl << msg << Endl;
+    Cerr << "An abnormal situation found, so consider opening a bug report to YQL" << Endl << msg << Endl;
     while (true) {
         ::Sleep(TDuration::Seconds(5));
     }
