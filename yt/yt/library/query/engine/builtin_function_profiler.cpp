@@ -41,7 +41,7 @@ TEnumIndexedArray<NCodegen::EExecutionBackend, TSharedRef> GetUdfBytecode(TStrin
 namespace NBuiltins {
 
 class TIfFunctionCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     static TCGValue CodegenValue(
@@ -239,7 +239,7 @@ TConstraintRef IsNullConstraintExtractor(
 }
 
 class TIsNullCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -290,7 +290,7 @@ public:
 };
 
 class TIfNullCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -353,7 +353,7 @@ public:
 };
 
 class TIsNaNCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -407,7 +407,7 @@ public:
 };
 
 class TCoalesceCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -469,7 +469,7 @@ private:
 };
 
 class TTryGetFrontFromListCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -513,7 +513,7 @@ public:
 };
 
 class TFarmHashInt64Codegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TCodegenExpression Profile(
@@ -557,7 +557,7 @@ public:
 };
 
 class TUserCastCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     explicit TUserCastCodegen(TWeakPtr<TFunctionProfilerMap> functionProfilers)

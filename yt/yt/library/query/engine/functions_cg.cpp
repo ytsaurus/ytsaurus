@@ -36,6 +36,13 @@ static const char* ExecutionContextStructName = "struct.TExpressionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool TFunctionCodegenBase::IsNullable(const std::vector<bool>& /*nullableArgs*/) const
+{
+    return true;
+}
+
 namespace {
 
 std::string ToString(llvm::Type* tp)
