@@ -17,7 +17,7 @@ TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(double threshold, TDurati
 { }
 
 template <class TKey>
-TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr config)
+TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr& config)
     : Threshold_(config->Threshold)
     , Window_(config->Window)
     , DefaultLimit_(config->DefaultLimit)
@@ -218,7 +218,7 @@ void TMisraGriesHeavyHitters<TKey>::UpdateDefaultLimit(i64 newDefaultLimit)
 }
 
 template <class TKey>
-void TMisraGriesHeavyHitters<TKey>::Reconfigure(const TMisraGriesHeavyHittersConfigPtr newConfig)
+void TMisraGriesHeavyHitters<TKey>::Reconfigure(const TMisraGriesHeavyHittersConfigPtr& newConfig)
 {
     auto guard = Guard(SpinLock_);
 

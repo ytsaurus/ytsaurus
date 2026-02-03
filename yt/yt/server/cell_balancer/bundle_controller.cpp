@@ -1423,8 +1423,6 @@ private:
         for (const auto& [requestId, requestBody] : requests) {
             auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
 
-            TSetNodeOptions setOptions;
-            setOptions.Recursive = true;
             auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)));
             MoveBundleToJailAndThrowOnError(result, requestBody->BundleName);
         }
@@ -1456,8 +1454,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
+            WaitFor(client->SetNode(path, ConvertToYsonString(attribute)))
                 .ThrowOnError();
         }
     }
@@ -1475,8 +1472,7 @@ private:
                 NYPath::ToYPathLiteral(instanceName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute.Mutation)));
             MoveBundleToJailAndThrowOnError(result, attribute.BundleName);
         }
     }
@@ -1494,8 +1490,7 @@ private:
                 NYPath::ToYPathLiteral(bundleName),
                 attributeName);
 
-            TSetNodeOptions setOptions;
-            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions));
+            auto result = WaitFor(client->SetNode(path, ConvertToYsonString(attribute)));
             MoveBundleToJailAndThrowOnError(result, bundleName);
         }
     }
@@ -1600,8 +1595,7 @@ private:
         }
 
         auto path = Format("%v/@%v", BundleSystemQuotasPath, AccountAttributeResourceLimits);
-        TSetNodeOptions setOptions;
-        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits), setOptions));
+        auto result = WaitFor(transaction->SetNode(path, ConvertToYsonString(limits)));
         MoveBundleToJailAndThrowOnError(result, lastBundle);
     }
 
@@ -1645,8 +1639,7 @@ private:
         const ITransactionPtr& transaction,
         const TBundlesDynamicConfig& config)
     {
-        TSetNodeOptions setOptions;
-        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config), setOptions))
+        WaitFor(transaction->SetNode(TabletCellBundlesDynamicConfigPath, ConvertToYsonString(config)))
             .ThrowOnError();
     }
 
