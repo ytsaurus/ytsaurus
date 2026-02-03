@@ -402,7 +402,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
-    auto& Logger = JobProxyClientLogger();
+    const auto& Logger = JobProxyClientLogger();
     auto rowBuffer = New<TRowBuffer>(TCreateSortedReduceJobReaderTag());
 
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
