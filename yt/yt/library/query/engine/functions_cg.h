@@ -23,15 +23,19 @@ struct IFunctionCodegen
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
-    virtual bool IsNullable(const std::vector<bool>& /*nullableArgs*/) const
-    {
-        return true;
-    }
+    virtual bool IsNullable(const std::vector<bool>& nullableArgs) const = 0;
 
     virtual NWebAssembly::TModuleBytecode GetWebAssemblyBytecodeFile() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
+
+class TFunctionCodegenBase
+    : public IFunctionCodegen
+{
+public:
+    bool IsNullable(const std::vector<bool>& nullableArgs) const override;
+};
 
 struct IAggregateCodegen
     : public TRefCounted
@@ -126,7 +130,7 @@ ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExternalFunctionCodegen
-    : public IFunctionCodegen
+    : public TFunctionCodegenBase
 {
 public:
     TExternalFunctionCodegen(
