@@ -76,10 +76,13 @@ public:
         , Options_(options)
         , Logger(std::move(logger))
         , Writer_(NIO::CreateChunkFileWriter(
-            Location_->GetIOEngine(),
-            chunkId,
-            Location_->GetChunkPath(chunkId),
-            Options_.SyncOnClose))
+            TChunkFileWriter::TOptions{
+                .IoEngine = Location_->GetIOEngine(),
+                .Invoker = Location_->GetIOEngine()->GetAuxPoolInvoker(),
+                .ChunkId = chunkId,
+                .FileName = Location_->GetChunkPath(chunkId),
+                .SyncOnClose = Options_.SyncOnClose,
+            }))
     { }
 
 
@@ -147,7 +150,7 @@ private:
     const TSessionOptions Options_;
     const NLogging::TLogger Logger;
 
-    const NIO::IWrapperFairShareChunkWriterPtr Writer_;
+    const TIntrusivePtr<NIO::TChunkLayoutWriterAdapter<TChunkFileWriter>> Writer_;
 
     using TCommand = TCallback<TFuture<void>()>;
 
@@ -289,7 +292,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId, truncateBlockCount).Apply(
+        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, truncateBlockCount, fairShareSlotId).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 

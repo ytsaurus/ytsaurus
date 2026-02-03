@@ -192,7 +192,7 @@ class TErrorInterceptingChunkWriter
     : public IChunkWriter
 {
 public:
-    TErrorInterceptingChunkWriter(TCacheLocationPtr location, NIO::IWrapperFairShareChunkWriterPtr underlying)
+    TErrorInterceptingChunkWriter(TCacheLocationPtr location, TIntrusivePtr<NIO::TChunkLayoutWriterAdapter<TChunkFileWriter>> underlying)
         : Location_(std::move(location))
         , Underlying_(std::move(underlying))
     { }
@@ -235,7 +235,7 @@ public:
         std::optional<int> truncateBlockCount) override
     {
         YT_VERIFY(!truncateBlockCount.has_value());
-        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta, {}));
+        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta, /*truncateBlockCount*/ {}));
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -270,7 +270,7 @@ public:
 
 private:
     const TCacheLocationPtr Location_;
-    const NIO::IWrapperFairShareChunkWriterPtr Underlying_;
+    const TIntrusivePtr<NIO::TChunkLayoutWriterAdapter<TChunkFileWriter>> Underlying_;
 
     TFuture<void> Check(TFuture<void> result)
     {
@@ -1057,11 +1057,14 @@ private:
                 std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
-            auto chunkWriter = NIO::CreateChunkFileWriter(
-                location->GetIOEngine(),
-                chunkId,
-                fileName,
-                /*syncOnClose*/ false);
+            TChunkFileWriter::TOptions options{
+                .IoEngine = location->GetIOEngine(),
+                .Invoker = location->GetIOEngine()->GetAuxPoolInvoker(),
+                .ChunkId = chunkId,
+                .FileName = fileName,
+                .SyncOnClose = false,
+            };
+            auto chunkWriter = NIO::CreateChunkFileWriter(options);
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, std::move(chunkWriter));
 

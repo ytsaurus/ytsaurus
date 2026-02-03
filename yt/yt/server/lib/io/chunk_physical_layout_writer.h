@@ -2,33 +2,25 @@
 
 #include "public.h"
 
+#include "chunk_file_writer.h"
+
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// IPhysicalLayerWriter
 struct IPhysicalLayerWriter
-    : public virtual TRefCounted
 {
     virtual TFuture<void> Open() = 0;
-
-    struct TWriteRequest
-    {
-        i64 StartOffset = 0;
-        i64 EndOffset = 0;
-        std::vector<TSharedRef> Buffers;
-        i64 BlockCount = 0;
-    };
 
     virtual bool WriteBlocks(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        TWriteRequest request,
+        TPhysicalWriteRequest request,
         TFairShareSlotId fairShareSlotId) = 0;
-
-    virtual TFuture<void> GetReadyEvent() = 0;
 
     virtual TFuture<void> Close(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
@@ -38,78 +30,91 @@ struct IPhysicalLayerWriter
         i64 dataSize,
         i64 metadataSize) = 0;
 
-    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
-    virtual NChunkClient::TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const = 0;
-
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
-    virtual NErasure::ECodec GetErasureCodecId() const = 0;
-
-    virtual const TString& GetFileName() const = 0;
-
-    virtual bool IsCloseDemanded() const = 0;
 
     virtual TFuture<void> Cancel() = 0;
-
-    // for file
-    virtual TFuture<void> PreallocateDiskSpace(
-        const TWorkloadDescriptor& workloadDescriptor,
-        i64 spaceSize) = 0;
 };
-
-DEFINE_REFCOUNTED_TYPE(IPhysicalLayerWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IWrapperFairShareChunkWriter
-    : public NChunkClient::IChunkWriter
+DEFINE_ENUM(EPhysicalLayerChunkWriterAdapterState,
+    (Created)
+    (Opening)
+    (Ready)
+    (WritingBlocks)
+    (Closing)
+    (Closed)
+    (Aborting)
+    (Aborted)
+    (Failed)
+);
+
+template<class TBaseChunkWriter>
+class TChunkLayoutWriterAdapter final
+    : public TBaseChunkWriter
 {
-    using NChunkClient::IChunkWriter::Close;
-    virtual TFuture<void> Close(
+public:
+    bool WriteBlock(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId,
-        std::optional<int> truncateBlocks) = 0;
+        const NChunkClient::TBlock& block);
 
-    using NChunkClient::IChunkWriter::WriteBlocks;
-    virtual bool WriteBlocks(
+    bool WriteBlocks(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<NChunkClient::TBlock>& blocks,
-        TFairShareSlotId fairShareSlotId) = 0;
+        TFairShareSlotId fairShareSlotId = {});
+    TFuture<void> Open();
 
-    //! Returns the chunk meta.
-    /*!
-     *  The writer must be already closed.
-     */
-    virtual const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const = 0;
-
-    //! Returns the name of the file passed to the writer upon construction.
-    // TODO: NOT APLICABLE TO S3
-    virtual const TString& GetFileName() const = 0;
-
-    //! Returns the total data size accumulated so far.
-    /*!
-     *  Can be called at any time.
-     */
-    virtual i64 GetDataSize() const = 0;
-
-    // TODO: NOT APLICABLE TO S3
-    virtual TFuture<void> PreallocateDiskSpace(
+    TFuture<void> Close(
+        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
-        i64 spaceSize) = 0;
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
+        std::optional<int> truncateBlockCount,
+        TFairShareSlotId fairShareSlotId = {});
+
+    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
+    i64 GetDataSize() const;
+
+    TChunkLayoutWriterAdapter(TBaseChunkWriter::TOptions options);
+private:
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    const NLogging::TLogger Logger;
+    const IInvokerPtr Invoker_;
+
+    using EState = EPhysicalLayerChunkWriterAdapterState;
+    std::atomic<EState> PState_ = EPhysicalLayerChunkWriterAdapterState::Created;
+
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+
+    // todo: what about thread safety?
+    i64 DataSize_ = 0;
+    i64 MetaDataSize_ = 0;
+
+    TError TryChangeState(EState oldState, EState newState);
+    void UpdateChunkInfoDiskSpace();
+
+    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+
+    TSharedMutableRef PrepareChunkMetaBlob();
+
+    friend TChunkLayoutWriterAdapterPtr<TBaseChunkWriter> CreateChunkLayoutWriterAdapter(typename TBaseChunkWriter::TOptions options);
+
 };
 
-DEFINE_REFCOUNTED_TYPE(IWrapperFairShareChunkWriter);
+DEFINE_REFCOUNTED_TYPE(TChunkLayoutWriterAdapter<TChunkFileWriter>)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: virtual destructors!
-IWrapperFairShareChunkWriterPtr CreateChunkLayoutWriterAdapter(
-    IPhysicalLayerWriterPtr underlying,
-    IInvokerPtr invoker,
-    bool syncOnClose = true);
+template<class TBaseChunkWriter>
+TChunkLayoutWriterAdapterPtr<TBaseChunkWriter> CreateChunkLayoutWriterAdapter(typename TBaseChunkWriter::TOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
+
+#define CONVERT_INL_H_
+#include "chunk_physical_layout_writer-inl.h"
+#undef CONVERT_INL_H_

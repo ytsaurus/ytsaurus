@@ -25,17 +25,19 @@ DEFINE_ENUM(EDirectIOPolicy,
     (OnDemand)
 );
 
+
 DECLARE_REFCOUNTED_STRUCT(IIOEngine)
 DECLARE_REFCOUNTED_STRUCT(IDynamicIOEngine)
 
 DECLARE_REFCOUNTED_STRUCT(IWrapperFairShareChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IPhysicalLayerWriter)
 
+
 DECLARE_REFCOUNTED_CLASS(TPhysicalChunkLayoutReader)
 DECLARE_REFCOUNTED_CLASS(TPhysicalChunkLayoutWriter)
 
 DECLARE_REFCOUNTED_CLASS(TChunkFileReader)
-DECLARE_REFCOUNTED_CLASS(TChunkFileWriter)
+// DECLARE_REFCOUNTED_CLASS(TChunkFileWriter)
 
 DECLARE_REFCOUNTED_STRUCT(TIOTrackerConfig)
 DECLARE_REFCOUNTED_STRUCT(TCongestionDetectorConfig)
@@ -57,6 +59,14 @@ DECLARE_REFCOUNTED_STRUCT(IHugePageManager)
 
 class TIOEngineHandle;
 using TIOEngineHandlePtr = TIntrusivePtr<TIOEngineHandle>;
+
+template <class TChunkWriter>
+class TChunkLayoutWriterAdapter;
+template <class TChunkWriter>
+using TChunkLayoutWriterAdapterPtr = TIntrusivePtr<TChunkLayoutWriterAdapter<TChunkWriter>>;
+
+class TChunkFileWriter;
+using TChunkFileWriterPtr = TChunkLayoutWriterAdapterPtr<TChunkFileWriter>;
 
 struct TChunkFragmentDescriptor;
 

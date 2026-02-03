@@ -5,7 +5,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
-    erasure_ut.cpp
     gentle_loader_ut.cpp
     chunk_file_writer_ut.cpp
     io_engine_ut.cpp

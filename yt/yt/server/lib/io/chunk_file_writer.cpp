@@ -35,20 +35,25 @@ static constexpr auto FileMode =
 
 //////////////////////////////////////////////////////////////////////////////
 
+//     TChunkFileWriter::TChunkFileWriter(const TChunkFileWriter& other)
+//     : IOEngine_(other.IOEngine_)
+//     , FileName_(other.FileName_)
+//     , ChunkId_(other.ChunkId_)
+//     , SyncOnClose_(other.SyncOnClose_)
+//     , UseDirectIO_(other.UseDirectIO_)
+//     , Logger(IOLogger())
+//     , Invoker_(other.Invoker_)
+// { }
+
 TChunkFileWriter::TChunkFileWriter(
-    IIOEnginePtr ioEngine,
-    IInvokerPtr invoker,
-    TChunkId chunkId,
-    TString fileName,
-    bool syncOnClose,
-    bool useDirectIO)
-    : IOEngine_(std::move(ioEngine))
-    , FileName_(std::move(fileName))
-    , ChunkId_(chunkId)
-    , SyncOnClose_(syncOnClose)
-    , UseDirectIO_(useDirectIO)
+    TOptions options)
+    : IOEngine_(std::move(options.IoEngine))
+    , FileName_(std::move(options.FileName))
+    , ChunkId_(options.ChunkId)
+    , SyncOnClose_(options.SyncOnClose)
+    , UseDirectIO_(options.UseDirectIO)
     , Logger(IOLogger())
-    , Invoker_(std::move(invoker))
+    , Invoker_(std::move(options.Invoker))
 { }
 
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
@@ -78,7 +83,7 @@ void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
         FileName_);
 
     TDelayedExecutor::Submit(
-        BIND(&TChunkFileWriter::TryLockDataFile, MakeStrong(this), promise),
+        BIND(&TChunkFileWriter::TryLockDataFile, this, promise),
         TDuration::MilliSeconds(10),
         Invoker_);
 }
@@ -117,8 +122,7 @@ TFuture<void> TChunkFileWriter::Open()
     // Unfortunately in Linux we can't create'n'flock a file atomically.
     return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, GetFileMode()})
         .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
+            this
         ] (const TIOEngineHandlePtr& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -129,8 +133,7 @@ TFuture<void> TChunkFileWriter::Open()
             return promise.ToFuture();
         }).AsyncVia(Invoker_))
         .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
+            this
         ] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -185,7 +188,7 @@ TFuture<void> TChunkFileWriter::PreallocateDiskSpace(
 bool TChunkFileWriter::WriteBlocks(
     const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
-    TWriteRequest request,
+    TPhysicalWriteRequest request,
     TFairShareSlotId fairShareSlotId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
@@ -206,7 +209,6 @@ bool TChunkFileWriter::WriteBlocks(
         workloadDescriptor.Category)
         .Apply(BIND([
             this,
-            this_ = MakeStrong(this),
             // newDataSize = request.EndOffset,
             // oldDataSize,
             blockCount = request.BlockCount,
@@ -284,7 +286,6 @@ TFuture<void> TChunkFileWriter::Close(
     return IOEngine_->Close({std::move(DataFile_), dataSize, SyncOnClose_})
         .Apply(BIND([
             this,
-            this_ = MakeStrong(this),
             // chunkMeta,
             metaFileName,
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
@@ -299,7 +300,6 @@ TFuture<void> TChunkFileWriter::Close(
         }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
-            this_ = MakeStrong(this),
             workloadDescriptor,
             chunkMetaBlob,
             fairShareSlotId = fairShareSlotId,
@@ -319,7 +319,6 @@ TFuture<void> TChunkFileWriter::Close(
                 workloadDescriptor.Category)
                 .Apply(BIND([
                     // this,
-                    this_ = MakeStrong(this),
                     chunkWriterStatistics,
                     metadataSize
                 ] (const TWriteResponse& rsp) {
@@ -343,7 +342,6 @@ TFuture<void> TChunkFileWriter::Close(
         }).AsyncVia(Invoker_))
         .Apply(BIND([
             this,
-            this_ = MakeStrong(this),
             metaFileName,
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
         ] () mutable {
@@ -364,8 +362,7 @@ TFuture<void> TChunkFileWriter::Close(
                 }).AsyncVia(Invoker_));
         }).AsyncVia(Invoker_))
         .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
+            this
         ] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -400,7 +397,7 @@ TFuture<void> TChunkFileWriter::Cancel()
         state != EState::Closing);
 
     return
-        BIND([this, this_ = MakeStrong(this)] {
+        BIND([this] {
             YT_VERIFY(State_.load() == EState::Aborting);
 
             DataFile_.Reset();
@@ -462,18 +459,10 @@ bool TChunkFileWriter::IsCloseDemanded() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IWrapperFairShareChunkWriterPtr CreateChunkFileWriter(
-    IIOEnginePtr ioEngine,
-    NChunkClient::TChunkId chunkId,
-    TString fileName,
-    bool syncOnClose,
-    bool useDirectIO)
+TChunkLayoutWriterAdapterPtr<TChunkFileWriter> CreateChunkFileWriter(TChunkFileWriter::TOptions options)
 {
-    auto invoker = ioEngine->GetAuxPoolInvoker();
-    return CreateChunkLayoutWriterAdapter(
-        New<TChunkFileWriter>(std::move(ioEngine), invoker, chunkId, std::move(fileName), syncOnClose, useDirectIO),
-        invoker,
-        syncOnClose);
+    // auto invoker = ioEngine->GetAuxPoolInvoker();
+    return CreateChunkLayoutWriterAdapter<TChunkFileWriter>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,5 @@
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_physical_layout_writer.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 
@@ -52,11 +53,17 @@ protected:
         return NIO::CreateIOEngine(type, config);
     }
 
-    static IWrapperFairShareChunkWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
+    static TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
     {
         auto fileName = GenerateRandomFileName("TChunkFileWriterTest");
+        auto engine = CreateIOEngine();
 
-        return CreateChunkFileWriter(CreateIOEngine(), TGuid::Create(), fileName);
+        return CreateChunkFileWriter(
+            TChunkFileWriter::TOptions{
+                .IoEngine = engine,
+                .Invoker = engine->GetAuxPoolInvoker(),
+                .ChunkId = TGuid::Create(),
+                .FileName = fileName});
     }
 
     void SetUp() override
@@ -68,12 +75,12 @@ protected:
         }
     }
 
-    std::unique_ptr<TFile> OpenDataFile(const IWrapperFairShareChunkWriterPtr& writer)
+    std::unique_ptr<TFile> OpenDataFile(const TChunkFileWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName(), RdOnly);
     }
 
-    static std::unique_ptr<TFile> OpenTempDataFile(const IWrapperFairShareChunkWriterPtr& writer)
+    static std::unique_ptr<TFile> OpenTempDataFile(const TChunkFileWriterPtr& writer)
     {
         return std::make_unique<TFile>(writer->GetFileName() + NFS::TempFileSuffix, RdOnly);
     }
@@ -94,13 +101,13 @@ protected:
         EXPECT_EQ(0, ::memcmp(block.Data.Begin(), data.Begin(), data.Size()));
     }
 
-    void WriteBlock(const IWrapperFairShareChunkWriterPtr& writer, const TBlock& block)
+    void WriteBlock(const TChunkFileWriterPtr& writer, const TBlock& block)
     {
         EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
-    void WriteBlocks(const IWrapperFairShareChunkWriterPtr& writer, const std::vector<TBlock>& blocks)
+    void WriteBlocks(const TChunkFileWriterPtr& writer, const std::vector<TBlock>& blocks)
     {
         EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks, {}));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
@@ -144,7 +151,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), std::nullopt, {})
         .Get()
         .ThrowOnError();
 
@@ -201,7 +208,7 @@ TEST_P(TChunkFileWriterTest, MultiWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), std::nullopt, {})
         .Get()
         .ThrowOnError();
 

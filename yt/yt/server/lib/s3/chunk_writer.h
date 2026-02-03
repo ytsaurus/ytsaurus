@@ -16,11 +16,11 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////
 
-NIO::IWrapperFairShareChunkWriterPtr CreateS3RegularChunkWriter(
-    NS3::IClientPtr client,
-    NChunkClient::TS3MediumDescriptorPtr mediumDescriptor,
-    TS3WriterConfigPtr config,
-    NChunkClient::TSessionId sessionId);
+// NIO::TIntrusivePtr<TChunkLayoutWriterAdapter<TChunkFileWriter>> CreateS3RegularChunkWriter(
+//     NS3::IClientPtr client,
+//     NChunkClient::TS3MediumDescriptorPtr mediumDescriptor,
+//     TS3WriterConfigPtr config,
+//     NChunkClient::TSessionId sessionId);
 
 ////////////////////////////////////////////////////////////////////////////
 
