@@ -6,6 +6,8 @@
 #include "config.h"
 #include "location.h"
 
+#include <yt/yt/server/lib/io/chunk_physical_layout_writer.h>
+#include <yt/yt/server/lib/s3/chunk_writer.h>
 #include <yt/yt/server/node/cluster_node/public.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -73,11 +75,14 @@ public:
         , SessionInvoker_(std::move(sessionInvoker))
         , Options_(options)
         , Logger(std::move(logger))
-        , Writer_(New<TChunkFileWriter>(
-            Location_->GetIOEngine(),
-            chunkId,
-            Location_->GetChunkPath(chunkId),
-            Options_.SyncOnClose))
+        , Writer_(NIO::CreateChunkFileWriter(
+            TChunkFileWriter::TOptions{
+                .IoEngine = Location_->GetIOEngine(),
+                .Invoker = Location_->GetIOEngine()->GetAuxPoolInvoker(),
+                .ChunkId = chunkId,
+                .FileName = Location_->GetChunkPath(chunkId),
+                .SyncOnClose = Options_.SyncOnClose,
+            }))
     { }
 
 
@@ -145,7 +150,7 @@ private:
     const TSessionOptions Options_;
     const NLogging::TLogger Logger;
 
-    const NIO::TChunkFileWriterPtr Writer_;
+    const TIntrusivePtr<NIO::TChunkLayoutWriterAdapter<TChunkFileWriter>> Writer_;
 
     using TCommand = TCallback<TFuture<void>()>;
 
@@ -279,15 +284,15 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
-            Writer_->GetDataSize());
+        // YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
+        //     Writer_->GetDataSize());
 
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->MergeFrom(*chunkMeta);
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId, truncateBlockCount).Apply(
+        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, truncateBlockCount, fairShareSlotId).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 

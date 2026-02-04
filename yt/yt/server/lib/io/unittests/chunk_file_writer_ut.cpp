@@ -1,4 +1,5 @@
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_physical_layout_writer.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 
@@ -55,8 +56,14 @@ protected:
     static TChunkFileWriterPtr CreateWriter(const TChunkFileWriterTestParams& /*params*/)
     {
         auto fileName = GenerateRandomFileName("TChunkFileWriterTest");
+        auto engine = CreateIOEngine();
 
-        return New<TChunkFileWriter>(CreateIOEngine(), TGuid::Create(), fileName);
+        return CreateChunkFileWriter(
+            TChunkFileWriter::TOptions{
+                .IoEngine = engine,
+                .Invoker = engine->GetAuxPoolInvoker(),
+                .ChunkId = TGuid::Create(),
+                .FileName = fileName});
     }
 
     void SetUp() override
@@ -96,7 +103,7 @@ protected:
 
     void WriteBlock(const TChunkFileWriterPtr& writer, const TBlock& block)
     {
-        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block, {}));
+        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
@@ -144,7 +151,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), std::nullopt, {})
         .Get()
         .ThrowOnError();
 
@@ -201,7 +208,7 @@ TEST_P(TChunkFileWriterTest, MultiWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), {}, std::nullopt)
+    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>(), std::nullopt, {})
         .Get()
         .ThrowOnError();
 

@@ -827,7 +827,6 @@ private:
 
         TestUrl = "http://127.0.0.1:" + GetEnv("S3MDS_PORT");
         clientConfig->Url = TestUrl;
-        clientConfig->Bucket = Bucket;
 
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
