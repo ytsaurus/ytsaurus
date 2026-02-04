@@ -434,6 +434,48 @@ TEST_F(TChunkScraperBaseTest, WithNontrivialThrottler)
     EXPECT_THAT(batchesCounter.load(), testing::AllOf(Ge(20), Le(40))) << "expected value is 30";
 }
 
+TEST_F(TChunkScraperBaseTest, DrainQueueAndAddChunks)
+{
+    auto chunkIds = CreateChunks();
+
+    auto allChunksRemoved = NewPromise<void>();
+
+    TChunkScraperPtr scraper = MakeScraper(
+        CombineEpochHandlers(
+            [&] (const std::vector<TScrapedChunkInfo>& info) {
+                EXPECT_THAT(info, ChunkIdsAre(chunkIds));
+                for (auto chunkId : chunkIds) {
+                    scraper->Remove(chunkId);
+                }
+                allChunksRemoved.Set();
+            },
+            [&] (const std::vector<TScrapedChunkInfo>& info) {
+                EXPECT_THAT(info, SizeIs(Ge(1)));
+                for (auto chunkId : chunkIds) {
+                    scraper->Remove(chunkId);
+                }
+                TestFinishedPromise_.Set();
+            },
+            [] (const std::vector<TScrapedChunkInfo>& info) {
+                ADD_FAILURE() << "Scraper should stop when there are no more chunks to locate, but located something: " << PrintToString(info);
+            }),
+        chunkIds.size());
+
+    StartScraperWithChunks(scraper, chunkIds);
+
+    WaitFor(allChunksRemoved.ToFuture())
+        .ThrowOnError();
+
+    ScraperActionQueue_->GetInvoker()->Invoke(BIND([scraper, chunkIds = std::move(chunkIds)] {
+        for (auto chunkId : chunkIds) {
+            scraper->Add(chunkId);
+        }
+    }));
+
+    WaitFor(TestFinishedFuture_.WithTimeout(TDuration::Seconds(10)))
+        .ThrowOnError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWithOneBatchParams
