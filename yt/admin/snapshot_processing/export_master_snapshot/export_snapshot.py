@@ -51,6 +51,7 @@ schema_columns = [
     ("media",                                   "any",          False,      True),
     ("modification_time",                       "string",       True,       True),
     ("monitor_table_statistics",                "any",          False,      True),
+    ("mount_config",                            "any",          False,      True),
     ("nightly_compressed",                      "boolean",      False,      True),
     ("nightly_compression_select_timestamp",    "int64",        False,      True),
     ("nightly_compression_settings",            "any",          False,      True),
