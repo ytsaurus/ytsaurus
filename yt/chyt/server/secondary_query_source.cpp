@@ -455,7 +455,7 @@ protected:
         Converters_.reserve(ReadPlan_->Steps.size());
         for (int i = 0; i < std::ssize(ReadPlan_->Steps); ++i) {
             bool enableOptimizeDistinctRead = (i == std::ssize(ReadPlan_->Steps) - 1) ? Settings_->Execution->EnableOptimizeDistinctRead : false;
-            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
+            Converters_.emplace_back(ReadPlan_->Steps[i].Columns, ReadPlan_->Steps[i].ColumnAttributes, NameTable_, Settings_->Composite, enableOptimizeDistinctRead);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());

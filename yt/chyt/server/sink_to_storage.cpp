@@ -43,12 +43,13 @@ class TSinkToStorageBase
 public:
     TSinkToStorageBase(
         TTableSchemaPtr schema,
+        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
         const TCompositeSettingsPtr& compositeSettings,
         std::function<void()> onFinished,
         const TLogger& logger,
         TCallback<void(const TStatistics&)> statisticsCallback = {})
-        : DB::SinkToStorage(ToHeaderBlock(*schema, New<TCompositeSettings>()))
+        : DB::SinkToStorage(ToHeaderBlock(*schema, std::move(columnAttributes), compositeSettings))
         , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))
@@ -126,6 +127,7 @@ public:
     TSinkToStaticTable(
         TRichYPath path,
         TTableSchemaPtr schema,
+        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
         TTableWriterConfigPtr config,
         TCompositeSettingsPtr compositeSettings,
@@ -136,6 +138,7 @@ public:
         TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
+            std::move(columnAttributes),
             std::move(dataTypes),
             std::move(compositeSettings),
             std::move(onFinished),
@@ -211,6 +214,7 @@ public:
     TSinkToDynamicTable(
         TRichYPath path,
         TTableSchemaPtr schema,
+        std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
         std::vector<DB::DataTypePtr> dataTypes,
         TDynamicTableSettingsPtr dynamicTableSettings,
         TCompositeSettingsPtr compositeSettings,
@@ -220,6 +224,7 @@ public:
         TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
+            std::move(columnAttributes),
             std::move(dataTypes),
             std::move(compositeSettings),
             std::move(onFinished),
@@ -326,6 +331,7 @@ private:
 DB::SinkToStoragePtr CreateSinkToStaticTable(
     TRichYPath path,
     TTableSchemaPtr schema,
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
@@ -338,6 +344,7 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
     return std::make_shared<TSinkToStaticTable>(
         std::move(path),
         std::move(schema),
+        std::move(columnAttributes),
         std::move(dataTypes),
         std::move(config),
         std::move(compositeSettings),
@@ -353,6 +360,7 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
 DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TRichYPath path,
     TTableSchemaPtr schema,
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     TDynamicTableSettingsPtr dynamicTableSettings,
     TCompositeSettingsPtr compositeSettings,
@@ -364,6 +372,7 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
     return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
         std::move(schema),
+        std::move(columnAttributes),
         std::move(dataTypes),
         std::move(dynamicTableSettings),
         std::move(compositeSettings),

@@ -29,12 +29,14 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TColumnSchema> GetColumnSchemas(
+std::pair<std::vector<TColumnSchema>, std::vector<NYTree::IAttributeDictionaryPtr>> GetColumnSchemas(
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames)
 {
-    std::vector<TColumnSchema> result;
-    result.reserve(columnNames.size());
+    std::vector<TColumnSchema> schemas;
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes;
+    schemas.reserve(columnNames.size());
+    columnAttributes.reserve(columnNames.size());
 
     TTableSchemaPtr virtualValueSchema;
     if (!subquerySpec.DataSourceDirectory->DataSources().empty()) {
@@ -57,15 +59,17 @@ std::vector<TColumnSchema> GetColumnSchemas(
 
     for (const auto& columnName : columnNames) {
         if (const auto* column = subquerySpec.ReadSchema->FindColumn(columnName)) {
-            result.push_back(*column);
+            schemas.emplace_back(*column);
+            columnAttributes.emplace_back(subquerySpec.ColumnAttributes[subquerySpec.ReadSchema->GetColumnIndex(*column)]);
         } else if (const auto* column = virtualValueSchema ? virtualValueSchema->FindColumn(columnName) : nullptr) {
-            result.push_back(*column);
+            schemas.emplace_back(*column);
+            columnAttributes.emplace_back(NYTree::CreateEphemeralAttributes());
         } else {
             THROW_ERROR_EXCEPTION("No such column %Qv", columnName);
         }
     }
 
-    return result;
+    return {schemas, columnAttributes};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +90,7 @@ public:
         }
 
         DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Composite)));
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.ColumnAttributes, SubquerySpec_.QuerySettings->Composite)));
         setInMemoryMetadata(storage_metadata);
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
@@ -208,16 +212,17 @@ public:
             }
         });
 
-        auto columnSchemas = GetColumnSchemas(SubquerySpec_, columnNames);
+        auto [columnSchemas, columnAttributes] = GetColumnSchemas(SubquerySpec_, columnNames);
 
         TReadPlanWithFilterPtr readPlan;
         if (queryInfo.prewhere_info) {
             readPlan = BuildReadPlanWithPrewhere(
-                columnSchemas,
+                std::move(columnSchemas),
+                std::move(columnAttributes),
                 queryInfo.prewhere_info,
                 context->getSettingsRef());
         } else {
-            readPlan = BuildSimpleReadPlan(columnSchemas);
+            readPlan = BuildSimpleReadPlan(std::move(columnSchemas), std::move(columnAttributes));
         }
         SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead &= SuitableForDistinctReadOptimization(readPlan, SubquerySpec_.QuerySettings->Composite);
         QueryContext_->SetRuntimeVariable("use_distinct_read_optimization", SubquerySpec_.QuerySettings->Execution->EnableOptimizeDistinctRead);

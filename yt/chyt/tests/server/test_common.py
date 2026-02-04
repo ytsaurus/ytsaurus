@@ -2770,6 +2770,171 @@ class TestCustomSettings(ClickHouseTestBase):
             assert get_schema_from_description(clique.make_query("describe `//tmp/t2`")) == \
                    [{"name": "b", "type": "Bool"}]
 
+    @authors("a-dyu")
+    def test_low_cardinality_columns(self):
+        schema = [
+            {"name": "uint8_column", "type": "uint8"},
+            {"name": "uint16_column", "type": "uint16"},
+            {"name": "uint32_column", "type": "uint32"},
+            {"name": "uint64_column", "type": "uint64"},
+            {"name": "int8_column", "type": "int8"},
+            {"name": "int16_column", "type": "int16"},
+            {"name": "int32_column", "type": "int32"},
+            {"name": "int64_column", "type": "int64"},
+            {"name": "interval_column", "type": "interval"},
+            {"name": "interval64_column", "type": "interval64"},
+            {"name": "string_column", "type": "string"},
+            {"name": "utf8_column", "type": "utf8"},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema, "optimize_for": "scan"})
+        create("table", "//tmp/t0", attributes={"schema": schema, "optimize_for": "lookup"})
+
+        short_schema = [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]
+        create("table", "//tmp/rle_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/dict_encoded", attributes={"schema": short_schema, "optimize_for": "scan"})
+        create("table", "//tmp/t1", attributes={"schema": short_schema})
+        create("table", "//tmp/t2", attributes={"schema": short_schema})
+        create("table", "//tmp/different_cardinality", attributes={"schema": short_schema})
+        create("table", "//tmp/t3", attributes={"schema": short_schema})
+
+        def get_row(value):
+            str_value = str(value)
+            return {
+                "uint8_column": value,
+                "uint16_column": value,
+                "uint32_column": value,
+                "uint64_column": value,
+                "int8_column": value,
+                "int16_column": value,
+                "int32_column": value,
+                "int64_column": value,
+                "interval_column": value,
+                "interval64_column": value,
+                "string_column": str_value,
+                "utf8_column": str_value,
+            }
+
+        data = []
+        for i in range(3):
+            data.append(get_row(i))
+        data.append(get_row(None))
+        write_table("//tmp/t", data)
+
+        with Clique(1) as clique:
+            settings = {
+                "chyt.composite.low_cardinality_mode": "all",
+                "allow_suspicious_low_cardinality_types": 1,
+            }
+
+            def make_query_and_check_low_cardinality(clique, query, settings, expected_result):
+                result = clique.make_query(query, settings=settings, full_response=True)
+                assert result.json()["data"] == expected_result
+                for col in result.json()["meta"]:
+                    assert col["type"].startswith("LowCardinality")
+
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t"', settings, data)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t" prewhere uint8_column = 1', settings, [get_row(1)])
+
+            clique.make_query("insert into `//tmp/t0` select * from `//tmp/t`", settings=settings)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t0"', settings, data)
+
+            clique.make_query("create table `//tmp/t_ch` engine=YtTable() as select * from `//tmp/t`", settings=settings)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/t_ch"', settings, data)
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+
+            for _ in range(1000):
+                arr.append({"a": "b", "b": "a"})
+
+            for _ in range(1000):
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/rle_encoded", arr)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/rle_encoded"', settings, arr)
+            result = clique.make_query('select uniq(*) from "//tmp/rle_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            arr = []
+            for _ in range(1000):
+                arr.append({"a": "a", "b": "b"})
+                arr.append({"a": "b", "b": "a"})
+                arr.append({"a": None, "b": None})
+
+            write_table("//tmp/dict_encoded", arr)
+            make_query_and_check_low_cardinality(clique, 'select * from "//tmp/dict_encoded"', settings, arr)
+
+            result = clique.make_query('select uniq(*) from "//tmp/dict_encoded"', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            result = clique.make_query('select uniq(*) from concatYtTables("//tmp/rle_encoded", "//tmp/dict_encoded")', settings=settings)
+            assert result == [{"uniq(a, b)": 2}]
+
+            write_table("//tmp/t1", [{"a": "a", "b": "b"}])
+            write_table("//tmp/t2", [{"a": "b", "b": "a"}])
+
+            make_query_and_check_low_cardinality(
+                clique,
+                'select * from "//tmp/t1" as t1 inner join (select * from "//tmp/t2") as t2 on t1.a != t2.a',
+                settings,
+                [{"a": "a", "b": "b", "t2.a": "b", "t2.b": "a"}],
+            )
+
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t0"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/t1"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/rle_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            result = clique.make_query('describe table "//tmp/dict_encoded"', settings=settings)
+            assert all(t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.composite.low_cardinality_mode"] = "from_statistics"
+            settings["chyt.composite.low_cardinality_threshold"] = 10
+            arr = []
+            for i in range(20):
+                arr.append({"a": "a", "b": str(i)})
+            write_table("//tmp/different_cardinality", arr)
+            result = clique.make_query('describe table "//tmp/different_cardinality"', settings=settings)
+            assert result[0]["type"].startswith("LowCardinality")
+            assert not result[1]["type"].startswith("LowCardinality")
+
+            clique.make_query("insert into `//tmp/t3` select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t3"', settings=settings)
+            assert result == arr
+
+            clique.make_query("create table `//tmp/t_ch1` engine=YtTable() as select * from `//tmp/different_cardinality`", settings=settings)
+            result = clique.make_query('select * from "//tmp/t_ch1"', settings=settings)
+            assert result == arr
+
+            settings["chyt.composite.low_cardinality_mode"] = "string_only"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "string_column" or t["name"] == "utf8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
+            settings["chyt.composite.low_cardinality_mode"] = "none"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            assert all(not t["type"].startswith("LowCardinality") for t in result)
+
+            settings["chyt.composite.low_cardinality_regexp"] = "uint8_column"
+            result = clique.make_query('describe table "//tmp/t"', settings=settings)
+            for t in result:
+                if t["name"] == "uint8_column":
+                    assert t["type"].startswith("LowCardinality")
+                else:
+                    assert not t["type"].startswith("LowCardinality")
+
 
 class TestClickHouseWithMasterCache(ClickHouseTestBase):
     USE_MASTER_CACHE = True

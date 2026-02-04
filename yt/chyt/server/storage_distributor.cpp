@@ -18,6 +18,7 @@
 #include "subquery.h"
 #include "table.h"
 
+#include <yt/yt/library/re2/re2.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
@@ -583,7 +584,11 @@ private:
 
         QueryInput_ = FetchInput(
             StorageContext_,
-            *QueryAnalysisResult_,
+            QueryAnalysisResult_->TableSchemas,
+            QueryAnalysisResult_->Tables,
+            QueryAnalysisResult_->KeyConditions,
+            QueryAnalysisResult_->KeyReadRanges,
+            QueryAnalysisResult_->EnableMinMaxOptimization,
             RealColumnNames_,
             VirtualColumnNames_,
             TClickHouseIndexBuilder(&QueryInfo_, Context_),
@@ -601,6 +606,29 @@ private:
         SpecTemplate_.QuerySettings->Execution->EnableOptimizeDistinctRead = QueryAnalyzer_->NeedOnlyDistinct();
         SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization =
             QueryAnalysisResult_->EnableMinMaxOptimization && SpecTemplate_.TableStatistics.has_value();
+
+        auto& tableStatistics = SpecTemplate_.TableStatistics;
+        if (tableStatistics.has_value()) {
+            bool allowString = QueryContext_->Settings->Execution->AllowStringMinMaxOptimization;
+            auto checkValues = [allowString = allowString] (const std::vector<TUnversionedOwningValue>& values) {
+                for (const auto& owningValue : values) {
+                    TUnversionedValue value = owningValue;
+                    if (value.Type == EValueType::String && (!allowString || value.Length == TColumnarStatistics::MaxStringValueLength) ||
+                        value.Type == EValueType::Max ||
+                        value.Type == EValueType::Min ||
+                        value.Type == EValueType::Null)
+                        {
+                        // We can't get correct answer from minmax statistics.
+                        return false;
+                    }
+                }
+                return true;
+            };
+            if (!tableStatistics->HasValueStatistics() || !checkValues(tableStatistics->ColumnMinValues) || !checkValues(tableStatistics->ColumnMaxValues)) {
+                SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization = false;
+                tableStatistics = std::nullopt;
+            }
+        }
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sampleSize()) {
@@ -888,6 +916,10 @@ public:
         for (const auto& table : Tables_) {
             DistributionSeed_ = CombineHashes(DistributionSeed_, THash<TString>()(table->Path.GetPath()));
         }
+        ColumnAttributes_.reserve(Schema_->GetColumnCount());
+        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
+            ColumnAttributes_.emplace_back(NYTree::CreateEphemeralAttributes());
+        }
         YT_LOG_DEBUG("Distribution seed generated (DistributionSeed: %v)", DistributionSeed_);
     }
 
@@ -900,9 +932,31 @@ public:
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getStorageID().table_name);
         }
-        DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, QueryContext_->Settings->Composite)));
-        setInMemoryMetadata(storage_metadata);
+        DB::StorageInMemoryMetadata storageMetadata;
+        auto context = WeakContext_.lock();
+        if (!context) {
+            THROW_ERROR_EXCEPTION("Context has expired (TStorageDistributor::startup)");
+        }
+        std::vector<std::string> columnNames;
+        columnNames.reserve(Schema_->GetColumnCount());
+        for (const auto& column : Schema_->Columns()) {
+            columnNames.push_back(column.Name());
+        }
+        if (context->hasInsertionTable() || QueryContext_->CreatedTablePath.has_value()) {
+            QueryContext_->Settings->Composite->LowCardinalityMode = ELowCardinalityMode::None;
+            QueryContext_->Settings->Composite->LowCardinalityRegExp = nullptr;
+        }
+        if (QueryContext_->Settings->Composite->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
+            auto statistics = FetchStatistics(QueryContext_->GetOrRegisterStorageContext(this, context), {Schema_}, {Tables_}, columnNames, QueryContext_->ReadTransactionId);
+            if (statistics.has_value() && statistics->HasLargeStatistics()) {
+                SetLowCardinalityFromStatistics(statistics->LargeStatistics.ColumnHyperLogLogDigests, QueryContext_->Settings->Composite);
+            }
+        } else {
+            SetLowCardinality(QueryContext_->Settings->Composite->LowCardinalityMode);
+        }
+        SetLowCardinalityFromRegExp(QueryContext_->Settings->Composite->LowCardinalityRegExp);
+        storageMetadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, ColumnAttributes_, QueryContext_->Settings->Composite)));
+        setInMemoryMetadata(storageMetadata);
     }
 
     std::string getName() const override
@@ -1174,11 +1228,16 @@ public:
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
-        auto dataTypes = ToDataTypes(*table->Schema, QueryContext_->Settings->Composite, /*isReadConversions*/ false);
+        auto dataTypes = ToDataTypes(*Schema_, ColumnAttributes_, QueryContext_->Settings->Composite, /*isReadConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
-            table->Schema,
+            Schema_,
             dataTypes);
+
+        // LowCardinality is disabled for write queries to prevent unnecessary transformations.
+        std::for_each(ColumnAttributes_.begin(), ColumnAttributes_.end(), [](const NYTree::IAttributeDictionaryPtr collumnAttribute) {
+            YT_VERIFY(!collumnAttribute->Get<bool>(LowCardinalityAttribute, false));
+        });
 
         // All sinks are created in InterpreterInsertQuery::buildInsertSelectPipeline before using pipe.
         ++queryContext->WriteSinkCount;
@@ -1215,7 +1274,8 @@ public:
         if (table->Dynamic) {
             outputSink = CreateSinkToDynamicTable(
                 path,
-                table->Schema,
+                Schema_,
+                ColumnAttributes_,
                 dataTypes,
                 QueryContext_->Settings->DynamicTable,
                 QueryContext_->Settings->Composite,
@@ -1228,7 +1288,8 @@ public:
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
             outputSink = CreateSinkToStaticTable(
                 path,
-                table->Schema,
+                Schema_,
+                ColumnAttributes_,
                 dataTypes,
                 QueryContext_->Settings->TableWriter,
                 QueryContext_->Settings->Composite,
@@ -1529,11 +1590,17 @@ public:
         return Schema_;
     }
 
+    std::vector<NYTree::IAttributeDictionaryPtr> GetColumnAttributes() const override
+    {
+        return ColumnAttributes_;
+    }
+
 private:
     DB::ContextWeakPtr WeakContext_;
     TQueryContext* QueryContext_;
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
+    std::vector<NYTree::IAttributeDictionaryPtr> ColumnAttributes_;
     size_t DistributionSeed_;
     std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
     TLogger Logger;
@@ -1574,6 +1641,47 @@ private:
         preparer.PrepareSecondaryQueries();
 
         return preparer;
+    }
+
+    void SetLowCardinalityFromStatistics(const std::vector<NTableClient::TColumnarHyperLogLogDigest>& columnHyperLogLogDigests, const TCompositeSettingsPtr& settings)
+    {
+        YT_VERIFY(columnHyperLogLogDigests.empty() || std::ssize(columnHyperLogLogDigests) == Schema_->GetColumnCount());
+        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
+            auto estimateCardinality = columnHyperLogLogDigests.empty() ? 0 : columnHyperLogLogDigests[i].EstimateCardinality();
+            ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, estimateCardinality <= settings->LowCardinalityThreshold);
+        }
+    }
+
+    void SetLowCardinalityFromRegExp(NRe2::TRe2Ptr lowCardinalityRegExp)
+    {
+        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
+            if (lowCardinalityRegExp && NRe2::TRe2::FullMatch(Schema_->Columns()[i].Name(), *lowCardinalityRegExp)) {
+                ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, true);
+            }
+        }
+    }
+
+    void SetLowCardinality(ELowCardinalityMode mode)
+    {
+        using namespace NTableClient;
+        YT_VERIFY(mode != ELowCardinalityMode::FromStatistics);
+        for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
+            ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, mode == ELowCardinalityMode::All ? true : false);
+            if (mode == ELowCardinalityMode::StringOnly) {
+                auto type = Schema_->Columns()[i].LogicalType();
+                if (type->GetMetatype() == ELogicalMetatype::Optional) {
+                    type = type->AsOptionalTypeRef().GetElement();
+                }
+                if (type->GetMetatype() == ELogicalMetatype::Simple) {
+                    auto element = type->AsSimpleTypeRef().GetElement();
+                    if (element == ESimpleLogicalValueType::String ||
+                        element == ESimpleLogicalValueType::Utf8 ||
+                        element == ESimpleLogicalValueType::Json) {
+                        ColumnAttributes_[i]->Set<bool>(LowCardinalityAttribute, true);
+                    }
+                }
+            }
+        }
     }
 
     //! Erase underlying table (assuming that we have single underlying static table)

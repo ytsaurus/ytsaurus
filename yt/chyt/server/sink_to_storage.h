@@ -18,6 +18,7 @@ namespace NYT::NClickHouseServer {
 DB::SinkToStoragePtr CreateSinkToStaticTable(
     NYPath::TRichYPath path,
     NTableClient::TTableSchemaPtr tableSchema,
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     NTableClient::TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
@@ -33,6 +34,7 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
 DB::SinkToStoragePtr CreateSinkToDynamicTable(
     NYPath::TRichYPath path,
     NTableClient::TTableSchemaPtr tableSchema,
+    std::vector<NYTree::IAttributeDictionaryPtr> columnAttributes,
     std::vector<DB::DataTypePtr> dataTypes,
     TDynamicTableSettingsPtr settings,
     TCompositeSettingsPtr compositeSettings,

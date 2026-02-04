@@ -111,7 +111,7 @@ public:
 
         auto source = CreateSecondaryQuerySource(
             reader,
-            BuildSimpleReadPlan(table->Schema->Columns()),
+            BuildSimpleReadPlan(table->Schema->Columns(), /*columnAttributes*/ {}),
             /*traceContext*/ nullptr,
             Host_,
             Host_->GetConfig()->QuerySettings,
@@ -187,7 +187,7 @@ private:
 
     void ValidateSchema(const TTableSchema& schema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TCompositeSettings>());
+        auto namesAndTypesList = ToNamesAndTypesList(schema, /*columnAttributes*/ {}, New<TCompositeSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
             THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())

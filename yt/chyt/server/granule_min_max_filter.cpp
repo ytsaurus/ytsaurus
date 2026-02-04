@@ -34,7 +34,7 @@ public:
         std::shared_ptr<DB::ActionsDAG> filterActions)
         : KeyCondition_(std::move(keyCondition))
         , QueryRealColumnsSchema_(std::move(queryRealColumnsSchema))
-        , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
+        , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, /*columnAttributes*/ {}, settings))
         , StatisticsSampleCallback_(std::move(statisticsSampleCallback))
         , FilterActions_(std::move(filterActions))
     { }
@@ -115,7 +115,7 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
     }
 
     auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-        ToNamesAndTypesList(*filteredSchema, compositeSettings)));
+        ToNamesAndTypesList(*filteredSchema, /*columnAttributes*/ {}, compositeSettings)));
 
     std::shared_ptr<DB::ActionsDAG> whereFilters = (queryInfo.filter_actions_dag != nullptr) ?
         std::make_shared<DB::ActionsDAG>(queryInfo.filter_actions_dag->clone())

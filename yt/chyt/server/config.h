@@ -51,7 +51,23 @@ public:
 
     bool EnableComplexNullConverison;
 
-    static TCompositeSettingsPtr Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison = true);
+    //! Defines how CHYT works with LC types:
+    //! * None - doesn't convert any column to LC;
+    //! * StringOnly - converts columns with string-like types (string, utf, json);
+    //! * All - converts all columns to LC if possible;
+    //! * FromStatistics - converts a column if its EstimateCardinality <= LowCardinalityThreshold.
+    ELowCardinalityMode LowCardinalityMode;
+
+    //! Special setting for FromStatistics LowCardinalityMode.
+    ui64 LowCardinalityThreshold;
+
+    //! Columns that match this regexp are converted to LC.
+    NRe2::TRe2Ptr LowCardinalityRegExp;
+
+    static TCompositeSettingsPtr Create(
+        bool convertUnsupportedTypesToString,
+        bool enableComplexNullConverison = true,
+        ELowCardinalityMode lowCardinalityMode = ELowCardinalityMode::None);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
