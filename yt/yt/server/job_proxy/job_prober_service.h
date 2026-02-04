@@ -6,14 +6,14 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NJobProber {
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateJobProberService(
-    NJobProxy::IJobProbePtr jobProbe,
+    IJobProbePtr jobProbe,
     IInvokerPtr controlInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProber
+} // namespace NYT::NJobProxy

@@ -145,7 +145,6 @@ using namespace NControllerAgent::NProto;
 using namespace NControllerAgent;
 using namespace NExecNode::NProto;
 using namespace NExecNode;
-using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NLogging;
@@ -612,13 +611,13 @@ void TJobProxy::DoRun()
     }
 
 
-    if (GrpcServer_ != nullptr) {
+    if (GrpcServer_) {
         auto error = WaitFor(GrpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping GRPC server");
     }
 
-    if (HttpServer_ != nullptr) {
+    if (HttpServer_) {
         auto error = WaitFor(HttpServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
         YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping HTTP server");
