@@ -470,7 +470,8 @@ private:
             [&] (TMetadataAvailablePolicy) { return replicas.empty(); });
     }
 
-    void UpdateQueue(const TScrapedChunkInfo& info) {
+    void UpdateQueue(const TScrapedChunkInfo& info)
+    {
         auto chunkId = info.ChunkId;
         switch (info.Availability) {
             case EChunkAvailability::Available:
