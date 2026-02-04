@@ -751,12 +751,15 @@ std::vector<IChunkPoolOutput::TCookie> TNewJobManager::DecreaseJobCount(int delt
 
 std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
 {
+    // NB(coteeq): This method does not actually release anything, but rather
+    // copies data slices. This logic is rewritten in 26.1 and I'm too hesitant
+    // to do the same refactor in old branches. Until old branches' EOL,
+    // `std::copy` will suffice.
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
         if (stripe->Foreign) {
-            std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
-            stripe->DataSlices.clear();
+            std::copy(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
         }
     }
     return foreignSlices;
