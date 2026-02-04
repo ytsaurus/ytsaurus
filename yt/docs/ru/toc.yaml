@@ -61,6 +61,8 @@ items:
                 href: user-guide/storage/access-control.md
               - name: Управление доступом к колонкам таблиц
                 href: user-guide/storage/columnar-acl.md
+              - name: Управление доступом к строкам таблиц
+                href: user-guide/storage/row-level-security.md
           - name: Квотирование ресурсов
             items:
               - name: Квоты
