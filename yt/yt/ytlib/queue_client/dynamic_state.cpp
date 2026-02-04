@@ -459,12 +459,12 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
         "queue_agent_stage",
         "id",
         "queue_agent_banned",
+        "queue_profiling_tag",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
         "replication_card_id",
         "treat_as_queue_consumer",
-        "queue_profiling_tag"
     };
 }
 
@@ -534,11 +534,11 @@ std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
         "schema",
         "queue_agent_stage",
         "queue_agent_banned",
+        "queue_consumer_profiling_tag",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
         "replication_card_id",
-        "queue_consumer_profiling_tag"
     };
 }
 
