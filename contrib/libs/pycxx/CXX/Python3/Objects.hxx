@@ -55,6 +55,12 @@
 
 namespace Py
 {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+    #define PYCXX_UNICODE_TYPE char32_t
+#else
+    #define PYCXX_UNICODE_TYPE Py_UNICODE
+#endif
+
     void ifPyErrorThrowCxxException();
 
     typedef Py_ssize_t sequence_index_type;    // type of an index into a sequence
@@ -223,11 +229,13 @@ namespace Py
 
         void decrement_reference_count()
         {
+#ifndef Py_GIL_DISABLED
             // not allowed to commit suicide, however
             if( reference_count() == 1 )
             {
                 throw RuntimeError( "Object::decrement_reference_count error." );
             }
+#endif
             Py::_XDECREF( p );
         }
 
@@ -248,10 +256,12 @@ namespace Py
             return true;
         }
 
+#ifndef Py_GIL_DISABLED
         Py_ssize_t reference_count() const
         { // the reference count
             return p ? p->ob_refcnt : 0;
         }
+#endif
 
         Type type() const; // the type object associated with this one
 
@@ -612,6 +622,13 @@ namespace Py
 
         // create from unsigned long
         explicit Long( unsigned long v )
+        : Object( PyLong_FromUnsignedLong( v ), true )
+        {
+            validate();
+        }
+
+        // create from unsigned int
+        explicit Long( unsigned int v )
         : Object( PyLong_FromUnsignedLong( v ), true )
         {
             validate();
@@ -1761,11 +1778,11 @@ namespace Py
     // I'll try having a class Char which is a String of length 1
     //
 #if !defined(Py_LIMITED_API)
-    typedef std::basic_string<Py_UNICODE> unicodestring;
-    extern Py_UNICODE unicode_null_string[1];
+    typedef std::basic_string<PYCXX_UNICODE_TYPE> unicodestring;
+    extern PYCXX_UNICODE_TYPE unicode_null_string[1];
 #endif
-    typedef std::basic_string<Py_UCS4> ucs4string;
-    extern Py_UCS4 ucs4_null_string[1];
+    typedef std::basic_string<char32_t> ucs4string;
+    extern char32_t ucs4_null_string[1];
 
     class Byte: public Object
     {
@@ -1957,7 +1974,7 @@ namespace Py
         }
 
 #if !defined( Py_LIMITED_API )
-        Char( Py_UNICODE v )
+        Char( PYCXX_UNICODE_TYPE v )
         : Object( PyUnicode_FromOrdinal( v ), true )
         {
             validate();
@@ -1974,7 +1991,7 @@ namespace Py
 
 #if !defined( Py_LIMITED_API )
         Char( const unicodestring &v )
-        : Object( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<Py_UNICODE*>( v.data() ),1 ), true )
+        : Object( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<PYCXX_UNICODE_TYPE*>( v.data() ),1 ), true )
         {
             validate();
         }
@@ -2004,7 +2021,7 @@ namespace Py
 #if !defined( Py_LIMITED_API )
         Char &operator=( const unicodestring &v )
         {
-            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<Py_UNICODE*>( v.data() ), 1 ), true );
+            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<PYCXX_UNICODE_TYPE*>( v.data() ), 1 ), true );
             return *this;
         }
 #endif
@@ -2021,7 +2038,7 @@ namespace Py
 #if !defined( Py_LIMITED_API )
         Char &operator=( int v_ )
         {
-            Py_UNICODE v( static_cast<Py_UNICODE>( v_ ) );
+            PYCXX_UNICODE_TYPE v( static_cast<PYCXX_UNICODE_TYPE>( v_ ) );
             set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, &v, 1 ), true );
             return *this;
         }
@@ -2036,7 +2053,7 @@ namespace Py
 #endif
 
 #if !defined( Py_LIMITED_API )
-        Char &operator=( Py_UNICODE v )
+        Char &operator=( PYCXX_UNICODE_TYPE v )
         {
             set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, &v, 1 ), true );
             return *this;
@@ -2162,13 +2179,13 @@ namespace Py
         // Need these c'tors becuase Py_UNICODE is 2 bytes
         // User may use "int" or "unsigned int" as the unicode type
         String( const unsigned int *s, int length )
-        : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const Py_UCS4 *>( s ), length ), true )
+        : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const char32_t *>( s ), length ), true )
         {
             validate();
         }
 
         String( const int *s, int length )
-        : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const Py_UCS4 *>( s ), length ), true )
+        : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const char32_t *>( s ), length ), true )
         {
             validate();
         }
@@ -2183,11 +2200,19 @@ namespace Py
 #endif
 
 #if !defined( Py_LIMITED_API )
-        String( const Py_UNICODE *s, int length )
+        String( const PYCXX_UNICODE_TYPE *s, int length )
+        : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const char32_t *>( s ), length ), true )
+        {
+            validate();
+        }
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 13
+        String( const char32_t *s, int length )
         : SeqBase<Char>( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, s, length ), true )
         {
             validate();
         }
+#endif
 #endif
 
         // Assignment acquires new ownership of pointer
@@ -2214,7 +2239,7 @@ namespace Py
 #if !defined( Py_LIMITED_API )
         String &operator=( const unicodestring &v )
         {
-            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<Py_UNICODE *>( v.data() ), v.length() ), true );
+            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, const_cast<PYCXX_UNICODE_TYPE *>( v.data() ), v.length() ), true );
             return *this;
         }
 #endif
@@ -2222,7 +2247,7 @@ namespace Py
 #if !defined( Py_UNICODE_WIDE ) && !defined( Py_LIMITED_API )
         String &operator=( const ucs4string &v )
         {
-            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const Py_UCS4 *>( v.data() ), v.length() ), true );
+            set( PyUnicode_FromKindAndData( PyUnicode_4BYTE_KIND, reinterpret_cast<const char32_t *>( v.data() ), v.length() ), true );
             return *this;
         }
 #endif
@@ -2249,7 +2274,7 @@ namespace Py
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 9
 #if !defined( Py_LIMITED_API )
-        const Py_UNICODE *unicode_data() const
+        const PYCXX_UNICODE_TYPE *unicode_data() const
         {
             return PyUnicode_AS_UNICODE( ptr() );
         }
@@ -2270,7 +2295,7 @@ namespace Py
             {
                 ifPyErrorThrowCxxException();
             }
-            ucs4string ucs4( buf, size() );
+            ucs4string ucs4( reinterpret_cast<char32_t *>(buf), size() );
             delete[] buf;
 
             return ucs4;
@@ -3359,8 +3384,13 @@ namespace Py
         explicit Module( const std::string &s )
         : Object()
         {
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13 && !defined( Py_LIMITED_API )
+            PyObject *m = PyImport_AddModuleRef( const_cast<char *>( s.c_str() ) );
+            set( m, true );
+#else
             PyObject *m = PyImport_AddModule( const_cast<char *>( s.c_str() ) );
             set( m, false );
+#endif
             validate();
         }
 
