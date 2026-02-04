@@ -24,8 +24,8 @@ public:
     [[noreturn]]
     int Run(int argc, const char** argv);
 
-    //! Handles --version/--yt-version/--build [--yson] if they are present.
-    void HandleVersionAndBuild();
+    //! Handles --version/--yt-version/--build/--compatibility-info [--yson] if they are present.
+    void HandleProgramInfo();
 
     //! Nongracefully aborts the program.
     /*!
@@ -47,6 +47,7 @@ protected:
     bool PrintYTVersion_ = false;
     bool PrintVersion_ = false;
     bool PrintBuild_ = false;
+    bool PrintCompatibilityInfo_ = false;
     bool UseYson_ = false;
 
     virtual void DoRun() = 0;
@@ -70,6 +71,11 @@ protected:
     //! but some YT components (e.g. CHYT) can override it to provide its own version.
     [[noreturn]]
     virtual void PrintVersionAndExit();
+
+    //! Handler for --compatibility-info command argument.
+    //! By default, throws an exception. Override to provide compatibility information
+    //! (e.g., current reign for master).
+    virtual void DoPrintCompatibilityInfo();
 
     [[noreturn]]
     void Exit(int code) noexcept;
