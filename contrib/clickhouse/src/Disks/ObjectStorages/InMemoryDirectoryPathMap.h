@@ -6,6 +6,7 @@
 #include <optional>
 #include <functional>
 #include <filesystem>
+#include <algorithm>
 #include <base/defines.h>
 
 #include <Common/CurrentMetrics.h>
