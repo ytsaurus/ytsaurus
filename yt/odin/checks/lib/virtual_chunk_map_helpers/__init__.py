@@ -53,7 +53,7 @@ def check_virtual_map_size(yt_client, logger, options, states, check_name, count
     if chunk_count == 0:
         return states.FULLY_AVAILABLE_STATE
     else:
-        return states.UNAVAILABLE_STATE, chunk_count
+        return states.UNAVAILABLE_STATE
 
 
 def check_virtual_map_age(yt_client, logger, options, check_name):
