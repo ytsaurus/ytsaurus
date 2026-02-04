@@ -69,11 +69,6 @@ void TDynamicTableSettings::Register(TRegistrar registrar)
 
 void TTestingSettings::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
-        .Default(true);
-    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
-        .Default(true);
-
     registrar.Parameter("throw_exception_in_distributor", &TThis::ThrowExceptionInDistributor)
         .Default(false);
     registrar.Parameter("throw_exception_in_subquery", &TThis::ThrowExceptionInSubquery)
@@ -86,9 +81,6 @@ void TTestingSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("local_clique_size", &TThis::LocalCliqueSize)
         .Default(0);
-
-    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
-        .Default(true);
 
     registrar.Parameter("chunk_spec_fetcher_breakpoint", &TThis::ChunkSpecFetcherBreakpoint)
         .Default();
@@ -236,6 +228,11 @@ void TPrewhereSettings::Register(TRegistrar registrar)
 
 void TQuerySettings::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_key_condition_filtering", &TThis::EnableKeyConditionFiltering)
+        .Default(true);
+    registrar.Parameter("make_upper_bound_inclusive", &TThis::MakeUpperBoundInclusive)
+        .Default(true);
+
     registrar.Parameter("enable_columnar_read", &TThis::EnableColumnarRead)
         .Default(true);
 
@@ -553,6 +550,9 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
+
+    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
+        .Default(true);
 
     registrar.Parameter("user_agent_blacklist", &TThis::UserAgentBlacklist)
         .Default();

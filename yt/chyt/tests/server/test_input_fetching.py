@@ -1016,15 +1016,16 @@ class TestInputFetching(ClickHouseTestBase):
             with raises_yt_error(QueryFailedError):
                 clique.make_query('select * from "//tmp/table_banned"')
 
-            assert clique.make_query('select * from "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == data
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('exists "//tmp/table_banned"')
+
             assert clique.make_query('select * from "//tmp/table_implicitly_not_banned"') == data
             assert clique.make_query('select * from "//tmp/table_explicitly_not_banned"') == data
-
             assert clique.make_query('exists "//tmp/table_surely_nonexisting"') == [{'result': 0}]
-            assert clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 0}) == [{'result': 1}]
 
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 1})
+        with Clique(1, config_patch={"yt": {"check_chyt_banned": 0}}) as clique:
+            assert clique.make_query('select * from "//tmp/table_banned"') == data
+            assert clique.make_query('exists "//tmp/table_banned"') == [{'result': 1}]
 
     @authors("denvid")
     def test_min_max_filtering(self):

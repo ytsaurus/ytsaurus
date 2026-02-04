@@ -847,7 +847,7 @@ private:
             keyCondition ? keyCondition->toString() : "(n/a)");
 
         if (!keyCondition ||
-            !StorageContext_->Settings->Testing->EnableKeyConditionFiltering ||
+            !StorageContext_->Settings->EnableKeyConditionFiltering ||
             keyCondition->alwaysUnknownOrTrue())
         {
             YT_LOG_TRACE("Can not process key condition");
@@ -863,7 +863,7 @@ private:
             *schema,
             keyColumnDataTypes,
             usedKeyColumnCount,
-            StorageContext_->Settings->Testing->MakeUpperBoundInclusive);
+            StorageContext_->Settings->MakeUpperBoundInclusive);
 
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumnUsed) {
             return MakeFormattableView(

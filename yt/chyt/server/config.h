@@ -107,9 +107,6 @@ class TTestingSettings
     : public NYTree::TYsonStruct
 {
 public:
-    bool EnableKeyConditionFiltering;
-    bool MakeUpperBoundInclusive;
-
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
     i64 SubqueryAllocationSize;
@@ -118,8 +115,6 @@ public:
 
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
     int LocalCliqueSize;
-
-    bool CheckChytBanned;
 
     std::optional<NYPath::TYPath> ChunkSpecFetcherBreakpoint;
     std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;
@@ -377,6 +372,9 @@ class TQuerySettings
     : public NYTree::TYsonStruct
 {
 public:
+    bool EnableKeyConditionFiltering;
+    bool MakeUpperBoundInclusive;
+
     bool EnableColumnarRead;
 
     bool EnableComputedColumnDeduction;
@@ -703,6 +701,8 @@ struct TYtConfig
     std::optional<TString> Address;
     //! Clique size for better profiling.
     int CliqueInstanceCount;
+
+    bool CheckChytBanned;
 
     TSlruCacheConfigPtr ClientCache;
 

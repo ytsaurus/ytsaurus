@@ -546,7 +546,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         if (attributesOrError.IsOK()) {
             const auto& attributes = attributesOrError.Value();
 
-            if (Settings->Testing->CheckChytBanned) {
+            if (Host->GetConfig()->CheckChytBanned) {
                 if (attributes->Get<bool>("chyt_banned", false)) {
                     THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
                 }
