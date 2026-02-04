@@ -367,7 +367,15 @@ class YTEnvSetup(object):
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
-    DELTA_NODE_CONFIG = {}
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "changelogs": {
+                "writer": {
+                    "enable_checksums": True,
+                }
+            }
+        }
+    }
     DELTA_DYNAMIC_NODE_CONFIG = {}
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}

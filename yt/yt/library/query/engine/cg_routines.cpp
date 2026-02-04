@@ -18,7 +18,7 @@
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 #include <yt/yt/library/query/engine_api/top_collector.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
+#include <yt/yt/library/query/misc/allocator.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
