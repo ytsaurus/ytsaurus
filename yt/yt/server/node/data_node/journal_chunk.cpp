@@ -203,10 +203,12 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         int blockCount = session->BlockCount;
 
         YT_LOG_DEBUG("Started reading journal chunk blocks ("
-            "ChunkId: %v, Blocks: %v, LocationId: %v)",
+            "ChunkId: %v, Blocks: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
             Id_,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
-            Location_->GetId());
+            Location_->GetId(),
+            Location_->GetUuid(),
+            Location_->GetIndex());
 
         TWallTimer timer;
 
@@ -236,11 +238,13 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
 
         YT_LOG_DEBUG("Finished reading journal chunk blocks ("
-            "ChunkId: %v, Blocks: %v, LocationId: %v, BlocksReadActually: %v, "
+            "ChunkId: %v, Blocks: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
             Id_,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             Location_->GetId(),
+            Location_->GetUuid(),
+            Location_->GetIndex(),
             blocksRead,
             bytesRead,
             readTime);
@@ -299,9 +303,11 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
 
                 writerGuard.Release();
 
-                YT_LOG_DEBUG("Changelog prepared to read fragments (ChunkId: %v, LocationId: %v)",
+                YT_LOG_DEBUG("Changelog prepared to read fragments (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
                     Id_,
-                    Location_->GetId());
+                    Location_->GetId(),
+                    Location_->GetUuid(),
+                    Location_->GetIndex());
             }).AsyncVia(Context_->StorageLightInvoker)));
 
     return promise.ToFuture();
@@ -419,9 +425,11 @@ void TJournalChunk::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGua
 
     writerGuard.Release();
 
-    YT_LOG_DEBUG("Changelog released (ChunkId: %v, LocationId: %v)",
+    YT_LOG_DEBUG("Changelog released (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
         Id_,
-        Location_->GetId());
+        Location_->GetId(),
+        Location_->GetUuid(),
+        Location_->GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1640,8 +1640,10 @@ private:
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
                     auto [location, locationRequestCount] = requestedLocations[index];
                     YT_VERIFY(locationRequestCount == std::ssize(locationRequests[index]));
-                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, FragmentCount: %v)",
+                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, LocationUuid: %v, LocationIndex: %v, FragmentCount: %v)",
                         location->GetId(),
+                        location->GetUuid(),
+                        location->GetIndex(),
                         locationRequestCount);
                     const auto& ioEngine = location->GetIOEngine();
 
