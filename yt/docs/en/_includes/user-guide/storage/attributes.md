@@ -22,6 +22,12 @@ System attributes are either modifiable (can be changed by the user), such as `c
 
 Some attributes are **inheritable**: these attributes can be set on directories (a.k.a. map nodes) where they are nullable, i.e. may lack (and, indeed, do lack by default) a value. If no value for an inheritable attribute is specified when creating a new object, that attribute gets the value of the closest ancestor node, or the default value if no ancestor up to the root has the attribute set.
 
+{% note warning "Attention" %}
+
+As follows from the above, attribute inheritance only works when creating new nodes. Setting an inheritable attribute on a directory has no effect on already existing nodes is the subtree. In order to apply the change recursively, one has to set the attribute on each node (of relevant type) in the subtree.
+
+{% endnote %}
+
 Different types of objects inherit different sets of attributes. The following attributes are inherited by **tables, files, and journals:**
   - `chunk_merger_mode`;
   - `compression_codec`;
