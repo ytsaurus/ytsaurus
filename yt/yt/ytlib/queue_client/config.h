@@ -1,14 +1,86 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 
 #include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/core/misc/cache_config.h>
 
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NQueueClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EQueueConsumerRegistrationManagerCacheKind,
+    (RegistrationLookup)
+    (ListRegistrations)
+    (ReplicaMappingLookup)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+// XXX(apachee): In practice these structures are configs, but they are built from other
+// configs, and are not converted to or from yson. Maybe that is not the most conventional
+// way to do this, but I'm not sure what is the better alternative here.
+// TODO(apachee): Move this to registration_manager_config.h (keep in NDetail namespace).
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupSessionConfig
+    : public virtual TRefCounted
+{
+    TString User;
+    NYPath::TRichYPath Table;
+
+    bool operator==(const TLookupSessionConfig&) const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TLookupSessionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStateLookupCacheConfig
+    : public virtual TRefCounted
+{
+    TAsyncExpiringCacheConfigPtr Cache;
+    // TODO(apachee): Add batch lookup config.
+
+    TStateLookupCacheConfig& operator=(const TStateLookupCacheConfigPtr&);
+
+    bool operator==(const TStateLookupCacheConfig&) const;
+
+    static TStateLookupCacheConfigPtr FromQueueConsumerRegistrationManagerCacheConfig(
+        const TQueueConsumerRegistrationManagerCacheConfigPtr& config,
+        EQueueConsumerRegistrationManagerCacheKind cacheKind);
+};
+
+DEFINE_REFCOUNTED_TYPE(TStateLookupCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompoundStateLookupCacheConfig
+    : public TLookupSessionConfig
+    , public TStateLookupCacheConfig
+{
+    bool operator==(const TCompoundStateLookupCacheConfig&) const;
+
+    //! \note Aborts if called for legacy implementation.
+    static TCompoundStateLookupCacheConfigPtr FromQueueConsumerRegistrationManagerConfig(
+        const TQueueConsumerRegistrationManagerConfigPtr& config,
+        EQueueConsumerRegistrationManagerCacheKind cacheKind);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompoundStateLookupCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+}  // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +126,30 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EQueueConsumerRegistrationManagerImplementation,
+    ((Legacy)                     (0))
+    ((AsyncExpiringCache)         (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueConsumerRegistrationManagerCacheConfig
+    : public NYTree::TYsonStruct
+{
+    TAsyncExpiringCacheConfigPtr Base;
+    TEnumIndexedArray<EQueueConsumerRegistrationManagerCacheKind, TAsyncExpiringCacheDynamicConfigPtr> Delta;
+
+    // TODO(apachee): Add batch lookup config.
+
+    REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerCacheConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManagerCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueueConsumerRegistrationManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -73,12 +169,15 @@ struct TQueueConsumerRegistrationManagerConfig
     //! and use any successful result.
     NYPath::TRichYPath ReplicatedTableMappingReadPath;
 
+    //! Path to the dynamic table containing mapping of replicas to their corresponding replicated tables.
+    //! Parametrized by a list of clusters. If no clusters are specified, the connection's local cluster is used.
+    //! If a list of clusters is specified, the registration manager will send read-requests to all of them
+    //! and use any successful result.
+    NYPath::TRichYPath ReplicaMappingReadPath;
+
     //! If true, the table will be polled for each registration check and orchid call.
     //! Off by default.
     bool BypassCaching;
-
-    //! Period with which the registration table is polled by the registration cache.
-    TDuration CacheRefreshPeriod;
 
     //! Period with which a dynamic version of this config is retrieved from the cluster directory of
     //! the connection with which the manager was created.
@@ -95,6 +194,16 @@ struct TQueueConsumerRegistrationManagerConfig
     //! If true, then listing registrations without specifing both queue and consumer (i.e. listing all registrations) results in an error.
     //! By default, keeps the old behavior of allowing such requests.
     bool DisableListAllRegistrations;
+
+    EQueueConsumerRegistrationManagerImplementation Implementation;
+
+    //! Period with which the registration table is polled by the registration cache.
+    //! \note If async expiring implementation is used, this field is ignored.
+    TDuration CacheRefreshPeriod;
+
+    //! Config for internally used async expiring caches.
+    //! \note If legacy implementation is used, this field is ignored.
+    TQueueConsumerRegistrationManagerCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 

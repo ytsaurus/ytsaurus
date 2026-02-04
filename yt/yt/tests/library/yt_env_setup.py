@@ -289,6 +289,23 @@ class Checker(Thread):
         self.join()
 
 
+class OverrideConfig:
+    """
+    Wrapping config in this object prevents inheritance of subclasses configs.
+
+    Usage example:
+    ```
+    class SomeTest(...):
+       DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = OverrideConfig({
+           ... Actual config here ...
+       })
+    ```
+    """
+
+    def __init__(self, config):
+        self.config = config
+
+
 class YTEnvSetup(object):
     NUM_MASTERS = 3
     NUM_CLOCKS = 0
@@ -342,6 +359,8 @@ class YTEnvSetup(object):
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
     DELTA_NODE_FLAVORS = []
+
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {}
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_DRIVER_LOGGING_CONFIG = {}
@@ -1437,6 +1456,13 @@ class YTEnvSetup(object):
         param_name = param_name if cluster_index is None else cls._get_param_real_name(param_name, cluster_index)
         for base in cls.__mro__[::-1]:
             patch = base.__dict__.get(param_name, {})
+
+            if isinstance(patch, OverrideConfig):
+                assert isinstance(base_config, (list, dict))
+                base_config.clear()
+
+                patch = patch.config
+
             update_inplace(base_config, patch)
 
     @classmethod

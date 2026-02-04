@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.record.h>
 #include <yt/yt/ytlib/queue_client/records/queue_object.record.h>
 #include <yt/yt/ytlib/queue_client/records/replicated_table_mapping.record.h>
+#include <yt/yt/ytlib/queue_client/records/replica_mapping.record.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -48,7 +49,17 @@ public:
 
     TTableBase(NYPath::TYPath path, NApi::IClientPtr client);
 
-    TFuture<std::vector<TRow>> Select(TStringBuf where = "1 = 1") const;
+    //! Lookup rows by keys.
+    //!
+    //! If row exists and no lookup failure occured, the value is OK at index correspoding to its key.
+    //! If row is missing, error with code EErrorCode::DynamicStateMissingRow is returned.
+    //! If row lookup failure occured, unspecified error is returned (since response does not provide exact error).
+    TFuture<std::vector<TErrorOr<TRow>>> Lookup(
+        TRange<TRow> keys,
+        const NApi::TLookupRowsOptions& options = {}) const;
+    TFuture<std::vector<TRow>> Select(
+        TStringBuf where = "1 = 1",
+        const NApi::TSelectRowsOptions& options = {}) const;
     TFuture<NApi::TTransactionCommitResult> Insert(TRange<TRow> rows) const;
     TFuture<NApi::TTransactionCommitResult> Delete(TRange<TRow> keys) const;
 
@@ -291,6 +302,25 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableMappingTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicaMappingTableRow
+{
+    TCrossClusterReference ReplicaRef;
+    TCrossClusterReference ReplicatedTableRef;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicaMappingTable
+    : public TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>
+{
+public:
+    TReplicaMappingTable(NYPath::TYPath path, NApi::IClientPtr client);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicaMappingTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 

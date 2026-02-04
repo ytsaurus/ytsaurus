@@ -1,16 +1,15 @@
-from yt_commands import (authors, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
+from yt_commands import (authors, make_ace, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
-                         start_transaction)
+                         start_transaction, ls, wait_for_tablet_state)
 
 from yt_queue_agent_test_base import (QueueConsumerRegistration, TestQueueAgentBase, ReplicatedObjectBase,
                                       CypressSynchronizerOrchid, QueueConsumerRegistrationManagerBase)
 
 from yt_env_setup import (
     Restarter,
-    RPC_PROXIES_SERVICE,
-)
+    RPC_PROXIES_SERVICE)
 
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
@@ -22,6 +21,7 @@ from yt.ypath import parse_ypath
 
 import builtins
 import pytest
+from typing import Literal
 
 
 class TestQueueConsumerApiBase(QueueConsumerRegistrationManagerBase, ReplicatedObjectBase):
@@ -168,18 +168,41 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         return True
 
+    # COMPAT(apachee): Only relevant for legacy implementation, since async expiring cache implementation
+    # only fetches requested registrations.
+    @classmethod
+    def _cached_registrations_are(cls, driver, expected_registrations):
+        implementation = cls._get_registration_manager_applied_implementation()
+
+        if implementation == "legacy":
+            return cls._legacy_cached_registrations_are(expected_registrations, driver)
+        else:
+            # Only check implementation attribute.
+            return cls._async_expiring_cache_cached_registrations_are(driver)
+
     @staticmethod
-    def _cached_registrations_are(expected_registrations, driver):
+    def _legacy_cached_registrations_are(expected_registrations, driver):
         for proxy in get("//sys/rpc_proxies", driver=driver).keys():
             orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+            orchid_value = get(orchid_path, driver=driver)
+            assert orchid_value.attributes["queue_consumer_registration_manager_implementation"] == "legacy"
+
             orchid_registrations = {
                 QueueConsumerRegistration.from_orchid(r)
-                for r in get(f"{orchid_path}/registrations", driver=driver)
+                for r in orchid_value["registrations"]
             }
 
             if orchid_registrations != expected_registrations:
                 print_debug(f"Registrations differ: {orchid_registrations} and {expected_registrations}")
                 return False
+        return True
+
+    @staticmethod
+    def _async_expiring_cache_cached_registrations_are(driver):
+        for proxy in ls("//sys/rpc_proxies", driver=driver):
+            orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+            orchid_value = get(orchid_path, driver=driver)
+            assert orchid_value.attributes["queue_consumer_registration_manager_implementation"] == "async_expiring_cache"
 
         return True
 
@@ -187,7 +210,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         expected_registrations = {QueueConsumerRegistration(*r) for r in expected_registrations}
         replica_registrations = all(self._replica_registrations_are(local_replica_path, expected_registrations, driver)
                                     for driver in self._get_drivers(replica_clusters))
-        cached_registrations = all(self._cached_registrations_are(expected_registrations, driver)
+        cached_registrations = all(self._cached_registrations_are(expected_registrations=expected_registrations, driver=driver)
                                    for driver in self._get_drivers())
         return replica_registrations and cached_registrations
 
@@ -217,7 +240,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     @pytest.mark.timeout(150)
     def test_api_and_permissions(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
@@ -350,7 +373,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_list_registrations(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
         create("table", "//tmp/q1", attributes=attrs)
@@ -449,7 +472,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_list_registrations_for_symlinks(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
         create("table", "//tmp/q1", attributes=attrs)
@@ -541,7 +564,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_write_availability(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
@@ -586,7 +609,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_read_availability(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
@@ -625,7 +648,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_symlink_registrations(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
@@ -689,7 +712,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_normalize_cluster(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
         create("table", "//tmp/q1", attributes=attrs)
@@ -710,7 +733,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     ])
     def test_multicluster_symlink_registrations(self, create_registration_table):
         config = create_registration_table(self)
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
@@ -892,8 +915,7 @@ class TestDataApiSingleCluster(TestDataApiBase):
         super(TestDataApiSingleCluster, self).setup_method(method)
 
         config = self._create_simple_registration_table()
-        config["bypass_caching"] = True
-        self._apply_registration_table_config(config)
+        self._apply_registration_manager_config_patch_all(config)
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue", [
@@ -1100,8 +1122,9 @@ class TestDataApiMultiCluster(TestDataApiBase):
         self._create_user("test")
 
         config = self._create_replicated_registration_table(replicas_mode="sync")
-        config["replicated_table_mapping_read_path"] = "<clusters=[primary]>//sys/queue_agents/replicated_table_mapping"
-        self._apply_registration_table_config(config)
+        config["replicated_table_mapping_read_path"] = parse_ypath("<clusters=[primary]>//sys/queue_agents/replicated_table_mapping")
+        config["replica_mapping_read_path"] = parse_ypath("<clusters=[primary]>//sys/queue_agents/replica_mapping")
+        self._apply_registration_manager_config_patch_all(config)
 
     @authors("achulkov2", "nadya73")
     def test_pull_replicated_queue(self):
@@ -1253,3 +1276,322 @@ class TestDataApiMultiCluster(TestDataApiBase):
         wait(does_not_raise, ignore_exceptions=True)
 
         assert get_offset(queue_replicated_table) == 3
+
+
+class TestLegacyRegistrationManagerMixin(QueueConsumerRegistrationManagerBase):
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "implementation": "legacy",
+        "bypass_caching": True,
+    }
+
+    @authors("apachee")
+    def test_legacy_impl_used(self):
+        if type(self) is TestLegacyRegistrationManagerMixin:
+            pytest.skip("Mixin class, not a test suite")
+
+        assert self._get_registration_manager_applied_implementation() == "legacy"
+
+
+assert TestLegacyRegistrationManagerMixin._get_registration_manager_config()["implementation"] == "legacy"
+
+
+class TestConsumerRegistrationsOldImpl(TestLegacyRegistrationManagerMixin, TestConsumerRegistrations):
+    # There are component restarts.
+    ENABLE_MULTIDAEMON = False
+
+
+@pytest.mark.enabled_multidaemon
+class TestDataApiSingleClusterOldImpl(TestLegacyRegistrationManagerMixin, TestDataApiSingleCluster):
+    ENABLE_MULTIDAEMON = True
+
+
+@pytest.mark.enabled_multidaemon
+class TestDataApiMultiClusterOldImpl(TestLegacyRegistrationManagerMixin, TestDataApiMultiCluster):
+    ENABLE_MULTIDAEMON = True
+
+
+class TestConsumerRegistrationsImplementationSwitch(ReplicatedObjectBase, TestQueueAgentBase):
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "state_read_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/consumer_registrations"),
+        "state_write_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/consumer_registrations"),
+        "replicated_table_mapping_read_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/replicated_table_mapping"),
+        "replica_mapping_read_path": parse_ypath("<clusters=[primary]>//sys/queue_agents/replica_mapping"),
+        "bypass_caching": True,
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "write_replicated_table_mapping": True,
+        },
+        "queue_agent": {
+            "handle_replicated_objects": True,
+        },
+    }
+
+    NUM_REMOTE_CLUSTERS = 2
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    QUEUE_CLUSTER = "remote_0"
+    CONSUMER_CLUSTER = "remote_1"
+    AUTHENTICATED_USER = "apachee"
+    RT_METACLUSTER = "primary"
+
+    QUEUE_SCHEMA = [{"name": "data", "type": "string"},  {"name": "$timestamp", "type": "uint64"}]
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+            sync_create_cells(1, driver=driver)
+
+    def _setup_consumer_registration(self, table_type: Literal["table", "replicated_table", "chaos_replicated_table"]):
+        self.QUEUE_PATH = self.create_queue_path("registered")
+        self.UNREGISTERED_QUEUE_PATH = self.create_queue_path("unregistered")
+        self.CONSUMER_PATH = self.create_consumer_path()
+
+        if table_type == "chaos_replicated_table":
+            cell_id = self._sync_create_chaos_bundle_and_cell()
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        for cluster in self.get_cluster_names():
+            driver = get_driver(cluster=cluster)
+            create_user(self.AUTHENTICATED_USER, driver=driver)
+            set("//tmp/@acl/end", make_ace("allow", self.AUTHENTICATED_USER, "mount"), driver=driver)
+
+        if table_type == "table":
+            self._setup_consumer_registration_simple()
+        elif table_type == "replicated_table":
+            self._setup_consumer_registration_replicated()
+        elif table_type == "chaos_replicated_table":
+            self._setup_consumer_registration_chaos_replicated()
+        else:
+            raise ValueError(f"Invalid table type: {table_type}")
+
+        if table_type == "table":
+            register_queue_consumer(f"{self.QUEUE_CLUSTER}:{self.QUEUE_PATH}", f"{self.CONSUMER_CLUSTER}:{self.CONSUMER_PATH}", vital=True)
+        else:
+            register_queue_consumer(f"{self.RT_METACLUSTER}:{self.QUEUE_PATH}-rt", f"{self.RT_METACLUSTER}:{self.CONSUMER_PATH}-rt", vital=True)
+
+    def _setup_consumer_registration_simple(self):
+        for queue_path in [self.QUEUE_PATH, self.UNREGISTERED_QUEUE_PATH]:
+            driver = get_driver(cluster=self.QUEUE_CLUSTER)
+            create("table", queue_path, attributes={
+                "dynamic": True,
+                "schema": self.QUEUE_SCHEMA,
+            }, driver=driver)
+            sync_mount_table(queue_path, driver=driver)
+
+        create("queue_consumer", self.CONSUMER_PATH, driver=get_driver(cluster=self.CONSUMER_CLUSTER), authenticated_user=self.AUTHENTICATED_USER)
+        wait_for_tablet_state(self.CONSUMER_PATH, "mounted", driver=get_driver(cluster=self.CONSUMER_CLUSTER))
+
+    def _setup_consumer_registration_replicated(self):
+        for queue_path in [self.QUEUE_PATH, self.UNREGISTERED_QUEUE_PATH]:
+            self._create_replicated_table_base(
+                f"{queue_path}-rt",
+                [{"cluster_name": self.QUEUE_CLUSTER, "replica_path": queue_path, "enabled": True, "mode": "sync"}],
+                self.QUEUE_SCHEMA
+            )
+
+        self._create_replicated_table_base(
+            f"{self.CONSUMER_PATH}-rt",
+            [{"cluster_name": self.CONSUMER_CLUSTER, "replica_path": self.CONSUMER_PATH, "enabled": True, "mode": "sync"}],
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes_patch={
+                "treat_as_queue_consumer": True,
+            }
+        )
+
+    def _setup_consumer_registration_chaos_replicated(self):
+        chaos_table_metas = []
+
+        for queue_path in [self.QUEUE_PATH, self.UNREGISTERED_QUEUE_PATH]:
+            chaos_table_metas.append(self._create_chaos_replicated_table_base(
+                f"{queue_path}-rt",
+                [{"cluster_name": self.QUEUE_CLUSTER, "replica_path": queue_path, "enabled": True, "mode": "sync", "content_type": "queue"}],
+                self.QUEUE_SCHEMA
+            ))
+
+        chaos_table_metas.append(self._create_chaos_replicated_table_base(
+            f"{self.CONSUMER_PATH}-rt",
+            [
+                {"cluster_name": self.CONSUMER_CLUSTER, "replica_path": f"{self.CONSUMER_PATH}-queue", "enabled": True, "mode": "sync", "content_type": "queue"},
+                {"cluster_name": self.CONSUMER_CLUSTER, "replica_path": f"{self.CONSUMER_PATH}", "enabled": True, "mode": "sync", "content_type": "data"},
+            ],
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes={
+                "treat_as_queue_consumer": True,
+            }
+        ))
+
+        for replica_ids, card_id in chaos_table_metas:
+            wait(lambda: all([get("#{0}/@mode".format(replica)) == "sync" for replica in replica_ids]))
+            self._sync_replication_era(card_id)
+
+    def teardown_method(self, method):
+        try:
+            unregister_queue_consumer(self.QUEUE_PATH, self.CONSUMER_PATH)
+        except Exception as e:
+            print_debug("Failed to unregister queue consumer: ", e)
+
+        super().teardown_method(method)
+
+    def _check_registration(
+        self,
+        proxy_cluster,
+        queue_cluster,
+        queue_path,
+        consumer_cluster,
+        consumer_path,
+        is_replicated=False,
+        vital=True,
+        partitions=None,
+        should_raise=False,
+    ):
+        def check_wrapper(callback, code=yt_error_codes.AuthorizationErrorCode, default_result=None):
+            """
+            Runs callback() and returns its result. If should_raise is True assert callback raises exception with given code
+            and returns default_result.
+            """
+            if should_raise:
+                with raises_yt_error(code=code):
+                    callback()
+                return default_result
+            else:
+                return callback()
+
+        driver = get_driver(cluster=proxy_cluster)
+        queue_rich_path = f"{queue_cluster}:{queue_path}"
+        consumer_rich_path = f"{consumer_cluster}:{consumer_path}"
+
+        expected_registration = QueueConsumerRegistration(
+            queue_cluster=self.RT_METACLUSTER,
+            queue_path=f"{queue_path}-rt",
+            consumer_cluster=consumer_cluster,
+            consumer_path=consumer_path,
+            vital=vital,
+            partitions=partitions,
+        ) if is_replicated else QueueConsumerRegistration(
+            queue_cluster=queue_cluster,
+            queue_path=queue_path,
+            consumer_cluster=consumer_cluster,
+            consumer_path=consumer_path,
+            vital=vital,
+            partitions=partitions,
+        )
+
+        selected_registrations: list[QueueConsumerRegistration] = [QueueConsumerRegistration.from_select(i) for i in select_rows(
+            "* FROM [//sys/queue_agents/consumer_registrations] WHERE "
+            "[queue_cluster] = {queue_cluster} AND [queue_path] = {queue_path} AND "
+            "[consumer_cluster] = {consumer_cluster} AND [consumer_path] = {consumer_path}",
+            placeholder_values={
+                "queue_cluster": self.RT_METACLUSTER,
+                "queue_path": f"{queue_path}-rt",
+                "consumer_cluster": consumer_cluster,
+                "consumer_path": consumer_path,
+            } if is_replicated else
+            {
+                "queue_cluster": queue_cluster,
+                "queue_path": queue_path,
+                "consumer_cluster": consumer_cluster,
+                "consumer_path": consumer_path,
+            }
+        )]
+
+        # Verify registration exists.
+        if should_raise:
+            assert len(selected_registrations) == 0
+        else:
+            assert len(selected_registrations) == 1
+            assert selected_registrations[0] == expected_registration
+
+        # Verify permission checks.
+
+        check_wrapper(lambda: pull_consumer(consumer_rich_path, queue_rich_path, partition_index=0, offset=0, client_side=False, driver=driver, authenticated_user=self.AUTHENTICATED_USER))
+
+        list_result = [QueueConsumerRegistration.from_list_registrations(i) for i in list_queue_consumer_registrations(
+            queue_rich_path,
+            consumer_rich_path,
+            driver=driver,
+            authenticated_user=self.AUTHENTICATED_USER
+        )]
+        if should_raise:
+            assert len(list_result) == 0
+        else:
+            assert len(list_result) == 1
+            assert list_result[0] == expected_registration
+
+        check_wrapper(lambda: advance_consumer(
+            consumer_rich_path,
+            queue_rich_path,
+            partition_index=0,
+            old_offset=0,
+            new_offset=0,
+            client_side=False,
+            driver=driver,
+            authenticated_user=self.AUTHENTICATED_USER
+        ))
+
+    def _switch_implementation(self, implementation: str):
+        print_debug(f"Switching registration manager implementation to {implementation}")
+        self._apply_registration_manager_config_patch_all({
+            "implementation": implementation,
+        })
+        self._check_registration_manager_implementation(implementation)
+        print_debug(f"Registration manager implementation switched to {implementation}")
+
+    @authors("apachee")
+    @pytest.mark.parametrize("initial_implementation,final_implementation", [
+        ("legacy", "async_expiring_cache"),
+        ("async_expiring_cache", "legacy"),
+    ])
+    @pytest.mark.parametrize("table_type,proxy_cluster", [
+        ("table", "remote_1"),
+        ("replicated_table", "primary"),
+        ("chaos_replicated_table", "primary"),
+    ])
+    def test_switch_implementation(self, initial_implementation, final_implementation, table_type, proxy_cluster):
+        self._setup_consumer_registration(table_type=table_type)
+
+        is_replicated = table_type in ["replicated_table", "chaos_replicated_table"]
+        consumer_path = f"{self.CONSUMER_PATH}-rt" if is_replicated else self.CONSUMER_PATH
+        consumer_cluster = proxy_cluster
+
+        wait(
+            lambda: select_rows(f"* FROM [{consumer_path}]", driver=get_driver(cluster=consumer_cluster)) is not None,
+            ignore_exceptions=True
+        )
+
+        def check(impl):
+            self._check_registration(
+                proxy_cluster=proxy_cluster,
+                queue_cluster=self.QUEUE_CLUSTER,
+                queue_path=self.QUEUE_PATH,
+                consumer_cluster=consumer_cluster,
+                consumer_path=consumer_path,
+                is_replicated=is_replicated,
+                vital=True,
+                partitions=None,
+            )
+            self._check_registration(
+                proxy_cluster=proxy_cluster,
+                queue_cluster=self.QUEUE_CLUSTER,
+                queue_path=self.UNREGISTERED_QUEUE_PATH,
+                consumer_cluster=consumer_cluster,
+                consumer_path=consumer_path,
+                is_replicated=is_replicated,
+                vital=True,
+                partitions=None,
+                should_raise=True,
+            )
+
+        # time.sleep(10)
+        # NB(apachee): Unrolled loop for better traces.
+        self._switch_implementation(initial_implementation)
+        check(initial_implementation)
+        self._switch_implementation(final_implementation)
+        check(final_implementation)

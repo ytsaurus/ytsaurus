@@ -21,6 +21,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NQueueClient {
 
 using namespace NConcurrency;
@@ -273,6 +275,30 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
     };
 }
 
+TReplicaMappingTableRow RowFromRecord(const NRecords::TReplicaMapping& record)
+{
+    return TReplicaMappingTableRow{
+        .ReplicaRef = TCrossClusterReference::FromString(record.Key.ReplicaList),
+        .ReplicatedTableRef = TCrossClusterReference{record.Key.Cluster, record.Key.Path},
+    };
+}
+
+NRecords::TReplicaMappingKey RecordKeyFromRow(const TReplicaMappingTableRow& row)
+{
+    return NRecords::TReplicaMappingKey{
+        .ReplicaList = ToString(row.ReplicaRef),
+        .Cluster = row.ReplicatedTableRef.Cluster,
+        .Path = row.ReplicatedTableRef.Path,
+    };
+}
+
+NRecords::TReplicaMapping RecordFromRow(const TReplicaMappingTableRow& row)
+{
+    return NRecords::TReplicaMapping{
+        .Key = RecordKeyFromRow(row),
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns remote client from client directory for the given cluster.
@@ -298,13 +324,62 @@ IClientPtr GetRemoteClient(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow, typename TRecordDescriptor>
-TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, NApi::IClientPtr client)
+TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, IClientPtr client)
     : Path_(std::move(path))
     , Client_(std::move(client))
 { }
 
 template <typename TRow, typename TRecordDescriptor>
-TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBuf where) const
+TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup(
+    TRange<TRow> keys,
+    const TLookupRowsOptions& options) const
+{
+    std::vector<TRecordKey> recordKeys;
+    recordKeys.reserve(keys.size());
+    for (const auto& key : keys) {
+        recordKeys.push_back(RecordKeyFromRow(key));
+    }
+
+    auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
+    // NB(apachee): Passing local variable as options is fine, since it is captured by value in the callback.
+    TLookupRowsOptions patchedOptions = options;
+    patchedOptions.KeepMissingRows = true;
+    patchedOptions.EnablePartialResult = true;
+    return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
+        .AsUnique()
+        .Apply(BIND([] (TUnversionedLookupRowsResult&& rawResult) {
+            auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
+
+            std::vector<TErrorOr<TRow>> result;
+            result.reserve(optionalRecords.size());
+
+            auto it = rawResult.UnavailableKeyIndexes.begin();
+            for (const auto& [index, recordOrNull] : Enumerate(optionalRecords)) {
+                bool isUnavailable = false;
+                if (it != rawResult.UnavailableKeyIndexes.end() && *it == static_cast<int>(index)) {
+                    isUnavailable = true;
+                    it++;
+                }
+
+                if (recordOrNull) {
+                    YT_VERIFY(!isUnavailable);
+                    result.emplace_back(RowFromRecord(*recordOrNull));
+                } else {
+                    result.emplace_back(
+                        isUnavailable
+                            ? TError("Requested key is currently unavailable")
+                            : TError(EErrorCode::DynamicStateMissingRow, "Requested key does not exist"));
+                }
+            }
+
+            return result;
+        }));
+}
+
+template <typename TRow, typename TRecordDescriptor>
+TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
+    TStringBuf where,
+    const TSelectRowsOptions& options) const
 {
     TString query = Format("* from [%v] where %v", Path_, where);
 
@@ -312,7 +387,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(TStringBu
         "Invoking select query (Query: %v)",
         query);
 
-    return Client_->SelectRows(query)
+    return Client_->SelectRows(query, options)
         .Apply(BIND([&] (const TSelectRowsResult& result) {
             std::vector<TRecord> records = ToRecords<TRecord>(result.Rowset);
 
@@ -676,6 +751,14 @@ template class TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicated
 
 TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client)
     : TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>(std::move(path), std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>;
+
+TReplicaMappingTable::TReplicaMappingTable(TYPath path, IClientPtr client)
+    : TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>(std::move(path), std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

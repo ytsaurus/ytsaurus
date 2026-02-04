@@ -378,6 +378,7 @@ SRCS(
     queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
     queue_client/registration_manager_base.cpp
+    queue_client/registration_manager_new.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
 
@@ -769,6 +770,13 @@ GENERATE_YT_RECORD(
         yt/yt/ytlib/queue_client/public.h
 )
 
+GENERATE_YT_RECORD(
+    queue_client/records/replica_mapping.yaml
+    OUTPUT_INCLUDES
+        yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/public.h
+)
+
 ADDINCL(
     contrib/libs/sparsehash/src
 )
@@ -798,6 +806,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/federated
     yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/orchid

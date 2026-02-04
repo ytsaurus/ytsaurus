@@ -3934,3 +3934,8 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
 def ping_chaos_lease(chaos_lease_id, **kwargs):
     kwargs["chaos_lease_id"] = chaos_lease_id
     execute_command("ping_chaos_lease", kwargs)
+
+
+def get_connection_orchid_value(path="", **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_connection_orchid_value", kwargs, parse_yson=True)
