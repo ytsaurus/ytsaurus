@@ -27,12 +27,9 @@ public:
     using propagate_on_container_swap = std::false_type;
     using is_always_equal = std::false_type;
 
-    explicit TAllocatorOverChunkProvider(
+    TAllocatorOverChunkProvider(
         IMemoryChunkProviderPtr memoryChunkProvider,
-        TRefCountedTypeCookie tagCookie)
-        : Provider_(std::move(memoryChunkProvider))
-        , Cookie_(std::move(tagCookie))
-    { }
+        TRefCountedTypeCookie tagCookie);
 
     template <class U>
     struct rebind
@@ -44,43 +41,17 @@ public:
 
     TAllocatorOverChunkProvider<T>& operator=(const TAllocatorOverChunkProvider& other) = default;
 
-    size_type max_size() const
-    {
-        return std::numeric_limits<size_type>::max() / sizeof(T);
-    }
+    size_type max_size() const;
 
-    // Allocation functions
-    T* allocate(size_t n)
-    {
-        auto bytesRequired = n * sizeof(T);
-        auto bytesAllocated = bytesRequired + sizeof(TAllocationHolder*);
-        auto* allocationHolder = Provider_->Allocate(bytesAllocated, Cookie_).release();
-        char* userDataBegin = allocationHolder->GetRef().data();
-        char* userDataEnd = userDataBegin + bytesRequired;
+    T* allocate(size_t n);
 
-        *reinterpret_cast<TAllocationHolder**>(userDataEnd) = allocationHolder;
-
-        return reinterpret_cast<T*>(userDataBegin);
-    }
-
-    void deallocate(T* p, size_t n) noexcept
-    {
-        void* userDataEnd = p + n;
-        auto* allocationHolder = *reinterpret_cast<TAllocationHolder**>(userDataEnd);
-        delete allocationHolder;
-    }
+    void deallocate(T* p, size_t n) noexcept;
 
     template <class U>
-    bool operator==(const TAllocatorOverChunkProvider<U>& /*other*/) const noexcept
-    {
-        return true;
-    }
+    bool operator==(const TAllocatorOverChunkProvider<U>& /*other*/) const noexcept;
 
     template <class U>
-    bool operator!=(const TAllocatorOverChunkProvider<U>& /*other*/) const noexcept
-    {
-        return false;
-    }
+    bool operator!=(const TAllocatorOverChunkProvider<U>& /*other*/) const noexcept;
 
 private:
     IMemoryChunkProviderPtr Provider_;
@@ -90,3 +61,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
+
+#define ALLOCATOR_INL_H_
+#include "allocator-inl.h"
+#undef ALLOCATOR_INL_H_

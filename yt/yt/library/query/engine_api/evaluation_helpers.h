@@ -9,7 +9,7 @@
 
 #include <yt/yt/library/query/base/callbacks.h>
 
-#include <yt/yt/library/query/misc/alloc.h>
+#include <yt/yt/library/query/misc/allocator.h>
 #include <yt/yt/library/query/misc/objects_holder.h>
 #include <yt/yt/library/query/misc/function_context.h>
 
