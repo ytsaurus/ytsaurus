@@ -406,7 +406,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
         TRange<TSpanMatching> windowsList,
         TRange<ui32> blockUncompressedSizes
     ) -> std::unique_ptr<IBlockManager> {
-        TTraceContextPtr traceContext{};
+        TTraceContextPtr traceContext;
 
         if (dataSource) {
             traceContext = CreateTraceContextFromCurrent("ChunkReader");
@@ -683,10 +683,10 @@ private:
     // Can keep TRange<ui32> but vector is more safe.
     std::vector<ui32> BlockUncompressedSizes_;
 
-    double CompressionRatio_;
+    const double CompressionRatio_;
     const IChunkReaderPtr UnderlyingReader_;
     const IInvokerPtr SessionInvoker_;
-    IBlockCachePtr BlockCache_;
+    const IBlockCachePtr BlockCache_;
     NCompression::ICodec* const Codec_;
 
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
@@ -720,7 +720,7 @@ TBlockManagerFactory CreateSimpleAsyncBlockWindowManagerFactory(
         TRange<TSpanMatching> /*windowsList*/,
         TRange<ui32> blockUncompressedSizes
     ) -> std::unique_ptr<IBlockManager> {
-        TTraceContextPtr traceContext{};
+        TTraceContextPtr traceContext;
 
         if (dataSource) {
             traceContext = CreateTraceContextFromCurrent("ChunkReader");
