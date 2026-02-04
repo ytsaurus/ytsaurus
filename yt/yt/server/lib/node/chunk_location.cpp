@@ -207,12 +207,12 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
 {
     if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
         YT_LOG_ALERT(
-            "Chunk location index has been changed (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
+            "Attempted to change chunk location index (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
             Uuid_,
             Index_,
             index);
 
-        THROW_ERROR_EXCEPTION("Chunk location index has been changed")
+        THROW_ERROR_EXCEPTION("Attempted to change chunk location index")
             << TErrorAttribute("location_uuid", Uuid_)
             << TErrorAttribute("old_index", Index_)
             << TErrorAttribute("new_index", index);
@@ -600,8 +600,9 @@ void TChunkLocationBase::MarkLocationDiskFailed()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_WARNING(
-        "Disk with store location failed (LocationUuid: %v, DiskName: %v)",
+        "Disk with store location failed (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
         GetUuid(),
+        GetIndex(),
         StaticConfig_->DeviceName);
 
     LocationDiskFailedAlert_.Store(
@@ -856,8 +857,9 @@ bool TChunkLocationBase::StartDestroy()
     }
 
     YT_LOG_INFO(
-        "Starting location destruction (LocationUuid: %v, DiskName: %v)",
+        "Starting location destruction (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
         GetUuid(),
+        GetIndex(),
         StaticConfig_->DeviceName);
     return true;
 }
@@ -874,8 +876,9 @@ bool TChunkLocationBase::FinishDestroy(
         }
 
         YT_LOG_INFO(
-            "Finish location destruction (LocationUuid: %v, DiskName: %v)",
+            "Finish location destruction (LocationUuid: %v, LocationIndex: %v, DiskName: %v)",
             GetUuid(),
+            GetIndex(),
             StaticConfig_->DeviceName);
     } else {
         if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {
