@@ -32,7 +32,7 @@ NHttp::IClientPtr CreateHttpClient(
 {
     auto httpsConfig = New<NHttps::TClientConfig>();
     httpsConfig->MaxRedirectCount = maxRedirectCount;
-    httpsConfig->AllowHTTP = allowHttp;
+    httpsConfig->AllowHttp = allowHttp;
     return NHttps::CreateClient(httpsConfig, poller);
 }
 
