@@ -1382,7 +1382,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(DB::ActionsDAG(
-                ToNamesAndTypesList(*schema, settings->Composite)));
+                ToNamesAndTypesList(*schema, storage->GetColumnAttributes(), settings->Composite)));
 
             std::shared_ptr<const DB::ActionsDAG> filterActionsDAG;
 
@@ -1493,6 +1493,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
         auto& spec = tableSpecs.emplace_back(specTemplate);
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
+        spec.ColumnAttributes = Storages_[index]->GetColumnAttributes();
 
         std::string scalarName = Format("yt_table_%v", index);
 

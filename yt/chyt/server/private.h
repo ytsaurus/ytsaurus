@@ -45,6 +45,15 @@ constexpr int YqlOperationIdLength = 24;
 
 constexpr int MaxSupportedCHDecimalPrecision = 76;
 
+DEFINE_ENUM(ELowCardinalityMode,
+    (None)
+    (FromStatistics)
+    (StringOnly)
+    (All)
+);
+
+constexpr std::string_view LowCardinalityAttribute = "low_cardinality";
+
 extern const std::string CacheUserName;
 extern const std::string ChytSqlObjectsUserName;
 extern const std::string InternalRemoteUserName;

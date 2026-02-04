@@ -18,30 +18,34 @@ namespace NYT::NClickHouseServer {
 DB::DataTypePtr ToDataType(
     const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const TCompositeSettingsPtr& settings,
+    bool isLowCardinality,
     bool isReadConversions = true);
 
 DB::DataTypePtr ToDataType(
     const NTableClient::TColumnSchema& columnSchema,
     const TCompositeSettingsPtr& settings,
+    bool isLowCardinality,
     bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
     const std::vector<NTableClient::TColumnSchema>& schemas,
+    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
     const TCompositeSettingsPtr& settings,
     bool isReadConversions = true);
 
 DB::DataTypes ToDataTypes(
     const NTableClient::TTableSchema& schema,
+    const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes,
     const TCompositeSettingsPtr& settings,
     bool isReadConversions = true);
 
-DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr& settings);
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<NTableClient::TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
 
-DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
+DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
 
-DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const TCompositeSettingsPtr& settings);
+DB::Block ToHeaderBlock(const std::vector<NTableClient::TColumnSchema>& schemas, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
 
-DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings);
+DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema, const std::vector<NYTree::IAttributeDictionaryPtr>& columnAttributes, const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

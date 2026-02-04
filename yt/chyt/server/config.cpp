@@ -12,11 +12,12 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison, ELowCardinalityMode lowCardinalityMode)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
     settings->EnableComplexNullConverison = enableComplexNullConverison;
+    settings->LowCardinalityMode = lowCardinalityMode;
     return settings;
 }
 
@@ -30,6 +31,15 @@ void TCompositeSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
         .Default(true);
+
+    registrar.Parameter("low_cardinality_mode", &TThis::LowCardinalityMode)
+        .Default(ELowCardinalityMode::None);
+
+    registrar.Parameter("low_cardinality_threshold", &TThis::LowCardinalityThreshold)
+        .Default(100);
+
+    registrar.Parameter("low_cardinality_regexp", &TThis::LowCardinalityRegExp)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

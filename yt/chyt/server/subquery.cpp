@@ -133,44 +133,57 @@ public:
 public:
     TInputFetcher(
         TStorageContext* storageContext,
-        const TQueryAnalysisResult& queryAnalysisResult,
+        std::vector<TTableSchemaPtr> operandSchemas,
+        std::vector<std::vector<TTablePtr>> operands,
+        std::vector<std::optional<DB::KeyCondition>> keyConditions,
+        std::vector<NChunkClient::TReadRange> keyReadRanges,
+        bool needTableStatistics,
         const std::vector<std::string>& realColumnNames,
         const std::vector<std::string>& virtualColumnNames,
-        const TClickHouseIndexBuilder& indexBuilder,
+        std::optional<TClickHouseIndexBuilder> indexBuilder,
         TTransactionId transactionId)
         : StorageContext_(storageContext)
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
         , TransactionId_(transactionId)
         , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
-        , OperandSchemas_(queryAnalysisResult.TableSchemas)
-        , KeyConditions_(queryAnalysisResult.KeyConditions)
-        , KeyReadRanges_(queryAnalysisResult.KeyReadRanges)
-        , NeedTableStatistics_(queryAnalysisResult.EnableMinMaxOptimization)
+        , OperandSchemas_(std::move(operandSchemas))
+        , KeyConditions_(std::move(keyConditions))
+        , KeyReadRanges_(std::move(keyReadRanges))
+        , NeedTableStatistics_(needTableStatistics)
         , RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
-        , IndexBuilder_(indexBuilder)
+        , IndexBuilder_(std::move(indexBuilder))
         , Config_(QueryContext_->Host->GetConfig()->Subquery)
         , RowBuffer_(QueryContext_->RowBuffer)
         , Logger(StorageContext_->Logger)
     {
         Y_UNUSED(StorageContext_);
 
-        OperandCount_ = queryAnalysisResult.Tables.size();
-        for (int operandIndex = 0; operandIndex < static_cast<int>(queryAnalysisResult.Tables.size()); ++operandIndex) {
-            for (auto& table : queryAnalysisResult.Tables[operandIndex]) {
+        OperandCount_ = operands.size();
+        for (int operandIndex = 0; operandIndex < OperandCount_; ++operandIndex) {
+            for (auto& table : operands[operandIndex]) {
                 table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
-            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
+            KeyColumnDataTypes_.push_back(ToDataTypes(*OperandSchemas_[operandIndex]->ToKeys(), {}, StorageContext_->Settings->Composite));
         }
-
+        if (KeyConditions_.empty()) {
+            KeyConditions_.resize(OperandCount_, std::nullopt);
+        }
         CanBeTrueOnTable_.assign(InputTables_.size(), true);
     }
 
     TFuture<void> Fetch()
     {
         return BIND(&TInputFetcher::DoFetch, MakeWeak(this))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    TFuture<void> FetchTablesAndStatistics()
+    {
+        return BIND(&TInputFetcher::DoFetchTablesAndStatistics, MakeWeak(this))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -194,7 +207,7 @@ private:
     std::vector<std::string> RealColumnNames_;
     std::vector<std::string> VirtualColumnNames_;
 
-    TClickHouseIndexBuilder IndexBuilder_;
+    std::optional<TClickHouseIndexBuilder> IndexBuilder_;
 
     //! Per-table flag indicating if table is not discarded by 'where' condition.
     //! We do not delete such tables from InputTables_ since it can corrupt $table_index.
@@ -219,8 +232,7 @@ private:
 
     TLogger Logger;
 
-    //! Fetch input tables. Result goes to ResultStripeList_.
-    void DoFetch()
+    void DoFetchTablesAndStatistics()
     {
         if (auto virtualColumnIndexStat = FilterTablesByVirtualColumnIndex(); virtualColumnIndexStat != nullptr) {
             IndexStats_.push_back(virtualColumnIndexStat);
@@ -265,28 +277,14 @@ private:
                     }
                     (*TableStatistics_) += tableStatistics;
                 }
-                bool allowString = QueryContext_->Settings->Execution->AllowStringMinMaxOptimization;
-                auto checkValues = [allowString = allowString](const std::vector<TUnversionedOwningValue>& values) {
-                    for (const auto& owningValue : values) {
-                        TUnversionedValue value = owningValue;
-                        if (value.Type == EValueType::String && (!allowString || value.Length == TColumnarStatistics::MaxStringValueLength) ||
-                            value.Type == EValueType::Max ||
-                            value.Type == EValueType::Min ||
-                            value.Type == EValueType::Null) {
-                            // We can't get correct answer from minmax statistics.
-                            return false;
-                        }
-                    }
-                    return true;
-                };
-                if (!TableStatistics_.has_value() ||
-                    !TableStatistics_->HasValueStatistics() ||
-                    !checkValues(TableStatistics_->ColumnMinValues) ||
-                    !checkValues(TableStatistics_->ColumnMaxValues)) {
-                    TableStatistics_ = std::nullopt;
-                }
             }
         }
+    }
+
+    //! Fetch input tables. Result goes to ResultStripeList_.
+    void DoFetch()
+    {
+        DoFetchTablesAndStatistics();
 
         i64 totalFilteredRowCount = 0;
         i64 totalFilteredDataWeight = 0;
@@ -296,7 +294,6 @@ private:
 
             auto removePred = [&] (const TLegacyDataSlicePtr& dataSlice) {
                 if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
-                    YT_LOG_DEBUG("a-dyu log f");
                     return false;
                 }
                 return !GetRangeMask(
@@ -355,13 +352,13 @@ private:
             namesAndTypes.emplace_back(*nameAndType);
         }
 
-        return IndexBuilder_.CreateIndex(namesAndTypes, "set");
+        return IndexBuilder_->CreateIndex(namesAndTypes, "set");
     }
 
     //! Check if query condition can be true on tables. Fill CanBeTrueOnTable_.
     std::shared_ptr<IChytIndexStat> FilterTablesByVirtualColumnIndex()
     {
-        if (VirtualColumnNames_.empty()) {
+        if (VirtualColumnNames_.empty() || !IndexBuilder_.has_value()) {
             return nullptr;
         }
 
@@ -910,15 +907,23 @@ DEFINE_REFCOUNTED_TYPE(TInputFetcher)
 
 TQueryInput FetchInput(
     TStorageContext* storageContext,
-    const TQueryAnalysisResult& queryAnalysisResult,
+    std::vector<TTableSchemaPtr> operandSchemas,
+    std::vector<std::vector<TTablePtr>> tables,
+    std::vector<std::optional<DB::KeyCondition>> keyConditions,
+    std::vector<NChunkClient::TReadRange> keyReadRanges,
+    bool needTableStatistics,
     const std::vector<std::string>& realColumnNames,
     const std::vector<std::string>& virtualColumnNames,
-    const TClickHouseIndexBuilder& indexBuilder,
+    std::optional<TClickHouseIndexBuilder> indexBuilder,
     NTransactionClient::TTransactionId transactionId)
 {
     auto inputFetcher = New<TInputFetcher>(
         storageContext,
-        queryAnalysisResult,
+        std::move(operandSchemas),
+        std::move(tables),
+        std::move(keyConditions),
+        std::move(keyReadRanges),
+        needTableStatistics,
         realColumnNames,
         virtualColumnNames,
         indexBuilder,
@@ -937,6 +942,31 @@ TQueryInput FetchInput(
         .IndexStats = std::move(inputFetcher->IndexStats()),
         .TableStatistics = std::move(inputFetcher->TableStatistics()),
     };
+}
+
+std::optional<TColumnarStatistics> FetchStatistics(
+    TStorageContext* storageContext,
+    std::vector<TTableSchemaPtr> operandSchemas,
+    std::vector<std::vector<TTablePtr>> tables,
+    const std::vector<std::string>& realColumnNames,
+    NTransactionClient::TTransactionId transactionId)
+{
+    auto inputFetcher = New<TInputFetcher>(
+        storageContext,
+        std::move(operandSchemas),
+        std::move(tables),
+        /*keyConditions*/ std::vector<std::optional<DB::KeyCondition>>(),
+        /*keyReadRanges*/ std::vector<NChunkClient::TReadRange>(),
+        /*needTableStatistics*/ true,
+        realColumnNames,
+        /*virtualColumnNames*/ std::vector<std::string>(),
+        /*indexBuilder*/ std::nullopt,
+        transactionId);
+
+    WaitFor(inputFetcher->FetchTablesAndStatistics())
+        .ThrowOnError();
+
+    return inputFetcher->TableStatistics();
 }
 
 void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf phase, const TLogger& logger)

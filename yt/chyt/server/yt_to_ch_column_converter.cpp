@@ -18,6 +18,7 @@
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnDecimal.h>
+#include <Columns/ColumnLowCardinality.h>
 #include <Columns/ColumnMap.h>
 #include <Columns/ColumnNothing.h>
 #include <Columns/ColumnNullable.h>
@@ -40,6 +41,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/IDataType.h>
 
 #include <library/cpp/iterator/functools.h>
@@ -1162,6 +1164,158 @@ private:
     DB::IColumn::MutablePtr Column_;
 };
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<ESimpleLogicalValueType LogicalType>
+class TLowCardinalityConverter
+    : public IConverter
+{
+public:
+    TLowCardinalityConverter(TComplexTypeFieldDescriptor descriptor, DB::DataTypePtr dataType, bool insideOptional)
+        : Descriptor_(std::move(descriptor))
+        , DataType_(std::move(dataType))
+        , InsideOptional_(insideOptional)
+    { }
+
+    void InitColumn() override
+    {
+        Column_ = DataType_->createColumn();
+        LowCardinalityColumn_ = dynamic_cast<DB::ColumnLowCardinality*>(Column_.get());
+        YT_VERIFY(LowCardinalityColumn_ != nullptr);
+    }
+
+    void ConsumeYson(TYsonPullParserCursor* cursor) override
+    {
+        auto ysonItem = cursor->GetCurrent();
+        if constexpr (
+            LogicalType == ESimpleLogicalValueType::Int8 ||
+            LogicalType == ESimpleLogicalValueType::Int16 ||
+            LogicalType == ESimpleLogicalValueType::Int32 ||
+            LogicalType == ESimpleLogicalValueType::Int64 ||
+            LogicalType == ESimpleLogicalValueType::Interval ||
+            LogicalType == ESimpleLogicalValueType::Interval64 ||
+            LogicalType == ESimpleLogicalValueType::Date32)
+        {
+            LowCardinalityColumn_->insert(ysonItem.UncheckedAsInt64());
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::Uint8 ||
+            LogicalType == ESimpleLogicalValueType::Uint16 ||
+            LogicalType == ESimpleLogicalValueType::Uint32 ||
+            LogicalType == ESimpleLogicalValueType::Uint64 ||
+            LogicalType == ESimpleLogicalValueType::Date ||
+            LogicalType == ESimpleLogicalValueType::Datetime)
+        {
+            LowCardinalityColumn_->insert(ysonItem.UncheckedAsUint64());
+        } else if constexpr (LogicalType == ESimpleLogicalValueType::Boolean) {
+            LowCardinalityColumn_->insert(ysonItem.UncheckedAsBoolean());
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::String ||
+            LogicalType == ESimpleLogicalValueType::Utf8 ||
+            LogicalType == ESimpleLogicalValueType::Json)
+        {
+            auto str = ysonItem.UncheckedAsString();
+            LowCardinalityColumn_->insertData(str.data(), str.size());
+        } else {
+            YT_ABORT();
+        }
+        cursor->Next();
+    }
+
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
+    {
+        for (const auto& value : values) {
+            if (value.Type == EValueType::Null) {
+                ConsumeNulls(1);
+            } else {
+                constexpr auto physicalType = GetPhysicalType(LogicalType);
+                YT_VERIFY(value.Type == physicalType);
+
+                if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Int8 ||
+                    LogicalType == ESimpleLogicalValueType::Int16 ||
+                    LogicalType == ESimpleLogicalValueType::Int32 ||
+                    LogicalType == ESimpleLogicalValueType::Int64 ||
+                    LogicalType == ESimpleLogicalValueType::Date32)
+                {
+                    LowCardinalityColumn_->insert(value.Data.Int64);
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::Uint8 ||
+                    LogicalType == ESimpleLogicalValueType::Uint16 ||
+                    LogicalType == ESimpleLogicalValueType::Uint32 ||
+                    LogicalType == ESimpleLogicalValueType::Uint64 ||
+                    LogicalType == ESimpleLogicalValueType::Interval ||
+                    LogicalType == ESimpleLogicalValueType::Interval64 ||
+                    LogicalType == ESimpleLogicalValueType::Date ||
+                    LogicalType == ESimpleLogicalValueType::Date32 ||
+                    LogicalType == ESimpleLogicalValueType::Datetime)
+                {
+                    LowCardinalityColumn_->insert(value.Data.Uint64);
+                } else if constexpr (
+                    LogicalType == ESimpleLogicalValueType::String ||
+                    LogicalType == ESimpleLogicalValueType::Utf8 ||
+                    LogicalType == ESimpleLogicalValueType::Json)
+                {
+                    LowCardinalityColumn_->insertData(value.Data.String, value.Length);
+                } else {
+                    YT_ABORT();
+                }
+            }
+        }
+    }
+
+    void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column, TRange<DB::UInt8> filterHint) override
+    {
+        if constexpr (
+            LogicalType == ESimpleLogicalValueType::Int8 ||
+            LogicalType == ESimpleLogicalValueType::Int16 ||
+            LogicalType == ESimpleLogicalValueType::Int32 ||
+            LogicalType == ESimpleLogicalValueType::Int64 ||
+            LogicalType == ESimpleLogicalValueType::Interval ||
+            LogicalType == ESimpleLogicalValueType::Interval64 ||
+            LogicalType == ESimpleLogicalValueType::Uint8 ||
+            LogicalType == ESimpleLogicalValueType::Uint16 ||
+            LogicalType == ESimpleLogicalValueType::Uint32 ||
+            LogicalType == ESimpleLogicalValueType::Uint64 ||
+            LogicalType == ESimpleLogicalValueType::Date ||
+            LogicalType == ESimpleLogicalValueType::Date32 ||
+            LogicalType == ESimpleLogicalValueType::Datetime)
+        {
+            ReplaceColumnTypeChecked(Column_, ConvertIntegerYTColumnToLowCardinalityCHColumn(column, LogicalType, InsideOptional_));
+        } else if constexpr (
+            LogicalType == ESimpleLogicalValueType::String ||
+            LogicalType == ESimpleLogicalValueType::Utf8 ||
+            LogicalType == ESimpleLogicalValueType::Json)
+        {
+            ReplaceColumnTypeChecked(Column_, ConvertStringLikeYTColumnToLowCardinalityCHColumn(column, filterHint, InsideOptional_));
+        } else {
+            YT_ABORT();
+        }
+    }
+
+    void ConsumeNulls(int count) override
+    {
+        LowCardinalityColumn_->insertManyDefaults(count);
+    }
+
+    DB::ColumnPtr FlushColumn() override
+    {
+        return std::move(Column_);
+    }
+
+    DB::DataTypePtr GetDataType() const override
+    {
+        return DataType_;
+    }
+
+private:
+    const TComplexTypeFieldDescriptor Descriptor_;
+    const DB::DataTypePtr DataType_;
+    DB::IColumn::MutablePtr Column_;
+    DB::ColumnLowCardinality* LowCardinalityColumn_;
+    const bool InsideOptional_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -1171,11 +1325,11 @@ private:
 class TYTToCHColumnConverter::TImpl
 {
 public:
-    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isReadConversions)
+    TImpl(TComplexTypeFieldDescriptor descriptor, TCompositeSettingsPtr settings, bool isLowCardinality, bool isReadConversions)
         : Descriptor_(std::move(descriptor))
         , Settings_(std::move(settings))
         , IsReadConversions_(isReadConversions)
-        , RootConverter_(CreateConverter(Descriptor_, /*isOutermost*/ true))
+        , RootConverter_(CreateConverter(Descriptor_, isLowCardinality, /*isOutermost*/ true))
     { }
 
     void InitColumn()
@@ -1316,6 +1470,65 @@ private:
 
             default:
                 ThrowConversionError(descriptor, "Converting YT simple logical value type %v to ClickHouse is not supported", valueType);
+        }
+        return converter;
+    }
+
+    IConverterPtr CreateLowCardinalityConverter(const TComplexTypeFieldDescriptor& descriptor, bool insideOptional = false)
+    {
+        IConverterPtr converter;
+        if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
+            return CreateLowCardinalityConverter(descriptor.OptionalElement(), true);
+        } else if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Simple) {
+            auto valueType = descriptor.GetType()->AsSimpleTypeRef().GetElement();
+            switch (valueType) {
+                #define CASE(caseValueType, TColumn, innerDataType)                                                                  \
+                    case ESimpleLogicalValueType::caseValueType: {                                                                                            \
+                        auto dataType = insideOptional ?                                                                             \
+                            std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeNullable>(innerDataType)) :    \
+                            std::make_shared<DB::DataTypeLowCardinality>(innerDataType);                                             \
+                        converter = std::make_unique<TLowCardinalityConverter<ESimpleLogicalValueType::caseValueType>>(                                       \
+                            descriptor,                                                                                              \
+                            dataType,                                                                                                \
+                            insideOptional);                                                                                         \
+                    }                                                                                                                \
+                    break;
+
+                #define CASE_SIMPLE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
+                #define CASE_NUMERIC(caseValueType, TCppType, innerDataType) CASE(caseValueType, DB::ColumnVector<TCppType>, innerDataType)
+
+                CASE_SIMPLE_NUMERIC(Uint8, DB::UInt8)
+                CASE_SIMPLE_NUMERIC(Uint16, ui16)
+                CASE_SIMPLE_NUMERIC(Uint32, ui32)
+                CASE_SIMPLE_NUMERIC(Uint64, ui64)
+                CASE_SIMPLE_NUMERIC(Int8, DB::Int8)
+                CASE_SIMPLE_NUMERIC(Int16, i16)
+                CASE_SIMPLE_NUMERIC(Int32, i32)
+                CASE_SIMPLE_NUMERIC(Int64, i64)
+                CASE_NUMERIC(Interval, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
+                CASE_NUMERIC(Interval64, i64, std::make_shared<DB::DataTypeInterval>(DB::IntervalKind::Kind::Microsecond))
+                CASE_NUMERIC(Date, ui16, std::make_shared<DB::DataTypeDate>())
+                CASE_NUMERIC(Date32, i32, std::make_shared<DB::DataTypeDate32>())
+                CASE_NUMERIC(Datetime, ui32, std::make_shared<DB::DataTypeDateTime>())
+                CASE(String, DB::ColumnString, std::make_shared<DB::DataTypeString>())
+                CASE(Utf8, DB::ColumnString,  std::make_shared<DB::DataTypeString>())
+
+                #undef CASE
+                #undef CASE_SIMPLE_NUMERIC
+                #undef CASE_NUMERIC
+
+                case ESimpleLogicalValueType::Json: {
+                    ValidateReadOnly(descriptor);
+                    auto dataType = insideOptional
+                        ? std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeNullable>(std::make_shared<DB::DataTypeString>()))
+                        : std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeString>());
+                    converter = std::make_unique<TLowCardinalityConverter<ESimpleLogicalValueType::Json>>(descriptor, dataType, insideOptional);
+                    break;
+                }
+
+                default:
+                    converter = nullptr;
+            }
         }
         return converter;
     }
@@ -1465,8 +1678,13 @@ private:
         return std::make_unique<TNothingConverter>();
     }
 
-    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost = false)
+    IConverterPtr CreateConverter(const TComplexTypeFieldDescriptor& descriptor, bool isLowCardinality = false, bool isOutermost = false)
     {
+        if (isLowCardinality) {
+            if (auto converter = CreateLowCardinalityConverter(descriptor)) {
+                return converter;
+            }
+        }
         const auto& type = descriptor.GetType();
         if (type->GetMetatype() == ELogicalMetatype::Simple) {
             const auto& simpleType = type->AsSimpleTypeRef();
@@ -1507,8 +1725,9 @@ private:
 TYTToCHColumnConverter::TYTToCHColumnConverter(
     TComplexTypeFieldDescriptor descriptor,
     TCompositeSettingsPtr settings,
+    bool isLowCardinality,
     bool isReadConversions)
-    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isReadConversions))
+    : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), isLowCardinality, isReadConversions))
 { }
 
 void TYTToCHColumnConverter::InitColumn()
