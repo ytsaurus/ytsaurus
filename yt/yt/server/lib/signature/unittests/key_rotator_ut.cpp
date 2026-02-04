@@ -20,7 +20,6 @@ using testing::Ne;
 using testing::NotNull;
 using testing::Pointee;
 using testing::Return;
-using testing::ReturnRef;
 using testing::SizeIs;
 
 ////////////////////////////////////////////////////////////////////////////////
