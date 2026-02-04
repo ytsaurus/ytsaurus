@@ -50,6 +50,7 @@ DEFINE_REFCOUNTED_TYPE(TSslContextCommand)
 struct TSslContextConfig
     : public virtual NYTree::TYsonStruct
 {
+    //! If unset will look at environment "SSL_CERT_FILE", or use built-in bundle.
     NCrypto::TPemBlobConfigPtr CertificateAuthority;
     NCrypto::TPemBlobConfigPtr CertificateChain;
     NCrypto::TPemBlobConfigPtr PrivateKey;
