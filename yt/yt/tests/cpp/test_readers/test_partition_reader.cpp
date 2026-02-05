@@ -1,4 +1,4 @@
-#include <yt/yt/tests/cpp/test_base/api_test_base.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -9,16 +9,16 @@
 #include <yt/yt/ytlib/table_client/partitioner.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 
-#include <yt/yt/client/api/client.h>
-#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
-#include <yt/yt/core/misc/range_helpers.h>
+#include <library/cpp/yt/misc/range_helpers.h>
 
 namespace NYT::NCppTests {
 namespace {
