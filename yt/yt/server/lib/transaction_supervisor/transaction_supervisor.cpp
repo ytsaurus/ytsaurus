@@ -3331,6 +3331,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
+                case ECommitState::ReadyToCommit:
                     YT_LOG_DEBUG(error, "Coordinator observes participant failure; will retry "
                         "(TransactionId: %v, ParticipantCellId: %v, State: %v)",
                         commit->GetTransactionId(),
