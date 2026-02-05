@@ -502,7 +502,7 @@ yt set //sys/@ui_config/access_log_viewer_base_url '"http://localhost:3001/"'
   ```yaml
   cluster:
     # Внутренний адрес HTTP-прокси
-    proxy: "http-proxies-lb.ytsaurus-dev.svc.cluster.local"
+    proxy: "http-proxies-lb.default.svc.cluster.local"
     # Имя кластера
     name: "ytsaurus"
 
