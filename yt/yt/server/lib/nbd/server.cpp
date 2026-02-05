@@ -115,7 +115,12 @@ public:
         auto guard = WriterGuard(NameToDeviceLock_);
         auto [it, inserted] = NameToDevice_.emplace(name, device);
         if (!inserted) {
-            THROW_ERROR_EXCEPTION("Device %Qv with %Qv is already registered", name, device->DebugString());
+            auto error = TError("Device %Qv with %Qv is already registered",
+                name,
+                device->DebugString());
+
+            YT_LOG_WARNING(error);
+            THROW_ERROR_EXCEPTION(error);
         }
 
         TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/registered").Increment(1);
@@ -123,7 +128,7 @@ public:
         YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
     }
 
-    bool TryUnregisterDevice(const TString& name) override
+    IBlockDevicePtr TryUnregisterDevice(const TString& name) override
     {
         YT_LOG_INFO("Unregistering device (Name: %v)", name);
 
@@ -131,15 +136,16 @@ public:
         auto it = NameToDevice_.find(name);
         if (it == NameToDevice_.end()) {
             YT_LOG_INFO("Can not unregister unknown device (Name: %v)", name);
-            return false;
+            return nullptr;
         }
 
         TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(it->second->GetProfileSensorTag()), "/device/unregistered").Increment(1);
 
+        auto device = it->second;
         NameToDevice_.erase(it);
 
         YT_LOG_INFO("Unregistered device (Name: %v)", name);
-        return true;
+        return device;
     }
 
     bool IsDeviceRegistered(const TString& name) const override
@@ -536,9 +542,10 @@ private:
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
-                            Device_->OnShouldStopUsingDevice();
+                            Device_->SetError(TError("Stop using device"));
                         }
 
                         YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
@@ -639,7 +646,7 @@ private:
 
                         const auto& response = result.Value();
                         if (response.ShouldStopUsingDevice) {
-                            Device_->OnShouldStopUsingDevice();
+                            Device_->SetError(TError("Stop using device"));
                         }
 
                         YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",

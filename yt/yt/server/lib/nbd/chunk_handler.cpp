@@ -195,7 +195,7 @@ public:
     }
 
 private:
-    const IBlockDevice* BlockDevice_;
+    IBlockDevice* const BlockDevice_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const IChannelPtr Channel_;
@@ -230,7 +230,7 @@ private:
                 rspOrError.Value()->should_close_session());
 
             if (BlockDevice_ && rspOrError.Value()->should_close_session()) {
-                BlockDevice_->OnShouldStopUsingDevice();
+                BlockDevice_->SetError(TError("Stop using device"));
             }
         }
     }
