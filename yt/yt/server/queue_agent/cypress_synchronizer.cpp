@@ -996,10 +996,7 @@ public:
     {
         Active_ = true;
 
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_ = CreateAlertCollectorCallback_();
-        }
+        AlertCollector_.Store(CreateAlertCollectorCallback_());
         PassExecutor_->Start();
     }
 
@@ -1008,10 +1005,7 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         YT_UNUSED_FUTURE(PassExecutor_->Stop());
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            AlertCollector_->Stop();
-        }
+        AlertCollector_.Acquire()->Stop();
 
         Active_ = false;
     }
@@ -1024,11 +1018,7 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
-        IAlertCollectorPtr alertCollector;
-        {
-            auto guard = Guard(AlertCollectorLock_);
-            alertCollector = AlertCollector_;
-        }
+        IAlertCollectorPtr alertCollector = AlertCollector_.Acquire();
 
         auto finalizePass = Finally([&] {
             alertCollector->PublishAlerts();
@@ -1097,8 +1087,7 @@ private:
     const TPassProfiler PassProfiler_;
     const IYPathServicePtr OrchidService_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertCollectorLock_);
-    IAlertCollectorPtr AlertCollector_;
+    TAtomicIntrusivePtr<IAlertCollector> AlertCollector_;
 
     //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;
