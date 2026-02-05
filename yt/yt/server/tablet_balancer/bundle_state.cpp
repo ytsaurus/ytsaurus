@@ -1196,11 +1196,17 @@ void TBundleState::FetchState()
 
     auto needToUpdateAnything = [&] () {
         for (const auto& snapshot : BundleSnapshots_) {
+            bool isFirstIteration = !static_cast<bool>(BundleSnapshots_.back()->StateFetchTime);
             YT_LOG_DEBUG("Examined existing bundle snapshot fetch times "
-                "(StateFetchTime: %v, StatisticsFetchTime: %v, PerformanceCountersFetchTime: %v)",
+                "(StateFetchTime: %v, StatisticsFetchTime: %v, PerformanceCountersFetchTime: %v, IsFirstIteration: %v)",
                 snapshot->StateFetchTime,
                 snapshot->StatisticsFetchTime,
-                snapshot->PerformanceCountersFetchTime);
+                snapshot->PerformanceCountersFetchTime,
+                isFirstIteration);
+
+            if (isFirstIteration && !config->StateFetchPeriod) {
+                return false;
+            }
 
             if ((!config->StateFetchPeriod || now <= snapshot->StateFetchTime + *config->StateFetchPeriod) &&
                 (!config->StatisticsFetchPeriod || now <= snapshot->StatisticsFetchTime + *config->StatisticsFetchPeriod) &&
