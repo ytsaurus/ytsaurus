@@ -133,7 +133,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkIOProfiler)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 
-using TTransactionExternalizationToken = TGuid;
+YT_DEFINE_STRONG_TYPEDEF(TTransactionExternalizationToken, TGuid);
 
 using TExternalizedTransactionId = std::pair<TTransactionId, TTransactionExternalizationToken>;
 DECLARE_ENTITY_TYPE(TExternalizedTransaction, TExternalizedTransactionId, ::THash<TExternalizedTransactionId>)

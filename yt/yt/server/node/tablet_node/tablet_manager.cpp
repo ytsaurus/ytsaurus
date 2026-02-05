@@ -679,7 +679,7 @@ public:
     {
         Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
         Slot_->GetTransactionManager()->AbortTransactionsExternalizedToThisCell(
-            GetSiblingAvenueEndpointId(siblingEndpointId));
+            TTransactionExternalizationToken(GetSiblingAvenueEndpointId(siblingEndpointId)));
     }
 
     void RegisterMasterAvenue(
