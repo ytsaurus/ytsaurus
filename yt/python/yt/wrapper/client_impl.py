@@ -844,7 +844,7 @@ class YtClient(ClientState):
             timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
             format=None, raw=None, execution_pool=None, retention_timestamp=None, syntax_version=None,
-            udf_registry_path=None):
+            expression_builder_version=None, udf_registry_path=None):
         """
         Explains a SQL-like query on dynamic table.
 
@@ -864,7 +864,7 @@ class YtClient(ClientState):
             range_expansion_limit=range_expansion_limit, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor,
             allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format,
             raw=raw, execution_pool=execution_pool, retention_timestamp=retention_timestamp, syntax_version=syntax_version,
-            udf_registry_path=udf_registry_path)
+            expression_builder_version=expression_builder_version, udf_registry_path=udf_registry_path)
 
     def externalize(
             self,
@@ -2924,7 +2924,8 @@ class YtClient(ClientState):
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
             use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
-            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None):
+            with_timestamps=None, udf_registry_path=None, use_lookup_cache=None, execution_backend=None,
+            expression_builder_version=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2948,7 +2949,7 @@ class YtClient(ClientState):
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
             merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
             with_timestamps=with_timestamps, udf_registry_path=udf_registry_path, use_lookup_cache=use_lookup_cache,
-            execution_backend=execution_backend)
+            execution_backend=execution_backend, expression_builder_version=expression_builder_version)
 
     def set(
             self,
