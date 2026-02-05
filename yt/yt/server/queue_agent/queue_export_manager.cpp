@@ -22,7 +22,7 @@ public:
         TQueueExportManagerDynamicConfigPtr dynamicConfig)
         : Logger(QueueExportManagerLogger())
         , Profiler_(QueueAgentProfiler()
-            .WithPrefix("static_export_manager"))
+            .WithPrefix("/static_export_manager"))
         , Throttler_(CreateNamedReconfigurableThroughputThrottler(
             TThroughputThrottlerConfig::Create(dynamicConfig->ExportRateLimit),
             /*name*/ "ExportThrottler",
