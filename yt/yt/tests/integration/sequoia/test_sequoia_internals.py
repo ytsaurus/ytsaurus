@@ -638,7 +638,11 @@ class TestSequoiaInternals(YTEnvSetup):
                                                target=wait_for_counter_to_change)
 
         # Last request empties the throttler, but we don't wait for it to be replenished.
-        assert measure_read_time() > (BASE_REQUEST_COUNT - 1)
+        expected_time = BASE_REQUEST_COUNT - 1
+
+        # Since requests are very quick and throttlers take time to synchronize,
+        # add the multiplier to the expected time.
+        assert measure_read_time() > expected_time * 0.9
 
         checker.join()
 
