@@ -131,6 +131,7 @@ public:
         : TAssignmentPlanContextBase(std::move(logger))
         , Operations_(operations)
         , Nodes_(nodes)
+        , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
     { }
 
     const TOperationMap& Operations() const override
@@ -143,9 +144,16 @@ public:
         return Nodes_;
     }
 
+    TGpuPlanUpdateStatisticsPtr Statistics() const override
+    {
+        return GpuPlanUpdateStatistic_;
+    }
+
 private:
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
+
+    TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,7 +393,7 @@ protected:
     }
 
     void DoAllocationAssignmentPlanUpdate(
-        IAssignmentPlanContext* context,
+        IAssignmentPlanUpdateContext* context,
         TGpuSchedulingPolicyConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {

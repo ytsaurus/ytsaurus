@@ -177,6 +177,7 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("waiting_for_assignments_since").Value(operation.WaitingForAssignmentsSince())
             .Item("preemptible").Value(operation.IsPreemptible())
             .Item("starving").Value(operation.IsStarving())
+            .Item("scheduling_module").Value(operation.SchedulingModule())
         .EndMap();
 }
 
@@ -258,6 +259,18 @@ void Serialize(const TNode& node, NYson::IYsonConsumer* consumer)
                     .Item("resourse_limits").Value(node.Descriptor()->ResourceLimits)
                     .Item("resourse_usage").Value(node.Descriptor()->ResourceUsage);
             })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("node_count").Value(statistic.TotalNodes)
+            .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
+            .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
         .EndMap();
 }
 
