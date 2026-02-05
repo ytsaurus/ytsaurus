@@ -111,6 +111,7 @@ class TestStandaloneTabletBalancerBase:
             "election_manager": {
                 "transaction_ping_period": 100,
                 "leader_cache_update_period": 100,
+                "lock_acquisition_period": 100,
             }
         })
         if "logging" in config:
