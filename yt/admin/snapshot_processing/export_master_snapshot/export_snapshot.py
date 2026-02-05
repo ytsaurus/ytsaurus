@@ -44,6 +44,7 @@ schema_columns = [
     ("external",                                "boolean",      True,       True),
     ("force_nightly_compress",                  "any",          False,      True),
     ("id",                                      "string",       True,       True),
+    ("immediate_annotation",                    "string",       False,      True),
     ("in_memory_mode",                          "string",       False,      True),
     ("inherit_acl",                             "boolean",      True,       True),
     ("last_compression_desired_chunk_size",     "int64",        False,      True),
