@@ -2,10 +2,10 @@ package slices_test
 
 import (
 	"fmt"
+	stdslices "slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	stdslices "golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/library/go/slices"
 )
