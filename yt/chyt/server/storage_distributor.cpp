@@ -228,7 +228,7 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
         THROW_ERROR_EXCEPTION("There are no instances available through discovery");
     }
 
-    auto settings = queryContext->Settings->Execution;
+    auto settings = queryContext->SessionSettings->Execution;
 
     if (isDistributedJoin) {
         if (settings->JoinNodeLimit > 0) {
@@ -257,8 +257,8 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
     }
 
     // Create clique with |LocalCliqueSize| local nodes for testing/debugging purposes.
-    if (queryContext->Settings->Testing->LocalCliqueSize > 0) {
-        return TClusterNodes(queryContext->Settings->Testing->LocalCliqueSize, queryContext->Host->GetLocalNode());
+    if (queryContext->SessionSettings->Testing->LocalCliqueSize > 0) {
+        return TClusterNodes(queryContext->SessionSettings->Testing->LocalCliqueSize, queryContext->Host->GetLocalNode());
     }
 
     auto candidates = queryContext->GetClusterNodesSnapshot();
@@ -609,7 +609,7 @@ private:
 
         auto& tableStatistics = SpecTemplate_.TableStatistics;
         if (tableStatistics.has_value()) {
-            bool allowString = QueryContext_->Settings->Execution->AllowStringMinMaxOptimization;
+            bool allowString = StorageContext_->Settings->Execution->AllowStringMinMaxOptimization;
             auto checkValues = [allowString = allowString] (const std::vector<TUnversionedOwningValue>& values) {
                 for (const auto& owningValue : values) {
                     TUnversionedValue value = owningValue;
@@ -734,7 +734,7 @@ private:
 
         YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *QueryInfo_.query);
 
-        InputStreamsPerQuery_ = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
+        InputStreamsPerQuery_ = QueryContext_->SessionSettings->Execution->InputStreamsPerSecondaryQuery;
         if (InputStreamsPerQuery_ <= 0) {
             InputStreamsPerQuery_ = Context_->getSettingsRef()[DB::Setting::max_threads];
         }
@@ -744,11 +744,11 @@ private:
 
         auto taskCount = std::max<int>(1, secondaryQueryCount * InputStreamsPerQuery_);
         if (SuitableForPullInputSpecsMode()) {
-            taskCount = std::round(taskCount * QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
+            taskCount = std::round(taskCount * QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
             YT_LOG_DEBUG(
                 "Jobs count for secondary queries was increased due to pull distribution mode (NewJobCount: %v, TaskCountIncreaseFactor: %v)",
                 taskCount,
-                QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
+                QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
         }
         if (SpecTemplate_.QuerySettings->Execution->EnableMinMaxOptimization) {
             taskCount = 1;
@@ -912,7 +912,7 @@ public:
         , Schema_(std::move(schema))
         , Logger(QueryContext_->Logger)
     {
-        DistributionSeed_ = QueryContext_->Settings->Execution->DistributionSeed;
+        DistributionSeed_ = QueryContext_->SessionSettings->Execution->DistributionSeed;
         for (const auto& table : Tables_) {
             DistributionSeed_ = CombineHashes(DistributionSeed_, THash<TString>()(table->Path.GetPath()));
         }
@@ -937,25 +937,30 @@ public:
         if (!context) {
             THROW_ERROR_EXCEPTION("Context has expired (TStorageDistributor::startup)");
         }
+        auto storageContext = QueryContext_->GetOrRegisterStorageContext(this, context);
+
         std::vector<std::string> columnNames;
         columnNames.reserve(Schema_->GetColumnCount());
         for (const auto& column : Schema_->Columns()) {
             columnNames.push_back(column.Name());
         }
+
+        auto settings = storageContext->Settings->Composite;
         if (context->hasInsertionTable() || QueryContext_->CreatedTablePath.has_value()) {
-            QueryContext_->Settings->Composite->LowCardinalityMode = ELowCardinalityMode::None;
-            QueryContext_->Settings->Composite->LowCardinalityRegExp = nullptr;
+            settings->LowCardinalityMode = ELowCardinalityMode::None;
+            settings->LowCardinalityRegExp = nullptr;
         }
-        if (QueryContext_->Settings->Composite->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
-            auto statistics = FetchStatistics(QueryContext_->GetOrRegisterStorageContext(this, context), {Schema_}, {Tables_}, columnNames, QueryContext_->ReadTransactionId);
+        if (settings->LowCardinalityMode == ELowCardinalityMode::FromStatistics) {
+            auto statistics = FetchStatistics(storageContext, {Schema_}, {Tables_}, columnNames, QueryContext_->ReadTransactionId);
             if (statistics.has_value() && statistics->HasLargeStatistics()) {
-                SetLowCardinalityFromStatistics(statistics->LargeStatistics.ColumnHyperLogLogDigests, QueryContext_->Settings->Composite);
+                SetLowCardinalityFromStatistics(statistics->LargeStatistics.ColumnHyperLogLogDigests, settings);
             }
         } else {
-            SetLowCardinality(QueryContext_->Settings->Composite->LowCardinalityMode);
+            SetLowCardinality(settings->LowCardinalityMode);
         }
-        SetLowCardinalityFromRegExp(QueryContext_->Settings->Composite->LowCardinalityRegExp);
-        storageMetadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, ColumnAttributes_, QueryContext_->Settings->Composite)));
+        SetLowCardinalityFromRegExp(settings->LowCardinalityRegExp);
+
+        storageMetadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, ColumnAttributes_, settings)));
         setInMemoryMetadata(storageMetadata);
     }
 
@@ -1079,7 +1084,7 @@ public:
                     "to fix the problem you can rewrite join's first argument as a subquery");
             }
 
-            if (queryContext->Settings->Execution->DistributeOnlyGlobalAndSortedJoin) {
+            if (queryContext->SessionSettings->Execution->DistributeOnlyGlobalAndSortedJoin) {
                 if (!analyzer.HasJoinWithTwoTables() && !analyzer.HasGlobalJoin() && !analyzer.HasInOperator()) {
                     distributeJoin = false;
                 }
@@ -1228,7 +1233,7 @@ public:
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
-        auto dataTypes = ToDataTypes(*Schema_, ColumnAttributes_, QueryContext_->Settings->Composite, /*isReadConversions*/ false);
+        auto dataTypes = ToDataTypes(*Schema_, ColumnAttributes_, QueryContext_->SessionSettings->Composite, /*isReadConversions*/ false);
         YT_LOG_DEBUG(
             "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
             Schema_,
@@ -1247,7 +1252,7 @@ public:
             if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
                 queryContext->CommitWriteTransaction();
 
-                auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+                auto invalidateMode = queryContext->SessionSettings->Caching->TableAttributesInvalidateMode;
                 if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
                     // Write in secondary query means distributed insert select.
                     // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
@@ -1277,8 +1282,8 @@ public:
                 Schema_,
                 ColumnAttributes_,
                 dataTypes,
-                QueryContext_->Settings->DynamicTable,
-                QueryContext_->Settings->Composite,
+                QueryContext_->SessionSettings->DynamicTable,
+                QueryContext_->SessionSettings->Composite,
                 QueryContext_->Client(),
                 std::move(finalCallback),
                 QueryContext_->Logger,
@@ -1291,8 +1296,8 @@ public:
                 Schema_,
                 ColumnAttributes_,
                 dataTypes,
-                QueryContext_->Settings->TableWriter,
-                QueryContext_->Settings->Composite,
+                QueryContext_->SessionSettings->TableWriter,
+                QueryContext_->SessionSettings->Composite,
                 QueryContext_->Client(),
                 queryContext->WriteTransactionId,
                 std::move(finalCallback),
@@ -1478,7 +1483,7 @@ public:
             return {};
         }
 
-        if (QueryContext_->Settings->Prewhere->UseHeuristicColumnSizes) {
+        if (QueryContext_->SessionSettings->Prewhere->UseHeuristicColumnSizes) {
             // Approximate column sizes based on their types.
             // Column sizes are used to sort them for more optimal prewhere execution,
             // so the exact column size does not matter. Column sizes only matter in relation to each other.
@@ -1749,7 +1754,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
     if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
-        auto schema = ToTableSchema(args.columns, keyColumns, queryContext->Settings->Composite);
+        auto schema = ToTableSchema(args.columns, keyColumns, queryContext->SessionSettings->Composite);
         YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
         attributes->Set("schema", schema);
     } else if (attributes->Contains("schema")) {
@@ -1797,7 +1802,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         queryContext,
         {std::move(path)},
         /*skipUnsuitableNodes*/ false,
-        queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+        queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
         queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(
@@ -1824,7 +1829,7 @@ DB::StoragePtr CreateStorageDistributor(
 
     auto commonSchema = InferCommonTableSchema(
         tables,
-        queryContext->Settings->ConcatTables);
+        queryContext->SessionSettings->ConcatTables);
 
     YT_LOG_DEBUG("Common table schema inferred (TableCount: %v, Schema: %v)",
         tables.size(),

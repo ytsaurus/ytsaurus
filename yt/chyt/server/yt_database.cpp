@@ -55,7 +55,7 @@ public:
 
         TTableTraverser traverser(
             queryContext->Client(),
-            *queryContext->Settings->CypressReadOptions,
+            *queryContext->SessionSettings->CypressReadOptions,
             queryContext->Host->GetConfig()->ShowTables->Roots,
             filterByTableName);
 
@@ -65,7 +65,7 @@ public:
             queryContext,
             ConvertToPaths(tableNames),
             /*skipUnsuitableNodes*/ true,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         DB::Tables resultingsTargets;
