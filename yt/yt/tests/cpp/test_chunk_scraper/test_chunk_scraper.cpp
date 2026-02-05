@@ -1,6 +1,3 @@
-#include <yt/yt/tests/cpp/test_base/api_test_base.h>
-#include <yt/yt/tests/cpp/test_base/private.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -12,7 +9,10 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/misc/range_helpers.h>
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
+#include <yt/yt/tests/cpp/test_base/private.h>
+
+#include <library/cpp/yt/misc/range_helpers.h>
 
 #include <util/generic/guid.h>
 
