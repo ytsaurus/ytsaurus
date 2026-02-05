@@ -21,8 +21,8 @@ pragma config.flags(
 );
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
---pragma yt.DataSizePerJob = "64M";
---pragma yt.DataSizePerMapJob = "64M";
+pragma yt.DataSizePerJob = "64M";
+pragma yt.DataSizePerMapJob = "64M";
 pragma yt.HybridDqExecution = "true";
 pragma dq.AnalyzeQuery = "true";
 pragma yt.MapJoinLimit = "4G";
