@@ -101,7 +101,8 @@ packages=(
   unzip
   zstd
   google-perftools
-  linux-tools-generic
+  # linux-tools-generic
+  linux-tools-generic-hwe-24.04
   procps
   jq
   htop
@@ -116,6 +117,8 @@ packages=(
 )
 
 apt-get install -y "${packages[@]}"
+
+ln -s /usr/lib/linux-tools/*/perf /usr/local/bin/
 
 nvidia_packages=(
   nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
@@ -435,7 +438,7 @@ COPY --from=ytsaurus-server-override-bloated / /
 
 ##########################################################################################
 
-FROM base as odin-installer
+FROM base AS odin-installer
 
 ARG ODIN_ROOT
 ARG ODIN_VIRTUAL_ENV
@@ -484,7 +487,7 @@ RUN mkdir -p ${ODIN_CHECKS_DIR} \
 
 ##########################################################################################
 
-FROM base as odin
+FROM base AS odin
 
 ARG ODIN_VIRTUAL_ENV
 ENV ODIN_VIRTUAL_ENV $ODIN_VIRTUAL_ENV
