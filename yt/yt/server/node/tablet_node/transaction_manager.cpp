@@ -190,7 +190,7 @@ public:
         TTransactionExternalizationToken token = {}) override
     {
         if (token) {
-            return ExternalizedTransactionMap_.Get({transactionId, token});
+            return PersistentExternalizedTransactionMap_.Get({transactionId, token});
         } else {
             return PersistentTransactionMap_.Get(transactionId);
         }
@@ -203,7 +203,8 @@ public:
         TTransaction* transaction = nullptr;
 
         if (externalizationToken) {
-            transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken});
+            transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken});
         } else {
             transaction = PersistentTransactionMap_.Find(transactionId);
         }
@@ -224,7 +225,9 @@ public:
         TTransactionExternalizationToken externalizationToken = {}) override
     {
         if (externalizationToken) {
-            if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
+            if (auto* transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken}))
+            {
                 return transaction;
             }
             return nullptr;
@@ -271,7 +274,9 @@ public:
         YT_VERIFY(!externalizationToken || !transient);
 
         if (externalizationToken) {
-            if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
+            if (auto* transaction = PersistentExternalizedTransactionMap_.Find(
+                {transactionId, externalizationToken}))
+            {
                 return transaction;
             }
         } else {
@@ -310,7 +315,7 @@ public:
         ValidateNotDecommissioned(transaction);
 
         if (externalizationToken) {
-            ExternalizedTransactionMap_.Insert(
+            PersistentExternalizedTransactionMap_.Insert(
                 {transactionId, externalizationToken},
                 std::move(externalizedTransactionHolder));
             EmplaceOrCrash(
@@ -347,7 +352,7 @@ public:
             TokenToExternalizedTransactions_.erase(it);
         }
 
-        ExternalizedTransactionMap_.Remove({transaction->GetId(), token});
+        PersistentExternalizedTransactionMap_.Remove({transaction->GetId(), token});
     }
 
     TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) override
@@ -383,7 +388,7 @@ public:
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             transactions.push_back(transaction);
         }
-        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+        for (auto [transactionId, transaction] : PersistentExternalizedTransactionMap_) {
             transactions.push_back(transaction);
         }
         return transactions;
@@ -969,7 +974,7 @@ private:
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
-    TEntityMap<TExternalizedTransaction> ExternalizedTransactionMap_;
+    TEntityMap<TExternalizedTransaction> PersistentExternalizedTransactionMap_;
     THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
     THashMap<TString, TCallback<bool(TTransaction*, TStringBuf, TTabletId)>>
         NeedActionExternalizationHandlers_;
@@ -1031,19 +1036,8 @@ private:
             .BeginMap()
                 .DoFor(TransientTransactionMap_, dumpTransaction)
                 .DoFor(PersistentTransactionMap_, dumpTransaction)
-                .DoFor(ExternalizedTransactionMap_, dumpTransaction)
+                .DoFor(PersistentExternalizedTransactionMap_, dumpTransaction)
             .EndMap();
-    }
-
-    TString FormatTransactionId(
-        TTransactionId transactionId,
-        TTransactionExternalizationToken externalizationToken)
-    {
-        if (externalizationToken) {
-            return Format("%v@%v", transactionId, externalizationToken);
-        } else {
-            return ToString(transactionId);
-        }
     }
 
     void CreateLease(TTransaction* transaction)
@@ -1141,7 +1135,7 @@ private:
             UpdateMinCommitTimestamp(heap);
         }
 
-        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+        for (auto [transactionId, transaction] : PersistentExternalizedTransactionMap_) {
             EmplaceOrCrash(
                 TokenToExternalizedTransactions_[transaction->GetExternalizationToken()],
                 transaction);
@@ -1242,7 +1236,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.SaveKeys(context);
-        ExternalizedTransactionMap_.SaveKeys(context);
+        PersistentExternalizedTransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
@@ -1251,7 +1245,7 @@ private:
 
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
-        ExternalizedTransactionMap_.SaveValues(context);
+        PersistentExternalizedTransactionMap_.SaveValues(context);
         Save(context, LastSerializedCommitTimestamps_);
         Save(context, Decommission_);
         Save(context, Removing_);
@@ -1264,7 +1258,7 @@ private:
         PersistentTransactionMap_.LoadKeys(context);
         // COMPAT(ifsmirnov)
         if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            ExternalizedTransactionMap_.LoadKeys(context);
+            PersistentExternalizedTransactionMap_.LoadKeys(context);
         }
     }
 
@@ -1276,7 +1270,7 @@ private:
         PersistentTransactionMap_.LoadValues(context);
         // COMPAT(ifsmirnov)
         if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
-            ExternalizedTransactionMap_.LoadValues(context);
+            PersistentExternalizedTransactionMap_.LoadValues(context);
         }
         Load(context, LastSerializedCommitTimestamps_);
         Load(context, Decommission_);
@@ -1291,7 +1285,7 @@ private:
 
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
-        ExternalizedTransactionMap_.Clear();
+        PersistentExternalizedTransactionMap_.Clear();
         TokenToExternalizedTransactions_.clear();
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();

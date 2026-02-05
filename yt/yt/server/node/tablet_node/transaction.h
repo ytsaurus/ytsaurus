@@ -89,7 +89,7 @@ public:
     using TExternalizerTabletMap = THashMap<TTabletId, TExternalizerTablet>;
     DEFINE_BYREF_RW_PROPERTY(TExternalizerTabletMap, ExternalizerTablets);
 
-    DEFINE_BYVAL_RO_PROPERTY(TGuid, ExternalizationToken);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionExternalizationToken, ExternalizationToken);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, HasNonForwardedActions);
 
@@ -135,10 +135,16 @@ class TExternalizedTransaction
     : public TTransaction
 {
 public:
-    explicit TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token);
+    TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token);
 
     explicit TExternalizedTransaction(TExternalizedTransactionId id);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString FormatTransactionId(
+    TTransactionId transactionId,
+    TTransactionExternalizationToken externalizationToken);
 
 ////////////////////////////////////////////////////////////////////////////////
 
