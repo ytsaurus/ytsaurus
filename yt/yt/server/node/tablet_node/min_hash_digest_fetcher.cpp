@@ -12,6 +12,9 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+
 #include <yt/yt/library/min_hash_digest/min_hash_digest.h>
 
 #include <library/cpp/iterator/zip.h>

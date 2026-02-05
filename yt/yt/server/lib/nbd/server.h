@@ -27,8 +27,8 @@ struct INbdServer
         IBlockDevicePtr device) = 0;
 
     //! Tries to unregister the device with a given #name.
-    //! Returns |true| upon success and |false| if no such device is registered.
-    virtual bool TryUnregisterDevice(const TString& name) = 0;
+    //! Returns |device pointer| upon success and |nullptr| if no such device is registered.
+    virtual IBlockDevicePtr TryUnregisterDevice(const TString& name) = 0;
 
     virtual bool IsDeviceRegistered(const TString& name) const = 0;
 

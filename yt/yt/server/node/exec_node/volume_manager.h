@@ -1,6 +1,7 @@
 #pragma once
 
 #include "artifact_cache.h"
+#include "preparation_options.h"
 #include "public.h"
 
 #include <yt/yt/core/actions/future.h>

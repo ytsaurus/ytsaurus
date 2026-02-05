@@ -1728,15 +1728,15 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         node = nodes[0]
 
         profiler = profiler_factory().at_node(node)
-        cache_missed_counter = profiler.counter("exec_node/squashfs_volume_map/missed_count")
-        cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/squashfs_volume_map/hit_count")
+        cache_missed_counter = profiler.counter("exec_node/squashfs_volume_cache/missed_count")
+        cache_hit_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/squashfs_volume_cache/hit_count")
 
         finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
         squashfs_volume_count = profiler.with_tags({"type": "squashfs"}).gauge("volumes/count")
         assert not squashfs_volume_count.get()
 
-        initial_adding_log_count = len(self._get_node_debug_logs("Squashfs volume added to map"))
-        initial_removing_log_count = len(self._get_node_debug_logs("Squashfs volume removed from map"))
+        initial_adding_log_count = len(self._get_node_debug_logs("Volume added to cache"))
+        initial_removing_log_count = len(self._get_node_debug_logs("Volume removed from cache"))
 
         op1 = map(
             track=False,
@@ -1755,9 +1755,9 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         print_debug(f"First operation job id is {job_id}")
 
-        logs = self._get_node_debug_logs("Squashfs volume added to map")
+        logs = self._get_node_debug_logs("Volume added to cache")
         assert len(logs) == initial_adding_log_count + 1
-        logs = self._get_node_debug_logs("Squashfs volume removed from map")
+        logs = self._get_node_debug_logs("Volume removed from cache")
         assert len(logs) == initial_removing_log_count + 1
 
         # Wait some time for sensors to be collected.
@@ -1792,9 +1792,9 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         wait(lambda: finished_job_counter.get_delta() == 1)
         assert cache_hit_counter.get_delta() > cache_hit_count
 
-        logs = self._get_node_debug_logs("Squashfs volume added to map")
+        logs = self._get_node_debug_logs("Volume added to cache")
         assert len(logs) == initial_adding_log_count + 2
-        logs = self._get_node_debug_logs("Squashfs volume removed from map")
+        logs = self._get_node_debug_logs("Volume removed from cache")
         assert len(logs) == initial_removing_log_count + 2
 
         assert squashfs_volume_count.get() == 1
@@ -1992,7 +1992,6 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         job = get_job(op.id, job_ids[0])
         profiler = profiler_factory().at_node(job["address"])
         tags = {'type': 'nbd', 'file_path': '//tmp/corrupted_squashfs.img'}
-        wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
 
         tags = {'file_path': '//tmp/corrupted_squashfs.img'}
@@ -2112,6 +2111,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                 command="ls $YT_ROOT_FS/dir 1>&2",
                 spec={
                     "max_failed_job_count": 1,
+                    "fail_on_job_restart": True,
                     "mapper": {
                         "layer_paths": ["//tmp/squashfs.img"],
                     },
