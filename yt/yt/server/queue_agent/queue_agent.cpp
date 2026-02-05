@@ -179,12 +179,12 @@ public:
 
 private:
     // The queue agent is not supposed to be destroyed, so raw pointer is fine.
-    const TQueueAgent* Owner_;
+    const TQueueAgent* const Owner_;
     const EObjectKind ObjectKind_;
 
     struct TProxyConfig
     {
-        bool Enable;
+        bool Enable = false;
         TString RemoteQueryRoot;
     };
     const TProxyConfig ProxyConfig_;
@@ -206,7 +206,7 @@ TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
 class TQueueAgent::TControllerInfoProducer final
 {
 public:
-    TControllerInfoProducer(const TQueueAgent* queueAgent)
+    explicit TControllerInfoProducer(const TQueueAgent* queueAgent)
         : QueueAgent_(queueAgent)
         , ControlInvoker_(queueAgent->ControlInvoker_)
     { }
@@ -220,7 +220,7 @@ public:
 
         {
             auto guard = ReaderGuard(QueueAgent_->ObjectLock_);
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 auto& partialControllerPasses = controllerPasses[objectKind];
                 for (const auto& [path, object] : QueueAgent_->Objects_[objectKind]) {
                     auto snapshot = DynamicPointerCast<TObjectSnapshotBase>(object.Controller->GetLatestSnapshot());
@@ -240,14 +240,14 @@ public:
 
         TEnumIndexedArray<EObjectKind, int> errorCounts;
         for (const auto& [_, partialErrorCounts] : clusterToErrorCounts) {
-            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
                 errorCounts[objectKind] += partialErrorCounts[objectKind];
             }
         }
 
         THashMap<std::string, TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>>> clusterToControllerPasses;
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             for (const auto& controllerPass : controllerPasses[objectKind]) {
                 clusterToControllerPasses[*controllerPass.Path.GetCluster()][objectKind].push_back(controllerPass);
             }
@@ -285,7 +285,7 @@ private:
     struct TControllerPassInfo
     {
         TInstant PassInstant;
-        bool Leading;
+        bool Leading = false;
         NYPath::TRichYPath Path;
     };
 
@@ -301,7 +301,7 @@ private:
             return passInfo.PassInstant;
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             SortBy(controllerPasses[objectKind], getPassInstant);
         }
 
@@ -334,7 +334,7 @@ private:
             }
         };
 
-        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             leadingControllerPasses[objectKind] = filterLeading(controllerPasses[objectKind]);
             followingControllerPasses[objectKind] = std::move(controllerPasses[objectKind]);
 
