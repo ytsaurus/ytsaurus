@@ -230,11 +230,12 @@ class Conversion(object):
     :param table_info:
         result table TableInfo
     :param operation:
-        the type of operation to be applied to the source tables. Can be one of "map", "reduce", "merge", "temporarily-copy", "mount", "remove".\n
+        the type of operation to be applied to the source tables. Can be one of "map", "reduce", "sort", "merge", "temporarily-copy", "mount", "remove", "append-merge".\n
         "temporarily-copy" operation creates a temporary copy of the source table that is only available within the current transformation.
         Copy will be automatically removed at the end of the transformation.\n
         "mount" operation mounts previously unmounted source tables without waiting for the transformation to complete.\n
-        "remove" operation removes table that was previously created in migration.
+        "remove" operation removes table that was previously created in migration.\n
+        "append-merge" merge operation in append mode. Please be careful with this operation, as it cannot be undone.
     :param operation_args:
         arguments to be passed to the operation excluding parameters specifying the source and target tables
     :param source:
@@ -250,9 +251,12 @@ class Conversion(object):
         whether to make result table available for use as an input for the next conversions in current transformation
     """
 
-    def __init__(self, table, table_info=None, operation=None, operation_args={}, source=None, use_default_mapper=False, filter_callback=None,
+    def __init__(self, table, table_path_attributes=None, table_info=None, operation=None, operation_args={}, source=None, use_default_mapper=False, filter_callback=None,
                  copy_user_attributes=False, make_result_available_after_conversion=False):
         self.table = table
+        self.table_path_attributes = table_path_attributes
+        if self.table_path_attributes:
+            assert operation == "append-merge"
         self.table_info = table_info
         self.operation = operation
         self.operation_args = operation_args
@@ -303,8 +307,20 @@ class Conversion(object):
             for source_table in source_tables:
                 _unmount_table(client, source_table)
 
+            spec = {"data_size_per_job": 2 * 2**30}
+            if pool is not None:
+                spec["pool"] = pool
+
+            operation_args = copy.deepcopy(self.operation_args)
+            if "spec" in operation_args:
+                spec |= operation_args.pop("spec")
+
             if self.operation == "temporarily-copy":
                 _copy_table(client, source_tables[0], target_table)
+                return True
+            if self.operation == "append-merge":
+                logging.info("Starting merge operation : %s -> %s", source_tables, target_table)
+                client.run_merge(source_table=source_tables, destination_table=target_table, spec=spec, **operation_args)
                 return True
 
             primary_medium = client.get(source_tables[0] + "/@primary_medium")
@@ -318,26 +334,22 @@ class Conversion(object):
                 for source_table in source_tables:
                     for key, value in client.get(source_table + "/@user_attributes").items():
                         client.set(target_table + "/@" + key, value)
-
-            spec = {"data_size_per_job": 2 * 2**30}
-            if pool is not None:
-                spec["pool"] = pool
-
-            if "spec" in self.operation_args:
-                spec |= self.operation_args.pop("spec")
             if self.operation == "map":
-                if "binary" not in self.operation_args:
-                    self.operation_args["binary"] = table_info.get_default_mapper()
-                logging.info("Starting map operation '%s': %s -> %s", self.operation_args["binary"].__name__, source_tables, target_table)
+                if "binary" not in operation_args:
+                    operation_args["binary"] = table_info.get_default_mapper()
+                logging.info("Starting map operation '%s': %s -> %s", operation_args["binary"].__name__, source_tables, target_table)
                 # If need_sort == False, we already created target table sorted and we need to run ordered map
                 # to avoid sort order violation error during map.
-                client.run_map(source_table=source_tables, destination_table=target_table, spec=spec, ordered=not need_sort, **self.operation_args)
+                client.run_map(source_table=source_tables, destination_table=target_table, spec=spec, ordered=not need_sort, **operation_args)
             if self.operation == "reduce":
-                logging.info("Starting reduce operation '%s': %s -> %s", self.operation_args["binary"].__name__, source_tables, target_table)
-                client.run_reduce(source_table=source_tables, destination_table=target_table, spec=spec, **self.operation_args)
+                logging.info("Starting reduce operation: %s -> %s", source_tables, target_table)
+                client.run_reduce(source_table=source_tables, destination_table=target_table, spec=spec, **operation_args)
+            if self.operation == "sort":
+                logging.info("Starting sort operation: %s -> %s", source_tables, target_table)
+                client.run_sort(source_table=source_tables, destination_table=target_table, spec=spec, **operation_args)
             if self.operation == "merge":
                 logging.info("Starting merge operation : %s -> %s", source_tables, target_table)
-                client.run_merge(source_table=source_tables, destination_table=target_table, spec=spec, **self.operation_args)
+                client.run_merge(source_table=source_tables, destination_table=target_table, spec=spec, **operation_args)
 
             table_info.to_dynamic_table(client, target_table)
             client.set(target_table + "/@forced_compaction_revision", 1)
@@ -502,7 +514,12 @@ class Migration(object):
                     if conversion.operation == "temporarily-copy":
                         tmp_path = table_path
                         temporary_tables.append(table_path)
-                    if force and client.exists(tmp_path):
+                    if conversion.operation == "append-merge":
+                        tmp_path = TablePath(
+                            table_path,
+                            append=True,
+                            attributes=conversion.table_path_attributes)
+                    if force and client.exists(tmp_path) and conversion.operation != "append-merge":
                         client.remove(tmp_path)
                     in_place = conversion(
                         client=client,
