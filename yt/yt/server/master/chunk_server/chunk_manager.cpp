@@ -64,6 +64,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
+#include <yt/yt/server/master/object_server/helpers.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -72,9 +73,6 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
-
-// COMPAT(gritukan)
-#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -2245,7 +2243,7 @@ public:
     {
         ValidateMediumName(name);
 
-        if (FindMediumByName(name)) {
+        if (FindMediumByName(name, /*throwOnInvalidId*/ true)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Medium %Qv already exists",
@@ -2315,7 +2313,7 @@ public:
             THROW_ERROR_EXCEPTION("Builtin medium cannot be renamed");
         }
 
-        if (FindMediumByName(newName)) {
+        if (FindMediumByName(newName, /*throwOnInvalidId*/ true)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Medium %Qv already exists",
@@ -2356,15 +2354,34 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMedium* FindMediumByName(const std::string& name) const override
+    TMedium* FindMediumByName(const std::string& name, bool throwOnInvalidId) const override
     {
-        auto it = NameToMediumMap_.find(name);
-        return it == NameToMediumMap_.end() ? nullptr : it->second;
+        return Visit(ParseObjectNameOrId(name),
+            [&] (TObjectId mediumId) -> TMedium* {
+                auto specifiedType = TypeFromId(mediumId);
+                if (!IsMediumType(specifiedType)) {
+                    if (throwOnInvalidId) {
+                        THROW_ERROR_EXCEPTION("Invalid medium id")
+                            << TErrorAttribute("medium_id", mediumId);
+                    }
+                    return nullptr;
+                }
+                return FindMedium(mediumId);
+            },
+            [&] (TStringBuf name) -> TMedium* {
+                return GetOrDefault(NameToMediumMap_, name, nullptr);
+            },
+            [&] (TError error) -> TMedium* {
+                if (throwOnInvalidId) {
+                    THROW_ERROR error;
+                }
+                return nullptr;
+            });
     }
 
     TMedium* GetMediumByNameOrThrow(const std::string& name) const override
     {
-        auto* medium = FindMediumByName(name);
+        auto* medium = FindMediumByName(name, /*throwOnInvalidId*/ true);
         if (!IsObjectAlive(medium)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchMedium,
@@ -5418,6 +5435,13 @@ private:
 
         // COMPAT(kvk1920): move to OnAfterSnapshotLoaded
         for (auto [mediumId, medium] : MediumMap_) {
+            if (auto error = CheckObjectName(medium->GetName()); !error.IsOK()) {
+                YT_LOG_ALERT(error, "Medium with invalid name encountered (Id: %v, Index: %v, Name: %v)",
+                    mediumId,
+                    medium->GetIndex(),
+                    medium->GetName());
+            }
+
             RegisterMedium(medium);
         }
 
@@ -6994,6 +7018,11 @@ private:
 
         YT_VERIFY(!IndexToMediumMap_[mediumIndex]);
         IndexToMediumMap_[mediumIndex] = medium;
+
+        YT_LOG_INFO("Medium created (Id: %v, Name: %v, Index: %v)",
+            medium->GetId(),
+            medium->GetName(),
+            medium->GetIndex());
     }
 
     void UnregisterMedium(TMedium* medium)

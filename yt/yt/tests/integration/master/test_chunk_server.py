@@ -7,7 +7,9 @@ from yt_commands import (
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
     switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
     is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
-    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error)
+    get_active_primary_master_follower_address, create_tablet_cell_bundle, get_nodes, raises_yt_error,
+    create_domestic_medium,
+)
 
 from yt_helpers import profiler_factory
 
@@ -44,6 +46,11 @@ class TestChunkServer(YTEnvSetup):
             "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
+
+    @authors("kvk1920")
+    def test_invalid_medium_name(self):
+        with raises_yt_error("Invalid object name: starts with #"):
+            create_domestic_medium("#invalid-name")
 
     @authors("babenko", "ignat")
     def test_owning_nodes1(self):

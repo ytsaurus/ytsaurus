@@ -484,6 +484,25 @@ class TestAccounts(AccountsTestSuiteBase):
         remove("//tmp/a")
         wait(lambda: not exists("//sys/accounts/max"))
 
+    @authors("kvk1920")
+    def test_account_attr6(self):
+        create_account("acc1")
+        create_account("acc2")
+        acc1_id = get("//sys/accounts/acc1/@id")
+        acc2_id = get("//sys/accounts/acc2/@id")
+
+        create("map_node", "//tmp/dir", attributes={
+            "account": "#" + acc1_id,
+        })
+
+        assert get("//tmp/dir/@account") == "acc1"
+        assert get("//tmp/dir/@account_id") == acc1_id
+
+        set("//tmp/dir/@account", "#" + acc2_id)
+
+        assert get("//tmp/dir/@account") == "acc2"
+        assert get("//tmp/dir/@account_id") == acc2_id
+
     @authors("babenko")
     def test_file1(self):
         wait(lambda: get_account_disk_space("tmp") == 0)

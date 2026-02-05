@@ -1,5 +1,8 @@
 #include "helpers.h"
-#include "config.h"
+
+#include "private.h"
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -11,6 +14,10 @@ namespace NYT::NObjectServer {
 
 using namespace NYT::NYPath;
 using namespace NYT::NObjectClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +60,36 @@ void ValidateFolderId(const std::string& folderId)
     if (folderId.empty()) {
         THROW_ERROR_EXCEPTION("Folder id cannot be empty");
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError CheckObjectName(TStringBuf name)
+{
+    if (name.StartsWith(ObjectIdPathPrefix)) {
+        auto error = TError("Invalid object name: starts with %v", ObjectIdPathPrefix)
+            << TErrorAttribute("name", name);
+        if (NHiveServer::IsHiveMutation()) {
+            YT_LOG_ALERT(error, "Invalid object name in Hive mutation (Name: %v)", name);
+            return {};
+        }
+        return error;
+    }
+
+    return {};
+}
+
+std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name)
+{
+    if (name.StartsWith(ObjectIdPathPrefix)) {
+        auto idString = name.SubString(ObjectIdPathPrefix.size(), name.size() - ObjectIdPathPrefix.size());
+        TObjectId id;
+        if (!TObjectId::FromString(idString, &id)) {
+            return TError("Error parsing object ID from string %Qv", name);
+        }
+        return id;
+    }
+    return name;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

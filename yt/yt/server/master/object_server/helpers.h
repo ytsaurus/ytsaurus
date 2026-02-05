@@ -34,4 +34,10 @@ void ThrowInactiveLifeStage(const TObject* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError CheckObjectName(TStringBuf name);
+
+std::variant<TObjectId, TStringBuf, TError> ParseObjectNameOrId(TStringBuf name);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
