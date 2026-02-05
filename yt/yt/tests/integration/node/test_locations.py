@@ -291,7 +291,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/data_node_tracker/check_location_convergence_by_index_and_uuid_on_confirmation", False)
         set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_to_search_location_on_confirmation", False)
-        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_chunk_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_in_sequoia_chunk_confirmation", False)
         set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", False)
 
         with Restarter(self.Env, NODES_SERVICE, sync=False):
@@ -322,7 +322,7 @@ class TestLocationChunkConfirmation(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("cherepashka")
-    @pytest.mark.parametrize("enabling_flag_name", ["enable_location_indexes_in_chunk_confirmation", "use_location_indexes_to_search_location_on_confirmation"])
+    @pytest.mark.parametrize("enabling_flag_name", ["use_location_indexes_in_sequoia_chunk_confirmation", "use_location_indexes_to_search_location_on_confirmation"])
     def test_enable_location_indices_in_chunk_confirmation(self, enabling_flag_name):
         create("table", "//tmp/t")
 
@@ -341,7 +341,7 @@ class TestLocationChunkConfirmation(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/data_node_tracker/check_location_convergence_by_index_and_uuid_on_confirmation", False)
         set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_to_search_location_on_confirmation", False)
-        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_chunk_confirmation", False)
+        set("//sys/@config/chunk_manager/data_node_tracker/use_location_indexes_in_sequoia_chunk_confirmation", False)
         set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", False)
         with Restarter(self.Env, NODES_SERVICE):
             pass

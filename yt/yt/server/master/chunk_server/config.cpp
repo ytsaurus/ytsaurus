@@ -322,7 +322,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
-    registrar.Parameter("enable_location_indexes_in_chunk_confirmation", &TThis::EnableLocationIndexesInChunkConfirmation)
+    registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
+        .Alias("enable_location_indexes_in_chunk_confirmation")
         .Default(false);
     registrar.Parameter("use_location_indexes_to_search_location_on_confirmation", &TThis::UseLocationIndexesToSearchLocationOnConfirmation)
         .Default(false);
@@ -337,7 +338,7 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         }
 
         if (!config->EnableLocationIndexesInDataNodeHeartbeats) {
-            if (config->EnableLocationIndexesInChunkConfirmation) {
+            if (config->UseLocationIndexesInSequoiaChunkConfirmation) {
                 THROW_ERROR_EXCEPTION("Location indices in chunk confirmation requires location indices in data node heartbeats to be enabled");
             }
             if (config->UseLocationIndexesToSearchLocationOnConfirmation) {
