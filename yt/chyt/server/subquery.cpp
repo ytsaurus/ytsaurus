@@ -650,7 +650,7 @@ private:
     {
         MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
-            *QueryContext_->Settings->FetchChunksReadOptions,
+            *QueryContext_->SessionSettings->FetchChunksReadOptions,
             Client_->GetNativeConnection()->GetNodeDirectory(),
             Invoker_,
             Config_->MaxChunksPerFetch,
@@ -660,7 +660,7 @@ private:
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
-                if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
+                if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
                     req->set_omit_dynamic_stores(true);
                 }
                 if (InputTables_[tableIndex]->ExternalTransactionId) {
@@ -681,7 +681,7 @@ private:
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
-                if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
+                if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
                     req->set_omit_dynamic_stores(true);
                 }
             }
@@ -696,8 +696,8 @@ private:
     void AddTableForFetching(const TTablePtr& table, int tableIndex)
     {
         // TODO(achulkov2): Support ordered tables in tablet chunk spec fetcher?
-        if (table->IsSortedDynamic() && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
-            QueryContext_->Settings->Execution->TableReadLockMode == ETableReadLockMode::None &&
+        if (table->IsSortedDynamic() && QueryContext_->SessionSettings->DynamicTable->FetchFromTablets &&
+            QueryContext_->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::None &&
             table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
         {
             TabletChunkSpecFetcher_->Add(
@@ -771,7 +771,7 @@ private:
             }
         }
 
-        if (auto breakpointFilename = QueryContext_->Settings->Testing->ChunkSpecFetcherBreakpoint) {
+        if (auto breakpointFilename = QueryContext_->SessionSettings->Testing->ChunkSpecFetcherBreakpoint) {
             HandleBreakpoint(*breakpointFilename, Client_);
             YT_LOG_DEBUG("Chunk spec fetcher handled breakpoint (Breakpoint: %v)", breakpointFilename);
         }
@@ -1047,7 +1047,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
     }
 
     auto jobSizeSpec = CreateClickHouseJobSizeSpec(
-        queryContext->Settings->Execution,
+        queryContext->SessionSettings->Execution,
         config,
         inputStripeListStatistics.DataWeight,
         inputStripeListStatistics.RowCount,

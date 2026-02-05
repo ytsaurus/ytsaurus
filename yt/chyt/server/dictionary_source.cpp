@@ -217,7 +217,7 @@ private:
             "ChytDictionarySource");
         const auto* queryContext = GetQueryContext(context);
         // We don't want to distribute this query so we set SelectPolicy to local.
-        queryContext->Settings->Execution->SelectPolicy = ESelectPolicy::Local;
+        queryContext->SessionSettings->Execution->SelectPolicy = ESelectPolicy::Local;
         return context;
     }
 };

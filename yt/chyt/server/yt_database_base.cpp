@@ -191,7 +191,7 @@ DB::ASTPtr TYtDatabaseBase::getCreateTableQueryImpl(const String& name, DB::Cont
     auto path = TRichYPath::Parse(getTableDataPath(name));
 
     TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
+    static_cast<TMasterReadOptions&>(options) = *queryContext->SessionSettings->CypressReadOptions;
     options.Attributes = {
         "compression_codec",
         "erasure_codec",
@@ -265,7 +265,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
             queryContext,
             {std::move(richPath)},
             /*skipUnsuitableNodes*/ false,
-            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
+            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         return CreateStorageDistributor(context, std::move(tables), DB::StorageID{getDatabaseName(), name});

@@ -817,7 +817,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         dataSliceDescriptors);
 
     TLogger Logger(queryContext->Logger);
-    if (auto breakpointFilename = queryContext->Settings->Testing->InputStreamFactoryBreakpoint) {
+    if (auto breakpointFilename = queryContext->SessionSettings->Testing->InputStreamFactoryBreakpoint) {
         HandleBreakpoint(*breakpointFilename, queryContext->Client());
         YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
     }
