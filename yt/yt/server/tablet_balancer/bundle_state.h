@@ -68,7 +68,7 @@ struct IBundleState
 
     virtual void Reconfigure(TBundleStateProviderConfigPtr config) = 0;
 
-    virtual TBundleTabletBalancerConfigPtr GetConfig() const = 0;
+    virtual TFuture<TBundleTabletBalancerConfigPtr> GetConfig(bool allowStale) = 0;
     virtual NTabletClient::ETabletCellHealth GetHealth() const = 0;
     virtual std::vector<TTabletActionId> GetUnfinishedActions() const = 0;
 };

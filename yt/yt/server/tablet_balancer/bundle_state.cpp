@@ -128,6 +128,49 @@ DEFINE_ENUM(EFetchKind,
     (PerformanceCounters)
 );
 
+struct TBundleAttributes
+{
+    ETabletCellHealth Health = ETabletCellHealth::Failed;
+    std::vector<TTabletActionId> UnfinishedActions;
+    TBundleTabletBalancerConfigPtr Config;
+};
+
+TBundleAttributes ParseBundleAttributes(const IAttributeDictionary* attributes, bool throwOnError)
+{
+    auto health = attributes->Get<ETabletCellHealth>("health");
+
+    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
+    std::vector<TTabletActionId> actionIds;
+    for (auto actionMapNode : actions) {
+        auto state = ConvertTo<ETabletActionState>(actionMapNode->GetChildOrThrow("state"));
+        if (IsTabletActionFinished(state)) {
+            continue;
+        }
+
+        auto actionId = ConvertTo<TTabletActionId>(actionMapNode->GetChildOrThrow("tablet_action_id"));
+        actionIds.push_back(actionId);
+    }
+
+    TBundleTabletBalancerConfigPtr config;
+    try {
+        config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
+    } catch (const std::exception& ex) {
+        config.Reset();
+        if (throwOnError) {
+            THROW_ERROR_EXCEPTION(
+                NTabletBalancer::EErrorCode::IncorrectConfig,
+                "Bundle has unparsable tablet balancer config")
+                << ex;
+        }
+    }
+
+    return TBundleAttributes{
+        .Health = health,
+        .UnfinishedActions = actionIds,
+        .Config = config,
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const IMapNodePtr& mapNode)
@@ -541,7 +584,7 @@ public:
 
     void Reconfigure(TBundleStateProviderConfigPtr config) override;
 
-    TBundleTabletBalancerConfigPtr GetConfig() const override;
+    TFuture<TBundleTabletBalancerConfigPtr> GetConfig(bool allowStale) override;
     ETabletCellHealth GetHealth() const override;
     std::vector<TTabletActionId> GetUnfinishedActions() const override;
 
@@ -570,6 +613,9 @@ private:
     const TTableRegistryPtr TableRegistry_;
 
     TAtomicIntrusivePtr<TBundleStateProviderConfig> Config_;
+
+    TInstant BundleConfigFetchTime_;
+    TBundleTabletBalancerConfigPtr BundleConfig_;
     NTabletClient::ETabletCellHealth Health_;
     std::vector<TTabletActionId> UnfinishedActions_;
 
@@ -578,12 +624,14 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 
     std::vector<TBundleSnapshotPtr> BundleSnapshots_;
+    TFuture<TBundleTabletBalancerConfigPtr> BundleConfigFuture_;
     TFuture<TBundleSnapshotPtr> UpdateStateFuture_;
     TFuture<TBundleSnapshotPtr> UpdateStatisticsFuture_;
     TFuture<TBundleSnapshotPtr> UpdatePerformanceCountersFuture_;
 
     void FetchState();
 
+    TBundleTabletBalancerConfigPtr UpdateConfig();
     TBundleSnapshotPtr UpdateState();
     TBundleSnapshotPtr UpdateStatistics();
     TBundleSnapshotPtr UpdatePerformanceCounters();
@@ -695,6 +743,8 @@ private:
     TBundleSnapshotPtr GetLatestBundleSnapshot(EFetchKind kind) const;
     TBundleSnapshotPtr GetLatestSatisfyingSnapshot(
         std::tuple<TInstant, TInstant, TInstant> minFreshnessRequirement) const;
+
+    INodePtr GetBundleWithAttributes() const;
 };
 
 TBundleState::TBundleState(
@@ -735,35 +785,26 @@ void TBundleState::InitializeAttributes(
     bool throwOnError)
 {
     YT_VERIFY(bundleSnapshot);
+    auto now = Now();
     auto guard = WriterGuard(Lock_);
 
-    Health_ = attributes->Get<ETabletCellHealth>("health");
-
-    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
-    std::vector<TTabletActionId> actionIds;
-    for (auto actionMapNode : actions) {
-        auto state = ConvertTo<ETabletActionState>(actionMapNode->GetChildOrThrow("state"));
-        if (IsTabletActionFinished(state)) {
-            continue;
-        }
-
-        auto actionId = ConvertTo<TTabletActionId>(actionMapNode->GetChildOrThrow("tablet_action_id"));
-        actionIds.push_back(actionId);
-    }
-    UnfinishedActions_ = actionIds;
-
     try {
-        bundleSnapshot->Bundle->Config = attributes->Get<TBundleTabletBalancerConfigPtr>("tablet_balancer_config");
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error parsing bundle attribute \"tablet_balancer_config\"");
-        if (throwOnError) {
-            THROW_ERROR_EXCEPTION(
-                NTabletBalancer::EErrorCode::IncorrectConfig,
-                "Bundle has unparsable tablet balancer config")
-                << ex;
-        }
+        auto parsedAttributes = ParseBundleAttributes(attributes, throwOnError);
 
+        Health_ = parsedAttributes.Health;
+        UnfinishedActions_ = std::move(parsedAttributes.UnfinishedActions);
+        bundleSnapshot->Bundle->Config = parsedAttributes.Config;
+
+        if (BundleConfigFetchTime_ < now) {
+            BundleConfigFetchTime_ = now;
+            BundleConfig_ = bundleSnapshot->Bundle->Config;
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to parse bundle attributes");
         bundleSnapshot->Bundle->Config.Reset();
+        if (throwOnError) {
+            throw;
+        }
     }
 }
 
@@ -1067,10 +1108,34 @@ TBundleSnapshotPtr TBundleState::GetLatestSatisfyingSnapshot(
     return result;
 }
 
-TBundleTabletBalancerConfigPtr TBundleState::GetConfig() const
+TFuture<TBundleTabletBalancerConfigPtr> TBundleState::GetConfig(bool allowStale)
 {
-    auto guard = ReaderGuard(Lock_);
-    return GetLatestBundleSnapshot(EFetchKind::State)->Bundle->Config;
+    auto dynamicConfig = Config_.Acquire();
+
+    if (allowStale) {
+        auto guard = ReaderGuard(Lock_);
+        YT_LOG_ALERT_UNLESS(
+            BundleConfig_,
+            "Bundle state config is not found (BundleConfigFetchTime: %v, HasBundleConfigFuture: %v)",
+            BundleConfigFetchTime_,
+            static_cast<bool>(BundleConfigFuture_));
+        return MakeFuture(BundleConfig_);
+    }
+
+    auto guard = WriterGuard(Lock_);
+
+    auto now = Now();
+    if (now <= BundleConfigFetchTime_ + dynamicConfig->ConfigFreshnessTime) {
+        return MakeFuture(BundleConfig_);
+    }
+
+    if (!BundleConfigFuture_) {
+        YT_LOG_DEBUG("Planning to fetch bundle config due to a direct request");
+        BundleConfigFuture_ = BIND(&TBundleState::UpdateConfig, MakeStrong(this))
+            .AsyncVia(FetcherInvoker_)
+            .Run();
+    }
+    return BundleConfigFuture_;
 }
 
 ETabletCellHealth TBundleState::GetHealth() const
@@ -1101,8 +1166,12 @@ void TBundleState::FetchState()
         static_cast<bool>(UpdateStatisticsFuture_),
         static_cast<bool>(UpdatePerformanceCountersFuture_));
 
-    if (config->StateFetchPeriod < config->StatisticsFetchPeriod ||
-        config->StatisticsFetchPeriod < config->PerformanceCountersFetchPeriod)
+    if ((config->StateFetchPeriod &&
+         config->StatisticsFetchPeriod &&
+         config->StateFetchPeriod < config->StatisticsFetchPeriod) ||
+        (config->StatisticsFetchPeriod &&
+         config->PerformanceCountersFetchPeriod &&
+         config->StatisticsFetchPeriod < config->PerformanceCountersFetchPeriod))
     {
         YT_LOG_ALERT(
             "Incorrect bundle state config. The following condition must be met: "
@@ -1123,9 +1192,10 @@ void TBundleState::FetchState()
                 snapshot->StatisticsFetchTime,
                 snapshot->PerformanceCountersFetchTime);
 
-            if (now <= snapshot->StateFetchTime + config->StateFetchPeriod &&
-                now <= snapshot->StatisticsFetchTime + config->StatisticsFetchPeriod &&
-                now <= snapshot->PerformanceCountersFetchTime + config->PerformanceCountersFetchPeriod)
+            if ((!config->StateFetchPeriod || now <= snapshot->StateFetchTime + *config->StateFetchPeriod) &&
+                (!config->StatisticsFetchPeriod || now <= snapshot->StatisticsFetchTime + *config->StatisticsFetchPeriod) &&
+                (!config->PerformanceCountersFetchPeriod ||
+                 now <= snapshot->PerformanceCountersFetchTime + *config->PerformanceCountersFetchPeriod))
             {
                 return false;
             }
@@ -1136,11 +1206,11 @@ void TBundleState::FetchState()
     auto getFetchKind = [&] () {
         EFetchKind fetchKind = EFetchKind::State;
         for (const auto& snapshot : BundleSnapshots_) {
-            if (now <= snapshot->StateFetchTime + config->StateFetchPeriod &&
-                now <= snapshot->StatisticsFetchTime + config->StatisticsFetchPeriod)
+            if ((!config->StateFetchPeriod || now <= snapshot->StateFetchTime + *config->StateFetchPeriod) &&
+                (!config->StatisticsFetchPeriod || now <= snapshot->StatisticsFetchTime + *config->StatisticsFetchPeriod))
             {
                 return EFetchKind::PerformanceCounters;
-            } else if (now <= snapshot->StateFetchTime + config->StateFetchPeriod) {
+            } else if (!config->StateFetchPeriod || now <= snapshot->StateFetchTime + *config->StateFetchPeriod) {
                 fetchKind = EFetchKind::Statistics;
             }
         }
@@ -1155,6 +1225,38 @@ void TBundleState::FetchState()
 
     auto kind = getFetchKind();
     YT_UNUSED_FUTURE(CreateUpdateFutureIfNeeded(kind, /*isDirectRequest*/ false));
+}
+
+TBundleTabletBalancerConfigPtr TBundleState::UpdateConfig()
+{
+    auto dynamicConfig = Config_.Acquire();
+    try {
+        auto bundle = GetBundleWithAttributes();
+        YT_VERIFY(bundle);
+
+        auto bundleAttributes = ParseBundleAttributes(&bundle->Attributes(), /*throwOnError*/ true);
+
+        auto now = Now();
+        auto guard = WriterGuard(Lock_);
+
+        if (BundleConfigFetchTime_ < now) {
+            BundleConfigFetchTime_ = now;
+            BundleConfig_ = bundleAttributes.Config;
+            Health_ = bundleAttributes.Health;
+            UnfinishedActions_ = bundleAttributes.UnfinishedActions;
+        }
+
+        BundleConfigFuture_.Reset();
+
+        return BundleConfig_;
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to update bundle config");
+
+        auto guard = WriterGuard(Lock_);
+        BundleConfigFuture_.Reset();
+
+        throw;
+    }
 }
 
 TBundleSnapshotPtr TBundleState::UpdateState()
@@ -1193,7 +1295,7 @@ TBundleSnapshotPtr TBundleState::UpdateState()
     }
 }
 
-TBundleSnapshotPtr TBundleState::DoUpdateState(const TBundleStateProviderConfigPtr& config)
+INodePtr TBundleState::GetBundleWithAttributes() const
 {
     auto bundlesOrError = WaitFor(ClusterStateProvider_->GetBundles());
 
@@ -1216,6 +1318,12 @@ TBundleSnapshotPtr TBundleState::DoUpdateState(const TBundleStateProviderConfigP
         THROW_ERROR_EXCEPTION("Bundle is not found in bundle list");
     }
 
+    return bundle;
+}
+
+TBundleSnapshotPtr TBundleState::DoUpdateState(const TBundleStateProviderConfigPtr& config)
+{
+    auto bundle = GetBundleWithAttributes();
     auto bundleSnapshot = DeepCopyLatestBundleSnapshot(EFetchKind::State);
     InitializeAttributes(&bundle->Attributes(), bundleSnapshot, /*throwOnError*/ true);
     auto cellIds = bundle->Attributes().Get<std::vector<TTabletCellId>>("tablet_cell_ids");

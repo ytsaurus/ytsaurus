@@ -2389,10 +2389,10 @@ class YTEnvSetup(object):
                     "state_freshness_time": 5000,
                     "statistics_freshness_time": 2000,
                     "performance_counters_freshness_time": 0,
-                    "state_fetch_period": 4000,
                     "statistics_fetch_period": 800,
                     "performance_counters_fetch_period": 300,
                     "fetch_planner_period": 100,
+                    "config_freshness_time": 200,
                 }
             }
 
