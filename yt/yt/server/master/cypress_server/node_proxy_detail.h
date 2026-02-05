@@ -319,14 +319,13 @@ protected:
 private:
     void SetReplicationFactor(int replicationFactor);
 
-    template <bool IsHunk>
-    void SetPrimaryMedium(const std::string& primaryMediumName);
+    void SetPrimaryMedium(bool isHunk, const std::string& primaryMediumName);
 
-    template <bool IsHunk>
-    void RemovePrimaryMedium();
+    void RemovePrimaryMedium(bool isHunk);
 
-    template <bool IsHunk>
-    void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
+    void SetMedia(
+        bool isHunk,
+        const NChunkServer::TSerializableChunkReplication& serializableReplication);
 
     void ThrowReplicationFactorMismatch(int mediumIndex) const;
 };

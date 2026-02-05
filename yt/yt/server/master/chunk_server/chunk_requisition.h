@@ -21,8 +21,6 @@
 
 #include <library/cpp/yt/yson/public.h>
 
-#include <array>
-
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,6 +284,23 @@ private:
 
 void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonConsumer* consumer);
 void Deserialize(TSerializableChunkReplication& serializer, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSerializableTransferableChunkReplication
+{
+public:
+    TSerializableTransferableChunkReplication(
+        const TChunkReplication& replication,
+        const IChunkManagerPtr& chunkManager);
+
+    void Serialize(NYson::IYsonConsumer* consumer) const;
+
+private:
+    std::map<TMediumId, TReplicationPolicy> Entries_;
+};
+
+void Serialize(const TSerializableTransferableChunkReplication& serializer, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

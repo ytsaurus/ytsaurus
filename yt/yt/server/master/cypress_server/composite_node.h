@@ -25,33 +25,64 @@ DEFINE_ENUM(ENodeMaterializationReason,
 // important to be able to specify just the ReplicationFactor (or the Vital
 // flag) while leaving Media null.
 
+// process(field, attributeKey) should accept name of
+// TCompositeCypressNode::TAttributes field and attribute name in camel case.
+
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(CompressionCodec, compression_codec) \
-    process(ErasureCodec, erasure_codec) \
-    process(EnableStripedErasure, enable_striped_erasure) \
-    process(HunkErasureCodec, hunk_erasure_codec) \
-    process(ReplicationFactor, replication_factor) \
-    process(Vital, vital) \
-    process(Atomicity, atomicity) \
-    process(CommitOrdering, commit_ordering) \
-    process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for) \
-    process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag) \
-    process(ChunkMergerMode, chunk_merger_mode)
+    process(EnableStripedErasure, EnableStripedErasure) \
+    process(HunkErasureCodec, HunkErasureCodec) \
+    process(Vital, Vital) \
+    process(Atomicity, Atomicity) \
+    process(CommitOrdering, CommitOrdering) \
+    process(InMemoryMode, InMemoryMode) \
+    process(OptimizeFor, OptimizeFor) \
+    process(ProfilingMode, ProfilingMode) \
+    process(ProfilingTag, ProfilingTag) \
+
+#define FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(process) \
+    process(CompressionCodec, CompressionCodec) \
+    process(ErasureCodec, ErasureCodec) \
+    process(TabletCellBundle, TabletCellBundle) \
+    process(ChaosCellBundle, ChaosCellBundle) \
+    process(Media, Media) \
+    process(HunkMedia, HunkMedia) \
+    process(PrimaryMediumIndex, PrimaryMedium) \
+    process(HunkPrimaryMediumIndex, HunkPrimaryMedium) \
+    process(ReplicationFactor, ReplicationFactor) \
+    process(ChunkMergerMode, ChunkMergerMode)
 
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(TabletCellBundle, tablet_cell_bundle) \
-    process(ChaosCellBundle, chaos_cell_bundle) \
-    process(PrimaryMediumIndex, primary_medium) \
-    process(Media, media) \
-    process(HunkPrimaryMediumIndex, hunk_primary_medium) \
-    process(HunkMedia, hunk_media)
+    FOR_EACH_COMPLICATED_INHERITABLE_ATTRIBUTE(process)
 
 // NB: For now only chunk_merger_mode will be supported as an inherited attribute in copy, because for others the semantics are non-trivial.
 #define FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(process) \
-    process(ChunkMergerMode, chunk_merger_mode)
+    process(ChunkMergerMode, ChunkMergerMode)
+
+// Some attributes contain renamable objects. To support safe cross-cell copy
+// for such attributes
+//   - during attribute set object ID can be used instead of name;
+//   - for each such attribute, a transferable alias exists containing object ID
+//     instead of object name.
+// Example:
+//   $ yt get //a/@account
+//   my-account
+//   $ yt get //a/@account_id
+//   #1-2-3-4
+//   $ yt set //a/@account my-account  # works
+//   $ yt set //a/@account "#1-2-3-4"  # also works
+//
+// NB: be careful when adding new transferable attribute alias. It's attribute
+// author's responsibility to ensure that object name cannot start with "#".
+
+// process(FieldName, AttributeKey, TransferableAliasKey)
+#define FOR_EACH_INHERITABLE_ATTRIBUTE_TRANSFERABLE_ALIAS(process) \
+    process(TabletCellBundle, TabletCellBundle, TabletCellBundleId) \
+    process(ChaosCellBundle, ChaosCellBundle, ChaosCellBundleId) \
+    process(PrimaryMediumIndex, PrimaryMedium, PrimaryMediumId) \
+    process(HunkPrimaryMediumIndex, HunkPrimaryMedium, HunkPrimaryMediumId) \
+    process(Media, Media, TransferableMedia) \
+    process(HunkMedia, HunkMedia, TransferableHunkMedia)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,16 +167,16 @@ public:
         TTransientAttributes* attributes,
         ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const;
 
-#define XX(camelCaseName, snakeCaseName) \
+#define XX(FieldName, AttributeKey) \
 public: \
-    using T##camelCaseName = decltype(std::declval<TPersistentAttributes>().camelCaseName)::TValue; \
-    std::optional<TRawVersionedBuiltinAttributeType<T##camelCaseName>> TryGet##camelCaseName() const; \
-    bool Has##camelCaseName() const; \
-    void Remove##camelCaseName(); \
-    void Set##camelCaseName(T##camelCaseName value); \
+    using T##FieldName = decltype(std::declval<TPersistentAttributes>().FieldName)::TValue; \
+    std::optional<TRawVersionedBuiltinAttributeType<T##FieldName>> TryGet##FieldName() const; \
+    bool Has##FieldName() const; \
+    void Remove##FieldName(); \
+    void Set##FieldName(T##FieldName value); \
 \
 private: \
-    const decltype(std::declval<TPersistentAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
+    const decltype(std::declval<TPersistentAttributes>().FieldName)* DoTryGet##FieldName() const;
 
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
@@ -170,14 +201,15 @@ DEFINE_MASTER_OBJECT_TYPE(TCompositeCypressNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A set of inheritable attributes represented as an attribute dictionary.
-//! If a setter for a non-inheritable attribute is called, falls back to an ephemeral dictionary.
+//! If a setter for a non-inheritable attribute is called, falls back to an
+//! ephemeral dictionary.
 class TInheritedAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
 public:
     explicit TInheritedAttributeDictionary(NCellMaster::TBootstrap* bootstrap);
     explicit TInheritedAttributeDictionary(const TConstInheritedAttributeDictionaryPtr& other);
-    explicit TInheritedAttributeDictionary(
+    TInheritedAttributeDictionary(
         const NCellMaster::TBootstrap* bootstrap,
         NYTree::IAttributeDictionaryPtr&& attributes);
 
@@ -190,8 +222,11 @@ public:
     TCompositeCypressNode::TTransientAttributes& MutableAttributes();
     const TCompositeCypressNode::TTransientAttributes& Attributes() const;
 
+    TInheritedAttributeDictionaryPtr ToNonTransferableView() const;
+
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
+    bool Transferable_ = true;
     TCompositeCypressNode::TTransientAttributes InheritedAttributes_;
     NYTree::IAttributeDictionaryPtr Fallback_;
 };
