@@ -16,6 +16,7 @@ default:
     tutorial-version: 0.0.2
     sidecars-version: 0.0.1
     ytmsvc-version: 0.0.1
+    excel-version: 0.0.1
 
 public:
   example_cluster: 'cluster_name'
