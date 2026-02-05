@@ -180,7 +180,7 @@ std::vector<std::string> ExtractFunctionNames(
 
 TConstExpressionPtr BuildPredicate(
     const NAst::TExpressionList& expressionAst,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     TStringBuf name)
 {
     if (expressionAst.size() != 1) {
@@ -206,7 +206,7 @@ TConstExpressionPtr BuildPredicate(
 TGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
-    TExprBuilder* builder)
+    TExpressionBuilder* builder)
 {
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
@@ -239,7 +239,7 @@ void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
-    TExprBuilder* builder)
+    TExpressionBuilder* builder)
 {
     if (ast.WherePredicate) {
         auto wherePredicate = BuildPredicate(*ast.WherePredicate, builder, "WHERE-clause");
@@ -676,7 +676,7 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
     return expressionsAndColumnIndices;
 }
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilder(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap,
@@ -696,7 +696,7 @@ TJoinClausePtr BuildJoinClause(
     size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
     const std::optional<std::string>& tableAlias,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     int builderVersion,
     const NLogging::TLogger& Logger)
 {
@@ -911,7 +911,7 @@ TJoinClausePtr BuildArrayJoinClause(
     TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     int builderVersion)
 {
     auto arrayJoinClause = New<TJoinClause>();

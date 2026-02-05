@@ -83,15 +83,15 @@ struct TAliasResolver
     { }
 };
 
-struct TExprBuilderV2
-    : public TExprBuilder
+struct TExpressionBuilderV2
+    : public TExpressionBuilder
 {
 public:
-    TExprBuilderV2(
+    TExpressionBuilderV2(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap)
-        : TExprBuilder(source, functions)
+        : TExpressionBuilder(source, functions)
     {
         PushAliasResolver(aliasMap);
     }
@@ -237,15 +237,15 @@ private:
         const NAst::TQueryExpression* queryExpr);
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV2(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
 {
-    return std::make_unique<TExprBuilderV2>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV2>(source, functions, aliasMap);
 }
 
-TConstExpressionPtr TExprBuilderV2::DoOnExpression(
+TConstExpressionPtr TExpressionBuilderV2::DoOnExpression(
     const NAst::TExpression* expr)
 {
     CheckStackDepth();
@@ -295,7 +295,7 @@ TConstExpressionPtr TExprBuilderV2::DoOnExpression(
     YT_ABORT();
 }
 
-TConstExpressionPtr TExprBuilderV2::OnExpression(
+TConstExpressionPtr TExpressionBuilderV2::OnExpression(
     const NAst::TExpression* expr)
 {
     auto result = DoOnExpression(expr);
@@ -303,7 +303,7 @@ TConstExpressionPtr TExprBuilderV2::OnExpression(
     return result;
 }
 
-TExprBuilderV2::ResolveNestedTypesResult TExprBuilderV2::ResolveNestedTypes(
+TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNestedTypes(
     const TLogicalTypePtr& type,
     const NAst::TReference& reference)
 {
@@ -373,7 +373,7 @@ TExprBuilderV2::ResolveNestedTypesResult TExprBuilderV2::ResolveNestedTypes(
     return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
 }
 
-TConstExpressionPtr TExprBuilderV2::UnwrapListOrDictItemAccessor(
+TConstExpressionPtr TExpressionBuilderV2::UnwrapListOrDictItemAccessor(
     const NAst::TReference& reference,
     ELogicalMetatype metaType)
 {
@@ -408,7 +408,7 @@ TConstExpressionPtr TExprBuilderV2::UnwrapListOrDictItemAccessor(
     return typedExpression;
 }
 
-TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReference& reference)
+TConstExpressionPtr TExpressionBuilderV2::OnColumnReference(const NAst::TColumnReference& reference)
 {
     if (AliasResolvers_.empty()) {
         THROW_ERROR_EXCEPTION("Undefined reference %Qv",
@@ -473,7 +473,7 @@ TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReferen
     return result;
 }
 
-TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& reference)
+TConstExpressionPtr TExpressionBuilderV2::OnReference(const NAst::TReference& reference)
 {
     auto referenceExpr = OnColumnReference(reference);
 
@@ -493,7 +493,7 @@ TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& referenc
     return memberAccessor;
 }
 
-TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
+TConstExpressionPtr TExpressionBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
     auto functionName = ToLower(functionExpr->FunctionName);
 
@@ -637,7 +637,7 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
     }
 }
 
-TConstExpressionPtr TExprBuilderV2::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
+TConstExpressionPtr TExpressionBuilderV2::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
 {
     if (unaryExpr->Operand.size() != 1) {
         THROW_ERROR_EXCEPTION(
@@ -679,7 +679,7 @@ TConstExpressionPtr TExprBuilderV2::OnUnaryOp(const NAst::TUnaryOpExpression* un
         operand);
 }
 
-TConstExpressionPtr TExprBuilderV2::MakeBinaryExpr(
+TConstExpressionPtr TExpressionBuilderV2::MakeBinaryExpr(
     const NAst::TBinaryOpExpression* binaryExpr,
     EBinaryOp op,
     TConstExpressionPtr typedLhs,
@@ -740,7 +740,7 @@ TConstExpressionPtr TExprBuilderV2::MakeBinaryExpr(
 
 struct TBinaryOpGeneratorV2
 {
-    TExprBuilderV2& Builder;
+    TExpressionBuilderV2& Builder;
     const NAst::TBinaryOpExpression* BinaryExpr;
 
     TConstExpressionPtr Do(size_t keySize, EBinaryOp op)
@@ -799,7 +799,7 @@ struct TBinaryOpGeneratorV2
     }
 };
 
-TConstExpressionPtr TExprBuilderV2::OnBinaryOp(
+TConstExpressionPtr TExpressionBuilderV2::OnBinaryOp(
     const NAst::TBinaryOpExpression* binaryExpr)
 {
     if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
@@ -830,7 +830,7 @@ TConstExpressionPtr TExprBuilderV2::OnBinaryOp(
     }
 }
 
-void TExprBuilderV2::InferArgumentTypes(
+void TExpressionBuilderV2::InferArgumentTypes(
     std::vector<TConstExpressionPtr>* typedArguments,
     std::vector<EValueType>* argTypes,
     const NAst::TExpressionList& expressions,
@@ -856,7 +856,7 @@ void TExprBuilderV2::InferArgumentTypes(
     }
 }
 
-TConstExpressionPtr TExprBuilderV2::OnInOp(
+TConstExpressionPtr TExpressionBuilderV2::OnInOp(
     const NAst::TInExpression* inExpr)
 {
     auto source = inExpr->GetSource(Source_);
@@ -882,7 +882,7 @@ TConstExpressionPtr TExprBuilderV2::OnInOp(
     return New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 }
 
-TConstExpressionPtr TExprBuilderV2::OnBetweenOp(
+TConstExpressionPtr TExpressionBuilderV2::OnBetweenOp(
     const NAst::TBetweenExpression* betweenExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -901,7 +901,7 @@ TConstExpressionPtr TExprBuilderV2::OnBetweenOp(
     return New<TBetweenExpression>(std::move(typedArguments), std::move(capturedRows));
 }
 
-TConstExpressionPtr TExprBuilderV2::OnTransformOp(
+TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
     const NAst::TTransformExpression* transformExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1006,7 +1006,7 @@ TConstExpressionPtr TExprBuilderV2::OnTransformOp(
         std::move(defaultTypedExpr));
 }
 
-TConstExpressionPtr TExprBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseExpr)
+TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
     auto source = caseExpr->GetSource(Source_);
 
@@ -1106,7 +1106,7 @@ TConstExpressionPtr TExprBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseEx
         std::move(typedDefaultExpression));
 }
 
-TConstExpressionPtr TExprBuilderV2::OnLikeOp(const NAst::TLikeExpression* likeExpr)
+TConstExpressionPtr TExpressionBuilderV2::OnLikeOp(const NAst::TLikeExpression* likeExpr)
 {
     auto source = likeExpr->GetSource(Source_);
 
@@ -1155,7 +1155,7 @@ TConstExpressionPtr TExprBuilderV2::OnLikeOp(const NAst::TLikeExpression* likeEx
 
 TConstExpressionPtr BuildPredicate(
     const NAst::TExpressionList& expressionAst,
-    TExprBuilder* builder,
+    TExpressionBuilder* builder,
     TStringBuf name)
 {
     if (expressionAst.size() != 1) {
@@ -1181,7 +1181,7 @@ TConstExpressionPtr BuildPredicate(
 TGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
     ETotalsMode totalsMode,
-    TExprBuilder* builder)
+    TExpressionBuilder* builder)
 {
     auto groupClause = New<TGroupClause>();
     groupClause->TotalsMode = totalsMode;
@@ -1199,7 +1199,7 @@ TGroupClausePtr BuildGroupClause(
     return groupClause;
 }
 
-TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
+TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
 {
     NAst::TExpressionList fromExpressions;
 
