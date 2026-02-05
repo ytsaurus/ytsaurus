@@ -494,16 +494,29 @@ public:
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
+        auto operationId = operation->GetId();
+        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
         req->set_limit(CypressNodeLimit);
         ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetProgressAttributeKeys());
         batchReq->AddRequest(req);
 
-        return batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
-            auto batchRsp = batchRspOrError
-                .ValueOrThrow();
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
-            return TYsonString(rsp.Value()->value());
+        return batchReq->Invoke().Apply(BIND([operationId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            auto error = TError("Error getting operation node progress attributes")
+                << TErrorAttribute("operation_id", operationId);
+            if (!batchRspOrError.IsOK()) {
+                THROW_ERROR error
+                    << batchRspOrError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+            if (!rspOrError.IsOK()) {
+                THROW_ERROR error
+                    << rspOrError;
+            }
+
+            const auto& rsp = rspOrError.Value();
+            return TYsonString(rsp->value());
         }));
     }
 
