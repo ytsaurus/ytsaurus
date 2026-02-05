@@ -516,15 +516,15 @@ struct TUntypedExpression
     bool IsConstant;
 };
 
-struct TExprBuilderV1
-    : public TExprBuilder
+struct TExpressionBuilderV1
+    : public TExpressionBuilder
 {
 public:
-    TExprBuilderV1(
+    TExpressionBuilderV1(
         TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap)
-        : TExprBuilder(source, functions)
+        : TExpressionBuilder(source, functions)
         , AliasMap_(aliasMap)
     { }
 
@@ -648,15 +648,15 @@ private:
         const NAst::TLikeExpression* likeExpr);
 };
 
-std::unique_ptr<TExprBuilder> CreateExpressionBuilderV1(
+std::unique_ptr<TExpressionBuilder> CreateExpressionBuilderV1(
     TStringBuf source,
     const TConstTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
 {
-    return std::make_unique<TExprBuilderV1>(source, functions, aliasMap);
+    return std::make_unique<TExpressionBuilderV1>(source, functions, aliasMap);
 }
 
-TUntypedExpression TExprBuilderV1::OnExpression(
+TUntypedExpression TExpressionBuilderV1::OnExpression(
     const NAst::TExpression* expr)
 {
     CheckStackDepth();
@@ -708,7 +708,7 @@ TUntypedExpression TExprBuilderV1::OnExpression(
     YT_ABORT();
 }
 
-TConstExpressionPtr TExprBuilderV1::BuildTypedExpression(
+TConstExpressionPtr TExpressionBuilderV1::BuildTypedExpression(
     const NAst::TExpression* expr,
     TRange<EValueType> resultTypes)
 {
@@ -732,7 +732,7 @@ TConstExpressionPtr TExprBuilderV1::BuildTypedExpression(
     return result;
 }
 
-TExprBuilderV1::ResolveNestedTypesResult TExprBuilderV1::ResolveNestedTypes(
+TExpressionBuilderV1::ResolveNestedTypesResult TExpressionBuilderV1::ResolveNestedTypes(
     const TLogicalTypePtr& type,
     const NAst::TReference& reference)
 {
@@ -802,7 +802,7 @@ TExprBuilderV1::ResolveNestedTypesResult TExprBuilderV1::ResolveNestedTypes(
     return {std::move(nestedStructOrTupleItemAccessor), std::move(intermediateType), std::move(resultType)};
 }
 
-TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
+TConstExpressionPtr TExpressionBuilderV1::UnwrapListOrDictItemAccessor(
     const NAst::TReference& reference,
     ELogicalMetatype metaType)
 {
@@ -843,7 +843,7 @@ TConstExpressionPtr TExprBuilderV1::UnwrapListOrDictItemAccessor(
     }
 }
 
-TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
+TUntypedExpression TExpressionBuilderV1::UnwrapCompositeMemberAccessor(
     const NAst::TReference& reference,
     const TLogicalTypePtr& type)
 {
@@ -883,10 +883,10 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
     return {TTypeSet({wireType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
+TUntypedExpression TExpressionBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        TLogicalTypePtr type = nullptr;
+        TLogicalTypePtr type;
 
         // Search other way after group by.
         if (!reference.TableName) {
@@ -930,7 +930,7 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
         InferColumnName(reference));
 }
 
-TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
+TUntypedExpression TExpressionBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
     auto functionName = ToLower(functionExpr->FunctionName);
 
@@ -1063,7 +1063,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
     }
 }
 
-TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
+TUntypedExpression TExpressionBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* unaryExpr)
 {
     if (unaryExpr->Operand.size() != 1) {
         THROW_ERROR_EXCEPTION(
@@ -1108,7 +1108,7 @@ TUntypedExpression TExprBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpression* una
     return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = false};
 }
 
-TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
+TUntypedExpression TExpressionBuilderV1::MakeBinaryExpr(
     const NAst::TBinaryOpExpression* binaryExpr,
     EBinaryOp op,
     TUntypedExpression lhs,
@@ -1171,7 +1171,7 @@ TUntypedExpression TExprBuilderV1::MakeBinaryExpr(
 
 struct TBinaryOpGenerator
 {
-    TExprBuilderV1& Builder;
+    TExpressionBuilderV1& Builder;
     const NAst::TBinaryOpExpression* BinaryExpr;
 
     TUntypedExpression Do(size_t keySize, EBinaryOp op)
@@ -1230,7 +1230,7 @@ struct TBinaryOpGenerator
     }
 };
 
-TUntypedExpression TExprBuilderV1::OnBinaryOp(
+TUntypedExpression TExpressionBuilderV1::OnBinaryOp(
     const NAst::TBinaryOpExpression* binaryExpr)
 {
     if (IsRelationalBinaryOp(binaryExpr->Opcode)) {
@@ -1261,7 +1261,7 @@ TUntypedExpression TExprBuilderV1::OnBinaryOp(
     }
 }
 
-void TExprBuilderV1::InferArgumentTypes(
+void TExpressionBuilderV1::InferArgumentTypes(
     std::vector<TConstExpressionPtr>* typedArguments,
     std::vector<EValueType>* argTypes,
     const NAst::TExpressionList& expressions,
@@ -1289,7 +1289,7 @@ void TExprBuilderV1::InferArgumentTypes(
     }
 }
 
-TUntypedExpression TExprBuilderV1::OnInOp(
+TUntypedExpression TExpressionBuilderV1::OnInOp(
     const NAst::TInExpression* inExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1321,7 +1321,7 @@ TUntypedExpression TExprBuilderV1::OnInOp(
     return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnBetweenOp(
+TUntypedExpression TExpressionBuilderV1::OnBetweenOp(
     const NAst::TBetweenExpression* betweenExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1346,7 +1346,7 @@ TUntypedExpression TExprBuilderV1::OnBetweenOp(
     return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnTransformOp(
+TUntypedExpression TExpressionBuilderV1::OnTransformOp(
     const NAst::TTransformExpression* transformExpr)
 {
     std::vector<TConstExpressionPtr> typedArguments;
@@ -1475,7 +1475,7 @@ TUntypedExpression TExprBuilderV1::OnTransformOp(
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExpr)
+TUntypedExpression TExpressionBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
     auto source = caseExpr->GetSource(Source_);
 
@@ -1613,7 +1613,7 @@ TUntypedExpression TExprBuilderV1::OnCaseOp(const NAst::TCaseExpression* caseExp
     return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
-TUntypedExpression TExprBuilderV1::OnLikeOp(const NAst::TLikeExpression* likeExpr)
+TUntypedExpression TExpressionBuilderV1::OnLikeOp(const NAst::TLikeExpression* likeExpr)
 {
     auto source = likeExpr->GetSource(Source_);
 

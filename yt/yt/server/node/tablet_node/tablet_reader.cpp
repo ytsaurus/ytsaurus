@@ -589,7 +589,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
 
     ISchemafulUnversionedReaderPtr reader;
 
-    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(*tabletSnapshot->QuerySchema);
 
     if (mergeVersionedRows) {
         std::vector<TLegacyOwningKey> startStoreBounds;
@@ -636,7 +636,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
         auto enrichedColumnFilter = EnrichColumnFilter(
             columnFilter,
             nestedSchema,
-            0);
+            /*requiredKeyColumnCount*/ 0);
 
         auto storesCount = stores.size();
         auto getNextReader = [
@@ -664,7 +664,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
                 New<TRowBuffer>(TTabletReaderPoolTag()),
                 tabletSnapshot->QuerySchema.get(),
                 columnFilter,
-                GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
+                GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };
 
         reader = CreateUnorderedSchemafulReader(getNextReader, storesCount);
@@ -877,7 +877,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     ISchemafulUnversionedReaderPtr reader;
 
-    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(*tabletSnapshot->QuerySchema);
 
     if (mergeVersionedRows) {
         auto enrichedColumnFilter = EnrichColumnFilter(
@@ -918,7 +918,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         auto enrichedColumnFilter = EnrichColumnFilter(
             columnFilter,
             nestedSchema,
-            0);
+            /*requiredKeyColumnCount*/ 0);
 
         auto getNextReader = [
             =,
@@ -946,7 +946,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 New<TRowBuffer>(TTabletReaderPoolTag()),
                 tabletSnapshot->QuerySchema.get(),
                 columnFilter,
-                GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
+                GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };
 
         reader = CreateUnorderedSchemafulReader(getNextReader, boundaries.size());
@@ -1258,7 +1258,7 @@ std::unique_ptr<NRowMerger::TSchemafulRowMerger> CreateQueryLatestTimestampRowMe
             tabletSnapshot->ColumnEvaluator,
             retentionTimestamp,
             timestampReadOptions.TimestampColumnMapping,
-            NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
+            NRowMerger::GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
     };
 
     if (timestampReadOptions.TimestampColumnMapping.empty()) {

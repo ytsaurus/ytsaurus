@@ -36,7 +36,7 @@ struct TNestedColumnsSchema
     std::vector<TNestedValueColumn> ValueColumns;
 };
 
-TNestedColumnsSchema GetNestedColumnsSchema(NTableClient::TTableSchemaPtr tableSchema);
+TNestedColumnsSchema GetNestedColumnsSchema(const NTableClient::TTableSchema& tableSchema);
 
 TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& nestedSchema, TRange<int> columnIds);
 

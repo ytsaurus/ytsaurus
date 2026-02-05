@@ -132,7 +132,7 @@ TAggregateFunction* GetSimpleAggregateFunction(TStringBuf name, EValueType type)
     }
 }
 
-TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
+TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
 {
     std::vector<TNestedKeyColumn> keyColumns;
     std::vector<TNestedValueColumn> valueColumns;
@@ -140,7 +140,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
     // TODO(lukyan): Support multiple nested tables.
     TStringBuf nestedTableName;
 
-    for (const auto& column : tableSchema->Columns()) {
+    for (const auto& column : tableSchema.Columns()) {
         const auto& aggregate = column.Aggregate();
 
         if (!aggregate) {
@@ -169,7 +169,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
         auto elementType = GetNestedColumnElementType(column.LogicalType().Get());
 
         if (nestedColumn->IsKey) {
-            keyColumns.push_back({static_cast<ui16>(tableSchema->GetColumnIndex(column)), elementType});
+            keyColumns.push_back({static_cast<ui16>(tableSchema.GetColumnIndex(column)), elementType});
         } else {
             TAggregateFunction* aggregateFunction = AggregateReplace;
 
@@ -203,7 +203,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
             }
 
             valueColumns.push_back({
-                static_cast<ui16>(tableSchema->GetColumnIndex(column)),
+                static_cast<ui16>(tableSchema.GetColumnIndex(column)),
                 elementType,
                 aggregateFunction});
         }
@@ -496,7 +496,7 @@ void DoPackValuesTyped(TRange<TUnversionedValue> values, TRange<char> discard, E
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Build yson list from values.
+// Build YSON list from values.
 TUnversionedValue TNestedTableMerger::PackValuesFast(
     TRange<TUnversionedValue> values,
     TRange<char> discard,

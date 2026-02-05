@@ -384,8 +384,8 @@ private:
     TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
-    TTraceContextPtr TraceContext_;
-    TTraceContextFinishGuard FinishGuard_;
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     std::vector<ui32> BlockCountStatistics_;
     std::vector<ui64> BlockSizeStatistics_;
@@ -692,8 +692,8 @@ private:
     TFuture<void> ReadyEvent_ = OKFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
-    TTraceContextPtr TraceContext_;
-    TTraceContextFinishGuard FinishGuard_;
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard FinishGuard_;
 
     std::vector<TSharedRef> UsedBlocks_;
 
