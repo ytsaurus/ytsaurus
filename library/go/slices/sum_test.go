@@ -202,10 +202,6 @@ func TestSumTransformUint(t *testing.T) {
 }
 
 func TestSumTransformFloat(t *testing.T) {
-	type item struct {
-		value float64
-	}
-
 	tests := []struct {
 		name     string
 		input    []float64
