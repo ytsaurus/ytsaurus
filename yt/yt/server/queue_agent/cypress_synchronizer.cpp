@@ -608,11 +608,14 @@ private:
 
                 auto [revision, kind] = *objectInfo;
 
+                // NB(apachee): Treating any revision change as an object update instead of checking for a revision increase is a deliberate choice.
+                // It is not completely foolproof (portals, sequoia, cluster rebuild), but it should make it basically impossible
+                // to miss an object update.
                 // NB(apachee): Replicated table attributes change is handled in other part below and here we only
                 // care about revision change.
                 // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
                 // needed for replicated table mapping, as other attributes change results in revision change.
-                if (!object.Revision || revision > *object.Revision) {
+                if (!object.Revision || revision != *object.Revision) {
                     YT_LOG_DEBUG(
                         "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
                         cluster,
