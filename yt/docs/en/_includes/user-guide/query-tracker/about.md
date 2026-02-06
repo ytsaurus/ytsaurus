@@ -154,7 +154,7 @@ Optional parameters:
 + `annotations`: New annotations for the query.
 + `access_control_objects`: New access control object list for the query.
 
-Example: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
+Example: `alter_query(query_id="my_query_id", access_control_objects=["my_new_aco"])`.
 
 ## Access control {#access-control}
 
