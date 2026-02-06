@@ -678,11 +678,11 @@ class WorkerClass(Setting):
         A string referring to one of the following bundled classes:
 
         * ``sync``
-        * ``eventlet`` - Requires eventlet >= 0.24.1 (or install it via
+        * ``eventlet`` - Requires eventlet >= 0.40.3 (or install it via
           ``pip install gunicorn[eventlet]``)
-        * ``gevent``   - Requires gevent >= 1.4 (or install it via
+        * ``gevent``   - Requires gevent >= 24.10.1 (or install it via
           ``pip install gunicorn[gevent]``)
-        * ``tornado``  - Requires tornado >= 0.2 (or install it via
+        * ``tornado``  - Requires tornado >= 6.5.0 (or install it via
           ``pip install gunicorn[tornado]``)
         * ``gthread``  - Python 2 requires the futures package to be installed
           (or install it via ``pip install gunicorn[gthread]``)
@@ -807,7 +807,7 @@ class GracefulTimeout(Setting):
     type = int
     default = 30
     desc = """\
-        Timeout for graceful workers restart.
+        Timeout for graceful workers restart in seconds.
 
         After receiving a restart signal, workers have this much time to finish
         serving requests. Workers still alive after the timeout (starting from
@@ -1177,7 +1177,7 @@ class Group(Setting):
         Switch worker process to run as this group.
 
         A valid group id (as an integer) or the name of a user that can be
-        retrieved with a call to ``pwd.getgrnam(value)`` or ``None`` to not
+        retrieved with a call to ``grp.getgrnam(value)`` or ``None`` to not
         change the worker processes group.
         """
 
@@ -2096,6 +2096,53 @@ class ProxyAllowFrom(Setting):
         """
 
 
+class Protocol(Setting):
+    name = "protocol"
+    section = "Server Mechanics"
+    cli = ["--protocol"]
+    meta = "STRING"
+    validator = validate_string
+    default = "http"
+    desc = """\
+        The protocol for incoming connections.
+
+        * ``http`` - Standard HTTP/1.x (default)
+        * ``uwsgi`` - uWSGI binary protocol (for nginx uwsgi_pass)
+
+        When using the uWSGI protocol, Gunicorn can receive requests from
+        nginx using the uwsgi_pass directive::
+
+            upstream gunicorn {
+                server 127.0.0.1:8000;
+            }
+            location / {
+                uwsgi_pass gunicorn;
+                include uwsgi_params;
+            }
+        """
+
+
+class UWSGIAllowFrom(Setting):
+    name = "uwsgi_allow_ips"
+    section = "Server Mechanics"
+    cli = ["--uwsgi-allow-from"]
+    validator = validate_string_to_addr_list
+    default = "127.0.0.1,::1"
+    desc = """\
+        IPs allowed to send uWSGI protocol requests (comma separated).
+
+        Set to ``*`` to allow all IPs. This is useful for setups where you
+        don't know in advance the IP address of front-end, but instead have
+        ensured via other means that only your authorized front-ends can
+        access Gunicorn.
+
+        .. note::
+
+            This option does not affect UNIX socket connections. Connections not associated with
+            an IP address are treated as allowed, unconditionally.
+        """
+
+
 class KeyFile(Setting):
     name = "keyfile"
     section = "SSL"
@@ -2439,4 +2486,95 @@ class HeaderMap(Setting):
         on a proxy in front of Gunicorn.
 
         .. versionadded:: 22.0.0
+        """
+
+
+def validate_asgi_loop(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "asyncio", "uvloop"):
+        raise ValueError("Invalid ASGI loop: %s" % val)
+    return val
+
+
+def validate_asgi_lifespan(val):
+    if val is None:
+        return "auto"
+    if not isinstance(val, str):
+        raise TypeError("Invalid type for casting: %s" % val)
+    val = val.lower().strip()
+    if val not in ("auto", "on", "off"):
+        raise ValueError("Invalid ASGI lifespan: %s" % val)
+    return val
+
+
+class ASGILoop(Setting):
+    name = "asgi_loop"
+    section = "Worker Processes"
+    cli = ["--asgi-loop"]
+    meta = "STRING"
+    validator = validate_asgi_loop
+    default = "auto"
+    desc = """\
+        Event loop implementation for ASGI workers.
+
+        - auto: Use uvloop if available, otherwise asyncio
+        - asyncio: Use Python's built-in asyncio event loop
+        - uvloop: Use uvloop (must be installed separately)
+
+        This setting only affects the ``asgi`` worker type.
+
+        uvloop typically provides better performance but requires
+        installing the uvloop package.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class ASGILifespan(Setting):
+    name = "asgi_lifespan"
+    section = "Worker Processes"
+    cli = ["--asgi-lifespan"]
+    meta = "STRING"
+    validator = validate_asgi_lifespan
+    default = "auto"
+    desc = """\
+        Control ASGI lifespan protocol handling.
+
+        - auto: Detect if app supports lifespan, enable if so
+        - on: Always run lifespan protocol (fail if unsupported)
+        - off: Never run lifespan protocol
+
+        The lifespan protocol allows ASGI applications to run code at
+        startup and shutdown. This is essential for frameworks like
+        FastAPI that need to initialize database connections, caches,
+        or other resources.
+
+        This setting only affects the ``asgi`` worker type.
+
+        .. versionadded:: 24.0.0
+        """
+
+
+class RootPath(Setting):
+    name = "root_path"
+    section = "Server Mechanics"
+    cli = ["--root-path"]
+    meta = "STRING"
+    validator = validate_string
+    default = ""
+    desc = """\
+        The root path for ASGI applications.
+
+        This is used to set the ``root_path`` in the ASGI scope, which
+        allows applications to know their mount point when behind a
+        reverse proxy.
+
+        For example, if your application is mounted at ``/api``, set
+        this to ``/api``.
+
+        .. versionadded:: 24.0.0
         """
