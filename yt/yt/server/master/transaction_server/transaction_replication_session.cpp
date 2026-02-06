@@ -404,11 +404,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
 
     auto asyncResult = InvokeReplicationRequests();
 
-    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-    std::vector<TFuture<void>> additionalFutures = {
-        transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
-    };
-
+    std::vector<TFuture<void>> additionalFutures;
     if (asyncResult) {
         additionalFutures.push_back(asyncResult.AsVoid());
     }
@@ -538,12 +534,9 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
 
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
 
-    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-    auto preparedTransactionsFinished = transactionSupervisor->WaitUntilPreparedTransactionsFinished();
-
     // NB: We always have to wait all current prepared transactions to observe
     // side effects of Sequoia transactions.
-    auto syncFuture = syncSession->Sync(cellTags, std::move(preparedTransactionsFinished));
+    auto syncFuture = syncSession->Sync(cellTags);
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
         .Apply(

@@ -161,9 +161,14 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
         TransactionServerLogger())
         .Apply(BIND([hydraManager = bootstrap->GetHydraFacade()->GetHydraManager()] {
             // NB: |sequoiaTransaction->Commit()| is set when Sequoia tx is
-            // committed on leader (and probably some of followers). Since we
+            // prepared on leader (and probably some of followers). Since we
             // want to know when replicated tx is actually available on _this_
             // peer sync with leader is needed.
+            // Note that waiting for strongly ordered tx barrier isn't needed
+            // here because Sequoia transaction is coordinated by current cell:
+            // thanks to late prepare mode after transaction is prepared on
+            // coordinator its effects can be immediately observed on
+            // coordinator.
             return hydraManager->SyncWithLeader();
         }));
 }

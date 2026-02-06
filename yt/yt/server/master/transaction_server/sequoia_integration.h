@@ -52,7 +52,9 @@ TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
     NRpc::TMutationId mutationId,
     bool retry);
 
-//! Replicates given Cypress transactions from coordinator to this cell.
+//! Starts replication of Cypress transactions from coordinator to this cell and
+//! returns the future which is set when all transactions can be accessed on
+//! current master _peer_.
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds);
