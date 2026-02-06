@@ -410,12 +410,15 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
     THashSet<TTabletId> mountedTabletIdsFromTables;
     THashSet<TTabletId> tabletIdsFromTabletCells;
 
-    auto Logger = TabletBalancerLogger();
+    auto Logger = TabletBalancerLogger()
+        .WithTag("BundleName: %v", bundleSnapshot->Bundle->Name)
+        .WithTag("StateFetchTime: %v", bundleSnapshot->StateFetchTime)
+        .WithTag("StatisticsFetchTime: %v", bundleSnapshot->StatisticsFetchTime)
+        .WithTag("PerformanceCountersFetchTime: %v", bundleSnapshot->PerformanceCountersFetchTime);
 
     YT_LOG_FATAL_UNLESS(
         bundleSnapshot->Bundle->Config,
-        "Bundle snapshot invariant check failed: does not have config (Bundle: %v)",
-        bundleSnapshot->Bundle->Name);
+        "Bundle snapshot invariant check failed: does not have config");
 
     for (const auto& [id, tablet] : bundleSnapshot->Bundle->Tablets) {
         YT_VERIFY(tablet->Table);
@@ -443,6 +446,18 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
                 id,
                 cell ? ToString(cell->Id) : "<nonexistent>");
             continue;
+        }
+
+        if (!cell) {
+            YT_LOG_DEBUG("Bundle snapshot invariant check will fail, printing tablets found on each tablet cell");
+            for (const auto& [cellId, tabletCell] : bundleSnapshot->Bundle->TabletCells) {
+                YT_LOG_EVENT(
+                    TabletBalancerLogger(),
+                    NLogging::ELogLevel::Debug,
+                    "List of tablets on tablet cell (CellId: %v, TabletIds: %v)",
+                    cellId,
+                    GetKeys(tabletCell->Tablets));
+            }
         }
 
         YT_LOG_FATAL_UNLESS(
