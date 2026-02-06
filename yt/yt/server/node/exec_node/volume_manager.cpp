@@ -2065,8 +2065,7 @@ public:
             Destroying_,
             TagSet_,
             LayerLocation_,
-            VolumeMeta_
-        ));
+            VolumeMeta_));
     }
 
     ~TSquashFSVolume() override
@@ -2141,8 +2140,7 @@ public:
             LayerLocation_,
             VolumeMeta_,
             NbdDeviceId_,
-            NbdServer_
-        ));
+            NbdServer_));
     }
 
     ~TRWNbdVolume() override
@@ -2237,8 +2235,7 @@ public:
             LayerLocation_,
             VolumeMeta_,
             NbdDeviceId_,
-            NbdServer_
-        ));
+            NbdServer_));
     }
 
     ~TRONbdVolume() override
@@ -3925,8 +3922,7 @@ public:
             TagSet_,
             LayerLocation_,
             VolumeMeta_,
-            OverlayDataArray_
-        ));
+            OverlayDataArray_));
     }
 
     ~TOverlayVolume() override
@@ -4009,8 +4005,7 @@ public:
             &TTmpfsVolume::DoRemove,
             TagSet_,
             LayerLocation_,
-            VolumeMeta_
-        ));
+            VolumeMeta_));
     }
 
     ~TTmpfsVolume() override
