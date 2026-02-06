@@ -20,58 +20,25 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! The purpose of this class is to isolate all preparation logic related to the physical
-//! layout of a chunk file and chunk meta contents. It acts as a guarantee that different
-//! chunk writers produce binary identical chunk and chunk meta files independent of the
-//! underlying storage medium (file, S3).
-class TPhysicalChunkLayoutWriter
-    : public virtual TRefCounted
+struct TWriteBlocksRequest
 {
-public:
-    TPhysicalChunkLayoutWriter(NChunkClient::TChunkId chunkId, bool syncOnClose = true);
-
-    //! Write-related methods.
-
-    struct TWriteRequest
-    {
-        i64 StartOffset = 0;
-        i64 EndOffset = 0;
-        std::vector<TSharedRef> Buffers;
-    };
-    TWriteRequest AddBlocks(const std::vector<NChunkClient::TBlock>& blocks);
-
-    TSharedMutableRef Close(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
-
-    TSharedMutableRef PrepareChunkMetaBlob();
-
-    void UpdateChunkInfoDiskSpace();
-    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
-
-    void UpdateDataSize(i64 dataSizeDelta);
-
-    i64 GetDataSize() const;
-    i64 GetMetaDataSize() const;
-
-    NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
-
-    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-
-    NChunkClient::TChunkId GetChunkId() const;
-
-protected:
-    const NChunkClient::TChunkId ChunkId_;
-    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
-    const NLogging::TLogger Logger;
-
-    NChunkClient::NProto::TChunkInfo ChunkInfo_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
-
-    i64 DataSize_ = 0;
-    i64 MetaDataSize_ = 0;
+    i64 StartOffset = 0;
+    i64 EndOffset = 0;
+    std::vector<TSharedRef> Buffers;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutWriter)
+TWriteBlocksRequest MakeWriteRequest(i64 startOffset, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
+
+TSharedMutableRef Close(
+    NChunkClient::TChunkId chunkId,
+    NChunkClient::TDeferredChunkMetaPtr chunkMeta,
+    const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+i64 TruncateBlocks(NChunkClient::NProto::TBlocksExt& blocksExt, int truncateBlockCount, i64 oldDataSize);
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -172,11 +139,10 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
+    const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
-    const TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
-    const NLogging::TLogger Logger;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
@@ -184,9 +150,15 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
+    i64 DataSize_ = 0;
+    i64 MetaDataSize_ = 0;
     i64 DiskSpace_ = 0;
 
     TIOEngineHandlePtr DataFile_;
+
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
 
     void TryLockDataFile(TPromise<void> promise);
 

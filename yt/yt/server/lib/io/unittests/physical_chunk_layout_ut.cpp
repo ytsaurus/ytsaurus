@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <google/protobuf/util/message_differencer.h>
+
 namespace NYT::NIO {
 namespace {
 
@@ -42,30 +44,19 @@ std::vector<NChunkClient::TBlock> CreateBlocks(int count, TRandomGenerator* gene
     return blocks;
 }
 
-void DumpBrokenBlock(
-    int /*blockIndex*/,
-    const TBlockInfo& /*blockInfo*/,
-    TRef /*block*/)
-{ }
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
+TEST(TPhysicalChunkLayout, SerializeAndDeserializeBlocks)
 {
     constexpr int BlocksCount = 100;
 
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto generator = TRandomGenerator(42);
 
-    auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
-
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
+    NChunkClient::NProto::TBlocksExt protoBlocksExt;
 
-    auto writeRequest = writer->AddBlocks(originalBlocks);
-    auto deferredMeta = New<NChunkClient::TDeferredChunkMeta>();
-    auto metaBlob = writer->Close(std::move(deferredMeta));
-
-    auto blocksExt = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(writer->GetChunkMeta()->extensions()));
+    auto writeRequest = MakeWriteRequest(0, originalBlocks, protoBlocksExt);
 
     struct TMyTag {};
     auto blocksBlob = MergeRefsToRef<TMyTag>(std::move(writeRequest.Buffers));
@@ -77,14 +68,33 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
         },
         /*validateBlockChecksums*/ true,
         Format("%v", chunkId),
-        blocksExt,
+        New<TBlocksExt>(protoBlocksExt),
         New<NChunkClient::TChunkReaderStatistics>(),
-         BIND(&DumpBrokenBlock));
+        /*dumpBrokenBlockCallback*/ {});
 
     EXPECT_EQ(BlocksCount, std::ssize(deserializedBlocks));
     for (int i = 0; i < BlocksCount; ++i) {
         EXPECT_EQ(originalBlocks[i].GetOrComputeChecksum(), deserializedBlocks[i].GetOrComputeChecksum());
     }
+}
+
+TEST(TPhysicalChunkLayout, SerializeAndDeserializeMeta)
+{
+    auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
+
+    NChunkClient::NProto::TBlocksExt protoBlocksExt;
+
+    auto finalizedMeta = FinalizeChunkMeta(New<NChunkClient::TDeferredChunkMeta>(), protoBlocksExt);
+    auto metaBlob = PrepareChunkMetaBlob(chunkId, finalizedMeta);
+
+    auto deserializedMeta = DeserializeMeta(
+        metaBlob,
+        Format("%v.meta", chunkId),
+        chunkId,
+        New<NChunkClient::TChunkReaderStatistics>(),
+        /*dumpBrokenMeta*/ {});
+
+    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(*deserializedMeta.ChunkMeta, *finalizedMeta));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
