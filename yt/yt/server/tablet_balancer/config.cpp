@@ -91,6 +91,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_reshard_verbose_logging", &TThis::EnableReshardVerboseLogging)
         .Default(false);
+    registrar.Parameter("ignore_tablet_to_cell_ratio", &TThis::IgnoreTabletToCellRatio)
+        .Default(false);
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
     registrar.Parameter("enable_smooth_movement", &TThis::EnableSmoothMovement)
