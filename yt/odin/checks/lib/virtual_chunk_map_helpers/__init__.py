@@ -44,7 +44,7 @@ def check_virtual_map_size(yt_client, logger, options, states, check_name, count
             batch_responses[chunk_id] = batch_client.get(f"#{chunk_id}/@last_seen_replicas")
         batch_client.commit_batch()
 
-        for chunk_id, response in batch_responses:
+        for chunk_id, response in batch_responses.items():
             if response.is_ok():
                 logger.info("Last seen replicas for chunk {}: {}".format(chunk_id, response.get_result()))
             else:
