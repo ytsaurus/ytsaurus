@@ -28,7 +28,7 @@ class TPhysicalChunkLayoutWriter
     : public virtual TRefCounted
 {
 public:
-    TPhysicalChunkLayoutWriter(NChunkClient::TChunkId chunkId, bool syncOnClose = true);
+    TPhysicalChunkLayoutWriter(bool syncOnClose = true);
 
     //! Write-related methods.
 
@@ -38,37 +38,31 @@ public:
         i64 EndOffset = 0;
         std::vector<TSharedRef> Buffers;
     };
-    TWriteRequest AddBlocks(const std::vector<NChunkClient::TBlock>& blocks);
+    TWriteRequest AddBlocks(i64 dataSize, const std::vector<NChunkClient::TBlock>& blocks);
 
-    TSharedMutableRef Close(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+    TSharedMutableRef Close(NChunkClient::TChunkId chunkId, NChunkClient::TDeferredChunkMetaPtr chunkMeta);
 
-    TSharedMutableRef PrepareChunkMetaBlob();
+    TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
-    void UpdateChunkInfoDiskSpace();
-    void FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+    // void UpdateChunkInfoDiskSpace(i64 size);
+    NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
 
-    void UpdateDataSize(i64 dataSizeDelta);
+    // void UpdateDataSize(i64 dataSizeDelta);
 
-    i64 GetDataSize() const;
-    i64 GetMetaDataSize() const;
+    // i64 GetDataSize() const;
+    // i64 GetMetaDataSize() const;
 
     NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
 
     const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-
-    NChunkClient::TChunkId GetChunkId() const;
+    // const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
 
 protected:
-    const NChunkClient::TChunkId ChunkId_;
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     const NLogging::TLogger Logger;
 
-    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    // NChunkClient::NProto::TChunkInfo ChunkInfo_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
-
-    i64 DataSize_ = 0;
-    i64 MetaDataSize_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutWriter)
@@ -172,6 +166,7 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
+    const NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
@@ -184,9 +179,14 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
+    i64 DataSize_ = 0;
+    i64 MetaDataSize_ = 0;
     i64 DiskSpace_ = 0;
 
     TIOEngineHandlePtr DataFile_;
+
+    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
 
     void TryLockDataFile(TPromise<void> promise);
 

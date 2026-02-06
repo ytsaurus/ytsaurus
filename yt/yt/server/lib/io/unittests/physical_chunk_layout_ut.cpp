@@ -61,9 +61,9 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
 
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
 
-    auto writeRequest = writer->AddBlocks(originalBlocks);
+    auto writeRequest = writer->AddBlocks(0, originalBlocks);
     auto deferredMeta = New<NChunkClient::TDeferredChunkMeta>();
-    auto metaBlob = writer->Close(std::move(deferredMeta));
+    auto metaBlob = writer->Close(chunkId, std::move(deferredMeta));
 
     auto blocksExt = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(writer->GetChunkMeta()->extensions()));
 
