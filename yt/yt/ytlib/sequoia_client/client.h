@@ -38,6 +38,7 @@ struct TSequoiaTransactionOptions
     std::vector<NObjectClient::TTransactionId> CypressPrerequisiteTransactionIds = {};
     bool SequenceTabletCommitSessions = false;
     bool EnableVerboseLogging = false;
+    bool SuppressStronglyOrderedTransactionBarrier = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
