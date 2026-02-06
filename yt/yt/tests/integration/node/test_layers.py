@@ -1825,7 +1825,13 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                     "type": "porto",
                 },
             },
-        }
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 2,
+                "user_slots": 2,
+            },
+        },
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {
@@ -1851,6 +1857,30 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     }
 
     USE_PORTO = True
+
+    def _get_node_debug_logs(self, filter_string):
+        writers = self.Env.configs["node"][0]["logging"]["writers"]
+        node_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                node_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert node_debug_logs_filename is not None
+
+        if node_debug_logs_filename.endswith(".zst"):
+            compressed_file = open(node_debug_logs_filename, "rb")
+            decompressor = zstd.ZstdDecompressor()
+            binary_reader = decompressor.stream_reader(compressed_file, read_size=8192)
+            logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+        elif node_debug_logs_filename.endswith(".gz"):
+            logfile = gzip.open(node_debug_logs_filename, "b")
+        else:
+            logfile = open(node_debug_logs_filename, "b")
+
+        def _filter(line):
+            return filter_string in line
+
+        return [line for line in logfile if _filter(line)]
 
     def setup_files(self):
         create("file", "//tmp/corrupted_layer")
@@ -2023,6 +2053,45 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         # YT-14186: Corrupted user layer should not disable jobs on node.
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
+    @authors("yuryalekseev")
+    @pytest.mark.timeout(150)
+    def test_volume_cache(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"k": i, "u": 1, "v": 2} for i in range(10)])
+
+        # Get initial log counts before running the operation
+        initial_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
+        initial_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+
+        # Run map operation with multiple jobs (job_count=2)
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="sleep 30; cat",
+            spec={
+                "max_failed_job_count": 1,
+                "job_count": 2,
+                "mapper": {
+                    "layer_paths": ["//tmp/squashfs.img"],
+                },
+            },
+        )
+
+        # Get final log counts after operation completes
+        final_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
+        final_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+
+        # Check that exactly one cache hit occurred (only second job hits cache)
+        cache_check_delta = final_cache_hit_count - initial_cache_hit_count
+        assert cache_check_delta == 1
+
+        # Check that volume was removed only once (proving both jobs shared the same device)
+        removed_delta = final_removed_count - initial_removed_count
+        assert removed_delta == 1
 
 
 @authors("yuryalekseev")
