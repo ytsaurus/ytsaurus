@@ -72,7 +72,7 @@ public class RpcUtil {
     }
 
     public static int attachmentSize(byte[] attachment) {
-        if (attachment == null) {
+        if (attachment == null || attachment.length == 0) {
             return 1;
         } else {
             return attachment.length;

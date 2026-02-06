@@ -663,10 +663,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
 
         List<Attachment> attachmentList = new ArrayList<>(attachments.size());
         for (var attachment : attachments) {
-            long size = attachment == null
-                    ? 1
-                    : attachment.length;
-
+            long size = RpcUtil.attachmentSize(attachment);
             byte[] attachmentDecompressed = attachment != null
                     ? codec.decompress(attachment)
                     : null;
