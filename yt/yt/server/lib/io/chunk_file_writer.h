@@ -20,6 +20,51 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The purpose of this class is to isolate all preparation logic related to the physical
+//! layout of a chunk file and chunk meta contents. It acts as a guarantee that different
+//! chunk writers produce binary identical chunk and chunk meta files independent of the
+//! underlying storage medium (file, S3).
+class TPhysicalChunkLayoutWriter
+    : public virtual TRefCounted
+{
+public:
+    TPhysicalChunkLayoutWriter(bool syncOnClose = true);
+
+    //! Write-related methods.
+
+    struct TWriteRequest
+    {
+        i64 StartOffset = 0;
+        i64 EndOffset = 0;
+        std::vector<TSharedRef> Buffers;
+    };
+    TWriteRequest AddBlocks(i64 dataSize, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
+
+    TSharedMutableRef Close(
+        NChunkClient::TChunkId chunkId,
+        NChunkClient::TDeferredChunkMetaPtr chunkMeta,
+        const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+    TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+    NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
+
+    // NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
+
+    // const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
+
+protected:
+    // const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    const NLogging::TLogger Logger;
+
+    // NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    // NChunkClient::NProto::TBlocksExt BlocksExt_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutWriter)
+
+////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EFileWriterState,
     (Created)
     (Opening)
@@ -121,6 +166,8 @@ private:
     const TString FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
+    const TPhysicalChunkLayoutWriterPtr PhysicalChunkLayoutWriter_;
+    const NLogging::TLogger Logger;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
