@@ -38,31 +38,27 @@ public:
         i64 EndOffset = 0;
         std::vector<TSharedRef> Buffers;
     };
-    TWriteRequest AddBlocks(i64 dataSize, const std::vector<NChunkClient::TBlock>& blocks);
+    TWriteRequest AddBlocks(i64 dataSize, const std::vector<NChunkClient::TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt);
 
-    TSharedMutableRef Close(NChunkClient::TChunkId chunkId, NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+    TSharedMutableRef Close(
+        NChunkClient::TChunkId chunkId,
+        NChunkClient::TDeferredChunkMetaPtr chunkMeta,
+        const NChunkClient::NProto::TBlocksExt& blocksExt);
 
     TSharedMutableRef PrepareChunkMetaBlob(NChunkClient::TChunkId chunkId, const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
-    // void UpdateChunkInfoDiskSpace(i64 size);
-    NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta);
+    NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(NChunkClient::TDeferredChunkMetaPtr chunkMeta, const NChunkClient::NProto::TBlocksExt& blocksExt);
 
-    // void UpdateDataSize(i64 dataSizeDelta);
+    // NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
 
-    // i64 GetDataSize() const;
-    // i64 GetMetaDataSize() const;
-
-    NChunkClient::NProto::TBlocksExt& MutableBlocksExt();
-
-    const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
-    // const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
+    // const NChunkClient::TRefCountedChunkMetaPtr& GetChunkMeta() const;
 
 protected:
-    const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
+    // const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     const NLogging::TLogger Logger;
 
     // NChunkClient::NProto::TChunkInfo ChunkInfo_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
+    // NChunkClient::NProto::TBlocksExt BlocksExt_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPhysicalChunkLayoutWriter)
@@ -187,6 +183,7 @@ private:
 
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
 
     void TryLockDataFile(TPromise<void> promise);
 

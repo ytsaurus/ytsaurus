@@ -57,7 +57,7 @@ TEST(TPhysicalChunkLayout, SerializeAndDeserialize)
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto generator = TRandomGenerator(42);
 
-    auto writer = New<TPhysicalChunkLayoutWriter>(chunkId);
+    auto writer = New<TPhysicalChunkLayoutWriter>();
 
     auto originalBlocks = CreateBlocks(BlocksCount, &generator);
 
