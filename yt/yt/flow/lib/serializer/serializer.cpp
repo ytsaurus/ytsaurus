@@ -66,7 +66,11 @@ public:
     void OnStringScalar(TStringBuf value) override
     {
         if (StructLevel() && FieldId_) {
-            AddValue(MakeUnversionedStringValue(value, *FieldId_));
+            if (ESimpleLogicalValueType::Timestamp == Schema_->Columns().at(*FieldId_).CastToV1Type()) {
+                AddValue(MakeUnversionedUint64Value(TInstant::ParseIso8601(value).MicroSeconds(), *FieldId_));
+            } else {
+                AddValue(MakeUnversionedStringValue(value, *FieldId_));
+            }
         } else if (!StructLevel() && FieldSerializer_) {
             FieldSerializer_->OnStringScalar(value);
         }

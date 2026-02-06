@@ -77,6 +77,7 @@ struct TTestSchemaYsonStruct
     NProto::TTestMessage YsonProto;
     std::tuple<double, std::string> Tuple;
     std::optional<NYson::TYsonString> Yson;
+    TInstant Instant;
 
     REGISTER_YSON_STRUCT(TTestSchemaYsonStruct);
 
@@ -120,6 +121,8 @@ struct TTestSchemaYsonStruct
             .Default();
         registrar.Parameter("yson", &TThis::Yson)
             .Default();
+        registrar.Parameter("instant", &TThis::Instant)
+            .Default();
     }
 };
 
@@ -136,6 +139,7 @@ TEST(TYsonSerializeTest, YsonTableSchema)
             TColumnSchema("bool", ESimpleLogicalValueType::Boolean),
             TColumnSchema("byte", ESimpleLogicalValueType::Int8),
             TColumnSchema("char", ESimpleLogicalValueType::Int8),
+            TColumnSchema("instant", ESimpleLogicalValueType::Timestamp),
             TColumnSchema("int_map", ESimpleLogicalValueType::Any),
             TColumnSchema("nullable_int", ESimpleLogicalValueType::Int64),
             TColumnSchema("nullable_sub", ESimpleLogicalValueType::Any),
@@ -184,6 +188,7 @@ struct TTestSerializeYson
     THashMap<std::string, TTestSerializeYsonSubPtr> Subs;
     std::pair<std::string, i64> Pair;
     std::optional<NYson::TYsonString> Yson;
+    TInstant Instant;
 
     REGISTER_YSON_STRUCT(TTestSerializeYson);
 
@@ -202,6 +207,8 @@ struct TTestSerializeYson
         registrar.Parameter("pair", &TThis::Pair)
             .Default();
         registrar.Parameter("yson", &TThis::Yson)
+            .Default();
+        registrar.Parameter("instant", &TThis::Instant)
             .Default();
     }
 };
@@ -225,27 +232,32 @@ TEST(TYsonSerializeTest, YsonSerialize)
     ysonStruct->Pair = std::pair{"abra", 345};
     ysonStruct->Yson = ConvertToYsonString(subKey);
 
+    auto now = TInstant::Now();
+    ysonStruct->Instant = now;
+
     auto row = Serialize(ysonStruct, schema);
     // ordered by alphabet
-    EXPECT_EQ(schema->Columns()[0].Name(), "optional_double");
-    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[0]), 5.0);
-    EXPECT_EQ(schema->Columns()[1].Name(), "optional_double_empty");
-    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[1]), std::nullopt);
+    EXPECT_EQ(schema->Columns()[0].Name(), "instant");
+    EXPECT_EQ(FromUnversionedValue<TInstant>(row[0]), now);
+    EXPECT_EQ(schema->Columns()[1].Name(), "optional_double");
+    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[1]), 5.0);
+    EXPECT_EQ(schema->Columns()[2].Name(), "optional_double_empty");
+    EXPECT_EQ(FromUnversionedValue<std::optional<double>>(row[2]), std::nullopt);
 
-    EXPECT_EQ(schema->Columns()[2].Name(), "pair");
+    EXPECT_EQ(schema->Columns()[3].Name(), "pair");
     {
-        const auto parsedPair = ConvertTo<std::pair<std::string, i64>>(FromUnversionedValue<TYsonString>(row[2]));
+        const auto parsedPair = ConvertTo<std::pair<std::string, i64>>(FromUnversionedValue<TYsonString>(row[3]));
         const auto expectedPair = std::pair{"abra", 345};
         EXPECT_EQ(parsedPair, expectedPair);
     }
-    EXPECT_EQ(schema->Columns()[3].Name(), "sub");
+    EXPECT_EQ(schema->Columns()[4].Name(), "sub");
     {
-        const auto parsedSub = ConvertTo<TTestSerializeYsonSubPtr>(FromUnversionedValue<TYsonString>(row[3]));
+        const auto parsedSub = ConvertTo<TTestSerializeYsonSubPtr>(FromUnversionedValue<TYsonString>(row[4]));
         EXPECT_EQ(*parsedSub, *sub);
     }
-    EXPECT_EQ(schema->Columns()[4].Name(), "subs");
+    EXPECT_EQ(schema->Columns()[5].Name(), "subs");
     {
-        const auto raw = ConvertToNode(FromUnversionedValue<TYsonString>(row[4]));
+        const auto raw = ConvertToNode(FromUnversionedValue<TYsonString>(row[5]));
         const auto parsedSubs = ConvertTo<THashMap<std::string, TTestSerializeYsonSubPtr>>(raw);
         const auto expectedSubs = ysonStruct->Subs;
         EXPECT_EQ(parsedSubs.size(), expectedSubs.size());
@@ -253,9 +265,10 @@ TEST(TYsonSerializeTest, YsonSerialize)
             EXPECT_EQ(*value, *expectedSubs.at(key));
         }
     }
-    EXPECT_EQ(schema->Columns()[5].Name(), "uint64");
-    EXPECT_EQ(FromUnversionedValue<ui64>(row[5]), 123456789u);
-    EXPECT_EQ(*ConvertTo<TTestSerializeYsonSubPtr>(FromUnversionedValue<NYson::TYsonString>(row[6])), *subKey);
+    EXPECT_EQ(schema->Columns()[6].Name(), "uint64");
+    EXPECT_EQ(FromUnversionedValue<ui64>(row[6]), 123456789u);
+    EXPECT_EQ(schema->Columns()[7].Name(), "yson");
+    EXPECT_EQ(*ConvertTo<TTestSerializeYsonSubPtr>(FromUnversionedValue<NYson::TYsonString>(row[7])), *subKey);
 
     auto deserializedStruct = Deserialize<TTestSerializeYson>(row, schema);
     EXPECT_EQ(*deserializedStruct, *ysonStruct);
