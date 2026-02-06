@@ -1951,6 +1951,363 @@ TRANSFORMS[21] = [
 ]
 
 
+def merge_aco_reducer(key, rows):
+    is_tutorial = False
+    access_control_object_set = {}
+    index_acos = []
+
+    for row in rows:
+        if "query" in row :  # finished_queries.copy
+            is_tutorial = row["is_tutorial"]
+            access_control_object_set = set(row["access_control_objects"])
+        else:  # finished_queries_by_aco_and_start_time_sorted
+            index_acos.append(row)
+
+    for row in index_acos:
+        if row["access_control_object"] in access_control_object_set and row["is_tutorial"] == is_tutorial:
+            continue
+        yield {
+            "is_tutorial": row["is_tutorial"],
+            "access_control_object": row["access_control_object"],
+            "minus_start_time": row["minus_start_time"],
+            "query_id": row["query_id"],
+        }
+
+
+ACOS_TO_REMOVE_22 = TableInfo(
+    [
+        ("is_tutorial", "boolean"),
+        ("access_control_object", "string"),
+        ("minus_start_time", "int64"),
+        ("query_id", "string")
+    ],
+    [
+        ("value", "any")
+    ],
+)
+
+FINISHED_QUERIES_BY_ACO_AND_START_TIME_SORTED_22 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("is_tutorial", "boolean"),
+        ("access_control_object", "string"),
+        ("minus_start_time", "int64"),
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+)
+
+TRANSFORMS[22] = [
+    Conversion(
+        "finished_queries.copy",
+        source="finished_queries",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time.copy",
+        source="finished_queries_by_aco_and_start_time",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        table=None,
+        source=["finished_queries", "finished_queries_by_aco_and_start_time"],
+        operation="mount",
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time_sorted",
+        source="finished_queries_by_aco_and_start_time.copy",
+        table_info=FINISHED_QUERIES_BY_ACO_AND_START_TIME_SORTED_22,
+        operation="sort",
+        operation_args={
+            "sort_by": ["query_id", "is_tutorial", "access_control_object", "minus_start_time"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "acos_to_remove",
+        source=["finished_queries.copy", "finished_queries_by_aco_and_start_time_sorted"],
+        table_info=ACOS_TO_REMOVE_22,
+        operation="reduce",
+        operation_args={
+            "binary": merge_aco_reducer,
+            "reduce_by": ["query_id"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time",
+        table_path_attributes={"schema_modification": "unversioned_update"},
+        source="acos_to_remove",
+        table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V20,
+        operation="append-merge",
+        operation_args={
+            "mode": "ordered",
+            "spec": {"allow_output_dynamic_tables": True, "input_query": "1u as [$change_type], is_tutorial, access_control_object, minus_start_time, query_id"},
+        }
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time_sorted",
+        operation="remove",
+    ),
+    Conversion(
+        "acos_to_remove",
+        operation="remove",
+    ),
+]
+
+
+def format_acos(acos):
+    return yson.dumps(["aco:" + aco for aco in acos]).decode()
+
+
+def get_filter_factors(query, annotations, acos):
+    return f"{query} {yson.dumps(annotations).decode()} acos:{format_acos(acos)}"
+
+
+def merge_changes_reducer(key, rows):
+    new_filter_factors = ""
+    engine = ""
+    index_acos = []
+
+    for row in rows:
+        if "query" in row :  # finished_queries.copy
+            new_filter_factors = get_filter_factors(row["query"], row["annotations"], row["access_control_objects"])
+            engine = row["engine"]
+        else:  # index_sorted
+            index_acos.append(row)
+
+    for row in index_acos:
+        if row["filter_factors"] == new_filter_factors and row["engine"] == engine:
+            continue
+        row["filter_factors"] = new_filter_factors
+        row["engine"] = engine
+        yield row
+
+
+FINISHED_QUERIES_BY_ACO_AND_START_TIME_SORTED_23 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("is_tutorial", "boolean"),
+        ("access_control_object", "string"),
+        ("minus_start_time", "int64"),
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+)
+FINISHED_QUERIES_BY_USER_AND_START_TIME_SORTED_23 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("is_tutorial", "boolean"),
+        ("user", "string"),
+        ("minus_start_time", "int64"),
+    ],
+    [
+        ("engine", "string"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+)
+FINISHED_QUERIES_BY_START_TIME_SORTED_23 = TableInfo(
+    [
+        ("query_id", "string"),
+        ("is_tutorial", "boolean"),
+        ("minus_start_time", "int64"),
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+)
+
+TRANSFORMS[23] = [
+    Conversion(
+        "finished_queries.copy",
+        source="finished_queries",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time.copy",
+        source="finished_queries_by_aco_and_start_time",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        "finished_queries_by_user_and_start_time.copy",
+        source="finished_queries_by_user_and_start_time",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        "finished_queries_by_start_time.copy",
+        source="finished_queries_by_start_time",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        table=None,
+        source=["finished_queries", "finished_queries_by_aco_and_start_time", "finished_queries_by_user_and_start_time", "finished_queries_by_start_time"],
+        operation="mount",
+    ),
+
+    # index_by_aco_and_start_time
+    Conversion(
+        "finished_queries_by_aco_and_start_time_sorted",
+        source="finished_queries_by_aco_and_start_time.copy",
+        table_info=FINISHED_QUERIES_BY_ACO_AND_START_TIME_SORTED_23,
+        operation="sort",
+        operation_args={
+            "sort_by": ["query_id", "is_tutorial", "access_control_object", "minus_start_time"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_aco_index",
+        source=["finished_queries.copy", "finished_queries_by_aco_and_start_time_sorted"],
+        table_info=FINISHED_QUERIES_BY_ACO_AND_START_TIME_SORTED_23,
+        operation="reduce",
+        operation_args={
+            "binary": merge_changes_reducer,
+            "reduce_by": ["query_id"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_aco_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V20,
+        operation="sort",
+        operation_args={
+            "sort_by": ['is_tutorial', 'access_control_object', 'minus_start_time', 'query_id'],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time",
+        source="changes_aco_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V20,
+        operation="append-merge",
+        operation_args={
+            "spec": {"allow_output_dynamic_tables": True, "force_transform": True}
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_aco_and_start_time_sorted",
+        operation="remove",
+    ),
+    Conversion(
+        "changes_aco_index",
+        operation="remove",
+    ),
+
+    # index_by_user_and_start_time
+    Conversion(
+        "finished_queries_by_user_and_start_time_sorted",
+        source="finished_queries_by_user_and_start_time.copy",
+        table_info=FINISHED_QUERIES_BY_USER_AND_START_TIME_SORTED_23,
+        operation="sort",
+        operation_args={
+            "sort_by": ["query_id", "is_tutorial", "user", "minus_start_time"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_user_index",
+        source=["finished_queries.copy", "finished_queries_by_user_and_start_time_sorted"],
+        table_info=FINISHED_QUERIES_BY_USER_AND_START_TIME_SORTED_23,
+        operation="reduce",
+        operation_args={
+            "binary": merge_changes_reducer,
+            "reduce_by": ["query_id"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_user_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V20,
+        operation="sort",
+        operation_args={
+            "sort_by": ['is_tutorial', 'user', 'minus_start_time', 'query_id'],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_user_and_start_time",
+        source="changes_user_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V20,
+        operation="append-merge",
+        operation_args={
+            "spec": {"allow_output_dynamic_tables": True, "force_transform": True}
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_user_and_start_time_sorted",
+        operation="remove",
+    ),
+    Conversion(
+        "changes_user_index",
+        operation="remove",
+    ),
+
+    # index_by_start_time
+    Conversion(
+        "finished_queries_by_start_time_sorted",
+        source="finished_queries_by_start_time.copy",
+        table_info=FINISHED_QUERIES_BY_START_TIME_SORTED_23,
+        operation="sort",
+        operation_args={
+            "sort_by": ["query_id", "is_tutorial", "minus_start_time"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_main_index",
+        source=["finished_queries.copy", "finished_queries_by_start_time_sorted"],
+        table_info=FINISHED_QUERIES_BY_START_TIME_SORTED_23,
+        operation="reduce",
+        operation_args={
+            "binary": merge_changes_reducer,
+            "reduce_by": ["query_id"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "changes_main_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V20,
+        operation="sort",
+        operation_args={
+            "sort_by": ['is_tutorial', 'minus_start_time', 'query_id'],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_start_time",
+        source="changes_main_index",
+        table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V20,
+        operation="append-merge",
+        operation_args={
+            "spec": {"allow_output_dynamic_tables": True, "force_transform": True}
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries_by_start_time_sorted",
+        operation="remove",
+    ),
+    Conversion(
+        "changes_main_index",
+        operation="remove",
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 
