@@ -639,6 +639,14 @@ void TTabletBalancer::BalanceBundle(const TBundleSnapshotPtr& bundleSnapshot)
     const auto& bundleName = bundleSnapshot->Bundle->Name;
     auto groups = bundleSnapshot->Bundle->GetBalancingGroups();
 
+    if (DynamicConfig_.Acquire()->IgnoreTabletToCellRatio) {
+        YT_LOG_DEBUG("Patch bundle config to ignore tablet to cell ratio "
+            "(BundleName: %v, OldTabletToCellRatio: %v)",
+            bundleName,
+            bundleSnapshot->Bundle->Config->TabletToCellRatio);
+        bundleSnapshot->Bundle->Config->TabletToCellRatio = 10'000;
+    }
+
     for (const auto& groupName : groups) {
         const auto& groupConfig = GetOrCrash(bundleSnapshot->Bundle->Config->Groups, groupName);
         TGlobalGroupTag groupTag(bundleName, groupName);

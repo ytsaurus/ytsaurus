@@ -177,7 +177,7 @@ void TMasterBundleTabletBalancerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tablet_to_cell_ratio", &TThis::TabletToCellRatio)
         .GreaterThan(0)
-        .Default(10000.0);
+        .Default(10'000.0);
 
     registrar.Parameter("tablet_balancer_schedule", &TThis::TabletBalancerSchedule)
         .Default();
