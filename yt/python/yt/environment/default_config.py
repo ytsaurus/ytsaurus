@@ -17,7 +17,6 @@ def get_master_config():
         },
 
         "changelogs": {
-            "flush_period": 10,
             "io_engine": {
                 "enable_sync": False,
             }
