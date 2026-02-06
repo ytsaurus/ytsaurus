@@ -1,4 +1,4 @@
-FROM ubuntu:24.10
+FROM ubuntu:25.04
 
 # Disable interactive prompts on package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,9 +21,9 @@ RUN git clone --branch v6.16 --depth 1 https://kernel.googlesource.com/pub/scm/l
 RUN git clone --branch release/2.41/master --depth 1 https://sourceware.org/git/glibc.git
 
 # Get Go
-ENV GOLANG_VERSION=1.24.5
+ENV GOLANG_VERSION=1.25.1
 ENV GOLANG_DOWNLOAD_URL=https://golang.org/dl/go$GOLANG_VERSION.linux-amd64.tar.gz
-ENV GOLANG_DOWNLOAD_SHA256=10ad9e86233e74c0f6590fe5426895de6bf388964210eac34a6d83f38918ecdc
+ENV GOLANG_DOWNLOAD_SHA256=7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e
 
 RUN curl -fsSL "$GOLANG_DOWNLOAD_URL" -o golang.tar.gz \
     && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
