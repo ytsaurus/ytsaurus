@@ -950,8 +950,17 @@ IdentifierResolveResult IdentifierResolver::tryResolveIdentifierFromJoin(const I
     {
         auto & resolved_column = resolved_identifier_candidate->as<ColumnNode &>();
         auto using_column_node_it = using_column_name_to_column_node.find(resolved_column.getColumnName());
+        if (using_column_node_it == using_column_name_to_column_node.end())
+            return;
+
+        const auto & using_column_list = using_column_node_it->second->as<ColumnNode &>().getExpressionOrThrow()->as<const ListNode &>();
+        auto matches_using_column = [&](const auto & node) { return node->isEqual(*resolved_identifier_candidate); };
+        if (std::ranges::none_of(using_column_list.getNodes(), matches_using_column))
+            return;
+
         if (using_column_node_it != using_column_name_to_column_node.end() &&
             !using_column_node_it->second->getColumnType()->equals(*resolved_column.getColumnType()))
+
         {
             // std::cerr << "... fixing type for " << resolved_column.dumpTree() << std::endl;
             auto resolved_column_clone = std::static_pointer_cast<ColumnNode>(resolved_column.clone());
