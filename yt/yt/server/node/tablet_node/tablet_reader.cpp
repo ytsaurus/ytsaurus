@@ -334,7 +334,7 @@ private:
     std::vector<int> ColumnIdToIndex_;
     std::vector<int> NestedIdToIndex_;
 
-    TNestedTableMerger NestedMerger_{true};
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ false, /*useFastYsonRoutines*/ true};
     // Key and value columns.
     std::vector<TRange<TVersionedValue>> NestedColumns_;
 

@@ -1017,7 +1017,7 @@ private:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
-    TNestedTableMerger NestedMerger_;
+    TNestedTableMerger NestedMerger_{/*orderNestedRows*/ false};
     std::vector<TRange<TVersionedValue>> NestedKeyColumns_;
     std::vector<TRange<TVersionedValue>> NestedValueColumns_;
 
