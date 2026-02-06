@@ -877,7 +877,7 @@ public:
                 continue;
             }
 
-            auto* location = FindLocationOnConfirmation(chunk->GetId(), node, replica);
+            auto* location = FindLocationOnConfirmation(chunk->GetId(), node, replica, /*failOnLocationByIndexAndUuidMismatch*/ true);
             if (!IsObjectAlive(location)) {
                 // Failure has been already logged inside FindLocationOnConfirmation.
                 continue;
@@ -2734,7 +2734,8 @@ private:
     TChunkLocation* FindLocationOnConfirmation(
         TChunkId chunkId,
         TNode* node,
-        const TChunkReplicaWithLocation& replica)
+        const TChunkReplicaWithLocation& replica,
+        bool failOnLocationByIndexAndUuidMismatch)
     {
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         auto dataNodeTrackerDynamicConfig = GetDynamicConfig()->DataNodeTracker;
@@ -2788,16 +2789,31 @@ private:
                 locationByUuid = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
             }
 
-            YT_LOG_ALERT_IF(locationByIndex.value() != locationByUuid.value(),
-                "UUID and index for the same location points to different locations "
-                "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationByIndexId: %v, LocationIndex: %v, LocationByUuidId: %v, LocationUuid: %v)",
-                chunkId,
-                node->GetId(),
-                node->GetDefaultAddress(),
-                locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId,
-                locationIndex,
-                locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId,
-                locationUuid);
+            if (locationIndex != InvalidChunkLocationIndex && locationUuid != InvalidChunkLocationUuid && locationUuid != EmptyChunkLocationUuid && locationByIndex.value() != locationByUuid.value()) {
+                YT_LOG_ALERT("UUID and index for the same location points to different locations "
+                    "(ChunkId: %v, NodeId: %v, NodeAddress: %v, LocationByIndexId: %v, LocationIndex: %v, LocationByUuidId: %v, LocationUuid: %v)",
+                    chunkId,
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId,
+                    locationIndex,
+                    locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId,
+                    locationUuid);
+
+                if (failOnLocationByIndexAndUuidMismatch) {
+                    THROW_ERROR_EXCEPTION("UUID and index for the same location points to different locations")
+                        << TErrorAttribute("chunk_id", chunkId)
+                        << TErrorAttribute("node_id", node->GetId())
+                        << TErrorAttribute("node_address", node->GetDefaultAddress())
+                        << TErrorAttribute("location_index", locationIndex)
+                        << TErrorAttribute("location_uuid", locationUuid)
+                        << TErrorAttribute("location_by_index_id", locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId)
+                        << TErrorAttribute("location_by_uuid_id", locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId);
+                } else {
+                    // NB: If locations mismatch and we cannot throw, better to return nullptr.
+                    return nullptr;
+                }
+            }
         }
 
         TChunkLocation* location = nullptr;
@@ -3601,9 +3617,9 @@ private:
                 auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
                 auto nodeId = replica.GetNodeId();
                 auto locationIndex = replica.GetChunkLocationIndex();
-                auto enableLocationIndexesInChunkConfirmation = GetDynamicConfig()->DataNodeTracker->EnableLocationIndexesInChunkConfirmation;
-                if (!enableLocationIndexesInChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
-                    YT_LOG_ALERT_IF(enableLocationIndexesInChunkConfirmation,
+                auto useLocationIndexesInSequoiaChunkConfirmation = GetDynamicConfig()->DataNodeTracker->UseLocationIndexesInSequoiaChunkConfirmation;
+                if (!useLocationIndexesInSequoiaChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                    YT_LOG_ALERT_IF(useLocationIndexesInSequoiaChunkConfirmation,
                         "Sequoia chunk replica confirmation is missing location index "
                         "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
                         chunkId,
@@ -3614,7 +3630,7 @@ private:
                         continue;
                     }
 
-                    auto* location = FindLocationOnConfirmation(chunkId, node, replica);
+                    auto* location = FindLocationOnConfirmation(chunkId, node, replica, /*failOnLocationByIndexAndUuidMismatch*/ false);
                     if (!IsObjectAlive(location)) {
                         continue;
                     }
@@ -3736,9 +3752,9 @@ private:
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
             auto locationIndex = replica.GetChunkLocationIndex();
-            auto enableLocationIndexesInChunkConfirmation = GetDynamicConfig()->DataNodeTracker->EnableLocationIndexesInChunkConfirmation;
-            if (!enableLocationIndexesInChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
-                YT_LOG_ALERT_IF(enableLocationIndexesInChunkConfirmation,
+            auto useLocationIndexesInSequoiaChunkConfirmation = GetDynamicConfig()->DataNodeTracker->UseLocationIndexesInSequoiaChunkConfirmation;
+            if (!useLocationIndexesInSequoiaChunkConfirmation || locationIndex == InvalidChunkLocationIndex) {
+                YT_LOG_ALERT_IF(useLocationIndexesInSequoiaChunkConfirmation,
                     "Received Sequoia chunk replica confirmation request without location index "
                     "(ChunkId: %v, LocationUuid: %v, NodeId: %v)",
                     chunkId,
@@ -3749,7 +3765,7 @@ private:
                     continue;
                 }
 
-                auto* location = FindLocationOnConfirmation(chunkId, node, replica);
+                auto* location = FindLocationOnConfirmation(chunkId, node, replica, /*failOnLocationByIndexAndUuidMismatch*/ false);
                 if (!location) {
                     continue;
                 }

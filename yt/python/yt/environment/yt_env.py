@@ -1497,7 +1497,7 @@ class YTInstance(object):
                     # COMPAT(cherepashka): YT-27231, drop after enable_location_indexes_in_data_node_heartbeats will be enabled by default.
                     dynamic_config = get_dynamic_master_config()
                     if self.yt_config.enable_multidaemon:
-                        dynamic_config["chunk_manager"]["data_node_tracker"]["enable_location_indexes_in_chunk_confirmation"] = False
+                        dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_in_sequoia_chunk_confirmation"] = False
                         dynamic_config["chunk_manager"]["data_node_tracker"]["use_location_indexes_to_search_location_on_confirmation"] = False
                         dynamic_config["chunk_manager"]["data_node_tracker"]["check_location_convergence_by_index_and_uuid_on_confirmation"] = False
                     patched_dynamic_master_config = get_patched_dynamic_master_config(dynamic_config)

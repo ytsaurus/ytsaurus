@@ -326,7 +326,7 @@ struct TDynamicDataNodeTrackerConfig
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
     // COMPAT(cherepashka)
-    bool EnableLocationIndexesInChunkConfirmation;
+    bool UseLocationIndexesInSequoiaChunkConfirmation;
 
     // COMPAT(cherepashka)
     bool UseLocationIndexesToSearchLocationOnConfirmation;
