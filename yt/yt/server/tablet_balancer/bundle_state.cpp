@@ -139,7 +139,7 @@ TBundleAttributes ParseBundleAttributes(const IAttributeDictionary* attributes, 
 {
     auto health = attributes->Get<ETabletCellHealth>("health");
 
-    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
+    auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions", {});
     std::vector<TTabletActionId> actionIds;
     for (auto actionMapNode : actions) {
         auto state = ConvertTo<ETabletActionState>(actionMapNode->GetChildOrThrow("state"));
