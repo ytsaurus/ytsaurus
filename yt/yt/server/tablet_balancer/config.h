@@ -127,6 +127,8 @@ struct TClusterStateProviderConfig
     TDuration FetchPlannerPeriod;
     int WorkerThreadPoolSize;
 
+    bool FetchTabletActionsBundleAttribute;
+
     TDuration BundlesFreshnessTime;
     TDuration NodesFreshnessTime;
     TDuration UnhealthyBundlesFreshnessTime;

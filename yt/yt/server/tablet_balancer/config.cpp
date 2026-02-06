@@ -165,6 +165,9 @@ void TClusterStateProviderConfig::Register(TRegistrar registrar)
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(3);
 
+    registrar.Parameter("fetch_tablet_actions_bundle_attribute", &TThis::FetchTabletActionsBundleAttribute)
+        .Default(false);
+
     registrar.Parameter("bundles_freshness_time", &TThis::BundlesFreshnessTime)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("nodes_freshness_time", &TThis::NodesFreshnessTime)
