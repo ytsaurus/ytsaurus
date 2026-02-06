@@ -207,6 +207,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocationIndiciesInChunkConfirmation)                          (3156))  // cherepashka
     ((KulenovClock)                                                 (3157))  // aleksandra-zh
     ((ReignInHiveMessages_25_4)                                     (3158))  // ifsmirnov
+    ((TransferableInheritedAttributes_25_4)                         (3159))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

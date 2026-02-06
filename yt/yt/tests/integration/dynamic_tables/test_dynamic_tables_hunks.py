@@ -2511,6 +2511,85 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
         assert get("//tmp/b/@hunk_media") == hunk_media
 
+    @authors("kvk1920")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_transferrable_hunk_media_attributes(self, init_table):
+        init_table = getattr(self, init_table)
+
+        default_medium_id = get("//sys/media/default/@id")
+        non_default_medium_id_1 = get(f"//sys/media/{self.NON_DEFAULT_MEDIUM_1}/@id")
+        non_default_medium_id_2 = get(f"//sys/media/{self.NON_DEFAULT_MEDIUM_2}/@id")
+
+        set("//tmp/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        init_table("//tmp/a")
+        assert get("//tmp/a/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/a/@hunk_primary_medium_id") == non_default_medium_id_1
+
+        hunk_media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 7, "data_parts_only": False},
+            "default": {"replication_factor": 4, "data_parts_only": True}
+        }
+        transferable_hunk_media = {
+            f"#{non_default_medium_id_1}": {"replication_factor": 7, "data_parts_only": False},
+            f"#{default_medium_id}": {"replication_factor": 4, "data_parts_only": True},
+        }
+        set("//tmp/@hunk_media", transferable_hunk_media)
+
+        init_table("//tmp/b")
+        assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/b/@hunk_primary_medium_id") == non_default_medium_id_1
+        assert get("//tmp/b/@hunk_media") == hunk_media
+        assert get("//tmp/b/@transferable_hunk_media") == transferable_hunk_media
+
+        explicit_hunk_media = {"default": {"replication_factor": 5, "data_parts_only": False}}
+        explicit_transferable_hunk_media = {
+            f"#{default_medium_id}": {
+                "replication_factor": 5,
+                "data_parts_only": False,
+            },
+        }
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_1}\""):
+            init_table("//tmp/c", hunk_media=explicit_hunk_media)
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_1}\""):
+            init_table("//tmp/c", hunk_media=explicit_transferable_hunk_media)
+
+        # TODO(kvk1920): YT-15704. Replace with self.NON_DEFAULT_MEDIUM_1.
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_2}\""):
+            init_table("//tmp/c", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_2)
+        with raises_yt_error(f"Cannot remove primary medium \"{self.NON_DEFAULT_MEDIUM_2}\""):
+            init_table("//tmp/c", hunk_primary_medium=f"#{non_default_medium_id_2}")
+
+        expected_attributes = {
+            "hunk_primary_medium": "default",
+            "hunk_primary_medium_id": default_medium_id,
+            "hunk_media": explicit_hunk_media,
+            "transferable_hunk_media": explicit_transferable_hunk_media,
+        }
+
+        def check_table_attributes(table):
+            assert get(f"{table}/@", attributes=[
+                "hunk_primary_medium",
+                "hunk_primary_medium_id",
+                "hunk_media",
+                "transferable_hunk_media",
+            ]) == expected_attributes
+
+        init_table("//tmp/c", hunk_primary_medium="default", hunk_media=explicit_hunk_media)
+        check_table_attributes("//tmp/c")
+
+        init_table(
+            "//tmp/d",
+            hunk_primary_medium=f"#{default_medium_id}",
+            hunk_media=explicit_transferable_hunk_media)
+        check_table_attributes("//tmp/d")
+
+        init_table(
+            "//tmp/e",
+            hunk_primary_medium="default",
+            hunk_media=explicit_hunk_media)
+        check_table_attributes("//tmp/e")
+
     @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
     def test_hunk_media_attributes_survive_restart(self, init_table):

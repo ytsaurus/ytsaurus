@@ -473,12 +473,14 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             create("table", "//tmp/t2", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("kvk1920")
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
         set("//sys/schemas/transaction/@acl/end", make_ace("deny", "u", "create"))
-        with pytest.raises(YtError):
+        with raises_yt_error(
+                "Access denied for user \"u\": \"create\" permission for \"transaction\" "
+                "schema is denied for \"u\" by ACE at \"transaction\" schema"):
             start_transaction(authenticated_user="u")
 
     @authors("danilalexeev")

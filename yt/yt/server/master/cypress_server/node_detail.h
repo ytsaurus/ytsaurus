@@ -55,7 +55,7 @@ public:
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) override;
 
-    virtual bool IsSupportedInheritableAttribute(const std::string& /*key*/) const;
+    bool IsSupportedInheritableAttribute(const std::string& /*key*/) const override;
 
     // Updating ACDs using this method is prohibited, prefer #IObjectTypeHandler::ListAcds instead.
     // TODO(danilalexeev): YT-24575. Explicitly forbid this.

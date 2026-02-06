@@ -696,18 +696,24 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::TransferableMedia);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
         .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TransferableHunkMedia)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
         .SetWritable(true)
         .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::PrimaryMediumId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMedium)
         .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkPrimaryMediumId)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
@@ -821,6 +827,14 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::TransferableMedia: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& replication = node->Replication();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableTransferableChunkReplication(replication, chunkManager));
+            return true;
+        }
+
         case EInternedAttributeKey::HunkMedia: {
             if (!node->GetHunkPrimaryMediumIndex()) {
                 break;
@@ -829,6 +843,17 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             auto replication = node->HunkReplication();
             BuildYsonFluently(consumer)
                 .Value(TSerializableChunkReplication(replication, chunkManager));
+            return true;
+        }
+
+        case EInternedAttributeKey::TransferableHunkMedia: {
+            if (!node->GetHunkPrimaryMediumIndex()) {
+                break;
+            }
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& replication = node->HunkReplication();
+            BuildYsonFluently(consumer)
+                .Value(TSerializableTransferableChunkReplication(replication, chunkManager));
             return true;
         }
 
@@ -855,6 +880,16 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::PrimaryMediumId:{
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto primaryMediumIndex = node->GetPrimaryMediumIndex();
+            auto* medium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+
+            BuildYsonFluently(consumer)
+                .Value(medium->GetId());
+            return true;
+        }
+
         case EInternedAttributeKey::HunkPrimaryMedium: {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
@@ -865,6 +900,19 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::HunkPrimaryMediumId: {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
+            if (!hunkPrimaryMediumIndex) {
+                break;
+            }
+            auto* medium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
+
+            BuildYsonFluently(consumer)
+                .Value(medium->GetId());
             return true;
         }
 
@@ -1361,7 +1409,8 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
 }
 
 template <bool IsHunk>
-void TChunkOwnerNodeProxy::SetReplication(const TSerializableChunkReplication& serializableReplication)
+void TChunkOwnerNodeProxy::SetReplication(
+    const TSerializableChunkReplication& serializableReplication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
