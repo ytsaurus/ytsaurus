@@ -152,7 +152,7 @@ Query Tracker хранит внутри себя только первые 10 00
 + `annotations` — новые аннотации для запроса.
 + `access_control_objects` — новый список access control object для запроса.
 
-Пример: `alter_query(query_id="my_query_id", access_control_object=["my_new_aco"])`.
+Пример: `alter_query(query_id="my_query_id", access_control_objects=["my_new_aco"])`.
 
 ## Access control {#access-control}
 
