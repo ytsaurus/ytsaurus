@@ -720,14 +720,14 @@ private:
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
 
-    TFairThrottlerPtr InThrottler_;
+    IFairThrottlerPtr InThrottler_;
     IThroughputThrottlerPtr DefaultInThrottler_;
     THashSet<std::string> EnabledInThrottlers_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalOutThrottler_;
     IThroughputThrottlerPtr LegacyTotalOutThrottler_;
 
-    TFairThrottlerPtr OutThrottler_;
+    IFairThrottlerPtr OutThrottler_;
     IThroughputThrottlerPtr DefaultOutThrottler_;
     THashSet<std::string> EnabledOutThrottlers_;
 
@@ -881,18 +881,18 @@ private:
 
         if (Config_->EnableFairThrottler) {
             Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
-            InThrottler_ = New<TFairThrottler>(
+            InThrottler_ = CreateFairThrottler(
                 Config_->InThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler().WithPrefix("/in_throttler"));
-            DefaultInThrottler_ = GetInThrottler("default");
+            DefaultInThrottler_ = CreateInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
-            OutThrottler_ = New<TFairThrottler>(
+            OutThrottler_ = CreateFairThrottler(
                 Config_->OutThrottler,
                 ClusterNodeLogger().WithTag("Direction: %v", "Out"),
                 ClusterNodeProfiler().WithPrefix("/out_throttler"));
-            DefaultOutThrottler_ = GetOutThrottler("default");
+            DefaultOutThrottler_ = CreateOutThrottler("default");
         } else {
             auto getThrottlerConfig = [&] (EDataNodeThrottlerKind kind) {
                 return PatchRelativeNetworkThrottlerConfig(Config_->DataNode->Throttlers[kind]);
@@ -1350,13 +1350,13 @@ private:
         }
     }
 
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) override
     {
         EnabledInThrottlers_.insert(bucket);
         return InThrottler_->CreateBucketThrottler(bucket, Config_->InThrottlers[bucket]);
     }
 
-    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) override
+    NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) override
     {
         EnabledOutThrottlers_.insert(bucket);
         return OutThrottler_->CreateBucketThrottler(bucket, Config_->OutThrottlers[bucket]);

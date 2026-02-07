@@ -205,8 +205,8 @@ struct IBootstrap
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
-    virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
-    virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr CreateInThrottler(const TString& bucket) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr CreateOutThrottler(const TString& bucket) = 0;
 
     virtual NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const = 0;
 
