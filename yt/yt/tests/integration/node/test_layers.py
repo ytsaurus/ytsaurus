@@ -1807,6 +1807,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 class TestNbdSquashFSLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
+    NUM_USER_SLOTS = 2
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
@@ -1829,7 +1830,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 2,
-                "user_slots": 2,
+                "user_slots": NUM_USER_SLOTS,
             },
         },
     }
@@ -2057,41 +2058,78 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
     def test_volume_cache(self):
+        assert self.NUM_USER_SLOTS > 1
+        assert self.NUM_NODES == 1
+
         self.setup_files()
 
+        # Create input table.
         create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
         write_table("//tmp/t_in", [{"k": i, "u": 1, "v": 2} for i in range(10)])
 
-        # Get initial log counts before running the operation
-        initial_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        initial_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+        # Create output table.
+        create("table", "//tmp/t_out")
 
-        # Run map operation with multiple jobs (job_count=2)
+        # Get profiler.
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == self.NUM_NODES
+        profiler = profiler_factory().at_node(nodes[0])
+
+        # Get counter objects.
+        cache_missed_counter = profiler.counter("exec_node/ronbd_volume_cache/missed_count")
+        cache_hit_sync_counter = profiler.with_tags({"hit_type": "sync"}).counter("exec_node/ronbd_volume_cache/hit_count")
+        cache_hit_async_counter = profiler.with_tags({"hit_type": "async"}).counter("exec_node/ronbd_volume_cache/hit_count")
+
+        # Get initial counter values before the operation.
+        initial_cache_missed_count = cache_missed_counter.get()
+        initial_cache_hit_sync_count = cache_hit_sync_counter.get()
+        initial_cache_hit_async_count = cache_hit_async_counter.get()
+
+        # Get initial log counts before running the operation.
+        initial_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
+        initial_logs_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+
+        # Run map operation with NUM_USER_SLOTS jobs.
         map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command="sleep 30; cat",
             spec={
                 "max_failed_job_count": 1,
-                "job_count": 2,
+                "job_count": self.NUM_USER_SLOTS,
                 "mapper": {
                     "layer_paths": ["//tmp/squashfs.img"],
                 },
             },
         )
 
-        # Get final log counts after operation completes
-        final_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
-        final_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
+        # Get final log counts after operation completes.
+        final_logs_cache_hit_count = len(self._get_node_debug_logs("RO NBD volume is either already in the cache or is being inserted"))
+        final_logs_removed_count = len(self._get_node_debug_logs("Removed RO NBD volume"))
 
-        # Check that exactly one cache hit occurred (only second job hits cache)
-        cache_check_delta = final_cache_hit_count - initial_cache_hit_count
-        assert cache_check_delta == 1
+        # Check that all jobs but the first one hit cache.
+        logs_cache_hit_delta = final_logs_cache_hit_count - initial_logs_cache_hit_count
+        assert logs_cache_hit_delta == self.NUM_USER_SLOTS - 1
 
-        # Check that volume was removed only once (proving both jobs shared the same device)
-        removed_delta = final_removed_count - initial_removed_count
-        assert removed_delta == 1
+        # Check that volume was removed only once (proving all jobs shared the same device).
+        removed_delta = final_logs_removed_count - initial_logs_removed_count
+        assert removed_delta == self.NUM_USER_SLOTS - 1
+
+        # Get final counter values after operation completes.
+        final_cache_missed_count = cache_missed_counter.get()
+        final_cache_hit_sync_count = cache_hit_sync_counter.get()
+        final_cache_hit_async_count = cache_hit_async_counter.get()
+
+        # Check that only the first job misses cache.
+        cache_missed_delta = final_cache_missed_count - initial_cache_missed_count
+        assert cache_missed_delta == 1
+
+        # Check that all jobs but the first one hit cache (either sync or async).
+        total_cache_hit_count = (
+            (final_cache_hit_sync_count - initial_cache_hit_sync_count) +
+            (final_cache_hit_async_count - initial_cache_hit_async_count)
+        )
+        assert total_cache_hit_count == self.NUM_USER_SLOTS - 1
 
 
 @authors("yuryalekseev")
