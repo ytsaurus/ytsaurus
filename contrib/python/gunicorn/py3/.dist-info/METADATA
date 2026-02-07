@@ -1,14 +1,14 @@
 Metadata-Version: 2.4
 Name: gunicorn
-Version: 24.0.0
+Version: 24.1.0
 Summary: WSGI HTTP Server for UNIX
 Author-email: Benoit Chesneau <benoitc@gunicorn.org>
 License-Expression: MIT
 Project-URL: Homepage, https://gunicorn.org
-Project-URL: Documentation, https://docs.gunicorn.org
+Project-URL: Documentation, https://gunicorn.org
 Project-URL: Issue tracker, https://github.com/benoitc/gunicorn/issues
 Project-URL: Source code, https://github.com/benoitc/gunicorn
-Project-URL: Changelog, https://docs.gunicorn.org/en/stable/news.html
+Project-URL: Changelog, https://gunicorn.org/news/
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Environment :: Other Environment
 Classifier: Intended Audience :: Developers

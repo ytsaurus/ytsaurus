@@ -62,6 +62,8 @@ class Config:
         return "\n".join(lines)
 
     def __getattr__(self, name):
+        if name == "settings":
+            raise AttributeError()
         if name not in self.settings:
             raise AttributeError("No configuration setting for: %s" % name)
         return self.settings[name].get()
@@ -405,12 +407,15 @@ def validate_list_of_existing_files(val):
 def validate_string_to_addr_list(val):
     val = validate_string_to_list(val)
 
+    result = []
     for addr in val:
         if addr == "*":
+            result.append(addr)
             continue
-        _vaid_ip = ipaddress.ip_address(addr)
+        # Support both single IPs and CIDR networks
+        result.append(ipaddress.ip_network(addr, strict=False))
 
-    return val
+    return result
 
 
 def validate_string_to_list(val):
@@ -1276,8 +1281,11 @@ class ForwardedAllowIPS(Setting):
     validator = validate_string_to_addr_list
     default = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
     desc = """\
-        Front-end's IPs from which allowed to handle set secure headers.
-        (comma separated).
+        Front-end's IP addresses or networks from which allowed to handle
+        set secure headers. (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
@@ -1568,6 +1576,15 @@ class SyslogTo(Setting):
     else:
         default = "udp://localhost:514"
 
+    default_doc = """\
+    Platform-specific:
+
+    * macOS: ``'unix:///var/run/syslog'``
+    * FreeBSD/DragonFly: ``'unix:///var/run/log'``
+    * OpenBSD: ``'unix:///dev/log'``
+    * Linux/other: ``'udp://localhost:514'``
+    """
+
     desc = """\
     Address to send syslog messages.
 
@@ -1672,7 +1689,7 @@ class DogstatsdTags(Setting):
     validator = validate_string
     desc = """\
     A comma-delimited list of datadog statsd (dogstatsd) tags to append to
-    statsd metrics.
+    statsd metrics. e.g. ``'tag1:value1,tag2:value2'``
 
     .. versionadded:: 20
     """
@@ -1690,6 +1707,21 @@ class StatsdPrefix(Setting):
     if not provided).
 
     .. versionadded:: 19.2
+    """
+
+
+class BacklogMetric(Setting):
+    name = "enable_backlog_metric"
+    section = "Logging"
+    cli = ["--enable-backlog-metric"]
+    validator = validate_bool
+    default = False
+    action = "store_true"
+    desc = """\
+    Enable socket backlog metric (only supported on Linux).
+
+    When enabled, gunicorn will emit a ``gunicorn.backlog`` histogram metric
+    showing the number of connections waiting in the socket backlog.
     """
 
 
@@ -1938,7 +1970,8 @@ class PostRequest(Setting):
         Called after a worker processes the request.
 
         The callable needs to accept two instance variables for the Worker and
-        the Request.
+        the Request. If a third parameter is defined it will be passed the
+        environment. If a fourth parameter is defined it will be passed the Response.
         """
 
 
@@ -2049,20 +2082,57 @@ class NewSSLContext(Setting):
         """
 
 
+def validate_proxy_protocol(val):
+    """Validate proxy_protocol setting.
+
+    Accepts: off, false, v1, v2, auto, true
+    Returns normalized value: off, v1, v2, or auto
+    """
+    if val is None:
+        return "off"
+    if isinstance(val, bool):
+        return "auto" if val else "off"
+    if not isinstance(val, str):
+        raise TypeError("proxy_protocol must be string or bool")
+
+    val = val.lower().strip()
+    mapping = {
+        "false": "off", "off": "off", "0": "off", "none": "off",
+        "true": "auto", "auto": "auto", "1": "auto",
+        "v1": "v1", "v2": "v2",
+    }
+    if val not in mapping:
+        raise ValueError("proxy_protocol must be: off, v1, v2, or auto")
+    return mapping[val]
+
+
 class ProxyProtocol(Setting):
     name = "proxy_protocol"
     section = "Server Mechanics"
     cli = ["--proxy-protocol"]
-    validator = validate_bool
-    default = False
-    action = "store_true"
+    meta = "MODE"
+    validator = validate_proxy_protocol
+    default = "off"
+    nargs = "?"
+    const = "auto"
     desc = """\
-        Enable detect PROXY protocol (PROXY mode).
+        Enable PROXY protocol support.
 
-        Allow using HTTP and Proxy together. It may be useful for work with
-        stunnel as HTTPS frontend and Gunicorn as HTTP server.
+        Allow using HTTP and PROXY protocol together. It may be useful for work
+        with stunnel as HTTPS frontend and Gunicorn as HTTP server, or with
+        HAProxy.
 
-        PROXY protocol: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        Accepted values:
+
+        * ``off`` - Disabled (default)
+        * ``v1`` - PROXY protocol v1 only (text format)
+        * ``v2`` - PROXY protocol v2 only (binary format)
+        * ``auto`` - Auto-detect v1 or v2
+
+        Using ``--proxy-protocol`` without a value is equivalent to ``auto``.
+
+        PROXY protocol v1: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+        PROXY protocol v2: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
 
         Example for stunnel config::
 
@@ -2072,6 +2142,9 @@ class ProxyProtocol(Setting):
             connect = 80
             cert = /etc/ssl/certs/stunnel.pem
             key = /etc/ssl/certs/stunnel.key
+
+        .. versionchanged:: 24.1.0
+           Extended to support version selection (v1, v2, auto).
         """
 
 
@@ -2082,7 +2155,11 @@ class ProxyAllowFrom(Setting):
     validator = validate_string_to_addr_list
     default = "127.0.0.1,::1"
     desc = """\
-        Front-end's IPs from which allowed accept proxy requests (comma separated).
+        Front-end's IP addresses or networks from which allowed accept
+        proxy requests (comma separated).
+
+        Supports both individual IP addresses (e.g., ``192.168.1.1``) and
+        CIDR networks (e.g., ``192.168.0.0/16``).
 
         Set to ``*`` to disable checking of front-end IPs. This is useful for setups
         where you don't know in advance the IP address of front-end, but
