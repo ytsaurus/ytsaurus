@@ -53,12 +53,14 @@ public:
         TSessionId sessionId,
         TJournalChunkWriterOptionsPtr options,
         TJournalChunkWriterConfigPtr config,
+        TJournalWriterPerformanceCounters counters,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
         , SessionId_(sessionId)
         , ChunkId_(SessionId_.ChunkId)
         , Options_(std::move(options))
         , Config_(std::move(config))
+        , Counters_(std::move(counters))
         , ReplicaCount_(GetReplicaCount(Options_))
         , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
     { }
@@ -124,6 +126,7 @@ private:
 
     const TJournalChunkWriterOptionsPtr Options_;
     const TJournalChunkWriterConfigPtr Config_;
+    const TJournalWriterPerformanceCounters Counters_;
 
     const int ReplicaCount_;
 
@@ -182,6 +185,8 @@ private:
         TPromise<void> QuorumFlushedPromise = NewPromise<void>();
 
         int FlushedReplicaCount = 0;
+
+        TCpuInstant StartTime = GetCpuInstant();
     };
 
     using TRecordPtr = TIntrusivePtr<TRecord>;
@@ -227,6 +232,8 @@ private:
         YT_LOG_DEBUG("Allocating write targets (SessionId: %v, ReplicaCount: %v)",
             SessionId_,
             ReplicaCount_);
+
+        TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
 
         auto replicas = NChunkClient::AllocateWriteTargets(
             Client_,
@@ -287,6 +294,8 @@ private:
         YT_LOG_DEBUG("Starting chunk sessions at nodes (SessionId: %v)",
             SessionId_);
 
+        TEventTimerGuard timingGuard(Counters_.StartNodeSessionTimer);
+
         std::vector<TFuture<void>> futures;
         futures.reserve(Nodes_.size());
         for (const auto& node : Nodes_) {
@@ -346,6 +355,8 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Confirming chunk");
+
+        TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
         YT_VERIFY(!replicas.empty());
         YT_VERIFY(Nodes_.size() == replicas.size());
@@ -452,6 +463,8 @@ private:
             return;
         }
 
+        UpdateReplicaLagTimes();
+
         if (Config_->MaxBatchDelay == TDuration::Zero() ||
             std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount)
         {
@@ -464,6 +477,36 @@ private:
                     .Via(Invoker_),
                 Config_->MaxBatchDelay);
         }
+    }
+
+    void UpdateReplicaLagTimes()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        auto now = GetCpuInstant();
+
+        auto lastPendingRecordIndex = GetLastPendingRecordIndex();
+        std::vector<std::pair<NProfiling::TCpuDuration, int>> replicaLagTimes;
+        for (int index = 0; index < std::ssize(Nodes_); ++index) {
+            const auto& node = Nodes_[index];
+            auto nodeLagTime = node->FirstUnflushedRecordIndex == lastPendingRecordIndex + 1
+                ? 0
+                : now - GetPendingRecord(node->FirstUnflushedRecordIndex)->StartTime;
+
+            replicaLagTimes.emplace_back(nodeLagTime, index);
+        }
+
+        std::sort(replicaLagTimes.begin(), replicaLagTimes.end());
+
+        Counters_.WriteQuorumLag.Record(CpuDurationToDuration(replicaLagTimes[Options_->WriteQuorum - 1].first));
+        Counters_.MaxReplicaLag.Record(CpuDurationToDuration(replicaLagTimes.back().first));
+
+        YT_LOG_DEBUG("Hunk journal replicas lag updated (Replicas: %v)",
+            MakeFormattableView(replicaLagTimes, [&] (auto* builder, const auto& replicaInfo) {
+                builder->AppendFormat("%v=>%v",
+                    Nodes_[replicaInfo.second]->Descriptor.GetDefaultAddress(),
+                    CpuDurationToDuration(replicaInfo.first));
+            }));
     }
 
     void DoFlushNodes()
@@ -507,7 +550,7 @@ private:
         i64 flushRecordCount = 0;
         i64 flushDataSize = 0;
 
-        i64 lastPendingRecordIndex = FirstPendingRecordIndex_ + std::ssize(PendingRecords_) - 1;
+        i64 lastPendingRecordIndex = GetLastPendingRecordIndex();
         for (
             int recordIndex = node->FirstUnflushedRecordIndex;
             recordIndex <= lastPendingRecordIndex;
@@ -546,13 +589,18 @@ private:
             flushDataSize);
 
         req->Invoke().Subscribe(
-            BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed, MakeWeak(this), node, flushRecordCount)
+            BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed,
+                MakeWeak(this),
+                node,
+                flushRecordCount,
+                flushDataSize)
                 .Via(Invoker_));
     }
 
     void OnRecordsFlushed(
         const TNodePtr& node,
         i64 recordCount,
+        i64 flushDataSize,
         const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
@@ -565,6 +613,11 @@ private:
             OnFailed(error);
             return;
         }
+
+        const auto& rsp = rspOrError.Value();
+        Counters_.JournalWrittenBytes.Increment(flushDataSize);
+        Counters_.MediumWrittenBytes.Increment(rsp->statistics().data_bytes_written_to_medium());
+        Counters_.IORequestCount.Increment(rsp->statistics().io_requests());
 
         auto firstRecordIndex = node->FirstUnflushedRecordIndex;
         auto lastRecordIndex = firstRecordIndex + recordCount - 1;
@@ -754,12 +807,17 @@ private:
 
         YT_VERIFY(
             index >= FirstPendingRecordIndex_ &&
-            index < FirstPendingRecordIndex_ + std::ssize(PendingRecords_));
+            index <= GetLastPendingRecordIndex());
 
         const auto& record = PendingRecords_[index - FirstPendingRecordIndex_];
         YT_VERIFY(record->Index == index);
 
         return record;
+    }
+
+    i64 GetLastPendingRecordIndex() const
+    {
+        return FirstPendingRecordIndex_ + std::ssize(PendingRecords_) - 1;
     }
 };
 
@@ -770,6 +828,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
     TSessionId sessionId,
     TJournalChunkWriterOptionsPtr options,
     TJournalChunkWriterConfigPtr config,
+    TJournalWriterPerformanceCounters counters,
     const NLogging::TLogger& logger)
 {
     return New<TJournalChunkWriter>(
@@ -777,6 +836,7 @@ IJournalChunkWriterPtr CreateJournalChunkWriter(
         sessionId,
         std::move(options),
         std::move(config),
+        std::move(counters),
         logger);
 }
 

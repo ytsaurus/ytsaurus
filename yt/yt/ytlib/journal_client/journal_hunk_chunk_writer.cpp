@@ -27,12 +27,14 @@ public:
         TSessionId sessionId,
         TJournalHunkChunkWriterOptionsPtr options,
         TJournalHunkChunkWriterConfigPtr config,
+        TJournalWriterPerformanceCounters counters,
         const NLogging::TLogger& logger)
         : UnderlyingWriter_(CreateJournalChunkWriter(
             std::move(client),
             sessionId,
             options,
             PrepareJournalChunkWriterConfig(config),
+            std::move(counters),
             logger))
         , Options_(std::move(options))
         , Config_(std::move(config))
@@ -366,6 +368,7 @@ IJournalHunkChunkWriterPtr CreateJournalHunkChunkWriter(
     TSessionId sessionId,
     TJournalHunkChunkWriterOptionsPtr options,
     TJournalHunkChunkWriterConfigPtr config,
+    TJournalWriterPerformanceCounters counters,
     const NLogging::TLogger& logger)
 {
     return New<TJournalHunkChunkWriter>(
@@ -373,6 +376,7 @@ IJournalHunkChunkWriterPtr CreateJournalHunkChunkWriter(
         sessionId,
         std::move(options),
         std::move(config),
+        std::move(counters),
         logger);
 }
 

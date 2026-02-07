@@ -13,7 +13,10 @@ using namespace NDistributedThrottler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PackBaggageFromTabletSnapshot(const NTracing::TTraceContextPtr& context, ETabletIOCategory category, const TTabletSnapshotPtr& tabletSnapshot)
+void PackBaggageFromTabletSnapshot(
+    const TTraceContextPtr& context,
+    ETabletIOCategory category,
+    const TTabletSnapshotPtr& tabletSnapshot)
 {
     if (TBaggageManager::IsBaggageAdditionEnabled()) {
         auto baggage = context->UnpackOrCreateBaggage();

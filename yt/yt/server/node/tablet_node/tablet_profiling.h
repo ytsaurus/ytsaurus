@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "tablet_profiling_base.h"
+
 #include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
@@ -16,8 +18,6 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/core/profiling/public.h>
-
-#include <yt/yt/library/syncmap/map.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -448,18 +448,6 @@ struct TSmoothMovementCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableProfilerPtr CreateTableProfiler(
-    EDynamicTableProfilingMode profilingMode,
-    const std::string& tabletCellBundle,
-    const NYPath::TYPath& tablePath,
-    const TString& tableTag,
-    const std::string& account,
-    const std::string& medium,
-    NObjectClient::TObjectId schemaId,
-    const NTableClient::TTableSchemaPtr& schema);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TChunkWriteCountersVector = TEnumIndexedArray<
     EChunkWriteProfilingMethod,
     std::array<std::optional<TChunkWriteCounters>, 2>>;
@@ -523,24 +511,6 @@ private:
     const NProfiling::TProfiler MediumHistogramProfiler_ = {};
     const NProfiling::TProfiler DiskProfiler_ = {};
     const NTableClient::TTableSchemaPtr Schema_;
-
-    template <class TCounter>
-    struct TUserTaggedCounter
-    {
-        NConcurrency::TSyncMap<std::optional<std::string>, TCounter> Counters;
-
-        TCounter* Get(
-            bool disabled,
-            const std::optional<std::string>& userTag,
-            const NProfiling::TProfiler& profiler);
-        TCounter* Get(
-            bool disabled,
-            const std::optional<std::string>& userTag,
-            const NProfiling::TProfiler& tableProfiler,
-            const NProfiling::TProfiler& mediumProfiler,
-            const NProfiling::TProfiler& mediumHistogramProfiler,
-            const NTableClient::TTableSchemaPtr& schema);
-    };
 
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
     TUserTaggedCounter<TTabletServiceCounters> TabletServiceCounters_;
