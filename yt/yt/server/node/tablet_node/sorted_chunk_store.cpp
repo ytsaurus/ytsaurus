@@ -622,7 +622,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // timestamp resetting adapter.
     return wrapReaderWithPerformanceCounting(
         CreateVersionedChunkReader(
-        Context_->GetColumnEvaluatorCache(),
+            Context_->GetColumnEvaluatorCache(),
             std::move(backendReaders.ReaderConfig),
             std::move(backendReaders.ChunkReader),
             chunkState,
