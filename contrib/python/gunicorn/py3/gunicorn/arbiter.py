@@ -237,6 +237,10 @@ class Arbiter:
         """SIGCHLD handling - called from main loop, safe to log."""
         self.reap_workers()
 
+    # SIGCLD is an alias for SIGCHLD on Linux. The SIG_NAMES dict may map
+    # to either "chld" or "cld" depending on iteration order of dir(signal).
+    handle_cld = handle_chld
+
     def handle_hup(self):
         """\
         HUP handling.
@@ -551,8 +555,11 @@ class Arbiter:
                         if sig == signal.SIGKILL:
                             msg += " Perhaps out of memory?"
                             self.log.error(msg)
+                        elif sig == signal.SIGTERM:
+                            # SIGTERM is expected during graceful shutdown
+                            self.log.info(msg)
                         else:
-                            # SIGTERM/SIGQUIT are expected during shutdown
+                            # Other signals are unexpected
                             self.log.warning(msg)
 
                     if exitcode is not None and exitcode != 0:
@@ -597,6 +604,16 @@ class Arbiter:
                                   "value": active_worker_count,
                                   "mtype": "gauge"})
 
+        if self.cfg.enable_backlog_metric:
+            backlog = sum(sock.get_backlog() or 0
+                          for sock in self.LISTENERS)
+
+            if backlog >= 0:
+                self.log.debug("socket backlog: {0}".format(backlog),
+                               extra={"metric": "gunicorn.backlog",
+                                      "value": backlog,
+                                      "mtype": "histogram"})
+
     def spawn_worker(self):
         self.worker_age += 1
         worker = self.worker_class(self.worker_age, self.pid, self.LISTENERS,
@@ -631,8 +648,10 @@ class Arbiter:
             print("%s" % e, file=sys.stderr)
             sys.stderr.flush()
             sys.exit(self.APP_LOAD_ERROR)
-        except Exception:
+        except Exception as e:
             self.log.exception("Exception in worker process")
+            print("%s" % e, file=sys.stderr)
+            sys.stderr.flush()
             if not worker.booted:
                 sys.exit(self.WORKER_BOOT_ERROR)
             sys.exit(-1)
