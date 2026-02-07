@@ -558,8 +558,12 @@ private:
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(requestHeaderExt.in_memory_mode());
 
+        auto versionedReadOptions = request->has_versioned_read_options()
+            ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
+            : TVersionedReadOptions();
+
         context->SetRequestInfo("TabletIds: %v, Timestamp: %v, RetentionTimestamp: %v, RequestCodec: %v, ResponseCodec: %v, "
-            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v",
+            "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v, VersionedReadMode: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
             }),
@@ -569,7 +573,8 @@ private:
             responseCodecId,
             chunkReadOptions.ReadSessionId,
             inMemoryMode,
-            retentionConfig);
+            retentionConfig,
+            versionedReadOptions.ReadMode);
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
@@ -604,9 +609,7 @@ private:
             std::move(chunkReadOptions),
             std::move(retentionConfig),
             request->enable_partial_result(),
-            request->has_versioned_read_options()
-                ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
-                : TVersionedReadOptions(),
+            std::move(versionedReadOptions),
             Bootstrap_->GetTabletSnapshotStore(),
             GetCurrentProfilingUser(),
             GetCurrentInvoker());
