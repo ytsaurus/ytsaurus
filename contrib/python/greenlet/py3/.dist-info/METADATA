@@ -1,26 +1,22 @@
 Metadata-Version: 2.4
 Name: greenlet
-Version: 3.3.0
+Version: 3.3.1
 Summary: Lightweight in-process concurrent programming
-Home-page: https://greenlet.readthedocs.io/
-Author: Alexey Borzenkov
-Author-email: snaury@gmail.com
-Maintainer: Jason Madden
-Maintainer-email: jason@seecoresoftware.com
-License: MIT AND Python-2.0
-Project-URL: Bug Tracker, https://github.com/python-greenlet/greenlet/issues
-Project-URL: Source Code, https://github.com/python-greenlet/greenlet/
-Project-URL: Documentation, https://greenlet.readthedocs.io/
-Project-URL: Changes, https://greenlet.readthedocs.io/en/latest/changes.html
-Keywords: greenlet coroutine concurrency threads cooperative
-Platform: any
+Author-email: Alexey Borzenkov <snaury@gmail.com>
+Maintainer-email: Jason Madden <jason@seecoresoftware.com>
+License-Expression: MIT AND Python-2.0
+Project-URL: Homepage, https://greenlet.readthedocs.io
+Project-URL: Documentation, https://greenlet.readthedocs.io
+Project-URL: Repository, https://github.com/python-greenlet/greenlet
+Project-URL: Issues, https://github.com/python-greenlet/greenlet/issues
+Project-URL: Changelog, https://greenlet.readthedocs.io/en/latest/changes.html
+Keywords: greenlet,coroutine,concurrency,threads,cooperative
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Natural Language :: English
 Classifier: Programming Language :: C
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3 :: Only
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
@@ -39,22 +35,7 @@ Provides-Extra: test
 Requires-Dist: objgraph; extra == "test"
 Requires-Dist: psutil; extra == "test"
 Requires-Dist: setuptools; extra == "test"
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: keywords
-Dynamic: license
 Dynamic: license-file
-Dynamic: maintainer
-Dynamic: maintainer-email
-Dynamic: platform
-Dynamic: project-url
-Dynamic: provides-extra
-Dynamic: requires-python
-Dynamic: summary
 
 .. This file is included into docs/history.rst
 
