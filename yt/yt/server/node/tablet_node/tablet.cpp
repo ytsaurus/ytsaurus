@@ -2319,7 +2319,7 @@ void TTablet::ReconfigureCompressionDictionaries()
 
 void TTablet::ReconfigureProfiling()
 {
-    TableProfiler_ = CreateTableProfiler(
+    TableProfiler_ = GetTabletProfilerManager()->CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
         Context_->GetTabletCellBundleName(),
         TablePath_,

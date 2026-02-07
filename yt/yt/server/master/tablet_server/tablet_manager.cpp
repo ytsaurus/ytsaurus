@@ -3505,6 +3505,7 @@ private:
         TReqMountHunkTablet request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
+        request.set_path(tablet->GetOwner()->GetMountPath());
 
         MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &request);
 

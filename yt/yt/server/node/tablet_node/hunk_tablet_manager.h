@@ -12,6 +12,8 @@ struct IHunkTabletHost
     : public virtual TRefCounted
 {
     virtual void ScheduleScanTablet(TTabletId tabletId) = 0;
+
+    virtual const std::string& GetTabletCellBundleName() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHunkTabletHost)

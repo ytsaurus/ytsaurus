@@ -131,6 +131,7 @@ SRCS(
     tablet_node/hunk_lock_manager.cpp
     tablet_node/hunk_store.cpp
     tablet_node/hunk_tablet.cpp
+    tablet_node/hunk_tablet_profiling.cpp
     tablet_node/hunk_tablet_scanner.cpp
     tablet_node/hunk_tablet_manager.cpp
     tablet_node/hunks_serialization.cpp
@@ -187,6 +188,7 @@ SRCS(
     tablet_node/tablet_memory_statistics.cpp
     tablet_node/tablet_cell_write_manager.cpp
     tablet_node/tablet_profiling.cpp
+    tablet_node/tablet_profiling_base.cpp
     tablet_node/tablet_reader.cpp
     tablet_node/tablet_service.cpp
     tablet_node/tablet_slot.cpp

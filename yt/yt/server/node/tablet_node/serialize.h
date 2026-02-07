@@ -69,6 +69,9 @@ DEFINE_ENUM(ETabletReign,
     ((SmoothMovementOrdered)                       (101406)) // ifsmirnov
     ((AddConflictHorizon)                          (101407)) // ponasenko-rs
     ((ReignInHiveMessages)                         (101408)) // ifsmirnov
+    // 26.1 starts here.
+    ((Start_26_1)                                  (101500)) // akozhikhov
+    ((HunkTabletSensors)                           (101501)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
