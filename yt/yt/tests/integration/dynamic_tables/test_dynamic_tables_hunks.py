@@ -145,6 +145,131 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
+    @authors("akozhikhov")
+    def test_timestamped_lookup(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+
+        sync_mount_table("//tmp/t")
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        result = lookup_rows("//tmp/t", keys, with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+
+        rows1 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        rows2 = [{"key": i, "value2": "value2" + str(i)} for i in range(10)]
+        rows3 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+            rows1[index]["$timestamp:value1"] = timestamp
+            rows2[index]["$timestamp:value2"] = timestamp
+            rows3[index]["$timestamp:value2"] = timestamp
+
+        assert_items_equal(result, rows)
+
+        def _check(column_names, expected_result):
+            result = lookup_rows("//tmp/t", keys, with_timestamps=True, column_names=column_names)
+            assert_items_equal(result, expected_result)
+
+        _check(["key", "$timestamp:value1", "value1"], rows1)
+        _check(["key", "$timestamp:value2", "value2"], rows2)
+        _check(["key", "value2", "$timestamp:value2"], rows2)
+        _check(["key", "value1", "$timestamp:value2"], rows3)
+        _check(["key", "$timestamp:value2", "value1"], rows3)
+        for index in range(10):
+            rows3[index]["value2"] = "value2" + str(index)
+        _check(["key", "value2", "$timestamp:value2", "value1"], rows3)
+
+    @authors("akozhikhov")
+    def test_timestamped_select(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        result = lookup_rows("//tmp/t", [{"key": 0}], with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+
+        rows1 = [{"value1": "value1" + str(i) * 10} for i in range(10)]
+        rows2 = [{"value2": "value2" + str(i)} for i in range(10)]
+        rows3 = [{"key": i, "value1": "value1" + str(i) * 10} for i in range(10)]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+            rows1[index]["$timestamp:value1"] = timestamp
+            rows2[index]["$timestamp:value2"] = timestamp
+            rows3[index]["$timestamp:value2"] = timestamp
+
+        def _check(columns, expected_result):
+            result = select_rows(columns + " from [//tmp/t]", with_timestamps=True)
+            assert_items_equal(result, expected_result)
+            result = select_rows(columns + " from [//tmp/t] where key in (1, 3, 5, 7, 9)", with_timestamps=True)
+            assert_items_equal(result, expected_result[1::2])
+
+        _check("[$timestamp:value1], value1, value2, [$timestamp:value2], key", rows)
+        _check("key, [$timestamp:value1], [$timestamp:value2], value1, value2", rows)
+        _check("value1, [$timestamp:value1]", rows1)
+        _check("value2, [$timestamp:value2]", rows2)
+        _check("key, value1, [$timestamp:value2]", rows3)
+        _check("key, [$timestamp:value2], value1", rows3)
+
+    @authors("akozhikhov")
+    def test_timestamped_operation(self):
+        sync_create_cells(1)
+        SCHEMA_WITH_VALUES = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 5},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=SCHEMA_WITH_VALUES)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "value1" + str(i) * 10, "value2": "value2" + str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        result = lookup_rows("//tmp/t", [{"key": 0}], with_timestamps=True)
+        timestamp = result[0]["$timestamp:value1"]
+        for index in range(10):
+            rows[index]["$timestamp:value1"] = timestamp
+            rows[index]["$timestamp:value2"] = timestamp
+
+        sync_unmount_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="<versioned_read_options={read_mode=latest_timestamp}>//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+            spec={
+                "input_schema": [
+                    {"name": "$timestamp:value2", "type": "uint64"},
+                    {"name": "key", "type": "int64"},
+                    {"name": "value2", "type": "string"},
+                    {"name": "$timestamp:value1", "type": "uint64"},
+                    {"name": "value1", "type": "string"},
+                ],
+                "input_query": "*",
+            }
+        )
+        assert read_table("//tmp/t_out") == rows
+
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
