@@ -20,6 +20,7 @@ struct TChunkReadOptions
     : public NChunkClient::TClientChunkReadOptions
 {
     NChunkClient::IBlockCachePtr BlockCache;
+    NChunkClient::EBlockType BlockType = NChunkClient::EBlockType::CompressedData;
     bool PopulateCache = false;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
@@ -30,6 +31,14 @@ struct TChunkReadOptions
     TInstant ReadMetaDeadLine = TInstant::Max();
 
     std::vector<std::pair<std::string, double>> FairShareTags;
+
+    //! This option set to |true| overrides the default behavior of journal chunk reader, namely
+    //! all requested blocks will be read (and not only the first continuous run) and also block cache will be used.
+    //! It is used when reading fragments from journal hunk chunks with block prefetch.
+    bool ReadCompleteBlockSetAndCache = false;
+    //! This option makes sense when the option above is set to |true|. It determines how many blocks following
+    //! one that was requested will be immediately read and cached for future use.
+    int BlockCountToPrecache = 0;
 };
 
 //! Represents a chunk stored locally at Data Node.
